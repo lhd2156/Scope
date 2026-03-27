@@ -4,14 +4,19 @@ from app.errors import register_error_handlers
 from app.extensions import db
 from app.logging_config import configure_logging
 from app.middleware import register_middleware
+from config import settings
 
 
-def create_app() -> Flask:
+def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
-    app.config.from_object("config.Settings")
-    app.config["SECRET_KEY"] = __import__("config").settings.secret_key
-    app.config["SQLALCHEMY_DATABASE_URI"] = __import__("config").settings.database_url
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config.update(
+        SECRET_KEY=settings.secret_key,
+        SQLALCHEMY_DATABASE_URI=settings.database_url,
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        RATE_LIMIT_PER_MINUTE=settings.rate_limit_per_minute,
+    )
+    if test_config:
+        app.config.update(test_config)
 
     configure_logging(app)
     db.init_app(app)
