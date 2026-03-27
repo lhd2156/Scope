@@ -1,0 +1,55 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+artifacts/
+TestResults/
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+*.exe
+*.obj
+*.o
+*.class
+
+# Logs
+*.log
+logs/
+
+# IDE / OS
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+
+# Local databases / volumes
+.mssql/
+.kafka/
+.zookeeper/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Docker override files
+docker-compose.override.yml
