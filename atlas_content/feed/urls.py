@@ -1,0 +1,1 @@
+from django.urls import path\nfrom feed.views import social_feed, trending_spots\nurlpatterns = [path('', social_feed), path('trending', trending_spots)]\n
