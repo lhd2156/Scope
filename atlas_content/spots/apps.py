@@ -1,0 +1,1 @@
+from django.apps import AppConfig\n\nclass SpotsConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'spots'\n

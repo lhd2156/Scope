@@ -1,0 +1,1 @@
+from django.apps import AppConfig\n\nclass TripsConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'trips'\n
