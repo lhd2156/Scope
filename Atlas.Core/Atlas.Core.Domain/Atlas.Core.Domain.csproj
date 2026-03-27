@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Atlas.Core.Domain</AssemblyName>
+    <RootNamespace>Atlas.Core.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
