@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Explore</h1><p class="section-copy">Browse/filter spots by category, city, and vibe through the content API.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Trip Planner</h1><p class="section-copy">AI itinerary planner targeting <code>/api/intel/itinerary/generate</code>.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

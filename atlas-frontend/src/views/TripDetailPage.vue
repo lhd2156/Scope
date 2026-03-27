@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Trip Detail</h1><p class="section-copy">Timeline, members, and route overlays render here.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

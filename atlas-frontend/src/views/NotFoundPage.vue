@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><section class="glass-panel" style="padding:3rem"><h1>Page not found</h1></section></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

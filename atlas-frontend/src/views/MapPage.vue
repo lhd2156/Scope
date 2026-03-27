@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Map</h1><div class="surface-card map-box">Mapbox GL integration stub. Configure <code>VITE_MAPBOX_TOKEN</code>.</div></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script><style scoped>.map-box{min-height:24rem;padding:var(--space-6)}</style>

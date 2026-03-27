@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Friends</h1><p class="section-copy">Friend list, requests, and notifications via SignalR.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Profile</h1><p class="section-copy">Adventure map, stats, and profile details.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

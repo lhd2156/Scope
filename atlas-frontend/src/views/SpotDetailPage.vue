@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Spot Detail</h1><p class="section-copy">Spot info, photos, reviews, and an embedded map live here.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>

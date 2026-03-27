@@ -1,0 +1,1 @@
+<template><AppShell><div class="page-container"><h1 class="section-title">Settings</h1><p class="section-copy">Account, theme, privacy, and preferences.</p></div></AppShell></template><script setup lang="ts">import AppShell from '@/components/common/AppShell.vue';</script>
