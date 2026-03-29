@@ -305,6 +305,8 @@ Current automation coverage:
 - Content install/check/test
 - Intel install/test
 - Frontend install/build/test
+- Kubernetes YAML syntax checks in CI
+- Terraform `fmt` / `init -backend=false` / `validate` checks in CI
 - GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
