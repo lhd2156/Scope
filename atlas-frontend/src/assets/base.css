@@ -15,9 +15,20 @@ img { max-width: 100%; display: block; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-full); }
 .layout-shell { min-height: 100vh; }
 .page-container { width: min(1200px, calc(100% - 2rem)); margin: 0 auto; padding: 6rem 0 3rem; }
+.page-stack { display: grid; gap: var(--space-6); }
+.card-grid,
+.grid-auto { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .glass-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: var(--glass-blur); box-shadow: var(--shadow-md); border-radius: var(--radius-2xl); }
+.surface-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); }
 .section-title { font-size: var(--font-size-h1); line-height: var(--line-height-tight); margin: 0 0 var(--space-4); }
 .section-copy { color: var(--text-secondary); line-height: var(--line-height-relaxed); }
-.grid-auto { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.surface-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0.85rem 1.1rem; border-radius: var(--radius-full); border: 1px solid transparent; font-weight: var(--font-weight-semibold); transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), color var(--transition-fast); }
+.button:hover,
+.button:focus-visible { transform: translateY(-0.0625rem); outline: none; }
+.button-primary { background: var(--accent-teal); color: var(--bg-primary); }
+.button-primary:hover,
+.button-primary:focus-visible { background: var(--accent-teal-hover); box-shadow: var(--shadow-glow-teal); }
+.button-secondary { background: transparent; color: var(--text-primary); border-color: var(--border); }
+.button-secondary:hover,
+.button-secondary:focus-visible { background: var(--bg-secondary); border-color: var(--border-hover); }
 @media (max-width: 768px) { .page-container { width: min(100% - 1rem, 1200px); padding-top: 5rem; } }

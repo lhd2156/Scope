@@ -11,7 +11,7 @@
 - [x] 6. Build SpotCard and SpotDetail
 - [x] 7. Build SpotForm with photo upload
 - [x] 8. Build TripPlanner and ItineraryView
-- [ ] 9. Build social feed and notifications
+- [x] 9. Build social feed and notifications
 - [ ] 10. Build profile page with adventure map
 - [ ] 11. Build explore page with filters
 - [x] 12. Add Pinia stores for all modules
@@ -21,8 +21,8 @@
 - [ ] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: 9
-## Last Updated: 2026-03-29T03:15:00Z
+## Current Task: 10
+## Last Updated: 2026-03-29T03:53:40Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -35,6 +35,7 @@
 - 2026-03-29T02:33:28Z: COMPLETED task 6 — upgraded SpotCard and SpotDetail into premium production surfaces with richer metadata, gallery/review presentation, embedded mini-map context, and route-safe detail loading states. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new spot component coverage.
 - 2026-03-29T02:57:00Z: COMPLETED task 7 — shipped SpotForm with create/edit composer routes, manual + Mapbox-ready pin placement, photo upload previews, mock-backed create/update persistence, and validation coverage for the full spot submission flow. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
 - 2026-03-29T03:15:00Z: COMPLETED task 8 — upgraded trip planning into production-grade surfaces with a reusable TripPlanner wizard, premium TripCard/TripDetail layouts, MemberList and TripTimeline components, and an ItineraryView that renders route previews plus day-by-day cost breakdowns. Trip planner and detail pages now consume the component layer directly. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new trip component coverage.
+- 2026-03-29T03:53:40Z: COMPLETED task 9 — delivered the social layer with premium FeedItem cards, reusable UserCard/FriendList/NotificationDropdown components, an upgraded FriendsPage workspace, navbar notification badge integration, and refreshed home feed presentation backed by richer mock social data plus pagination-aware feed/notification stores. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after aligning two brittle legacy trip wording specs with the current UI copy.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT

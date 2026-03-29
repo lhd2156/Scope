@@ -11,6 +11,7 @@
           <div class="hero-actions">
             <RouterLink class="button button-primary" to="/explore">Explore the map</RouterLink>
             <RouterLink class="button button-secondary" to="/trips/new">Plan a trip</RouterLink>
+            <RouterLink class="button button-secondary" to="/friends">View your network</RouterLink>
           </div>
         </div>
         <img src="@/assets/hero.png" alt="Atlas hero" class="hero-art" />
@@ -33,7 +34,8 @@
           title="Recent activity from the network"
           description="Feed items wire together the content engine and social layer so trip planning feels alive."
         />
-        <div class="feed-list">
+        <p v-if="feedStore.loading" class="section-copy">Loading recent network activity...</p>
+        <div v-else class="feed-list">
           <FeedItem v-for="item in feedStore.items" :key="item.id" :item="item" />
         </div>
       </section>
