@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
+import { resolveNavigationGuard } from '@/router/guards';
 
 const routes = [
   { path: '/', name: 'home', component: () => import('@/views/HomePage.vue') },
@@ -18,16 +18,12 @@ const routes = [
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundPage.vue') },
 ];
 
-const router = createRouter({ history: createWebHistory(), routes, scrollBehavior: () => ({ top: 0 }) });
-router.beforeEach((to) => {
-  const auth = useAuthStore();
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } };
-  }
-  if (to.meta.guestOnly && auth.isAuthenticated) {
-    return { name: 'home' };
-  }
-  return true;
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  scrollBehavior: () => ({ top: 0 }),
 });
+
+router.beforeEach((to) => resolveNavigationGuard(to));
 
 export default router;
