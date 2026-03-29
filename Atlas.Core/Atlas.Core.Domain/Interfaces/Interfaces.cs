@@ -19,11 +19,19 @@ public interface IKafkaProducerService
     Task PublishAsync(string topic, object payload, CancellationToken cancellationToken = default);
 }
 
+public interface IAvatarStorageService
+{
+    Task<string> SaveAvatarAsync(Guid userId, string fileName, string contentType, Stream content, CancellationToken cancellationToken = default);
+}
+
 public interface IAuthService
 {
     Task<AuthResult> RegisterAsync(string username, string email, string password, string displayName, CancellationToken cancellationToken = default);
     Task<AuthResult> LoginAsync(string email, string password, CancellationToken cancellationToken = default);
     Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task ForgotPasswordAsync(string email, CancellationToken cancellationToken = default);
+    Task ResetPasswordAsync(string token, string password, CancellationToken cancellationToken = default);
+    Task<AuthResult> LoginWithCognitoAsync(string email, string? username, string? displayName, string? subject, CancellationToken cancellationToken = default);
     Task<UserProfile> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }
