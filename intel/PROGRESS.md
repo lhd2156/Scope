@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Verify API response formats match Appendix B exactly
-## Last Updated: 2026-03-29T14:23:57Z
+## Current Task: Check for hardcoded secrets, debug statements, TODO comments, dead code
+## Last Updated: 2026-03-29T14:50:22Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -48,6 +48,7 @@
 - 2026-03-29: Added explicit private cache headers for weather and geocoding responses, including route-specific TTLs and `Vary: Authorization`, added header assertions for weather/geocode/reverse-geocode, and re-ran the full Intel pytest suite successfully (`99 passed`).
 - 2026-03-29: Re-verified the live Intel route map against `atlas_architecture.tex`, added a final audit test that locks the exact documented endpoint set/methods and public-vs-protected posture, and re-ran the full Intel pytest suite successfully (`101 passed`).
 - 2026-03-29: Re-ran the full Phase 12 Intel validation sequence from inside `atlas_intel/` with `python -m pip install -r requirements.txt ; python -m pytest tests`; dependency install stayed green, the full suite passed again (`101 passed`), and no code fixes were required.
+- 2026-03-29: Verified Intel response formats against Appendix B exactly, disabled Flask JSON key sorting so itinerary payloads preserve documented field order, forced itinerary cost fields to remain floats, added dedicated Appendix B response-shape tests, and re-ran the full Intel suite successfully (`103 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -88,7 +89,7 @@
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [x] Run full build and all tests — fix any failures
-- [ ] Verify API response formats match Appendix B exactly
+- [x] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify ML model loading works
 - [ ] Verify itinerary caching logic

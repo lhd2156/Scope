@@ -23,7 +23,12 @@ class ItineraryEngine:
         ordered_spots = self._nearest_neighbor(scored_spots)
         days = self._build_days(ordered_spots, payload["startDate"], payload["endDate"], payload["pace"], payload["groupSize"])
         total_cost = sum(spot["estimatedCost"] for day in days for spot in day["spots"])
-        return {"destination": payload["destination"], "days": days, "totalEstimatedCost": round(total_cost, 2), "weatherForecast": weather.summary}
+        return {
+            "destination": payload["destination"],
+            "days": days,
+            "totalEstimatedCost": float(round(total_cost, 2)),
+            "weatherForecast": weather.summary,
+        }
 
     def _score_spot(self, spot: Spot, interests: list[str], weather: WeatherSnapshot) -> float:
         vibe_match = 1.0 if spot.category in interests else 0.4
@@ -60,7 +65,7 @@ class ItineraryEngine:
                     "latitude": spot.latitude,
                     "longitude": spot.longitude,
                     "category": spot.category,
-                    "estimatedCost": round(spot.estimated_cost * group_size, 2),
+                    "estimatedCost": float(round(spot.estimated_cost * group_size, 2)),
                 })
             days.append({"dayNumber": index + 1, "date": date_value.isoformat(), "spots": serialized})
         return days

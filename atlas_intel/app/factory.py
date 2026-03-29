@@ -37,6 +37,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    app.json.sort_keys = False
+
     missing = [env_name for key, env_name in REQUIRED_CONFIG.items() if not app.config.get(key)]
     if missing:
         joined = ", ".join(missing)

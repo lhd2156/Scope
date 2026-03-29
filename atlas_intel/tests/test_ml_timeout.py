@@ -3,6 +3,7 @@ import time
 from app import create_app
 from app.api import recommendations as recommendations_module
 from app.api import vibe as vibe_module
+from app.ml.runtime import MlComputationTimeoutError
 from tests.conftest import TEST_JWT_AUDIENCE, TEST_JWT_ISSUER, TEST_JWT_SECRET, TEST_SECRET_KEY
 
 
@@ -72,11 +73,10 @@ def test_similar_spots_returns_timeout_error_when_ml_computation_exceeds_limit(a
     app = build_low_timeout_app()
     client = app.test_client()
 
-    def sleepy_similar(*_args, **_kwargs):
-        time.sleep(0.05)
-        return []
+    def force_timeout(_operation, _fn, *_args, **_kwargs):
+        raise MlComputationTimeoutError("similar_spots", 0.01)
 
-    monkeypatch.setattr(recommendations_module.engine, "similar_spots", sleepy_similar)
+    monkeypatch.setattr(recommendations_module, "run_ml_with_timeout", force_timeout)
 
     response = client.post("/api/intel/recommend/similar/spot-2", json={"limit": 2}, headers=auth_header)
 

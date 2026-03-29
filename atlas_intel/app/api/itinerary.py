@@ -22,14 +22,12 @@ def generate_itinerary():
     cached = IntelRepository.get_cached_itinerary_for_request(g.current_user["sub"], payload)
     if cached is not None:
         itinerary_id, itinerary = cached
-        itinerary["id"] = itinerary_id
-        return success_response(itinerary)
+        return success_response({"id": itinerary_id, **itinerary})
 
     weather = weather_service.get_planning_snapshot(payload["startDate"])
     itinerary = engine.generate(payload, weather)
     itinerary_id = IntelRepository.cache_itinerary(g.current_user["sub"], payload, itinerary)
-    itinerary["id"] = itinerary_id
-    return success_response(itinerary)
+    return success_response({"id": itinerary_id, **itinerary})
 
 
 @itinerary_bp.get("/itinerary/<itinerary_id>")
@@ -39,5 +37,4 @@ def get_itinerary(itinerary_id: str):
     itinerary = IntelRepository.get_itinerary(itinerary_id)
     if itinerary is None:
         return error_response(404, "NOT_FOUND", "Resource does not exist", trace_id=getattr(g, "trace_id", None))
-    itinerary["id"] = itinerary_id
-    return success_response(itinerary)
+    return success_response({"id": itinerary_id, **itinerary})
