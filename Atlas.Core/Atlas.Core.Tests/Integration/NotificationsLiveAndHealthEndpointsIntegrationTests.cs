@@ -146,6 +146,34 @@ public sealed class LiveEndpointsIntegrationTests
         var missingStop = await client.PostAsJsonAsync("/api/core/live/stop", new { tripId });
         await EndpointIntegrationTestHelpers.AssertErrorAsync(missingStop, StatusCodes.Status404NotFound, "NOT_FOUND");
     }
+
+    [Fact]
+    public async Task LiveEndpoints_DuplicateStartAndInvalidPayloads_AreHandled()
+    {
+        using var factory = new ApiTestWebApplicationFactory();
+        var user = TestSupport.CreateUser();
+        await factory.SeedAsync(db => db.Users.Add(user));
+        using var client = factory.CreateAuthenticatedClient(user.Id, user.Email, user.DisplayName, user.Role);
+        var tripId = Guid.NewGuid();
+
+        var firstStart = await client.PostAsync($"/api/core/live/start/{tripId}", null);
+        Assert.Equal(HttpStatusCode.Created, firstStart.StatusCode);
+
+        var duplicateStart = await client.PostAsync($"/api/core/live/start/{tripId}", null);
+        Assert.Equal(HttpStatusCode.OK, duplicateStart.StatusCode);
+        Assert.Equal(1, await factory.ExecuteDbContextAsync(db => Task.FromResult(db.LiveSessions.Count())));
+
+        var invalidPing = await client.PutAsJsonAsync("/api/core/live/ping", new
+        {
+            tripId = Guid.Empty,
+            latitude = 91,
+            longitude = -181
+        });
+        await EndpointIntegrationTestHelpers.AssertErrorAsync(invalidPing, StatusCodes.Status400BadRequest, "VALIDATION_ERROR");
+
+        var invalidStop = await client.PostAsJsonAsync("/api/core/live/stop", new { tripId = Guid.Empty });
+        await EndpointIntegrationTestHelpers.AssertErrorAsync(invalidStop, StatusCodes.Status400BadRequest, "VALIDATION_ERROR");
+    }
 }
 
 public sealed class HealthEndpointsIntegrationTests

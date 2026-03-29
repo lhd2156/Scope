@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Handle edge cases: empty inputs, unauthorized access, not found, duplicates
-## Last Updated: 2026-03-29T12:34:00Z
+## Current Task: Add Serilog with JSON output and correlation ID enrichment
+## Last Updated: 2026-03-29T12:49:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -64,6 +64,9 @@
 - 2026-03-29T12:34:00Z centralized API error-envelope writing, hardened ExceptionHandlingMiddleware for malformed HTTP/JSON payloads plus already-started responses, and added API status-code fallback handling so bare 401/404 framework responses now return the Atlas standard error JSON shape
 - 2026-03-29T12:34:00Z strengthened the shared HTTP integration helper to assert message/details/traceId on every error response and added targeted middleware + HTTP tests for unauthorized REST/hub negotiate requests, missing routes, malformed JSON, and internal exception handling branches
 - 2026-03-29T12:34:00Z reran Atlas.Core build/test after the error-handling hardening and passed build (0 warnings, 0 errors) plus tests (145 passed, 0 failed)
+- 2026-03-29T12:49:00Z expanded live HTTP edge-case coverage for blank auth payloads, invalid/empty refresh-reset flows, forbidden cross-user deletes, duplicate live-session starts, and invalid live-session payloads so the checklist categories (empty inputs, unauthorized/forbidden, not found, duplicates) are all exercised through the ASP.NET Core pipeline
+- 2026-03-29T12:49:00Z confirmed a subtle API-boundary behavior: the non-nullable `q` query param on `/api/core/users/search` returns `400 VALIDATION_ERROR` for blank query-string input even though the controller method itself handles whitespace when invoked directly, so the edge-case integration suite now asserts the real HTTP contract
+- 2026-03-29T12:49:00Z reran Atlas.Core build/test after the edge-case expansion and passed build (0 warnings, 0 errors) plus tests (154 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -91,7 +94,7 @@
 - [x] Write integration tests for every API endpoint (happy path + error cases)
 - [x] Add tests for all SignalR hubs
 - [x] Add proper error handling with try/catch and standard error responses
-- [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
+- [x] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 
 ### Phase 9: Performance & Observability
 - [ ] Add Serilog with JSON output and correlation ID enrichment

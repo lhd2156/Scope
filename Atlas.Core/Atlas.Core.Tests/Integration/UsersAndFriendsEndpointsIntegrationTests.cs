@@ -87,6 +87,22 @@ public sealed class UsersEndpointsIntegrationTests
         var missingStats = await client.GetAsync($"/api/core/users/{Guid.NewGuid()}/stats");
         await EndpointIntegrationTestHelpers.AssertErrorAsync(missingStats, StatusCodes.Status404NotFound, "NOT_FOUND");
     }
+
+    [Fact]
+    public async Task UsersEndpoints_BlankSearchAndUnauthorizedDelete_ReturnExpectedErrors()
+    {
+        using var factory = new ApiTestWebApplicationFactory();
+        var currentUser = TestSupport.CreateUser();
+        var otherUser = TestSupport.CreateUser(username: "other", email: "other@example.com", displayName: "Other User");
+        await factory.SeedAsync(db => db.Users.AddRange(currentUser, otherUser));
+        using var client = factory.CreateAuthenticatedClient(currentUser.Id, currentUser.Email, currentUser.DisplayName, currentUser.Role);
+
+        var blankSearchResponse = await client.GetAsync("/api/core/users/search?q=%20%20%20");
+        await EndpointIntegrationTestHelpers.AssertErrorAsync(blankSearchResponse, StatusCodes.Status400BadRequest, "VALIDATION_ERROR");
+
+        var forbiddenDelete = await client.DeleteAsync($"/api/core/users/{otherUser.Id}");
+        await EndpointIntegrationTestHelpers.AssertErrorAsync(forbiddenDelete, StatusCodes.Status403Forbidden, "FORBIDDEN");
+    }
 }
 
 public sealed class FriendsEndpointsIntegrationTests
