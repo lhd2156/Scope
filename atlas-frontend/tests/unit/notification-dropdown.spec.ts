@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 
 const notificationsStoreState = reactive({
   items: [] as Array<{
@@ -43,6 +43,7 @@ import NotificationDropdown from '@/components/social/NotificationDropdown.vue';
 
 describe('NotificationDropdown', () => {
   beforeEach(() => {
+    document.body.innerHTML = '';
     notificationsStoreState.items = Array.from({ length: 12 }, (_, index) => ({
       id: `notification-${index}`,
       title: `Update ${index}`,
@@ -60,6 +61,7 @@ describe('NotificationDropdown', () => {
 
   it('renders a virtualized notification list and routes read actions through the store', async () => {
     const wrapper = mount(NotificationDropdown, {
+      attachTo: document.body,
       global: {
         stubs: {
           AtlasIcon: { template: '<span class="icon-stub" />' },
@@ -72,6 +74,7 @@ describe('NotificationDropdown', () => {
     expect(wrapper.text()).toContain('Notifications');
     expect(wrapper.text()).toContain('Update 0');
     expect(wrapper.text()).not.toContain('Update 11');
+    expect(wrapper.get('.notification-menu').attributes('role')).toBe('dialog');
 
     await wrapper.get('.link-button').trigger('click');
     expect(notificationsStoreMock.markAllRead).toHaveBeenCalledTimes(1);
@@ -79,6 +82,40 @@ describe('NotificationDropdown', () => {
     const firstRow = wrapper.findAll('.notification-row')[0];
     await firstRow.trigger('click');
     expect(notificationsStoreMock.markRead).toHaveBeenCalledWith('notification-0');
+  });
+
+  it('supports keyboard opening, focus movement, and escape dismissal', async () => {
+    const wrapper = mount(NotificationDropdown, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AtlasIcon: { template: '<span class="icon-stub" />' },
+        },
+      },
+    });
+
+    const trigger = wrapper.get('.notification-toggle');
+    (trigger.element as HTMLButtonElement).focus();
+
+    await trigger.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+
+    const panel = wrapper.get('.notification-menu');
+    const visibleNotificationRows = wrapper.findAll('.notification-row');
+    const lastVisibleNotificationRow = visibleNotificationRows[visibleNotificationRows.length - 1];
+
+    expect(trigger.attributes('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(wrapper.get('.link-button').element);
+
+    await panel.trigger('keydown', { key: 'End' });
+    await flushPromises();
+    expect(document.activeElement).toBe(lastVisibleNotificationRow.element);
+
+    await panel.trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+
+    expect(wrapper.find('.notification-menu').exists()).toBe(false);
+    expect(document.activeElement).toBe(trigger.element);
   });
 
   it('shows loading skeletons while the inbox is hydrating', async () => {

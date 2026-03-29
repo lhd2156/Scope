@@ -7,7 +7,9 @@
         :data-route-name="resolveRouteStageName(activeRoute)"
         :data-route-path="activeRoute.path"
       >
-        <component :is="Component" />
+        <AppErrorBoundary :reset-key="resolveRouteBoundaryKey(activeRoute)">
+          <component :is="Component" />
+        </AppErrorBoundary>
       </div>
     </Transition>
   </RouterView>
@@ -18,6 +20,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from 'vue';
 import { RouterView, useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
+import AppErrorBoundary from '@/components/common/AppErrorBoundary.vue';
 import ToastViewport from '@/components/common/ToastViewport.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationsStore } from '@/stores/notifications';
@@ -65,6 +68,10 @@ function dismissSessionExpiredToast(invokeOnClose = false): void {
 
 function resolveRouteStageKey(activeRoute: RouteLocationNormalizedLoaded): string {
   return activeRoute.path;
+}
+
+function resolveRouteBoundaryKey(activeRoute: RouteLocationNormalizedLoaded): string {
+  return activeRoute.fullPath;
 }
 
 function resolveRouteStageName(activeRoute: RouteLocationNormalizedLoaded): string {

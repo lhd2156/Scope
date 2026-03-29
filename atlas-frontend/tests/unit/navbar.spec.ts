@@ -56,6 +56,7 @@ function buildRouter() {
 
 describe('Navbar', () => {
   beforeEach(() => {
+    document.body.innerHTML = '';
     authStoreMock.error = null;
     authStoreMock.logout.mockClear();
     toastStoreMock.showSuccess.mockClear();
@@ -75,6 +76,7 @@ describe('Navbar', () => {
     await router.isReady();
 
     const wrapper = mount(Navbar, {
+      attachTo: document.body,
       global: {
         plugins: [router],
         stubs: {
@@ -86,6 +88,7 @@ describe('Navbar', () => {
           ThemeToggle: { template: '<div data-test="theme-toggle-stub">Theme</div>' },
           Avatar: { template: '<div data-test="avatar-stub">Avatar</div>' },
           AtlasIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
         },
       },
     });
@@ -109,6 +112,59 @@ describe('Navbar', () => {
     });
   });
 
+  it('opens the profile menu with keyboard controls, cycles items, and restores focus on escape', async () => {
+    authStoreMock.isAuthenticated = true;
+    authStoreMock.currentUser = {
+      id: 'user-1',
+      displayName: 'Louis Do',
+      avatarUrl: 'https://images.example.com/avatar.jpg',
+    };
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: { template: '<div>Search</div>' },
+          NotificationDropdown: { template: '<div>Notifications</div>' },
+          ThemeToggle: { template: '<div>Theme</div>' },
+          Avatar: { template: '<div>Avatar</div>' },
+          AtlasIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+
+    const profileButton = wrapper.get('.profile-chip');
+    (profileButton.element as HTMLButtonElement).focus();
+
+    await profileButton.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+
+    const menuPanel = wrapper.get('.menu-dropdown');
+    const menuLinks = menuPanel.findAll('[role="menuitem"]');
+
+    expect(profileButton.attributes('aria-expanded')).toBe('true');
+    expect(menuPanel.attributes('role')).toBe('menu');
+    expect(document.activeElement).toBe(menuLinks[0]?.element);
+
+    await menuPanel.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+    expect(document.activeElement).toBe(menuLinks[1]?.element);
+
+    (profileButton.element as HTMLButtonElement).focus();
+    await profileButton.trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(profileButton.attributes('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(profileButton.element);
+  });
+
   it('shows guest actions when no authenticated user is present', async () => {
     authStoreMock.isAuthenticated = false;
     authStoreMock.currentUser = null;
@@ -123,6 +179,7 @@ describe('Navbar', () => {
         stubs: {
           SearchBar: { template: '<div>Search</div>' },
           ThemeToggle: { template: '<div data-test="theme-toggle-stub">Theme</div>' },
+          Transition: false,
         },
       },
     });

@@ -3,23 +3,26 @@
     <Transition name="modal-fade">
       <div v-if="open" class="modal-backdrop" @click="handleBackdropClick">
         <section
+          ref="modalPanelRef"
           class="modal-panel glass-panel"
           :class="[`modal-panel--${size}`]"
           role="dialog"
           aria-modal="true"
-          :aria-label="title"
+          :aria-labelledby="titleId"
+          :aria-describedby="bodyId"
+          tabindex="-1"
           @click.stop
         >
           <header class="modal-header">
             <div>
               <p v-if="eyebrow" class="modal-eyebrow">{{ eyebrow }}</p>
-              <h2>{{ title }}</h2>
+              <h2 :id="titleId">{{ title }}</h2>
             </div>
             <button type="button" class="modal-close" aria-label="Close modal" @click="$emit('close')">
               <AtlasIcon name="close" label="Close modal" />
             </button>
           </header>
-          <div class="modal-body">
+          <div :id="bodyId" class="modal-body">
             <slot />
           </div>
         </section>
@@ -29,8 +32,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
+import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import { focusFirstElement, getFocusableElements } from '@/utils/a11y';
+
+let openModalCount = 0;
+let previousBodyOverflow = '';
 
 const props = withDefaults(
   defineProps<{
@@ -51,6 +58,57 @@ const emit = defineEmits<{
   (event: 'close'): void;
 }>();
 
+const modalPanelRef = ref<HTMLElement | null>(null);
+const titleId = `modal-title-${useId()}`;
+const bodyId = `modal-body-${useId()}`;
+let previouslyFocusedElement: HTMLElement | null = null;
+
+function lockBodyScroll(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  if (openModalCount === 0) {
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+
+  openModalCount += 1;
+}
+
+function unlockBodyScroll(): void {
+  if (typeof document === 'undefined' || openModalCount === 0) {
+    return;
+  }
+
+  openModalCount -= 1;
+
+  if (openModalCount === 0) {
+    document.body.style.overflow = previousBodyOverflow;
+  }
+}
+
+function restoreFocus(): void {
+  const focusTarget = previouslyFocusedElement;
+  previouslyFocusedElement = null;
+
+  if (!focusTarget?.isConnected) {
+    return;
+  }
+
+  void nextTick(() => {
+    focusTarget.focus();
+  });
+}
+
+function focusModalPanel(): void {
+  if (focusFirstElement(modalPanelRef.value)) {
+    return;
+  }
+
+  modalPanelRef.value?.focus();
+}
+
 function handleBackdropClick() {
   if (props.closeOnBackdrop) {
     emit('close');
@@ -58,26 +116,91 @@ function handleBackdropClick() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.open) {
-    emit('close');
+  if (!props.open) {
+    return;
   }
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    emit('close');
+    return;
+  }
+
+  if (event.key !== 'Tab') {
+    return;
+  }
+
+  const modalPanel = modalPanelRef.value;
+
+  if (!modalPanel) {
+    return;
+  }
+
+  const focusableElements = getFocusableElements(modalPanel);
+
+  if (!focusableElements.length) {
+    event.preventDefault();
+    modalPanel.focus();
+    return;
+  }
+
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+  const isFocusInsidePanel = activeElement instanceof Node && modalPanel.contains(activeElement);
+
+  if (event.shiftKey) {
+    if (activeElement === firstElement || activeElement === modalPanel || !isFocusInsidePanel) {
+      event.preventDefault();
+      lastElement.focus();
+    }
+
+    return;
+  }
+
+  if (activeElement === lastElement || !isFocusInsidePanel) {
+    event.preventDefault();
+    firstElement.focus();
+  }
+}
+
+async function activateModal(): Promise<void> {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  lockBodyScroll();
+  window.addEventListener('keydown', handleKeydown);
+  await nextTick();
+  focusModalPanel();
+}
+
+function deactivateModal(): void {
+  window.removeEventListener('keydown', handleKeydown);
+  unlockBodyScroll();
+  restoreFocus();
 }
 
 watch(
   () => props.open,
-  (isOpen) => {
+  (isOpen, wasOpen) => {
     if (isOpen) {
-      window.addEventListener('keydown', handleKeydown);
+      void activateModal();
       return;
     }
 
-    window.removeEventListener('keydown', handleKeydown);
+    if (wasOpen) {
+      deactivateModal();
+    }
   },
   { immediate: true },
 );
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  if (props.open) {
+    deactivateModal();
+  }
 });
 </script>
 
@@ -100,6 +223,11 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-2xl);
   padding: var(--space-5);
   z-index: var(--z-modal);
+}
+
+.modal-panel:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 3px;
 }
 
 .modal-panel--sm {
@@ -174,5 +302,17 @@ onBeforeUnmount(() => {
 .modal-fade-enter-from .modal-panel,
 .modal-fade-leave-to .modal-panel {
   transform: translateY(0.75rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-fade-enter-active,
+  .modal-fade-leave-active {
+    transition-duration: 1ms;
+  }
+
+  .modal-fade-enter-from .modal-panel,
+  .modal-fade-leave-to .modal-panel {
+    transform: none;
+  }
 }
 </style>

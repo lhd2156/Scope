@@ -1,6 +1,16 @@
 <template>
-  <div class="notification-dropdown">
-    <button class="notification-toggle" type="button" @click="toggleMenu">
+  <div ref="dropdownRef" class="notification-dropdown" @focusout="handleDropdownFocusOut">
+    <button
+      :id="triggerId"
+      ref="toggleRef"
+      class="notification-toggle"
+      type="button"
+      aria-haspopup="dialog"
+      :aria-expanded="String(isOpen)"
+      :aria-controls="isOpen ? panelId : undefined"
+      @click="toggleMenu"
+      @keydown="handleToggleKeydown"
+    >
       <span class="notification-toggle__icon">
         <AtlasIcon name="bell" label="Notifications" />
         <span v-if="notificationsStore.unreadCount" class="notification-badge">{{ notificationsStore.unreadCount }}</span>
@@ -8,16 +18,30 @@
       <span class="notification-toggle__label">Notifications</span>
     </button>
 
-    <div v-if="isOpen" class="glass-panel notification-menu">
+    <div
+      v-if="isOpen"
+      :id="panelId"
+      ref="panelRef"
+      class="glass-panel notification-menu"
+      role="dialog"
+      :aria-labelledby="panelHeadingId"
+      :aria-describedby="panelDescriptionId"
+      tabindex="-1"
+      @keydown="handlePanelKeydown"
+    >
       <header class="notification-menu__header">
         <div>
           <p class="eyebrow">Inbox</p>
-          <h3>Recent updates</h3>
+          <h3 :id="panelHeadingId">Recent updates</h3>
         </div>
         <button v-if="notificationsStore.items.length" class="link-button" type="button" @click="void notificationsStore.markAllRead()">
           Mark all read
         </button>
       </header>
+
+      <p :id="panelDescriptionId" class="notification-menu__sr-only">
+        Review your latest Atlas updates, then press Escape to collapse the inbox and return to the bell.
+      </p>
 
       <p v-if="notificationsStore.connectionError" class="notification-state" role="alert">{{ notificationsStore.connectionError }}</p>
       <p v-else-if="notificationsStore.error" class="notification-state" role="alert">{{ notificationsStore.error }}</p>
@@ -72,16 +96,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { onClickOutside } from '@vueuse/core';
+import { computed, nextTick, ref, useId } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SkeletonBlock from '@/components/common/SkeletonBlock.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { NotificationItem } from '@/types';
+import { focusFirstElement, focusLastElement, moveFocus } from '@/utils/a11y';
 
 const notificationsStore = useNotificationsStore();
 const isOpen = ref(false);
+const dropdownRef = ref<HTMLElement | null>(null);
+const toggleRef = ref<HTMLElement | null>(null);
+const panelRef = ref<HTMLElement | null>(null);
+const triggerId = `notification-trigger-${useId()}`;
+const panelId = `notification-panel-${useId()}`;
+const panelHeadingId = `notification-heading-${useId()}`;
+const panelDescriptionId = `notification-description-${useId()}`;
 const showLoadingState = computed(
   () => notificationsStore.loading && !notificationsStore.items.length && !notificationsStore.error && !notificationsStore.connectionError,
 );
@@ -89,8 +122,108 @@ const showEmptyState = computed(
   () => !notificationsStore.loading && !notificationsStore.items.length && !notificationsStore.error && !notificationsStore.connectionError,
 );
 
+function focusPanelBoundary(position: 'first' | 'last'): void {
+  const focusMoved = position === 'first'
+    ? focusFirstElement(panelRef.value)
+    : focusLastElement(panelRef.value);
+
+  if (!focusMoved) {
+    panelRef.value?.focus();
+  }
+}
+
+async function openMenu(position: 'none' | 'first' | 'last' = 'none'): Promise<void> {
+  if (!isOpen.value) {
+    isOpen.value = true;
+    await nextTick();
+  }
+
+  if (position === 'first' || position === 'last') {
+    focusPanelBoundary(position);
+  }
+}
+
+function closeMenu(options: { restoreFocus?: boolean } = {}): void {
+  if (!isOpen.value) {
+    return;
+  }
+
+  isOpen.value = false;
+
+  if (options.restoreFocus) {
+    void nextTick(() => {
+      toggleRef.value?.focus();
+    });
+  }
+}
+
 function toggleMenu() {
-  isOpen.value = !isOpen.value;
+  if (isOpen.value) {
+    closeMenu();
+    return;
+  }
+
+  void openMenu();
+}
+
+function handleToggleKeydown(event: KeyboardEvent): void {
+  switch (event.key) {
+    case 'ArrowDown':
+    case 'Enter':
+    case ' ':
+      event.preventDefault();
+      void openMenu('first');
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      void openMenu('last');
+      break;
+    case 'Escape':
+      if (isOpen.value) {
+        event.preventDefault();
+        closeMenu({ restoreFocus: true });
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+function handlePanelKeydown(event: KeyboardEvent): void {
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      moveFocus(panelRef.value, 1);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      moveFocus(panelRef.value, -1);
+      break;
+    case 'Home':
+      event.preventDefault();
+      focusPanelBoundary('first');
+      break;
+    case 'End':
+      event.preventDefault();
+      focusPanelBoundary('last');
+      break;
+    case 'Escape':
+      event.preventDefault();
+      closeMenu({ restoreFocus: true });
+      break;
+    default:
+      break;
+  }
+}
+
+function handleDropdownFocusOut(event: FocusEvent): void {
+  const nextTarget = event.relatedTarget;
+
+  if (nextTarget instanceof Node && dropdownRef.value?.contains(nextTarget)) {
+    return;
+  }
+
+  closeMenu();
 }
 
 function toNotification(value: unknown): NotificationItem {
@@ -114,6 +247,10 @@ function formatRelativeDate(value: string): string {
     minute: '2-digit',
   }).format(date);
 }
+
+onClickOutside(dropdownRef, () => {
+  closeMenu();
+});
 </script>
 
 <style scoped>
@@ -131,6 +268,21 @@ function formatRelativeDate(value: string): string {
   color: var(--text-primary);
   padding: 0.7rem 0.95rem;
   cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.notification-toggle:hover,
+.notification-toggle:focus-visible {
+  border-color: var(--accent-teal);
+  background: var(--accent-teal-light);
+  outline: none;
+}
+
+.notification-toggle:focus-visible {
+  transform: translateY(-0.0625rem);
 }
 
 .notification-toggle__icon {
@@ -164,6 +316,11 @@ function formatRelativeDate(value: string): string {
   z-index: var(--z-dropdown);
 }
 
+.notification-menu:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 3px;
+}
+
 .notification-menu__header {
   display: flex;
   justify-content: space-between;
@@ -186,12 +343,30 @@ function formatRelativeDate(value: string): string {
   margin: 0;
 }
 
+.notification-menu__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .link-button {
   border: 0;
   background: transparent;
   color: var(--accent-teal);
   cursor: pointer;
   font-weight: var(--font-weight-semibold);
+}
+
+.link-button:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
 }
 
 .notification-state,
@@ -223,6 +398,13 @@ function formatRelativeDate(value: string): string {
   cursor: pointer;
 }
 
+.notification-row:hover,
+.notification-row:focus-visible {
+  border-color: var(--accent-teal);
+  box-shadow: var(--shadow-glow-teal);
+  outline: none;
+}
+
 .notification-row__copy,
 .notification-skeleton-row__copy {
   min-width: 0;
@@ -243,5 +425,12 @@ function formatRelativeDate(value: string): string {
   height: 0.55rem;
   border-radius: var(--radius-full);
   background: var(--accent-teal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-toggle,
+  .notification-row {
+    transition-duration: 1ms;
+  }
 }
 </style>
