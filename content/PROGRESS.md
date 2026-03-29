@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 7 - Handle edge cases: empty inputs, unauthorized access, not found, duplicates
-## Last Updated: 2026-03-29T13:57:00Z
+## Current Task: Phase 9 - Add python-json-logger structured logging with correlation ID
+## Last Updated: 2026-03-29T14:12:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -50,6 +50,7 @@
 - Added endpoint-integration coverage across the full Content route map (health, spots, trips, photos, reviews, feed) with happy-path and error-path assertions; while doing so, fixed the broken mixed-model feed pagination by replacing the unusable DRF cursor/queryset combo with a list-aware feed cursor paginator (`73 passed` total)
 - Phase 7 route-family coverage is now satisfied explicitly: the new integration matrix exercises spots, trips, photos, reviews, and feed endpoints with both success and failure assertions
 - Normalized Content error handling through the DRF exception layer: forbidden ownership/member checks now raise `PermissionDenied`, validation/parse errors preserve detailed field messages, and the full suite passes with the standard Atlas error envelope (`76 passed` total)
+- Closed the remaining Phase 7 edge-case gaps with HTTP-level tests for empty payloads, auth-before-validation precedence, duplicate/idempotent writes, malformed feed cursors, and not-found resources; while doing so, duplicate trip-spot adds now return `200` on update, malformed cursors return `VALIDATION_ERROR`, and spot list pagination is explicitly ordered to avoid inconsistent pages (`85 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -78,7 +79,7 @@
 - [x] Write integration tests for every API endpoint (happy path + error cases)
 - [x] Add tests for spots, trips, photos, reviews, feed
 - [x] Add proper error handling with DRF exception handler
-- [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
+- [x] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 
 ### Phase 9: Performance & Observability
 - [ ] Add python-json-logger structured logging with correlation ID

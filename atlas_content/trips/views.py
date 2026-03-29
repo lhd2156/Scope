@@ -84,7 +84,7 @@ def add_trip_spot(request, pk):
         raise PermissionDenied
     serializer = TripAddSpotSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    TripSpot.objects.update_or_create(
+    _, created = TripSpot.objects.update_or_create(
         trip=trip,
         spot_id=serializer.validated_data['spot_id'],
         defaults={
@@ -93,7 +93,7 @@ def add_trip_spot(request, pk):
             'notes': serializer.validated_data.get('notes', ''),
         },
     )
-    return data_response(TripSerializer(trip).data, status_code=201)
+    return data_response(TripSerializer(trip).data, status_code=201 if created else 200)
 
 
 @api_view(['DELETE'])
