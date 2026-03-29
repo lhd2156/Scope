@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 9 - Add indexes on hot query fields
-## Last Updated: 2026-03-29T15:40:00Z
+## Current Task: Add ETag support for spot detail and trip detail endpoints
+## Last Updated: 2026-03-29T16:20:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -89,7 +89,7 @@
 - [x] Add python-json-logger structured logging with correlation ID
 - [x] Implement GET /api/content/health endpoint (checks DB + S3)
 - [x] Add select_related()/prefetch_related() to prevent N+1 queries
-- [ ] Add Django cache framework for spots and feed responses
+- [x] Add Django cache framework for spots and feed responses
 - [ ] Add ETag support for spot detail and trip detail endpoints
 - [ ] Add cursor-based pagination for feed endpoint
 
@@ -101,4 +101,5 @@
 - [ ] Verify all Kafka producers fire correct events
 - [ ] Verify Django Admin is properly configured
 - [ ] Clean up bootstrap_content_append*.py files if not needed
-
+- Added hot-path indexes for spot/trip/photo/review query patterns, generated migrations, and added model-index assertions so the schema and source models stay aligned; Django checks and the full Content pytest suite passed after the index work
+- Configured Django Admin for Spots, Trips, Photos, Reviews, and Likes with searchable/filterable changelists plus TripSpot/TripMember inlines; added admin registration tests and verified the full Content suite still passes
