@@ -10,7 +10,7 @@
 - [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
-- [ ] Phase 8: Documentation & Deployment Prep - README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
+- [/] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING and deployment prep docs are in place; endpoint API docs and final release polish still remain
 - [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
 - [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline (5 files), deploy workflow automation, and Kubernetes manifests are now in repo; runtime Terraform validation and broader production hardening still remain
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, and Terraform baseline are in place; runtime Terraform validation and final production/deployment hardening remain lead-owned
+## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, and top-level repo docs are in place; runtime Terraform validation and final production/deployment hardening remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T19:09:33.1647292Z
+## Last Updated: 2026-03-29T19:10:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -415,6 +415,9 @@
 - 2026-03-29T19:08:05.0065350Z: Integrated the existing Terraform baseline into the real deployment surface by updating `.github/workflows/deploy.yml` to ship `terraform/` inside the deployment bundle artifact and by tightening `docs/DEPLOYMENT.md` so automation coverage explicitly includes the Terraform bundle.
 - 2026-03-29T19:08:05.0065350Z: Validation: `npx --yes yaml@2 valid .github/workflows/deploy.yml` ? after the Terraform bundle update. Remaining lead-owned gaps are runtime Terraform validation against a real AWS account and final production/deployment hardening polish.
 - 2026-03-29T19:09:33.1647292Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the Terraform-bundle integration milestone and the narrowed remaining gaps (runtime Terraform validation + final production/deployment hardening).
+- 2026-03-29T19:10:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T19:10:00Z: Completed the next lead-owned docs milestone by adding top-level `README.md` and `CONTRIBUTING.md`, giving the repo an actual entrypoint for setup, architecture, workflow, validation commands, and contribution standards.
+- 2026-03-29T19:10:00Z: Narrowed the remaining gaps to runtime Terraform validation and final production/deployment hardening guidance. Phase 8 is now partially complete instead of missing its top-level repo documentation.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
