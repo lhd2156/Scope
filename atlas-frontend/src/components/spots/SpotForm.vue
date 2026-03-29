@@ -273,11 +273,10 @@
 </template>
 
 <script setup lang="ts">
-import 'mapbox-gl/dist/mapbox-gl.css';
-
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
-import mapboxgl from 'mapbox-gl';
+import type mapboxgl from 'mapbox-gl';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import { loadMapboxRuntime } from '@/services/mapboxLoader';
 import type { Photo, SpotCategory, SpotFormInput, SpotFormSubmission, SpotPhotoUpload } from '@/types';
 import { SPOT_PHOTO_ACCEPT, validateSpotFormInput, validateSpotPhotoFile, type SpotFormErrors } from '@/utils/validators';
 
@@ -319,6 +318,7 @@ const locationPresets: LocationPreset[] = [
 
 const mapContainer = ref<HTMLDivElement | null>(null);
 const map = shallowRef<mapboxgl.Map | null>(null);
+const mapboxRuntime = shallowRef<typeof mapboxgl | null>(null);
 const marker = shallowRef<mapboxgl.Marker | null>(null);
 const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
 const errors = ref<SpotFormErrors>({});
@@ -412,6 +412,14 @@ function resetFromProps(): void {
   syncMarkerWithForm(true);
 }
 
+async function getMapboxRuntime() {
+  if (!mapboxRuntime.value) {
+    mapboxRuntime.value = await loadMapboxRuntime();
+  }
+
+  return mapboxRuntime.value;
+}
+
 function buildMarkerElement(): HTMLDivElement {
   const element = document.createElement('div');
   element.setAttribute('aria-hidden', 'true');
@@ -464,13 +472,18 @@ function syncThemeToMap(): void {
   map.value.setStyle(resolveMapStyle());
 }
 
-function setupMap(): void {
+async function setupMap(): Promise<void> {
   if (!mapContainer.value || !hasToken || map.value) {
     return;
   }
 
-  mapboxgl.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
-  const instance = new mapboxgl.Map({
+  const runtime = await getMapboxRuntime();
+  if (!mapContainer.value || map.value) {
+    return;
+  }
+
+  runtime.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
+  const instance = new runtime.Map({
     container: mapContainer.value,
     style: resolveMapStyle(),
     center: [form.longitude, form.latitude],
@@ -478,7 +491,7 @@ function setupMap(): void {
     attributionControl: false,
   });
 
-  const nextMarker = new mapboxgl.Marker({ element: buildMarkerElement(), draggable: true })
+  const nextMarker = new runtime.Marker({ element: buildMarkerElement(), draggable: true })
     .setLngLat([form.longitude, form.latitude])
     .addTo(instance);
 
@@ -623,7 +636,7 @@ watch(
 );
 
 onMounted(() => {
-  setupMap();
+  void setupMap();
   themeObserver = new MutationObserver(syncThemeToMap);
   themeObserver.observe(document.documentElement, {
     attributes: true,

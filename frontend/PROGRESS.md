@@ -21,15 +21,15 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 9.5 - Bundle analysis and tree-shaking verification
-## Last Updated: 2026-03-29T12:22:00Z
+## Current Task: Phase 12.1 - Re-verify every view and component against atlas_architecture.tex
+## Last Updated: 2026-03-29T12:40:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
 - b0c8355 through 7bfebfc + 1acf047
 - npm run build ✅ passed
 - npm run test ✅ passed
-- Remaining: Phase 9 performance work, Phase 12 final recheck
+- Remaining: Phase 12 final recheck
 - 2026-03-29T00:56:00Z: UNBLOCKED - Frontend can proceed building domain components in parallel with backends. All API service calls should use stub/mock data until backends are validated.
 - 2026-03-29T02:22:00Z: COMPLETED task 5 - delivered Mapbox-backed map workspace with theme-aware map styling, custom spot markers, route overlays, live location tracking, category filters, and sidebar map context. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after switching Vitest to single-fork mode for stable Windows execution.
 - 2026-03-29T02:33:28Z: COMPLETED task 6 - upgraded SpotCard and SpotDetail into premium production surfaces with richer metadata, gallery/review presentation, embedded mini-map context, and route-safe detail loading states. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new spot component coverage.
@@ -58,6 +58,7 @@
 - 2026-03-29T11:30:00Z: COMPLETED Phase 9.3 search debouncing - hardened the shared `SearchBar` so every current search surface now enforces a minimum 300ms debounce even if a smaller value is requested, while preserving immediate clear/enter behavior. Added focused Vitest coverage for the debounce floor. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (67 files / 128 tests).
 - 2026-03-29T11:54:00Z: COMPLETED Phase 9.4 virtual scrolling - introduced a shared `VirtualList` primitive and rolled it through the highest-volume social/feed surfaces: the home activity feed, friends activity feed, friend connections list, and notifications dropdown. Added focused Vitest coverage for the virtualization primitive and social integrations.
 - 2026-03-29T12:22:00Z: COMPLETED Phase 9.4 validation closure - fixed the stale social mock/export gap that was still breaking `FriendsPage` production builds, taught `FriendList` to accept the real nested `FriendConnection` shape, restored `SearchBar` compatibility for pages still passing the legacy `label` prop, and revalidated the branch. Validation: npm.cmd run build ✅ (remaining Vite chunk warnings only for `mapbox-gl` and `notifications`) and npm.cmd run test ✅ (68 files / 130 tests).
+- 2026-03-29T12:40:00Z: COMPLETED Phase 9.5 bundle analysis/tree-shaking verification - moved both Mapbox consumers (`MapView` and `SpotForm`) onto a shared lazy `mapboxLoader` using the package ESM-min entry so map code only loads on interactive map surfaces, lazy-imported the SignalR bridge from the notifications store so realtime code no longer rides the app shell path, and added Vite manual chunk boundaries for the Mapbox worker/core and SignalR vendor. Validation: npm.cmd run build ✅ with `SpotComposerPage` reduced to 19.68 kB and realtime split into `signalr` (54.75 kB) + `notifications` (174.84 kB); the only remaining chunk warning is the isolated lazy `mapbox-gl-core` vendor chunk (1,581.46 kB), which is an unavoidable Mapbox GL package cost rather than an app-shell bundling regression. npm.cmd run test ✅ (68 files / 130 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -89,7 +90,7 @@
 - [x] Add image lazy-loading with Intersection Observer
 - [x] Add debouncing on all search inputs (300ms minimum)
 - [x] Add virtual scroll for long lists (feed, spot lists)
-- [ ] Bundle analysis and tree-shaking verification
+- [x] Bundle analysis and tree-shaking verification
 
 ### Phase 12: Final Boss Recheck
 - [ ] Re-verify every view and component matches atlas_architecture.tex spec

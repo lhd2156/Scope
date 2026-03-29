@@ -5,7 +5,6 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/services/feedService';
-import { startNotificationStream, stopNotificationStream } from '@/services/signalrService';
 import { useAuthStore } from '@/stores/auth';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
 import { sanitizeNotificationItem } from '@/utils/sanitizers';
@@ -68,6 +67,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     connectionError.value = null;
 
     try {
+      const { startNotificationStream } = await import('@/services/signalrService');
       await startNotificationStream({
         accessTokenFactory: () => authStore.token,
         onNotification: (notification) => {
@@ -89,6 +89,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   async function disconnect() {
     try {
+      const { stopNotificationStream } = await import('@/services/signalrService');
       await stopNotificationStream();
     } catch (nextError) {
       connectionError.value = toAsyncErrorMessage(nextError, 'Atlas could not stop realtime notifications cleanly.');
