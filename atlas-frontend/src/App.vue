@@ -1,5 +1,17 @@
 <template>
-  <RouterView />
+  <RouterView v-slot="{ Component, route: activeRoute }">
+    <Transition :name="routeTransitionName" mode="out-in" appear>
+      <div
+        :key="resolveRouteStageKey(activeRoute)"
+        class="route-stage"
+        :data-route-name="resolveRouteStageName(activeRoute)"
+        :data-route-path="activeRoute.path"
+      >
+        <component :is="Component" />
+      </div>
+    </Transition>
+  </RouterView>
+
   <Toast
     :open="Boolean(authStore.sessionExpiredMessage)"
     title="Session expired"
@@ -10,16 +22,20 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
-import { RouterView, useRoute, useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, watch } from 'vue';
+import { RouterView, useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
 import Toast from '@/components/common/Toast.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationsStore } from '@/stores/notifications';
+import { useReducedMotion } from '@/utils/motion';
 
 const authStore = useAuthStore();
 const notificationsStore = useNotificationsStore();
+const reducedMotion = useReducedMotion();
 const route = useRoute();
 const router = useRouter();
+
+const routeTransitionName = computed(() => (reducedMotion.value ? 'route-fade-reduced' : 'route-fade'));
 
 void authStore.hydrateSession();
 
@@ -35,6 +51,14 @@ async function syncRealtimeNotifications(isAuthenticated: boolean) {
   } catch {
     // Notification store state already captures the user-facing error surface.
   }
+}
+
+function resolveRouteStageKey(activeRoute: RouteLocationNormalizedLoaded): string {
+  return activeRoute.path;
+}
+
+function resolveRouteStageName(activeRoute: RouteLocationNormalizedLoaded): string {
+  return typeof activeRoute.name === 'string' ? activeRoute.name : activeRoute.path;
 }
 
 watch(
