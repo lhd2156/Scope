@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add unit tests until coverage exceeds 80%
-## Last Updated: 2026-03-29T10:05:00Z
+## Current Task: Write integration tests for every API endpoint (happy path + error cases)
+## Last Updated: 2026-03-29T10:26:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -52,6 +52,9 @@
 - 2026-03-29T10:05:00Z added SecurityHeadersMiddleware to stamp Content-Security-Policy and X-XSS-Protection on every response via OnStarting, ensuring the headers survive normal API responses, auth challenges, hub negotiate challenges, rate limiting, and exception handling
 - 2026-03-29T10:05:00Z centralized the CSP and X-XSS-Protection values in shared core constants and added integration tests for public API responses, unauthorized protected API responses, and unauthorized SignalR negotiate responses
 - 2026-03-29T10:05:00Z reran Atlas.Core build/test after the XSS header hardening and passed build (0 warnings, 0 errors) plus tests (55 passed, 0 failed)
+- 2026-03-29T10:26:00Z expanded Atlas.Core test coverage across controllers, AuthService, PasswordHasherService, S3Service, Kafka skip-path behavior, SignalR hubs, entities, exceptions, and shared API/domain contracts using isolated in-memory contexts plus reusable authenticated-controller helpers
+- 2026-03-29T10:26:00Z measured line coverage with `dotnet test --collect:"XPlat Code Coverage"` and raised Atlas.Core from 41.90% to 95.37% overall line coverage (branch coverage 77.38%), with controllers at 96.34%, services at 95.06%, and hubs/entities/exceptions/models at 100%
+- 2026-03-29T10:26:00Z reran Atlas.Core build/test after the coverage push and passed build (0 warnings, 0 errors), tests (113 passed, 0 failed), and XPlat coverage collection successfully
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -75,7 +78,7 @@
 - [x] Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
 
 ### Phase 7: Test Coverage
-- [ ] Add unit tests until coverage exceeds 80%
+- [x] Add unit tests until coverage exceeds 80%
 - [ ] Write integration tests for every API endpoint (happy path + error cases)
 - [ ] Add tests for all SignalR hubs
 - [ ] Add proper error handling with try/catch and standard error responses
