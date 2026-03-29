@@ -1,6 +1,6 @@
 # Core Platform Progress
 
-## Status: IN PROGRESS
+## Status: COMPLETE
 
 ## Tasks
 - [x] 1. Scaffold ASP.NET Core project (API, Domain, Infrastructure, Tests)
@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Verify SignalR hubs accept connections
-## Last Updated: 2026-03-29T16:24:00Z
+## Current Task: COMPLETE
+## Last Updated: 2026-03-29T16:33:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -99,6 +99,8 @@
 - 2026-03-29T15:57:00Z reran focused hygiene tests plus a full Atlas.Core validation sweep and passed build (0 warnings, 0 errors) and tests (184 passed, 0 failed)
 - 2026-03-29T16:24:00Z completed the Section 10 Kafka schema audit by replacing raw payload publishing with a shared core event envelope (`eventId`, `eventType`, `timestamp`, `source`, `data`) serialized in camelCase, introducing typed payload records for user.registered, user.updated, friend.accepted, and live.location.updated, and locking those contracts with producer/controller/service tests
 - 2026-03-29T16:24:00Z reran focused Kafka contract coverage plus the full Atlas.Core validation sweep and passed build (0 warnings, 0 errors) and tests (187 passed, 0 failed)
+- 2026-03-29T16:33:00Z completed the final SignalR acceptance audit by adding real Microsoft.AspNetCore.SignalR.Client integration coverage for authenticated connections to TripHub, LocationHub, and NotificationHub, plus end-to-end hub method validation for trip-group broadcasts and live-location updates through the actual SignalR protocol
+- 2026-03-29T16:33:00Z reran focused SignalR connection tests plus the full Atlas.Core validation sweep and passed build (0 warnings, 0 errors) and tests (192 passed, 0 failed); all core platform checklist items are now complete
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -143,4 +145,4 @@
 - [x] Verify API response formats match Appendix B exactly
 - [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [x] Verify Kafka event schemas match Section 10
-- [ ] Verify SignalR hubs accept connections
+- [x] Verify SignalR hubs accept connections
