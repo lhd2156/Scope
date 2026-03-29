@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 6 - Add Content-Security-Policy header
-## Last Updated: 2026-03-29T12:28:00Z
+## Current Task: Phase 7 - Add pytest tests until coverage exceeds 80%
+## Last Updated: 2026-03-29T12:52:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -45,6 +45,7 @@
 - Enforced JWT auth on all protected content routes: user-specific trip/feed endpoints now require authentication, unsafe spot/trip/review methods use explicit auth permissions, invalid bearer tokens now return `401 UNAUTHORIZED` instead of falling through as `500`, and the auth audit suite covers protected vs public routes (`45 passed` total)
 - Added `django-cors-headers` configuration for Content: strict production frontend origin support, localhost:5173 development allowance, credentialed CORS for `/api/content/*`, explicit allowed methods/headers, and integration tests for preflight plus unauthorized responses (`49 passed` total)
 - Removed the remaining raw SQL probes from Content (`connection.ensure_connection()` now handles DB health checks/bootstrap validation) and added a source-safety test that blocks `.cursor()`, `.execute()`, `.executemany()`, `.raw()`, and `RawSQL` regressions (`50 passed` total)
+- Added CSP security-header middleware for Content responses with a policy aligned to frontend/dev origins and media/font allowances; verified the header is present on normal 200, unauthorized 401, and rate-limited 429 responses (`53 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -66,7 +67,7 @@
 - [x] Verify JWT auth middleware is enforced on all protected endpoints
 - [x] Add CORS configuration via django-cors-headers
 - [x] Verify parameterized queries (ORM-only, no raw SQL)
-- [ ] Add Content-Security-Policy header
+- [x] Add Content-Security-Policy header
 
 ### Phase 7: Test Coverage
 - [ ] Add pytest tests until coverage exceeds 80%
