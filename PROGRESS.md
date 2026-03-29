@@ -12,7 +12,7 @@
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
 - [x] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING, deployment runbook, production hardening guide, API route reference, and release/rollback runbook are in place
 - [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
-- [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
+- [/] Phase 10: UX Polish & Accessibility - polish agent scaffolding is now in place and Phase 10 execution has started
 - [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, CI-side Terraform/Kubernetes validation, and an optional real-account Terraform plan path are now in repo; runtime cloud execution and broader production hardening still remain
 - [x] Phase 12: Final Boss Recheck 🏁 - complete across Core, Content, Intel, and Frontend
 
@@ -24,11 +24,11 @@
 | Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
 | Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
-| Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
+| Polish (Luster) | IN_PROGRESS | 1 - route transitions and reduced-motion-safe micro-animations | 2026-03-29T20:18:00Z |
 
-## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, top-level repo docs, production hardening guidance, API reference docs, and release/rollback runbook are in place; executing that plan against a real AWS account remains the main lead-owned runtime gap
-## Agents Running: none
-## Last Updated: 2026-03-29T19:51:00Z
+## Current Phase: Phase 10 UX Polish kick-off + external Terraform runtime gap
+## Agents Running: polish
+## Last Updated: 2026-03-29T20:18:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -434,6 +434,11 @@
 - 2026-03-29T19:51:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T19:51:00Z: Completed the next lead-owned documentation milestone by adding `docs/RELEASE-RUNBOOK.md`, a concrete release, verification, and rollback procedure, and linked it from `README.md`, `docs/DEPLOYMENT.md`, and `docs/PRODUCTION-HARDENING.md`.
 - 2026-03-29T19:51:00Z: Phase 8 documentation prep is now effectively complete in-repo; the main remaining lead-owned runtime gap is still executing the Terraform path against a real AWS account.
+- 2026-03-29T20:09:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T20:09:00Z: No new in-repo Phase 4 milestone could be completed on this host. The main remaining blocker is external runtime validation: the Terraform path still needs to be executed against a real AWS account from a machine with Terraform installed.
+- 2026-03-29T20:18:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE, but Phase 10 UX Polish was still open and the canonical `polish/` agent files were missing.
+- 2026-03-29T20:18:00Z: Recovery applied: created `polish/agents.md` and `polish/PROGRESS.md`, then spawned a fresh LESSONS-aware polish subagent for the first Phase 10 task: `agent:main:subagent:4d3933ee-48e6-473a-9a8b-58a772994d39`.
+- 2026-03-29T20:18:00Z: Logged orchestration lesson: scaffold missing canonical polish-agent files before spawning the Phase 10 track.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
