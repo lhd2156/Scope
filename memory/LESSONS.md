@@ -1,0 +1,63 @@
+# Agent Lessons Learned
+
+> **This file is read by ALL agents on every boot. It is the shared institutional memory.**
+> After any failure, unexpected success, or important discovery, append a new entry below in the appropriate section.
+> Format: `- [YYYY-MM-DD] ❌/✅/⚠️/💡 <description>`
+
+---
+
+## Environment & Runtime
+
+- [2026-03-28] ⚠️ PowerShell on Windows — use `;` not `&&` for chaining commands
+- [2026-03-28] ✅ Python 3.14.3 is at `C:\Users\dongu\AppData\Local\Python\bin\python.exe`
+- [2026-03-28] ✅ .NET SDK 8.0.419 is at `C:\Program Files\dotnet\dotnet.exe`
+- [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
+- [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
+
+## Package Compatibility
+
+- [2026-03-28] ❌ scikit-learn==1.5.2 FAILS on Python 3.14 → use >=1.6 or latest
+- [2026-03-28] ❌ Pinned old pyodbc versions may fail on Python 3.14 → use latest
+- [2026-03-28] ⚠️ Always check Python package compatibility with 3.14 before pinning versions
+- [2026-03-28] ✅ mssql-django works with Django 5.x on Python 3.14
+
+## Build & Test Results
+
+- [2026-03-28] ✅ `dotnet build` + `dotnet test` pass on Atlas.Core (commit 59b78dc)
+- [2026-03-28] ✅ Django `manage.py check` passes for Content Engine (commit 26e53ad)
+- [2026-03-28] ⚠️ Always run `pip install -r requirements.txt` before pytest
+- [2026-03-28] ⚠️ DRF request auth in Content Engine needs explicit `REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES']`; middleware alone will not authenticate API views/tests that rely on `request.user`
+- [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
+- [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
+
+## Git & Workflow
+
+- [2026-03-28] ⚠️ Always commit after EACH task, never batch multiple tasks
+- [2026-03-28] ⚠️ Use conventional commits: `feat(scope): description`
+- [2026-03-28] ⚠️ Work on feature branches (feature/foundation, feature/core-platform, etc.), not main
+- [2026-03-28] ⚠️ Use `git add . ; git commit -m "message"` (semicolons, not &&)
+
+## File & Path Rules
+
+- [2026-03-28] ❌ Do NOT look in `.worktrees/` or `atlas-intel-wt/` for progress files
+- [2026-03-28] ⚠️ Canonical progress files are at `C:\Users\dongu\atlas\{agent}\PROGRESS.md`
+- [2026-03-28] ⚠️ Always re-read files before editing — never rely on cached/stale content
+- [2026-03-28] ⚠️ The `.tex` file (`atlas_architecture.tex`) is the source of truth for all specs
+
+## Orchestration
+
+- [2026-03-28] ⚠️ When heartbeat respawns agents via `openclaw agent`, pass a fresh explicit `--session-id` per run to avoid `.jsonl.lock` session-collision failures on repeated background launches.
+- [2026-03-28] ⚠️ Every heartbeat spawn prompt must tell agents to read `C:\Users\dongu\atlas\memory\LESSONS.md` before touching their own task files.
+
+## Common Mistakes to Avoid
+
+- [2026-03-28] ❌ Do NOT just read files and report status — actually DO the work
+- [2026-03-28] ❌ Do NOT merge microservices — each service is independent
+- [2026-03-28] ❌ Do NOT hardcode secrets — use `.env`
+- [2026-03-28] ❌ Do NOT use `&&` in PowerShell — use `;`
+- [2026-03-28] ❌ Do NOT skip security — rate limiting, validation, JWT on every endpoint
+
+---
+
+> **To add a new lesson:** Append to the appropriate section above. If no section fits, create a new one.
+> Keep entries concise — one line per lesson with the date and emoji prefix.
