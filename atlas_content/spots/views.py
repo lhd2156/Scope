@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
@@ -11,6 +11,7 @@ from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from photos.models import Photo
 from spots.models import Spot
+from spots.querysets import with_spot_detail_relations, with_spot_list_relations
 from spots.serializers import NearbyQuerySerializer, SpotDetailSerializer, SpotSerializer
 from trips.models import Like
 
@@ -22,10 +23,8 @@ class SpotListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        queryset = (
+        queryset = with_spot_list_relations(
             Spot.objects.filter(Q(is_public=True) | Q(user_id=getattr(self.request.user, 'id', None)))
-            .annotate(likes_count=Count('likes', distinct=True), average_rating=Avg('reviews__rating'))
-            .prefetch_related('photos')
         )
         if category := self.request.query_params.get('category'):
             queryset = queryset.filter(category=category)
@@ -44,7 +43,7 @@ class SpotListCreateView(generics.ListCreateAPIView):
 
 
 class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Spot.objects.all().prefetch_related('photos', 'reviews')
+    queryset = with_spot_detail_relations(Spot.objects.all())
     serializer_class = SpotDetailSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -68,6 +67,7 @@ def nearby_spots(request):
     serializer = NearbyQuerySerializer(data=request.query_params)
     serializer.is_valid(raise_exception=True)
     queryset = serializer.filter_queryset(Spot.objects.filter(is_public=True))
+    queryset = with_spot_list_relations(queryset).order_by('-created_at')
     paginator = SpotListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
     return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
@@ -75,7 +75,7 @@ def nearby_spots(request):
 
 @api_view(['GET'])
 def user_spots(request, user_id):
-    queryset = Spot.objects.filter(user_id=user_id, is_public=True).order_by('-created_at')
+    queryset = with_spot_list_relations(Spot.objects.filter(user_id=user_id, is_public=True)).order_by('-created_at')
     paginator = SpotListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
     return paginator.get_paginated_response(SpotSerializer(page, many=True).data)

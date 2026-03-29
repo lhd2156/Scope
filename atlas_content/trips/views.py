@@ -10,6 +10,7 @@ from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from trips.models import Trip, TripMember, TripSpot
+from trips.querysets import with_trip_relations
 from trips.serializers import (
     TripAddSpotSerializer,
     TripMemberCreateSerializer,
@@ -35,10 +36,8 @@ class TripListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user_id = getattr(self.request.user, 'id', None)
-        return (
-            Trip.objects.prefetch_related('trip_spots__spot', 'members')
-            .filter(Q(creator_id=user_id) | Q(members__user_id=user_id))
-            .distinct()
+        return with_trip_relations(
+            Trip.objects.filter(Q(creator_id=user_id) | Q(members__user_id=user_id)).distinct()
         )
 
     def create(self, request, *args, **kwargs):
@@ -51,7 +50,7 @@ class TripListCreateView(generics.ListCreateAPIView):
 
 
 class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Trip.objects.prefetch_related('trip_spots__spot', 'members')
+    queryset = with_trip_relations(Trip.objects.all())
     serializer_class = TripSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -70,7 +69,7 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 @api_view(['GET'])
 def public_trips(request):
-    queryset = Trip.objects.filter(is_public=True).prefetch_related('trip_spots__spot', 'members')
+    queryset = with_trip_relations(Trip.objects.filter(is_public=True))
     paginator = TripListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
     return paginator.get_paginated_response(TripSerializer(page, many=True).data)
