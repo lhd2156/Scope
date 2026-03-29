@@ -125,3 +125,9 @@ def test_live_service_modules_do_not_keep_unused_imports():
                 )
 
     assert issues == []
+
+
+def test_orphan_bootstrap_append_scripts_are_removed():
+    leftover_scripts = sorted(path.name for path in PROJECT_ROOT.glob('bootstrap_content_append*.py'))
+
+    assert leftover_scripts == []
