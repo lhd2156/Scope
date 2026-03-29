@@ -235,4 +235,23 @@ public sealed class AuthEndpointsIntegrationTests
         var missingUserResponse = await missingUserClient.GetAsync("/api/core/auth/me");
         await EndpointIntegrationTestHelpers.AssertErrorAsync(missingUserResponse, StatusCodes.Status404NotFound, "NOT_FOUND");
     }
+
+    [Theory]
+    [InlineData("/api/core/auth/register", "{\"username\":\"\",\"email\":\"\",\"password\":\"\",\"displayName\":\"\"}")]
+    [InlineData("/api/core/auth/login", "{\"email\":\"\",\"password\":\"\"}")]
+    [InlineData("/api/core/auth/refresh", "{\"refreshToken\":\"\"}")]
+    [InlineData("/api/core/auth/logout", "{\"refreshToken\":\"\"}")]
+    [InlineData("/api/core/auth/forgot-password", "{\"email\":\"\"}")]
+    [InlineData("/api/core/auth/reset-password", "{\"token\":\"\",\"password\":\"short\"}")]
+    [InlineData("/api/core/auth/oauth/cognito", "{\"email\":\"\",\"username\":\"bad-user\",\"displayName\":\"Bad User\",\"subject\":\"subject-456\"}")]
+    public async Task AuthEndpoints_EmptyOrInvalidInputs_ReturnValidationErrors(string url, string json)
+    {
+        using var factory = new ApiTestWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(url, content);
+
+        await EndpointIntegrationTestHelpers.AssertErrorAsync(response, StatusCodes.Status400BadRequest, "VALIDATION_ERROR");
+    }
 }
