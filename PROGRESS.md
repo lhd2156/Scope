@@ -6,7 +6,7 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [ ] Phase 4: Integration — E2E tests, CI/CD, seed data, cross-service wiring (you do this)
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, and Playwright E2E scaffold complete; seed data, deployment docs, and infra/IaC remain
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring and CI build workflow are in place; Playwright E2E scaffolding, seed data, deployment docs, and infra manifests remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, and Playwright E2E critical-flow scaffold are in place; seed data, deployment docs, and infra manifests remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T17:47:00Z
+## Last Updated: 2026-03-29T17:53:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -382,6 +382,9 @@
 - 2026-03-29T17:47:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T17:47:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `.github/workflows/ci.yml`, a multi-job GitHub Actions workflow that restores/builds/tests Core, Content, Intel, and Frontend with service-specific CI environment variables.
 - 2026-03-29T17:47:00Z: Validation: `.github/workflows/ci.yml` parsed successfully via `npx --yes yaml@2 valid`. Remaining Phase 4 gaps are Playwright E2E scaffolding, seed data, deployment documentation, and infra manifests/IaC.
+- 2026-03-29T17:53:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T17:53:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `atlas-frontend/playwright.config.ts` plus `atlas-frontend/tests/e2e/critical-flows.spec.ts`, covering the critical browser journey: register → login → create spot → view map → plan trip.
+- 2026-03-29T17:53:00Z: Validation: `npm run test:e2e -- --project=chromium` ✅ inside `atlas-frontend/`. Added a shared lesson that local Playwright E2E should mock `/api/core/auth/*` routes for deterministic auth flows when the backend is not running.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
