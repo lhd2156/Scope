@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Re-verify every endpoint matches atlas_architecture.tex spec
-## Last Updated: 2026-03-29T15:01:00Z
+## Current Task: Run full build and all tests — fix any failures
+## Last Updated: 2026-03-29T15:15:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -88,6 +88,9 @@
 - 2026-03-29T15:01:00Z enabled built-in ASP.NET Core response compression with Brotli and Gzip providers for JSON responses, set fast compression levels for API throughput, and inserted the middleware after custom ETag buffering so compressed variants flow through the existing caching/correlation/error pipeline correctly
 - 2026-03-29T15:01:00Z updated the ETag caching middleware to merge `Vary: Authorization` with any existing `Vary` values so response compression can keep `Accept-Encoding` intact, preventing incorrect cache semantics for compressed authenticated reads
 - 2026-03-29T15:01:00Z added middleware + HTTP integration tests for gzip/brotli compression, decompression correctness, compressed authenticated reads with both `Authorization` and `Accept-Encoding` in `Vary`, and preserved ETag behavior; reran Atlas.Core build/test and passed build (0 warnings, 0 errors) plus tests (175 passed, 0 failed)
+- 2026-03-29T15:15:00Z completed the final endpoint-spec audit by reflecting the live controller route surface and comparing it to the architecture contract at the HTTP method + normalized path-shape level, covering all 31 documented REST endpoints across auth, users, friends, notifications, live, and health
+- 2026-03-29T15:15:00Z added a separate anonymous-vs-protected audit so public auth/health routes are explicitly verified while all other REST endpoints remain protected, which locks the final atlas_architecture.tex endpoint contract into the test suite without overfitting to route-parameter names or `:guid` constraint formatting
+- 2026-03-29T15:15:00Z reran Atlas.Core build/test after the endpoint parity audit and passed build (0 warnings, 0 errors) plus tests (177 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -127,7 +130,7 @@
 - [x] Implement gzip/brotli response compression
 
 ### Phase 12: Final Boss Recheck
-- [ ] Re-verify every endpoint matches atlas_architecture.tex spec
+- [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [ ] Run full build and all tests — fix any failures
 - [ ] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
