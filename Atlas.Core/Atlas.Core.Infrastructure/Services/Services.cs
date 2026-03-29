@@ -88,6 +88,43 @@ public sealed class KafkaProducerService(IConfiguration configuration, ILogger<K
     }
 }
 
+public sealed class KafkaHealthCheckService(IConfiguration configuration, ILogger<KafkaHealthCheckService> logger) : IKafkaHealthCheckService
+{
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
+    {
+        var bootstrap = configuration[CoreConfigurationKeys.KafkaBootstrapServers];
+        if (string.IsNullOrWhiteSpace(bootstrap))
+        {
+            logger.LogInformation("Kafka bootstrap not configured; health check degraded");
+            return false;
+        }
+
+        try
+        {
+            return await Task.Run(() =>
+            {
+                using var adminClient = new AdminClientBuilder(new AdminClientConfig
+                {
+                    BootstrapServers = bootstrap,
+                    SocketTimeoutMs = CoreDefaults.HealthCheckTimeoutMilliseconds
+                }).Build();
+
+                var metadata = adminClient.GetMetadata(TimeSpan.FromMilliseconds(CoreDefaults.HealthCheckTimeoutMilliseconds));
+                return metadata.Brokers.Count > 0;
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Kafka health check failed");
+            return false;
+        }
+    }
+}
+
 public sealed class S3Service(IConfiguration configuration) : IAvatarStorageService
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };

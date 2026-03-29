@@ -581,14 +581,29 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
 
 [ApiController]
 [Route("api/core/health")]
-public sealed class HealthController(CoreDbContext dbContext, IConfiguration configuration) : ControllerBase
+public sealed class HealthController(CoreDbContext dbContext, IKafkaHealthCheckService kafkaHealthCheckService) : ControllerBase
 {
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        var databaseHealthy = await dbContext.Database.CanConnectAsync(cancellationToken);
-        var kafkaHealthy = !string.IsNullOrWhiteSpace(configuration[CoreConfigurationKeys.KafkaBootstrapServers]);
+        bool databaseHealthy;
+        try
+        {
+            using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutSource.CancelAfter(CoreDefaults.HealthCheckTimeoutMilliseconds);
+            databaseHealthy = await dbContext.Database.CanConnectAsync(timeoutSource.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            databaseHealthy = false;
+        }
+        catch
+        {
+            databaseHealthy = false;
+        }
+
+        var kafkaHealthy = await kafkaHealthCheckService.IsHealthyAsync(cancellationToken);
         var overallStatus = databaseHealthy && kafkaHealthy ? "healthy" : "degraded";
 
         return Ok(new { status = overallStatus, version = CoreDefaults.ServiceVersion, uptime = Environment.TickCount64 });

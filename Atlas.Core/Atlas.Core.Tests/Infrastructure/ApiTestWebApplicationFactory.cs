@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using Atlas.Core.API;
 using Atlas.Core.Domain.Constants;
+using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Infrastructure.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -92,6 +93,10 @@ public class ApiTestWebApplicationFactory : WebApplicationFactory<Program>
         return await action(dbContext);
     }
 
+    protected virtual void ConfigureTestServices(IServiceCollection services)
+    {
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(HostEnvironment);
@@ -112,6 +117,7 @@ public class ApiTestWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<CoreDbContext>>();
             services.RemoveAll<CoreDbContext>();
             services.AddDbContext<CoreDbContext>(options => options.UseInMemoryDatabase(databaseName));
+            ConfigureTestServices(services);
         });
     }
 }

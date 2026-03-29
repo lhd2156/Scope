@@ -25,6 +25,7 @@ public static class CoreDefaults
     public const int AccessTokenLifetimeMinutes = 15;
     public const int RefreshTokenLifetimeDays = 7;
     public const int PasswordResetLifetimeHours = 1;
+    public const int HealthCheckTimeoutMilliseconds = 2000;
     public const string JwtIssuer = "atlas-core";
     public const string JwtAudience = "atlas-frontend";
     public const string ServiceVersion = "1.0.0";
