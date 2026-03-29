@@ -94,6 +94,8 @@
 - [2026-03-29] ⚠️ Frontend build/view tests can stay green while Pinia drifts away from the documented backend contracts; lock store audits with focused contract specs for pagination/meta, CRUD actions, and member/search flows instead of relying on page coverage alone.
 - [2026-03-29] ⚠️ Real Vue Router navigation tests in JSDOM should stub `window.scrollTo` when the app uses `scrollBehavior`, otherwise route pushes succeed but emit noisy `Not implemented: window.scrollTo` errors that hide real guard failures.
 - [2026-03-29] ⚠️ Atlas theme state cannot live inside each `ThemeToggle` instance; pages like Settings render a second toggle alongside the navbar, so keep theme in a shared utility/composable and initialize it at app bootstrap or the icons drift out of sync with the actual document theme.
+- [2026-03-29] ⚠️ For Atlas frontend route transitions, key the `RouterView` wrapper by `route.path` instead of `route.fullPath`; query-driven filters/search would otherwise remount the page and replay animations on every query-string change.
+- [2026-03-29] ⚠️ In `atlas-frontend`, scope Vitest to `tests/unit/**/*.spec.ts`; otherwise `npm.cmd run test` will try to execute Playwright specs under `tests/e2e` and fail with `Playwright Test did not expect test.describe() to be called here`.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 

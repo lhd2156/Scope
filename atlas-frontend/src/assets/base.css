@@ -30,6 +30,113 @@ body {
   color: var(--text-primary);
 }
 
+.route-stage {
+  min-height: 100vh;
+}
+
+.route-stage .layout-shell {
+  min-height: 100vh;
+}
+
+.route-fade-enter-active,
+.route-fade-leave-active {
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal);
+  will-change: opacity, transform;
+}
+
+.route-fade-enter-from,
+.route-fade-leave-to {
+  opacity: 0;
+  transform: translateY(var(--space-4)) scale(0.985);
+}
+
+.route-fade-enter-to,
+.route-fade-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.route-fade-reduced-enter-active,
+.route-fade-reduced-leave-active {
+  transition: opacity var(--transition-fast);
+  will-change: opacity;
+}
+
+.route-fade-reduced-enter-from,
+.route-fade-reduced-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .route-stage :is(.page-container, .map-page) > * {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+    animation: atlas-page-reveal var(--transition-slow) forwards;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(1) {
+    animation-delay: 40ms;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(2) {
+    animation-delay: 90ms;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(3) {
+    animation-delay: 140ms;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(4) {
+    animation-delay: 190ms;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(n + 5) {
+    animation-delay: 240ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-fade-enter-active,
+  .route-fade-leave-active,
+  .route-fade-reduced-enter-active,
+  .route-fade-reduced-leave-active {
+    transition-duration: 1ms;
+  }
+
+  .route-fade-enter-from,
+  .route-fade-leave-to,
+  .route-fade-reduced-enter-from,
+  .route-fade-reduced-leave-to {
+    transform: none;
+  }
+
+  .route-stage :is(.page-container, .map-page) > * {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:root[data-reduced-motion='reduce'] .route-stage :is(.page-container, .map-page) > * {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes atlas-page-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;
