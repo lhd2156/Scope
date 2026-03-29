@@ -57,6 +57,7 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = with_trip_relations(Trip.objects.all())
     serializer_class = TripSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    http_method_names = ['get', 'put', 'delete', 'options']
 
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
