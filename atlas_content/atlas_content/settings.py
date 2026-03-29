@@ -108,13 +108,14 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'common.middleware.security_headers.ContentSecurityPolicyMiddleware',
+    'common.middleware.correlation.CorrelationIdMiddleware',
+    'common.middleware.request_logging.RequestLoggingMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'common.middleware.correlation.CorrelationIdMiddleware',
     'common.middleware.jwt_auth.JWTAuthenticationMiddleware',
     'common.middleware.rate_limit.RateLimitMiddleware',
 ]
@@ -189,15 +190,21 @@ RATE_LIMIT_UPLOAD_PER_USER = int(os.getenv('RATE_LIMIT_UPLOAD_PER_USER', '20'))
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'atlas_context': {
+            '()': 'common.logging_utils.AtlasContextFilter',
+        }
+    },
     'formatters': {
         'json': {
-            '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
-            'fmt': '%(asctime)s %(levelname)s %(name)s %(message)s %(correlation_id)s',
+            '()': 'common.logging_utils.AtlasJsonFormatter',
+            'fmt': '%(message)s',
         }
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'filters': ['atlas_context'],
             'formatter': 'json',
         }
     },
