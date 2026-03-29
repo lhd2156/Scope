@@ -7,6 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 
 from common.cache_utils import FEED_CACHE_NAMESPACE, invalidate_cache_namespaces
+from common.etag import apply_conditional_etag
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -56,6 +57,10 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = with_trip_relations(Trip.objects.all())
     serializer_class = TripSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        return apply_conditional_etag(request, response)
 
     def update(self, request, *args, **kwargs):
         trip = self.get_object()

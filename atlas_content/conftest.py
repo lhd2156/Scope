@@ -3,10 +3,21 @@ import uuid
 import jwt
 import pytest
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
+from common.middleware.rate_limit import _BUCKETS
 from spots.models import Spot
 from trips.models import Trip, TripMember
+
+
+@pytest.fixture(autouse=True)
+def clear_shared_state_between_tests():
+    _BUCKETS.clear()
+    cache.clear()
+    yield
+    _BUCKETS.clear()
+    cache.clear()
 
 
 @pytest.fixture

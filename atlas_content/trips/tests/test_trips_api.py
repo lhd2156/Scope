@@ -63,3 +63,44 @@ def test_reorder_trip_spots(authenticated_client, auth_header, trip):
     assert response.status_code == 200
     reordered = {str(item['spot']): item for item in response.json()['data']['spots']}
     assert reordered[str(first.id)]['day_number'] == 2
+
+
+@pytest.mark.django_db
+def test_trip_detail_etag_returns_304_until_payload_changes(authenticated_client, trip):
+    first_response = authenticated_client.get(f'/api/content/trips/{trip.id}')
+
+    assert first_response.status_code == 200
+    assert first_response['ETag']
+    assert 'private' in first_response['Cache-Control']
+    assert 'no-cache' in first_response['Cache-Control']
+    assert 'Authorization' in first_response['Vary']
+
+    not_modified_response = authenticated_client.get(
+        f'/api/content/trips/{trip.id}',
+        HTTP_IF_NONE_MATCH=first_response['ETag'],
+    )
+
+    assert not_modified_response.status_code == 304
+    assert not_modified_response.content == b''
+    assert not_modified_response['ETag'] == first_response['ETag']
+
+    update_response = authenticated_client.put(
+        f'/api/content/trips/{trip.id}',
+        {
+            'title': 'Updated Weekend',
+            'description': 'Two day escape',
+            'status': 'planning',
+            'currency': 'USD',
+            'is_public': False,
+        },
+        format='json',
+    )
+    refreshed_response = authenticated_client.get(
+        f'/api/content/trips/{trip.id}',
+        HTTP_IF_NONE_MATCH=first_response['ETag'],
+    )
+
+    assert update_response.status_code == 200
+    assert refreshed_response.status_code == 200
+    assert refreshed_response['ETag'] != first_response['ETag']
+    assert refreshed_response.json()['title'] == 'Updated Weekend'

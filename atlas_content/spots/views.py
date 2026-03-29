@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 
 from common.cache_utils import FEED_CACHE_NAMESPACE, SPOTS_CACHE_NAMESPACE, cached_api_response, invalidate_cache_namespaces
+from common.etag import apply_conditional_etag
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -62,13 +63,14 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         parent = super()
-        return cached_api_response(
+        response = cached_api_response(
             request,
             SPOTS_CACHE_NAMESPACE,
             settings.CACHE_SPOTS_TIMEOUT_SECONDS,
             lambda: parent.retrieve(request, *args, **kwargs),
             extra=f'spot-detail:{kwargs.get("pk")}',
         )
+        return apply_conditional_etag(request, response)
 
     def update(self, request, *args, **kwargs):
         spot = self.get_object()

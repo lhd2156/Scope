@@ -150,3 +150,4 @@
 > **To add a new lesson:** Append to the appropriate section above. If no section fits, create a new one.
 > Keep entries concise — one line per lesson with the date and emoji prefix.
 - [2026-03-28] [SUCCESS] [orchestrator] complete-task.ps1 works on Windows PowerShell
+- [2026-03-29] ⚠️ Atlas Content pytest runs should clear the in-memory rate-limit buckets and Django cache between tests in conftest.py; otherwise request-heavy milestones like conditional GET/ETag coverage can trigger false late-suite 429s that look like unrelated regressions.
