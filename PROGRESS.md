@@ -24,11 +24,11 @@
 | Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
 | Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
-| Polish (Luster) | IN_PROGRESS | 2 - reusable skeleton loaders and empty states | 2026-03-29T20:36:00Z |
+| Polish (Luster) | IN_PROGRESS | 3 - toast/notification system for inline feedback | 2026-03-29T20:55:00Z |
 
-## Current Phase: Phase 10 UX Polish kick-off + external Terraform runtime gap
+## Current Phase: Phase 10 UX polish task 3 + external Terraform runtime gap
 ## Agents Running: polish
-## Last Updated: 2026-03-29T20:54:00Z
+## Last Updated: 2026-03-29T20:57:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -453,6 +453,8 @@
 - 2026-03-29T20:49:00Z: Conservative heartbeat decision: keep the current Phase 10 effort in place and avoid launching another duplicate frontend-polish run until the canonical polish progress file advances.
 - 2026-03-29T20:54:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. Polish still appears to be the only active in-repo track.
 - 2026-03-29T20:54:00Z: No duplicate spawn was issued this heartbeat; lead tracking was refreshed while Phase 10 polish remains in flight and the external Terraform runtime-validation gap is still open.
+- 2026-03-29T20:57:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE, and canonical `polish/PROGRESS.md` has advanced to task 3 after completing the reusable skeleton/empty-state milestone.
+- 2026-03-29T20:57:00Z: No duplicate spawn was issued this heartbeat; lead tracking was refreshed to point Polish at the toast/inline-feedback task while the current Phase 10 effort remains the only active in-repo work and the external Terraform runtime-validation gap is still open.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
