@@ -7,6 +7,12 @@ from app.middleware import register_middleware
 from config import settings
 
 
+REQUIRED_CONFIG = {
+    "SECRET_KEY": "FLASK_SECRET_KEY",
+    "JWT_SECRET": "CORE_JWT_SECRET",
+}
+
+
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.update(
@@ -14,9 +20,22 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_DATABASE_URI=settings.database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         RATE_LIMIT_PER_MINUTE=settings.rate_limit_per_minute,
+        JWT_SECRET=settings.jwt_secret,
+        JWT_ISSUER=settings.jwt_issuer,
+        JWT_AUDIENCE=settings.jwt_audience,
+        KAFKA_BOOTSTRAP_SERVERS=settings.kafka_bootstrap_servers,
+        CONTENT_SERVICE_URL=settings.content_service_url,
+        WEATHER_BASE_URL=settings.weather_base_url,
+        GEOCODE_BASE_URL=settings.geocode_base_url,
+        REVERSE_GEOCODE_BASE_URL=settings.reverse_geocode_base_url,
     )
     if test_config:
         app.config.update(test_config)
+
+    missing = [env_name for key, env_name in REQUIRED_CONFIG.items() if not app.config.get(key)]
+    if missing:
+        joined = ", ".join(missing)
+        raise RuntimeError(f"Missing required Intel configuration: {joined}")
 
     configure_logging(app)
     db.init_app(app)
