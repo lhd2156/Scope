@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add response caching middleware for read endpoints (ETag support)
-## Last Updated: 2026-03-29T13:31:00Z
+## Current Task: Add request/response logging middleware with duration tracking
+## Last Updated: 2026-03-29T13:50:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -73,6 +73,9 @@
 - 2026-03-29T13:31:00Z replaced the placeholder Kafka-configured health check with a real broker probe via IKafkaHealthCheckService + Confluent AdminClient metadata lookup, while keeping the existing DB connectivity check and short per-dependency health timeouts
 - 2026-03-29T13:31:00Z updated the health endpoint/controller and WebApplicationFactory hooks so health integration tests can deterministically verify both healthy and degraded outcomes without requiring a live Kafka broker in the test environment
 - 2026-03-29T13:31:00Z reran Atlas.Core build/test after the health endpoint hardening and passed build (0 warnings, 0 errors) plus tests (159 passed, 0 failed)
+- 2026-03-29T13:50:00Z added ResponseCachingMiddleware with SHA-256 ETag generation for successful JSON GET responses on the core API, excluding health and SignalR endpoints, and returning `304 Not Modified` when `If-None-Match` matches the current representation
+- 2026-03-29T13:50:00Z configured safe private caching semantics for protected read endpoints (`Cache-Control: private, no-cache` and `Vary: Authorization`) so authenticated GET responses can use conditional revalidation without leaking across users or intermediaries
+- 2026-03-29T13:50:00Z added middleware-level and HTTP integration coverage for ETag emission, conditional 304 responses, ETag invalidation after unread-count changes, and health-endpoint exclusion; reran build/test and passed build (0 warnings, 0 errors) plus tests (164 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -105,7 +108,7 @@
 ### Phase 9: Performance & Observability
 - [x] Add Serilog with JSON output and correlation ID enrichment
 - [x] Implement GET /api/core/health endpoint (checks DB + Kafka)
-- [ ] Add response caching middleware for read endpoints (ETag support)
+- [x] Add response caching middleware for read endpoints (ETag support)
 - [ ] Add request/response logging middleware with duration tracking
 - [ ] Add .AsNoTracking() to all read-only EF Core queries
 - [ ] Configure connection pooling
