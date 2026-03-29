@@ -25,6 +25,7 @@ def app():
             "JWT_SECRET": TEST_JWT_SECRET,
             "JWT_ISSUER": TEST_JWT_ISSUER,
             "JWT_AUDIENCE": TEST_JWT_AUDIENCE,
+            "FRONTEND_ORIGIN": "https://atlas-frontend.example",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "RATE_LIMIT_PER_MINUTE": 9999,
         }

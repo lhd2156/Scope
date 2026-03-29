@@ -1,5 +1,6 @@
 from flask import Flask
 from app.api import register_blueprints
+from app.cors_config import configure_cors
 from app.errors import register_error_handlers
 from app.extensions import db
 from app.logging_config import configure_logging
@@ -17,6 +18,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.update(
         SECRET_KEY=settings.secret_key,
+        FLASK_ENV=settings.flask_env,
+        FRONTEND_ORIGIN=settings.frontend_origin,
+        DEVELOPMENT_FRONTEND_ORIGIN=settings.development_frontend_origin,
         SQLALCHEMY_DATABASE_URI=settings.database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         RATE_LIMIT_PER_MINUTE=settings.rate_limit_per_minute,
@@ -42,6 +46,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     register_middleware(app)
     register_error_handlers(app)
     register_blueprints(app)
+    configure_cors(app)
 
     with app.app_context():
         db.create_all()

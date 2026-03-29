@@ -7,6 +7,8 @@ class Settings:
     service_name: str = "atlas-intel"
     version: str = "1.0.0"
     flask_env: str = os.getenv("FLASK_ENV", "development")
+    frontend_origin: str | None = os.getenv("FRONTEND_ORIGIN") or os.getenv("CORE_FRONTEND_ORIGIN")
+    development_frontend_origin: str = "http://localhost:5173"
     secret_key: str | None = os.getenv("FLASK_SECRET_KEY")
     database_url: str = os.getenv("FLASK_DATABASE_URL", "sqlite:///atlas_intel.db")
     jwt_secret: str | None = os.getenv("CORE_JWT_SECRET")
