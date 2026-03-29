@@ -45,6 +45,7 @@
 import { ref } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import Button from '@/components/common/Button.vue';
+import { sanitizeMultilineText } from '@/utils/sanitizers';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 const MIN_COMMENT_LENGTH = 12;
@@ -69,7 +70,7 @@ const comment = ref('');
 const errorMessage = ref('');
 
 function handleSubmit() {
-  const normalizedComment = comment.value.trim();
+  const normalizedComment = sanitizeMultilineText(comment.value);
 
   if (normalizedComment.length < MIN_COMMENT_LENGTH) {
     errorMessage.value = `Add at least ${MIN_COMMENT_LENGTH} characters so the review is useful to other travelers.`;

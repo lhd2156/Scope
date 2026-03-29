@@ -2,6 +2,7 @@ import api from '@/services/api';
 import { mockUsers } from '@/services/mockData';
 import { unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm } from '@/types';
+import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/utils/sanitizers';
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const DEFAULT_DEMO_ACCESS_TOKEN = 'demo-token';
@@ -21,34 +22,38 @@ function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPay
       user.username === overrides.username,
   );
 
-  return {
+  return sanitizeAuthPayload({
     id: overrides.id ?? matchingUser?.id ?? FALLBACK_USER.id,
     username: overrides.username ?? matchingUser?.username ?? FALLBACK_USER.username,
     email: overrides.email ?? matchingUser?.email ?? FALLBACK_USER.email,
     displayName: overrides.displayName ?? matchingUser?.displayName ?? FALLBACK_USER.displayName,
     accessToken: overrides.accessToken ?? DEFAULT_DEMO_ACCESS_TOKEN,
     refreshToken: overrides.refreshToken ?? DEFAULT_DEMO_REFRESH_TOKEN,
-  };
+  });
 }
 
 export async function login(credentials: AuthForm): Promise<AuthPayload> {
+  const sanitizedCredentials = sanitizeAuthForm(credentials);
+
   try {
-    const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/login`, credentials);
-    return unwrapApiData(data);
+    const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/login`, sanitizedCredentials);
+    return sanitizeAuthPayload(unwrapApiData(data));
   } catch {
-    return buildFallbackAuthPayload({ email: credentials.email });
+    return buildFallbackAuthPayload({ email: sanitizedCredentials.email });
   }
 }
 
 export async function register(payload: RegisterForm): Promise<AuthPayload> {
+  const sanitizedPayload = sanitizeRegisterForm(payload);
+
   try {
-    const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/register`, payload);
-    return unwrapApiData(data);
+    const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/register`, sanitizedPayload);
+    return sanitizeAuthPayload(unwrapApiData(data));
   } catch {
     return buildFallbackAuthPayload({
-      username: payload.username,
-      email: payload.email,
-      displayName: payload.displayName,
+      username: sanitizedPayload.username,
+      email: sanitizedPayload.email,
+      displayName: sanitizedPayload.displayName,
     });
   }
 }
@@ -56,7 +61,7 @@ export async function register(payload: RegisterForm): Promise<AuthPayload> {
 export async function refreshSession(refreshToken?: string): Promise<AuthPayload> {
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, undefined);
-    return unwrapApiData(data);
+    return sanitizeAuthPayload(unwrapApiData(data));
   } catch {
     return buildFallbackAuthPayload({
       accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
@@ -76,9 +81,9 @@ export async function logout(): Promise<void> {
 export async function loginWithCognito(idToken: string): Promise<AuthPayload> {
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/oauth/cognito`, {
-      idToken,
+      idToken: idToken.trim(),
     });
-    return unwrapApiData(data);
+    return sanitizeAuthPayload(unwrapApiData(data));
   } catch {
     return buildFallbackAuthPayload();
   }
