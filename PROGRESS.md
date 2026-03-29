@@ -10,7 +10,7 @@
 - [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
-- [/] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING, deployment runbook, production hardening guide, and API route reference are in place; final release polish still remains
+- [x] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING, deployment runbook, production hardening guide, API route reference, and release/rollback runbook are in place
 - [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
 - [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, CI-side Terraform/Kubernetes validation, and an optional real-account Terraform plan path are now in repo; runtime cloud execution and broader production hardening still remain
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, top-level repo docs, production hardening guidance, and API reference docs are in place; executing that plan against a real AWS account remains the main lead-owned runtime gap
+## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, top-level repo docs, production hardening guidance, API reference docs, and release/rollback runbook are in place; executing that plan against a real AWS account remains the main lead-owned runtime gap
 ## Agents Running: none
-## Last Updated: 2026-03-29T19:24:00Z
+## Last Updated: 2026-03-29T19:51:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -431,6 +431,9 @@
 - 2026-03-29T19:24:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T19:24:00Z: Completed the next lead-owned documentation milestone by adding `docs/API-REFERENCE.md`, a practical route reference for the current Core, Content, and Intel API surface, and linked it from `README.md`.
 - 2026-03-29T19:24:00Z: Phase 8 documentation prep is now materially stronger; the remaining lead-owned runtime gap is still executing the Terraform path against a real AWS account and finishing final production release polish.
+- 2026-03-29T19:51:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T19:51:00Z: Completed the next lead-owned documentation milestone by adding `docs/RELEASE-RUNBOOK.md`, a concrete release, verification, and rollback procedure, and linked it from `README.md`, `docs/DEPLOYMENT.md`, and `docs/PRODUCTION-HARDENING.md`.
+- 2026-03-29T19:51:00Z: Phase 8 documentation prep is now effectively complete in-repo; the main remaining lead-owned runtime gap is still executing the Terraform path against a real AWS account.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:

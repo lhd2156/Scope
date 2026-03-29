@@ -291,6 +291,7 @@ Reference files:
 
 - `terraform/README.md`
 - `docs/PRODUCTION-HARDENING.md`
+- `docs/RELEASE-RUNBOOK.md`
 
 > The Terraform CLI is not installed on the current heartbeat host, so this baseline is documented and committed as static IaC, but it has not yet been runtime-validated with `terraform init`, `terraform plan`, or `terraform apply` from this machine.
 
