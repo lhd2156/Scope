@@ -60,4 +60,31 @@ describe('SettingsPage', () => {
     expect(wrapper.find('[data-test="theme-toggle-stub"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Settings updated');
   });
+
+  it('surfaces a settings error when the profile update throws', async () => {
+    authStoreMock.updateCurrentUser.mockImplementationOnce(() => {
+      throw new Error('Settings sync failed');
+    });
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          ThemeToggle: { template: '<div />' },
+          SettingsForm: {
+            props: ['initialValue', 'submitting', 'errorMessage'],
+            emits: ['submit', 'update:errorMessage'],
+            template: '<div><button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button><p>{{ errorMessage }}</p></div>',
+          },
+          Toast: { template: '<div />' },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-submit"]').trigger('click');
+    await vi.advanceTimersByTimeAsync(250);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Atlas could not save your settings right now.');
+  });
 });

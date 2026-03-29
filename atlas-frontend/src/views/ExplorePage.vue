@@ -101,6 +101,12 @@
         </div>
       </section>
 
+      <article v-if="spotsStore.error" class="glass-panel error-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Explore results could not be refreshed</h2>
+        <p class="section-copy">{{ spotsStore.error }}</p>
+      </article>
+
       <section class="results-section">
         <div class="results-header">
           <div>
@@ -238,7 +244,11 @@ watch(searchQuery, (query) => {
 });
 
 onMounted(async () => {
-  await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
+  try {
+    await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
+  } catch {
+    // Store error state already drives the inline failure message.
+  }
 });
 </script>
 
@@ -250,6 +260,7 @@ onMounted(async () => {
 .filter-panel,
 .chip-stack,
 .chip-group,
+.error-panel,
 .results-section,
 .results-grid,
 .empty-state {
@@ -291,6 +302,7 @@ h1 {
 
 .metric-card,
 .filter-panel,
+.error-panel,
 .empty-state {
   padding: var(--space-5);
 }

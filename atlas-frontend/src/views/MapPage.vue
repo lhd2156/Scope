@@ -1,6 +1,12 @@
 <template>
   <AppShell>
     <div class="map-page">
+      <article v-if="workspaceError" class="glass-panel error-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Part of the map workspace could not be loaded</h2>
+        <p class="section-copy">{{ workspaceError }}</p>
+      </article>
+
       <section class="map-workspace">
         <aside class="map-sidebar">
           <Sidebar
@@ -135,6 +141,7 @@ const mapSpots = computed<MapPoint[]>(() => spotsStore.items.map((spot) => ({
 })));
 
 const activeTrip = computed(() => tripsStore.items[0] ?? null);
+const workspaceError = computed(() => spotsStore.error || tripsStore.error || '');
 const routePoints = computed<MapPoint[]>(() => (activeTrip.value?.spots ?? []).map((spot) => ({
   id: spot.spotId,
   title: spot.title,
@@ -170,7 +177,7 @@ function focusSpot(spotId: string) {
 }
 
 onMounted(async () => {
-  await Promise.all([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
+  await Promise.allSettled([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
 
   if (!mapStore.selectedSpotId && spotsStore.items[0]) {
     mapStore.setSelectedSpotId(spotsStore.items[0].id);
@@ -184,6 +191,17 @@ onMounted(async () => {
   min-height: 100vh;
   margin: 0 auto;
   padding: var(--shell-content-top) 0 var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+}
+
+.error-panel {
+  padding: var(--space-6);
+}
+
+.error-panel h2,
+.error-panel p {
+  margin: 0;
 }
 
 .map-workspace {

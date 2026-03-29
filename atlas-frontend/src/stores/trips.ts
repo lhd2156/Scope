@@ -3,14 +3,7 @@ import { defineStore } from 'pinia';
 import { generateItinerary } from '@/services/intelService';
 import { getTripDetail, listTrips } from '@/services/tripService';
 import type { Itinerary, Trip, TripPlannerInput } from '@/types';
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return 'Atlas could not load that trip right now.';
-}
+import { toAsyncErrorMessage } from '@/utils/errors';
 
 export const useTripsStore = defineStore('trips', () => {
   const items = ref<Trip[]>([]);
@@ -28,7 +21,7 @@ export const useTripsStore = defineStore('trips', () => {
       const response = await listTrips();
       items.value = response.data;
     } catch (nextError) {
-      error.value = toErrorMessage(nextError);
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load trips right now.');
       throw nextError;
     } finally {
       loading.value = false;
@@ -44,7 +37,7 @@ export const useTripsStore = defineStore('trips', () => {
       const response = await getTripDetail(tripId);
       selectedTrip.value = response.data;
     } catch (nextError) {
-      error.value = toErrorMessage(nextError);
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load that trip right now.');
       throw nextError;
     } finally {
       loading.value = false;
@@ -59,7 +52,7 @@ export const useTripsStore = defineStore('trips', () => {
       const response = await generateItinerary(input);
       previewItinerary.value = response.data;
     } catch (nextError) {
-      error.value = 'Atlas could not generate an itinerary right now.';
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not generate an itinerary right now.');
       throw nextError;
     } finally {
       planning.value = false;

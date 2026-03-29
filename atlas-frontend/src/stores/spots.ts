@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { createSpot as createSpotRequest, getSpotDetail, listSpots, listTrendingSpots, updateSpot as updateSpotRequest } from '@/services/spotService';
 import type { SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
+import { toAsyncErrorMessage } from '@/utils/errors';
 
 function toSpotSummary(spot: SpotDetail): SpotSummary {
   return {
@@ -31,6 +32,7 @@ export const useSpotsStore = defineStore('spots', () => {
   const filters = ref<SpotFilters>({ page: 1, pageSize: 12 });
   const loading = ref(false);
   const saving = ref(false);
+  const error = ref<string | null>(null);
 
   const featuredSpots = computed(() => (trending.value.length ? trending.value : items.value.slice(0, 4)));
 
@@ -77,11 +79,15 @@ export const useSpotsStore = defineStore('spots', () => {
 
   async function fetchSpots(nextFilters: SpotFilters = filters.value) {
     loading.value = true;
+    error.value = null;
     filters.value = { ...filters.value, ...nextFilters };
 
     try {
       const response = await listSpots(filters.value);
       items.value = response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load spots right now.');
+      throw nextError;
     } finally {
       loading.value = false;
     }
@@ -89,10 +95,14 @@ export const useSpotsStore = defineStore('spots', () => {
 
   async function fetchTrending() {
     loading.value = true;
+    error.value = null;
 
     try {
       const response = await listTrendingSpots();
       trending.value = response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load trending spots right now.');
+      throw nextError;
     } finally {
       loading.value = false;
     }
@@ -100,11 +110,15 @@ export const useSpotsStore = defineStore('spots', () => {
 
   async function fetchSpot(spotId: string) {
     loading.value = true;
+    error.value = null;
     selectedSpot.value = null;
 
     try {
       const response = await getSpotDetail(spotId);
       selectedSpot.value = response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load that spot right now.');
+      throw nextError;
     } finally {
       loading.value = false;
     }
@@ -112,6 +126,7 @@ export const useSpotsStore = defineStore('spots', () => {
 
   async function createSpot(submission: SpotFormSubmission, currentUser?: UserProfile | null): Promise<SpotDetail> {
     saving.value = true;
+    error.value = null;
 
     try {
       const response = await createSpotRequest(submission, currentUser);
@@ -120,6 +135,9 @@ export const useSpotsStore = defineStore('spots', () => {
       reconcileItems(summary);
       reconcileTrending(summary);
       return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not save that spot right now.');
+      throw nextError;
     } finally {
       saving.value = false;
     }
@@ -127,6 +145,7 @@ export const useSpotsStore = defineStore('spots', () => {
 
   async function updateSpot(spotId: string, submission: SpotFormSubmission, currentUser?: UserProfile | null): Promise<SpotDetail> {
     saving.value = true;
+    error.value = null;
 
     try {
       const response = await updateSpotRequest(spotId, submission, currentUser);
@@ -135,6 +154,9 @@ export const useSpotsStore = defineStore('spots', () => {
       reconcileItems(summary);
       reconcileTrending(summary);
       return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not update that spot right now.');
+      throw nextError;
     } finally {
       saving.value = false;
     }
@@ -147,6 +169,7 @@ export const useSpotsStore = defineStore('spots', () => {
     filters,
     loading,
     saving,
+    error,
     featuredSpots,
     fetchSpots,
     fetchTrending,

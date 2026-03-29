@@ -17,6 +17,12 @@
         <img src="@/assets/hero.png" alt="Atlas hero" class="hero-art" />
       </section>
 
+      <article v-if="loadErrorMessage" class="glass-panel error-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Part of the Atlas home feed could not be loaded</h2>
+        <p class="section-copy">{{ loadErrorMessage }}</p>
+      </article>
+
       <section>
         <SectionHeading
           eyebrow="Trending now"
@@ -44,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
@@ -54,9 +60,10 @@ import { useSpotsStore } from '@/stores/spots';
 
 const spotsStore = useSpotsStore();
 const feedStore = useFeedStore();
+const loadErrorMessage = computed(() => spotsStore.error || feedStore.error || '');
 
 onMounted(async () => {
-  await Promise.all([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
+  await Promise.allSettled([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
 });
 </script>
 
@@ -100,9 +107,19 @@ h1 {
   object-fit: cover;
 }
 
+.error-panel,
 .feed-list {
   display: grid;
   gap: var(--space-4);
+}
+
+.error-panel {
+  padding: var(--space-6);
+}
+
+.error-panel h2,
+.error-panel p {
+  margin: 0;
 }
 
 @media (max-width: 960px) {

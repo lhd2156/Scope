@@ -16,6 +16,7 @@ import {
   persistAuthSessionHint,
   purgeLegacyAuthStorage,
 } from '@/utils/authSessionStorage';
+import { toAsyncErrorMessage } from '@/utils/errors';
 import { sanitizeAuthPayload, sanitizeUserProfile } from '@/utils/sanitizers';
 
 function resolveCurrentUser(payload: AuthPayload): UserProfile {
@@ -53,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
   const hasSessionHint = ref(hasStoredAuthSessionHint());
   const isHydratingSession = ref(false);
   const hasHydratedSession = ref(false);
+  const error = ref<string | null>(null);
   const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
   let hydrationPromise: Promise<boolean> | null = null;
 
@@ -62,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser.value = resolveCurrentUser(sanitizedPayload);
     hasSessionHint.value = true;
     hasHydratedSession.value = true;
+    error.value = null;
     persistAuthSessionHint();
     setAccessToken(token.value);
   }
@@ -75,6 +78,10 @@ export const useAuthStore = defineStore('auth', () => {
     clearApiSession();
   }
 
+  function clearError() {
+    error.value = null;
+  }
+
   function updateCurrentUser(updates: Partial<UserProfile>) {
     if (!currentUser.value) {
       return;
@@ -86,14 +93,17 @@ export const useAuthStore = defineStore('auth', () => {
     });
   }
 
-  async function refreshSession(options: { allowMockFallback?: boolean } = {}): Promise<string | null> {
+  async function refreshSession(options: { allowMockFallback?: boolean; captureError?: boolean } = {}): Promise<string | null> {
     try {
       const payload = await refreshSessionRequest({
         allowMockFallback: options.allowMockFallback ?? Boolean(token.value),
       });
       applyAuthPayload(payload);
       return payload.accessToken;
-    } catch {
+    } catch (nextError) {
+      if (options.captureError ?? true) {
+        error.value = toAsyncErrorMessage(nextError, 'Atlas could not refresh your session right now.');
+      }
       clearSession();
       return null;
     }
@@ -118,7 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
       isHydratingSession.value = true;
 
       try {
-        const restoredAccessToken = await refreshSession({ allowMockFallback: false });
+        const restoredAccessToken = await refreshSession({ allowMockFallback: false, captureError: false });
         return Boolean(restoredAccessToken);
       } finally {
         isHydratingSession.value = false;
@@ -131,20 +141,45 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(payload: AuthForm) {
-    applyAuthPayload(await loginRequest(payload));
+    error.value = null;
+
+    try {
+      applyAuthPayload(await loginRequest(payload));
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not sign you in right now.');
+      throw nextError;
+    }
   }
 
   async function register(payload: RegisterForm) {
-    applyAuthPayload(await registerRequest(payload));
+    error.value = null;
+
+    try {
+      applyAuthPayload(await registerRequest(payload));
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not create your account right now.');
+      throw nextError;
+    }
   }
 
   async function loginWithCognito(idToken = 'demo-cognito-id-token') {
-    applyAuthPayload(await loginWithCognitoRequest(idToken));
+    error.value = null;
+
+    try {
+      applyAuthPayload(await loginWithCognitoRequest(idToken));
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not sign you in with Google right now.');
+      throw nextError;
+    }
   }
 
   async function logout() {
+    error.value = null;
+
     try {
       await logoutRequest();
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not reach logout services. You were signed out locally instead.');
     } finally {
       clearSession();
     }
@@ -161,6 +196,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasSessionHint,
     isHydratingSession,
     hasHydratedSession,
+    error,
     isAuthenticated,
     hydrateSession,
     login,
@@ -168,6 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
     loginWithCognito,
     refreshSession,
     updateCurrentUser,
+    clearError,
     logout,
   };
 });

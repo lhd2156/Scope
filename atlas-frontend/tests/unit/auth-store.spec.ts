@@ -128,4 +128,26 @@ describe('auth store security hardening', () => {
     expect(store.currentUser?.id).toBe('user-1');
     expect(store.hasHydratedSession).toBe(true);
   });
+
+  it('captures login failures as a user-safe auth error', async () => {
+    vi.doMock('@/services/authService', () => ({
+      login: vi.fn().mockRejectedValue(new Error('Invalid credentials')),
+      register: vi.fn(),
+      loginWithCognito: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+    }));
+
+    const store = await bootstrapAuthStore();
+
+    await expect(
+      store.login({
+        email: 'maya@example.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toThrow('Invalid credentials');
+
+    expect(store.error).toBe('Invalid credentials');
+    expect(store.isAuthenticated).toBe(false);
+  });
 });

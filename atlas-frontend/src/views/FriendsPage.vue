@@ -30,6 +30,12 @@
         </article>
       </section>
 
+      <article v-if="workspaceError" class="glass-panel error-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Part of the social workspace is offline</h2>
+        <p class="section-copy">{{ workspaceError }}</p>
+      </article>
+
       <section v-if="friendRequests.length" class="request-grid">
         <SectionHeading
           eyebrow="Requests"
@@ -116,6 +122,7 @@ const friendRequests = ref<FriendRequest[]>([...mockFriendRequests]);
 
 const onlineFriends = computed(() => friendConnections.value.filter((friend) => friend.presence === 'online').length);
 const incomingRequests = computed(() => friendRequests.value.filter((request) => request.direction === 'incoming'));
+const workspaceError = computed(() => feedStore.error || notificationsStore.error || '');
 
 function openProfile(userId: string) {
   void router.push(`/profile/${userId}`);
@@ -156,14 +163,24 @@ function handleSecondaryRequestAction(requestId: string, _direction: FriendReque
 }
 
 onMounted(async () => {
-  await Promise.all([feedStore.fetchFeed(), notificationsStore.fetchNotifications()]);
+  await Promise.allSettled([feedStore.fetchFeed(), notificationsStore.fetchNotifications()]);
 });
 </script>
 
 <style scoped>
-.friends-page {
+.friends-page,
+.error-panel {
   display: grid;
   gap: var(--space-6);
+}
+
+.error-panel {
+  padding: var(--space-6);
+}
+
+.error-panel h2,
+.error-panel p {
+  margin: 0;
 }
 
 .hero-grid {
