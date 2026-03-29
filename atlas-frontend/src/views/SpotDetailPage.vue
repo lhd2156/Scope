@@ -4,15 +4,29 @@
       <SectionHeading
         eyebrow="Spot detail"
         title="Spot depth view"
-        description="Photos, reviews, and trip-worthiness all tied to the content engine contract."
+        description="Photos, reviews, and map context pulled into a single premium detail surface."
       />
-      <SpotDetail :spot="spotsStore.selectedSpot" />
+
+      <section v-if="spotsStore.loading" class="glass-panel state-card">
+        <p class="eyebrow">Loading</p>
+        <h2>Pulling the full spot profile</h2>
+        <p class="section-copy">Atlas is syncing gallery, review, and location data for this stop.</p>
+      </section>
+
+      <section v-else-if="notFound" class="glass-panel state-card">
+        <p class="eyebrow">Missing spot</p>
+        <h2>That pin could not be found</h2>
+        <p class="section-copy">The requested spot may have moved, been removed, or not synced yet.</p>
+        <RouterLink to="/explore" class="state-link">Back to explore</RouterLink>
+      </section>
+
+      <SpotDetail v-else :spot="activeSpot" />
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
@@ -21,8 +35,67 @@ import { useSpotsStore } from '@/stores/spots';
 
 const route = useRoute();
 const spotsStore = useSpotsStore();
+const notFound = ref(false);
 
-onMounted(async () => {
-  await spotsStore.fetchSpot(String(route.params.id));
-});
+const requestedSpotId = computed(() => String(route.params.id ?? ''));
+const activeSpot = computed(() => (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
+
+async function loadSpot(spotId: string) {
+  if (!spotId) {
+    notFound.value = true;
+    return;
+  }
+
+  notFound.value = false;
+
+  try {
+    await spotsStore.fetchSpot(spotId);
+  } catch {
+    notFound.value = true;
+  }
+}
+
+watch(
+  requestedSpotId,
+  async (spotId) => {
+    await loadSpot(spotId);
+  },
+  { immediate: true },
+);
 </script>
+
+<style scoped>
+.page-stack {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.state-card {
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.state-card h2,
+.state-card p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
+}
+
+.state-link {
+  color: var(--accent-teal);
+  font-weight: var(--font-weight-semibold);
+}
+
+.state-link:hover,
+.state-link:focus-visible {
+  color: var(--accent-teal-hover);
+  outline: none;
+}
+</style>

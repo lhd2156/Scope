@@ -10,26 +10,41 @@ export const useSpotsStore = defineStore('spots', () => {
   const filters = ref<SpotFilters>({ page: 1, pageSize: 12 });
   const loading = ref(false);
 
-  const featuredSpots = computed(() => trending.value.length ? trending.value : items.value.slice(0, 4));
+  const featuredSpots = computed(() => (trending.value.length ? trending.value : items.value.slice(0, 4)));
 
   async function fetchSpots(nextFilters: SpotFilters = filters.value) {
     loading.value = true;
     filters.value = { ...filters.value, ...nextFilters };
-    const response = await listSpots(filters.value);
-    items.value = response.data;
-    loading.value = false;
+
+    try {
+      const response = await listSpots(filters.value);
+      items.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function fetchTrending() {
-    const response = await listTrendingSpots();
-    trending.value = response.data;
+    loading.value = true;
+
+    try {
+      const response = await listTrendingSpots();
+      trending.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function fetchSpot(spotId: string) {
     loading.value = true;
-    const response = await getSpotDetail(spotId);
-    selectedSpot.value = response.data;
-    loading.value = false;
+    selectedSpot.value = null;
+
+    try {
+      const response = await getSpotDetail(spotId);
+      selectedSpot.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   return {
