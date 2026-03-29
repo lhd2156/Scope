@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Add Marshmallow schema validation on ALL request bodies
-## Last Updated: 2026-03-29T10:37:42Z
+## Current Task: Verify JWT auth decorator is enforced on all protected endpoints
+## Last Updated: 2026-03-29T10:54:45Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -33,6 +33,7 @@
 - 2026-03-29: Ran `python -m pytest tests` from inside `atlas_intel/`; all 12 Intel tests passed on Python 3.14.3 with no code fixes required.
 - 2026-03-29: Audited the Intel codebase for broken imports, TODO/debug statements, and hardcoded secret fallbacks; import smoke passed, removed in-code Flask/JWT secret defaults, switched auth to read Flask app config, added fail-fast config coverage, and re-ran pytest successfully (13 passed).
 - 2026-03-29: Added an explicit `@rate_limited` decorator to every Intel API route, moved the in-memory request-window enforcement out of generic middleware, returned architecture-aligned `429 RATE_LIMITED` responses with `Retry-After`, and added route-coverage + 429 contract tests (`15 passed`).
+- 2026-03-29: Tightened Marshmallow request schemas across all JSON POST routes, added explicit validation for similar recommendations and nested route-optimization spots, flattened nested validation errors into stable field paths, and re-ran the Intel suite successfully (`20 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -51,7 +52,7 @@
 
 ### Phase 6: Security Hardening
 - [x] Add Flask rate limiting decorator to ALL API endpoints
-- [ ] Add Marshmallow schema validation on ALL request bodies
+- [x] Add Marshmallow schema validation on ALL request bodies
 - [ ] Verify JWT auth decorator is enforced on all protected endpoints
 - [ ] Add CORS configuration via flask-cors
 - [ ] Verify parameterized queries (SQLAlchemy ORM-only)

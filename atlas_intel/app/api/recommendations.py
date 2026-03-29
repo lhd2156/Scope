@@ -2,12 +2,13 @@ from flask import Blueprint, request
 from app.auth import require_auth
 from app.rate_limit import rate_limited
 from app.responses import success_response
-from app.schemas import RecommendationRequestSchema
+from app.schemas import RecommendationRequestSchema, SimilarRecommendationRequestSchema
 from app.services.content_client import ContentServiceClient
 from app.services.recommendation_engine import RecommendationEngine
 
 recommendations_bp = Blueprint("recommendations", __name__)
 request_schema = RecommendationRequestSchema()
+similar_request_schema = SimilarRecommendationRequestSchema()
 engine = RecommendationEngine(ContentServiceClient())
 
 @recommendations_bp.post("/recommend/spots")
@@ -22,5 +23,5 @@ def recommend_spots():
 @rate_limited
 @require_auth
 def similar_spots(spot_id: str):
-    limit = int((request.get_json(silent=True) or {}).get("limit", 5))
-    return success_response({"recommendations": engine.similar_spots(spot_id, limit=limit)})
+    payload = similar_request_schema.load(request.get_json(silent=True) or {})
+    return success_response({"recommendations": engine.similar_spots(spot_id, limit=payload["limit"])})
