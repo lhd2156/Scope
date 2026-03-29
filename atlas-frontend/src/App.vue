@@ -11,6 +11,8 @@ import { useNotificationsStore } from '@/stores/notifications';
 const authStore = useAuthStore();
 const notificationsStore = useNotificationsStore();
 
+void authStore.hydrateSession();
+
 async function syncRealtimeNotifications(isAuthenticated: boolean) {
   if (!isAuthenticated) {
     await notificationsStore.disconnect();

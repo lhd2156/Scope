@@ -10,6 +10,12 @@ import {
 } from '@/services/authService';
 import { mockUsers } from '@/services/mockData';
 import type { AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
+import {
+  clearStoredAuthSessionHint,
+  hasStoredAuthSessionHint,
+  persistAuthSessionHint,
+  purgeLegacyAuthStorage,
+} from '@/utils/authSessionStorage';
 import { sanitizeAuthPayload, sanitizeUserProfile } from '@/utils/sanitizers';
 
 function resolveCurrentUser(payload: AuthPayload): UserProfile {
@@ -40,25 +46,33 @@ function resolveCurrentUser(payload: AuthPayload): UserProfile {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  purgeLegacyAuthStorage();
+
   const token = ref('');
-  const refreshToken = ref('');
   const currentUser = ref<UserProfile | null>(null);
-  const isAuthenticated = computed(() => Boolean(token.value || currentUser.value));
+  const hasSessionHint = ref(hasStoredAuthSessionHint());
+  const isHydratingSession = ref(false);
+  const hasHydratedSession = ref(false);
+  const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
+  let hydrationPromise: Promise<boolean> | null = null;
 
   function applyAuthPayload(payload: AuthPayload) {
     const sanitizedPayload = sanitizeAuthPayload(payload);
     token.value = sanitizedPayload.accessToken;
-    refreshToken.value = sanitizedPayload.refreshToken;
     currentUser.value = resolveCurrentUser(sanitizedPayload);
+    hasSessionHint.value = true;
+    hasHydratedSession.value = true;
+    persistAuthSessionHint();
     setAccessToken(token.value);
   }
 
   function clearSession() {
     token.value = '';
-    refreshToken.value = '';
     currentUser.value = null;
+    hasSessionHint.value = false;
+    hasHydratedSession.value = true;
+    clearStoredAuthSessionHint();
     clearApiSession();
-    setAccessToken('');
   }
 
   function updateCurrentUser(updates: Partial<UserProfile>) {
@@ -72,15 +86,48 @@ export const useAuthStore = defineStore('auth', () => {
     });
   }
 
-  async function refreshSession(): Promise<string | null> {
-    if (!currentUser.value) {
+  async function refreshSession(options: { allowMockFallback?: boolean } = {}): Promise<string | null> {
+    try {
+      const payload = await refreshSessionRequest({
+        allowMockFallback: options.allowMockFallback ?? Boolean(token.value),
+      });
+      applyAuthPayload(payload);
+      return payload.accessToken;
+    } catch {
       clearSession();
       return null;
     }
+  }
 
-    const payload = await refreshSessionRequest(refreshToken.value);
-    applyAuthPayload(payload);
-    return payload.accessToken;
+  async function hydrateSession(): Promise<boolean> {
+    if (hydrationPromise) {
+      return hydrationPromise;
+    }
+
+    if (isAuthenticated.value) {
+      hasHydratedSession.value = true;
+      return true;
+    }
+
+    if (!hasSessionHint.value) {
+      hasHydratedSession.value = true;
+      return false;
+    }
+
+    hydrationPromise = (async () => {
+      isHydratingSession.value = true;
+
+      try {
+        const restoredAccessToken = await refreshSession({ allowMockFallback: false });
+        return Boolean(restoredAccessToken);
+      } finally {
+        isHydratingSession.value = false;
+        hasHydratedSession.value = true;
+        hydrationPromise = null;
+      }
+    })();
+
+    return hydrationPromise;
   }
 
   async function login(payload: AuthForm) {
@@ -110,9 +157,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token,
-    refreshToken,
     currentUser,
+    hasSessionHint,
+    isHydratingSession,
+    hasHydratedSession,
     isAuthenticated,
+    hydrateSession,
     login,
     register,
     loginWithCognito,
