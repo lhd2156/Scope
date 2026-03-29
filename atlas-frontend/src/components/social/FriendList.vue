@@ -9,6 +9,7 @@
     </header>
 
     <VirtualList
+      v-if="friends.length"
       :items="friends"
       :item-height="136"
       :viewport-height="viewportHeight"
@@ -35,11 +36,23 @@
         </button>
       </template>
     </VirtualList>
+
+    <EmptyStatePanel
+      v-else
+      tone="surface"
+      compact
+      eyebrow="Connections"
+      title="Your Atlas circle is still forming"
+      description="As you accept requests and invite collaborators, your core travel crew will appear here."
+      icon="friends"
+      heading-level="h3"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import Avatar from '@/components/common/Avatar.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
 import type { FriendConnection, FriendPresence } from '@/types';
 

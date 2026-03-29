@@ -24,9 +24,20 @@
           description="The strongest Atlas signals across food, nature, culture, nightlife, and scenic loops."
         />
 
-        <div class="spot-grid">
+        <div v-if="showFeaturedSkeletons" class="spot-grid" role="status" aria-live="polite" aria-label="Loading featured spots">
+          <SpotCardSkeleton v-for="index in 4" :key="`featured-skeleton-${index}`" />
+        </div>
+        <div v-else-if="spotsStore.featuredSpots.length" class="spot-grid">
           <SpotCard v-for="spot in spotsStore.featuredSpots" :key="spot.id" :spot="spot" />
         </div>
+        <EmptyStatePanel
+          v-else-if="!spotsStore.error"
+          eyebrow="Trending now"
+          title="Featured spots are waiting on the first pin drop"
+          description="Once travelers start surfacing standout places, Atlas will spotlight them here first."
+          icon="map"
+          heading-level="h3"
+        />
       </section>
 
       <section class="section-stack">
@@ -36,8 +47,11 @@
           description="Recent pins, trip moves, and social proof from the people shaping Atlas in real time."
         />
 
+        <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading Atlas activity feed">
+          <FeedItemSkeleton v-for="index in 3" :key="`feed-skeleton-${index}`" />
+        </div>
         <VirtualList
-          v-if="feedStore.items.length"
+          v-else-if="feedStore.items.length"
           :items="feedStore.items"
           :item-height="232"
           :viewport-height="560"
@@ -49,44 +63,58 @@
             </div>
           </template>
         </VirtualList>
-        <div v-else class="glass-panel empty-panel">
-          <strong>No activity yet</strong>
-          <p>Once your network starts pinning spots and planning trips, the Atlas feed will fill in here.</p>
-        </div>
+        <EmptyStatePanel
+          v-else-if="!feedStore.error"
+          eyebrow="Network activity"
+          title="No activity yet"
+          description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
+          icon="sparkle"
+          heading-level="h3"
+        />
       </section>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
+import FeedItemSkeleton from '@/components/social/FeedItemSkeleton.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
+import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useFeedStore } from '@/stores/feed';
 import { useSpotsStore } from '@/stores/spots';
 
 const spotsStore = useSpotsStore();
 const feedStore = useFeedStore();
+const isBootstrapping = ref(true);
 const loadErrorMessage = computed(() => spotsStore.error || feedStore.error || '');
+const showFeaturedSkeletons = computed(() => isBootstrapping.value && !spotsStore.featuredSpots.length && !spotsStore.error);
+const showFeedSkeletons = computed(() => isBootstrapping.value && !feedStore.items.length && !feedStore.error);
 
 onMounted(async () => {
-  await Promise.allSettled([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
+  try {
+    await Promise.allSettled([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
+  } finally {
+    isBootstrapping.value = false;
+  }
 });
 </script>
 
 <style scoped>
 .home-page,
-.section-stack {
+.section-stack,
+.feed-skeleton-stack {
   display: grid;
   gap: var(--space-6);
 }
 
 .hero-panel,
-.error-panel,
-.empty-panel {
+.error-panel {
   padding: var(--space-6);
 }
 
@@ -98,9 +126,7 @@ onMounted(async () => {
 
 .hero-copy h1,
 .error-panel h2,
-.error-panel p,
-.empty-panel strong,
-.empty-panel p {
+.error-panel p {
   margin: 0;
 }
 
@@ -120,9 +146,5 @@ onMounted(async () => {
 
 .feed-row {
   padding-bottom: var(--space-4);
-}
-
-.empty-panel p {
-  color: var(--text-secondary);
 }
 </style>

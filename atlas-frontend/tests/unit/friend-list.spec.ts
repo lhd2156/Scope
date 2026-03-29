@@ -23,4 +23,20 @@ describe('FriendList', () => {
     await wrapper.findAll('.friend-row')[0]?.trigger('click');
     expect(wrapper.emitted('view-profile')?.[0]).toEqual(['friend-0']);
   });
+
+  it('renders a reusable empty state when no friends are connected yet', () => {
+    const wrapper = mount(FriendList, {
+      props: {
+        friends: [],
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { template: '<span class="icon-stub" />' },
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Your Atlas circle is still forming');
+  });
 });

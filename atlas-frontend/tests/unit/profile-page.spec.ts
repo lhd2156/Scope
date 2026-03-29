@@ -140,6 +140,21 @@ describe('ProfilePage', () => {
     expect(wrapper.find('[data-test="profile-map"]').text()).toContain('Louis Do has 2 visible pins across 2 mapped cities.');
   });
 
+  it('renders a reusable skeleton while the profile workspace request is in flight', () => {
+    userStoreMock.fetchCurrentProfile.mockReset().mockImplementation(() => new Promise(() => {}));
+
+    const wrapper = mount(ProfilePage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-test="profile-workspace-skeleton"]').exists()).toBe(true);
+  });
+
   it('shows an error state when the profile contract cannot be loaded', async () => {
     authStoreMock.currentUser = {
       id: 'user-9',

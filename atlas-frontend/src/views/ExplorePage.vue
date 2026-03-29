@@ -121,15 +121,22 @@
           </div>
         </div>
 
-        <p v-if="spotsStore.loading" class="section-copy">Loading explore results...</p>
+        <div v-if="showResultsSkeleton" class="results-grid" role="status" aria-live="polite" aria-label="Loading explore results">
+          <SpotCardSkeleton v-for="index in 8" :key="`explore-skeleton-${index}`" />
+        </div>
         <div v-else-if="filteredSpots.length" class="results-grid">
           <SpotCard v-for="spot in filteredSpots" :key="spot.id" :spot="spot" />
         </div>
-        <article v-else class="glass-panel empty-state">
-          <h3>No spots match the current filters</h3>
-          <p class="section-copy">Try clearing one of the active chips or broadening the search query to surface more places.</p>
-          <button type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
-        </article>
+        <EmptyStatePanel
+          v-else-if="!spotsStore.error"
+          eyebrow="Discovery results"
+          :title="emptyStateTitle"
+          :description="emptyStateDescription"
+          icon="search"
+          heading-level="h3"
+        >
+          <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
+        </EmptyStatePanel>
       </section>
     </div>
   </AppShell>
@@ -139,8 +146,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
+import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 
@@ -152,6 +161,7 @@ const searchQuery = ref('');
 const selectedCategory = ref<SpotCategory | ''>('');
 const selectedCity = ref('');
 const selectedVibe = ref('');
+const isFetchingInitialResults = ref(true);
 
 function formatCategory(category: SpotCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -199,6 +209,7 @@ function matchesSearch(spot: SpotSummary, query: string): boolean {
 }
 
 const baseSpots = computed(() => spotsStore.items);
+const hasActiveFilters = computed(() => Boolean(searchQuery.value || selectedCategory.value || selectedCity.value || selectedVibe.value));
 
 const availableCities = computed(() =>
   [...new Set(baseSpots.value.map((spot) => spot.city).filter((city): city is string => Boolean(city?.trim())))].sort((left, right) =>
@@ -219,6 +230,14 @@ const filteredSpots = computed(() =>
     const matchesVibe = !selectedVibe.value || spot.vibe === selectedVibe.value;
     return matchesCategory && matchesCity && matchesVibe && matchesSearch(spot, searchQuery.value);
   }),
+);
+
+const showResultsSkeleton = computed(() => isFetchingInitialResults.value && !baseSpots.value.length && !spotsStore.error);
+const emptyStateTitle = computed(() => (hasActiveFilters.value ? 'No spots match the current filters' : 'No community spots yet'));
+const emptyStateDescription = computed(() =>
+  hasActiveFilters.value
+    ? 'Try clearing one of the active chips or broadening the search query to surface more places.'
+    : 'Atlas will surface community-loved places here once the first pins sync into explore.',
 );
 
 watch(
@@ -248,6 +267,8 @@ onMounted(async () => {
     await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
   } catch {
     // Store error state already drives the inline failure message.
+  } finally {
+    isFetchingInitialResults.value = false;
   }
 });
 </script>
@@ -262,8 +283,7 @@ onMounted(async () => {
 .chip-group,
 .error-panel,
 .results-section,
-.results-grid,
-.empty-state {
+.results-grid {
   display: grid;
   gap: var(--space-5);
 }
@@ -302,8 +322,7 @@ h1 {
 
 .metric-card,
 .filter-panel,
-.error-panel,
-.empty-state {
+.error-panel {
   padding: var(--space-5);
 }
 
@@ -388,10 +407,6 @@ h1 {
 
 .results-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.empty-state {
-  justify-items: start;
 }
 
 @media (max-width: 1200px) {
