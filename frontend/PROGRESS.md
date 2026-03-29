@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 6.2 — Secure localStorage usage (no raw tokens in localStorage)
-## Last Updated: 2026-03-29T08:19:00.1285268Z
+## Current Task: Phase 6.3 — Add CSRF token handling for form submissions
+## Last Updated: 2026-03-29T08:34:10.2285135Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -46,6 +46,7 @@
 - 2026-03-29T07:43:23.1854917Z: COMPLETED Phase 5.3 test verification — npm.cmd run test ✅ passed on the current frontend worktree with 27 test files / 42 tests green, so no code changes were required for this milestone.
 - 2026-03-29T07:53:08.4853181Z: COMPLETED Phase 5.4 audit — confirmed there are no TODO/FIXME/XXX markers under `atlas-frontend/src` or `atlas-frontend/tests`, removed the dead Vite starter `src/style.css` stylesheet that still carried non-token hardcoded colors, and replaced raw route-layer hex fallbacks with design-token lookups plus named route constants in `RouteLayer.vue`. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests). `npm.cmd run lint` still fails because ESLint 9 expects a flat `eslint.config.*` file that this repo has not been migrated to yet.
 - 2026-03-29T08:19:00.1285268Z: COMPLETED Phase 6.1 hardening — added centralized frontend sanitizers for user-facing text, review copy, media URLs, and mock/API payload normalization so spots, trips, feed items, notifications, profiles, and geocode results are cleaned before UI display. Realtime notifications now sanitize on ingress, review submission sanitizes before emit, and new Vitest coverage locks the behavior. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (29 files / 47 tests).
+- 2026-03-29T08:34:10.2285135Z: COMPLETED Phase 6.2 hardening — replaced raw browser token persistence with a versioned auth session hint in localStorage, purge-on-boot cleanup for legacy Atlas token keys, cookie-driven session hydration for protected/guest route checks, and auth-store coverage that proves access/refresh tokens never land in localStorage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 51 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -62,7 +63,7 @@
 
 ### Phase 6: Security Hardening
 - [x] Sanitize user inputs before display
-- [ ] Secure localStorage usage (no raw tokens in localStorage)
+- [x] Secure localStorage usage (no raw tokens in localStorage)
 - [ ] Add CSRF token handling for form submissions
 - [ ] Verify auth guards on all protected routes
 

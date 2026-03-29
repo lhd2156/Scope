@@ -14,6 +14,10 @@ const FALLBACK_USER = {
   displayName: 'Louis Do',
 };
 
+export interface RefreshSessionOptions {
+  allowMockFallback?: boolean;
+}
+
 function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPayload {
   const matchingUser = mockUsers.find(
     (user) =>
@@ -58,15 +62,19 @@ export async function register(payload: RegisterForm): Promise<AuthPayload> {
   }
 }
 
-export async function refreshSession(refreshToken?: string): Promise<AuthPayload> {
+export async function refreshSession(options: RefreshSessionOptions = {}): Promise<AuthPayload> {
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, undefined);
     return sanitizeAuthPayload(unwrapApiData(data));
-  } catch {
-    return buildFallbackAuthPayload({
-      accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
-      refreshToken: refreshToken || DEFAULT_DEMO_REFRESH_TOKEN,
-    });
+  } catch (error) {
+    if (options.allowMockFallback) {
+      return buildFallbackAuthPayload({
+        accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
+        refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
+      });
+    }
+
+    throw error;
   }
 }
 
