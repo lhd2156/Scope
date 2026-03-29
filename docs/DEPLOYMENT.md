@@ -21,8 +21,8 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 
 The following items are still pending lead-owned integration/infrastructure work:
 
-- Kubernetes manifests beyond placeholders
 - Terraform infrastructure beyond placeholders
+- production deployment workflow expansion beyond GHCR + bundle publishing
 - full production environment guide for managed cloud services
 
 Treat this runbook as the **current local/staging deployment guide**, not the final production playbook.
@@ -47,6 +47,7 @@ Install:
 - `.env.example`
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
+- `k8s/01-namespace.yaml` through `k8s/07-edge.yaml`
 - `atlas-frontend/playwright.config.ts`
 - `atlas-frontend/tests/e2e/critical-flows.spec.ts`
 
@@ -241,7 +242,38 @@ npm run test
 
 ---
 
-## 6. CI pipeline
+## 6. Kubernetes staging manifests
+
+The repository now includes a Kubernetes manifest set under `k8s/`:
+
+1. `01-namespace.yaml`
+2. `02-configmap.yaml`
+3. `03-secret.example.yaml`
+4. `04-sqlserver.yaml`
+5. `05-kafka.yaml`
+6. `06-applications.yaml`
+7. `07-edge.yaml`
+
+Suggested apply order:
+
+```powershell
+kubectl apply -f k8s/01-namespace.yaml
+kubectl apply -f k8s/02-configmap.yaml
+kubectl apply -f k8s/03-secret.example.yaml
+kubectl apply -f k8s/04-sqlserver.yaml
+kubectl apply -f k8s/05-kafka.yaml
+kubectl apply -f k8s/06-applications.yaml
+kubectl apply -f k8s/07-edge.yaml
+```
+
+Notes:
+
+- The manifests assume images are published to GHCR using the deploy workflow.
+- Replace the placeholder image namespace `ghcr.io/replace-me/...` before applying.
+- Replace all secret values from `03-secret.example.yaml` before any shared deployment.
+- `07-edge.yaml` exposes Atlas at host `atlas.local` through an nginx ingress.
+
+## 7. CI pipeline
 
 The repository now includes:
 
@@ -255,7 +287,7 @@ Current automation coverage:
 - Intel install/test
 - Frontend install/build/test
 - GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
-- deployment bundle artifact publishing (`docker-compose.yml`, docs, nginx config, SQL seed scripts)
+- deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
 
 Dependabot is also configured for:
@@ -300,9 +332,10 @@ Before calling a deployment candidate ready:
 - [ ] Frontend build/test passes
 - [ ] Playwright critical-flow smoke passes
 - [ ] production secrets replace all development defaults
-- [ ] seed data scripts are added and documented
-- [ ] deploy workflow is added and reviewed
-- [ ] k8s / terraform placeholders are replaced with real manifests
+- [x] seed data scripts are added and documented
+- [x] deploy workflow is added and reviewed
+- [ ] Terraform placeholders are replaced with real infrastructure
+- [ ] Kubernetes manifests are reviewed against the target cluster and real image namespace/secrets
 
 ---
 
@@ -310,8 +343,6 @@ Before calling a deployment candidate ready:
 
 The next lead-owned milestones after this runbook are:
 
-1. seed data scripts
-2. production/deploy workflow
-3. Kubernetes manifests
-4. Terraform infrastructure
-5. broader deployment documentation and release automation
+1. Terraform infrastructure
+2. production deploy workflow expansion beyond artifact/image publication
+3. broader deployment documentation and release automation

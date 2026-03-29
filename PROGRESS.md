@@ -6,14 +6,14 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, and deploy workflow automation complete; infra/IaC remains
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, and Kubernetes manifests complete; Terraform IaC and final production polish remain
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
 - [ ] Phase 8: Documentation & Deployment Prep — README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
 - [x] Phase 9: Performance & Observability — complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility — route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
-- [ ] Phase 11: Infrastructure Hardening — Kubernetes manifests (7 files), Terraform IaC (5 files), and deployment hardening remain after docker-compose app wiring, CI automation, Dependabot setup, and deploy workflow automation
+- [ ] Phase 11: Infrastructure Hardening — Terraform IaC (5 files) and deployment hardening remain after docker-compose app wiring, CI automation, Dependabot setup, deploy workflow automation, and Kubernetes manifests
 - [x] Phase 12: Final Boss Recheck 🏁 — complete across Core, Content, Intel, and Frontend
 
 ## Agent Status Dashboard
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright critical-flow validation, Dependabot automation, deployment runbook, SQL seed assets, and deploy workflow automation are in place; infra manifests/IaC remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, and Kubernetes manifests are in place; Terraform IaC and final production/deployment hardening remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:38:00Z
+## Last Updated: 2026-03-29T18:54:42.7403921Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -403,6 +403,12 @@
 - 2026-03-29T18:38:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T18:38:00Z: Completed the next lead-owned Phase 4 milestone by adding `.github/workflows/deploy.yml`, which validates the deploy bundle, builds/publishes GHCR images for Core/Content/Intel/Frontend on `main` or manual runs, and uploads a deployment bundle artifact.
 - 2026-03-29T18:38:00Z: Updated `docs/DEPLOYMENT.md` to document the new deploy workflow and current automation coverage. Remaining lead-owned gaps are now infra manifests / IaC and broader production-hardening guidance.
+- 2026-03-29T18:43:00Z: Heartbeat re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files. Foundation, Core, Content, Intel, and Frontend remain COMPLETE, so no service-agent respawns were needed this cycle.
+- 2026-03-29T18:43:00Z: Lead-owned work remains in the integration/infrastructure track: Phase 4 still has infrastructure/IaC gaps, Phase 8 documentation/deployment prep remains open, and Phase 11 hardening manifests/Terraform are still not started.
+- 2026-03-29T18:50:55.8765035Z: Completed the next Phase 11 / Phase 4 infrastructure milestone by replacing the `k8s/.gitkeep` placeholder with seven real manifests: namespace, shared config, secret template, SQL Server, Kafka/Zookeeper, application services, and nginx edge ingress.
+- 2026-03-29T18:50:55.8765035Z: Updated `.github/workflows/deploy.yml` to bundle `k8s/` artifacts and expanded `docs/DEPLOYMENT.md` with Kubernetes apply order, manifest inventory, image/secret replacement notes, and the refined remaining roadmap.
+- 2026-03-29T18:50:55.8765035Z: Validation: `Get-ChildItem k8s -Filter *.yaml | ForEach-Object { npx --yes yaml@2 valid $_.FullName }` ✅ and `npx --yes yaml@2 valid .github/workflows/deploy.yml` ✅. Remaining lead-owned gaps are Terraform IaC and final production/deployment hardening.
+- 2026-03-29T18:54:42.7403921Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the Kubernetes manifest milestone, the updated deploy bundle/runbook integration, and the narrowed remaining gaps (Terraform IaC + final production/deployment hardening).
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
