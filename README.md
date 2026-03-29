@@ -152,6 +152,7 @@ See:
 - `docs/API-REFERENCE.md` — current API route reference across Core, Content, and Intel
 - `docs/DEPLOYMENT.md` — current local/staging deployment runbook
 - `docs/PRODUCTION-HARDENING.md` — production hardening and readiness guidance
+- `docs/RELEASE-RUNBOOK.md` — release, verification, and rollback procedure
 - `scripts/sql/README.md` — schema + seed execution order
 - `terraform/README.md` — Terraform baseline usage notes
 

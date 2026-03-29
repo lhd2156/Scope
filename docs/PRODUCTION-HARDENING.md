@@ -5,6 +5,7 @@ This guide documents the production-facing hardening work that still sits beyond
 Use this alongside:
 
 - `docs/DEPLOYMENT.md`
+- `docs/RELEASE-RUNBOOK.md`
 - `terraform/README.md`
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
