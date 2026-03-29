@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
 using Atlas.Core.API.Configuration;
@@ -13,6 +14,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -45,6 +47,18 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat([
+        "application/json",
+        "application/problem+json"
+    ]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 
 var allowedOrigins = BuildAllowedOrigins(builder.Configuration, builder.Environment);
 builder.Services.AddCors(options => options.AddPolicy(CoreDefaults.CorsPolicyName, policy =>
@@ -131,6 +145,7 @@ app.UseStatusCodePages(async statusCodeContext =>
     }
 });
 app.UseMiddleware<ResponseCachingMiddleware>();
+app.UseResponseCompression();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();

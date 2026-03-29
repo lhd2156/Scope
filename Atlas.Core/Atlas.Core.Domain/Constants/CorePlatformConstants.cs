@@ -127,4 +127,5 @@ public static class CoreCaching
     public const string CacheControlValue = "private, no-cache";
     public const string VaryHeaderName = "Vary";
     public const string VaryAuthorizationValue = "Authorization";
+    public const string VaryAcceptEncodingValue = "Accept-Encoding";
 }
