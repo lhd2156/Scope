@@ -47,6 +47,28 @@ export interface UserProfile {
   stats?: UserStats;
 }
 
+export type FriendPresence = 'online' | 'planning' | 'offline';
+
+export interface FriendConnection {
+  id: string;
+  user: UserProfile;
+  presence: FriendPresence;
+  sharedTrips: number;
+  mutualFriends: number;
+  favoriteCategories: SpotCategory[];
+  nextAdventure?: string;
+  lastActiveAt: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  user: UserProfile;
+  direction: 'incoming' | 'outgoing';
+  createdAt: string;
+  mutualFriends: number;
+  note?: string;
+}
+
 export interface AuthPayload {
   id: string;
   username: string;

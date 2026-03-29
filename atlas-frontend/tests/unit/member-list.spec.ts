@@ -12,7 +12,7 @@ describe('MemberList', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('2 travelers');
+    expect(wrapper.text()).toContain('2 total');
     expect(wrapper.text()).toContain('Louis Do');
     expect(wrapper.text()).toContain('Owner');
     expect(wrapper.text()).toContain('MC');

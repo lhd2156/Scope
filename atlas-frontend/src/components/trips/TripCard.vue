@@ -31,7 +31,7 @@
         <div class="metric-item surface-card">
           <AtlasIcon name="friends" label="Trip members" />
           <div>
-            <strong>{{ trip.members.length }} traveler{{ trip.members.length === 1 ? '' : 's' }}</strong>
+            <strong>{{ trip.members.length }} member{{ trip.members.length === 1 ? '' : 's' }}</strong>
             <span>Shared trip</span>
           </div>
         </div>
