@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add CORS configuration (only allow frontend origin)
-## Last Updated: 2026-03-29T09:40:00Z
+## Current Task: Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
+## Last Updated: 2026-03-29T09:57:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -46,6 +46,9 @@
 - 2026-03-29T09:40:00Z added a WebApplicationFactory-based API test host with in-memory CoreDbContext overrides plus startup configuration injection so JWT protection is verified against the real ASP.NET Core pipeline
 - 2026-03-29T09:40:00Z added authorization integration tests covering all protected REST routes, all three SignalR hub negotiate endpoints, public auth/health routes, and invalid bearer-token handling to confirm JWT enforcement and anonymous exceptions
 - 2026-03-29T09:40:00Z reran Atlas.Core build/test after the JWT audit and passed build (0 warnings, 0 errors) plus tests (49 passed, 0 failed)
+- 2026-03-29T09:57:00Z replaced the permissive CORS policy with an explicit frontend-origin policy: only CORE_FRONTEND_ORIGIN is allowed outside Development, while Development additionally permits http://localhost:5173, with credentials plus GET/POST/PUT/DELETE/OPTIONS and Authorization/Content-Type restrictions
+- 2026-03-29T09:57:00Z added preflight integration tests for configured production-style origin acceptance, unexpected-origin rejection, and localhost acceptance in Development using dedicated WebApplicationFactory hosts
+- 2026-03-29T09:57:00Z reran Atlas.Core build/test after the CORS hardening and passed build (0 warnings, 0 errors) plus tests (52 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -65,7 +68,7 @@
 - [x] Verify rate limiting middleware is applied to ALL endpoints
 - [x] Add input validation (FluentValidation) on ALL request bodies
 - [x] Verify JWT auth is enforced on all protected endpoints
-- [ ] Add CORS configuration (only allow frontend origin)
+- [x] Add CORS configuration (only allow frontend origin)
 - [ ] Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
 
 ### Phase 7: Test Coverage

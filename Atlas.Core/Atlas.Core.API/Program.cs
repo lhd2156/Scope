@@ -44,8 +44,13 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
-builder.Services.AddCors(options => options.AddPolicy("default", policy =>
-    policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials().SetIsOriginAllowed(_ => true)));
+
+var allowedOrigins = BuildAllowedOrigins(builder.Configuration, builder.Environment);
+builder.Services.AddCors(options => options.AddPolicy(CoreDefaults.CorsPolicyName, policy =>
+    policy.WithOrigins(allowedOrigins)
+        .WithHeaders("Authorization", "Content-Type")
+        .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        .AllowCredentials()));
 
 builder.Services.AddDbContext<CoreDbContext>(options =>
     options.UseSqlServer(
@@ -112,7 +117,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();
-app.UseCors("default");
+app.UseCors(CoreDefaults.CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -120,5 +125,30 @@ app.MapHub<Atlas.Core.API.Hubs.TripHub>("/api/core/hubs/trips");
 app.MapHub<Atlas.Core.API.Hubs.LocationHub>("/api/core/hubs/location");
 app.MapHub<Atlas.Core.API.Hubs.NotificationHub>("/api/core/hubs/notifications");
 app.Run();
+
+return;
+
+static string[] BuildAllowedOrigins(ConfigurationManager configuration, IWebHostEnvironment environment)
+{
+    var configuredOrigin = configuration[CoreConfigurationKeys.FrontendOrigin]?.Trim();
+    var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    if (!string.IsNullOrWhiteSpace(configuredOrigin))
+    {
+        origins.Add(configuredOrigin);
+    }
+
+    if (environment.IsDevelopment())
+    {
+        origins.Add(CoreDefaults.DevelopmentFrontendOrigin);
+    }
+
+    if (origins.Count == 0)
+    {
+        throw new InvalidOperationException($"{CoreConfigurationKeys.FrontendOrigin} must be configured outside Development.");
+    }
+
+    return origins.ToArray();
+}
 
 public partial class Program { }
