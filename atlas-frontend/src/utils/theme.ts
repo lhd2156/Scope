@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue';
 import type { ThemeMode } from '@/types';
+import { syncThemeColorMeta } from '@/utils/seo';
 
 const STORAGE_KEY = 'atlas-theme';
 const activeTheme = ref<ThemeMode>('dark');
@@ -18,6 +19,7 @@ export function applyTheme(theme: ThemeMode): void {
   if (typeof document !== 'undefined') {
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.style.colorScheme = theme;
+    syncThemeColorMeta(theme);
   }
 
   try {
