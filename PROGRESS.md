@@ -6,7 +6,7 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, and Playwright E2E scaffold complete; seed data, deployment docs, and infra/IaC remain
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, and deployment runbook complete; seed data and infra/IaC remain
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, and Dependabot automation are in place; seed data, deployment docs, deploy workflow, and infra manifests remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, Dependabot automation, and deployment runbook are in place; seed data, deploy workflow, and infra manifests remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:11:48.0758390Z
+## Last Updated: 2026-03-29T18:13:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -383,12 +383,16 @@
 - 2026-03-29T18:10:24.4446822Z: CI integration details: the workflow now validates `docker compose config`, injects safe CI env defaults, and installs `unixodbc-dev` before Content dependency installation so `mssql-django` environments can resolve cleanly on Ubuntu runners.
 - 2026-03-29T18:10:24.4446822Z: Remaining lead-owned integration gaps are Playwright critical-flow test implementation/validation, seed data, deployment docs, deploy workflow, and k8s/Terraform manifests.
 - 2026-03-29T18:11:48.0758390Z: Validation: `npx --yes yaml@2 valid .github/workflows/ci.yml` ✅ after the final CI workflow and Dependabot updates.
+- 2026-03-29T18:12:34.7657759Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the new automation milestone: CI workflow plus Dependabot are now in place, while Playwright validation, seed data, deploy workflow, k8s/Terraform, and deployment docs remain.
 - 2026-03-29T17:47:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T17:47:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `.github/workflows/ci.yml`, a multi-job GitHub Actions workflow that restores/builds/tests Core, Content, Intel, and Frontend with service-specific CI environment variables.
 - 2026-03-29T17:47:00Z: Validation: `.github/workflows/ci.yml` parsed successfully via `npx --yes yaml@2 valid`. Remaining Phase 4 gaps are Playwright E2E scaffolding, seed data, deployment documentation, and infra manifests/IaC.
 - 2026-03-29T17:53:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T17:53:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `atlas-frontend/playwright.config.ts` plus `atlas-frontend/tests/e2e/critical-flows.spec.ts`, covering the critical browser journey: register → login → create spot → view map → plan trip.
 - 2026-03-29T17:53:00Z: Validation: `npm run test:e2e -- --project=chromium` ✅ inside `atlas-frontend/`. Added a shared lesson that local Playwright E2E should mock `/api/core/auth/*` routes for deterministic auth flows when the backend is not running.
+- 2026-03-29T18:13:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T18:13:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `docs/DEPLOYMENT.md`, a deployment runbook for the current Docker Compose stack, CI validation flow, runtime/env requirements, and remaining production gaps.
+- 2026-03-29T18:13:00Z: Remaining Phase 4 gaps are seed data, deploy workflow automation, and infra manifests/IaC. The deployment runbook now documents the current local/staging deployment path without pretending production automation is finished.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
