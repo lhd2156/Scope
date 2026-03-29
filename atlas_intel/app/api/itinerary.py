@@ -1,5 +1,6 @@
 from flask import Blueprint, g, request
 from app.auth import require_auth
+from app.rate_limit import rate_limited
 from app.repositories import IntelRepository
 from app.responses import error_response, success_response
 from app.schemas import ItineraryRequestSchema
@@ -13,6 +14,7 @@ engine = ItineraryEngine(ContentServiceClient())
 weather_service = WeatherService()
 
 @itinerary_bp.post("/itinerary/generate")
+@rate_limited
 @require_auth
 def generate_itinerary():
     payload = itinerary_schema.load(request.get_json() or {})
@@ -23,6 +25,7 @@ def generate_itinerary():
     return success_response(itinerary)
 
 @itinerary_bp.get("/itinerary/<itinerary_id>")
+@rate_limited
 @require_auth
 def get_itinerary(itinerary_id: str):
     itinerary = IntelRepository.get_itinerary(itinerary_id)

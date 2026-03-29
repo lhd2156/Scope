@@ -1,11 +1,19 @@
 import jwt
 import pytest
 from app import create_app
+from app.rate_limit import reset_rate_limit_state
 
 TEST_SECRET_KEY = "atlas-intel-test-secret"
 TEST_JWT_SECRET = "atlas-intel-test-jwt-secret"
 TEST_JWT_ISSUER = "atlas-core"
 TEST_JWT_AUDIENCE = "atlas-frontend"
+
+
+@pytest.fixture(autouse=True)
+def rate_limit_state():
+    reset_rate_limit_state()
+    yield
+    reset_rate_limit_state()
 
 
 @pytest.fixture()

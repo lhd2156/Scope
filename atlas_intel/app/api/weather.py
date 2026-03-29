@@ -1,6 +1,7 @@
 from datetime import date
 from flask import Blueprint, request
 from app.auth import require_auth
+from app.rate_limit import rate_limited
 from app.responses import success_response
 from app.services.weather_service import WeatherService
 
@@ -8,6 +9,7 @@ weather_bp = Blueprint("weather", __name__)
 service = WeatherService()
 
 @weather_bp.get("/weather")
+@rate_limited
 @require_auth
 def get_weather():
     latitude = float(request.args["lat"])
