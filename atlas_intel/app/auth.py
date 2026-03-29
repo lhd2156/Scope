@@ -27,4 +27,5 @@ def require_auth(handler: RouteHandler) -> RouteHandler:
         g.current_user = payload
         return handler(*args, **kwargs)
 
+    setattr(wrapper, "_atlas_require_auth", True)
     return wrapper  # type: ignore[return-value]
