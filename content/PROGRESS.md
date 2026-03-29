@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 6 - Add CORS configuration via django-cors-headers
-## Last Updated: 2026-03-29T11:29:00Z
+## Current Task: Phase 6 - Verify parameterized queries (ORM-only, no raw SQL)
+## Last Updated: 2026-03-29T12:17:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -43,6 +43,7 @@
 - Hardened `RateLimitMiddleware` so all `/api/content/*` requests share a global per-IP budget while `/api/content/photos/upload` adds a stricter per-user upload budget; verified `429` + `Retry-After` behavior with new middleware tests (`8 passed` total)
 - Tightened serializer validation across spots, trips, photos, and reviews: enforced trimmed non-blank titles, positive/non-negative numeric fields, ISO-style currency validation, duplicate-checking for trip reorder payloads, upload content-type limits, and explicit Decimal-backed rating bounds; validated with serializer tests (`15 passed` total)
 - Enforced JWT auth on all protected content routes: user-specific trip/feed endpoints now require authentication, unsafe spot/trip/review methods use explicit auth permissions, invalid bearer tokens now return `401 UNAUTHORIZED` instead of falling through as `500`, and the auth audit suite covers protected vs public routes (`45 passed` total)
+- Added `django-cors-headers` configuration for Content: strict production frontend origin support, localhost:5173 development allowance, credentialed CORS for `/api/content/*`, explicit allowed methods/headers, and integration tests for preflight plus unauthorized responses (`49 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -62,7 +63,7 @@
 - [x] Add Django rate limiting middleware to ALL API endpoints
 - [x] Add input validation on ALL request bodies (max lengths, type checking)
 - [x] Verify JWT auth middleware is enforced on all protected endpoints
-- [ ] Add CORS configuration via django-cors-headers
+- [x] Add CORS configuration via django-cors-headers
 - [ ] Verify parameterized queries (ORM-only, no raw SQL)
 - [ ] Add Content-Security-Policy header
 
