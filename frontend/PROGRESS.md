@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 12.1 - Re-verify every view and component against atlas_architecture.tex
-## Last Updated: 2026-03-29T12:40:00Z
+## Current Task: Phase 12.2 - Run npm run build and npm run test; fix any failures
+## Last Updated: 2026-03-29T12:53:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -59,6 +59,7 @@
 - 2026-03-29T11:54:00Z: COMPLETED Phase 9.4 virtual scrolling - introduced a shared `VirtualList` primitive and rolled it through the highest-volume social/feed surfaces: the home activity feed, friends activity feed, friend connections list, and notifications dropdown. Added focused Vitest coverage for the virtualization primitive and social integrations.
 - 2026-03-29T12:22:00Z: COMPLETED Phase 9.4 validation closure - fixed the stale social mock/export gap that was still breaking `FriendsPage` production builds, taught `FriendList` to accept the real nested `FriendConnection` shape, restored `SearchBar` compatibility for pages still passing the legacy `label` prop, and revalidated the branch. Validation: npm.cmd run build ✅ (remaining Vite chunk warnings only for `mapbox-gl` and `notifications`) and npm.cmd run test ✅ (68 files / 130 tests).
 - 2026-03-29T12:40:00Z: COMPLETED Phase 9.5 bundle analysis/tree-shaking verification - moved both Mapbox consumers (`MapView` and `SpotForm`) onto a shared lazy `mapboxLoader` using the package ESM-min entry so map code only loads on interactive map surfaces, lazy-imported the SignalR bridge from the notifications store so realtime code no longer rides the app shell path, and added Vite manual chunk boundaries for the Mapbox worker/core and SignalR vendor. Validation: npm.cmd run build ✅ with `SpotComposerPage` reduced to 19.68 kB and realtime split into `signalr` (54.75 kB) + `notifications` (174.84 kB); the only remaining chunk warning is the isolated lazy `mapbox-gl-core` vendor chunk (1,581.46 kB), which is an unavoidable Mapbox GL package cost rather than an app-shell bundling regression. npm.cmd run test ✅ (68 files / 130 tests).
+- 2026-03-29T12:53:00Z: COMPLETED Phase 12.1 architecture recheck - re-audited the canonical frontend view/component list against Section 8 and the design-system requirements, found the `NotFoundPage` had drifted into a one-line placeholder with inline spacing, and replaced it with a tokenized recovery state using `AppShell`, `SectionHeading`, and route-safe recovery links back to home, explore, and map. Added focused coverage for the richer 404 surface. Validation: npx.cmd vitest run tests/unit/not-found-page.spec.ts ✅.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -93,7 +94,7 @@
 - [x] Bundle analysis and tree-shaking verification
 
 ### Phase 12: Final Boss Recheck
-- [ ] Re-verify every view and component matches atlas_architecture.tex spec
+- [x] Re-verify every view and component matches atlas_architecture.tex spec
 - [ ] Run npm run build and npm run test - fix any failures
 - [ ] Verify all Pinia stores match API contracts
 - [ ] Verify all routes work and auth guards redirect properly
