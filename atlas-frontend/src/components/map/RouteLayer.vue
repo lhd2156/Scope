@@ -8,6 +8,9 @@ import type { MapPoint } from '@/types';
 const SOURCE_ID = 'atlas-route-source';
 const OUTLINE_LAYER_ID = 'atlas-route-outline';
 const LINE_LAYER_ID = 'atlas-route-line';
+const ROUTE_OUTLINE_WIDTH = 8;
+const ROUTE_OUTLINE_OPACITY = 0.75;
+const ROUTE_LINE_WIDTH = 4;
 
 const props = withDefaults(
   defineProps<{
@@ -20,13 +23,12 @@ const props = withDefaults(
   },
 );
 
-function readCssToken(tokenName: string, fallback: string): string {
+function readCssToken(tokenName: string): string {
   if (typeof window === 'undefined') {
-    return fallback;
+    return '';
   }
 
-  const value = getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
-  return value || fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
 }
 
 function buildRouteCollection() {
@@ -92,6 +94,13 @@ function upsertRoute() {
     });
   }
 
+  const outlineColor = readCssToken('--bg-primary');
+  const routeColor = readCssToken('--accent-gold');
+
+  if (!outlineColor || !routeColor) {
+    return;
+  }
+
   if (!map.getLayer(OUTLINE_LAYER_ID)) {
     map.addLayer({
       id: OUTLINE_LAYER_ID,
@@ -102,9 +111,9 @@ function upsertRoute() {
         'line-join': 'round',
       },
       paint: {
-        'line-color': readCssToken('--bg-primary', '#0f0f1a'),
-        'line-width': 8,
-        'line-opacity': 0.75,
+        'line-color': outlineColor,
+        'line-width': ROUTE_OUTLINE_WIDTH,
+        'line-opacity': ROUTE_OUTLINE_OPACITY,
       },
     });
   }
@@ -119,8 +128,8 @@ function upsertRoute() {
         'line-join': 'round',
       },
       paint: {
-        'line-color': readCssToken('--accent-gold', '#f59e0b'),
-        'line-width': 4,
+        'line-color': routeColor,
+        'line-width': ROUTE_LINE_WIDTH,
       },
     });
   }
