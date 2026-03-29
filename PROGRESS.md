@@ -24,11 +24,11 @@
 | Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
 | Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
-| Polish (Luster) | IN_PROGRESS | 3 - toast/notification system for inline feedback | 2026-03-29T20:55:00Z |
+| Polish (Luster) | IN_PROGRESS | 4 - modal/dropdown/error-boundary accessibility and keyboard behavior | 2026-03-29T21:25:00Z |
 
-## Current Phase: Phase 10 UX polish task 3 + external Terraform runtime gap
+## Current Phase: Phase 10 UX Polish in progress (task 4) + external Terraform runtime gap
 ## Agents Running: polish
-## Last Updated: 2026-03-29T20:57:00Z
+## Last Updated: 2026-03-29T21:25:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -456,6 +456,8 @@
 - 2026-03-29T20:57:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE, and canonical `polish/PROGRESS.md` has advanced to task 3 after completing the reusable skeleton/empty-state milestone.
 - 2026-03-29T20:57:00Z: No duplicate spawn was issued this heartbeat; lead tracking was refreshed to point Polish at the toast/inline-feedback task while the current Phase 10 effort remains the only active in-repo work and the external Terraform runtime-validation gap is still open.
 
+- 2026-03-29T21:25:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. Polish task 3 is now complete and polish/PROGRESS.md has advanced to task 4.
+- 2026-03-29T21:25:00Z: Spawned a fresh LESSONS-aware polish subagent for task 4 (modal/dropdown/error-boundary accessibility and keyboard behavior) so Phase 10 keeps moving.
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
 - .NET SDK 8.0.419: `C:\Program Files\dotnet\dotnet.exe`
@@ -464,4 +466,5 @@ ALL runtimes are installed on this machine:
 - Node.js 24.14.0: `C:\Program Files\nodejs\`
 - npm 11.9.0: available
 If any sub-agent reports "no runtime available", it is WRONG. Respawn it with correction.
+
 
