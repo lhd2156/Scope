@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — full-stack docker-compose app wiring is now in place; CI/CD workflows, Playwright E2E scaffolding, k8s/Terraform manifests, seed data, and deployment docs remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring and CI build workflow are in place; Playwright E2E scaffolding, seed data, deployment docs, and infra manifests remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T17:45:20.6273541Z
+## Last Updated: 2026-03-29T17:47:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -378,6 +378,10 @@
 - 2026-03-29T17:45:20.6273541Z: Completed the first concrete Phase 4 integration milestone: wired `core`, `content`, `intel`, and `frontend` into `docker-compose.yml`, updated `nginx/nginx.conf` to proxy the correct internal ports plus the frontend container, and taught `atlas-frontend/Dockerfile` to accept build-time Vite env values.
 - 2026-03-29T17:45:20.6273541Z: Aligned `.env.example` with the runtime keys the services actually read (`DEBUG`, `ALLOWED_HOSTS`, `FRONTEND_ORIGIN`, `FLASK_ENV`, `CORE_DB_CONNECTION`, frontend Vite vars, and `CONTENT_SERVICE_URL`) so the compose wiring has a coherent local contract.
 - 2026-03-29T17:45:20.6273541Z: Validation: `docker compose config` ✅. Remaining lead-owned integration gaps are CI/CD workflows, Playwright E2E scaffolding, k8s/Terraform manifests, seed data, and deployment documentation.
+- 2026-03-29T17:46:59.7597959Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the new Phase 4 milestone: full-stack docker-compose app wiring is in place and validated, while CI/CD, Playwright, k8s/Terraform, seed data, and deployment docs remain.
+- 2026-03-29T17:47:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T17:47:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `.github/workflows/ci.yml`, a multi-job GitHub Actions workflow that restores/builds/tests Core, Content, Intel, and Frontend with service-specific CI environment variables.
+- 2026-03-29T17:47:00Z: Validation: `.github/workflows/ci.yml` parsed successfully via `npx --yes yaml@2 valid`. Remaining Phase 4 gaps are Playwright E2E scaffolding, seed data, deployment documentation, and infra manifests/IaC.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
