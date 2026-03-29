@@ -28,6 +28,7 @@ def app():
             "FRONTEND_ORIGIN": "https://atlas-frontend.example",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "RATE_LIMIT_PER_MINUTE": 9999,
+            "ML_REQUEST_TIMEOUT_SECONDS": 5.0,
         }
     )
     return app

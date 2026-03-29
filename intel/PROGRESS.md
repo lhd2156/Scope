@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Add request timeout configuration for ML computations
-## Last Updated: 2026-03-29T13:36:50Z
+## Current Task: Add cache headers for weather and geocoding responses
+## Last Updated: 2026-03-29T13:54:32Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -44,6 +44,7 @@
 - 2026-03-29: Upgraded Intel structured logging to a request-aware `python-json-logger` formatter with UTC timestamps, service name, log level, and correlation ID on every log entry; routed both Flask request logs and Kafka producer/consumer logs through the shared `app` logger namespace; added logging assertions and re-ran the full Intel suite successfully (`87 passed`).
 - 2026-03-29: Reworked `/api/intel/health` to perform real database and ML readiness checks while preserving the architecture’s bare `status`/`version`/`uptime` payload shape; unhealthy dependency checks now return `503` with `status: "unhealthy"`, and the full Intel pytest suite passes at `90 passed`.
 - 2026-03-29: Turned itinerary persistence into a true TTL-backed cache by looking up `intel.ItineraryCache` rows on generate via request hash + user, returning cached results without recomputation, evicting expired rows on lookup/read, and adding cache-hit/expiry tests; full Intel pytest suite now passes at `93 passed`.
+- 2026-03-29: Added a shared configurable ML runtime timeout (`ML_REQUEST_TIMEOUT_SECONDS`) for recommendation and vibe computations, surfaced slow runs as `503 ML_TIMEOUT` via Flask error handling, and added low-timeout integration coverage for `/recommend/spots`, `/recommend/similar/{spotId}`, and `/vibe-match`; full Intel pytest suite now passes at `96 passed`.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -78,7 +79,7 @@
 - [x] Add python-json-logger structured logging with correlation ID
 - [x] Implement GET /api/intel/health endpoint (checks DB + ML model loaded)
 - [x] Add itinerary result caching in intel.ItineraryCache table
-- [ ] Add request timeout configuration for ML computations
+- [x] Add request timeout configuration for ML computations
 - [ ] Add cache headers for weather and geocoding responses
 
 ### Phase 12: Final Boss Recheck

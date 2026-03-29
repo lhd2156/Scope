@@ -24,6 +24,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_DATABASE_URI=settings.database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         RATE_LIMIT_PER_MINUTE=settings.rate_limit_per_minute,
+        ML_REQUEST_TIMEOUT_SECONDS=settings.ml_request_timeout_seconds,
         JWT_SECRET=settings.jwt_secret,
         JWT_ISSUER=settings.jwt_issuer,
         JWT_AUDIENCE=settings.jwt_audience,

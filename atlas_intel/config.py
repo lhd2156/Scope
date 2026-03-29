@@ -21,6 +21,7 @@ class Settings:
     reverse_geocode_base_url: str = os.getenv("REVERSE_GEOCODE_BASE_URL", "https://geocode.maps.co/reverse")
     itinerary_ttl_hours: int = int(os.getenv("ITINERARY_TTL_HOURS", "24"))
     rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+    ml_request_timeout_seconds: float = float(os.getenv("ML_REQUEST_TIMEOUT_SECONDS", "5"))
 
 
 settings = Settings()

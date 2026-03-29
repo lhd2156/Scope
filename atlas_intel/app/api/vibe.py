@@ -1,5 +1,6 @@
 from flask import Blueprint, request
 from app.auth import require_auth
+from app.ml.runtime import run_ml_with_timeout
 from app.rate_limit import rate_limited
 from app.responses import success_response
 from app.schemas import VibeMatchRequestSchema
@@ -15,4 +16,5 @@ schema = VibeMatchRequestSchema()
 @require_auth
 def vibe_match():
     payload = schema.load(request.get_json() or {})
-    return success_response({"matches": matcher.match(payload["description"], payload["limit"])})
+    matches = run_ml_with_timeout("vibe_match", matcher.match, payload["description"], payload["limit"])
+    return success_response({"matches": matches})

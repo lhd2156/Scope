@@ -1,6 +1,7 @@
 from flask import Flask, g
 from marshmallow import ValidationError
 from werkzeug.exceptions import BadRequest, BadRequestKeyError, HTTPException
+from app.ml.runtime import MlComputationTimeoutError
 from app.responses import error_response
 
 
@@ -69,6 +70,16 @@ def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(404)
     def handle_not_found(_error):
         return error_response(404, "NOT_FOUND", "Resource does not exist", trace_id=getattr(g, "trace_id", None))
+
+    @app.errorhandler(MlComputationTimeoutError)
+    def handle_ml_timeout(error: MlComputationTimeoutError):
+        return error_response(
+            503,
+            "ML_TIMEOUT",
+            "ML computation timed out",
+            [{"field": error.operation, "message": f"Exceeded {error.timeout_seconds:.3f}s timeout"}],
+            getattr(g, "trace_id", None),
+        )
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(error: HTTPException):
