@@ -1,6 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { tripsStoreMock } = vi.hoisted(() => ({
+const { toastStoreMock, tripsStoreMock } = vi.hoisted(() => ({
+  toastStoreMock: {
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  },
   tripsStoreMock: {
     items: [
       { id: 'trip-1', title: 'North Texas Night + Food Loop' },
@@ -16,8 +20,18 @@ const { tripsStoreMock } = vi.hoisted(() => ({
     planning: false,
     error: '',
     fetchTrips: vi.fn().mockResolvedValue(undefined),
-    buildItinerary: vi.fn().mockResolvedValue(undefined),
+    buildItinerary: vi.fn().mockResolvedValue({
+      id: 'itinerary-1',
+      destination: 'Fort Worth, TX',
+      totalEstimatedCost: 180,
+      weatherForecast: 'Sunny, 75F',
+      days: [],
+    }),
   },
+}));
+
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
 }));
 
 vi.mock('@/stores/trips', () => ({
@@ -31,6 +45,15 @@ describe('TripPlannerPage', () => {
     tripsStoreMock.error = '';
     tripsStoreMock.fetchTrips.mockClear();
     tripsStoreMock.buildItinerary.mockClear();
+    tripsStoreMock.buildItinerary.mockResolvedValue({
+      id: 'itinerary-1',
+      destination: 'Fort Worth, TX',
+      totalEstimatedCost: 180,
+      weatherForecast: 'Sunny, 75F',
+      days: [],
+    });
+    toastStoreMock.showSuccess.mockClear();
+    toastStoreMock.showError.mockClear();
   });
 
   it('boots the planner workspace and forwards planner submissions to the store', async () => {
@@ -64,11 +87,16 @@ describe('TripPlannerPage', () => {
     expect(wrapper.findAll('.trip-card-stub')).toHaveLength(2);
 
     await wrapper.get('[data-test="planner-submit"]').trigger('click');
+    await flushPromises();
 
     expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(2);
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Itinerary refreshed',
+      message: 'Atlas refreshed your itinerary preview.',
+    });
   });
 
-  it('surfaces itinerary generation failures inline', async () => {
+  it('surfaces itinerary generation failures inline and emits an error toast after submit', async () => {
     tripsStoreMock.error = 'Atlas could not generate an itinerary right now.';
     tripsStoreMock.buildItinerary.mockRejectedValue(new Error('Planner failed'));
 
@@ -91,5 +119,13 @@ describe('TripPlannerPage', () => {
 
     expect(wrapper.text()).toContain('Atlas could not finish part of the planning flow');
     expect(wrapper.text()).toContain('Atlas could not generate an itinerary right now.');
+
+    await wrapper.get('[data-test="planner-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Planner update failed',
+      message: 'Atlas could not generate an itinerary right now.',
+    });
   });
 });

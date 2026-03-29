@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
-const { authStoreMock, spotsStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
@@ -31,6 +31,10 @@ const { authStoreMock, spotsStoreMock } = vi.hoisted(() => ({
     createSpot: vi.fn().mockResolvedValue({ id: 'spot-created' }),
     updateSpot: vi.fn().mockResolvedValue({ id: 'spot-7' }),
   },
+  toastStoreMock: {
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  },
 }));
 
 vi.mock('@/stores/auth', () => ({
@@ -41,6 +45,10 @@ vi.mock('@/stores/spots', () => ({
   useSpotsStore: () => spotsStoreMock,
 }));
 
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
+}));
+
 import SpotComposerPage from '@/views/SpotComposerPage.vue';
 
 describe('SpotComposerPage', () => {
@@ -49,9 +57,11 @@ describe('SpotComposerPage', () => {
     spotsStoreMock.fetchSpot.mockClear();
     spotsStoreMock.createSpot.mockClear();
     spotsStoreMock.updateSpot.mockClear();
+    toastStoreMock.showSuccess.mockClear();
+    toastStoreMock.showError.mockClear();
   });
 
-  it('submits create mode through the store and routes to the created spot', async () => {
+  it('submits create mode through the store, routes to the created spot, and shows a success toast', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -82,9 +92,13 @@ describe('SpotComposerPage', () => {
 
     expect(spotsStoreMock.createSpot).toHaveBeenCalledTimes(1);
     expect(router.currentRoute.value.fullPath).toBe('/spots/spot-created');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Spot published',
+      message: 'Your new Atlas pin is now ready for discovery.',
+    });
   });
 
-  it('loads edit mode and submits updates through the store', async () => {
+  it('loads edit mode, submits updates through the store, and shows a success toast', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -119,9 +133,13 @@ describe('SpotComposerPage', () => {
 
     expect(spotsStoreMock.updateSpot).toHaveBeenCalledWith('spot-7', expect.any(Object), authStoreMock.currentUser);
     expect(router.currentRoute.value.fullPath).toBe('/spots/spot-7');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Spot updated',
+      message: 'Atlas saved the latest pin details for explorers.',
+    });
   });
 
-  it('shows a save error when spot creation fails', async () => {
+  it('shows a save error when spot creation fails and emits an error toast', async () => {
     spotsStoreMock.createSpot.mockImplementation(async () => {
       spotsStoreMock.error = 'Atlas could not save that spot right now.';
       throw new Error('Create failed');
@@ -157,5 +175,9 @@ describe('SpotComposerPage', () => {
 
     expect(wrapper.text()).toContain('That spot could not be saved');
     expect(wrapper.text()).toContain('Atlas could not save that spot right now.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Spot save failed',
+      message: 'Atlas could not save that spot right now.',
+    });
   });
 });

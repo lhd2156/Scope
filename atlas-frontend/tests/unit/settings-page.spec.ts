@@ -2,7 +2,7 @@ import { nextTick } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 
-const { authStoreMock, userStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
@@ -11,6 +11,10 @@ const { authStoreMock, userStoreMock } = vi.hoisted(() => ({
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
     },
+  },
+  toastStoreMock: {
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
   },
   userStoreMock: {
     saving: false,
@@ -30,6 +34,10 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
+}));
+
 vi.mock('@/stores/user', () => ({
   useUserStore: () => userStoreMock,
 }));
@@ -40,12 +48,14 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     userStoreMock.error = null;
     userStoreMock.saveProfile.mockClear();
+    toastStoreMock.showSuccess.mockClear();
+    toastStoreMock.showError.mockClear();
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
   });
 
-  it('saves through the user profile contract and shows the success toast', async () => {
+  it('saves through the user profile contract and pushes a success toast', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -55,10 +65,6 @@ describe('SettingsPage', () => {
             props: ['initialValue', 'submitting', 'errorMessage'],
             emits: ['submit', 'update:errorMessage'],
             template: '<button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button>',
-          },
-          Toast: {
-            props: ['open', 'title', 'message'],
-            template: '<div v-if="open" data-test="toast-stub">{{ title }} - {{ message }}</div>',
           },
         },
       },
@@ -75,8 +81,10 @@ describe('SettingsPage', () => {
     });
     expect(wrapper.find('[data-test="theme-toggle-stub"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('API-backed');
-    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Settings saved');
-    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Profile details synced across your Atlas account.');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Settings saved',
+      message: 'Profile details synced across your Atlas account.',
+    });
   });
 
   it('keeps shell and page theme toggles synchronized in the settings workspace', async () => {
@@ -89,7 +97,6 @@ describe('SettingsPage', () => {
           },
           SectionHeading: { template: '<div />' },
           SettingsForm: { template: '<div />' },
-          Toast: { template: '<div />' },
         },
       },
     });
@@ -110,7 +117,7 @@ describe('SettingsPage', () => {
     expect(toggles[1].attributes('aria-label')).toBe('Switch to dark mode');
   });
 
-  it('surfaces a settings error when the profile update throws', async () => {
+  it('surfaces a settings error when the profile update throws and emits an error toast', async () => {
     userStoreMock.error = 'Atlas could not update that profile right now.';
     userStoreMock.saveProfile.mockRejectedValueOnce(new Error('Settings sync failed'));
 
@@ -124,7 +131,6 @@ describe('SettingsPage', () => {
             emits: ['submit', 'update:errorMessage'],
             template: '<div><button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button><p>{{ errorMessage }}</p></div>',
           },
-          Toast: { template: '<div />' },
         },
       },
     });
@@ -133,5 +139,9 @@ describe('SettingsPage', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Atlas could not update that profile right now.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Settings not saved',
+      message: 'Atlas could not update that profile right now.',
+    });
   });
 });

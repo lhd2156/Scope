@@ -284,6 +284,23 @@ export type NotificationConnectionState =
   | 'reconnecting'
   | 'disconnected';
 
+export type ToastTone = 'success' | 'error' | 'info';
+
+export interface ToastPayload {
+  title: string;
+  message: string;
+  tone?: ToastTone;
+  autoHideMs?: number;
+}
+
+export interface ToastItem {
+  id: string;
+  title: string;
+  message: string;
+  tone: ToastTone;
+  autoHideMs: number;
+}
+
 export interface MapViewport {
   center: [number, number];
   zoom: number;

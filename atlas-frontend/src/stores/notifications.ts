@@ -6,6 +6,7 @@ import {
   markNotificationRead,
 } from '@/services/feedService';
 import { useAuthStore } from '@/stores/auth';
+import { useToastStore } from '@/stores/toasts';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
 import { sanitizeNotificationItem } from '@/utils/sanitizers';
 import { toAsyncErrorMessage } from '@/utils/errors';
@@ -56,6 +57,17 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items.value = [normalizedNotification, ...items.value];
   }
 
+  function receiveNotification(notification: NotificationItem) {
+    addNotification(notification);
+
+    const toastStore = useToastStore();
+    toastStore.showInfo({
+      title: notification.title || 'Atlas update',
+      message: notification.body || 'A fresh Atlas notification just landed in your inbox.',
+      autoHideMs: 5_000,
+    });
+  }
+
   async function connect() {
     const authStore = useAuthStore();
     if (!authStore.isAuthenticated) {
@@ -71,7 +83,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       await startNotificationStream({
         accessTokenFactory: () => authStore.token,
         onNotification: (notification) => {
-          addNotification(notification);
+          receiveNotification(notification);
         },
         onStateChange: (state) => {
           connectionState.value = state;
@@ -110,6 +122,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
     } catch (nextError) {
       items.value = previousItems;
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not mark that notification as read.');
+      useToastStore().showError({
+        title: 'Notification update failed',
+        message: error.value,
+      });
     }
   }
 
@@ -123,6 +139,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
     } catch (nextError) {
       items.value = previousItems;
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not mark notifications as read right now.');
+      useToastStore().showError({
+        title: 'Notification update failed',
+        message: error.value,
+      });
     }
   }
 

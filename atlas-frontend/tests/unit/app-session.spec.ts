@@ -26,12 +26,21 @@ const notificationsStoreMock = {
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
+const toastStoreMock = {
+  showError: vi.fn().mockReturnValue('toast-session-expired'),
+  dismissToast: vi.fn(),
+};
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
 vi.mock('@/stores/notifications', () => ({
   useNotificationsStore: () => notificationsStoreMock,
+}));
+
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
 }));
 
 import App from '@/App.vue';
@@ -45,9 +54,11 @@ describe('App session edge cases', () => {
     notificationsStoreMock.fetchNotifications.mockClear();
     notificationsStoreMock.connect.mockClear();
     notificationsStoreMock.disconnect.mockClear();
+    toastStoreMock.showError.mockClear();
+    toastStoreMock.dismissToast.mockClear();
   });
 
-  it('redirects protected routes to login and shows a session-expired toast', async () => {
+  it('redirects protected routes to login and pushes a session-expired toast into the global queue', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -59,15 +70,11 @@ describe('App session edge cases', () => {
     await router.push('/friends');
     await router.isReady();
 
-    const wrapper = mount(App, {
+    mount(App, {
       global: {
         plugins: [router],
         stubs: {
-          Toast: {
-            props: ['open', 'title', 'message'],
-            emits: ['close'],
-            template: '<div v-if="open" data-test="toast-stub">{{ title }} {{ message }}</div>',
-          },
+          ToastViewport: { template: '<div data-test="toast-viewport-stub" />' },
         },
       },
     });
@@ -76,7 +83,10 @@ describe('App session edge cases', () => {
     await flushPromises();
 
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/friends&reason=expired');
-    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Session expired');
-    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Your session expired. Sign in again to keep planning in Atlas.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Session expired',
+      message: 'Your session expired. Sign in again to keep planning in Atlas.',
+      autoHideMs: 0,
+    }));
   });
 });

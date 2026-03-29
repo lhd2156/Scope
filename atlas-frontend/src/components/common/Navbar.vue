@@ -80,9 +80,11 @@ import ThemeToggle from '@/components/common/ThemeToggle.vue';
 import NotificationDropdown from '@/components/social/NotificationDropdown.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationsStore } from '@/stores/notifications';
+import { useToastStore } from '@/stores/toasts';
 
 const authStore = useAuthStore();
 const notificationsStore = useNotificationsStore();
+const toastStore = useToastStore();
 const route = useRoute();
 const router = useRouter();
 const searchQuery = ref('');
@@ -101,6 +103,19 @@ async function handleLogout() {
   await authStore.logout();
   closeMenu();
   await router.push({ name: 'home' });
+
+  if (authStore.error) {
+    toastStore.showInfo({
+      title: 'Signed out locally',
+      message: authStore.error,
+    });
+    return;
+  }
+
+  toastStore.showSuccess({
+    title: 'Signed out',
+    message: 'Your Atlas session is closed for now. Come back anytime to keep exploring.',
+  });
 }
 
 function handleSearch(query: string) {
