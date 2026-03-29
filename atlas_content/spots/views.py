@@ -60,6 +60,7 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = with_spot_detail_relations(Spot.objects.all())
     serializer_class = SpotDetailSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    http_method_names = ['get', 'put', 'delete', 'options']
 
     def retrieve(self, request, *args, **kwargs):
         parent = super()

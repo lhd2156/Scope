@@ -151,3 +151,4 @@
 > Keep entries concise — one line per lesson with the date and emoji prefix.
 - [2026-03-28] [SUCCESS] [orchestrator] complete-task.ps1 works on Windows PowerShell
 - [2026-03-29] ⚠️ Atlas Content pytest runs should clear the in-memory rate-limit buckets and Django cache between tests in conftest.py; otherwise request-heavy milestones like conditional GET/ETag coverage can trigger false late-suite 429s that look like unrelated regressions.
+- [2026-03-29] ⚠️ For Atlas Content final endpoint audits, add a Django URL-resolver contract test over METHOD /path pairs and explicitly restrict RetrieveUpdateDestroyAPIView.http_method_names; otherwise undocumented PATCH support can slip past broader integration tests.
