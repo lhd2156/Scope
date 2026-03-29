@@ -132,6 +132,10 @@ AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
 KAFKA_ENABLED = os.getenv('KAFKA_ENABLED', 'false').lower() == 'true'
 
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('RATE_LIMIT_WINDOW_SECONDS', '60'))
+RATE_LIMIT_GLOBAL_PER_IP = int(os.getenv('RATE_LIMIT_GLOBAL_PER_IP', '100'))
+RATE_LIMIT_UPLOAD_PER_USER = int(os.getenv('RATE_LIMIT_UPLOAD_PER_USER', '20'))
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
