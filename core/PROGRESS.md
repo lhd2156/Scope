@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
-## Last Updated: 2026-03-29T09:57:00Z
+## Current Task: Add unit tests until coverage exceeds 80%
+## Last Updated: 2026-03-29T10:05:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -49,6 +49,9 @@
 - 2026-03-29T09:57:00Z replaced the permissive CORS policy with an explicit frontend-origin policy: only CORE_FRONTEND_ORIGIN is allowed outside Development, while Development additionally permits http://localhost:5173, with credentials plus GET/POST/PUT/DELETE/OPTIONS and Authorization/Content-Type restrictions
 - 2026-03-29T09:57:00Z added preflight integration tests for configured production-style origin acceptance, unexpected-origin rejection, and localhost acceptance in Development using dedicated WebApplicationFactory hosts
 - 2026-03-29T09:57:00Z reran Atlas.Core build/test after the CORS hardening and passed build (0 warnings, 0 errors) plus tests (52 passed, 0 failed)
+- 2026-03-29T10:05:00Z added SecurityHeadersMiddleware to stamp Content-Security-Policy and X-XSS-Protection on every response via OnStarting, ensuring the headers survive normal API responses, auth challenges, hub negotiate challenges, rate limiting, and exception handling
+- 2026-03-29T10:05:00Z centralized the CSP and X-XSS-Protection values in shared core constants and added integration tests for public API responses, unauthorized protected API responses, and unauthorized SignalR negotiate responses
+- 2026-03-29T10:05:00Z reran Atlas.Core build/test after the XSS header hardening and passed build (0 warnings, 0 errors) plus tests (55 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -69,7 +72,7 @@
 - [x] Add input validation (FluentValidation) on ALL request bodies
 - [x] Verify JWT auth is enforced on all protected endpoints
 - [x] Add CORS configuration (only allow frontend origin)
-- [ ] Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
+- [x] Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
 
 ### Phase 7: Test Coverage
 - [ ] Add unit tests until coverage exceeds 80%
