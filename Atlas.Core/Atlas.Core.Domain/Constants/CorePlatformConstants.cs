@@ -17,6 +17,7 @@ public static class CoreConfigurationKeys
     public const string RefreshTokenDays = "CORE_REFRESH_TOKEN_DAYS";
     public const string KafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS";
     public const string MediaRoot = "CORE_MEDIA_ROOT";
+    public const string FrontendOrigin = "CORE_FRONTEND_ORIGIN";
 }
 
 public static class CoreDefaults
@@ -31,6 +32,8 @@ public static class CoreDefaults
     public const int GeneratedUsernameMinSuffix = 100000;
     public const int GeneratedUsernameMaxSuffixExclusive = 1_000_000;
     public const string AvatarMediaPath = "/media/avatars";
+    public const string DevelopmentFrontendOrigin = "http://localhost:5173";
+    public const string CorsPolicyName = "core-api";
     public const double InitialLatitude = 0d;
     public const double InitialLongitude = 0d;
 }
