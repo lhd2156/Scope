@@ -1,10 +1,40 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
+using System.Text.Json;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Models;
 
 namespace Atlas.Core.API.Middleware;
+
+public static class ApiErrorResponseWriter
+{
+    public static bool TryMapStatusCode(int statusCode, out string code, out string message)
+    {
+        (code, message) = statusCode switch
+        {
+            StatusCodes.Status400BadRequest => ("VALIDATION_ERROR", "Invalid input data"),
+            StatusCodes.Status401Unauthorized => ("UNAUTHORIZED", "Missing or expired token"),
+            StatusCodes.Status403Forbidden => ("FORBIDDEN", "Insufficient permissions"),
+            StatusCodes.Status404NotFound => ("NOT_FOUND", "Resource does not exist"),
+            StatusCodes.Status409Conflict => ("CONFLICT", "Duplicate resource"),
+            StatusCodes.Status422UnprocessableEntity => ("UNPROCESSABLE", "Business rule violation"),
+            StatusCodes.Status429TooManyRequests => ("RATE_LIMITED", "Too many requests"),
+            StatusCodes.Status500InternalServerError => ("INTERNAL_ERROR", "Unexpected server error"),
+            _ => (string.Empty, string.Empty)
+        };
+
+        return !string.IsNullOrWhiteSpace(code);
+    }
+
+    public static Task WriteAsync(HttpContext context, int statusCode, string code, string message, IReadOnlyList<ErrorDetail>? details = null)
+    {
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsJsonAsync(new ErrorEnvelope(new ErrorBody(code, message, details ?? [], context.TraceIdentifier)));
+    }
+}
 
 public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
 {
@@ -85,10 +115,8 @@ public sealed class RateLimitMiddleware(RequestDelegate next)
 
     private static async Task WriteRateLimitedResponseAsync(HttpContext context, int retryAfterSeconds)
     {
-        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.Response.ContentType = "application/json";
         context.Response.Headers["Retry-After"] = retryAfterSeconds.ToString();
-        await context.Response.WriteAsJsonAsync(new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)));
+        await ApiErrorResponseWriter.WriteAsync(context, StatusCodes.Status429TooManyRequests, "RATE_LIMITED", "Too many requests");
     }
 }
 
@@ -103,19 +131,33 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
         catch (AtlasException exception)
         {
             logger.LogWarning(exception, "Handled Atlas exception {Code}", exception.Code);
-            await WriteAsync(context, exception.StatusCode, exception.Code, exception.Message, exception.Details.Select(x => new ErrorDetail(x.Field, x.Message)).ToArray());
+            await WriteAsync(context, exception.StatusCode, exception.Code, exception.Message, exception.Details.Select(x => new ErrorDetail(x.Field, x.Message)).ToArray(), exception);
+        }
+        catch (BadHttpRequestException exception)
+        {
+            logger.LogWarning(exception, "Handled malformed HTTP request");
+            await WriteAsync(context, StatusCodes.Status400BadRequest, "VALIDATION_ERROR", "Invalid input data", [], exception);
+        }
+        catch (JsonException exception)
+        {
+            logger.LogWarning(exception, "Handled malformed JSON payload");
+            await WriteAsync(context, StatusCodes.Status400BadRequest, "VALIDATION_ERROR", "Invalid input data", [], exception);
         }
         catch (Exception exception)
         {
             logger.LogError(exception, "Unhandled exception");
-            await WriteAsync(context, 500, "INTERNAL_ERROR", "Unexpected server error", []);
+            await WriteAsync(context, StatusCodes.Status500InternalServerError, "INTERNAL_ERROR", "Unexpected server error", [], exception);
         }
     }
 
-    private static async Task WriteAsync(HttpContext context, int statusCode, string code, string message, IReadOnlyList<ErrorDetail> details)
+    private async Task WriteAsync(HttpContext context, int statusCode, string code, string message, IReadOnlyList<ErrorDetail> details, Exception exception)
     {
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new ErrorEnvelope(new ErrorBody(code, message, details, context.TraceIdentifier)));
+        if (context.Response.HasStarted)
+        {
+            logger.LogWarning(exception, "Response has already started; cannot write standard error envelope");
+            ExceptionDispatchInfo.Capture(exception).Throw();
+        }
+
+        await ApiErrorResponseWriter.WriteAsync(context, statusCode, code, message, details);
     }
 }
