@@ -1,1 +1,8 @@
-from django.urls import path\nfrom reviews.views import review_detail, spot_reviews\nurlpatterns = [path('spot/<uuid:spot_id>', spot_reviews), path('<uuid:pk>', review_detail)]\n
+from django.urls import path
+
+from reviews.views import review_detail, spot_reviews
+
+urlpatterns = [
+    path('spot/<uuid:spot_id>', spot_reviews),
+    path('<uuid:pk>', review_detail),
+]

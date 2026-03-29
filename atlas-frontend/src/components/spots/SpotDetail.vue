@@ -102,13 +102,11 @@
         </div>
       </div>
 
-      <div v-if="galleryPhotos.length" class="gallery-grid">
-        <figure v-for="photo in galleryPhotos" :key="photo.id" class="gallery-card surface-card">
-          <img :src="photo.url" :alt="photo.caption || spot.title" />
-          <figcaption>{{ photo.caption || 'Community upload' }}</figcaption>
-        </figure>
-      </div>
-      <p v-else class="empty-copy">Photo uploads will appear here once the content engine finishes syncing media.</p>
+      <PhotoGallery
+        :photos="galleryItems"
+        empty-title="No photos synced yet"
+        empty-copy="Photo uploads will appear here once the content engine finishes syncing media."
+      />
     </section>
 
     <section class="glass-panel panel-section reviews-section">
@@ -143,7 +141,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import MapView from '@/components/map/MapView.vue';
-import type { MapPoint, Photo, SpotDetail as SpotDetailModel } from '@/types';
+import PhotoGallery from '@/components/spots/PhotoGallery.vue';
+import type { MapPoint, Photo, PhotoGalleryItem, SpotDetail as SpotDetailModel } from '@/types';
 
 const props = defineProps<{
   spot: SpotDetailModel | null;
@@ -251,6 +250,14 @@ const galleryPhotos = computed<Photo[]>(() => {
 
   return [];
 });
+const galleryItems = computed<PhotoGalleryItem[]>(() =>
+  galleryPhotos.value.map((photo) => ({
+    id: photo.id,
+    url: photo.url,
+    caption: photo.caption ?? '',
+    source: 'existing',
+  })),
+);
 const miniMapSpots = computed<MapPoint[]>(() => {
   if (!props.spot) {
     return [];
@@ -376,7 +383,6 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 .chip-row,
 .hero-stats,
 .content-grid,
-.gallery-grid,
 .reviews-grid,
 .overview-grid {
   display: grid;
@@ -410,7 +416,6 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 }
 
 .stat-card,
-.gallery-card,
 .review-card,
 .overview-item {
   padding: var(--space-4);
@@ -442,8 +447,7 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 }
 
 .overview-item dt,
-.overview-item dd,
-.gallery-card figcaption {
+.overview-item dd {
   margin: 0;
 }
 
@@ -468,27 +472,6 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 .mini-map-shell :deep(.empty-state) {
   width: min(22rem, calc(100% - 2rem));
   padding: var(--space-5);
-}
-
-.gallery-grid {
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-}
-
-.gallery-card {
-  overflow: hidden;
-}
-
-.gallery-card img {
-  width: 100%;
-  height: 12rem;
-  object-fit: cover;
-  border-radius: var(--radius-lg);
-}
-
-.gallery-card figcaption {
-  padding-top: var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
 }
 
 .reviews-grid {

@@ -1,0 +1,16 @@
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\bin\Debug\net8.0\Atlas.Core.Infrastructure.deps.json
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\bin\Debug\net8.0\Atlas.Core.Infrastructure.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\bin\Debug\net8.0\Atlas.Core.Infrastructure.pdb
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\bin\Debug\net8.0\Atlas.Core.Domain.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\bin\Debug\net8.0\Atlas.Core.Domain.pdb
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.AssemblyInfo.cs
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.sourcelink.json
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Co.1E6E92BE.Up2Date
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\refint\Atlas.Core.Infrastructure.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\Atlas.Core.Infrastructure.pdb
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Infrastructure\obj\Debug\net8.0\ref\Atlas.Core.Infrastructure.dll

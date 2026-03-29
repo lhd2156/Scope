@@ -191,67 +191,234 @@ function buildDetail(spot: SpotSummary): SpotDetail {
   };
 }
 
-const tripSpots: TripSpot[] = baseSpots.slice(0, 4).map((spot, index) => ({
-  spotId: spot.id,
-  title: spot.title,
-  latitude: spot.latitude,
-  longitude: spot.longitude,
-  category: spot.category,
-  timeSlot: ['10:00', '12:30', '16:00', '20:00'][index],
-  duration: 90,
-  estimatedCost: [0, 24, 18, 42][index],
-  photoUrl: spot.photoUrl,
-  city: spot.city,
-}));
+function buildTripSpot(
+  spot: SpotSummary,
+  config: {
+    dayNumber: number;
+    timeSlot: string;
+    duration: number;
+    estimatedCost: number;
+    notes: string;
+  },
+): TripSpot {
+  return {
+    spotId: spot.id,
+    title: spot.title,
+    latitude: spot.latitude,
+    longitude: spot.longitude,
+    category: spot.category,
+    timeSlot: config.timeSlot,
+    duration: config.duration,
+    estimatedCost: config.estimatedCost,
+    photoUrl: spot.photoUrl,
+    city: spot.city,
+    dayNumber: config.dayNumber,
+    notes: config.notes,
+  };
+}
 
-const itinerary: Itinerary = {
+function getDateOffset(startDate: string, offsetDays: number): string {
+  const date = new Date(startDate);
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildItineraryFromTripSpots(options: {
+  id: string;
+  destination: string;
+  startDate: string;
+  spots: TripSpot[];
+  weatherForecast: string;
+}): Itinerary {
+  const days = options.spots.reduce<Itinerary['days']>((accumulator, spot) => {
+    const dayNumber = spot.dayNumber ?? 1;
+    let day = accumulator.find((entry) => entry.dayNumber === dayNumber);
+
+    if (!day) {
+      day = {
+        dayNumber,
+        date: getDateOffset(options.startDate, dayNumber - 1),
+        spots: [],
+      };
+      accumulator.push(day);
+    }
+
+    day.spots.push(spot);
+    day.spots.sort((left, right) => (left.timeSlot ?? '').localeCompare(right.timeSlot ?? ''));
+    return accumulator;
+  }, []);
+
+  const totalEstimatedCost = days
+    .flatMap((day) => day.spots)
+    .reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
+
+  return {
+    id: options.id,
+    destination: options.destination,
+    days: days.sort((left, right) => left.dayNumber - right.dayNumber),
+    totalEstimatedCost,
+    weatherForecast: options.weatherForecast,
+  };
+}
+
+const northTexasTripSpots: TripSpot[] = [
+  buildTripSpot(baseSpots[0], {
+    dayNumber: 1,
+    timeSlot: '11:00',
+    duration: 75,
+    estimatedCost: 26,
+    notes: 'Open with rooftop tacos while the skyline is still bright.',
+  }),
+  buildTripSpot(baseSpots[1], {
+    dayNumber: 1,
+    timeSlot: '14:30',
+    duration: 90,
+    estimatedCost: 0,
+    notes: 'Slow the route down with a river walk and photo break.',
+  }),
+  buildTripSpot(baseSpots[3], {
+    dayNumber: 2,
+    timeSlot: '10:00',
+    duration: 105,
+    estimatedCost: 18,
+    notes: 'Use the gallery district as the culture anchor for day two.',
+  }),
+  buildTripSpot(baseSpots[2], {
+    dayNumber: 2,
+    timeSlot: '20:30',
+    duration: 120,
+    estimatedCost: 42,
+    notes: 'Close out with a nightlife stop once the downtown energy peaks.',
+  }),
+];
+
+const austinTripSpots: TripSpot[] = [
+  buildTripSpot(baseSpots[4], {
+    dayNumber: 1,
+    timeSlot: '08:30',
+    duration: 120,
+    estimatedCost: 12,
+    notes: 'Hit the overlook early before the trail fills in.',
+  }),
+  buildTripSpot(baseSpots[3], {
+    dayNumber: 1,
+    timeSlot: '13:00',
+    duration: 90,
+    estimatedCost: 16,
+    notes: 'Recover with architecture, sculpture, and slower pacing.',
+  }),
+  buildTripSpot(baseSpots[5], {
+    dayNumber: 2,
+    timeSlot: '11:30',
+    duration: 85,
+    estimatedCost: 36,
+    notes: 'Reserve the design district for coffee, shopping, and gifts.',
+  }),
+];
+
+const weekendCityTripSpots: TripSpot[] = [
+  buildTripSpot(baseSpots[1], {
+    dayNumber: 1,
+    timeSlot: '09:00',
+    duration: 60,
+    estimatedCost: 0,
+    notes: 'Ease into the trip with a scenic trail and good light.',
+  }),
+  buildTripSpot(baseSpots[0], {
+    dayNumber: 1,
+    timeSlot: '12:00',
+    duration: 75,
+    estimatedCost: 24,
+    notes: 'Lunch anchor with a strong Atlas cover-photo moment.',
+  }),
+  buildTripSpot(baseSpots[5], {
+    dayNumber: 1,
+    timeSlot: '16:30',
+    duration: 80,
+    estimatedCost: 30,
+    notes: 'Finish with a polished district loop before dinner.',
+  }),
+];
+
+const northTexasItinerary = buildItineraryFromTripSpots({
   id: 'itinerary-1',
   destination: 'Fort Worth + Dallas',
-  totalEstimatedCost: 274,
+  startDate: '2026-04-01',
+  spots: northTexasTripSpots,
   weatherForecast: 'Sunny, 75F',
-  days: [
-    {
-      dayNumber: 1,
-      date: '2026-04-01',
-      spots: tripSpots.slice(0, 2),
-    },
-    {
-      dayNumber: 2,
-      date: '2026-04-02',
-      spots: tripSpots.slice(2, 4),
-    },
-  ],
-};
+});
+
+const austinItinerary = buildItineraryFromTripSpots({
+  id: 'itinerary-2',
+  destination: 'Austin, TX',
+  startDate: '2026-04-10',
+  spots: austinTripSpots,
+  weatherForecast: 'Warm morning, breezy afternoon.',
+});
+
+const weekendCityItinerary = buildItineraryFromTripSpots({
+  id: 'itinerary-3',
+  destination: 'Fort Worth, TX',
+  startDate: '2026-05-14',
+  spots: weekendCityTripSpots,
+  weatherForecast: 'Clear skies with a golden-hour finish.',
+});
 
 const trips: Trip[] = [
   {
     id: 'trip-1',
     title: 'North Texas Night + Food Loop',
     destination: 'Fort Worth, TX',
-    description: 'Two days of tacos, skyline views, galleries, and nightlife.',
+    description: 'Two days of tacos, skyline views, galleries, and nightlife sequenced for a premium downtown circuit.',
     isPublic: true,
     startDate: '2026-04-01',
     endDate: '2026-04-02',
-    spots: tripSpots,
+    spots: northTexasTripSpots,
     members: [
       { id: users[0].id, displayName: users[0].displayName, status: 'owner' },
       { id: users[1].id, displayName: users[1].displayName, status: 'editor' },
       { id: users[2].id, displayName: users[2].displayName, status: 'viewer' },
     ],
-    itinerary,
+    itinerary: northTexasItinerary,
     coverImageUrl: baseSpots[0].photoUrl,
+    budget: 320,
+    currency: 'USD',
+    status: 'planning',
   },
   {
     id: 'trip-2',
     title: 'Austin Scenic Sprint',
     destination: 'Austin, TX',
-    description: 'Architecture, hikes, and late brunch.',
+    description: 'Architecture, hikes, and late brunch with enough margin to keep the weekend relaxed.',
     isPublic: true,
     startDate: '2026-04-10',
     endDate: '2026-04-11',
-    spots: tripSpots.slice(1, 4),
+    spots: austinTripSpots,
     members: [{ id: users[2].id, displayName: users[2].displayName, status: 'owner' }],
-    coverImageUrl: baseSpots[3].photoUrl,
+    itinerary: austinItinerary,
+    coverImageUrl: baseSpots[4].photoUrl,
+    budget: 180,
+    currency: 'USD',
+    status: 'planning',
+  },
+  {
+    id: 'trip-3',
+    title: 'Weekend City Reset',
+    destination: 'Fort Worth, TX',
+    description: 'A one-day city reset balancing nature, lunch, and a final design-district sweep.',
+    isPublic: true,
+    startDate: '2026-05-14',
+    endDate: '2026-05-14',
+    spots: weekendCityTripSpots,
+    members: [
+      { id: users[1].id, displayName: users[1].displayName, status: 'owner' },
+      { id: users[0].id, displayName: users[0].displayName, status: 'viewer' },
+    ],
+    itinerary: weekendCityItinerary,
+    coverImageUrl: baseSpots[1].photoUrl,
+    budget: 120,
+    currency: 'USD',
+    status: 'planning',
   },
 ];
 

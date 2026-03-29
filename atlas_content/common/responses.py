@@ -1,1 +1,8 @@
-from rest_framework.response import Response\n\ndef data_response(data, status_code=200, meta=None):\n    payload = {'data': data}\n    if meta is not None:\n        payload['meta'] = meta\n    return Response(payload, status=status_code)\n
+from rest_framework.response import Response
+
+
+def data_response(data, status_code=200, meta=None):
+    payload = {'data': data}
+    if meta is not None:
+        payload['meta'] = meta
+    return Response(payload, status=status_code)

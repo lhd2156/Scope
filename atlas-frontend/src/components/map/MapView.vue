@@ -82,17 +82,20 @@ const props = withDefaults(
     routePoints?: MapPoint[];
     selectedSpotId?: string | null;
     showLocationTracker?: boolean;
+    clickToSelect?: boolean;
   }>(),
   {
     routePoints: () => [],
     selectedSpotId: null,
     showLocationTracker: true,
+    clickToSelect: false,
   },
 );
 
 const emit = defineEmits<{
   (event: 'spot-select', spot: MapPoint): void;
   (event: 'location-update', location: UserLocation): void;
+  (event: 'map-click', payload: { latitude: number; longitude: number }): void;
 }>();
 
 const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
@@ -329,6 +332,17 @@ function setupMap() {
     center: mapStore.viewport.center,
     zoom: mapStore.viewport.zoom,
     attributionControl: false,
+  });
+
+  instance.on('click', (event) => {
+    if (!props.clickToSelect) {
+      return;
+    }
+
+    emit('map-click', {
+      latitude: Number(event.lngLat.lat.toFixed(6)),
+      longitude: Number(event.lngLat.lng.toFixed(6)),
+    });
   });
 
   instance.on('load', () => {

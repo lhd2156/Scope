@@ -1,6 +1,7 @@
 export type ThemeMode = 'dark' | 'light';
 export type SpotCategory = 'food' | 'nature' | 'nightlife' | 'culture' | 'adventure' | 'shopping' | 'scenic' | 'other';
 export type TripPace = 'relaxed' | 'moderate' | 'packed';
+export type TripStatus = 'planning' | 'active' | 'completed' | 'cancelled';
 
 export interface ApiErrorDetail {
   field?: string;
@@ -182,6 +183,8 @@ export interface TripSpot {
   estimatedCost?: number;
   photoUrl?: string;
   city?: string;
+  dayNumber?: number;
+  notes?: string;
 }
 
 export interface TripMember {
@@ -217,6 +220,9 @@ export interface Trip {
   members: TripMember[];
   itinerary?: Itinerary;
   coverImageUrl?: string;
+  budget?: number;
+  currency?: string;
+  status?: TripStatus;
 }
 
 export interface TripPlannerInput {
