@@ -15,7 +15,13 @@ from common.responses import data_response
 from photos.models import Photo
 from spots.models import Spot
 from spots.querysets import with_spot_detail_relations, with_spot_list_relations
-from spots.serializers import NearbyQuerySerializer, SpotDetailSerializer, SpotSerializer
+from spots.serializers import (
+    AppendixBSpotCreateResponseSerializer,
+    AppendixBSpotListItemSerializer,
+    NearbyQuerySerializer,
+    SpotDetailSerializer,
+    SpotSerializer,
+)
 from trips.models import Like
 
 producer = AtlasKafkaProducer()
@@ -26,12 +32,17 @@ class SpotListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def list(self, request, *args, **kwargs):
-        parent = super()
+        def build_response():
+            queryset = self.filter_queryset(self.get_queryset())
+            page = self.paginate_queryset(queryset)
+            serializer = AppendixBSpotListItemSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         return cached_api_response(
             request,
             SPOTS_CACHE_NAMESPACE,
             settings.CACHE_SPOTS_TIMEOUT_SECONDS,
-            lambda: parent.list(request, *args, **kwargs),
+            build_response,
             extra='spots-list',
         )
 
@@ -53,7 +64,10 @@ class SpotListCreateView(generics.ListCreateAPIView):
         serializer.save(user_id=request.user.id)
         invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         producer.publish('spot.created', {'spotId': str(serializer.instance.id), 'userId': str(request.user.id)})
-        return data_response(self.get_serializer(serializer.instance).data, status_code=status.HTTP_201_CREATED)
+        return data_response(
+            AppendixBSpotCreateResponseSerializer(serializer.instance).data,
+            status_code=status.HTTP_201_CREATED,
+        )
 
 
 class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):

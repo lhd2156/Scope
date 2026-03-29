@@ -57,6 +57,16 @@ class SpotSerializer(serializers.ModelSerializer):
     def _normalize_text(value: str) -> str:
         return value.strip()
 
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            normalized_data = data.copy()
+            if 'visitedAt' in normalized_data and 'visited_at' not in normalized_data:
+                normalized_data['visited_at'] = normalized_data['visitedAt']
+            if 'isPublic' in normalized_data and 'is_public' not in normalized_data:
+                normalized_data['is_public'] = normalized_data['isPublic']
+            data = normalized_data
+        return super().to_internal_value(data)
+
     def validate_title(self, value: str) -> str:
         normalized = self._normalize_text(value)
         if not normalized:
@@ -121,6 +131,41 @@ class SpotDetailSerializer(SpotSerializer):
             {'id': str(review.id), 'rating': str(review.rating), 'comment': review.comment, 'userId': str(review.user_id)}
             for review in reviews[:5]
         ]
+
+
+class AppendixBSpotCreateResponseSerializer(serializers.ModelSerializer):
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    rating = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Spot
+        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'rating', 'createdAt']
+
+    @staticmethod
+    def get_rating(obj) -> float | None:
+        return float(obj.rating) if obj.rating is not None else None
+
+
+class AppendixBSpotListItemSerializer(serializers.ModelSerializer):
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    photoUrl = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Spot
+        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'rating', 'photoUrl', 'createdAt']
+
+    @staticmethod
+    def get_rating(obj) -> float | None:
+        return float(obj.rating) if obj.rating is not None else None
+
+    @staticmethod
+    def get_photoUrl(obj) -> str | None:
+        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
+        first = photos[0] if photos else None
+        if first is None:
+            return None
+        return first.thumbnail_url or first.storage_url
 
 
 class NearbyQuerySerializer(serializers.Serializer):
