@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add input validation (FluentValidation) on ALL request bodies
-## Last Updated: 2026-03-29T09:22:00Z
+## Current Task: Verify JWT auth is enforced on all protected endpoints
+## Last Updated: 2026-03-29T09:27:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -40,6 +40,9 @@
 - 2026-03-29T09:22:00Z updated RateLimitMiddleware to enforce the architecture's dual policy: 100 requests/minute globally and 10 requests/minute on /api/core/auth endpoints, with Retry-After headers on 429 responses
 - 2026-03-29T09:22:00Z added xUnit middleware coverage for auth routes, non-auth API routes, and SignalR hub negotiate routes so the rate limit policy is verified across the core endpoint surface
 - 2026-03-29T09:22:00Z reran Atlas.Core build/test after the rate-limit hardening and passed build (0 warnings, 0 errors) plus tests (10 passed, 0 failed)
+- 2026-03-29T09:27:00Z added FluentValidation.AspNetCore to Atlas.Core.API, registered automatic validation in Program.cs, and created validators for every request body plus the avatar upload form request
+- 2026-03-29T09:27:00Z aligned request DTO data-annotation limits with the architecture/database schema (username/email/display name/bio/token/password bounds) so controller-level validation matches storage constraints
+- 2026-03-29T09:27:00Z added xUnit coverage for canonical valid payloads plus invalid string, token, coordinate, and avatar-upload cases; reran build/test and passed build (0 warnings, 0 errors) plus tests (15 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -57,7 +60,7 @@
 
 ### Phase 6: Security Hardening
 - [x] Verify rate limiting middleware is applied to ALL endpoints
-- [ ] Add input validation (FluentValidation) on ALL request bodies
+- [x] Add input validation (FluentValidation) on ALL request bodies
 - [ ] Verify JWT auth is enforced on all protected endpoints
 - [ ] Add CORS configuration (only allow frontend origin)
 - [ ] Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)

@@ -1,11 +1,14 @@
 using System.Security.Claims;
 using System.Text;
+using Atlas.Core.API.Contracts.Validators;
 using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
 using Atlas.Core.Infrastructure.Services;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +37,9 @@ builder.Services.AddControllers()
             return new BadRequestObjectResult(new ErrorEnvelope(new ErrorBody("VALIDATION_ERROR", "Invalid input data", details, context.HttpContext.TraceIdentifier)));
         };
     });
+
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

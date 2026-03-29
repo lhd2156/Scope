@@ -40,6 +40,14 @@ public static class CoreLimits
     public const int UserSearchResultCount = 20;
     public const int DefaultNotificationPageSize = 20;
     public const int MaxNotificationPageSize = 100;
+    public const int UsernameMaxLength = 50;
+    public const int EmailMaxLength = 255;
+    public const int DisplayNameMaxLength = 100;
+    public const int BioMaxLength = 500;
+    public const int PasswordMinLength = 8;
+    public const int PasswordMaxLength = 256;
+    public const int TokenMaxLength = 512;
+    public const int CognitoSubjectMaxLength = 255;
     public const long AvatarUploadBytes = 10 * 1024 * 1024;
     public const int GlobalRequestsPerMinute = 100;
     public const int AuthRequestsPerMinute = 10;
