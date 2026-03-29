@@ -22,7 +22,6 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 The following items are still pending lead-owned integration/infrastructure work:
 
 - production deploy workflow (`.github/workflows/deploy.yml`)
-- seed data scripts
 - Kubernetes manifests beyond placeholders
 - Terraform infrastructure beyond placeholders
 - full production environment guide for managed cloud services
@@ -182,6 +181,14 @@ Default public URL:
 ```powershell
 docker compose config
 ```
+
+### Seed demo data
+
+The repository now includes idempotent SQL seed scripts under `scripts/sql/`.
+
+Execution order and an example `sqlcmd` invocation are documented in:
+
+- `scripts/sql/README.md`
 
 ### Frontend critical browser smoke
 
