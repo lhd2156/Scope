@@ -65,6 +65,7 @@
 - [2026-03-29] ⚠️ Enforce the 300ms debounce floor inside the shared `SearchBar` itself rather than relying on every caller to pass the right prop; that guarantees future search surfaces inherit the performance rule automatically.
 - [2026-03-29] ⚠️ Fixed-height virtualization is safest on uniform card rows (feeds, notifications, friend rows). For grid or highly variable-height surfaces, add measurement or a grid-specific virtualizer instead of forcing the shared `VirtualList` everywhere.
 - [2026-03-29] ⚠️ The shared `SearchBar` still has legacy callers passing `label=` instead of `ariaLabel=`; keep a backward-compatible alias (or update the callers) so accessibility labels and search-page tests do not silently regress.
+- [2026-03-29] ⚠️ Direct `mapbox-gl` imports in more than one Vue surface will silently rebundle giant route chunks (for Atlas this blew up `SpotComposerPage`); route all Mapbox usage through a shared lazy loader using `mapbox-gl/dist/esm-min/mapbox-gl.js` so the cost stays in one on-demand vendor chunk.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 

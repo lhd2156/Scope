@@ -52,15 +52,14 @@
 </template>
 
 <script setup lang="ts">
-import 'mapbox-gl/dist/mapbox-gl.css';
-
 import { createApp, computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { App as VueApp, ComponentPublicInstance } from 'vue';
-import mapboxgl from 'mapbox-gl';
+import type mapboxgl from 'mapbox-gl';
 import MapControls from '@/components/map/MapControls.vue';
 import LocationTracker from '@/components/map/LocationTracker.vue';
 import RouteLayer from '@/components/map/RouteLayer.vue';
 import SpotMarker from '@/components/map/SpotMarker.vue';
+import { loadMapboxRuntime } from '@/services/mapboxLoader';
 import { useMapStore } from '@/stores/map';
 import type { MapPoint, SpotCategory, UserLocation } from '@/types';
 
@@ -102,6 +101,7 @@ const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture',
 const mapStore = useMapStore();
 const mapContainer = ref<HTMLDivElement | null>(null);
 const map = shallowRef<mapboxgl.Map | null>(null);
+const mapboxRuntime = shallowRef<typeof mapboxgl | null>(null);
 const locationTracker = ref<LocationTrackerInstance | null>(null);
 const markerControllers = new Map<string, MarkerController>();
 const userMarker = shallowRef<mapboxgl.Marker | null>(null);
@@ -135,6 +135,14 @@ function resolveMapStyle(): string {
 
 function handleTrackingState(nextState: TrackingState) {
   trackingState.value = nextState;
+}
+
+async function getMapboxRuntime() {
+  if (!mapboxRuntime.value) {
+    mapboxRuntime.value = await loadMapboxRuntime();
+  }
+
+  return mapboxRuntime.value;
 }
 
 function buildUserMarkerElement(): HTMLDivElement {
@@ -194,7 +202,8 @@ function renderSpotMarkers() {
   clearSpotMarkers();
 
   const instance = map.value;
-  if (!instance || !hasToken) {
+  const runtime = mapboxRuntime.value;
+  if (!instance || !runtime || !hasToken) {
     updateVisibleSpotIds();
     return;
   }
@@ -209,7 +218,7 @@ function renderSpotMarkers() {
 
     app.mount(mountTarget);
 
-    const marker = new mapboxgl.Marker({
+    const marker = new runtime.Marker({
       element: mountTarget,
       anchor: 'bottom',
     })
@@ -224,7 +233,8 @@ function renderSpotMarkers() {
 
 function fitToPoints(points: MapPoint[]) {
   const instance = map.value;
-  if (!instance || !points.length || !hasToken) {
+  const runtime = mapboxRuntime.value;
+  if (!instance || !runtime || !points.length || !hasToken) {
     return;
   }
 
@@ -237,7 +247,7 @@ function fitToPoints(points: MapPoint[]) {
     return;
   }
 
-  const bounds = new mapboxgl.LngLatBounds();
+  const bounds = new runtime.LngLatBounds();
   points.forEach((point) => bounds.extend([point.longitude, point.latitude]));
   instance.fitBounds(bounds, {
     padding: 96,
@@ -287,12 +297,13 @@ function handleLocate() {
 
 function handleLocationUpdate(location: UserLocation) {
   const instance = map.value;
+  const runtime = mapboxRuntime.value;
   mapStore.setUserLocation([location.longitude, location.latitude]);
   emit('location-update', location);
 
-  if (instance && hasToken) {
+  if (instance && runtime && hasToken) {
     if (!userMarker.value) {
-      userMarker.value = new mapboxgl.Marker({
+      userMarker.value = new runtime.Marker({
         element: buildUserMarkerElement(),
         anchor: 'center',
       }).setLngLat([location.longitude, location.latitude]).addTo(instance);
@@ -316,17 +327,23 @@ function syncThemeToMap() {
   }
 }
 
-function setupMap() {
+async function setupMap() {
   if (!mapContainer.value || !hasToken || map.value) {
     updateVisibleSpotIds();
     return;
   }
 
-  mapboxgl.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
+  const runtime = await getMapboxRuntime();
+  if (!mapContainer.value || map.value) {
+    updateVisibleSpotIds();
+    return;
+  }
+
+  runtime.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
   mapStyle.value = resolveMapStyle();
   mapStore.setStyle(mapStyle.value);
 
-  const instance = new mapboxgl.Map({
+  const instance = new runtime.Map({
     container: mapContainer.value,
     style: mapStyle.value,
     center: mapStore.viewport.center,
@@ -446,7 +463,7 @@ watch(
 );
 
 onMounted(() => {
-  setupMap();
+  void setupMap();
   themeObserver = new MutationObserver(syncThemeToMap);
   themeObserver.observe(document.documentElement, {
     attributes: true,
