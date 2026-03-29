@@ -21,15 +21,15 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 7.2 — Add Vitest component tests for all components
-## Last Updated: 2026-03-29T09:32:00Z
+## Current Task: Phase 7.3 — Add proper error handling in all async operations
+## Last Updated: 2026-03-29T09:51:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
 - b0c8355 through 7bfebfc + 1acf047
 - npm run build ✅ passed
 - npm run test ✅ passed
-- Remaining: Phase 7 coverage expansion, Phase 9 performance work, Phase 12 final recheck
+- Remaining: Phase 7 robustness work, Phase 9 performance work, Phase 12 final recheck
 - 2026-03-29T00:56:00Z: UNBLOCKED — Frontend can proceed building domain components in parallel with backends. All API service calls should use stub/mock data until backends are validated.
 - 2026-03-29T02:22:00Z: COMPLETED task 5 — delivered Mapbox-backed map workspace with theme-aware map styling, custom spot markers, route overlays, live location tracking, category filters, and sidebar map context. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after switching Vitest to single-fork mode for stable Windows execution.
 - 2026-03-29T02:33:28Z: COMPLETED task 6 — upgraded SpotCard and SpotDetail into premium production surfaces with richer metadata, gallery/review presentation, embedded mini-map context, and route-safe detail loading states. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new spot component coverage.
@@ -50,6 +50,7 @@
 - 2026-03-29T09:03:05.3096671Z: COMPLETED Phase 6.3 hardening — upgraded the shared Axios client so mutating requests bootstrap CSRF tokens from readable cookies or an optional env-configured GET endpoint before the first form POST/PUT/DELETE, continue capturing fresh tokens from response headers/bodies, and avoid auth-refresh loops during bootstrap. Added focused Vitest coverage for cookie-backed and endpoint-backed CSRF acquisition. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 53 tests).
 - 2026-03-29T09:14:00Z: COMPLETED Phase 6.4 auth-guard verification — added focused Vitest coverage for protected-route redirects, session hydration behavior, guest-only redirects, and an explicit router meta contract so protected pages cannot silently lose auth requirements. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (31 files / 58 tests).
 - 2026-03-29T09:32:00Z: COMPLETED Phase 7.1 view coverage — added dedicated Vitest specs for every remaining route view (Home, Map, Trip Planner, Trip Detail, Spot Detail, Spot Composer, Friends, Settings, Login, Register, and NotFound), complementing the existing Explore and Profile coverage so all frontend views now have route-aware tests. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (41 files / 70 tests).
+- 2026-03-29T09:51:00Z: COMPLETED Phase 7.2 component coverage — added dedicated Vitest specs for every remaining production component across the common shell, map helpers, profile, social, and review layers, removed the unused Vite starter `HelloWorld.vue`, and fixed a real runtime debounce bug in `SearchBar.vue` uncovered by the new coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (59 files / 98 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -72,7 +73,7 @@
 
 ### Phase 7: Test Coverage
 - [x] Add Vitest component tests for all views
-- [ ] Add Vitest component tests for all components
+- [x] Add Vitest component tests for all components
 - [ ] Add proper error handling in all async operations
 - [ ] Handle edge cases: empty inputs, network failures, expired tokens
 
