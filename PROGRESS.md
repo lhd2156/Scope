@@ -6,7 +6,7 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, and deployment runbook complete; seed data and infra/IaC remain
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, deployment runbook, and SQL seed assets complete; deploy workflow and infra/IaC remain
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, Dependabot automation, and deployment runbook are in place; seed data, deploy workflow, and infra manifests remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, Dependabot automation, deployment runbook, and SQL seed assets are in place; deploy workflow and infra manifests remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:13:00Z
+## Last Updated: 2026-03-29T18:17:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -393,6 +393,10 @@
 - 2026-03-29T18:13:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T18:13:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `docs/DEPLOYMENT.md`, a deployment runbook for the current Docker Compose stack, CI validation flow, runtime/env requirements, and remaining production gaps.
 - 2026-03-29T18:13:00Z: Remaining Phase 4 gaps are seed data, deploy workflow automation, and infra manifests/IaC. The deployment runbook now documents the current local/staging deployment path without pretending production automation is finished.
+- 2026-03-29T18:17:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T18:17:00Z: Completed the next lead-owned Phase 4 integration milestone by adding idempotent SQL seed scripts for Core, Content, and Intel (`scripts/sql/*/002_*_seed_data.sql`) plus `scripts/sql/README.md`, and wired the new seed-data execution path into `docs/DEPLOYMENT.md`.
+- 2026-03-29T18:17:00Z: Validation limits were documented honestly: `sqlcmd` is not installed on this host and Docker Desktop's Linux engine is offline, so this milestone was validated as static seed-data asset creation + execution-order documentation rather than live DB execution.
+- 2026-03-29T18:17:00Z: Remaining Phase 4 gaps are deploy workflow automation and infra manifests/IaC.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
