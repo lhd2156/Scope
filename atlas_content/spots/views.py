@@ -33,7 +33,7 @@ class SpotListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(city__iexact=city)
         if q := self.request.query_params.get('q'):
             queryset = queryset.filter(Q(title__icontains=q) | Q(description__icontains=q) | Q(vibe__icontains=q))
-        return queryset
+        return queryset.order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -75,7 +75,7 @@ def nearby_spots(request):
 
 @api_view(['GET'])
 def user_spots(request, user_id):
-    queryset = Spot.objects.filter(user_id=user_id, is_public=True)
+    queryset = Spot.objects.filter(user_id=user_id, is_public=True).order_by('-created_at')
     paginator = SpotListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
     return paginator.get_paginated_response(SpotSerializer(page, many=True).data)

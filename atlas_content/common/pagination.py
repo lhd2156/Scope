@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -37,7 +38,10 @@ class FeedCursorPagination:
         cursor = request.query_params.get(self.cursor_query_param)
 
         if cursor:
-            cursor_position = datetime.fromisoformat(cursor)
+            try:
+                cursor_position = datetime.fromisoformat(cursor)
+            except ValueError as exc:
+                raise ValidationError({'cursor': 'Cursor must be a valid ISO-8601 timestamp'}) from exc
             ordered_items = [item for item in ordered_items if item.created_at < cursor_position]
             self.previous_cursor = cursor
         else:
