@@ -44,6 +44,7 @@
 - [2026-03-29] ✅ Atlas Intel CORS can stay strict and testable by reading `FRONTEND_ORIGIN`/`CORE_FRONTEND_ORIGIN`, allowing `http://localhost:5173` only in development/test, and asserting both preflight and real unauthorized responses carry the credentialed CORS headers.
 - [2026-03-29] ✅ For SQLAlchemy ORM-only guarantees in Atlas Intel, an AST-based safety test over `app/` catches future raw-SQL regressions (`execute`, `text`, cursors, `from_statement`, and literal `SELECT/INSERT/UPDATE/DELETE` strings) better than a one-time grep.
 - [2026-03-29] ✅ If `coverage`/`pytest-cov` is unavailable in Atlas Intel, `python -m trace --count --missing --coverdir .tracecov --module pytest tests` plus a small app-only parser is enough to measure line coverage honestly without adding a new dependency; make sure previously unimported modules (Kafka/ML) have explicit tests so they are counted.
+- [2026-03-29] ✅ The cleanest way to satisfy the Intel endpoint-integration milestone is one dedicated pytest module with a happy-path and an error-path assertion for every route; use route-specific errors where available (400/404/429) and fall back to the existing auth contract (`401 UNAUTHORIZED`) for query endpoints that do not yet normalize malformed params.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -62,6 +63,7 @@
 - [2026-03-29] ⚠️ JSDOM may expose an `IntersectionObserver` stub that keeps lazy-image components in placeholder mode during tests; explicitly override or remove `window.IntersectionObserver` in image specs when you need deterministic eager/deferred assertions.
 - [2026-03-29] ⚠️ Enforce the 300ms debounce floor inside the shared `SearchBar` itself rather than relying on every caller to pass the right prop; that guarantees future search surfaces inherit the performance rule automatically.
 - [2026-03-29] ⚠️ Fixed-height virtualization is safest on uniform card rows (feeds, notifications, friend rows). For grid or highly variable-height surfaces, add measurement or a grid-specific virtualizer instead of forcing the shared `VirtualList` everywhere.
+- [2026-03-29] ⚠️ The shared `SearchBar` still has legacy callers passing `label=` instead of `ariaLabel=`; keep a backward-compatible alias (or update the callers) so accessibility labels and search-page tests do not silently regress.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -107,6 +109,7 @@
 - [2026-03-29] ⚠️ If the live process table shows a newer worker session than the lead dashboard mentions, trust the canonical service `PROGRESS.md` files plus `Win32_Process`, refresh the dashboard, and preserve the live worker when it matches the current first unchecked task instead of blindly respawning it.
 - [2026-03-29] ⚠️ When the `Win32_Process` heartbeat check returns only the temporary PowerShell inspection command and no `openclaw.mjs agent` node processes, treat that as zero live workers and relaunch every non-COMPLETE service from its canonical current task.
 - [2026-03-29] ⚠️ If `Win32_Process` shows a mixed fleet where some newer service workers are already alive and others are missing, preserve the matching live workers and relaunch only the missing non-COMPLETE services to avoid duplicate workspace contention.
+- [2026-03-29] ⚠️ If a lingering `openclaw.mjs agent` node is still alive but the original exec session no longer exists in `process log`, inspect the newest `C:\Users\dongu\.openclaw\agents\<agent>\sessions\*.jsonl`; a final reply with `stopReason: "stop"` confirms the worker is stale and safe to kill.
 
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 
@@ -119,6 +122,8 @@
 - [2026-03-29] ✅ Atlas.Core coverage can be measured directly with `dotnet test --collect:"XPlat Code Coverage"`; a focused mix of controller, service, hub, and domain-contract tests can drive the Cobertura line rate above 80% quickly without needing extra coverage packages.
 
 - [2026-03-29] ⚠️ In Atlas.Core WebApplicationFactory tests, `UseInMemoryDatabase(Guid.NewGuid().ToString())` inside `AddDbContext(...)` creates a different database per DI scope; use one stable database name per factory instance or seeded data will disappear between setup, HTTP requests, and assertions.
+
+- [2026-03-29] ⚠️ Atlas.Core auth tests share a static password-reset-ticket store inside `AuthService`; when HTTP integration tests and service tests both touch it, put those classes in the same xUnit collection (or otherwise serialize them) to avoid cross-test contamination under parallel execution.
 
 ## Common Mistakes to Avoid
 
