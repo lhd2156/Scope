@@ -36,24 +36,43 @@
 
       <ThemeToggle />
 
-      <div v-if="authStore.currentUser" ref="menuRef" class="menu-shell">
-        <button type="button" class="profile-chip" :aria-expanded="String(isMenuOpen)" @click="isMenuOpen = !isMenuOpen">
+      <div v-if="authStore.currentUser" ref="menuRef" class="menu-shell" @focusout="handleMenuFocusOut">
+        <button
+          :id="menuButtonId"
+          ref="menuButtonRef"
+          type="button"
+          class="profile-chip"
+          aria-haspopup="menu"
+          :aria-expanded="String(isMenuOpen)"
+          :aria-controls="isMenuOpen ? menuId : undefined"
+          @click="toggleMenu"
+          @keydown="handleMenuButtonKeydown"
+        >
           <Avatar :name="authStore.currentUser.displayName" :src="authStore.currentUser.avatarUrl" :size="36" />
           <span>{{ authStore.currentUser.displayName }}</span>
           <AtlasIcon name="chevron-down" label="Open user menu" />
         </button>
 
         <Transition name="dropdown-fade">
-          <div v-if="isMenuOpen" class="menu-dropdown surface-card">
-            <RouterLink :to="`/profile/${authStore.currentUser.id}`" @click="closeMenu">
+          <div
+            v-if="isMenuOpen"
+            :id="menuId"
+            ref="menuPanelRef"
+            class="menu-dropdown surface-card"
+            role="menu"
+            :aria-labelledby="menuButtonId"
+            tabindex="-1"
+            @keydown="handleMenuKeydown"
+          >
+            <RouterLink :to="`/profile/${authStore.currentUser.id}`" role="menuitem" tabindex="-1" @click="closeMenu">
               <AtlasIcon name="user" label="Profile" />
               <span>Profile</span>
             </RouterLink>
-            <RouterLink to="/settings" @click="closeMenu">
+            <RouterLink to="/settings" role="menuitem" tabindex="-1" @click="closeMenu">
               <AtlasIcon name="settings" label="Settings" />
               <span>Settings</span>
             </RouterLink>
-            <button type="button" @click="handleLogout">
+            <button type="button" role="menuitem" tabindex="-1" @click="handleLogout">
               <AtlasIcon name="logout" label="Log out" />
               <span>Log out</span>
             </button>
@@ -71,7 +90,7 @@
 
 <script setup lang="ts">
 import { onClickOutside } from '@vueuse/core';
-import { ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
@@ -90,13 +109,156 @@ const router = useRouter();
 const searchQuery = ref('');
 const isMenuOpen = ref(false);
 const menuRef = ref<HTMLElement | null>(null);
+const menuButtonRef = ref<HTMLElement | null>(null);
+const menuPanelRef = ref<HTMLElement | null>(null);
+const menuButtonId = `navbar-menu-button-${useId()}`;
+const menuId = `navbar-menu-${useId()}`;
 
 function syncSearchFromRoute() {
   searchQuery.value = typeof route.query.q === 'string' ? route.query.q : '';
 }
 
-function closeMenu() {
+function getMenuItems(): HTMLElement[] {
+  if (!menuPanelRef.value) {
+    return [];
+  }
+
+  return Array.from(menuPanelRef.value.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+}
+
+function focusMenuBoundary(position: 'first' | 'last'): void {
+  const menuItems = getMenuItems();
+  const focusTarget = position === 'first' ? menuItems[0] : menuItems[menuItems.length - 1];
+
+  if (focusTarget) {
+    focusTarget.focus();
+    return;
+  }
+
+  menuPanelRef.value?.focus();
+}
+
+async function openMenu(position: 'none' | 'first' | 'last' = 'none'): Promise<void> {
+  if (!isMenuOpen.value) {
+    isMenuOpen.value = true;
+    await nextTick();
+  }
+
+  if (position === 'first' || position === 'last') {
+    focusMenuBoundary(position);
+  }
+}
+
+function closeMenu(options: { restoreFocus?: boolean } = {}) {
+  if (!isMenuOpen.value) {
+    return;
+  }
+
   isMenuOpen.value = false;
+
+  if (options.restoreFocus) {
+    void nextTick(() => {
+      menuButtonRef.value?.focus();
+    });
+  }
+}
+
+function toggleMenu() {
+  if (isMenuOpen.value) {
+    closeMenu();
+    return;
+  }
+
+  void openMenu('first');
+}
+
+function handleMenuButtonKeydown(event: KeyboardEvent): void {
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      void openMenu('first');
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      void openMenu('last');
+      break;
+    case 'Enter':
+    case ' ':
+      if (!isMenuOpen.value) {
+        event.preventDefault();
+        void openMenu('first');
+      }
+      break;
+    case 'Escape':
+      if (isMenuOpen.value) {
+        event.preventDefault();
+        closeMenu({ restoreFocus: true });
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+function moveMenuFocus(direction: 1 | -1): void {
+  const menuItems = getMenuItems();
+
+  if (!menuItems.length) {
+    menuPanelRef.value?.focus();
+    return;
+  }
+
+  const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+  const currentIndex = menuItems.findIndex((menuItem) => menuItem === activeElement);
+  const nextIndex = currentIndex === -1
+    ? direction === 1 ? 0 : menuItems.length - 1
+    : (currentIndex + direction + menuItems.length) % menuItems.length;
+
+  menuItems[nextIndex]?.focus();
+}
+
+function handleMenuKeydown(event: KeyboardEvent): void {
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      moveMenuFocus(1);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      moveMenuFocus(-1);
+      break;
+    case 'Home':
+      event.preventDefault();
+      focusMenuBoundary('first');
+      break;
+    case 'End':
+      event.preventDefault();
+      focusMenuBoundary('last');
+      break;
+    case 'Escape':
+      event.preventDefault();
+      closeMenu({ restoreFocus: true });
+      break;
+    default:
+      break;
+  }
+}
+
+function handleMenuFocusOut(event: FocusEvent): void {
+  const nextTarget = event.relatedTarget;
+
+  if (nextTarget instanceof Node && menuRef.value?.contains(nextTarget)) {
+    return;
+  }
+
+  closeMenu();
+}
+
+function handleGlobalMenuKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && isMenuOpen.value) {
+    event.preventDefault();
+    closeMenu({ restoreFocus: true });
+  }
 }
 
 async function handleLogout() {
@@ -135,7 +297,26 @@ watch(
   { immediate: true },
 );
 
-onClickOutside(menuRef, closeMenu);
+watch(
+  () => isMenuOpen.value,
+  (isOpen) => {
+    if (isOpen) {
+      window.addEventListener('keydown', handleGlobalMenuKeydown);
+      return;
+    }
+
+    window.removeEventListener('keydown', handleGlobalMenuKeydown);
+  },
+  { immediate: true },
+);
+
+onClickOutside(menuRef, () => {
+  closeMenu();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalMenuKeydown);
+});
 </script>
 
 <style scoped>
@@ -256,6 +437,11 @@ onClickOutside(menuRef, closeMenu);
   z-index: var(--z-dropdown);
 }
 
+.menu-dropdown:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 3px;
+}
+
 .menu-dropdown a,
 .menu-dropdown button {
   display: flex;
@@ -309,6 +495,18 @@ onClickOutside(menuRef, closeMenu);
 .dropdown-fade-leave-to {
   opacity: 0;
   transform: translateY(-0.25rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-fade-enter-active,
+  .dropdown-fade-leave-active {
+    transition-duration: 1ms;
+  }
+
+  .dropdown-fade-enter-from,
+  .dropdown-fade-leave-to {
+    transform: none;
+  }
 }
 
 @media (max-width: 1260px) {
