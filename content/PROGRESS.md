@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 7 - Write integration tests for every API endpoint (happy path + error cases)
-## Last Updated: 2026-03-29T12:55:00Z
+## Current Task: Phase 7 - Add tests for spots, trips, photos, reviews, feed
+## Last Updated: 2026-03-29T13:45:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -47,6 +47,7 @@
 - Removed the remaining raw SQL probes from Content (`connection.ensure_connection()` now handles DB health checks/bootstrap validation) and added a source-safety test that blocks `.cursor()`, `.execute()`, `.executemany()`, `.raw()`, and `RawSQL` regressions (`50 passed` total)
 - Added CSP security-header middleware for Content responses with a policy aligned to frontend/dev origins and media/font allowances; verified the header is present on normal 200, unauthorized 401, and rate-limited 429 responses (`53 passed` total)
 - Added support-module coverage tests (ASGI/WSGI boot, Kafka consumer, permissions, responses, exception handling) plus a stdlib trace coverage script; pytest now passes with `64 passed`, and app-only coverage is `999/1240` executable lines (`81%`)
+- Added endpoint-integration coverage across the full Content route map (health, spots, trips, photos, reviews, feed) with happy-path and error-path assertions; while doing so, fixed the broken mixed-model feed pagination by replacing the unusable DRF cursor/queryset combo with a list-aware feed cursor paginator (`73 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -72,7 +73,7 @@
 
 ### Phase 7: Test Coverage
 - [x] Add pytest tests until coverage exceeds 80%
-- [ ] Write integration tests for every API endpoint (happy path + error cases)
+- [x] Write integration tests for every API endpoint (happy path + error cases)
 - [ ] Add tests for spots, trips, photos, reviews, feed
 - [ ] Add proper error handling with DRF exception handler
 - [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
