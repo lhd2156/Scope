@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Run full build and all tests — fix any failures
-## Last Updated: 2026-03-29T14:17:48Z
+## Current Task: Verify API response formats match Appendix B exactly
+## Last Updated: 2026-03-29T14:23:57Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -47,6 +47,7 @@
 - 2026-03-29: Added a shared configurable ML runtime timeout (`ML_REQUEST_TIMEOUT_SECONDS`) for recommendation and vibe computations, surfaced slow runs as `503 ML_TIMEOUT` via Flask error handling, and added low-timeout integration coverage for `/recommend/spots`, `/recommend/similar/{spotId}`, and `/vibe-match`; full Intel pytest suite now passes at `96 passed`.
 - 2026-03-29: Added explicit private cache headers for weather and geocoding responses, including route-specific TTLs and `Vary: Authorization`, added header assertions for weather/geocode/reverse-geocode, and re-ran the full Intel pytest suite successfully (`99 passed`).
 - 2026-03-29: Re-verified the live Intel route map against `atlas_architecture.tex`, added a final audit test that locks the exact documented endpoint set/methods and public-vs-protected posture, and re-ran the full Intel pytest suite successfully (`101 passed`).
+- 2026-03-29: Re-ran the full Phase 12 Intel validation sequence from inside `atlas_intel/` with `python -m pip install -r requirements.txt ; python -m pytest tests`; dependency install stayed green, the full suite passed again (`101 passed`), and no code fixes were required.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -86,7 +87,7 @@
 
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
-- [ ] Run full build and all tests — fix any failures
+- [x] Run full build and all tests — fix any failures
 - [ ] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify ML model loading works
