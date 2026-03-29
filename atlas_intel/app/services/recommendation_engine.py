@@ -1,20 +1,20 @@
 from __future__ import annotations
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from app.ml.model_loader import MlModelLoader, ml_model_loader
 from app.services.content_client import ContentServiceClient, Spot
 
 class RecommendationEngine:
-    def __init__(self, content_client: ContentServiceClient) -> None:
+    def __init__(self, content_client: ContentServiceClient, model_loader: MlModelLoader = ml_model_loader) -> None:
         self.content_client = content_client
+        self.model_loader = model_loader
 
     def recommend_spots(self, user_id: str, liked_spot_ids: list[str], interests: list[str], limit: int) -> list[dict]:
         spots = self.content_client.get_all_spots()
         documents = [f"{spot.description} {spot.category} {spot.vibe}" for spot in spots]
-        vectorizer = TfidfVectorizer()
-        matrix = vectorizer.fit_transform(documents)
+        model = self.model_loader.build_text_similarity_model()
+        matrix = model.fit_transform(documents)
         user_profile = " ".join(interests + [spot.vibe for spot in spots if spot.spot_id in liked_spot_ids]) or "adventure culture food"
-        user_vector = vectorizer.transform([user_profile])
-        similarities = cosine_similarity(user_vector, matrix)[0]
+        user_vector = model.transform([user_profile])
+        similarities = model.cosine_similarity(user_vector, matrix)[0]
         recommendations = []
         for index, spot in enumerate(spots):
             collaborative_score = sum(1 for liker in spot.liked_by_users if liker == user_id or any(liker in self._likers_for_spots(spots, liked_spot_ids) for liker in spot.liked_by_users))
@@ -28,10 +28,10 @@ class RecommendationEngine:
         source = self.content_client.get_spot(spot_id)
         if source is None:
             return []
-        vectorizer = TfidfVectorizer()
-        matrix = vectorizer.fit_transform([f"{spot.description} {spot.category} {spot.vibe}" for spot in spots])
+        model = self.model_loader.build_text_similarity_model()
+        matrix = model.fit_transform([f"{spot.description} {spot.category} {spot.vibe}" for spot in spots])
         source_index = next(index for index, spot in enumerate(spots) if spot.spot_id == spot_id)
-        similarities = cosine_similarity(matrix[source_index], matrix)[0]
+        similarities = model.cosine_similarity(matrix[source_index], matrix)[0]
         similar = []
         for index, candidate in enumerate(spots):
             if candidate.spot_id == spot_id:

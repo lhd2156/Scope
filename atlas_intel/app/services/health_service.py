@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
-from sklearn.feature_extraction.text import TfidfVectorizer
 from app.extensions import db
+from app.ml.model_loader import MlModelLoader, ml_model_loader
 
 logger = logging.getLogger(__name__)
 
 
 class HealthService:
+    def __init__(self, model_loader: MlModelLoader = ml_model_loader) -> None:
+        self.model_loader = model_loader
+
     def database_ready(self) -> bool:
         try:
             with db.engine.connect():
@@ -17,13 +20,7 @@ class HealthService:
             return False
 
     def ml_model_ready(self) -> bool:
-        try:
-            vectorizer = TfidfVectorizer()
-            matrix = vectorizer.fit_transform(["atlas intel health", "ml model ready"])
-            return matrix.shape[0] == 2
-        except Exception:
-            logger.warning("health_ml_check_failed", extra={"dependency": "ml"})
-            return False
+        return self.model_loader.verify()
 
     def payload(self, *, version: str, uptime: int) -> tuple[dict[str, object], int]:
         database_ready = self.database_ready()

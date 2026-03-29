@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Verify ML model loading works
-## Last Updated: 2026-03-29T15:07:18Z
+## Current Task: Verify itinerary caching logic
+## Last Updated: 2026-03-29T15:22:10Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -50,6 +50,7 @@
 - 2026-03-29: Re-ran the full Phase 12 Intel validation sequence from inside `atlas_intel/` with `python -m pip install -r requirements.txt ; python -m pytest tests`; dependency install stayed green, the full suite passed again (`101 passed`), and no code fixes were required.
 - 2026-03-29: Verified Intel response formats against Appendix B exactly, disabled Flask JSON key sorting so itinerary payloads preserve documented field order, forced itinerary cost fields to remain floats, added dedicated Appendix B response-shape tests, and re-ran the full Intel suite successfully (`103 passed`).
 - 2026-03-29: Audited Intel app/test code for hardcoded secrets, debug statements, TODO/FIXME markers, and dead code; found no real secret/debug/TODO issues in app code, removed an unused `asdict` import from the itinerary engine, switched to the non-deprecated `pythonjsonlogger.json` import path, and re-ran the full Intel suite successfully with zero warnings (`103 passed`).
+- 2026-03-29: Added a shared ML model loader abstraction for the TF-IDF similarity path, switched recommendation/vibe services and health readiness checks to use it, added direct model-loading verification tests plus service-level loader-usage assertions, and re-ran the full Intel suite successfully (`108 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -92,6 +93,6 @@
 - [x] Run full build and all tests — fix any failures
 - [x] Verify API response formats match Appendix B exactly
 - [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
-- [ ] Verify ML model loading works
+- [x] Verify ML model loading works
 - [ ] Verify itinerary caching logic
 
