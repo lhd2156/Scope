@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Run full build and all tests — fix any failures
-## Last Updated: 2026-03-29T15:15:00Z
+## Current Task: Verify API response formats match Appendix B exactly
+## Last Updated: 2026-03-29T15:27:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -91,6 +91,8 @@
 - 2026-03-29T15:15:00Z completed the final endpoint-spec audit by reflecting the live controller route surface and comparing it to the architecture contract at the HTTP method + normalized path-shape level, covering all 31 documented REST endpoints across auth, users, friends, notifications, live, and health
 - 2026-03-29T15:15:00Z added a separate anonymous-vs-protected audit so public auth/health routes are explicitly verified while all other REST endpoints remain protected, which locks the final atlas_architecture.tex endpoint contract into the test suite without overfitting to route-parameter names or `:guid` constraint formatting
 - 2026-03-29T15:15:00Z reran Atlas.Core build/test after the endpoint parity audit and passed build (0 warnings, 0 errors) plus tests (177 passed, 0 failed)
+- 2026-03-29T15:27:00Z completed the Phase 12 full verification sweep by rerunning the entire Atlas.Core solution build and test suite with the dedicated .NET 8 SDK path; no build failures or test regressions remained to fix
+- 2026-03-29T15:27:00Z final validation passed cleanly: build (0 warnings, 0 errors) and tests (177 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -131,7 +133,7 @@
 
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
-- [ ] Run full build and all tests — fix any failures
+- [x] Run full build and all tests — fix any failures
 - [ ] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify Kafka event schemas match Section 10
