@@ -6,14 +6,14 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, and SQL seed assets complete; deploy workflow and infra/IaC remain
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, and deploy workflow automation complete; infra/IaC remains
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
 - [ ] Phase 8: Documentation & Deployment Prep — README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
 - [x] Phase 9: Performance & Observability — complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility — route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
-- [ ] Phase 11: Infrastructure Hardening — Kubernetes manifests (7 files), Terraform IaC (5 files), deployment workflow, and deployment hardening remain after docker-compose app wiring, CI automation, and Dependabot setup
+- [ ] Phase 11: Infrastructure Hardening — Kubernetes manifests (7 files), Terraform IaC (5 files), and deployment hardening remain after docker-compose app wiring, CI automation, Dependabot setup, and deploy workflow automation
 - [x] Phase 12: Final Boss Recheck 🏁 — complete across Core, Content, Intel, and Frontend
 
 ## Agent Status Dashboard
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright critical-flow validation, Dependabot automation, deployment runbook, and SQL seed assets are in place; deploy workflow and infra manifests/IaC remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright critical-flow validation, Dependabot automation, deployment runbook, SQL seed assets, and deploy workflow automation are in place; infra manifests/IaC remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:36:30.0684462Z
+## Last Updated: 2026-03-29T18:38:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -400,6 +400,9 @@
 - 2026-03-29T18:35:07.3454387Z: Tightened the existing Playwright critical-flow coverage in `atlas-frontend/tests/e2e/critical-flows.spec.ts` so the canonical browser test now mocks `/api/core/auth/*` deterministically, uses SPA navigation to preserve in-memory fallback spot state, and asserts the created pin appears in the map workspace before itinerary generation.
 - 2026-03-29T18:35:07.3454387Z: Validation: `npx playwright test tests/e2e/critical-flows.spec.ts --project=chromium` ✅ inside `atlas-frontend/`. Removed the temporary duplicate `critical-flow.spec.ts` once the stronger canonical spec passed.
 - 2026-03-29T18:36:30.0684462Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the hardened canonical Playwright browser flow milestone and the narrowed remaining Phase 4 gaps (deploy workflow + infra/IaC + final docs polish).
+- 2026-03-29T18:38:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T18:38:00Z: Completed the next lead-owned Phase 4 milestone by adding `.github/workflows/deploy.yml`, which validates the deploy bundle, builds/publishes GHCR images for Core/Content/Intel/Frontend on `main` or manual runs, and uploads a deployment bundle artifact.
+- 2026-03-29T18:38:00Z: Updated `docs/DEPLOYMENT.md` to document the new deploy workflow and current automation coverage. Remaining lead-owned gaps are now infra manifests / IaC and broader production-hardening guidance.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:

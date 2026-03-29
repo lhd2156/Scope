@@ -21,7 +21,6 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 
 The following items are still pending lead-owned integration/infrastructure work:
 
-- production deploy workflow (`.github/workflows/deploy.yml`)
 - Kubernetes manifests beyond placeholders
 - Terraform infrastructure beyond placeholders
 - full production environment guide for managed cloud services
@@ -47,6 +46,7 @@ Install:
 - `nginx/nginx.conf`
 - `.env.example`
 - `.github/workflows/ci.yml`
+- `.github/workflows/deploy.yml`
 - `atlas-frontend/playwright.config.ts`
 - `atlas-frontend/tests/e2e/critical-flows.spec.ts`
 
@@ -246,13 +246,16 @@ npm run test
 The repository now includes:
 
 - `.github/workflows/ci.yml`
+- `.github/workflows/deploy.yml`
 
-Current CI coverage:
+Current automation coverage:
 
 - Core restore/build/test
 - Content install/check/test
 - Intel install/test
 - Frontend install/build/test
+- GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
+- deployment bundle artifact publishing (`docker-compose.yml`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
 
 Dependabot is also configured for:
