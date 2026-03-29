@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date, timedelta
 from math import sqrt
 from app.services.content_client import ContentServiceClient, Spot

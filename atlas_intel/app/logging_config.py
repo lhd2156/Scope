@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from flask import Flask, g, has_request_context
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 from app.config import settings
 
 
@@ -16,7 +16,7 @@ class RequestContextFilter(logging.Filter):
         return True
 
 
-class AtlasJsonFormatter(jsonlogger.JsonFormatter):
+class AtlasJsonFormatter(JsonFormatter):
     def add_fields(self, log_record: dict, record: logging.LogRecord, message_dict: dict) -> None:
         super().add_fields(log_record, record, message_dict)
         log_record["timestamp"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")

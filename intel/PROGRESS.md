@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Check for hardcoded secrets, debug statements, TODO comments, dead code
-## Last Updated: 2026-03-29T14:50:22Z
+## Current Task: Verify ML model loading works
+## Last Updated: 2026-03-29T15:07:18Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -49,6 +49,7 @@
 - 2026-03-29: Re-verified the live Intel route map against `atlas_architecture.tex`, added a final audit test that locks the exact documented endpoint set/methods and public-vs-protected posture, and re-ran the full Intel pytest suite successfully (`101 passed`).
 - 2026-03-29: Re-ran the full Phase 12 Intel validation sequence from inside `atlas_intel/` with `python -m pip install -r requirements.txt ; python -m pytest tests`; dependency install stayed green, the full suite passed again (`101 passed`), and no code fixes were required.
 - 2026-03-29: Verified Intel response formats against Appendix B exactly, disabled Flask JSON key sorting so itinerary payloads preserve documented field order, forced itinerary cost fields to remain floats, added dedicated Appendix B response-shape tests, and re-ran the full Intel suite successfully (`103 passed`).
+- 2026-03-29: Audited Intel app/test code for hardcoded secrets, debug statements, TODO/FIXME markers, and dead code; found no real secret/debug/TODO issues in app code, removed an unused `asdict` import from the itinerary engine, switched to the non-deprecated `pythonjsonlogger.json` import path, and re-ran the full Intel suite successfully with zero warnings (`103 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -90,7 +91,7 @@
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [x] Run full build and all tests — fix any failures
 - [x] Verify API response formats match Appendix B exactly
-- [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
+- [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify ML model loading works
 - [ ] Verify itinerary caching logic
 
