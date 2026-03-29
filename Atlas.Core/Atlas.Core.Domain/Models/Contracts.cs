@@ -1,6 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace Atlas.Core.Domain.Models;
 
-public sealed record ApiResponse<T>(T Data, object? Meta = null);
+public sealed record ApiResponse<T>(T Data, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object? Meta = null);
 public sealed record ErrorEnvelope(ErrorBody Error);
 public sealed record ErrorBody(string Code, string Message, IReadOnlyList<ErrorDetail> Details, string TraceId);
 public sealed record ErrorDetail(string Field, string Message);

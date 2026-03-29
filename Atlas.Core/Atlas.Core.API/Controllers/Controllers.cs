@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Atlas.Core.API.Contracts.Requests;
+using Atlas.Core.API.Contracts.Responses;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
@@ -16,19 +17,32 @@ namespace Atlas.Core.API.Controllers;
 [Route("api/core/auth")]
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
+    [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
-        => StatusCode(StatusCodes.Status201Created, new ApiResponse<object>(await authService.RegisterAsync(request.Username, request.Email, request.Password, request.DisplayName, cancellationToken)));
+    {
+        var authResult = await authService.RegisterAsync(request.Username, request.Email, request.Password, request.DisplayName, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>(RegisterResponse.FromAuthResult(authResult)));
+    }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
-        => Ok(new ApiResponse<object>(await authService.LoginAsync(request.Email, request.Password, cancellationToken)));
+    {
+        var authResult = await authService.LoginAsync(request.Email, request.Password, cancellationToken);
+        return Ok(new ApiResponse<object>(AuthSessionResponse.FromAuthResult(authResult)));
+    }
 
+    [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, CancellationToken cancellationToken)
-        => Ok(new ApiResponse<object>(await authService.RefreshAsync(request.RefreshToken, cancellationToken)));
+    {
+        var authResult = await authService.RefreshAsync(request.RefreshToken, cancellationToken);
+        return Ok(new ApiResponse<object>(AuthSessionResponse.FromAuthResult(authResult)));
+    }
 
+    [AllowAnonymous]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
@@ -36,6 +50,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
+    [AllowAnonymous]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
@@ -43,6 +58,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
+    [AllowAnonymous]
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
     {
@@ -50,9 +66,13 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
+    [AllowAnonymous]
     [HttpPost("oauth/cognito")]
     public async Task<IActionResult> Cognito([FromBody] CognitoLoginRequest request, CancellationToken cancellationToken)
-        => Ok(new ApiResponse<object>(await authService.LoginWithCognitoAsync(request.Email, request.Username, request.DisplayName, request.Subject, cancellationToken)));
+    {
+        var authResult = await authService.LoginWithCognitoAsync(request.Email, request.Username, request.DisplayName, request.Subject, cancellationToken);
+        return Ok(new ApiResponse<object>(AuthSessionResponse.FromAuthResult(authResult)));
+    }
 
     [Authorize]
     [HttpGet("me")]
@@ -128,7 +148,7 @@ public sealed class UsersController(
 
         var query = q.Trim();
         var users = await dbContext.Users.AsNoTracking()
-            .Where(x => x.IsActive && (x.Username.Contains(query) || x.DisplayName.Contains(query)))
+            .Where(x => x.IsActive && (x.Username.Contains(query) || x.DisplayName.Contains(query) || x.Email.Contains(query)))
             .OrderBy(x => x.DisplayName)
             .Take(CoreLimits.UserSearchResultCount)
             .Select(x => new { x.Id, x.Username, x.DisplayName, x.AvatarUrl })
