@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 6 — Add Django rate limiting middleware to ALL API endpoints
-## Last Updated: 2026-03-29T08:50:00Z
+## Current Task: Phase 6 — Add input validation on ALL request bodies (max lengths, type checking)
+## Last Updated: 2026-03-29T09:00:45Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -41,6 +41,9 @@
 - `python atlas_content/manage.py check` passed again after the endpoint contract audit
 - Searched `atlas_content/**/*.py` for `TODO|FIXME|XXX` and found no in-repo TODO markers blocking the audit milestone
 - Verified no hardcoded production secrets were introduced during the audit; remaining defaults in settings are explicit env-backed development fallbacks only
+- Implemented architecture-aligned application rate limiting with a global 100 req/min IP bucket plus 20 req/min upload throttles for photo upload/presign endpoints, backed by 429 `Retry-After` responses
+- Added middleware coverage for global IP throttling and per-user upload throttling; `python -m pytest atlas_content` now passes with `20 passed`
+- `python atlas_content/manage.py check` passed after the rate limiting hardening
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -57,7 +60,7 @@
 - [x] Check for broken imports, TODO comments, hardcoded values
 
 ### Phase 6: Security Hardening
-- [ ] Add Django rate limiting middleware to ALL API endpoints
+- [x] Add Django rate limiting middleware to ALL API endpoints
 - [ ] Add input validation on ALL request bodies (max lengths, type checking)
 - [ ] Verify JWT auth middleware is enforced on all protected endpoints
 - [ ] Add CORS configuration via django-cors-headers
