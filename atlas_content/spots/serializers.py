@@ -8,6 +8,13 @@ from rest_framework import serializers
 from spots.models import Spot
 
 
+def _ordered_prefetched_related(obj, relation_name: str, ordering: tuple[str, ...]):
+    prefetched = getattr(obj, '_prefetched_objects_cache', {}).get(relation_name)
+    if prefetched is not None:
+        return list(prefetched)
+    return list(getattr(obj, relation_name).order_by(*ordering))
+
+
 class SpotSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
     likes_count = serializers.IntegerField(read_only=True)
@@ -89,7 +96,8 @@ class SpotSerializer(serializers.ModelSerializer):
         return value
 
     def get_photo_url(self, obj):
-        first = obj.photos.order_by('sort_order', 'created_at').first()
+        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
+        first = photos[0] if photos else None
         return first.storage_url if first else None
 
 
@@ -101,15 +109,17 @@ class SpotDetailSerializer(SpotSerializer):
         fields = SpotSerializer.Meta.fields + ['photos', 'reviews']
 
     def get_photos(self, obj):
+        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         return [
             {'id': str(photo.id), 'storageUrl': photo.storage_url, 'caption': photo.caption}
-            for photo in obj.photos.order_by('sort_order', 'created_at')
+            for photo in photos
         ]
 
     def get_reviews(self, obj):
+        reviews = _ordered_prefetched_related(obj, 'reviews', ('-created_at',))
         return [
             {'id': str(review.id), 'rating': str(review.rating), 'comment': review.comment, 'userId': str(review.user_id)}
-            for review in obj.reviews.order_by('-created_at')[:5]
+            for review in reviews[:5]
         ]
 
 
