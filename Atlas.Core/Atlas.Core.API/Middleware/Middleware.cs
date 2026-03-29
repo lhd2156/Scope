@@ -5,6 +5,7 @@ using System.Text.Json;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Models;
+using Serilog.Context;
 
 namespace Atlas.Core.API.Middleware;
 
@@ -40,10 +41,31 @@ public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<Reque
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        var stopwatch = Stopwatch.StartNew();
-        await next(context);
-        stopwatch.Stop();
-        logger.LogInformation("HTTP {Method} {Path} => {StatusCode} in {DurationMs}ms", context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
+        var correlationId = ResolveCorrelationId(context);
+        context.TraceIdentifier = correlationId;
+        context.Response.Headers[CoreLogging.CorrelationIdHeaderName] = correlationId;
+
+        using (LogContext.PushProperty(CoreLogging.CorrelationIdPropertyName, correlationId))
+        using (LogContext.PushProperty("TraceId", context.TraceIdentifier))
+        {
+            var stopwatch = Stopwatch.StartNew();
+            await next(context);
+            stopwatch.Stop();
+            logger.LogInformation("HTTP {Method} {Path} => {StatusCode} in {DurationMs}ms", context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
+        }
+    }
+
+    private static string ResolveCorrelationId(HttpContext context)
+    {
+        var incomingCorrelationId = context.Request.Headers[CoreLogging.CorrelationIdHeaderName].ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(incomingCorrelationId)
+            && incomingCorrelationId.Length <= CoreLogging.MaxCorrelationIdLength
+            && incomingCorrelationId.All(character => !char.IsControl(character)))
+        {
+            return incomingCorrelationId;
+        }
+
+        return Guid.NewGuid().ToString("N");
     }
 }
 

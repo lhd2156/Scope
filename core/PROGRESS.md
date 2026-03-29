@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add Serilog with JSON output and correlation ID enrichment
-## Last Updated: 2026-03-29T12:49:00Z
+## Current Task: Implement GET /api/core/health endpoint (checks DB + Kafka)
+## Last Updated: 2026-03-29T13:04:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -67,6 +67,9 @@
 - 2026-03-29T12:49:00Z expanded live HTTP edge-case coverage for blank auth payloads, invalid/empty refresh-reset flows, forbidden cross-user deletes, duplicate live-session starts, and invalid live-session payloads so the checklist categories (empty inputs, unauthorized/forbidden, not found, duplicates) are all exercised through the ASP.NET Core pipeline
 - 2026-03-29T12:49:00Z confirmed a subtle API-boundary behavior: the non-nullable `q` query param on `/api/core/users/search` returns `400 VALIDATION_ERROR` for blank query-string input even though the controller method itself handles whitespace when invoked directly, so the edge-case integration suite now asserts the real HTTP contract
 - 2026-03-29T12:49:00Z reran Atlas.Core build/test after the edge-case expansion and passed build (0 warnings, 0 errors) plus tests (154 passed, 0 failed)
+- 2026-03-29T13:04:00Z refactored Serilog startup into a shared core logging configuration that keeps compact JSON console output while adding service-name enrichment plus `Enrich.FromLogContext()` for request-scoped structured properties
+- 2026-03-29T13:04:00Z upgraded RequestLoggingMiddleware to preserve or generate `X-Correlation-Id`, align `HttpContext.TraceIdentifier` with that correlation ID, and enrich request logs with structured `CorrelationId` and `TraceId` properties so API headers, error envelopes, and logs share the same request identifier
+- 2026-03-29T13:04:00Z added unit tests that capture real Serilog events plus HTTP integration tests for correlation-id header propagation/generation on success, unauthorized REST, and unauthorized hub negotiate responses; reran build/test and passed build (0 warnings, 0 errors) plus tests (159 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -97,7 +100,7 @@
 - [x] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 
 ### Phase 9: Performance & Observability
-- [ ] Add Serilog with JSON output and correlation ID enrichment
+- [x] Add Serilog with JSON output and correlation ID enrichment
 - [ ] Implement GET /api/core/health endpoint (checks DB + Kafka)
 - [ ] Add response caching middleware for read endpoints (ETag support)
 - [ ] Add request/response logging middleware with duration tracking
