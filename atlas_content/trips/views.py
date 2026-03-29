@@ -158,7 +158,8 @@ def trip_members(request, pk):
         member.role = serializer.validated_data['role']
         member.save(update_fields=['role'])
     invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
-    producer.publish('trip.member.added', {'tripId': str(trip.id), 'userId': str(serializer.validated_data['user_id'])})
+    if created:
+        producer.publish('trip.member.added', {'tripId': str(trip.id), 'userId': str(serializer.validated_data['user_id'])})
     return data_response(TripMemberSerializer(member).data, status_code=201 if created else 200)
 
 

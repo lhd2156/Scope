@@ -24,8 +24,8 @@ class AtlasKafkaProducer:
         event = {
             'eventId': str(uuid.uuid4()),
             'eventType': topic,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'service': 'content',
+            'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            'source': 'content-engine',
             'data': data,
         }
         logger.info(

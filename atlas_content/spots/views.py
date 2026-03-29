@@ -63,7 +63,17 @@ class SpotListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save(user_id=request.user.id)
         invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
-        producer.publish('spot.created', {'spotId': str(serializer.instance.id), 'userId': str(request.user.id)})
+        producer.publish(
+            'spot.created',
+            {
+                'spotId': str(serializer.instance.id),
+                'userId': str(request.user.id),
+                'title': serializer.instance.title,
+                'latitude': float(serializer.instance.latitude),
+                'longitude': float(serializer.instance.longitude),
+                'category': serializer.instance.category,
+            },
+        )
         return data_response(
             AppendixBSpotCreateResponseSerializer(serializer.instance).data,
             status_code=status.HTTP_201_CREATED,
