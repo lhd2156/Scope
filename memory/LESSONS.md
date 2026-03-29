@@ -19,6 +19,7 @@
 - [2026-03-28] ❌ scikit-learn==1.5.2 FAILS on Python 3.14 → use >=1.6 or latest
 - [2026-03-28] ❌ Pinned old pyodbc versions may fail on Python 3.14 → use latest
 - [2026-03-28] ⚠️ Always check Python package compatibility with 3.14 before pinning versions
+- [2026-03-29] ✅ `scikit-learn==1.8.0` is published for Python 3.14.3 on this workstation, so Atlas Intel can safely move off the incompatible `1.5.2` pin.
 - [2026-03-28] ✅ mssql-django works with Django 5.x on Python 3.14
 
 ## Build & Test Results
