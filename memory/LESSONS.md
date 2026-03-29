@@ -37,6 +37,7 @@
 - [2026-03-29] ⚠️ When Marshmallow validates nested request bodies (like route-optimizer spot lists), flatten `ValidationError.messages` into dot/bracket paths such as `spots[0].longitude`; otherwise generic `", ".join(...)` formatting breaks or loses nested field context.
 - [2026-03-29] ✅ For Flask decorator coverage checks, set a marker attribute on the auth wrapper (`_atlas_require_auth`) and let `functools.wraps` propagate it through outer decorators like rate limiting; then assert every protected `/api/intel/*` rule has the marker while `/api/intel/health` does not.
 - [2026-03-29] ✅ Atlas Intel CORS can stay strict and testable by reading `FRONTEND_ORIGIN`/`CORE_FRONTEND_ORIGIN`, allowing `http://localhost:5173` only in development/test, and asserting both preflight and real unauthorized responses carry the credentialed CORS headers.
+- [2026-03-29] ✅ For SQLAlchemy ORM-only guarantees in Atlas Intel, an AST-based safety test over `app/` catches future raw-SQL regressions (`execute`, `text`, cursors, `from_statement`, and literal `SELECT/INSERT/UPDATE/DELETE` strings) better than a one-time grep.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
