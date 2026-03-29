@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Configure connection pooling
-## Last Updated: 2026-03-29T14:24:00Z
+## Current Task: Implement gzip/brotli response compression
+## Last Updated: 2026-03-29T14:45:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -82,6 +82,9 @@
 - 2026-03-29T14:24:00Z completed a full Atlas.Core EF query audit and confirmed the remaining tracked-by-default query sites are all intentional write paths; the read-only controller/service query surface already uses `AsNoTracking()` where materialization could otherwise attach entities to the change tracker
 - 2026-03-29T14:24:00Z added regression coverage that seeds data in one `CoreDbContext`, executes representative read-only controllers/services in fresh contexts, and asserts `ChangeTracker` stays empty, plus a source-audit test that locks the known read-only query roots to `AsNoTracking()` in production code
 - 2026-03-29T14:24:00Z reran Atlas.Core build/test after the no-tracking audit and passed build (0 warnings, 0 errors) plus tests (167 passed, 0 failed)
+- 2026-03-29T14:45:00Z configured production connection pooling in Atlas.Core by switching the service registration to `AddDbContextPool<CoreDbContext>(...)` and normalizing the SQL Server connection string with explicit pooling defaults for min/max pool size and connect timeout while preserving any user-specified connection-string overrides
+- 2026-03-29T14:45:00Z added connection-pooling configuration tests that validate default option parsing, invalid pool-range rejection, default pooling parameter injection, and preservation of explicit connection-string pool settings, plus reran the full Atlas.Core validation cycle
+- 2026-03-29T14:45:00Z reran Atlas.Core build/test after the connection-pooling configuration and passed build (0 warnings, 0 errors) plus tests (171 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -117,7 +120,7 @@
 - [x] Add response caching middleware for read endpoints (ETag support)
 - [x] Add request/response logging middleware with duration tracking
 - [x] Add .AsNoTracking() to all read-only EF Core queries
-- [ ] Configure connection pooling
+- [x] Configure connection pooling
 - [ ] Implement gzip/brotli response compression
 
 ### Phase 12: Final Boss Recheck

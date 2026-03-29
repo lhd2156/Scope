@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using Atlas.Core.API.Configuration;
 using Atlas.Core.API.Contracts.Validators;
 using Atlas.Core.API.Logging;
 using Atlas.Core.API.Middleware;

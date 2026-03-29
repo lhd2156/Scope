@@ -10,6 +10,10 @@ public static class CoreClaimTypes
 public static class CoreConfigurationKeys
 {
     public const string DatabaseConnection = "CORE_DB_CONNECTION";
+    public const string DbContextPoolSize = "CORE_DB_CONTEXT_POOL_SIZE";
+    public const string DatabaseMinPoolSize = "CORE_DB_MIN_POOL_SIZE";
+    public const string DatabaseMaxPoolSize = "CORE_DB_MAX_POOL_SIZE";
+    public const string DatabaseConnectTimeoutSeconds = "CORE_DB_CONNECT_TIMEOUT_SECONDS";
     public const string JwtSecret = "CORE_JWT_SECRET";
     public const string JwtIssuer = "CORE_JWT_ISSUER";
     public const string JwtAudience = "CORE_JWT_AUDIENCE";
@@ -26,6 +30,10 @@ public static class CoreDefaults
     public const int RefreshTokenLifetimeDays = 7;
     public const int PasswordResetLifetimeHours = 1;
     public const int HealthCheckTimeoutMilliseconds = 2000;
+    public const int DbContextPoolSize = 128;
+    public const int DatabaseMinPoolSize = 5;
+    public const int DatabaseMaxPoolSize = 100;
+    public const int DatabaseConnectTimeoutSeconds = 15;
     public const string JwtIssuer = "atlas-core";
     public const string JwtAudience = "atlas-frontend";
     public const string ServiceVersion = "1.0.0";
