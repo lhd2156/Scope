@@ -14,12 +14,26 @@
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <label class="field-group">
             <span>Email</span>
-            <input v-model.trim="email" type="email" autocomplete="email" placeholder="louis@example.com" required />
+            <input
+              v-model.trim="email"
+              type="email"
+              autocomplete="email"
+              placeholder="louis@example.com"
+              :aria-invalid="Boolean(fieldErrors.email)"
+            />
+            <small v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</small>
           </label>
 
           <label class="field-group">
             <span>Password</span>
-            <input v-model="password" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+            <input
+              v-model="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Enter your password"
+              :aria-invalid="Boolean(fieldErrors.password)"
+            />
+            <small v-if="fieldErrors.password" class="field-error">{{ fieldErrors.password }}</small>
           </label>
 
           <div class="auth-actions">
@@ -45,12 +59,14 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
+import { validateLoginForm, type LoginFormErrors } from '@/utils/authValidators';
 
 const email = ref('louis@example.com');
 const password = ref('SecurePass123!');
 const isSubmitting = ref(false);
 const isOAuthSubmitting = ref(false);
 const formError = ref('');
+const fieldErrors = ref<LoginFormErrors>({});
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
@@ -61,9 +77,18 @@ function resolveRedirectTarget() {
 }
 
 async function submit() {
-  isSubmitting.value = true;
+  fieldErrors.value = validateLoginForm({
+    email: email.value,
+    password: password.value,
+  });
   formError.value = '';
   authStore.clearError();
+
+  if (Object.keys(fieldErrors.value).length) {
+    return;
+  }
+
+  isSubmitting.value = true;
 
   try {
     await authStore.login({ email: email.value, password: password.value });
@@ -149,7 +174,8 @@ async function loginWithGoogle() {
   color: var(--text-secondary);
 }
 
-.form-error {
+.form-error,
+.field-error {
   margin: 0;
   color: var(--danger);
 }

@@ -4,6 +4,8 @@ import { unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm } from '@/types';
 import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/utils/sanitizers';
 
+const AUTH_MOCK_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
+
 const AUTH_BASE_PATH = '/api/core/auth';
 const DEFAULT_DEMO_ACCESS_TOKEN = 'demo-token';
 const DEFAULT_DEMO_REFRESH_TOKEN = 'demo-refresh-token';
@@ -42,8 +44,12 @@ export async function login(credentials: AuthForm): Promise<AuthPayload> {
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/login`, sanitizedCredentials);
     return sanitizeAuthPayload(unwrapApiData(data));
-  } catch {
-    return buildFallbackAuthPayload({ email: sanitizedCredentials.email });
+  } catch (error) {
+    if (AUTH_MOCK_FALLBACK_ENABLED) {
+      return buildFallbackAuthPayload({ email: sanitizedCredentials.email });
+    }
+
+    throw error;
   }
 }
 
@@ -53,12 +59,16 @@ export async function register(payload: RegisterForm): Promise<AuthPayload> {
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/register`, sanitizedPayload);
     return sanitizeAuthPayload(unwrapApiData(data));
-  } catch {
-    return buildFallbackAuthPayload({
-      username: sanitizedPayload.username,
-      email: sanitizedPayload.email,
-      displayName: sanitizedPayload.displayName,
-    });
+  } catch (error) {
+    if (AUTH_MOCK_FALLBACK_ENABLED) {
+      return buildFallbackAuthPayload({
+        username: sanitizedPayload.username,
+        email: sanitizedPayload.email,
+        displayName: sanitizedPayload.displayName,
+      });
+    }
+
+    throw error;
   }
 }
 
@@ -67,7 +77,7 @@ export async function refreshSession(options: RefreshSessionOptions = {}): Promi
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, undefined);
     return sanitizeAuthPayload(unwrapApiData(data));
   } catch (error) {
-    if (options.allowMockFallback) {
+    if (options.allowMockFallback && AUTH_MOCK_FALLBACK_ENABLED) {
       return buildFallbackAuthPayload({
         accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
         refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
@@ -92,7 +102,11 @@ export async function loginWithCognito(idToken: string): Promise<AuthPayload> {
       idToken: idToken.trim(),
     });
     return sanitizeAuthPayload(unwrapApiData(data));
-  } catch {
-    return buildFallbackAuthPayload();
+  } catch (error) {
+    if (AUTH_MOCK_FALLBACK_ENABLED) {
+      return buildFallbackAuthPayload();
+    }
+
+    throw error;
   }
 }

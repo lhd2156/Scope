@@ -49,6 +49,7 @@
 - [2026-03-29] ⚠️ For frontend auth-guard verification, unit-test `resolveNavigationGuard()` with a mocked auth store and separately assert `router.getRoutes()` meta contracts; that is more stable than mounting full pages when only redirect/auth behavior matters.
 - [2026-03-29] ⚠️ In this frontend dependency set, `useDebounceFn()` should not be assumed to expose a usable `.cancel()` method at runtime; for critical input flows like `SearchBar`, prefer explicit timeout cleanup or verify the helper API before calling `cancel()`.
 - [2026-03-29] ⚠️ When page tests depend on store error banners, plain-object mocked stores are not reactive enough for “set error after mount” assertions; seed the error state before mount or wrap the mock in a reactive store-shaped object.
+- [2026-03-29] ⚠️ Keep auth-service mock fallback opt-in only (`VITE_ENABLE_AUTH_MOCK_FALLBACK=true`); silent login/register fallback hides real network-failure and expired-session bugs during frontend hardening.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 

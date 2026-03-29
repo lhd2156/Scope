@@ -150,4 +150,32 @@ describe('auth store security hardening', () => {
     expect(store.error).toBe('Invalid credentials');
     expect(store.isAuthenticated).toBe(false);
   });
+
+  it('marks the session as expired when the API unauthorized hook fires', async () => {
+    const configureApiSessionHandlers = vi.fn();
+
+    vi.doMock('@/services/api', async () => {
+      const actual = await vi.importActual<typeof import('@/services/api')>('@/services/api');
+      return {
+        ...actual,
+        configureApiSessionHandlers,
+      };
+    });
+
+    vi.doMock('@/services/authService', () => ({
+      login: vi.fn(),
+      register: vi.fn(),
+      loginWithCognito: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+    }));
+
+    const store = await bootstrapAuthStore();
+    const handlers = configureApiSessionHandlers.mock.calls[0]?.[0];
+
+    await handlers.handleUnauthorized();
+
+    expect(store.sessionExpiredMessage).toBe('Your session expired. Sign in again to keep planning in Atlas.');
+    expect(store.isAuthenticated).toBe(false);
+  });
 });
