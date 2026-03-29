@@ -17,5 +17,14 @@ Expected env vars:
 - CORE_JWT_EXPIRATION_MINUTES
 - KAFKA_BOOTSTRAP_SERVERS
 
+## Local validation
+Run from `Atlas.Core/`:
+
+```bash
+dotnet build Atlas.Core.sln
+dotnet test Atlas.Core.sln
+```
+
 ## Notes
-This workspace was scaffolded to match `atlas_architecture.tex` sections for the core service, but local build/test execution depends on a .NET 8 SDK being installed and available on PATH.
+- The service follows the Atlas architecture sections for auth, users, friends, notifications, live sessions, SignalR hubs, middleware, and health checks.
+- Docker uses a multi-stage .NET 8 build and exposes the API on port 80 for local compose parity.
