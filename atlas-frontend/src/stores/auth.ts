@@ -1,18 +1,37 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { setAccessToken } from '@/services/api';
-import type { AuthForm, RegisterForm, UserProfile } from '@/types';
+import { clearApiSession, configureApiSessionHandlers, setAccessToken } from '@/services/api';
+import {
+  login as loginRequest,
+  logout as logoutRequest,
+  refreshSession as refreshSessionRequest,
+  register as registerRequest,
+} from '@/services/authService';
+import { mockUsers } from '@/services/mockData';
+import type { AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
 
-const demoUser: UserProfile = {
-  id: 'user-1',
-  username: 'louisdo',
-  email: 'louis@example.com',
-  displayName: 'Louis Do',
-  interests: ['food', 'culture'],
-  bio: 'Documenting premium adventures one pin at a time.',
-  homeBase: 'Fort Worth, TX',
-  stats: { spots: 42, trips: 8, friends: 126 },
-};
+function resolveCurrentUser(payload: AuthPayload): UserProfile {
+  const matchingUser = mockUsers.find(
+    (user) => user.id === payload.id || user.email === payload.email || user.username === payload.username,
+  );
+
+  if (matchingUser) {
+    return {
+      ...matchingUser,
+      username: payload.username || matchingUser.username,
+      email: payload.email ?? matchingUser.email,
+      displayName: payload.displayName ?? matchingUser.displayName,
+    };
+  }
+
+  return {
+    id: payload.id,
+    username: payload.username,
+    email: payload.email ?? '',
+    displayName: payload.displayName ?? payload.username,
+    interests: [],
+  };
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref('');
@@ -20,23 +39,61 @@ export const useAuthStore = defineStore('auth', () => {
   const currentUser = ref<UserProfile | null>(null);
   const isAuthenticated = computed(() => Boolean(token.value || currentUser.value));
 
-  async function login(_payload: AuthForm) {
-    token.value = 'demo-token';
-    refreshToken.value = 'demo-refresh';
-    currentUser.value = demoUser;
+  function applyAuthPayload(payload: AuthPayload) {
+    token.value = payload.accessToken;
+    refreshToken.value = payload.refreshToken;
+    currentUser.value = resolveCurrentUser(payload);
     setAccessToken(token.value);
   }
 
-  async function register(payload: RegisterForm) {
-    await login({ email: payload.email, password: payload.password });
-  }
-
-  function logout() {
+  function clearSession() {
     token.value = '';
     refreshToken.value = '';
     currentUser.value = null;
+    clearApiSession();
     setAccessToken('');
   }
 
-  return { token, refreshToken, currentUser, isAuthenticated, login, register, logout };
+  async function refreshSession(): Promise<string | null> {
+    if (!currentUser.value) {
+      clearSession();
+      return null;
+    }
+
+    const payload = await refreshSessionRequest(refreshToken.value);
+    applyAuthPayload(payload);
+    return payload.accessToken;
+  }
+
+  async function login(payload: AuthForm) {
+    applyAuthPayload(await loginRequest(payload));
+  }
+
+  async function register(payload: RegisterForm) {
+    applyAuthPayload(await registerRequest(payload));
+  }
+
+  async function logout() {
+    try {
+      await logoutRequest();
+    } finally {
+      clearSession();
+    }
+  }
+
+  configureApiSessionHandlers({
+    refreshAccessToken: refreshSession,
+    handleUnauthorized: clearSession,
+  });
+
+  return {
+    token,
+    refreshToken,
+    currentUser,
+    isAuthenticated,
+    login,
+    register,
+    refreshSession,
+    logout,
+  };
 });

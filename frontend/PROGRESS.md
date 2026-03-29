@@ -17,12 +17,12 @@
 - [x] 12. Add Pinia stores for all modules
 - [x] 13. Add Vue Router with auth guards
 - [x] 14. Add SignalR client integration
-- [ ] 15. Add Axios API services
+- [x] 15. Add Axios API services
 - [ ] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: 15
-## Last Updated: 2026-03-29T06:20:35.9609200Z
+## Current Task: 16
+## Last Updated: 2026-03-29T06:45:55.1264288Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -39,6 +39,7 @@
 - 2026-03-29T05:24:01Z: COMPLETED task 10 — replaced the placeholder profile route with a production-grade adventure-map workspace powered by new ProfileHeader/ProfileMap/ProfileStats components, route-aware mock profile data, curated public pin and trip highlights, and dedicated Vitest coverage for the new profile surfaces. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
 - 2026-03-29T05:47:38Z: COMPLETED task 11 — upgraded ExplorePage into a premium discovery workspace with hero metrics, search, category/city/vibe filter chips, a four-column results grid, empty-state recovery, and dedicated Vitest coverage for the filter interactions. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
 - 2026-03-29T06:20:35.9609200Z: COMPLETED task 14 — replaced the placeholder notification poller with a real SignalR notification hub client, app-level realtime lifecycle management, Pinia connection-state tracking, and dropdown/friends realtime status surfaces with dedicated SignalR service coverage. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
+- 2026-03-29T06:45:55.1264288Z: COMPLETED task 15 — upgraded the frontend service layer with a hardened Axios client (JWT + CSRF headers, normalized API errors, silent refresh hooks), new auth/intel/map/S3 service modules, richer spot/trip/feed endpoints with mock-safe fallbacks, and store integration for auth refresh plus notification read APIs. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT

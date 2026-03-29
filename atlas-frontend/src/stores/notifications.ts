@@ -1,6 +1,10 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { getNotifications } from '@/services/feedService';
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/services/feedService';
 import { startNotificationStream, stopNotificationStream } from '@/services/signalrService';
 import { useAuthStore } from '@/stores/auth';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
@@ -78,14 +82,28 @@ export const useNotificationsStore = defineStore('notifications', () => {
     connectionError.value = null;
   }
 
-  function markRead(notificationId: string) {
+  async function markRead(notificationId: string) {
+    const previousItems = [...items.value];
     items.value = items.value.map((notification) =>
       notification.id === notificationId ? { ...notification, isRead: true } : notification,
     );
+
+    try {
+      await markNotificationRead(notificationId);
+    } catch {
+      items.value = previousItems;
+    }
   }
 
-  function markAllRead() {
+  async function markAllRead() {
+    const previousItems = [...items.value];
     items.value = items.value.map((notification) => ({ ...notification, isRead: true }));
+
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      items.value = previousItems;
+    }
   }
 
   return {
