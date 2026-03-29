@@ -1,3 +1,4 @@
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -20,9 +21,13 @@ public sealed class LocationHub(CoreDbContext dbContext) : Hub
 {
     public async Task ShareLocation(Guid tripId, double lat, double lng)
     {
-        var userId = Guid.Parse(Context.UserIdentifier ?? Context.User?.FindFirst("sub")?.Value!);
+        var userId = GetRequiredUserId();
         var session = await dbContext.LiveSessions.FirstOrDefaultAsync(x => x.TripId == tripId && x.UserId == userId && x.IsActive);
-        if (session is null) return;
+        if (session is null)
+        {
+            return;
+        }
+
         session.Latitude = lat;
         session.Longitude = lng;
         session.LastPingAt = DateTimeOffset.UtcNow;
@@ -31,6 +36,14 @@ public sealed class LocationHub(CoreDbContext dbContext) : Hub
     }
 
     public Task StopSharing(Guid tripId) => Clients.Group($"trip:{tripId}").SendAsync("LocationStopped", new { tripId, userId = Context.UserIdentifier });
+
+    private Guid GetRequiredUserId()
+    {
+        var rawUserId = Context.UserIdentifier ?? Context.User?.FindFirst(CoreClaimTypes.Subject)?.Value;
+        return Guid.TryParse(rawUserId, out var userId)
+            ? userId
+            : throw new HubException("Missing or invalid user identifier.");
+    }
 }
 
 [Authorize]
@@ -38,11 +51,12 @@ public sealed class NotificationHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.UserIdentifier ?? Context.User?.FindFirst("sub")?.Value;
+        var userId = Context.UserIdentifier ?? Context.User?.FindFirst(CoreClaimTypes.Subject)?.Value;
         if (!string.IsNullOrWhiteSpace(userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user:{userId}");
         }
+
         await base.OnConnectedAsync();
     }
 }

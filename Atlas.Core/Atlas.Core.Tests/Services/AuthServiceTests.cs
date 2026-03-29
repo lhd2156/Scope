@@ -1,3 +1,4 @@
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Infrastructure.Data;
@@ -17,10 +18,10 @@ public sealed class AuthServiceTests
         var options = new DbContextOptionsBuilder<CoreDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         await using var dbContext = new CoreDbContext(options);
         var jwt = new Mock<IJwtTokenService>();
-        jwt.Setup(x => x.CreateTokens(It.IsAny<User>())).Returns(new Atlas.Core.Domain.Models.TokenPair("access", "refresh", DateTimeOffset.UtcNow.AddMinutes(15)));
+        jwt.Setup(x => x.CreateTokens(It.IsAny<User>())).Returns(new Atlas.Core.Domain.Models.TokenPair("access", "refresh", DateTimeOffset.UtcNow.AddMinutes(CoreDefaults.AccessTokenLifetimeMinutes)));
         var kafka = new Mock<IKafkaProducerService>();
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["CORE_REFRESH_TOKEN_DAYS"] = "7" })
+            .AddInMemoryCollection(new Dictionary<string, string?> { [CoreConfigurationKeys.RefreshTokenDays] = "7" })
             .Build();
 
         var service = new AuthService(dbContext, new PasswordHasherService(), jwt.Object, kafka.Object, configuration);
@@ -29,6 +30,6 @@ public sealed class AuthServiceTests
 
         Assert.Equal("louis", result.Username);
         Assert.Single(dbContext.Users);
-        kafka.Verify(x => x.PublishAsync("user.registered", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(KafkaTopics.UserRegistered, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

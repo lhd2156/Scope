@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
@@ -29,10 +30,17 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
 {
     public TokenPair CreateTokens(User user)
     {
-        var secret = configuration["CORE_JWT_SECRET"] ?? "development-secret-development-secret";
-        var issuer = configuration["CORE_JWT_ISSUER"] ?? "atlas-core";
-        var audience = configuration["CORE_JWT_AUDIENCE"] ?? "atlas-frontend";
-        var expirationMinutes = int.TryParse(configuration["CORE_JWT_EXPIRATION_MINUTES"], out var minutes) ? minutes : 15;
+        var secret = configuration[CoreConfigurationKeys.JwtSecret];
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            throw new InvalidOperationException($"{CoreConfigurationKeys.JwtSecret} must be configured.");
+        }
+
+        var issuer = configuration[CoreConfigurationKeys.JwtIssuer] ?? CoreDefaults.JwtIssuer;
+        var audience = configuration[CoreConfigurationKeys.JwtAudience] ?? CoreDefaults.JwtAudience;
+        var expirationMinutes = int.TryParse(configuration[CoreConfigurationKeys.JwtExpirationMinutes], out var minutes)
+            ? minutes
+            : CoreDefaults.AccessTokenLifetimeMinutes;
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var now = DateTimeOffset.UtcNow;
         var expires = now.AddMinutes(expirationMinutes);
@@ -42,8 +50,8 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new("name", user.DisplayName),
-            new("roles", user.Role),
+            new(CoreClaimTypes.DisplayName, user.DisplayName),
+            new(CoreClaimTypes.Roles, user.Role),
             new(ClaimTypes.Role, user.Role),
             new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
         };
@@ -66,7 +74,7 @@ public sealed class KafkaProducerService(IConfiguration configuration, ILogger<K
 {
     public async Task PublishAsync(string topic, object payload, CancellationToken cancellationToken = default)
     {
-        var bootstrap = configuration["KAFKA_BOOTSTRAP_SERVERS"];
+        var bootstrap = configuration[CoreConfigurationKeys.KafkaBootstrapServers];
         if (string.IsNullOrWhiteSpace(bootstrap))
         {
             logger.LogInformation("Kafka bootstrap not configured; skipped topic {Topic}", topic);
@@ -98,7 +106,7 @@ public sealed class S3Service(IConfiguration configuration) : IAvatarStorageServ
             throw new ValidationException("Avatar must be a JPEG, PNG, or WebP image", [("file", "Unsupported content type")]);
         }
 
-        var mediaRoot = configuration["CORE_MEDIA_ROOT"] ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "media", "avatars");
+        var mediaRoot = configuration[CoreConfigurationKeys.MediaRoot] ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "media", "avatars");
         var userDirectory = Path.Combine(mediaRoot, userId.ToString("N"));
         Directory.CreateDirectory(userDirectory);
 
@@ -108,7 +116,7 @@ public sealed class S3Service(IConfiguration configuration) : IAvatarStorageServ
         await using var fileStream = File.Create(filePath);
         await content.CopyToAsync(fileStream, cancellationToken);
 
-        return $"/media/avatars/{userId:N}/{storedFileName}";
+        return $"{CoreDefaults.AvatarMediaPath}/{userId:N}/{storedFileName}";
     }
 }
 
@@ -143,14 +151,14 @@ public sealed class AuthService(
             PasswordHash = passwordHasher.Hash(password),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
-            Role = "user"
+            Role = CoreRoles.User
         };
 
         var tokenPair = jwtTokenService.CreateTokens(user);
         dbContext.Users.Add(user);
         dbContext.RefreshTokens.Add(CreateRefreshToken(user.Id, tokenPair.RefreshToken));
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync("user.registered", new { user.Id, user.Username, user.Email }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new { user.Id, user.Username, user.Email }, cancellationToken);
 
         return ToAuthResult(user, tokenPair);
     }
@@ -239,7 +247,7 @@ public sealed class AuthService(
         }
 
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
-        PasswordResetTickets[token] = new PasswordResetTicket(user.Id, DateTimeOffset.UtcNow.AddHours(1));
+        PasswordResetTickets[token] = new PasswordResetTicket(user.Id, DateTimeOffset.UtcNow.AddHours(CoreDefaults.PasswordResetLifetimeHours));
     }
 
     public async Task ResetPasswordAsync(string token, string password, CancellationToken cancellationToken = default)
@@ -293,12 +301,12 @@ public sealed class AuthService(
                 PasswordHash = passwordHasher.Hash(subject ?? Guid.NewGuid().ToString("N")),
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,
-                Role = "user"
+                Role = CoreRoles.User
             };
 
             dbContext.Users.Add(user);
             await dbContext.SaveChangesAsync(cancellationToken);
-            await kafkaProducerService.PublishAsync("user.registered", new { user.Id, user.Username, user.Email }, cancellationToken);
+            await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new { user.Id, user.Username, user.Email }, cancellationToken);
         }
 
         user.LastLoginAt = DateTimeOffset.UtcNow;
@@ -345,7 +353,7 @@ public sealed class AuthService(
         };
 
     private int GetRefreshTokenLifetimeDays()
-        => int.TryParse(configuration["CORE_REFRESH_TOKEN_DAYS"], out var days) ? days : 7;
+        => int.TryParse(configuration[CoreConfigurationKeys.RefreshTokenDays], out var days) ? days : CoreDefaults.RefreshTokenLifetimeDays;
 
     private static AuthResult ToAuthResult(User user, TokenPair tokenPair)
         => new(user.Id, user.Username, user.Email, user.DisplayName, tokenPair.AccessToken, tokenPair.RefreshToken);
@@ -355,7 +363,7 @@ public sealed class AuthService(
         var candidate = NormalizeUsername(desiredUsername);
         if (string.IsNullOrWhiteSpace(candidate))
         {
-            candidate = $"user{RandomNumberGenerator.GetInt32(100000, 999999)}";
+            candidate = $"{CoreDefaults.DefaultGeneratedUsername}{RandomNumberGenerator.GetInt32(CoreDefaults.GeneratedUsernameMinSuffix, CoreDefaults.GeneratedUsernameMaxSuffixExclusive)}";
         }
 
         var suffix = 0;
@@ -371,7 +379,7 @@ public sealed class AuthService(
 
     private static string BuildUsernameFromEmail(string email)
     {
-        var localPart = email.Split('@', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "user";
+        var localPart = email.Split('@', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? CoreDefaults.DefaultGeneratedUsername;
         return NormalizeUsername(localPart);
     }
 

@@ -1,3 +1,5 @@
+using Atlas.Core.Domain.Constants;
+
 namespace Atlas.Core.Domain.Entities;
 
 public sealed class User
@@ -9,7 +11,7 @@ public sealed class User
     public string DisplayName { get; set; } = string.Empty;
     public string? Bio { get; set; }
     public string? AvatarUrl { get; set; }
-    public string Role { get; set; } = "user";
+    public string Role { get; set; } = CoreRoles.User;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -33,7 +35,7 @@ public sealed class Friendship
     public Guid Id { get; set; }
     public Guid RequesterId { get; set; }
     public Guid AddresseeId { get; set; }
-    public string Status { get; set; } = "pending";
+    public string Status { get; set; } = FriendshipStatuses.Pending;
     public DateTimeOffset CreatedAt { get; set; }
 }
 

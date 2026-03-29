@@ -18,7 +18,7 @@
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
 ## Current Task: COMPLETE
-## Last Updated: 2026-03-29T02:19:00Z
+## Last Updated: 2026-03-29T09:16:50Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -31,6 +31,7 @@
 - 2026-03-29T02:18:00Z restore/build passed via C:\Program Files\dotnet\dotnet.exe with 0 warnings and 0 errors
 - 2026-03-29T02:19:00Z test suite passed: 2 tests, 0 failures, 0 skipped
 - 2026-03-29T02:19:00Z no build errors, missing NuGet packages, or test failures remained; core platform validation complete
+- 2026-03-29T09:16:50Z phase 5 cleanup completed: centralized core magic values, removed hardcoded JWT fallback secret, aligned tests to shared constants, and revalidated build/test (7 tests passed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
