@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using Atlas.Core.API.Middleware;
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
@@ -44,8 +45,8 @@ builder.Services.AddDbContext<CoreDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("Default")
         ?? builder.Configuration["CORE_ConnectionStrings__Default"]
-        ?? builder.Configuration["CORE_DB_CONNECTION"]
-        ?? "Server=(localdb)\\mssqllocaldb;Database=AtlasCore;Trusted_Connection=True;TrustServerCertificate=True;"));
+        ?? builder.Configuration[CoreConfigurationKeys.DatabaseConnection]
+        ?? throw new InvalidOperationException("A core database connection string must be configured via ConnectionStrings:Default or CORE_DB_CONNECTION.")));
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -53,9 +54,14 @@ builder.Services.AddScoped<IKafkaProducerService, KafkaProducerService>();
 builder.Services.AddScoped<IAvatarStorageService, S3Service>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-var secret = builder.Configuration["CORE_JWT_SECRET"] ?? "development-secret-development-secret";
-var issuer = builder.Configuration["CORE_JWT_ISSUER"] ?? "atlas-core";
-var audience = builder.Configuration["CORE_JWT_AUDIENCE"] ?? "atlas-frontend";
+var secret = builder.Configuration[CoreConfigurationKeys.JwtSecret];
+if (string.IsNullOrWhiteSpace(secret))
+{
+    throw new InvalidOperationException($"{CoreConfigurationKeys.JwtSecret} must be configured.");
+}
+
+var issuer = builder.Configuration[CoreConfigurationKeys.JwtIssuer] ?? CoreDefaults.JwtIssuer;
+var audience = builder.Configuration[CoreConfigurationKeys.JwtAudience] ?? CoreDefaults.JwtAudience;
 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,7 +76,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = issuer,
             ValidAudience = audience,
             IssuerSigningKey = key,
-            NameClaimType = "name",
+            NameClaimType = CoreClaimTypes.DisplayName,
             RoleClaimType = ClaimTypes.Role
         };
 

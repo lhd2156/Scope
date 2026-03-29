@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Atlas.Core.API.Contracts.Requests;
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
@@ -91,7 +92,7 @@ public sealed class UsersController(
         user.Bio = request.Bio?.Trim();
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync("user.updated", new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
 
         return Ok(new ApiResponse<object>(new UserProfile(user.Id, user.Username, user.Email, user.DisplayName, user.Bio, user.AvatarUrl, user.CreatedAt)));
     }
@@ -129,7 +130,7 @@ public sealed class UsersController(
         var users = await dbContext.Users.AsNoTracking()
             .Where(x => x.IsActive && (x.Username.Contains(query) || x.DisplayName.Contains(query)))
             .OrderBy(x => x.DisplayName)
-            .Take(20)
+            .Take(CoreLimits.UserSearchResultCount)
             .Select(x => new { x.Id, x.Username, x.DisplayName, x.AvatarUrl })
             .ToListAsync(cancellationToken);
 
@@ -138,7 +139,7 @@ public sealed class UsersController(
 
     [HttpPut("{id:guid}/avatar")]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestSizeLimit(CoreLimits.AvatarUploadBytes)]
     public async Task<IActionResult> Avatar(Guid id, [FromForm] AvatarUploadRequest request, CancellationToken cancellationToken)
     {
         EnsureSelf(id, User.GetRequiredUserId());
@@ -152,7 +153,7 @@ public sealed class UsersController(
             throw new ValidationException("Avatar is required", [("file", "Upload a non-empty file")]);
         }
 
-        if (file.Length > 10 * 1024 * 1024)
+        if (file.Length > CoreLimits.AvatarUploadBytes)
         {
             throw new ValidationException("Avatar exceeds the 10 MB limit", [("file", "File size must be 10 MB or less")]);
         }
@@ -162,7 +163,7 @@ public sealed class UsersController(
         user.AvatarUrl = avatarUrl;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync("user.updated", new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
 
         return Ok(new ApiResponse<object>(new { user.Id, user.AvatarUrl }));
     }
@@ -177,7 +178,7 @@ public sealed class UsersController(
         }
 
         var friendCount = await dbContext.Friendships.AsNoTracking()
-            .CountAsync(x => (x.RequesterId == id || x.AddresseeId == id) && x.Status == "accepted", cancellationToken);
+            .CountAsync(x => (x.RequesterId == id || x.AddresseeId == id) && x.Status == FriendshipStatuses.Accepted, cancellationToken);
 
         return Ok(new ApiResponse<object>(new { userId = id, spots = 0, trips = 0, friends = friendCount }));
     }
@@ -214,7 +215,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
         var existing = await dbContext.Friendships.FirstOrDefaultAsync(
             x => (x.RequesterId == requesterId && x.AddresseeId == userId) || (x.RequesterId == userId && x.AddresseeId == requesterId),
             cancellationToken);
-        if (existing is not null && existing.Status is "pending" or "accepted" or "blocked")
+        if (existing is not null && existing.Status is FriendshipStatuses.Pending or FriendshipStatuses.Accepted or FriendshipStatuses.Blocked)
         {
             throw new ConflictException("A friendship already exists between these users");
         }
@@ -222,7 +223,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
         var friendship = existing ?? new Friendship { Id = Guid.NewGuid(), RequesterId = requesterId, AddresseeId = userId, CreatedAt = DateTimeOffset.UtcNow };
         friendship.RequesterId = requesterId;
         friendship.AddresseeId = userId;
-        friendship.Status = "pending";
+        friendship.Status = FriendshipStatuses.Pending;
         friendship.CreatedAt = DateTimeOffset.UtcNow;
 
         if (existing is null)
@@ -234,7 +235,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            Type = "friend.request",
+            Type = NotificationTypes.FriendRequest,
             Title = "New friend request",
             Body = "Someone wants to connect with you on Atlas.",
             ReferenceId = friendship.Id.ToString(),
@@ -258,19 +259,19 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
             throw new ForbiddenException("Only the recipient can accept this friend request");
         }
 
-        if (friendship.Status != "pending")
+        if (friendship.Status != FriendshipStatuses.Pending)
         {
             throw new UnprocessableException("Only pending friend requests can be accepted");
         }
 
-        friendship.Status = "accepted";
+        friendship.Status = FriendshipStatuses.Accepted;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         dbContext.Notifications.Add(new Notification
         {
             Id = Guid.NewGuid(),
             UserId = friendship.RequesterId,
-            Type = "friend.accepted",
+            Type = NotificationTypes.FriendAccepted,
             Title = "Friend request accepted",
             Body = "Your Atlas friend request was accepted.",
             ReferenceId = friendship.Id.ToString(),
@@ -278,7 +279,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync("friend.accepted", new { friendship.Id, friendship.RequesterId, friendship.AddresseeId }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.FriendAccepted, new { friendship.Id, friendship.RequesterId, friendship.AddresseeId }, cancellationToken);
 
         return Ok(new ApiResponse<object>(new { friendship.Id, friendship.RequesterId, friendship.AddresseeId, friendship.Status, friendship.CreatedAt }));
     }
@@ -295,12 +296,12 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
             throw new ForbiddenException("Only the recipient can decline this friend request");
         }
 
-        if (friendship.Status != "pending")
+        if (friendship.Status != FriendshipStatuses.Pending)
         {
             throw new UnprocessableException("Only pending friend requests can be declined");
         }
 
-        friendship.Status = "declined";
+        friendship.Status = FriendshipStatuses.Declined;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new ApiResponse<object>(new { friendship.Id, friendship.RequesterId, friendship.AddresseeId, friendship.Status, friendship.CreatedAt }));
@@ -326,7 +327,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
     {
         var currentUserId = User.GetRequiredUserId();
         var friendships = await dbContext.Friendships.AsNoTracking()
-            .Where(x => x.Status == "accepted" && (x.RequesterId == currentUserId || x.AddresseeId == currentUserId))
+            .Where(x => x.Status == FriendshipStatuses.Accepted && (x.RequesterId == currentUserId || x.AddresseeId == currentUserId))
             .Select(x => new
             {
                 x.Id,
@@ -353,7 +354,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
     {
         var currentUserId = User.GetRequiredUserId();
         var requests = await dbContext.Friendships.AsNoTracking()
-            .Where(x => x.Status == "pending" && x.AddresseeId == currentUserId)
+            .Where(x => x.Status == FriendshipStatuses.Pending && x.AddresseeId == currentUserId)
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new { x.Id, x.RequesterId, x.CreatedAt })
             .ToListAsync(cancellationToken);
@@ -397,14 +398,14 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
                 Id = Guid.NewGuid(),
                 RequesterId = currentUserId,
                 AddresseeId = userId,
-                Status = "blocked",
+                Status = FriendshipStatuses.Blocked,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             dbContext.Friendships.Add(friendship);
         }
         else
         {
-            friendship.Status = "blocked";
+            friendship.Status = FriendshipStatuses.Blocked;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -418,11 +419,11 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
 public sealed class NotificationsController(CoreDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = CoreLimits.DefaultNotificationPageSize, CancellationToken cancellationToken = default)
     {
         var userId = User.GetRequiredUserId();
         var normalizedPage = page <= 0 ? 1 : page;
-        var normalizedPageSize = pageSize <= 0 ? 20 : Math.Min(pageSize, 100);
+        var normalizedPageSize = pageSize <= 0 ? CoreLimits.DefaultNotificationPageSize : Math.Min(pageSize, CoreLimits.MaxNotificationPageSize);
 
         var query = dbContext.Notifications.AsNoTracking()
             .Where(x => x.UserId == userId)
@@ -514,8 +515,8 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
             Id = Guid.NewGuid(),
             TripId = tripId,
             UserId = userId,
-            Latitude = 0,
-            Longitude = 0,
+            Latitude = CoreDefaults.InitialLatitude,
+            Longitude = CoreDefaults.InitialLongitude,
             IsActive = true,
             LastPingAt = DateTimeOffset.UtcNow
         };
@@ -538,7 +539,7 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
         session.Longitude = request.Longitude;
         session.LastPingAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync("live.location.updated", new { session.TripId, session.UserId, session.Latitude, session.Longitude, session.LastPingAt }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.LiveLocationUpdated, new { session.TripId, session.UserId, session.Latitude, session.Longitude, session.LastPingAt }, cancellationToken);
 
         return Ok(new ApiResponse<object>(session));
     }
@@ -587,10 +588,10 @@ public sealed class HealthController(CoreDbContext dbContext, IConfiguration con
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
         var databaseHealthy = await dbContext.Database.CanConnectAsync(cancellationToken);
-        var kafkaHealthy = !string.IsNullOrWhiteSpace(configuration["KAFKA_BOOTSTRAP_SERVERS"]);
+        var kafkaHealthy = !string.IsNullOrWhiteSpace(configuration[CoreConfigurationKeys.KafkaBootstrapServers]);
         var overallStatus = databaseHealthy && kafkaHealthy ? "healthy" : "degraded";
 
-        return Ok(new { status = overallStatus, version = "1.0.0", uptime = Environment.TickCount64 });
+        return Ok(new { status = overallStatus, version = CoreDefaults.ServiceVersion, uptime = Environment.TickCount64 });
     }
 }
 
@@ -598,7 +599,7 @@ internal static class ClaimsPrincipalExtensions
 {
     public static Guid GetRequiredUserId(this ClaimsPrincipal principal)
     {
-        var rawUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue("sub");
+        var rawUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue(CoreClaimTypes.Subject);
         if (!Guid.TryParse(rawUserId, out var userId))
         {
             throw new UnauthorizedException("Missing or invalid user identifier");
