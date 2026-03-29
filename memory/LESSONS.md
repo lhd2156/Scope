@@ -152,3 +152,4 @@
 - [2026-03-28] [SUCCESS] [orchestrator] complete-task.ps1 works on Windows PowerShell
 - [2026-03-29] ⚠️ Atlas Content pytest runs should clear the in-memory rate-limit buckets and Django cache between tests in conftest.py; otherwise request-heavy milestones like conditional GET/ETag coverage can trigger false late-suite 429s that look like unrelated regressions.
 - [2026-03-29] ⚠️ For Atlas Content final endpoint audits, add a Django URL-resolver contract test over METHOD /path pairs and explicitly restrict RetrieveUpdateDestroyAPIView.http_method_names; otherwise undocumented PATCH support can slip past broader integration tests.
+- [2026-03-29] ? For Atlas Content Appendix B parity, lock the public spot create/list examples with dedicated exact-shape tests and endpoint-specific response serializers; reusing the full model serializer leaks snake_case fields and extra properties beyond the documented contract.
