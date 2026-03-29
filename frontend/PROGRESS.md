@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 7.1 — Add Vitest component tests for all views
-## Last Updated: 2026-03-29T09:14:00Z
+## Current Task: Phase 7.2 — Add Vitest component tests for all components
+## Last Updated: 2026-03-29T09:32:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -49,6 +49,7 @@
 - 2026-03-29T08:34:10.2285135Z: COMPLETED Phase 6.2 hardening — replaced raw browser token persistence with a versioned auth session hint in localStorage, purge-on-boot cleanup for legacy Atlas token keys, cookie-driven session hydration for protected/guest route checks, and auth-store coverage that proves access/refresh tokens never land in localStorage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 51 tests).
 - 2026-03-29T09:03:05.3096671Z: COMPLETED Phase 6.3 hardening — upgraded the shared Axios client so mutating requests bootstrap CSRF tokens from readable cookies or an optional env-configured GET endpoint before the first form POST/PUT/DELETE, continue capturing fresh tokens from response headers/bodies, and avoid auth-refresh loops during bootstrap. Added focused Vitest coverage for cookie-backed and endpoint-backed CSRF acquisition. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 53 tests).
 - 2026-03-29T09:14:00Z: COMPLETED Phase 6.4 auth-guard verification — added focused Vitest coverage for protected-route redirects, session hydration behavior, guest-only redirects, and an explicit router meta contract so protected pages cannot silently lose auth requirements. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (31 files / 58 tests).
+- 2026-03-29T09:32:00Z: COMPLETED Phase 7.1 view coverage — added dedicated Vitest specs for every remaining route view (Home, Map, Trip Planner, Trip Detail, Spot Detail, Spot Composer, Friends, Settings, Login, Register, and NotFound), complementing the existing Explore and Profile coverage so all frontend views now have route-aware tests. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (41 files / 70 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -70,7 +71,7 @@
 - [x] Verify auth guards on all protected routes
 
 ### Phase 7: Test Coverage
-- [ ] Add Vitest component tests for all views
+- [x] Add Vitest component tests for all views
 - [ ] Add Vitest component tests for all components
 - [ ] Add proper error handling in all async operations
 - [ ] Handle edge cases: empty inputs, network failures, expired tokens

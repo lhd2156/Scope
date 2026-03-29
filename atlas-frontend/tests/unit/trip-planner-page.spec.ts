@@ -1,0 +1,68 @@
+import { flushPromises, mount } from '@vue/test-utils';
+
+const { tripsStoreMock } = vi.hoisted(() => ({
+  tripsStoreMock: {
+    items: [
+      { id: 'trip-1', title: 'North Texas Night + Food Loop' },
+      { id: 'trip-2', title: 'Austin Scenic Sprint' },
+    ],
+    previewItinerary: {
+      id: 'itinerary-1',
+      destination: 'Fort Worth, TX',
+      totalEstimatedCost: 180,
+      weatherForecast: 'Sunny, 75F',
+      days: [],
+    },
+    planning: false,
+    fetchTrips: vi.fn().mockResolvedValue(undefined),
+    buildItinerary: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('@/stores/trips', () => ({
+  useTripsStore: () => tripsStoreMock,
+}));
+
+import TripPlannerPage from '@/views/TripPlannerPage.vue';
+
+describe('TripPlannerPage', () => {
+  beforeEach(() => {
+    tripsStoreMock.fetchTrips.mockClear();
+    tripsStoreMock.buildItinerary.mockClear();
+  });
+
+  it('boots the planner workspace and forwards planner submissions to the store', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: {
+            props: ['initialValue', 'submitting'],
+            emits: ['submit'],
+            template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
+          },
+          ItineraryView: {
+            props: ['itinerary'],
+            template: '<div data-test="itinerary-stub">{{ itinerary.destination }}</div>',
+          },
+          TripCard: {
+            props: ['trip'],
+            template: '<div class="trip-card-stub">{{ trip.title }}</div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(tripsStoreMock.fetchTrips).toHaveBeenCalledTimes(1);
+    expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Generate an itinerary from your travel constraints');
+    expect(wrapper.find('[data-test="itinerary-stub"]').text()).toContain('Fort Worth, TX');
+    expect(wrapper.findAll('.trip-card-stub')).toHaveLength(2);
+
+    await wrapper.get('[data-test="planner-submit"]').trigger('click');
+
+    expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(2);
+  });
+});
