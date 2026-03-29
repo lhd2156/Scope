@@ -28,7 +28,7 @@
 
 ## Current Phase: Phase 10 UX Polish kick-off + external Terraform runtime gap
 ## Agents Running: polish
-## Last Updated: 2026-03-29T20:18:00Z
+## Last Updated: 2026-03-29T20:23:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -439,6 +439,8 @@
 - 2026-03-29T20:18:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE, but Phase 10 UX Polish was still open and the canonical `polish/` agent files were missing.
 - 2026-03-29T20:18:00Z: Recovery applied: created `polish/agents.md` and `polish/PROGRESS.md`, then spawned a fresh LESSONS-aware polish subagent for the first Phase 10 task: `agent:main:subagent:4d3933ee-48e6-473a-9a8b-58a772994d39`.
 - 2026-03-29T20:18:00Z: Logged orchestration lesson: scaffold missing canonical polish-agent files before spawning the Phase 10 track.
+- 2026-03-29T20:23:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. `polish/PROGRESS.md` is still at `NOT_STARTED`, but the active polish subagent is already running on task 1.
+- 2026-03-29T20:23:00Z: Checked active subagents before spawning and confirmed the in-flight polish child is still running, so heartbeat kept that worker instead of launching a duplicate Phase 10 run.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
