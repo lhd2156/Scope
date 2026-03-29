@@ -6,11 +6,11 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) - COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents - run in parallel) - COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent - after backends complete) - COMPLETE
-- [/] Phase 4: Integration - docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, Kubernetes manifests, Terraform baseline, CI-side infra validation, and optional real-account Terraform plan workflow support are complete; actual execution against real cloud resources and final production polish remain
+- [/] Phase 4: Integration - docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, and production hardening guidance are complete; actual execution against real cloud resources and final production polish remain
 - [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
-- [/] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING and deployment prep docs are in place; endpoint API docs and final release polish still remain
+- [/] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING, deployment runbook, and production hardening guide are in place; endpoint API docs and final release polish still remain
 - [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
 - [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, CI-side Terraform/Kubernetes validation, and an optional real-account Terraform plan path are now in repo; runtime cloud execution and broader production hardening still remain
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, and top-level repo docs are in place; executing that plan against a real AWS account and final production/deployment hardening remain lead-owned
+## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, top-level repo docs, and production hardening guidance are in place; executing that plan against a real AWS account remains the main lead-owned runtime gap
 ## Agents Running: none
-## Last Updated: 2026-03-29T19:23:46.1853962Z
+## Last Updated: 2026-03-29T19:24:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -425,6 +425,9 @@
 - 2026-03-29T19:22:26.1119305Z: Updated `docs/DEPLOYMENT.md` and `terraform/README.md` to document the new real-account plan path, its required GitHub configuration (`AWS_ROLE_TO_ASSUME`, `TF_AWS_REGION`, `TF_PHOTOS_BUCKET_NAME`, `TF_COGNITO_DOMAIN_PREFIX`, `TF_SQLSERVER_MASTER_PASSWORD`), and the remaining runtime gap: actually executing it against a target AWS account.
 - 2026-03-29T19:22:26.1119305Z: Validation: `npx --yes yaml@2 valid .github/workflows/deploy.yml` ✅ after the Terraform-plan workflow update. Remaining lead-owned gaps are executing the plan against a real AWS target and final production/deployment hardening polish.
 - 2026-03-29T19:23:46.1853962Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the optional OIDC-backed Terraform plan workflow milestone and the narrowed remaining gap: actually executing it against a real AWS target plus final production hardening polish.
+- 2026-03-29T19:24:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T19:24:00Z: Completed the next lead-owned documentation milestone by adding `docs/PRODUCTION-HARDENING.md`, covering production secret management, network/database/storage hardening, container/runtime expectations, observability, release checks, and runtime Terraform validation expectations.
+- 2026-03-29T19:24:00Z: Updated `README.md` and `docs/DEPLOYMENT.md` to point readers at the new production hardening guide. Remaining lead-owned runtime gap is still executing the Terraform plan path against a real AWS account.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:

@@ -150,6 +150,7 @@ Files:
 See:
 
 - `docs/DEPLOYMENT.md` — current local/staging deployment runbook
+- `docs/PRODUCTION-HARDENING.md` — production hardening and readiness guidance
 - `scripts/sql/README.md` — schema + seed execution order
 - `terraform/README.md` — Terraform baseline usage notes
 
