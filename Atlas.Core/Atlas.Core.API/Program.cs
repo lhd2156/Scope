@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using Atlas.Core.API.Contracts.Validators;
+using Atlas.Core.API.Logging;
 using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Interfaces;
@@ -14,12 +15,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console(new RenderedCompactJsonFormatter())
+    .ApplyCoreDefaults()
     .CreateLogger();
 
 builder.Host.UseSerilog();

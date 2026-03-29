@@ -91,3 +91,12 @@ public static class CoreSecurityHeaders
     public const string ContentSecurityPolicyValue = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:;";
     public const string XssProtectionValue = "1; mode=block";
 }
+
+public static class CoreLogging
+{
+    public const string ServiceName = "atlas-core-api";
+    public const string ServicePropertyName = "Service";
+    public const string CorrelationIdHeaderName = "X-Correlation-Id";
+    public const string CorrelationIdPropertyName = "CorrelationId";
+    public const int MaxCorrelationIdLength = 128;
+}
