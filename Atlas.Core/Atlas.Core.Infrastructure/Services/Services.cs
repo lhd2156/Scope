@@ -82,8 +82,9 @@ public sealed class KafkaProducerService(IConfiguration configuration, ILogger<K
         }
 
         using var producer = new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = bootstrap }).Build();
-        var body = JsonSerializer.Serialize(payload);
-        await producer.ProduceAsync(topic, new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = body }, cancellationToken);
+        var envelope = KafkaEventSerializer.CreateEnvelope(topic, payload);
+        var body = KafkaEventSerializer.Serialize(envelope);
+        await producer.ProduceAsync(topic, new Message<string, string> { Key = envelope.EventId.ToString(), Value = body }, cancellationToken);
         logger.LogInformation("Produced Kafka event to {Topic}", topic);
     }
 }
@@ -195,7 +196,7 @@ public sealed class AuthService(
         dbContext.Users.Add(user);
         dbContext.RefreshTokens.Add(CreateRefreshToken(user.Id, tokenPair.RefreshToken));
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new { user.Id, user.Username, user.Email }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new UserRegisteredEventData(user.Id, user.Username, user.Email), cancellationToken);
 
         return ToAuthResult(user, tokenPair);
     }
@@ -343,7 +344,7 @@ public sealed class AuthService(
 
             dbContext.Users.Add(user);
             await dbContext.SaveChangesAsync(cancellationToken);
-            await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new { user.Id, user.Username, user.Email }, cancellationToken);
+            await kafkaProducerService.PublishAsync(KafkaTopics.UserRegistered, new UserRegisteredEventData(user.Id, user.Username, user.Email), cancellationToken);
         }
 
         user.LastLoginAt = DateTimeOffset.UtcNow;

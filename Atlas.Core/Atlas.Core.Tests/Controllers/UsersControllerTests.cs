@@ -4,6 +4,7 @@ using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
+using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
 using Atlas.Core.Tests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -55,7 +56,15 @@ public sealed class UsersControllerTests
         Assert.IsType<OkObjectResult>(result);
         Assert.Equal("Updated Name", user.DisplayName);
         Assert.Equal("Explorer bio", user.Bio);
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.UserUpdated, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.UserUpdated,
+            It.Is<object>(payload => payload is UserUpdatedEventData
+                && ((UserUpdatedEventData)payload).UserId == user.Id
+                && ((UserUpdatedEventData)payload).Username == user.Username
+                && ((UserUpdatedEventData)payload).DisplayName == "Updated Name"
+                && ((UserUpdatedEventData)payload).Bio == "Explorer bio"
+                && ((UserUpdatedEventData)payload).AvatarUrl == user.AvatarUrl),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -152,7 +161,15 @@ public sealed class UsersControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         Assert.Equal("/media/avatars/avatar.png", user.AvatarUrl);
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.UserUpdated, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.UserUpdated,
+            It.Is<object>(payload => payload is UserUpdatedEventData
+                && ((UserUpdatedEventData)payload).UserId == user.Id
+                && ((UserUpdatedEventData)payload).Username == user.Username
+                && ((UserUpdatedEventData)payload).DisplayName == user.DisplayName
+                && ((UserUpdatedEventData)payload).Bio == user.Bio
+                && ((UserUpdatedEventData)payload).AvatarUrl == "/media/avatars/avatar.png"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

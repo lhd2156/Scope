@@ -37,6 +37,7 @@ public static class CoreDefaults
     public const string JwtIssuer = "atlas-core";
     public const string JwtAudience = "atlas-frontend";
     public const string ServiceVersion = "1.0.0";
+    public const string KafkaEventSource = "core-platform";
     public const string DefaultGeneratedUsername = "user";
     public const int GeneratedUsernameMinSuffix = 100000;
     public const int GeneratedUsernameMaxSuffixExclusive = 1_000_000;

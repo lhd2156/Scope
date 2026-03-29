@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Verify Kafka event schemas match Section 10
-## Last Updated: 2026-03-29T15:57:00Z
+## Current Task: Verify SignalR hubs accept connections
+## Last Updated: 2026-03-29T16:24:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -97,6 +97,8 @@
 - 2026-03-29T15:46:00Z added integration audits for exact register/login payload shapes, paginated response meta, standard error envelope, and bare health payload; reran the full Atlas.Core suite and passed build/test with 182 tests, 0 failures
 - 2026-03-29T15:57:00Z completed the Phase 12 hygiene audit by fixing the SourceHygieneTests worktree-root path bug, tightening the audit to scan real production files, and adding enforcement for disabled/dead-code markers plus commented-out code while allowing the single sanctioned Development frontend origin constant
 - 2026-03-29T15:57:00Z reran focused hygiene tests plus a full Atlas.Core validation sweep and passed build (0 warnings, 0 errors) and tests (184 passed, 0 failed)
+- 2026-03-29T16:24:00Z completed the Section 10 Kafka schema audit by replacing raw payload publishing with a shared core event envelope (`eventId`, `eventType`, `timestamp`, `source`, `data`) serialized in camelCase, introducing typed payload records for user.registered, user.updated, friend.accepted, and live.location.updated, and locking those contracts with producer/controller/service tests
+- 2026-03-29T16:24:00Z reran focused Kafka contract coverage plus the full Atlas.Core validation sweep and passed build (0 warnings, 0 errors) and tests (187 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -140,5 +142,5 @@
 - [x] Run full build and all tests — fix any failures
 - [x] Verify API response formats match Appendix B exactly
 - [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
-- [ ] Verify Kafka event schemas match Section 10
+- [x] Verify Kafka event schemas match Section 10
 - [ ] Verify SignalR hubs accept connections

@@ -4,6 +4,7 @@ using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
+using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
 using Atlas.Core.Tests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -124,7 +125,14 @@ public sealed class LiveSessionControllerTests
         Assert.IsType<OkObjectResult>(result);
         Assert.Equal(32.7555, dbContext.LiveSessions.Single().Latitude);
         Assert.Equal(-97.3308, dbContext.LiveSessions.Single().Longitude);
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.LiveLocationUpdated, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.LiveLocationUpdated,
+            It.Is<object>(payload => payload is LiveLocationUpdatedEventData
+                && ((LiveLocationUpdatedEventData)payload).TripId == tripId
+                && ((LiveLocationUpdatedEventData)payload).UserId == user.Id
+                && ((LiveLocationUpdatedEventData)payload).Latitude == 32.7555
+                && ((LiveLocationUpdatedEventData)payload).Longitude == -97.3308),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
