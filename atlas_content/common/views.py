@@ -19,4 +19,4 @@ def health_view(request):
     S3StorageService().health_status()
 
     uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
-    return Response({'status': 'healthy', 'version': '1.0.0', 'uptime': uptime})
+    return Response({'status': 'healthy', 'version': settings.SERVICE_VERSION, 'uptime': uptime})
