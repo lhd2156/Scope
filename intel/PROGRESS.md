@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Re-verify every endpoint matches atlas_architecture.tex spec
-## Last Updated: 2026-03-29T14:11:29Z
+## Current Task: Run full build and all tests — fix any failures
+## Last Updated: 2026-03-29T14:17:48Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -46,6 +46,7 @@
 - 2026-03-29: Turned itinerary persistence into a true TTL-backed cache by looking up `intel.ItineraryCache` rows on generate via request hash + user, returning cached results without recomputation, evicting expired rows on lookup/read, and adding cache-hit/expiry tests; full Intel pytest suite now passes at `93 passed`.
 - 2026-03-29: Added a shared configurable ML runtime timeout (`ML_REQUEST_TIMEOUT_SECONDS`) for recommendation and vibe computations, surfaced slow runs as `503 ML_TIMEOUT` via Flask error handling, and added low-timeout integration coverage for `/recommend/spots`, `/recommend/similar/{spotId}`, and `/vibe-match`; full Intel pytest suite now passes at `96 passed`.
 - 2026-03-29: Added explicit private cache headers for weather and geocoding responses, including route-specific TTLs and `Vary: Authorization`, added header assertions for weather/geocode/reverse-geocode, and re-ran the full Intel pytest suite successfully (`99 passed`).
+- 2026-03-29: Re-verified the live Intel route map against `atlas_architecture.tex`, added a final audit test that locks the exact documented endpoint set/methods and public-vs-protected posture, and re-ran the full Intel pytest suite successfully (`101 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -84,7 +85,7 @@
 - [x] Add cache headers for weather and geocoding responses
 
 ### Phase 12: Final Boss Recheck
-- [ ] Re-verify every endpoint matches atlas_architecture.tex spec
+- [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [ ] Run full build and all tests — fix any failures
 - [ ] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
