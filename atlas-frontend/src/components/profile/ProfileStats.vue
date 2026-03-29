@@ -50,19 +50,19 @@ const statCards = computed(() => [
   {
     label: 'Average rating',
     value: props.averageRating ? props.averageRating.toFixed(1) : '—',
-    description: 'Community sentiment across the public highlight sample.',
+    description: 'Average sentiment across this explorer\'s visible public pins.',
     icon: 'star',
   },
   {
     label: 'City coverage',
     value: `${props.cityCount}`,
-    description: `City${props.cityCount === 1 ? '' : 'ies'} represented on the visible adventure map.`,
+    description: `Cit${props.cityCount === 1 ? 'y' : 'ies'} represented on the public adventure map.`,
     icon: 'map',
   },
   {
     label: 'Shared trips',
     value: `${props.routeCount}`,
-    description: 'Recent collaborative routes where this profile appears on the crew.',
+    description: 'Collaborative public routes where this explorer appears with the crew.',
     icon: 'route',
   },
 ]);

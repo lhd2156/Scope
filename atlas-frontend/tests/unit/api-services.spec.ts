@@ -67,6 +67,26 @@ describe('API service fallbacks', () => {
     expect(payload.accessToken).toContain('demo-token');
   });
 
+  it('does not silently swap to a mock profile when account lookup fails and preview mode is disabled', async () => {
+    apiMock.get.mockRejectedValue(new Error('profile offline'));
+
+    const userService = await import('@/services/userService');
+
+    await expect(userService.getCurrentUserProfile('user-1')).rejects.toThrow('profile offline');
+  });
+
+  it('uses the explicit preview fallback for profile saves when preview mode is enabled', async () => {
+    vi.stubEnv('VITE_ENABLE_USER_MOCK_FALLBACK', 'true');
+    apiMock.put.mockRejectedValue(new Error('profile offline'));
+
+    const userService = await import('@/services/userService');
+    const response = await userService.updateUserProfile('user-1', {
+      displayName: 'Louis Atlas',
+    });
+
+    expect(response.data.displayName).toBe('Louis Atlas');
+  });
+
   it('falls back to local spot search for geocoding', async () => {
     apiMock.get.mockRejectedValue(new Error('intel unavailable'));
 

@@ -85,6 +85,40 @@ describe('FriendsPage', () => {
     expect(wrapper.find('[data-test="notification-stub"]').exists()).toBe(true);
   });
 
+  it('routes to a friend profile when the connection list requests it', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/friends', component: FriendsPage },
+        { path: '/profile/:id', component: { template: '<div>Profile target</div>' } },
+      ],
+    });
+
+    await router.push('/friends');
+    await router.isReady();
+
+    const wrapper = mount(FriendsPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          FeedItem: { template: '<div />' },
+          FriendList: {
+            emits: ['view-profile'],
+            template: '<button data-test="open-profile" @click="$emit(\'view-profile\', \'user-3\')">Open</button>',
+          },
+          NotificationDropdown: { template: '<div />' },
+          UserCard: { template: '<div />' },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="open-profile"]').trigger('click');
+    await flushPromises();
+
+    expect(router.currentRoute.value.fullPath).toBe('/profile/user-3');
+  });
+
   it('shows an inline workspace error when feed loading fails', async () => {
     feedStoreMock.error = 'Atlas could not load the activity feed right now.';
     feedStoreMock.fetchFeed.mockRejectedValue(new Error('Feed failed'));

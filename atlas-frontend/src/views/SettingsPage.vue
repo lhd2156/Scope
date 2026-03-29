@@ -4,7 +4,7 @@
       <SectionHeading
         eyebrow="Settings"
         title="Preferences and account controls"
-        description="Theme, privacy, notifications, and profile presentation all live in one place while backend settings mature."
+        description="Theme, privacy, notifications, and profile presentation stay organized in one polished workspace."
       />
 
       <section class="settings-grid">
@@ -16,7 +16,7 @@
             </div>
             <span class="meta-pill">Dark by default</span>
           </div>
-          <p class="section-copy">Atlas ships dark by default with a light mode override for bright daytime planning.</p>
+          <p class="section-copy">Atlas ships dark by default with a light mode override for brighter daytime planning.</p>
           <ThemeToggle />
         </article>
 
@@ -26,9 +26,12 @@
               <p class="eyebrow">Account</p>
               <h2>Profile and privacy</h2>
             </div>
-            <span class="meta-pill">Mock sync enabled</span>
+            <span class="meta-pill">{{ syncModeLabel }}</span>
           </div>
-          <p class="section-copy">These controls mirror the architecture contract and update the local profile shell until the core settings API is live.</p>
+          <p class="section-copy">Update how your profile appears across Atlas, from public identity details to planning preferences.</p>
+          <p class="sync-note">
+            {{ syncModeDescription }}
+          </p>
 
           <SettingsForm
             v-model:error-message="formError"
@@ -41,8 +44,8 @@
 
       <Toast
         :open="showToast"
-        title="Settings updated"
-        message="Profile copy and preference controls were refreshed in the local Atlas shell."
+        title="Settings saved"
+        :message="toastMessage"
         tone="success"
         @close="showToast = false"
       />
@@ -51,16 +54,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 import Toast from '@/components/common/Toast.vue';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useUserStore } from '@/stores/user';
+
+const PROFILE_PREVIEW_MODE_ENABLED =
+  import.meta.env.VITE_ENABLE_USER_MOCK_FALLBACK === 'true' || import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 
 const authStore = useAuthStore();
-const isSaving = ref(false);
+const userStore = useUserStore();
 const showToast = ref(false);
 const formError = ref('');
 const settingsValue = ref<SettingsFormValue>({
@@ -72,6 +79,19 @@ const settingsValue = ref<SettingsFormValue>({
   tripInvites: 'instant',
   emailAlerts: true,
 });
+
+const isSaving = computed(() => userStore.saving);
+const syncModeLabel = computed(() => (PROFILE_PREVIEW_MODE_ENABLED ? 'Preview mode' : 'API-backed'));
+const syncModeDescription = computed(() =>
+  PROFILE_PREVIEW_MODE_ENABLED
+    ? 'Local preview fallbacks are only active because mock mode is explicitly enabled for development.'
+    : 'Changes sync through the account API. If the service is unavailable, Atlas shows the save failure instead of silently swapping to demo data.',
+);
+const toastMessage = computed(() =>
+  PROFILE_PREVIEW_MODE_ENABLED
+    ? 'Profile details refreshed in the local preview workspace.'
+    : 'Profile details synced across your Atlas account.',
+);
 
 watch(
   () => authStore.currentUser,
@@ -90,25 +110,25 @@ watch(
 );
 
 async function handleSave(payload: SettingsFormValue) {
-  isSaving.value = true;
+  if (!authStore.currentUser?.id) {
+    formError.value = 'Sign in again to update your Atlas settings.';
+    return;
+  }
+
   formError.value = '';
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
-    settingsValue.value = payload;
-    authStore.updateCurrentUser({
+    await userStore.saveProfile({
       displayName: payload.displayName,
       avatarUrl: payload.avatarUrl || undefined,
       bio: payload.bio || undefined,
       homeBase: payload.homeBase || undefined,
     });
 
+    settingsValue.value = payload;
     showToast.value = true;
   } catch {
-    formError.value = 'Atlas could not save your settings right now.';
-  } finally {
-    isSaving.value = false;
+    formError.value = userStore.error ?? 'Atlas could not save your settings right now.';
   }
 }
 </script>
@@ -160,6 +180,13 @@ async function handleSave(payload: SettingsFormValue) {
   color: var(--accent-teal);
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
+}
+
+.sync-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-relaxed);
 }
 
 @media (max-width: 980px) {

@@ -19,12 +19,19 @@
         <button class="surface-card friend-row" type="button" @click="$emit('view-profile', toFriend(item).id)">
           <Avatar :name="toFriend(item).displayName" :src="toFriend(item).avatarUrl" :size="52" />
           <div class="friend-copy">
-            <strong>{{ toFriend(item).displayName }}</strong>
+            <div class="friend-copy__header">
+              <strong>{{ toFriend(item).displayName }}</strong>
+              <span class="presence-pill" :class="`presence-${toFriend(item).presence || 'offline'}`">
+                {{ formatPresence(toFriend(item).presence) }}
+              </span>
+            </div>
             <p>{{ toFriend(item).homeBase || 'Atlas traveler' }}</p>
+            <div class="friend-meta">
+              <span v-if="typeof toFriend(item).sharedTrips === 'number'">{{ toFriend(item).sharedTrips }} shared trip{{ toFriend(item).sharedTrips === 1 ? '' : 's' }}</span>
+              <span v-if="typeof toFriend(item).mutualFriends === 'number'">{{ toFriend(item).mutualFriends }} mutual friend{{ toFriend(item).mutualFriends === 1 ? '' : 's' }}</span>
+              <span v-if="toFriend(item).nextAdventure">Next: {{ toFriend(item).nextAdventure }}</span>
+            </div>
           </div>
-          <span class="presence-pill" :class="`presence-${toFriend(item).presence || 'offline'}`">
-            {{ formatPresence(toFriend(item).presence) }}
-          </span>
         </button>
       </template>
     </VirtualList>
@@ -42,6 +49,9 @@ interface FriendConnectionCard {
   avatarUrl?: string;
   homeBase?: string;
   presence?: FriendPresence | string;
+  sharedTrips?: number;
+  mutualFriends?: number;
+  nextAdventure?: string;
 }
 
 type FriendListItem = FriendConnectionCard | FriendConnection;
@@ -69,6 +79,9 @@ function toFriend(value: unknown): FriendConnectionCard {
       avatarUrl: connection.user.avatarUrl,
       homeBase: connection.user.homeBase,
       presence: connection.presence,
+      sharedTrips: connection.sharedTrips,
+      mutualFriends: connection.mutualFriends,
+      nextAdventure: connection.nextAdventure,
     };
   }
 
@@ -119,7 +132,7 @@ function formatPresence(presence?: string): string {
   width: 100%;
   height: calc(136px - 0.5rem);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
@@ -136,17 +149,37 @@ function formatPresence(presence?: string): string {
   box-shadow: var(--shadow-glow-teal);
 }
 
+.friend-copy,
+.friend-copy__header,
+.friend-meta {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .friend-copy {
   min-width: 0;
 }
 
+.friend-copy__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
 .friend-copy strong,
-.friend-copy p {
+.friend-copy p,
+.friend-meta span {
   margin: 0;
 }
 
-.friend-copy p {
+.friend-copy p,
+.friend-meta span {
   color: var(--text-secondary);
+}
+
+.friend-meta {
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--font-size-small);
 }
 
 .presence-pill {
@@ -166,17 +199,15 @@ function formatPresence(presence?: string): string {
 }
 
 @media (max-width: 720px) {
-  .friend-list__header {
+  .friend-list__header,
+  .friend-copy__header {
     flex-direction: column;
+    grid-template-columns: 1fr;
+    align-items: flex-start;
   }
 
-  .friend-row {
-    grid-template-columns: auto 1fr;
-  }
-
-  .presence-pill {
-    grid-column: 1 / -1;
-    justify-self: start;
+  .friend-meta {
+    grid-template-columns: 1fr;
   }
 }
 </style>
