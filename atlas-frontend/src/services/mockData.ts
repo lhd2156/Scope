@@ -14,6 +14,19 @@ import type {
   TripSpot,
   UserProfile,
 } from '@/types';
+import {
+  sanitizeFeedItem,
+  sanitizeItinerary,
+  sanitizeNotificationItem,
+  sanitizePhoto,
+  sanitizeSingleLineText,
+  sanitizeSpotDetail,
+  sanitizeSpotFormSubmission,
+  sanitizeSpotSummary,
+  sanitizeTrip,
+  sanitizeTripPlannerInput,
+  sanitizeUserProfile,
+} from '@/utils/sanitizers';
 
 const users: UserProfile[] = [
   {
@@ -470,34 +483,38 @@ const defaultViewport: MapViewport = {
   style: 'mapbox://styles/mapbox/dark-v11',
 };
 
-export const mockUsers = users;
-export const mockSpots = baseSpots;
+export const mockUsers = users.map((user) => sanitizeUserProfile(user));
+export const mockSpots = baseSpots.map((spot) => sanitizeSpotSummary(spot));
 export const mockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
-  accumulator[spot.id] = buildDetail(spot);
+  accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot));
   return accumulator;
 }, {});
-export const mockTrips = trips;
-export const mockNotifications = notifications;
-export const mockFeed = feed;
+export const mockTrips = trips.map((trip) => sanitizeTrip(trip));
+export const mockNotifications = notifications.map((notification) => sanitizeNotificationItem(notification));
+export const mockFeed = feed.map((item) => sanitizeFeedItem(item));
 export const mockViewport = defaultViewport;
 
 function mapSubmissionPhotos(submission: SpotFormSubmission, fallbackCaption: string): Photo[] {
-  const existingPhotos = submission.existingPhotos.map((photo) => ({
-    ...photo,
-    caption: photo.caption?.trim() || fallbackCaption,
-  }));
+  const existingPhotos = submission.existingPhotos.map((photo) =>
+    sanitizePhoto({
+      ...photo,
+      caption: photo.caption?.trim() || fallbackCaption,
+    }),
+  );
 
-  const uploadedPhotos = submission.newPhotos.map((photo) => ({
-    id: photo.id,
-    url: photo.previewUrl,
-    caption: photo.caption.trim() || fallbackCaption,
-  }));
+  const uploadedPhotos = submission.newPhotos.map((photo) =>
+    sanitizePhoto({
+      id: photo.id,
+      url: photo.previewUrl,
+      caption: photo.caption.trim() || fallbackCaption,
+    }),
+  );
 
   return [...existingPhotos, ...uploadedPhotos];
 }
 
 function toSpotSummary(spot: SpotDetail): SpotSummary {
-  return {
+  return sanitizeSpotSummary({
     id: spot.id,
     title: spot.title,
     description: spot.description,
@@ -514,13 +531,14 @@ function toSpotSummary(spot: SpotDetail): SpotSummary {
     author: spot.author,
     liked: spot.liked,
     likesCount: spot.likesCount,
-  };
+  });
 }
 
 function upsertSpot(spot: SpotDetail): void {
-  mockSpotDetails[spot.id] = spot;
-  const summary = toSpotSummary(spot);
-  const existingIndex = mockSpots.findIndex((entry) => entry.id === spot.id);
+  const sanitizedSpot = sanitizeSpotDetail(spot);
+  mockSpotDetails[sanitizedSpot.id] = sanitizedSpot;
+  const summary = toSpotSummary(sanitizedSpot);
+  const existingIndex = mockSpots.findIndex((entry) => entry.id === sanitizedSpot.id);
 
   if (existingIndex === -1) {
     mockSpots.unshift(summary);
@@ -531,28 +549,29 @@ function upsertSpot(spot: SpotDetail): void {
 }
 
 export function createMockSpot(submission: SpotFormSubmission, author?: UserProfile | null): SpotDetail {
+  const sanitizedSubmission = sanitizeSpotFormSubmission(submission);
   const now = new Date().toISOString();
-  const photos = mapSubmissionPhotos(submission, submission.spot.title);
-  const nextSpot: SpotDetail = {
+  const photos = mapSubmissionPhotos(sanitizedSubmission, sanitizedSubmission.spot.title);
+  const nextSpot = sanitizeSpotDetail({
     id: `spot-${Date.now()}`,
-    title: submission.spot.title,
-    description: submission.spot.description,
-    latitude: submission.spot.latitude,
-    longitude: submission.spot.longitude,
-    address: submission.spot.address,
-    city: submission.spot.city,
-    country: submission.spot.country,
-    category: submission.spot.category,
-    vibe: submission.spot.vibe,
-    rating: submission.spot.rating,
+    title: sanitizedSubmission.spot.title,
+    description: sanitizedSubmission.spot.description,
+    latitude: sanitizedSubmission.spot.latitude,
+    longitude: sanitizedSubmission.spot.longitude,
+    address: sanitizedSubmission.spot.address,
+    city: sanitizedSubmission.spot.city,
+    country: sanitizedSubmission.spot.country,
+    category: sanitizedSubmission.spot.category,
+    vibe: sanitizedSubmission.spot.vibe,
+    rating: sanitizedSubmission.spot.rating,
     photoUrl: photos[0]?.url,
     createdAt: now,
-    author: author ?? undefined,
+    author: author ? sanitizeUserProfile(author) : undefined,
     liked: false,
     likesCount: 0,
     photos,
     reviews: [],
-  };
+  });
 
   upsertSpot(nextSpot);
   return nextSpot;
@@ -564,47 +583,54 @@ export function updateMockSpot(spotId: string, submission: SpotFormSubmission, a
     throw new Error(`Spot ${spotId} not found`);
   }
 
-  const photos = mapSubmissionPhotos(submission, submission.spot.title);
-  const updatedSpot: SpotDetail = {
+  const sanitizedSubmission = sanitizeSpotFormSubmission(submission);
+  const photos = mapSubmissionPhotos(sanitizedSubmission, sanitizedSubmission.spot.title);
+  const updatedSpot = sanitizeSpotDetail({
     ...existingSpot,
-    title: submission.spot.title,
-    description: submission.spot.description,
-    latitude: submission.spot.latitude,
-    longitude: submission.spot.longitude,
-    address: submission.spot.address,
-    city: submission.spot.city,
-    country: submission.spot.country,
-    category: submission.spot.category,
-    vibe: submission.spot.vibe,
-    rating: submission.spot.rating,
+    title: sanitizedSubmission.spot.title,
+    description: sanitizedSubmission.spot.description,
+    latitude: sanitizedSubmission.spot.latitude,
+    longitude: sanitizedSubmission.spot.longitude,
+    address: sanitizedSubmission.spot.address,
+    city: sanitizedSubmission.spot.city,
+    country: sanitizedSubmission.spot.country,
+    category: sanitizedSubmission.spot.category,
+    vibe: sanitizedSubmission.spot.vibe,
+    rating: sanitizedSubmission.spot.rating,
     photoUrl: photos[0]?.url,
-    author: existingSpot.author ?? author ?? undefined,
+    author: existingSpot.author ?? (author ? sanitizeUserProfile(author) : undefined),
     photos,
-  };
+  });
 
   upsertSpot(updatedSpot);
   return updatedSpot;
 }
 
 export function getSpotById(spotId: string): SpotDetail | undefined {
-  return mockSpotDetails[spotId];
+  const spot = mockSpotDetails[spotId];
+  return spot ? sanitizeSpotDetail(spot) : undefined;
 }
 
 export function getTripById(tripId: string): Trip | undefined {
-  return mockTrips.find((trip) => trip.id === tripId);
+  const trip = mockTrips.find((entry) => entry.id === tripId);
+  return trip ? sanitizeTrip(trip) : undefined;
 }
 
 export function filterSpots(filters: { category?: SpotCategory | ''; city?: string; vibe?: string }): SpotSummary[] {
+  const normalizedCity = sanitizeSingleLineText(filters.city).toLowerCase();
+  const normalizedVibe = sanitizeSingleLineText(filters.vibe).toLowerCase();
+
   return mockSpots.filter((spot) => {
     const matchesCategory = !filters.category || spot.category === filters.category;
-    const matchesCity = !filters.city || spot.city?.toLowerCase().includes(filters.city.toLowerCase());
-    const matchesVibe = !filters.vibe || spot.vibe?.toLowerCase().includes(filters.vibe.toLowerCase());
+    const matchesCity = !normalizedCity || spot.city?.toLowerCase().includes(normalizedCity);
+    const matchesVibe = !normalizedVibe || spot.vibe?.toLowerCase().includes(normalizedVibe);
     return matchesCategory && matchesCity && matchesVibe;
   });
 }
 
 export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
-  const interests = new Set(input.interests);
+  const sanitizedInput = sanitizeTripPlannerInput(input);
+  const interests = new Set(sanitizedInput.interests);
   const scoredSpots = mockSpots
     .map((spot) => ({
       spot,
@@ -614,11 +640,11 @@ export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
         (spot.likesCount ?? 0) / 100,
     }))
     .sort((left, right) => right.score - left.score)
-    .slice(0, Math.max(2, Math.min(6, input.groupSize + 2)));
+    .slice(0, Math.max(2, Math.min(6, sanitizedInput.groupSize + 2)));
 
-  const dailyPace = input.pace === 'relaxed' ? 2 : input.pace === 'packed' ? 4 : 3;
+  const dailyPace = sanitizedInput.pace === 'relaxed' ? 2 : sanitizedInput.pace === 'packed' ? 4 : 3;
   const days: Itinerary['days'] = [];
-  const start = new Date(input.startDate);
+  const start = new Date(sanitizedInput.startDate);
 
   scoredSpots.forEach(({ spot }, index) => {
     const dayIndex = Math.floor(index / dailyPace);
@@ -643,16 +669,18 @@ export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
       estimatedCost: 20 + index * 8,
       photoUrl: spot.photoUrl,
       city: spot.city,
+      dayNumber: dayIndex + 1,
+      notes: `Strong ${spot.category} fit for a ${sanitizedInput.pace} pace route.`,
     });
   });
 
   const totalEstimatedCost = days.flatMap((day) => day.spots).reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
 
-  return {
-    id: `itinerary-${input.destination.replace(/\s+/g, '-').toLowerCase()}`,
-    destination: input.destination,
+  return sanitizeItinerary({
+    id: `itinerary-${sanitizedInput.destination.replace(/\s+/g, '-').toLowerCase()}`,
+    destination: sanitizedInput.destination,
     days,
     totalEstimatedCost,
     weatherForecast: 'Clear skies with mild evening temps.',
-  };
+  });
 }

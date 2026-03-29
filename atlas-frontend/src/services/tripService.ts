@@ -10,6 +10,15 @@ import type {
   TripSpot,
   TripStatus,
 } from '@/types';
+import {
+  sanitizeImageUrl,
+  sanitizeItinerary,
+  sanitizeMultilineText,
+  sanitizeSingleLineText,
+  sanitizeTrip,
+  sanitizeTripMember,
+  sanitizeTripSpot,
+} from '@/utils/sanitizers';
 
 const TRIPS_BASE_PATH = '/api/content/trips';
 const DEFAULT_TRIP_CURRENCY = 'USD';
@@ -32,6 +41,41 @@ export interface TripMutationInput {
 
 export interface ReorderTripSpotsInput {
   orderedSpotIds: string[];
+}
+
+function sanitizeTripEnvelope(response: ApiEnvelope<Trip>): ApiEnvelope<Trip> {
+  return {
+    ...response,
+    data: sanitizeTrip(response.data),
+  };
+}
+
+function sanitizeTripListEnvelope(response: ApiEnvelope<Trip[]>): ApiEnvelope<Trip[]> {
+  return {
+    ...response,
+    data: response.data.map((trip) => sanitizeTrip(trip)),
+  };
+}
+
+function sanitizeTripMemberEnvelope(response: ApiEnvelope<TripMember[]>): ApiEnvelope<TripMember[]> {
+  return {
+    ...response,
+    data: response.data.map((member) => sanitizeTripMember(member)),
+  };
+}
+
+function sanitizeTripMutationInput(input: TripMutationInput): TripMutationInput {
+  return {
+    ...input,
+    title: sanitizeSingleLineText(input.title),
+    destination: sanitizeSingleLineText(input.destination),
+    description: input.description ? sanitizeMultilineText(input.description) : undefined,
+    currency: input.currency ? sanitizeSingleLineText(input.currency).toUpperCase() : undefined,
+    coverImageUrl: sanitizeImageUrl(input.coverImageUrl),
+    status: input.status,
+    spots: input.spots?.map((spot) => sanitizeTripSpot(spot)),
+    members: input.members?.map((member) => sanitizeTripMember(member)),
+  };
 }
 
 function buildTripItinerary(tripId: string, destination: string, startDate: string, spots: TripSpot[]): Itinerary | undefined {
@@ -72,71 +116,75 @@ function buildTripItinerary(tripId: string, destination: string, startDate: stri
     .flatMap((day) => day.spots)
     .reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
 
-  return {
+  return sanitizeItinerary({
     id: `itinerary-${tripId}`,
     destination,
     days,
     totalEstimatedCost,
     weatherForecast: 'Live forecast will sync once the intel service is available.',
-  };
+  });
 }
 
 function upsertTrip(nextTrip: Trip): Trip {
-  const tripIndex = mockTrips.findIndex((trip) => trip.id === nextTrip.id);
+  const sanitizedTrip = sanitizeTrip(nextTrip);
+  const tripIndex = mockTrips.findIndex((trip) => trip.id === sanitizedTrip.id);
 
   if (tripIndex === -1) {
-    mockTrips.unshift(nextTrip);
+    mockTrips.unshift(sanitizedTrip);
   } else {
-    mockTrips.splice(tripIndex, 1, nextTrip);
+    mockTrips.splice(tripIndex, 1, sanitizedTrip);
   }
 
-  return nextTrip;
+  return sanitizedTrip;
 }
 
 function buildPersistedTrip(id: string, input: TripMutationInput, existingTrip?: Trip): Trip {
-  const owner = input.members?.[0] ?? existingTrip?.members[0] ?? {
+  const sanitizedInput = sanitizeTripMutationInput(input);
+  const owner = sanitizedInput.members?.[0] ?? existingTrip?.members[0] ?? {
     id: mockUsers[0]?.id ?? 'user-1',
     displayName: mockUsers[0]?.displayName ?? 'Louis Do',
     status: 'owner',
   };
-  const spots = input.spots ?? existingTrip?.spots ?? [];
+  const spots = sanitizedInput.spots ?? existingTrip?.spots ?? [];
 
-  return {
+  return sanitizeTrip({
     id,
-    title: input.title,
-    destination: input.destination,
-    description: input.description,
-    isPublic: input.isPublic,
-    startDate: input.startDate,
-    endDate: input.endDate,
+    title: sanitizedInput.title,
+    destination: sanitizedInput.destination,
+    description: sanitizedInput.description,
+    isPublic: sanitizedInput.isPublic,
+    startDate: sanitizedInput.startDate,
+    endDate: sanitizedInput.endDate,
     spots,
-    members: input.members?.length ? input.members : existingTrip?.members ?? [owner],
-    itinerary: buildTripItinerary(id, input.destination, input.startDate, spots),
-    coverImageUrl: input.coverImageUrl ?? existingTrip?.coverImageUrl ?? spots[0]?.photoUrl,
-    budget: input.budget,
-    currency: input.currency ?? existingTrip?.currency ?? DEFAULT_TRIP_CURRENCY,
-    status: input.status ?? existingTrip?.status ?? DEFAULT_TRIP_STATUS,
-  };
+    members: sanitizedInput.members?.length ? sanitizedInput.members : existingTrip?.members ?? [owner],
+    itinerary: buildTripItinerary(id, sanitizedInput.destination, sanitizedInput.startDate, spots),
+    coverImageUrl: sanitizedInput.coverImageUrl ?? existingTrip?.coverImageUrl ?? spots[0]?.photoUrl,
+    budget: sanitizedInput.budget,
+    currency: sanitizedInput.currency ?? existingTrip?.currency ?? DEFAULT_TRIP_CURRENCY,
+    status: sanitizedInput.status ?? existingTrip?.status ?? DEFAULT_TRIP_STATUS,
+  });
 }
 
 export async function listTrips(page = 1, pageSize = mockTrips.length || 1): Promise<ApiEnvelope<Trip[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<Trip[]>>(TRIPS_BASE_PATH, { params: { page, pageSize } });
-    return data;
+    return sanitizeTripListEnvelope(data);
   } catch {
-    return paginateItems(mockTrips, page, pageSize);
+    return sanitizeTripListEnvelope(paginateItems(mockTrips, page, pageSize));
   }
 }
 
 export async function listPublicTrips(page = 1, pageSize = mockTrips.length || 1): Promise<ApiEnvelope<Trip[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<Trip[]>>(`${TRIPS_BASE_PATH}/public`, { params: { page, pageSize } });
-    return data;
+    return sanitizeTripListEnvelope(data);
   } catch {
-    return paginateItems(
-      mockTrips.filter((trip) => trip.isPublic),
-      page,
-      pageSize,
+    return sanitizeTripListEnvelope(
+      paginateItems(
+        mockTrips.filter((trip) => trip.isPublic),
+        page,
+        pageSize,
+      ),
     );
   }
 }
@@ -144,37 +192,41 @@ export async function listPublicTrips(page = 1, pageSize = mockTrips.length || 1
 export async function getTripDetail(tripId: string): Promise<ApiEnvelope<Trip>> {
   try {
     const { data } = await api.get<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}`);
-    return { data: unwrapApiData(data) };
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
     const trip = getTripById(tripId);
     if (!trip) {
       throw new Error(`Trip ${tripId} not found`);
     }
-    return { data: trip };
+    return sanitizeTripEnvelope({ data: trip });
   }
 }
 
 export async function createTrip(input: TripMutationInput): Promise<ApiEnvelope<Trip>> {
+  const sanitizedInput = sanitizeTripMutationInput(input);
+
   try {
-    const { data } = await api.post<ApiEnvelope<Trip> | Trip>(TRIPS_BASE_PATH, input);
-    return { data: unwrapApiData(data) };
+    const { data } = await api.post<ApiEnvelope<Trip> | Trip>(TRIPS_BASE_PATH, sanitizedInput);
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
-    const trip = buildPersistedTrip(`trip-${Date.now()}`, input);
-    return { data: upsertTrip(trip) };
+    const trip = buildPersistedTrip(`trip-${Date.now()}`, sanitizedInput);
+    return sanitizeTripEnvelope({ data: upsertTrip(trip) });
   }
 }
 
 export async function updateTrip(tripId: string, input: TripMutationInput): Promise<ApiEnvelope<Trip>> {
+  const sanitizedInput = sanitizeTripMutationInput(input);
+
   try {
-    const { data } = await api.put<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}`, input);
-    return { data: unwrapApiData(data) };
+    const { data } = await api.put<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}`, sanitizedInput);
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
       throw new Error(`Trip ${tripId} not found`);
     }
 
-    return { data: upsertTrip(buildPersistedTrip(tripId, input, existingTrip)) };
+    return sanitizeTripEnvelope({ data: upsertTrip(buildPersistedTrip(tripId, sanitizedInput, existingTrip)) });
   }
 }
 
@@ -190,9 +242,11 @@ export async function deleteTrip(tripId: string): Promise<void> {
 }
 
 export async function addTripSpot(tripId: string, tripSpot: TripSpot): Promise<ApiEnvelope<Trip>> {
+  const sanitizedTripSpot = sanitizeTripSpot(tripSpot);
+
   try {
-    const { data } = await api.post<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots`, tripSpot);
-    return { data: unwrapApiData(data) };
+    const { data } = await api.post<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots`, sanitizedTripSpot);
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
@@ -213,19 +267,19 @@ export async function addTripSpot(tripId: string, tripSpot: TripSpot): Promise<A
         status: existingTrip.status,
         coverImageUrl: existingTrip.coverImageUrl,
         members: existingTrip.members,
-        spots: [...existingTrip.spots, tripSpot],
+        spots: [...existingTrip.spots, sanitizedTripSpot],
       },
       existingTrip,
     );
 
-    return { data: upsertTrip(nextTrip) };
+    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
   }
 }
 
 export async function removeTripSpot(tripId: string, spotId: string): Promise<ApiEnvelope<Trip>> {
   try {
     const { data } = await api.delete<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots/${spotId}`);
-    return { data: unwrapApiData(data) };
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
@@ -251,7 +305,7 @@ export async function removeTripSpot(tripId: string, spotId: string): Promise<Ap
       existingTrip,
     );
 
-    return { data: upsertTrip(nextTrip) };
+    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
   }
 }
 
@@ -261,7 +315,7 @@ export async function reorderTripSpots(
 ): Promise<ApiEnvelope<Trip>> {
   try {
     const { data } = await api.put<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots/reorder`, input);
-    return { data: unwrapApiData(data) };
+    return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
@@ -293,21 +347,21 @@ export async function reorderTripSpots(
       existingTrip,
     );
 
-    return { data: upsertTrip(nextTrip) };
+    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
   }
 }
 
 export async function getTripMembers(tripId: string): Promise<ApiEnvelope<TripMember[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<TripMember[]>>(`${TRIPS_BASE_PATH}/${tripId}/members`);
-    return data;
+    return sanitizeTripMemberEnvelope(data);
   } catch {
     const trip = getTripById(tripId);
     if (!trip) {
       throw new Error(`Trip ${tripId} not found`);
     }
 
-    return { data: trip.members };
+    return sanitizeTripMemberEnvelope({ data: trip.members });
   }
 }
 

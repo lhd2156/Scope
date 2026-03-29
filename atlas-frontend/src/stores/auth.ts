@@ -10,28 +10,33 @@ import {
 } from '@/services/authService';
 import { mockUsers } from '@/services/mockData';
 import type { AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
+import { sanitizeAuthPayload, sanitizeUserProfile } from '@/utils/sanitizers';
 
 function resolveCurrentUser(payload: AuthPayload): UserProfile {
+  const sanitizedPayload = sanitizeAuthPayload(payload);
   const matchingUser = mockUsers.find(
-    (user) => user.id === payload.id || user.email === payload.email || user.username === payload.username,
+    (user) =>
+      user.id === sanitizedPayload.id ||
+      user.email === sanitizedPayload.email ||
+      user.username === sanitizedPayload.username,
   );
 
   if (matchingUser) {
-    return {
+    return sanitizeUserProfile({
       ...matchingUser,
-      username: payload.username || matchingUser.username,
-      email: payload.email ?? matchingUser.email,
-      displayName: payload.displayName ?? matchingUser.displayName,
-    };
+      username: sanitizedPayload.username || matchingUser.username,
+      email: sanitizedPayload.email ?? matchingUser.email,
+      displayName: sanitizedPayload.displayName ?? matchingUser.displayName,
+    });
   }
 
-  return {
-    id: payload.id,
-    username: payload.username,
-    email: payload.email ?? '',
-    displayName: payload.displayName ?? payload.username,
+  return sanitizeUserProfile({
+    id: sanitizedPayload.id,
+    username: sanitizedPayload.username,
+    email: sanitizedPayload.email ?? '',
+    displayName: sanitizedPayload.displayName ?? sanitizedPayload.username,
     interests: [],
-  };
+  });
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -41,9 +46,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(token.value || currentUser.value));
 
   function applyAuthPayload(payload: AuthPayload) {
-    token.value = payload.accessToken;
-    refreshToken.value = payload.refreshToken;
-    currentUser.value = resolveCurrentUser(payload);
+    const sanitizedPayload = sanitizeAuthPayload(payload);
+    token.value = sanitizedPayload.accessToken;
+    refreshToken.value = sanitizedPayload.refreshToken;
+    currentUser.value = resolveCurrentUser(sanitizedPayload);
     setAccessToken(token.value);
   }
 
@@ -60,10 +66,10 @@ export const useAuthStore = defineStore('auth', () => {
       return;
     }
 
-    currentUser.value = {
+    currentUser.value = sanitizeUserProfile({
       ...currentUser.value,
       ...updates,
-    };
+    });
   }
 
   async function refreshSession(): Promise<string | null> {

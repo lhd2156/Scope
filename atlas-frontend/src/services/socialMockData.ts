@@ -1,7 +1,8 @@
 import { mockUsers } from '@/services/mockData';
 import type { FriendConnection, FriendRequest, UserProfile } from '@/types';
+import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeUserProfile } from '@/utils/sanitizers';
 
-const incomingRequestUser: UserProfile = {
+const incomingRequestUser: UserProfile = sanitizeUserProfile({
   id: 'user-4',
   username: 'sofia-park',
   email: 'sofia@example.com',
@@ -11,9 +12,9 @@ const incomingRequestUser: UserProfile = {
   homeBase: 'Houston, TX',
   interests: ['culture', 'food', 'shopping'],
   stats: { spots: 31, trips: 9, friends: 58 },
-};
+});
 
-const outgoingRequestUser: UserProfile = {
+const outgoingRequestUser: UserProfile = sanitizeUserProfile({
   id: 'user-5',
   username: 'gabriel-m',
   email: 'gabriel@example.com',
@@ -23,7 +24,7 @@ const outgoingRequestUser: UserProfile = {
   homeBase: 'San Antonio, TX',
   interests: ['adventure', 'nature', 'scenic'],
   stats: { spots: 24, trips: 5, friends: 41 },
-};
+});
 
 export const mockFriendConnections: FriendConnection[] = [
   {
@@ -62,7 +63,7 @@ export const mockFriendConnections: FriendConnection[] = [
     nextAdventure: 'Houston museum + pastry loop',
     lastActiveAt: '2026-03-28T20:15:00Z',
   },
-];
+].map((connection) => sanitizeFriendConnection(connection));
 
 export const mockFriendRequests: FriendRequest[] = [
   {
@@ -81,4 +82,4 @@ export const mockFriendRequests: FriendRequest[] = [
     mutualFriends: 3,
     note: 'Sent after matching on scenic road-trip collections and shared itinerary pacing.',
   },
-];
+].map((request) => sanitizeFriendRequest(request));

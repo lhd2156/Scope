@@ -2,9 +2,31 @@ import api from '@/services/api';
 import { mockFeed, mockNotifications, mockSpots } from '@/services/mockData';
 import { paginateItems, sortByCreatedAtDescending } from '@/services/serviceUtils';
 import type { ApiEnvelope, FeedItem, NotificationItem, SpotSummary } from '@/types';
+import { sanitizeFeedItem, sanitizeNotificationItem, sanitizeSpotSummary } from '@/utils/sanitizers';
 
 const FEED_BASE_PATH = '/api/content/feed';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
+
+function sanitizeFeedEnvelope(response: ApiEnvelope<FeedItem[]>): ApiEnvelope<FeedItem[]> {
+  return {
+    ...response,
+    data: response.data.map((item) => sanitizeFeedItem(item)),
+  };
+}
+
+function sanitizeNotificationEnvelope(response: ApiEnvelope<NotificationItem[]>): ApiEnvelope<NotificationItem[]> {
+  return {
+    ...response,
+    data: response.data.map((item) => sanitizeNotificationItem(item)),
+  };
+}
+
+function sanitizeSpotEnvelope(response: ApiEnvelope<SpotSummary[]>): ApiEnvelope<SpotSummary[]> {
+  return {
+    ...response,
+    data: response.data.map((spot) => sanitizeSpotSummary(spot)),
+  };
+}
 
 function updateMockNotification(notificationId: string, isRead: boolean): NotificationItem | undefined {
   const notificationIndex = mockNotifications.findIndex((notification) => notification.id === notificationId);
@@ -13,10 +35,10 @@ function updateMockNotification(notificationId: string, isRead: boolean): Notifi
     return undefined;
   }
 
-  const updatedNotification = {
+  const updatedNotification = sanitizeNotificationItem({
     ...mockNotifications[notificationIndex],
     isRead,
-  };
+  });
 
   mockNotifications.splice(notificationIndex, 1, updatedNotification);
   return updatedNotification;
@@ -25,22 +47,22 @@ function updateMockNotification(notificationId: string, isRead: boolean): Notifi
 export async function getFeed(page = 1, pageSize = mockFeed.length || 1): Promise<ApiEnvelope<FeedItem[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<FeedItem[]>>(FEED_BASE_PATH, { params: { page, pageSize } });
-    return data;
+    return sanitizeFeedEnvelope(data);
   } catch {
-    return paginateItems(sortByCreatedAtDescending(mockFeed), page, pageSize);
+    return sanitizeFeedEnvelope(paginateItems(sortByCreatedAtDescending(mockFeed), page, pageSize));
   }
 }
 
 export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSummary[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, { params: { limit } });
-    return data;
+    return sanitizeSpotEnvelope(data);
   } catch {
     const trendingSpots = [...mockSpots]
       .sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0))
       .slice(0, limit);
 
-    return {
+    return sanitizeSpotEnvelope({
       data: trendingSpots,
       meta: {
         page: 1,
@@ -48,7 +70,7 @@ export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSumma
         total: trendingSpots.length,
         totalPages: 1,
       },
-    };
+    });
   }
 }
 
@@ -57,9 +79,9 @@ export async function getNotifications(page = 1, pageSize = mockNotifications.le
     const { data } = await api.get<ApiEnvelope<NotificationItem[]>>(NOTIFICATIONS_BASE_PATH, {
       params: { page, pageSize },
     });
-    return data;
+    return sanitizeNotificationEnvelope(data);
   } catch {
-    return paginateItems(sortByCreatedAtDescending(mockNotifications), page, pageSize);
+    return sanitizeNotificationEnvelope(paginateItems(sortByCreatedAtDescending(mockNotifications), page, pageSize));
   }
 }
 
@@ -70,7 +92,7 @@ export async function markNotificationRead(notificationId: string): Promise<Noti
       undefined,
     );
 
-    return 'data' in data ? data.data : data;
+    return sanitizeNotificationItem('data' in data ? data.data : data);
   } catch {
     return updateMockNotification(notificationId, true);
   }
@@ -83,10 +105,12 @@ export async function markAllNotificationsRead(): Promise<void> {
     mockNotifications.splice(
       0,
       mockNotifications.length,
-      ...mockNotifications.map((notification) => ({
-        ...notification,
-        isRead: true,
-      })),
+      ...mockNotifications.map((notification) =>
+        sanitizeNotificationItem({
+          ...notification,
+          isRead: true,
+        }),
+      ),
     );
   }
 }

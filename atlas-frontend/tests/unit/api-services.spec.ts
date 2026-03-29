@@ -67,9 +67,10 @@ describe('API service fallbacks', () => {
   it('builds a local presigned target and short-circuits blob uploads', async () => {
     apiMock.get.mockRejectedValue(new Error('s3 unavailable'));
     const createObjectURL = vi.fn(() => 'blob:atlas-upload');
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL,
+    Object.defineProperty(globalThis.URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: createObjectURL,
     });
 
     const s3Service = await import('@/services/s3Service');
@@ -96,5 +97,37 @@ describe('API service fallbacks', () => {
 
     expect(response.data).toHaveLength(1);
     expect(response.data[0]?.title).toBe('Sunset Rooftop Tacos');
+  });
+
+  it('sanitizes notification payloads received from the API before display', async () => {
+    apiMock.get.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: 'notification-xss',
+            title: '  Trip <b>member</b> joined\u0000 ',
+            body: ' Hello\u0000 traveler\n\n\nSee you soon ',
+            isRead: false,
+            createdAt: '2026-03-27T03:00:00Z',
+            type: ' trip.member.added ',
+          },
+        ],
+        meta: {
+          page: 1,
+          pageSize: 1,
+          total: 1,
+          totalPages: 1,
+        },
+      },
+    });
+
+    const feedService = await import('@/services/feedService');
+    const response = await feedService.getNotifications(1, 1);
+
+    expect(response.data[0]).toMatchObject({
+      title: 'Trip <b>member</b> joined',
+      body: 'Hello traveler\n\nSee you soon',
+      type: 'trip.member.added',
+    });
   });
 });

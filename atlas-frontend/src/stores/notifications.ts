@@ -8,6 +8,7 @@ import {
 import { startNotificationStream, stopNotificationStream } from '@/services/signalrService';
 import { useAuthStore } from '@/stores/auth';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
+import { sanitizeNotificationItem } from '@/utils/sanitizers';
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<NotificationItem[]>([]);
@@ -35,10 +36,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
   }
 
   function addNotification(notification: NotificationItem) {
-    const normalizedNotification = {
+    const normalizedNotification = sanitizeNotificationItem({
       ...notification,
       isRead: false,
-    };
+    });
 
     const existingIndex = items.value.findIndex((entry) => entry.id === normalizedNotification.id);
 
