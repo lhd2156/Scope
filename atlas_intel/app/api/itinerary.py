@@ -13,16 +13,24 @@ itinerary_schema = ItineraryRequestSchema()
 engine = ItineraryEngine(ContentServiceClient())
 weather_service = WeatherService()
 
+
 @itinerary_bp.post("/itinerary/generate")
 @rate_limited
 @require_auth
 def generate_itinerary():
     payload = itinerary_schema.load(request.get_json() or {})
+    cached = IntelRepository.get_cached_itinerary_for_request(g.current_user["sub"], payload)
+    if cached is not None:
+        itinerary_id, itinerary = cached
+        itinerary["id"] = itinerary_id
+        return success_response(itinerary)
+
     weather = weather_service.get_planning_snapshot(payload["startDate"])
     itinerary = engine.generate(payload, weather)
     itinerary_id = IntelRepository.cache_itinerary(g.current_user["sub"], payload, itinerary)
     itinerary["id"] = itinerary_id
     return success_response(itinerary)
+
 
 @itinerary_bp.get("/itinerary/<itinerary_id>")
 @rate_limited
