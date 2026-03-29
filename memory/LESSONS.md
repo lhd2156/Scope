@@ -73,6 +73,7 @@
 - [2026-03-29] ⚠️ Playwright browser binaries are not guaranteed to be preinstalled on this workstation; run `npx playwright install chromium` in `atlas-frontend/` before doing screenshot-based UI verification.
 - [2026-03-29] ✅ Frontend Playwright E2E can stay deterministic in local integration runs by mocking the `/api/core/auth/*` routes in the spec itself; register/login otherwise depend on backend availability or opt-in mock fallback flags.
 - [2026-03-29] ⚠️ Phase 4 SQL seed assets can be authored statically in heartbeat, but live execution on this host depends on external availability of both `sqlcmd` and the Docker Desktop Linux engine; document those limits explicitly instead of claiming runtime validation.
+- [2026-03-29] ⚠️ Terraform baseline work can be committed statically from heartbeat, but if the host has no `terraform` binary you must explicitly record that `terraform fmt/validate/plan` were not run instead of implying live IaC validation.
 - [2026-03-29] ⚠️ Once a Vue view reads `useRoute()`/`useRouter()`, Vitest mounts need a real memory router plugin; stubbing `RouterLink` alone is not enough for route-query watchers or `router.replace()` flows.
 - [2026-03-29] ⚠️ Frontend `npm.cmd run build` can pass while Vite still warns that the eagerly bundled `mapbox-gl` chunk exceeds 500 kB; treat that as a Phase 9 lazy-loading/tree-shaking follow-up, not a Phase 5.2 build failure.
 - [2026-03-29] ⚠️ Vitest in this repo already runs in single-fork mode via the `npm.cmd run test` script; Jest-style `--runInBand` is not a supported CLI flag here.

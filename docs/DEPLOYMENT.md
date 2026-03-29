@@ -21,7 +21,7 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 
 The following items are still pending lead-owned integration/infrastructure work:
 
-- Terraform infrastructure beyond placeholders
+- runtime validation + environment-specific tuning of the Terraform baseline
 - production deployment workflow expansion beyond GHCR + bundle publishing
 - full production environment guide for managed cloud services
 
@@ -48,6 +48,7 @@ Install:
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
 - `k8s/01-namespace.yaml` through `k8s/07-edge.yaml`
+- `terraform/main.tf`, `variables.tf`, `outputs.tf`, `vpc.tf`, `iam.tf`
 - `atlas-frontend/playwright.config.ts`
 - `atlas-frontend/tests/e2e/critical-flows.spec.ts`
 
@@ -273,7 +274,25 @@ Notes:
 - Replace all secret values from `03-secret.example.yaml` before any shared deployment.
 - `07-edge.yaml` exposes Atlas at host `atlas.local` through an nginx ingress.
 
-## 7. CI pipeline
+## 7. Terraform baseline
+
+The repository now includes a first-pass Terraform baseline under `terraform/` for:
+
+- VPC + public/private subnets + NAT
+- IAM roles for EKS
+- EKS cluster + default node group
+- RDS SQL Server
+- S3 photo bucket
+- Cognito user pool/client/domain
+- ECR repositories for Core, Content, Intel, and Frontend
+
+Reference file:
+
+- `terraform/README.md`
+
+> The Terraform CLI is not installed on the current heartbeat host, so this baseline is documented and committed as static IaC, but it has not yet been runtime-validated with `terraform init`, `terraform plan`, or `terraform apply` from this machine.
+
+## 8. CI / deployment automation
 
 The repository now includes:
 
@@ -300,7 +319,7 @@ Dependabot is also configured for:
 
 ---
 
-## 7. Operational notes
+## 9. Operational notes
 
 ### Auth in browser E2E
 
@@ -320,7 +339,7 @@ SQL Server persists data through the `sqlserver-data` Docker volume.
 
 ---
 
-## 8. Recommended release checklist
+## 10. Recommended release checklist
 
 Before calling a deployment candidate ready:
 
@@ -334,12 +353,12 @@ Before calling a deployment candidate ready:
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented
 - [x] deploy workflow is added and reviewed
-- [ ] Terraform placeholders are replaced with real infrastructure
+- [ ] Terraform baseline is runtime-validated with `terraform plan` against a real AWS target account
 - [ ] Kubernetes manifests are reviewed against the target cluster and real image namespace/secrets
 
 ---
 
-## 9. Current next integration milestones
+## 11. Current next integration milestones
 
 The next lead-owned milestones after this runbook are:
 

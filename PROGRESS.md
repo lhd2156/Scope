@@ -3,41 +3,41 @@
 ## Status: IN_PROGRESS
 
 ## Phases
-- [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
-- [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
-- [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, and Kubernetes manifests complete; Terraform IaC and final production polish remain
-- [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
-- [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
-- [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
-- [ ] Phase 8: Documentation & Deployment Prep — README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
-- [x] Phase 9: Performance & Observability — complete across Core, Content, Intel, and Frontend
-- [ ] Phase 10: UX Polish & Accessibility — route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
-- [ ] Phase 11: Infrastructure Hardening — Terraform IaC (5 files) and deployment hardening remain after docker-compose app wiring, CI automation, Dependabot setup, deploy workflow automation, and Kubernetes manifests
-- [x] Phase 12: Final Boss Recheck 🏁 — complete across Core, Content, Intel, and Frontend
+- [x] Phase 1: Foundation (delegated to Architect agent) - COMPLETE
+- [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents - run in parallel) - COMPLETE
+- [x] Phase 3: Frontend (delegated to Prism agent - after backends complete) - COMPLETE
+- [/] Phase 4: Integration - docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, Kubernetes manifests, and Terraform baseline are complete; runtime IaC validation and final production polish remain
+- [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
+- [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
+- [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
+- [ ] Phase 8: Documentation & Deployment Prep - README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
+- [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
+- [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
+- [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline (5 files), deploy workflow automation, and Kubernetes manifests are now in repo; runtime Terraform validation and broader production hardening still remain
+- [x] Phase 12: Final Boss Recheck 🏁 - complete across Core, Content, Intel, and Frontend
 
 ## Agent Status Dashboard
 | Agent | Status | Current Task | Last Updated |
 |-------|--------|--------------|--------------|
 | Foundation (Architect) | COMPLETE | DONE | 2026-03-28 |
-| Core (Sentinel) | COMPLETE | COMPLETE — all Core Phase 12 tasks closed | 2026-03-29T16:33:00Z |
-| Content (Cartographer) | COMPLETE | COMPLETE — all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
-| Intel (Oracle) | COMPLETE | COMPLETE — all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
-| Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
+| Core (Sentinel) | COMPLETE | COMPLETE - all Core Phase 12 tasks closed | 2026-03-29T16:33:00Z |
+| Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
+| Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
+| Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, and Kubernetes manifests are in place; Terraform IaC and final production/deployment hardening remain lead-owned
+## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, and Terraform baseline are in place; runtime Terraform validation and final production/deployment hardening remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:54:42.7403921Z
+## Last Updated: 2026-03-29T18:55:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
-- Core: Full scaffold exists. Validation tasks added — dotnet IS available (v8.0.419). Agent must now run dotnet restore/build/test.
-- Content: Django scaffold exists. Validation tasks added — Python IS available (v3.14.3). Agent must install deps and run pytest.
-- Intel: Full API scaffold exists. Validation tasks added — Python IS available (v3.14.3). Agent must install deps and run pytest.
+- Core: Full scaffold exists. Validation tasks added - dotnet IS available (v8.0.419). Agent must now run dotnet restore/build/test.
+- Content: Django scaffold exists. Validation tasks added - Python IS available (v3.14.3). Agent must install deps and run pytest.
+- Intel: Full API scaffold exists. Validation tasks added - Python IS available (v3.14.3). Agent must install deps and run pytest.
 - Frontend: Tasks 1-4 and 12-13, 17 complete. npm build & test pass. Remaining domain components can proceed NOW.
-- 2026-03-29T00:56:00Z: CRITICAL FIX — All "no runtime" blockers were FALSE. .NET 8.0, Python 3.14, Node 24.14, pip, npm are ALL installed. Progress files updated with correct runtime paths.
-- 2026-03-29T00:56:00Z: Frontend gate relaxed — Prism can continue building components while backends finish validation.
+- 2026-03-29T00:56:00Z: CRITICAL FIX - All "no runtime" blockers were FALSE. .NET 8.0, Python 3.14, Node 24.14, pip, npm are ALL installed. Progress files updated with correct runtime paths.
+- 2026-03-29T00:56:00Z: Frontend gate relaxed - Prism can continue building components while backends finish validation.
 - Stall note: branch activity is out of sync with parts of the recorded progress and will need cleanup during integration.
 - 2026-03-29T01:06:00Z: Heartbeat attempted to respawn Core, Content, Intel, and Frontend twice.
 - 2026-03-29T01:06:00Z: All `sessions_spawn` calls failed with the same local gateway timeout on `ws://127.0.0.1:18789`.
@@ -234,10 +234,10 @@
 - 2026-03-29T11:36:21Z: Inspected live `openclaw.mjs agent --session-id ...` processes before spawning and found a mixed fleet: live Core (`hb-core-20260329T1117Z`) and Content (`hb-content-20260329T1117Z`) workers still matched the current shared-workspace services, while Intel and Frontend had no live worker processes.
 - 2026-03-29T11:36:21Z: Preserved the live Core and Content workers to avoid duplicate workspace contention, and spawned fresh LESSONS-aware OpenClaw agent runs for Intel (`hb-intel-20260329T1134Z` / exec `kind-crustacean`) and Frontend (`hb-frontend-20260329T1134Z` / exec `faint-pine`).
 - 2026-03-29T11:36:21Z: Sequencing drift remains widened: Phase 4 integration is still pending while Core/Intel are in Phase 7, Content is in Phase 6, and Frontend remains ahead in Phase 9.4.
-- 2026-03-29T12:09:40Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core is still on Phase 7 SignalR-hub testing, Content is still on Phase 6 CORS hardening, Intel is still on Phase 7 endpoint integration tests, and Frontend’s canonical first unchecked task is still Phase 9.4 virtual scrolling even though its top-line Current Task has jumped to Phase 12.1.
+- 2026-03-29T12:09:40Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core is still on Phase 7 SignalR-hub testing, Content is still on Phase 6 CORS hardening, Intel is still on Phase 7 endpoint integration tests, and Frontend's canonical first unchecked task is still Phase 9.4 virtual scrolling even though its top-line Current Task has jumped to Phase 12.1.
 - 2026-03-29T12:09:40Z: Inspected live `openclaw.mjs agent --session-id ...` processes and found only a lingering Content worker (`hb-content-20260329T1117Z`). The corresponding session journal under `C:\Users\dongu\.openclaw\agents\content\sessions\05cdaa18-d281-4fa6-acef-119fb429cbfb.jsonl` showed a final stop after the prior JWT-auth task, so the surviving `node.exe` was treated as stale and terminated.
 - 2026-03-29T12:09:40Z: Spawned fresh LESSONS-aware OpenClaw agent runs with explicit session IDs for Core (`hb-core-20260329T1206Z` / exec `grand-dune`), Content (`hb-content-20260329T1206Z` / exec `tidal-lobster`), Intel (`hb-intel-20260329T1206Z` / exec `wild-cedar`), and Frontend (`hb-frontend-20260329T1206Z` / exec `calm-crest`).
-- 2026-03-29T12:09:40Z: Sequencing drift remains widened: Phase 4 integration is still pending while Content is in Phase 6, Core/Intel are in Phase 7, and Frontend’s canonical checklist remains in Phase 9.4/9.5 despite its stale Phase 12.1 top-line task.
+- 2026-03-29T12:09:40Z: Sequencing drift remains widened: Phase 4 integration is still pending while Content is in Phase 6, Core/Intel are in Phase 7, and Frontend's canonical checklist remains in Phase 9.4/9.5 despite its stale Phase 12.1 top-line task.
 - 2026-03-29T12:24:01Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core advanced to Phase 7 standard error handling, Content advanced to Phase 6 ORM-only query verification, Intel advanced to Phase 7 Flask error handlers, and Frontend advanced to Phase 9.5 bundle analysis/tree-shaking verification.
 - 2026-03-29T12:24:01Z: Inspected live `openclaw.mjs agent --session-id ...` processes before spawning and confirmed no active Core, Content, Intel, or Frontend `node.exe` workers remained; the visible `openclaw.mjs agent` process was only the temporary PowerShell inspection command itself.
 - 2026-03-29T12:24:01Z: Spawned fresh LESSONS-aware OpenClaw agent runs with explicit session IDs for Core (`hb-core-20260329T1222Z` / exec `sharp-meadow`), Content (`hb-content-20260329T1222Z` / exec `faint-seaslug`), Intel (`hb-intel-20260329T1222Z` / exec `nimble-tidepool`), and Frontend (`hb-frontend-20260329T1222Z` / exec `dawn-glade`).
@@ -280,7 +280,7 @@
 - 2026-03-29T14:21:03Z: Spawned fresh LESSONS-aware OpenClaw agent runs for Core (`hb-core-20260329T1419Z` / exec `young-zephyr`), Content (`hb-content-20260329T1419Z` / exec `fast-rook`), and Intel (`hb-intel-20260329T1419Z` / exec `grand-otter`); Frontend was intentionally not relaunched because its canonical status is COMPLETE. Follow-up `Win32_Process` verification confirmed the new worker `node.exe` processes are alive for sessions `hb-core-20260329T1419Z`, `hb-content-20260329T1419Z`, and `hb-intel-20260329T1419Z`.
 - 2026-03-29T14:21:03Z: Sequencing drift remains active: Phase 4 integration is still pending while Core and Content are in Phase 9, Intel is in Phase 12, and Frontend is already complete.
 - 2026-03-29T14:43:03.7190443Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core has advanced to Phase 9 connection pooling, Content has advanced to the Phase 9 health endpoint, Intel remains in Phase 12 Appendix B response-format verification, and Frontend remains canonically COMPLETE.
-- 2026-03-29T14:43:03.7190443Z: Inspected live `openclaw.mjs agent --session-id ...` processes before spawning and found no surviving worker `node.exe` sessions — the process table only returned the temporary PowerShell inspection command, so all non-COMPLETE services were treated as missing workers.
+- 2026-03-29T14:43:03.7190443Z: Inspected live `openclaw.mjs agent --session-id ...` processes before spawning and found no surviving worker `node.exe` sessions - the process table only returned the temporary PowerShell inspection command, so all non-COMPLETE services were treated as missing workers.
 - 2026-03-29T14:43:03.7190443Z: Spawned fresh LESSONS-aware OpenClaw agent runs for Core (`hb-core-20260329T1443Z` / exec `ember-basil`), Content (`hb-content-20260329T1443Z` / exec `ember-sable`), and Intel (`hb-intel-20260329T1443Z` / exec `lucky-cove`); Frontend was intentionally not relaunched because its canonical status is COMPLETE.
 - 2026-03-29T14:43:03.7190443Z: Sequencing drift remains active: Phase 4 integration is still pending while Core and Content are in Phase 9, Intel is in Phase 12, and Frontend is already complete.
 - 2026-03-29T14:46:55.2153595Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the 14:43 canonical state and the fresh Core/Content/Intel relaunch sessions after the no-live-workers process-table check.
@@ -289,7 +289,7 @@
 - 2026-03-29T14:59:26Z: Spawned fresh LESSONS-aware OpenClaw agent runs for Core (`hb-core-20260329T1459Z` / exec `quick-falcon`), Content (`hb-content-20260329T1459Z` / exec `faint-lagoon`), and Intel (`hb-intel-20260329T1459Z` / exec `clear-cedar`); Frontend was intentionally not relaunched because its canonical status is COMPLETE. Follow-up `Win32_Process` verification confirmed live worker `node.exe` sessions for `hb-core-20260329T1459Z`, `hb-content-20260329T1459Z`, and `hb-intel-20260329T1459Z`.
 - 2026-03-29T14:59:26Z: Sequencing drift remains active: Phase 4 integration is still pending while Core and Content are in Phase 9, Intel is in Phase 12, and Frontend is already complete.
 - 2026-03-29T15:13:07.0753574Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core has advanced into Phase 12 endpoint-spec verification, Content has advanced to the Phase 9 cache-framework task, Intel has advanced to the Phase 12 ML-model-loading check, and Frontend remains canonically COMPLETE.
-- 2026-03-29T15:13:07.0753574Z: Inspected live `openclaw.mjs agent --session-id ...` worker processes before spawning and found no surviving service `node.exe` workers — the process table only returned the temporary PowerShell inspection command.
+- 2026-03-29T15:13:07.0753574Z: Inspected live `openclaw.mjs agent --session-id ...` worker processes before spawning and found no surviving service `node.exe` workers - the process table only returned the temporary PowerShell inspection command.
 - 2026-03-29T15:13:07.0753574Z: The previous 14:59 Core/Content/Intel worker execs later terminated with `SIGKILL` after surfacing unavailable `memory_search` / `memory_get` tool names in their output, so this heartbeat treated them as failed workers instead of preserving stale dashboard state.
 - 2026-03-29T15:13:07.0753574Z: Spawned fresh LESSONS-aware OpenClaw agent runs for Core (`hb-core-20260329T1513Z` / exec `rapid-rook`), Content (`hb-content-20260329T1513Z` / exec `swift-cove`), and Intel (`hb-intel-20260329T1513Z` / exec `amber-shell`); Frontend was intentionally not relaunched because its canonical status is COMPLETE. The relaunch prompts explicitly warned that `memory_search` / `memory_get` are unavailable and that agents must use `memory/LESSONS.md` via file reads instead.
 - 2026-03-29T15:13:07.0753574Z: Follow-up parent exec polls show the fresh Core/Content/Intel launch sessions are still running with no immediate failure, though a deeper session-id `Win32_Process` verification query hung and was abandoned to avoid blocking the heartbeat.
@@ -327,7 +327,7 @@
 - 2026-03-29T16:43:33.9977068Z: Spawned fresh LESSONS-aware OpenClaw agent runs for Core (`hb-core-20260329T1644Z` / exec `gentle-zephyr`) and Content (`hb-content-20260329T1644Z` / exec `clear-harbor`) only. Follow-up parent exec polls showed both launch sessions still running with no immediate failure, and targeted `Win32_Process` verification resolved both fresh worker session IDs.
 - 2026-03-29T16:43:33.9977068Z: Sequencing drift remains active: Phase 4 integration is still pending while Content is in Phase 9, Core is in Phase 12, and Intel plus Frontend are already complete.
 - 2026-03-29T16:46:11.0464588Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the no-live-workers check, the fresh Core + Content relaunch sessions, and the unchanged complete state for Intel and Frontend.
-- 2026-03-29T16:54:19.1359400Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core is now canonically COMPLETE after closing its final SignalR acceptance task, Content has advanced into Phase 12 with `Run full build and all tests — fix any failures` as the first unchecked task, and Intel plus Frontend remain canonically COMPLETE.
+- 2026-03-29T16:54:19.1359400Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files from `C:\Users\dongu\atlas\{agent}\PROGRESS.md`; Foundation remains COMPLETE, Core is now canonically COMPLETE after closing its final SignalR acceptance task, Content has advanced into Phase 12 with `Run full build and all tests - fix any failures` as the first unchecked task, and Intel plus Frontend remain canonically COMPLETE.
 - 2026-03-29T16:54:19.1359400Z: Inspected live `openclaw.mjs agent --session-id ...` worker processes before spawning and found no surviving service `node.exe` workers; the process table returned `NONE`.
 - 2026-03-29T16:54:19.1359400Z: Spawned a fresh LESSONS-aware OpenClaw agent run for Content only (`hb-content-20260329T1654Z` / exec `ember-crustacean`). Core, Intel, and Frontend were intentionally not relaunched because their canonical progress files are now COMPLETE.
 - 2026-03-29T16:54:19.1359400Z: Follow-up `Win32_Process` verification resolved the new Content worker session ID successfully, so the active worker set is now Content only.
@@ -409,6 +409,9 @@
 - 2026-03-29T18:50:55.8765035Z: Updated `.github/workflows/deploy.yml` to bundle `k8s/` artifacts and expanded `docs/DEPLOYMENT.md` with Kubernetes apply order, manifest inventory, image/secret replacement notes, and the refined remaining roadmap.
 - 2026-03-29T18:50:55.8765035Z: Validation: `Get-ChildItem k8s -Filter *.yaml | ForEach-Object { npx --yes yaml@2 valid $_.FullName }` ✅ and `npx --yes yaml@2 valid .github/workflows/deploy.yml` ✅. Remaining lead-owned gaps are Terraform IaC and final production/deployment hardening.
 - 2026-03-29T18:54:42.7403921Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the Kubernetes manifest milestone, the updated deploy bundle/runbook integration, and the narrowed remaining gaps (Terraform IaC + final production/deployment hardening).
+- 2026-03-29T18:55:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
+- 2026-03-29T18:55:00Z: Completed the next lead-owned Phase 4 / Phase 11 milestone by replacing the empty Terraform placeholder with a real baseline under `terraform/` (`main.tf`, `variables.tf`, `outputs.tf`, `vpc.tf`, `iam.tf`, plus `terraform/README.md`) covering VPC, IAM, EKS, RDS SQL Server, S3, Cognito, and ECR.
+- 2026-03-29T18:55:00Z: Updated `docs/DEPLOYMENT.md` to document the Terraform baseline and current validation limits. Honest validation note: the Terraform CLI is not installed on this host, so this milestone was reviewed as static IaC only and not runtime-validated with `terraform plan`.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
