@@ -18,12 +18,12 @@
 - [x] 13. Install dependencies: `pip install -r atlas_content/requirements.txt` (create requirements.txt if missing)
 - [x] 14. Run and validate: `python atlas_content/manage.py check`
 - [x] 15. Generate migrations: `python atlas_content/manage.py makemigrations`
-- [ ] 16. Run pytest: `pytest atlas_content/`
+- [x] 16. Run pytest: `pytest atlas_content/`
 - [ ] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: 16
-## Last Updated: 2026-03-29T02:26:44.9589655Z
+## Current Task: 17
+## Last Updated: 2026-03-29T02:36:08.3930445Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -39,6 +39,7 @@
 - Pytest status after dependency/auth fixes: `6 passed` (`python -m pytest` in `atlas_content/`)
 - Django system check passed cleanly: `python atlas_content/manage.py check`
 - Ran `python atlas_content/manage.py makemigrations` on `feature/content-engine`; Django reported `No changes detected`
+- Ran `python -m pytest atlas_content` on `feature/content-engine`; result: `6 passed` with warnings only (no import errors, missing dependencies, or failing tests)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\pythoncore-3.14-64\python.exe — USE IT
