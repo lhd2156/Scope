@@ -1,1 +1,6 @@
-from django.apps import AppConfig\n\nclass FeedConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'feed'\n
+from django.apps import AppConfig
+
+
+class FeedConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'feed'

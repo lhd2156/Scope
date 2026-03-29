@@ -1,45 +1,50 @@
 <template>
-  <article class="trip-card glass-panel">
-    <div class="trip-card__media">
-      <img v-if="coverImage" :src="coverImage" :alt="trip.title" class="trip-card__image" />
-      <div v-else class="trip-card__placeholder">
-        <span class="trip-card__badge">{{ trip.destination }}</span>
-        <strong>{{ trip.title }}</strong>
+  <RouterLink :to="`/trips/${trip.id}`" class="trip-card glass-panel" data-test="trip-card">
+    <div class="trip-media">
+      <img v-if="trip.coverImageUrl" :src="trip.coverImageUrl" :alt="trip.title" class="trip-image" />
+      <div v-else class="trip-fallback">
+        <AtlasIcon name="route" label="Trip route" />
+        <span>Route preview</span>
       </div>
 
-      <div class="trip-card__overlay">
-        <span class="trip-card__pill">{{ trip.isPublic ? 'Public trip' : 'Private trip' }}</span>
-        <span class="trip-card__pill">{{ formattedDates }}</span>
+      <div class="trip-overlay">
+        <span class="status-pill">{{ statusLabel }}</span>
+        <span class="metric-pill">{{ tripLengthDays }} day{{ tripLengthDays === 1 ? '' : 's' }}</span>
       </div>
     </div>
 
-    <div class="trip-card__body">
-      <div class="trip-card__header">
+    <div class="trip-body">
+      <div>
         <p class="eyebrow">{{ trip.destination }}</p>
-        <span class="meta-pill">{{ tripLengthDays }} day{{ tripLengthDays === 1 ? '' : 's' }}</span>
+        <h3>{{ trip.title }}</h3>
+        <p class="description">{{ trip.description }}</p>
       </div>
 
-      <h3>{{ trip.title }}</h3>
-      <p class="trip-card__description">{{ descriptionCopy }}</p>
-
-      <div class="trip-card__meta">
-        <div class="meta-row">
+      <div class="metric-grid">
+        <div class="metric-item surface-card">
           <AtlasIcon name="calendar" label="Trip dates" />
-          <span>{{ formattedDates }}</span>
+          <div>
+            <strong>{{ dateRangeLabel }}</strong>
+            <span>Travel window</span>
+          </div>
         </div>
-        <div class="meta-row">
+        <div class="metric-item surface-card">
           <AtlasIcon name="friends" label="Trip members" />
-          <span>{{ memberCopy }}</span>
+          <div>
+            <strong>{{ trip.members.length }} traveler{{ trip.members.length === 1 ? '' : 's' }}</strong>
+            <span>Shared trip</span>
+          </div>
         </div>
-        <div class="meta-row">
+        <div class="metric-item surface-card">
           <AtlasIcon name="route" label="Trip stops" />
-          <span>{{ stopCopy }}</span>
+          <div>
+            <strong>{{ trip.spots.length }} stop{{ trip.spots.length === 1 ? '' : 's' }}</strong>
+            <span>Mapped route</span>
+          </div>
         </div>
       </div>
-
-      <RouterLink :to="`/trips/${trip.id}`" class="trip-card__link">Open trip itinerary</RouterLink>
     </div>
-  </article>
+  </RouterLink>
 </template>
 
 <script setup lang="ts">
@@ -51,153 +56,178 @@ const props = defineProps<{
   trip: Trip;
 }>();
 
-const coverImage = computed(() => props.trip.coverImageUrl ?? props.trip.spots[0]?.photoUrl ?? null);
-const descriptionCopy = computed(() => props.trip.description?.trim() || 'This route is waiting for a richer trip story.');
-const tripLengthDays = computed(() => calculateTripLengthDays(props.trip.startDate, props.trip.endDate));
-const formattedDates = computed(() => `${formatDate(props.trip.startDate)} – ${formatDate(props.trip.endDate)}`);
-const memberCopy = computed(() => `${props.trip.members.length} member${props.trip.members.length === 1 ? '' : 's'}`);
-const stopCopy = computed(() => `${props.trip.spots.length} stop${props.trip.spots.length === 1 ? '' : 's'}`);
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+const dateRangeLabel = computed(() => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
-  }).format(new Date(value));
-}
+  });
 
-function calculateTripLengthDays(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = formatter.format(new Date(props.trip.startDate));
+  const end = formatter.format(new Date(props.trip.endDate));
+  return start === end ? start : `${start} → ${end}`;
+});
+
+const tripLengthDays = computed(() => {
+  const start = new Date(props.trip.startDate);
+  const end = new Date(props.trip.endDate);
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
   return Math.max(1, Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1);
-}
+});
+
+const statusLabel = computed(() => {
+  const status = props.trip.status ?? 'planning';
+  return status.charAt(0).toUpperCase() + status.slice(1);
+});
 </script>
 
 <style scoped>
 .trip-card {
   overflow: hidden;
   display: grid;
-  grid-template-rows: 14rem 1fr;
+  gap: 0;
+  color: inherit;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-.trip-card__media {
+.trip-card:hover,
+.trip-card:focus-visible {
+  transform: translateY(-0.125rem);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+
+.trip-media {
   position: relative;
+  min-height: 14rem;
   background:
-    radial-gradient(circle at top left, var(--accent-teal-light), transparent 35%),
+    radial-gradient(circle at top left, var(--accent-teal-light), transparent 30%),
+    radial-gradient(circle at bottom right, var(--accent-gold-light), transparent 30%),
     linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
 }
 
-.trip-card__image,
-.trip-card__placeholder {
+.trip-image,
+.trip-fallback {
   width: 100%;
   height: 100%;
 }
 
-.trip-card__image {
+.trip-image {
   object-fit: cover;
 }
 
-.trip-card__placeholder {
+.trip-fallback {
   display: grid;
   place-content: center;
   gap: var(--space-2);
-  padding: var(--space-5);
-  text-align: center;
+  color: var(--text-secondary);
 }
 
-.trip-card__placeholder strong {
-  font-size: var(--font-size-h3);
+.trip-fallback :deep(.atlas-icon) {
+  width: 2rem;
+  height: 2rem;
+  color: var(--accent-teal);
 }
 
-.trip-card__badge,
-.trip-card__pill,
-.meta-pill {
+.trip-overlay {
+  position: absolute;
+  inset: var(--space-4) var(--space-4) auto;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.status-pill,
+.metric-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.55rem 0.8rem;
+  padding: 0.55rem 0.85rem;
   border-radius: var(--radius-full);
-  border: 1px solid var(--glass-border);
   background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-blur);
   font-size: var(--font-size-small);
+}
+
+.status-pill {
+  color: var(--accent-gold);
+}
+
+.metric-pill {
   color: var(--text-primary);
 }
 
-.trip-card__overlay {
-  position: absolute;
-  inset: var(--space-4) var(--space-4) auto var(--space-4);
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.trip-card__body {
+.trip-body {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
   padding: var(--space-5);
 }
 
-.trip-card__header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  align-items: center;
-}
-
 .eyebrow {
-  margin: 0;
-  color: var(--accent-gold);
+  margin: 0 0 var(--space-2);
+  color: var(--accent-teal);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: var(--font-size-caption);
 }
 
-.trip-card h3,
-.trip-card__description {
+h3,
+.description,
+.metric-item strong,
+.metric-item span {
   margin: 0;
 }
 
-.trip-card__description,
-.meta-row span {
+h3 {
+  font-size: var(--font-size-h3);
+}
+
+.description,
+.metric-item span {
   color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
 }
 
-.trip-card__meta {
+.metric-grid {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
-.meta-row {
-  display: inline-flex;
-  align-items: center;
+.metric-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
   gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4);
 }
 
-.meta-row :deep(.atlas-icon) {
-  width: 1rem;
-  height: 1rem;
+.metric-item :deep(.atlas-icon) {
+  width: 1.1rem;
+  height: 1.1rem;
   color: var(--accent-teal);
 }
 
-.trip-card__link {
-  color: var(--accent-teal);
-  font-weight: var(--font-weight-semibold);
+.metric-item div {
+  display: grid;
+  gap: var(--space-1);
 }
 
-.trip-card__link:hover,
-.trip-card__link:focus-visible {
-  color: var(--accent-teal-hover);
-  outline: none;
+.metric-item strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
 }
 
-@media (max-width: 720px) {
-  .trip-card__header,
-  .trip-card__overlay {
-    flex-direction: column;
-    align-items: flex-start;
+.metric-item span {
+  font-size: var(--font-size-caption);
+}
+
+@media (max-width: 900px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
