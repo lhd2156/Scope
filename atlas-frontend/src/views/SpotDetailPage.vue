@@ -7,6 +7,11 @@
         description="Photos, reviews, and map context pulled into a single premium detail surface."
       />
 
+      <div v-if="activeSpot && authStore.isAuthenticated" class="page-actions">
+        <p class="section-copy">Need to refresh the copy, photos, or exact coordinates? Open the edit flow for this pin.</p>
+        <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
+      </div>
+
       <section v-if="spotsStore.loading" class="glass-panel state-card">
         <p class="eyebrow">Loading</p>
         <h2>Pulling the full spot profile</h2>
@@ -31,9 +36,11 @@ import { useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import SpotDetail from '@/components/spots/SpotDetail.vue';
+import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const notFound = ref(false);
 
@@ -70,6 +77,42 @@ watch(
   gap: var(--space-6);
 }
 
+.page-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.page-actions .section-copy {
+  margin: 0;
+  max-width: 42rem;
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+  font-weight: var(--font-weight-semibold);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.action-link:hover,
+.action-link:focus-visible {
+  background: var(--accent-teal-hover);
+  box-shadow: var(--shadow-glow-teal);
+  transform: translateY(-0.0625rem);
+  outline: none;
+}
+
 .state-card {
   padding: var(--space-6);
   display: grid;
@@ -97,5 +140,12 @@ watch(
 .state-link:focus-visible {
   color: var(--accent-teal-hover);
   outline: none;
+}
+
+@media (max-width: 900px) {
+  .page-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

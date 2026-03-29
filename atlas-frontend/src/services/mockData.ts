@@ -3,9 +3,11 @@ import type {
   Itinerary,
   MapViewport,
   NotificationItem,
+  Photo,
   Review,
   SpotCategory,
   SpotDetail,
+  SpotFormSubmission,
   SpotSummary,
   Trip,
   TripPlannerInput,
@@ -307,6 +309,111 @@ export const mockTrips = trips;
 export const mockNotifications = notifications;
 export const mockFeed = feed;
 export const mockViewport = defaultViewport;
+
+function mapSubmissionPhotos(submission: SpotFormSubmission, fallbackCaption: string): Photo[] {
+  const existingPhotos = submission.existingPhotos.map((photo) => ({
+    ...photo,
+    caption: photo.caption?.trim() || fallbackCaption,
+  }));
+
+  const uploadedPhotos = submission.newPhotos.map((photo) => ({
+    id: photo.id,
+    url: photo.previewUrl,
+    caption: photo.caption.trim() || fallbackCaption,
+  }));
+
+  return [...existingPhotos, ...uploadedPhotos];
+}
+
+function toSpotSummary(spot: SpotDetail): SpotSummary {
+  return {
+    id: spot.id,
+    title: spot.title,
+    description: spot.description,
+    latitude: spot.latitude,
+    longitude: spot.longitude,
+    address: spot.address,
+    city: spot.city,
+    country: spot.country,
+    category: spot.category,
+    vibe: spot.vibe,
+    rating: spot.rating,
+    photoUrl: spot.photoUrl ?? spot.photos[0]?.url,
+    createdAt: spot.createdAt,
+    author: spot.author,
+    liked: spot.liked,
+    likesCount: spot.likesCount,
+  };
+}
+
+function upsertSpot(spot: SpotDetail): void {
+  mockSpotDetails[spot.id] = spot;
+  const summary = toSpotSummary(spot);
+  const existingIndex = mockSpots.findIndex((entry) => entry.id === spot.id);
+
+  if (existingIndex === -1) {
+    mockSpots.unshift(summary);
+    return;
+  }
+
+  mockSpots.splice(existingIndex, 1, summary);
+}
+
+export function createMockSpot(submission: SpotFormSubmission, author?: UserProfile | null): SpotDetail {
+  const now = new Date().toISOString();
+  const photos = mapSubmissionPhotos(submission, submission.spot.title);
+  const nextSpot: SpotDetail = {
+    id: `spot-${Date.now()}`,
+    title: submission.spot.title,
+    description: submission.spot.description,
+    latitude: submission.spot.latitude,
+    longitude: submission.spot.longitude,
+    address: submission.spot.address,
+    city: submission.spot.city,
+    country: submission.spot.country,
+    category: submission.spot.category,
+    vibe: submission.spot.vibe,
+    rating: submission.spot.rating,
+    photoUrl: photos[0]?.url,
+    createdAt: now,
+    author: author ?? undefined,
+    liked: false,
+    likesCount: 0,
+    photos,
+    reviews: [],
+  };
+
+  upsertSpot(nextSpot);
+  return nextSpot;
+}
+
+export function updateMockSpot(spotId: string, submission: SpotFormSubmission, author?: UserProfile | null): SpotDetail {
+  const existingSpot = mockSpotDetails[spotId];
+  if (!existingSpot) {
+    throw new Error(`Spot ${spotId} not found`);
+  }
+
+  const photos = mapSubmissionPhotos(submission, submission.spot.title);
+  const updatedSpot: SpotDetail = {
+    ...existingSpot,
+    title: submission.spot.title,
+    description: submission.spot.description,
+    latitude: submission.spot.latitude,
+    longitude: submission.spot.longitude,
+    address: submission.spot.address,
+    city: submission.spot.city,
+    country: submission.spot.country,
+    category: submission.spot.category,
+    vibe: submission.spot.vibe,
+    rating: submission.spot.rating,
+    photoUrl: photos[0]?.url,
+    author: existingSpot.author ?? author ?? undefined,
+    photos,
+  };
+
+  upsertSpot(updatedSpot);
+  return updatedSpot;
+}
 
 export function getSpotById(spotId: string): SpotDetail | undefined {
   return mockSpotDetails[spotId];

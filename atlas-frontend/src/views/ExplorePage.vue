@@ -7,6 +7,11 @@
         description="Filter by city, category, and vibe tags to surface the strongest community spots."
       />
 
+      <div class="page-actions">
+        <p class="section-copy">Have a great stop the map is missing? Drop a new pin and attach the photos that sell the experience.</p>
+        <RouterLink class="action-link" to="/spots/new">Drop a new pin</RouterLink>
+      </div>
+
       <section class="glass-panel filters-panel">
         <label>
           <span>Category</span>
@@ -70,6 +75,43 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.page-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.page-actions .section-copy {
+  margin: 0;
+  max-width: 42rem;
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.action-link:hover,
+.action-link:focus-visible {
+  background: var(--accent-teal-hover);
+  box-shadow: var(--shadow-glow-teal);
+  transform: translateY(-0.0625rem);
+  outline: none;
+}
+
 .filters-panel {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -94,6 +136,15 @@ input {
 }
 
 @media (max-width: 900px) {
+  .page-actions {
+    display: grid;
+    align-items: start;
+  }
+
+  .action-link {
+    width: fit-content;
+  }
+
   .filters-panel {
     grid-template-columns: 1fr;
   }

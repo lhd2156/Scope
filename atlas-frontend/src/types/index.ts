@@ -71,6 +71,32 @@ export interface Photo {
   caption?: string;
 }
 
+export interface SpotPhotoUpload {
+  id: string;
+  file: File;
+  previewUrl: string;
+  caption: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export interface PhotoGalleryItem {
+  id: string;
+  url: string;
+  caption: string;
+  source: 'existing' | 'upload';
+  meta?: string;
+}
+
+export interface PhotoGalleryAction {
+  id: string;
+  source: 'existing' | 'upload';
+}
+
+export interface PhotoGalleryCaptionUpdate extends PhotoGalleryAction {
+  caption: string;
+}
+
 export interface Review {
   id: string;
   spotId: string;
@@ -137,6 +163,12 @@ export interface SpotFormInput {
   rating: number;
   visitedAt: string;
   isPublic: boolean;
+}
+
+export interface SpotFormSubmission {
+  spot: SpotFormInput;
+  existingPhotos: Photo[];
+  newPhotos: SpotPhotoUpload[];
 }
 
 export interface TripSpot {

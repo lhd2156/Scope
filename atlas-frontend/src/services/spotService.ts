@@ -1,6 +1,6 @@
 import api from '@/services/api';
-import { filterSpots, getSpotById, mockSpots } from '@/services/mockData';
-import type { ApiEnvelope, SpotDetail, SpotFilters, SpotSummary } from '@/types';
+import { createMockSpot, filterSpots, getSpotById, mockSpots, updateMockSpot } from '@/services/mockData';
+import type { ApiEnvelope, SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
 
 export async function listSpots(filters: SpotFilters = {}): Promise<ApiEnvelope<SpotSummary[]>> {
   try {
@@ -42,5 +42,23 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
       throw new Error(`Spot ${spotId} not found`);
     }
     return { data: detail };
+  }
+}
+
+export async function createSpot(submission: SpotFormSubmission, currentUser?: UserProfile | null): Promise<ApiEnvelope<SpotDetail>> {
+  try {
+    const { data } = await api.post<ApiEnvelope<SpotDetail>>('/api/content/spots', submission.spot);
+    return data;
+  } catch {
+    return { data: createMockSpot(submission, currentUser) };
+  }
+}
+
+export async function updateSpot(spotId: string, submission: SpotFormSubmission, currentUser?: UserProfile | null): Promise<ApiEnvelope<SpotDetail>> {
+  try {
+    const { data } = await api.put<ApiEnvelope<SpotDetail>>(`/api/content/spots/${spotId}`, submission.spot);
+    return data;
+  } catch {
+    return { data: updateMockSpot(spotId, submission, currentUser) };
   }
 }
