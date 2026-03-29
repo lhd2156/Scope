@@ -3,6 +3,7 @@ using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
+using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
 using Atlas.Core.Tests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -85,7 +86,13 @@ public sealed class FriendsControllerTests
         Assert.IsType<OkObjectResult>(result);
         Assert.Equal(FriendshipStatuses.Accepted, friendship.Status);
         Assert.Contains(dbContext.Notifications, notification => notification.UserId == requester.Id && notification.Type == NotificationTypes.FriendAccepted);
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.FriendAccepted, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.FriendAccepted,
+            It.Is<object>(payload => payload is FriendAcceptedEventData
+                && ((FriendAcceptedEventData)payload).FriendshipId == friendship.Id
+                && ((FriendAcceptedEventData)payload).RequesterId == requester.Id
+                && ((FriendAcceptedEventData)payload).AddresseeId == addressee.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

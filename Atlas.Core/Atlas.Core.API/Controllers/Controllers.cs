@@ -112,7 +112,7 @@ public sealed class UsersController(
         user.Bio = request.Bio?.Trim();
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new UserUpdatedEventData(user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl), cancellationToken);
 
         return Ok(new ApiResponse<object>(new UserProfile(user.Id, user.Username, user.Email, user.DisplayName, user.Bio, user.AvatarUrl, user.CreatedAt)));
     }
@@ -183,7 +183,7 @@ public sealed class UsersController(
         user.AvatarUrl = avatarUrl;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new { user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.UserUpdated, new UserUpdatedEventData(user.Id, user.Username, user.DisplayName, user.Bio, user.AvatarUrl), cancellationToken);
 
         return Ok(new ApiResponse<object>(new { user.Id, user.AvatarUrl }));
     }
@@ -299,7 +299,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync(KafkaTopics.FriendAccepted, new { friendship.Id, friendship.RequesterId, friendship.AddresseeId }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.FriendAccepted, new FriendAcceptedEventData(friendship.Id, friendship.RequesterId, friendship.AddresseeId), cancellationToken);
 
         return Ok(new ApiResponse<object>(new { friendship.Id, friendship.RequesterId, friendship.AddresseeId, friendship.Status, friendship.CreatedAt }));
     }
@@ -559,7 +559,7 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
         session.Longitude = request.Longitude;
         session.LastPingAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await kafkaProducerService.PublishAsync(KafkaTopics.LiveLocationUpdated, new { session.TripId, session.UserId, session.Latitude, session.Longitude, session.LastPingAt }, cancellationToken);
+        await kafkaProducerService.PublishAsync(KafkaTopics.LiveLocationUpdated, new LiveLocationUpdatedEventData(session.TripId, session.UserId, session.Latitude, session.Longitude), cancellationToken);
 
         return Ok(new ApiResponse<object>(session));
     }

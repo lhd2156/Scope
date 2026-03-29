@@ -31,7 +31,13 @@ public sealed class AuthServiceTests
         Assert.Equal("louis", result.Username);
         Assert.Equal("louis@example.com", dbContext.Users.Single().Email);
         Assert.Single(dbContext.RefreshTokens);
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.UserRegistered, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.UserRegistered,
+            It.Is<object>(payload => payload is UserRegisteredEventData
+                && ((UserRegisteredEventData)payload).UserId == dbContext.Users.Single().Id
+                && ((UserRegisteredEventData)payload).Username == "louis"
+                && ((UserRegisteredEventData)payload).Email == "louis@example.com"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -202,7 +208,13 @@ public sealed class AuthServiceTests
         Assert.Equal("louisdo1", dbContext.Users.Single(x => x.Email == "louis@example.com").Username);
         Assert.Equal(result.Id, dbContext.Users.Single(x => x.Email == "louis@example.com").Id);
         Assert.Single(dbContext.Users.Where(x => x.Email == "louis@example.com"));
-        kafka.Verify(x => x.PublishAsync(KafkaTopics.UserRegistered, It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        kafka.Verify(x => x.PublishAsync(
+            KafkaTopics.UserRegistered,
+            It.Is<object>(payload => payload is UserRegisteredEventData
+                && ((UserRegisteredEventData)payload).UserId == result.Id
+                && ((UserRegisteredEventData)payload).Username == "louisdo1"
+                && ((UserRegisteredEventData)payload).Email == "louis@example.com"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
