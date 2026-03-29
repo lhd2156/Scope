@@ -20,6 +20,7 @@
 - [2026-03-28] ❌ Pinned old pyodbc versions may fail on Python 3.14 → use latest
 - [2026-03-28] ⚠️ Always check Python package compatibility with 3.14 before pinning versions
 - [2026-03-29] ✅ `scikit-learn==1.8.0` is published for Python 3.14.3 on this workstation, so Atlas Intel can safely move off the incompatible `1.5.2` pin.
+- [2026-03-29] ✅ `numpy==2.4.3` and `confluent-kafka==2.13.2` install cleanly on this Windows/Python 3.14.3 workstation; older pins (`numpy==2.1.2`, `confluent-kafka==2.6.0`) fall back to source builds and fail without local compiler toolchains.
 - [2026-03-28] ✅ mssql-django works with Django 5.x on Python 3.14
 
 ## Build & Test Results
@@ -27,6 +28,7 @@
 - [2026-03-28] ✅ `dotnet build` + `dotnet test` pass on Atlas.Core (commit 59b78dc)
 - [2026-03-28] ✅ Django `manage.py check` passes for Content Engine (commit 26e53ad)
 - [2026-03-28] ⚠️ Always run `pip install -r requirements.txt` before pytest
+- [2026-03-29] ⚠️ The local Python environment can drift from Atlas pins (`pytest`, `PyJWT`); rerun `pip install -r atlas_content/requirements.txt` before Django validation so checks/tests use the expected versions.
 - [2026-03-28] ⚠️ DRF request auth in Content Engine needs explicit `REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES']`; middleware alone will not authenticate API views/tests that rely on `request.user`
 - [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
 - [2026-03-29] ⚠️ Atlas health endpoints follow the architecture's bare JSON contract (`status`, `version`, `uptime`) instead of the usual `data` envelope; lock that shape in with endpoint contract tests.
@@ -41,6 +43,8 @@
 - [2026-03-29] ⚠️ In Vitest, do not replace the global `URL` constructor with a plain object just to stub `createObjectURL`; override `URL.createObjectURL` instead, or axios imports can crash with `URL is not a constructor`.
 - [2026-03-29] ⚠️ Frontend silent session hydration must disable mock auth fallbacks; otherwise a stale local session hint can make a fresh tab appear authenticated without a real refresh cookie.
 - [2026-03-29] ⚠️ For frontend auth-guard verification, unit-test `resolveNavigationGuard()` with a mocked auth store and separately assert `router.getRoutes()` meta contracts; that is more stable than mounting full pages when only redirect/auth behavior matters.
+
+- [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
 ## Git & Workflow
 
@@ -74,6 +78,8 @@
 - [2026-03-29] ⚠️ If a subagent reports success from an isolated branch/worktree but the canonical `C:\Users\dongu\atlas\{agent}\PROGRESS.md` file in the main workspace is still stale, trust the canonical file and relaunch/repair from that state instead of trusting the completion message alone.
 
 - [2026-03-29] ⚠️ `openclaw agent` launches can survive a local gateway closure by falling back to embedded execution; if spawned workers stay running after a `ws://127.0.0.1:18789` close, treat it as a control-plane issue to flag rather than assuming the worker died immediately.
+
+- [2026-03-29] ⚠️ In Atlas.Core, middleware registered before `MapControllers()`/`MapHub()` also governs SignalR negotiate routes; when auditing cross-cutting policies like rate limiting, add hub-path tests instead of checking controllers only.
 
 ## Common Mistakes to Avoid
 
