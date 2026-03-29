@@ -1,33 +1,27 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack friends-page">
-      <SectionHeading
-        eyebrow="Friends"
-        title="Keep the social layer close to the route planner"
-        description="Track collaborators, process friend requests, and keep tabs on the notifications that matter before the next trip locks in."
-      />
+    <div class="page-container friends-page">
+      <section class="glass-panel hero-panel">
+        <div>
+          <p class="eyebrow">Community</p>
+          <h1>{{ authStore.currentUser?.displayName || 'Atlas community' }}</h1>
+          <p class="section-copy">Coordinate your travel circle, review incoming requests, and monitor social proof from one workspace.</p>
+        </div>
 
-      <section class="hero-grid">
-        <article class="glass-panel hero-card">
-          <p class="eyebrow">Network summary</p>
-          <h2>{{ authStore.currentUser?.displayName ?? 'Atlas network' }}</h2>
-          <p class="section-copy">
-            Your social workspace blends accepted friends, pending requests, live alerts, and the feed stream that fuels itinerary planning.
-          </p>
-        </article>
-
-        <article class="summary-card surface-card">
-          <strong>{{ onlineFriends }}</strong>
-          <span>Online collaborators</span>
-        </article>
-        <article class="summary-card surface-card">
-          <strong>{{ incomingRequests.length }}</strong>
-          <span>Incoming requests</span>
-        </article>
-        <article class="summary-card surface-card">
-          <strong>{{ notificationsStore.unreadCount }}</strong>
-          <span>Unread alerts</span>
-        </article>
+        <div class="hero-metrics">
+          <article class="surface-card metric-card">
+            <strong>{{ friendConnections.length }}</strong>
+            <span>Friends</span>
+          </article>
+          <article class="surface-card metric-card">
+            <strong>{{ onlineFriends }}</strong>
+            <span>Online now</span>
+          </article>
+          <article class="surface-card metric-card">
+            <strong>{{ notificationsStore.unreadCount }}</strong>
+            <span>Unread</span>
+          </article>
+        </div>
       </section>
 
       <article v-if="workspaceError" class="glass-panel error-panel" role="alert">
@@ -36,61 +30,72 @@
         <p class="section-copy">{{ workspaceError }}</p>
       </article>
 
-      <section v-if="friendRequests.length" class="request-grid">
+      <section v-if="incomingRequests.length" class="section-stack">
         <SectionHeading
           eyebrow="Requests"
-          title="Pending connection requests"
-          description="Accept new collaborators or keep outgoing requests visible while the network grows."
+          title="Pending friend requests"
+          description="Handle incoming invites without leaving the social workspace."
         />
-        <div class="card-grid request-cards">
-          <UserCard
-            v-for="request in friendRequests"
-            :key="request.id"
-            :user="request.user"
-            :eyebrow="request.direction === 'incoming' ? 'Incoming request' : 'Outgoing request'"
-            :meta="`${request.mutualFriends} mutual friends · ${formatRelativeTime(request.createdAt)}`"
-            :detail="request.note"
-            :tags="request.user.interests"
-            :show-stats="false"
-            :primary-action-label="request.direction === 'incoming' ? 'Accept' : 'View profile'"
-            :secondary-action-label="request.direction === 'incoming' ? 'Decline' : 'Cancel request'"
-            @primary-action="handlePrimaryRequestAction(request.id, request.direction, request.user.id)"
-            @secondary-action="handleSecondaryRequestAction(request.id, request.direction)"
+
+        <VirtualList
+          :items="incomingRequests"
+          :item-height="232"
+          :viewport-height="420"
+          list-label="Incoming friend requests"
+          :item-key="requestKey"
+        >
+          <template #default="{ item }">
+            <div class="request-row">
+              <UserCard
+                :user="resolveRequestUserFromUnknown(item)"
+                eyebrow="Incoming request"
+                primary-action-label="Accept"
+                secondary-action-label="Ignore"
+              />
+            </div>
+          </template>
+        </VirtualList>
+      </section>
+
+      <section class="layout-grid">
+        <div class="section-stack">
+          <FriendList :friends="friendConnections" />
+        </div>
+
+        <div class="section-stack">
+          <SectionHeading
+            eyebrow="Notifications"
+            title="Realtime updates"
+            description="Keep up with invites, comments, and itinerary changes as they happen."
           />
+          <NotificationDropdown />
         </div>
       </section>
 
-      <section class="workspace-grid">
-        <div class="main-column">
-          <FriendList :friends="friendConnections" @view-profile="openProfile" @plan-trip="openTripPlanner" />
+      <section class="section-stack">
+        <SectionHeading
+          eyebrow="Network activity"
+          title="Recent Atlas activity"
+          description="The freshest stories and moves from your travel network."
+        />
 
-          <article class="glass-panel feed-panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Activity feed</p>
-                <h2>Fresh moments from the network</h2>
-              </div>
-              <span class="meta-copy">{{ feedStore.items.length }} stories loaded</span>
+        <VirtualList
+          v-if="feedStore.items.length"
+          :items="feedStore.items"
+          :item-height="232"
+          :viewport-height="560"
+          list-label="Friends activity feed"
+        >
+          <template #default="{ item }">
+            <div class="feed-row">
+              <FeedItem :item="item" />
             </div>
-            <p v-if="feedStore.loading" class="section-copy">Loading activity...</p>
-            <div v-else class="feed-list">
-              <FeedItem v-for="item in feedStore.items" :key="item.id" :item="item" />
-            </div>
-          </article>
+          </template>
+        </VirtualList>
+        <div v-else class="glass-panel empty-panel">
+          <strong>No activity yet</strong>
+          <p>Once your network starts posting updates, their latest Atlas moves will appear here.</p>
         </div>
-
-        <aside class="side-column">
-          <NotificationDropdown
-            inline-panel
-            :notifications="notificationsStore.items"
-            :unread-count="notificationsStore.unreadCount"
-            :loading="notificationsStore.loading"
-            :connection-state="notificationsStore.connectionState"
-            :connection-error="notificationsStore.connectionError"
-            @mark-all-read="notificationsStore.markAllRead"
-            @read="notificationsStore.markRead"
-          />
-        </aside>
       </section>
     </div>
   </AppShell>
@@ -98,68 +103,85 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
+import VirtualList from '@/components/common/VirtualList.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
 import FriendList from '@/components/social/FriendList.vue';
 import NotificationDropdown from '@/components/social/NotificationDropdown.vue';
 import UserCard from '@/components/social/UserCard.vue';
-import { mockFriendConnections, mockFriendRequests } from '@/services/socialMockData';
+import { mockFriendConnections, mockFriendRequests } from '@/services/mockData';
 import { useAuthStore } from '@/stores/auth';
 import { useFeedStore } from '@/stores/feed';
 import { useNotificationsStore } from '@/stores/notifications';
-import type { FriendRequest, SpotCategory } from '@/types';
-import { formatRelativeTime } from '@/utils/formatters';
+import type { UserProfile } from '@/types';
 
 const authStore = useAuthStore();
 const feedStore = useFeedStore();
 const notificationsStore = useNotificationsStore();
-const router = useRouter();
-
 const friendConnections = ref([...mockFriendConnections]);
-const friendRequests = ref<FriendRequest[]>([...mockFriendRequests]);
+const friendRequests = ref([...mockFriendRequests]);
 
 const onlineFriends = computed(() => friendConnections.value.filter((friend) => friend.presence === 'online').length);
-const incomingRequests = computed(() => friendRequests.value.filter((request) => request.direction === 'incoming'));
+const incomingRequests = computed(() => friendRequests.value);
 const workspaceError = computed(() => feedStore.error || notificationsStore.error || '');
 
-function openProfile(userId: string) {
-  void router.push(`/profile/${userId}`);
-}
-
-function openTripPlanner(userId: string) {
-  void router.push({ path: '/trips/new', query: { friend: userId } });
-}
-
-function handlePrimaryRequestAction(requestId: string, direction: FriendRequest['direction'], userId: string) {
-  if (direction === 'incoming') {
-    const request = friendRequests.value.find((entry) => entry.id === requestId);
-    if (request) {
-      friendConnections.value = [
-        {
-          id: `friend-${request.user.id}`,
-          user: request.user,
-          presence: 'planning',
-          sharedTrips: 0,
-          mutualFriends: request.mutualFriends,
-          favoriteCategories: request.user.interests.slice(0, 3) as SpotCategory[],
-          nextAdventure: 'First route planning session pending',
-          lastActiveAt: new Date().toISOString(),
-        },
-        ...friendConnections.value,
-      ];
+function requestKey(request: unknown, index: number): string | number {
+  if (typeof request === 'object' && request !== null && 'id' in request) {
+    const id = (request as { id?: string | number }).id;
+    if (typeof id === 'string' || typeof id === 'number') {
+      return id;
     }
-
-    friendRequests.value = friendRequests.value.filter((entry) => entry.id !== requestId);
-    return;
   }
 
-  openProfile(userId);
+  return `request-${index}`;
 }
 
-function handleSecondaryRequestAction(requestId: string, _direction: FriendRequest['direction']) {
-  friendRequests.value = friendRequests.value.filter((entry) => entry.id !== requestId);
+function normalizeUsername(displayName: string): string {
+  return displayName.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'atlastraveler';
+}
+
+function resolveRequestUserFromUnknown(request: unknown): UserProfile {
+  if (typeof request === 'object' && request !== null) {
+    return resolveRequestUser(request as Record<string, unknown>);
+  }
+
+  return {
+    id: 'request-atlastraveler',
+    username: 'atlastraveler',
+    email: '',
+    displayName: 'Atlas traveler',
+    interests: [],
+  };
+}
+
+function resolveRequestUser(request: Record<string, unknown>): UserProfile {
+  const embeddedUser = [request.requester, request.user, request.profile].find(
+    (candidate): candidate is Record<string, unknown> => typeof candidate === 'object' && candidate !== null,
+  );
+
+  if (embeddedUser && typeof embeddedUser.id === 'string' && typeof embeddedUser.displayName === 'string') {
+    return {
+      id: embeddedUser.id,
+      username: typeof embeddedUser.username === 'string' ? embeddedUser.username : normalizeUsername(embeddedUser.displayName),
+      email: typeof embeddedUser.email === 'string' ? embeddedUser.email : '',
+      displayName: embeddedUser.displayName,
+      avatarUrl: typeof embeddedUser.avatarUrl === 'string' ? embeddedUser.avatarUrl : undefined,
+      homeBase: typeof embeddedUser.homeBase === 'string' ? embeddedUser.homeBase : undefined,
+      bio: typeof embeddedUser.bio === 'string' ? embeddedUser.bio : undefined,
+      interests: Array.isArray(embeddedUser.interests) ? embeddedUser.interests.filter((interest): interest is string => typeof interest === 'string') : [],
+      stats: typeof embeddedUser.stats === 'object' && embeddedUser.stats !== null ? (embeddedUser.stats as UserProfile['stats']) : undefined,
+    };
+  }
+
+  const displayName = typeof request.displayName === 'string' ? request.displayName : 'Atlas traveler';
+  return {
+    id: typeof request.id === 'string' ? request.id : `request-${normalizeUsername(displayName)}`,
+    username: normalizeUsername(displayName),
+    email: '',
+    displayName,
+    interests: [],
+  };
 }
 
 onMounted(async () => {
@@ -169,107 +191,74 @@ onMounted(async () => {
 
 <style scoped>
 .friends-page,
-.error-panel {
+.section-stack {
   display: grid;
   gap: var(--space-6);
 }
 
-.error-panel {
+.hero-panel,
+.error-panel,
+.empty-panel {
   padding: var(--space-6);
 }
 
+.hero-panel {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.hero-metrics,
+.layout-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.hero-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-card {
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.metric-card strong,
+.metric-card span,
 .error-panel h2,
-.error-panel p {
+.error-panel p,
+.empty-panel strong,
+.empty-panel p {
   margin: 0;
 }
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 0.45fr));
-  gap: var(--space-4);
-}
-
-.hero-card,
-.summary-card,
-.feed-panel {
-  padding: var(--space-6);
-}
-
-.summary-card {
-  display: grid;
-  gap: var(--space-2);
-  align-content: start;
-}
-
-.summary-card strong {
-  font-size: var(--font-size-h1);
-}
-
-.summary-card span,
-.meta-copy {
+.metric-card span,
+.empty-panel p {
   color: var(--text-secondary);
 }
 
-.request-grid {
-  display: grid;
-  gap: var(--space-4);
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
 }
 
-.request-cards {
-  gap: var(--space-4);
-}
-
-.workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(18rem, 0.95fr);
-  gap: var(--space-6);
+.layout-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
   align-items: start;
 }
 
-.main-column {
-  display: grid;
-  gap: var(--space-6);
+.request-row,
+.feed-row {
+  padding-bottom: var(--space-4);
 }
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  align-items: flex-start;
-  margin-bottom: var(--space-4);
-}
-
-.eyebrow {
-  margin: 0 0 var(--space-2);
-  color: var(--accent-teal);
-  font-size: var(--font-size-caption);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.feed-list {
-  display: grid;
-  gap: var(--space-4);
-}
-
-@media (max-width: 1200px) {
-  .hero-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .hero-card {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 1024px) {
-  .workspace-grid,
-  .hero-grid {
+@media (max-width: 960px) {
+  .hero-metrics,
+  .layout-grid {
     grid-template-columns: 1fr;
-  }
-
-  .panel-header {
-    flex-direction: column;
   }
 }
 </style>
