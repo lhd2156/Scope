@@ -32,8 +32,10 @@
 - [2026-03-28] ⚠️ DRF request auth in Content Engine needs explicit `REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES']`; middleware alone will not authenticate API views/tests that rely on `request.user`
 - [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
 - [2026-03-29] ⚠️ Atlas health endpoints follow the architecture's bare JSON contract (`status`, `version`, `uptime`) instead of the usual `data` envelope; lock that shape in with endpoint contract tests.
+- [2026-03-29] ⚠️ Content Engine settings should load `atlas_content/.env` and fail fast on missing `DJANGO_SECRET_KEY` / `CORE_JWT_SECRET`; keep pytest on `atlas_content.test_settings` so tests seed explicit non-production secrets instead of relying on runtime fallbacks.
 - [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
 - [2026-03-29] ⚠️ Atlas Intel auth should read `JWT_SECRET`/issuer/audience from `app.config`, not module-level fallback secrets; make `create_app()` fail fast when `FLASK_SECRET_KEY` or `CORE_JWT_SECRET` is missing and inject explicit test secrets in pytest fixtures.
+- [2026-03-29] ✅ Atlas Intel route-level rate limiting is easiest to verify by marking the decorator wrapper (for coverage across `app.url_map`) and adding one `429` test that asserts the `Retry-After` header from a low-limit test app.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -87,12 +89,15 @@
 - [2026-03-29] ⚠️ On Windows heartbeats, when OpenClaw child-session metadata is unavailable, inspect `Win32_Process` for `openclaw.mjs agent` plus `--agent` / `--session-id` to confirm which workers are still alive before spawning replacements.
 - [2026-03-29] ⚠️ Lead progress can say an agent is "running" even after that worker process exits; verify the actual `openclaw.mjs agent --session-id ...` process is still alive before you skip a needed respawn.
 - [2026-03-29] ⚠️ A background `openclaw agent` exec can linger as a live `node.exe` even after `process log` shows a completed payload with `"stopReason": "stop"`; treat that as a stale worker, kill it, and relaunch with a fresh session ID instead of assuming it is still making progress.
+- [2026-03-29] ⚠️ If a lone surviving worker has been alive for a long time but its latest payload only reports the *previous* checklist item while the canonical `PROGRESS.md` has not advanced further, treat it as stuck-after-handoff and respawn it instead of preserving it indefinitely.
 
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 
 - [2026-03-29] ⚠️ In Atlas.Core minimal-hosting integration tests, config values checked directly in `Program.cs` (like `CORE_JWT_SECRET`) must be present before `WebApplicationFactory` boots the app; process env vars are a reliable way to seed those early startup checks.
 
 - [2026-03-29] ✅ Atlas.Core CORS can stay strict and testable by reading `CORE_FRONTEND_ORIGIN` at startup, adding `http://localhost:5173` only in Development, and verifying preflight behavior with `OPTIONS` integration tests instead of controller-only assertions.
+
+- [2026-03-29] ✅ In Atlas.Core, register security-header middleware with `Response.OnStarting(...)` before auth/rate-limit/exception middleware so CSP and X-XSS-Protection still appear on 401, 429, exception, and SignalR negotiate responses.
 
 ## Common Mistakes to Avoid
 
