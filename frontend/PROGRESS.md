@@ -21,15 +21,15 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 6.4 — Verify auth guards on all protected routes
-## Last Updated: 2026-03-29T09:03:05.3096671Z
+## Current Task: Phase 7.1 — Add Vitest component tests for all views
+## Last Updated: 2026-03-29T09:14:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
 - b0c8355 through 7bfebfc + 1acf047
 - npm run build ✅ passed
 - npm run test ✅ passed
-- Remaining: social modules, profile surfaces, SignalR, API services, responsive polish
+- Remaining: Phase 7 coverage expansion, Phase 9 performance work, Phase 12 final recheck
 - 2026-03-29T00:56:00Z: UNBLOCKED — Frontend can proceed building domain components in parallel with backends. All API service calls should use stub/mock data until backends are validated.
 - 2026-03-29T02:22:00Z: COMPLETED task 5 — delivered Mapbox-backed map workspace with theme-aware map styling, custom spot markers, route overlays, live location tracking, category filters, and sidebar map context. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after switching Vitest to single-fork mode for stable Windows execution.
 - 2026-03-29T02:33:28Z: COMPLETED task 6 — upgraded SpotCard and SpotDetail into premium production surfaces with richer metadata, gallery/review presentation, embedded mini-map context, and route-safe detail loading states. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new spot component coverage.
@@ -48,6 +48,7 @@
 - 2026-03-29T08:19:00.1285268Z: COMPLETED Phase 6.1 hardening — added centralized frontend sanitizers for user-facing text, review copy, media URLs, and mock/API payload normalization so spots, trips, feed items, notifications, profiles, and geocode results are cleaned before UI display. Realtime notifications now sanitize on ingress, review submission sanitizes before emit, and new Vitest coverage locks the behavior. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (29 files / 47 tests).
 - 2026-03-29T08:34:10.2285135Z: COMPLETED Phase 6.2 hardening — replaced raw browser token persistence with a versioned auth session hint in localStorage, purge-on-boot cleanup for legacy Atlas token keys, cookie-driven session hydration for protected/guest route checks, and auth-store coverage that proves access/refresh tokens never land in localStorage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 51 tests).
 - 2026-03-29T09:03:05.3096671Z: COMPLETED Phase 6.3 hardening — upgraded the shared Axios client so mutating requests bootstrap CSRF tokens from readable cookies or an optional env-configured GET endpoint before the first form POST/PUT/DELETE, continue capturing fresh tokens from response headers/bodies, and avoid auth-refresh loops during bootstrap. Added focused Vitest coverage for cookie-backed and endpoint-backed CSRF acquisition. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 53 tests).
+- 2026-03-29T09:14:00Z: COMPLETED Phase 6.4 auth-guard verification — added focused Vitest coverage for protected-route redirects, session hydration behavior, guest-only redirects, and an explicit router meta contract so protected pages cannot silently lose auth requirements. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (31 files / 58 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -66,7 +67,7 @@
 - [x] Sanitize user inputs before display
 - [x] Secure localStorage usage (no raw tokens in localStorage)
 - [x] Add CSRF token handling for form submissions
-- [ ] Verify auth guards on all protected routes
+- [x] Verify auth guards on all protected routes
 
 ### Phase 7: Test Coverage
 - [ ] Add Vitest component tests for all views
