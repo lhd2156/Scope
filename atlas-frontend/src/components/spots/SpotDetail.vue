@@ -55,9 +55,7 @@
           </div>
         </div>
 
-        <p class="section-copy">
-          {{ overviewCopy }}
-        </p>
+        <p class="section-copy">{{ overviewCopy }}</p>
 
         <dl class="overview-grid">
           <div class="overview-item surface-card">
@@ -118,47 +116,51 @@
         <span class="metric-pill">{{ averageRating }} avg</span>
       </div>
 
-      <div v-if="spot.reviews.length" class="reviews-grid">
-        <article v-for="review in spot.reviews" :key="review.id" class="review-card surface-card">
-          <div class="review-header">
-            <div class="review-author">
-              <span class="review-avatar">{{ getInitials(review.user.displayName) }}</span>
-              <div>
-                <strong>{{ review.user.displayName }}</strong>
-                <p>{{ formatDate(review.createdAt) }}</p>
-              </div>
-            </div>
-            <span class="metric-pill">★ {{ review.rating.toFixed(1) }}</span>
-          </div>
-          <p class="review-comment">{{ review.comment }}</p>
-        </article>
-      </div>
-      <p v-else class="empty-copy">No reviews yet. Be the first traveler to leave a note for this stop.</p>
+      <ReviewList :reviews="displayReviews" />
+
+      <article class="surface-card review-form-panel">
+        <div v-if="authStore.isAuthenticated" class="review-form-stack">
+          <ReviewForm @submit="handleReviewSubmit" />
+        </div>
+        <div v-else class="review-cta">
+          <h3>Want to leave a review?</h3>
+          <p class="section-copy">Sign in so your take on this spot can shape itinerary quality and social proof.</p>
+          <RouterLink class="button button-secondary" to="/login">Log in to review</RouterLink>
+        </div>
+      </article>
     </section>
+
+    <Toast
+      :open="showReviewToast"
+      title="Review added"
+      message="Your review was added to the local spot detail shell while the live review endpoint finishes wiring up."
+      tone="success"
+      @close="showReviewToast = false"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { RouterLink } from 'vue-router';
+import Toast from '@/components/common/Toast.vue';
 import MapView from '@/components/map/MapView.vue';
 import PhotoGallery from '@/components/spots/PhotoGallery.vue';
-import type { MapPoint, Photo, PhotoGalleryItem, SpotDetail as SpotDetailModel } from '@/types';
+import ReviewForm from '@/components/spots/ReviewForm.vue';
+import ReviewList from '@/components/spots/ReviewList.vue';
+import { useAuthStore } from '@/stores/auth';
+import type { MapPoint, Photo, PhotoGalleryItem, Review, SpotDetail as SpotDetailModel } from '@/types';
 
 const props = defineProps<{
   spot: SpotDetailModel | null;
 }>();
 
+const authStore = useAuthStore();
+const localReviews = ref<Review[]>([]);
+const showReviewToast = ref(false);
+
 function formatCategory(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
 }
 
 function formatDate(value: string): string {
@@ -185,8 +187,9 @@ const photoCountLabel = computed(() => {
   const totalPhotos = props.spot?.photos.length ?? 0;
   return `${totalPhotos} photo${totalPhotos === 1 ? '' : 's'}`;
 });
+const displayReviews = computed(() => [...localReviews.value, ...(props.spot?.reviews ?? [])]);
 const reviewCountLabel = computed(() => {
-  const totalReviews = props.spot?.reviews.length ?? 0;
+  const totalReviews = displayReviews.value.length;
   return `${totalReviews} review${totalReviews === 1 ? '' : 's'}`;
 });
 const averageRating = computed(() => {
@@ -194,14 +197,14 @@ const averageRating = computed(() => {
     return '0.0';
   }
 
-  if (!props.spot.reviews.length) {
+  if (!displayReviews.value.length) {
     return props.spot.rating.toFixed(1);
   }
 
-  const total = props.spot.reviews.reduce((sum, review) => sum + review.rating, 0);
-  return (total / props.spot.reviews.length).toFixed(1);
+  const total = displayReviews.value.reduce((sum, review) => sum + review.rating, 0);
+  return (total / displayReviews.value.length).toFixed(1);
 });
-const publishedLabel = computed(() => (props.spot ? formatDate(props.spot.createdAt) : '')); 
+const publishedLabel = computed(() => (props.spot ? formatDate(props.spot.createdAt) : ''));
 const savesLabel = computed(() => {
   const likesCount = props.spot?.likesCount ?? 0;
   return likesCount > 0 ? String(likesCount) : 'Fresh';
@@ -277,6 +280,39 @@ const miniMapSpots = computed<MapPoint[]>(() => {
     },
   ];
 });
+
+function handleReviewSubmit(payload: { rating: number; comment: string }) {
+  if (!props.spot) {
+    return;
+  }
+
+  localReviews.value = [
+    {
+      id: `local-review-${Date.now()}`,
+      spotId: props.spot.id,
+      rating: payload.rating,
+      comment: payload.comment,
+      createdAt: new Date().toISOString(),
+      user: authStore.currentUser ?? {
+        id: 'guest-reviewer',
+        username: 'guest-reviewer',
+        email: '',
+        displayName: 'Atlas traveler',
+        interests: [],
+      },
+    },
+    ...localReviews.value,
+  ];
+  showReviewToast.value = true;
+}
+
+watch(
+  () => props.spot?.id,
+  () => {
+    localReviews.value = [];
+    showReviewToast.value = false;
+  },
+);
 </script>
 
 <style scoped>
@@ -343,17 +379,19 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 }
 
 .hero-heading,
-.review-author,
-.overview-item {
+.overview-item,
+.review-form-stack,
+.review-cta {
   display: grid;
   gap: var(--space-2);
 }
 
 .hero-heading h1,
 .section-heading h2,
-.review-author p,
-.review-comment,
-.section-copy {
+.section-copy,
+.map-copy,
+.review-cta h3,
+.review-cta p {
   margin: 0;
 }
 
@@ -365,16 +403,12 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 .hero-meta,
 .hero-description,
 .map-copy,
-.empty-copy,
-.review-author p,
-.review-comment,
-.overview-item dd,
-.section-copy {
+.section-copy,
+.overview-item dd {
   color: var(--text-secondary);
 }
 
 .hero-description,
-.review-comment,
 .section-copy,
 .overview-item dd {
   line-height: var(--line-height-relaxed);
@@ -383,7 +417,6 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 .chip-row,
 .hero-stats,
 .content-grid,
-.reviews-grid,
 .overview-grid {
   display: grid;
   gap: var(--space-4);
@@ -416,8 +449,8 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 }
 
 .stat-card,
-.review-card,
-.overview-item {
+.overview-item,
+.review-form-panel {
   padding: var(--space-4);
 }
 
@@ -474,32 +507,12 @@ const miniMapSpots = computed<MapPoint[]>(() => {
   padding: var(--space-5);
 }
 
-.reviews-grid {
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+.review-form-panel {
+  margin-top: var(--space-4);
 }
 
-.review-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-.review-author {
-  grid-template-columns: auto 1fr;
-  align-items: center;
-}
-
-.review-avatar {
-  width: 2.75rem;
-  height: 2.75rem;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-full);
-  background: var(--accent-teal-light);
-  color: var(--accent-teal);
-  font-weight: var(--font-weight-bold);
+.review-cta {
+  justify-items: start;
 }
 
 .eyebrow {
@@ -508,10 +521,6 @@ const miniMapSpots = computed<MapPoint[]>(() => {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: var(--font-size-caption);
-}
-
-.empty-copy {
-  margin: var(--space-4) 0 0;
 }
 
 @media (max-width: 1100px) {
@@ -529,8 +538,7 @@ const miniMapSpots = computed<MapPoint[]>(() => {
 
   .hero-topline,
   .reviews-heading,
-  .section-heading,
-  .review-header {
+  .section-heading {
     flex-direction: column;
     align-items: flex-start;
   }

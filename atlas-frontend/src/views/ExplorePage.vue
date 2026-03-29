@@ -31,15 +31,12 @@
 
       <section class="glass-panel filter-panel">
         <div class="filter-toolbar">
-          <label class="search-field">
-            <span>Search spots</span>
-            <input
-              v-model.trim="searchQuery"
-              data-test="explore-search"
-              type="search"
-              placeholder="Search by title, city, vibe, or description"
-            />
-          </label>
+          <SearchBar
+            v-model="searchQuery"
+            class="filter-search"
+            label="Search spots"
+            placeholder="Search by title, city, vibe, or description"
+          />
 
           <div class="toolbar-actions">
             <RouterLink class="button button-primary" to="/spots/new">Drop a new pin</RouterLink>
@@ -51,12 +48,7 @@
           <div class="chip-group">
             <p class="chip-label">Categories</p>
             <div class="chip-row">
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: !selectedCategory }"
-                @click="selectedCategory = ''"
-              >
+              <button type="button" class="filter-chip" :class="{ active: !selectedCategory }" @click="selectedCategory = ''">
                 All
               </button>
               <button
@@ -76,14 +68,7 @@
           <div class="chip-group">
             <p class="chip-label">Cities</p>
             <div class="chip-row">
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: !selectedCity }"
-                @click="selectedCity = ''"
-              >
-                All cities
-              </button>
+              <button type="button" class="filter-chip" :class="{ active: !selectedCity }" @click="selectedCity = ''">All cities</button>
               <button
                 v-for="city in availableCities"
                 :key="city"
@@ -100,14 +85,7 @@
           <div class="chip-group">
             <p class="chip-label">Vibes</p>
             <div class="chip-row">
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: !selectedVibe }"
-                @click="selectedVibe = ''"
-              >
-                Any vibe
-              </button>
+              <button type="button" class="filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
               <button
                 v-for="vibe in availableVibes"
                 :key="vibe"
@@ -152,13 +130,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import SearchBar from '@/components/common/SearchBar.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 
 const spotsStore = useSpotsStore();
+const route = useRoute();
+const router = useRouter();
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 const searchQuery = ref('');
 const selectedCategory = ref<SpotCategory | ''>('');
@@ -194,6 +176,7 @@ function clearFilters() {
   selectedCategory.value = '';
   selectedCity.value = '';
   selectedVibe.value = '';
+  void router.replace({ query: {} });
 }
 
 function matchesSearch(spot: SpotSummary, query: string): boolean {
@@ -232,8 +215,29 @@ const filteredSpots = computed(() =>
   }),
 );
 
+watch(
+  () => route.query.q,
+  (query) => {
+    const nextQuery = typeof query === 'string' ? query : '';
+    if (nextQuery !== searchQuery.value) {
+      searchQuery.value = nextQuery;
+    }
+  },
+  { immediate: true },
+);
+
+watch(searchQuery, (query) => {
+  const currentQuery = typeof route.query.q === 'string' ? route.query.q : '';
+  if (query === currentQuery) {
+    return;
+  }
+
+  void router.replace({
+    query: query ? { ...route.query, q: query } : Object.fromEntries(Object.entries(route.query).filter(([key]) => key !== 'q')),
+  });
+});
+
 onMounted(async () => {
-  clearFilters();
   await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
 });
 </script>
@@ -322,20 +326,8 @@ h1 {
   align-items: flex-end;
 }
 
-.search-field {
-  display: grid;
-  gap: var(--space-2);
+.filter-search {
   min-width: min(100%, 34rem);
-  color: var(--text-secondary);
-}
-
-.search-field input {
-  width: 100%;
-  border: 1px solid var(--input-border);
-  border-radius: var(--radius-full);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  padding: 0.9rem 1rem;
 }
 
 .chip-row,

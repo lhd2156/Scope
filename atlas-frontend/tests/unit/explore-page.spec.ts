@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 
 const { fixtureSpots } = vi.hoisted(() => ({
   fixtureSpots: [
@@ -64,11 +65,31 @@ import ExplorePage from '@/views/ExplorePage.vue';
 describe('ExplorePage', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('filters the explore grid by search query and category chips', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/explore',
+          name: 'explore',
+          component: ExplorePage,
+        },
+      ],
+    });
+
+    await router.push('/explore');
+    await router.isReady();
+
     const wrapper = mount(ExplorePage, {
       global: {
+        plugins: [router],
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           SpotCard: {
@@ -85,8 +106,9 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('3');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(3);
 
-    await wrapper.get('[data-test="explore-search"]').setValue('Fort Worth');
-    await nextTick();
+    await wrapper.get('input[aria-label="Search spots"]').setValue('Fort Worth');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('2');
 
@@ -97,7 +119,7 @@ describe('ExplorePage', () => {
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(1);
 
     await wrapper.get('button.button-secondary').trigger('click');
-    await nextTick();
+    await flushPromises();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('3');
   });

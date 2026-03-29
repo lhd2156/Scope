@@ -20,10 +20,11 @@ describe('PhotoGallery', () => {
         removable: true,
         captionEditable: true,
       },
+      attachTo: document.body,
     });
 
     await wrapper.find('input').setValue('Updated caption');
-    await wrapper.find('button').trigger('click');
+    await wrapper.get('button[aria-label="Remove Golden hour hero shot"]').trigger('click');
 
     expect(wrapper.emitted('update:caption')?.[0]?.[0]).toEqual({
       id: 'photo-1',
@@ -34,6 +35,20 @@ describe('PhotoGallery', () => {
       id: 'photo-1',
       source: 'upload',
     });
+  });
+
+  it('opens a lightbox preview for a gallery item', async () => {
+    const wrapper = mount(PhotoGallery, {
+      props: {
+        photos,
+      },
+      attachTo: document.body,
+    });
+
+    await wrapper.get('button[aria-label="Open Golden hour hero shot preview"]').trigger('click');
+
+    expect(document.body.textContent).toContain('Photo lightbox');
+    expect(document.body.textContent).toContain('Golden hour hero shot');
   });
 
   it('renders the empty state when no photos are available', () => {

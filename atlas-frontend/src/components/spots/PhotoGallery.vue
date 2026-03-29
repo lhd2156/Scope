@@ -3,7 +3,14 @@
     <div v-if="photos.length" class="gallery-grid">
       <article v-for="photo in photos" :key="`${photo.source}-${photo.id}`" class="gallery-card surface-card">
         <div class="gallery-media">
-          <img :src="photo.url" :alt="photo.caption || 'Spot upload preview'" />
+          <button
+            type="button"
+            class="preview-button"
+            :aria-label="`Open ${photo.caption || 'photo'} preview`"
+            @click="selectedPhoto = photo"
+          >
+            <img :src="photo.url" :alt="photo.caption || 'Spot upload preview'" />
+          </button>
           <button
             v-if="removable"
             type="button"
@@ -41,14 +48,32 @@
       <strong>{{ emptyTitle }}</strong>
       <p>{{ emptyCopy }}</p>
     </article>
+
+    <Modal
+      :open="Boolean(selectedPhoto)"
+      title="Photo lightbox"
+      eyebrow="Gallery preview"
+      size="lg"
+      @close="selectedPhoto = null"
+    >
+      <figure v-if="selectedPhoto" class="lightbox-figure">
+        <img :src="selectedPhoto.url" :alt="selectedPhoto.caption || 'Spot photo preview'" class="lightbox-image" />
+        <figcaption>
+          <strong>{{ selectedPhoto.caption || 'Community upload' }}</strong>
+          <span>{{ selectedPhoto.meta || (selectedPhoto.source === 'upload' ? 'New upload preview' : 'Existing gallery image') }}</span>
+        </figcaption>
+      </figure>
+    </Modal>
   </section>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import Modal from '@/components/common/Modal.vue';
 import type { PhotoGalleryCaptionUpdate, PhotoGalleryItem } from '@/types';
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     photos: PhotoGalleryItem[];
     emptyTitle?: string;
@@ -69,6 +94,8 @@ const emit = defineEmits<{
   (event: 'update:caption', payload: PhotoGalleryCaptionUpdate): void;
 }>();
 
+const selectedPhoto = ref<PhotoGalleryItem | null>(null);
+
 function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
   const target = event.target as HTMLInputElement;
   emit('update:caption', {
@@ -86,14 +113,15 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
 }
 
 .gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-4);
+  column-gap: var(--space-4);
+  columns: 3 14rem;
 }
 
 .gallery-card {
+  break-inside: avoid;
   overflow: hidden;
   display: grid;
+  margin-bottom: var(--space-4);
 }
 
 .gallery-media {
@@ -104,10 +132,37 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
     linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
 }
 
-.gallery-media img {
+.preview-button {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.gallery-media img,
+.preview-button {
   width: 100%;
   height: 100%;
+}
+
+.gallery-media img {
   object-fit: cover;
+}
+
+.preview-button:hover img,
+.preview-button:focus-visible img {
+  transform: scale(1.015);
+}
+
+.preview-button:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: -2px;
+}
+
+.gallery-media img {
+  transition: transform var(--transition-normal);
 }
 
 .remove-button {
@@ -157,13 +212,24 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
 
 .caption-field span,
 .caption-copy,
-.gallery-detail {
+.gallery-detail,
+.lightbox-figure figcaption span {
   color: var(--text-secondary);
   font-size: var(--font-size-small);
 }
 
-.caption-copy {
+.caption-copy,
+.lightbox-figure figcaption strong,
+.lightbox-figure figcaption span {
+  display: block;
+}
+
+.caption-copy,
+.lightbox-figure figcaption {
   margin: 0;
+}
+
+.caption-copy {
   line-height: var(--line-height-relaxed);
 }
 
@@ -221,5 +287,35 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
 
 .empty-state :deep(.atlas-icon) {
   color: var(--accent-teal);
+}
+
+.lightbox-figure {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.lightbox-image {
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+}
+
+.lightbox-figure figcaption {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (max-width: 960px) {
+  .gallery-grid {
+    columns: 2 12rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .gallery-grid {
+    columns: 1;
+  }
 }
 </style>

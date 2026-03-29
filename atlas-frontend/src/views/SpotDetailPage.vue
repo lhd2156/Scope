@@ -12,10 +12,13 @@
         <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
       </div>
 
-      <section v-if="spotsStore.loading" class="glass-panel state-card">
-        <p class="eyebrow">Loading</p>
-        <h2>Pulling the full spot profile</h2>
-        <p class="section-copy">Atlas is syncing gallery, review, and location data for this stop.</p>
+      <section v-if="spotsStore.loading" class="glass-panel state-card loading-card">
+        <LoadingSpinner size="lg" label="Loading spot detail" />
+        <div>
+          <p class="eyebrow">Loading</p>
+          <h2>Pulling the full spot profile</h2>
+          <p class="section-copy">Atlas is syncing gallery, review, and location data for this stop.</p>
+        </div>
       </section>
 
       <section v-else-if="notFound" class="glass-panel state-card">
@@ -32,8 +35,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import SpotDetail from '@/components/spots/SpotDetail.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -119,6 +123,12 @@ watch(
   gap: var(--space-3);
 }
 
+.loading-card {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-5);
+}
+
 .state-card h2,
 .state-card p {
   margin: 0;
@@ -143,9 +153,14 @@ watch(
 }
 
 @media (max-width: 900px) {
-  .page-actions {
+  .page-actions,
+  .loading-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .loading-card {
+    grid-template-columns: 1fr;
   }
 }
 </style>

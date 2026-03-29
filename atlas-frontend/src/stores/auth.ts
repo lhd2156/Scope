@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { clearApiSession, configureApiSessionHandlers, setAccessToken } from '@/services/api';
 import {
   login as loginRequest,
+  loginWithCognito as loginWithCognitoRequest,
   logout as logoutRequest,
   refreshSession as refreshSessionRequest,
   register as registerRequest,
@@ -54,6 +55,17 @@ export const useAuthStore = defineStore('auth', () => {
     setAccessToken('');
   }
 
+  function updateCurrentUser(updates: Partial<UserProfile>) {
+    if (!currentUser.value) {
+      return;
+    }
+
+    currentUser.value = {
+      ...currentUser.value,
+      ...updates,
+    };
+  }
+
   async function refreshSession(): Promise<string | null> {
     if (!currentUser.value) {
       clearSession();
@@ -71,6 +83,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(payload: RegisterForm) {
     applyAuthPayload(await registerRequest(payload));
+  }
+
+  async function loginWithCognito(idToken = 'demo-cognito-id-token') {
+    applyAuthPayload(await loginWithCognitoRequest(idToken));
   }
 
   async function logout() {
@@ -93,7 +109,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     login,
     register,
+    loginWithCognito,
     refreshSession,
+    updateCurrentUser,
     logout,
   };
 });
