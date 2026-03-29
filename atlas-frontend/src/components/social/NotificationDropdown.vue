@@ -21,6 +21,11 @@
         <button type="button" class="text-button" @click="$emit('mark-all-read')">Mark all read</button>
       </header>
 
+      <div class="connection-state" :class="`state-${connectionState}`" :title="connectionTooltip">
+        <span class="status-dot" />
+        <span>{{ connectionLabel }}</span>
+      </div>
+
       <p v-if="loading" class="state-copy">Loading notifications...</p>
       <div v-else-if="notifications.length" class="notification-list">
         <button
@@ -57,10 +62,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onClickOutside } from '@vueuse/core';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
-import type { NotificationItem } from '@/types';
+import type { NotificationConnectionState, NotificationItem } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
 
 const props = withDefaults(
@@ -69,10 +74,14 @@ const props = withDefaults(
     unreadCount: number;
     loading?: boolean;
     inlinePanel?: boolean;
+    connectionState?: NotificationConnectionState;
+    connectionError?: string | null;
   }>(),
   {
     loading: false,
     inlinePanel: false,
+    connectionState: 'idle',
+    connectionError: null,
   },
 );
 
@@ -83,6 +92,23 @@ const emit = defineEmits<{
 
 const root = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
+
+const connectionLabel = computed(() => {
+  switch (props.connectionState) {
+    case 'connected':
+      return 'SignalR live';
+    case 'connecting':
+      return 'Connecting to SignalR…';
+    case 'reconnecting':
+      return 'Reconnecting…';
+    case 'disconnected':
+      return 'Realtime offline';
+    default:
+      return 'Realtime idle';
+  }
+});
+
+const connectionTooltip = computed(() => props.connectionError ?? connectionLabel.value);
 
 onClickOutside(root, () => {
   if (!props.inlinePanel) {
@@ -180,7 +206,8 @@ function handleNotificationClick(notificationId: string) {
 .title-row,
 .notification-card,
 .footer-link,
-.text-button {
+.text-button,
+.connection-state {
   display: flex;
   gap: var(--space-3);
 }
@@ -211,6 +238,48 @@ h2,
   cursor: pointer;
   font-weight: var(--font-weight-semibold);
   padding: 0;
+}
+
+.connection-state {
+  align-items: center;
+  width: fit-content;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 0.35rem 0.7rem;
+  font-size: var(--font-size-small);
+}
+
+.status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
+}
+
+.connection-state.state-connected {
+  color: var(--accent-teal);
+  border-color: var(--accent-teal-light);
+}
+
+.connection-state.state-connected .status-dot {
+  background: var(--accent-teal);
+}
+
+.connection-state.state-connecting,
+.connection-state.state-reconnecting {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold-light);
+}
+
+.connection-state.state-connecting .status-dot,
+.connection-state.state-reconnecting .status-dot {
+  background: var(--accent-gold);
+}
+
+.connection-state.state-disconnected .status-dot {
+  background: var(--danger);
 }
 
 .notification-list {

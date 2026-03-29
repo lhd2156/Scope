@@ -22,16 +22,18 @@ const notifications: NotificationItem[] = [
 ];
 
 describe('NotificationDropdown', () => {
-  it('opens the inbox and emits read actions', async () => {
+  it('opens the inbox, surfaces realtime status, and emits read actions', async () => {
     const wrapper = mount(NotificationDropdown, {
       props: {
         notifications,
         unreadCount: 1,
         inlinePanel: true,
+        connectionState: 'connected',
       },
     });
 
     expect(wrapper.text()).toContain('Notifications');
+    expect(wrapper.text()).toContain('SignalR live');
     expect(wrapper.text()).toContain('Trip member joined');
 
     await wrapper.get('.notification-card').trigger('click');

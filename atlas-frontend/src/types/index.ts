@@ -277,6 +277,13 @@ export interface NotificationItem {
   type: string;
 }
 
+export type NotificationConnectionState =
+  | 'idle'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected';
+
 export interface MapViewport {
   center: [number, number];
   zoom: number;

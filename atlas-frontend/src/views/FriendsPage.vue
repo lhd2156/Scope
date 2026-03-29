@@ -79,6 +79,8 @@
             :notifications="notificationsStore.items"
             :unread-count="notificationsStore.unreadCount"
             :loading="notificationsStore.loading"
+            :connection-state="notificationsStore.connectionState"
+            :connection-error="notificationsStore.connectionError"
             @mark-all-read="notificationsStore.markAllRead"
             @read="notificationsStore.markRead"
           />
