@@ -10,14 +10,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '/';
 const API_TIMEOUT_MS = 10_000;
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 const REFRESH_ENDPOINT_PATH = '/api/core/auth/refresh';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const CSRF_BOOTSTRAP_ENDPOINT = import.meta.env.VITE_CSRF_ENDPOINT?.trim() || '';
+const CSRF_COOKIE_NAMES = ['XSRF-TOKEN', 'csrftoken', 'csrf-token', 'csrfToken'];
 
 let accessToken = '';
 let csrfToken = '';
+let csrfBootstrapPromise: Promise<string | null> | null = null;
 let refreshAccessTokenHandler: (() => Promise<string | null>) | null = null;
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  atlasSkipAuthRefresh?: boolean;
+  atlasSkipCsrfBootstrap?: boolean;
 }
 
 interface ApiClientErrorOptions {
@@ -76,9 +82,130 @@ function getHeaderValue(headers: AxiosResponse['headers'], name: string): string
   return null;
 }
 
+function getPayloadValue(payload: unknown, key: string): string | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  const candidate = (payload as Record<string, unknown>)[key];
+  return typeof candidate === 'string' ? candidate.trim() || null : null;
+}
+
+function extractCsrfTokenFromPayload(payload: unknown): string | null {
+  if (typeof payload === 'string') {
+    return payload.trim() || null;
+  }
+
+  const directToken =
+    getPayloadValue(payload, 'csrfToken') ??
+    getPayloadValue(payload, 'csrf_token') ??
+    getPayloadValue(payload, 'token');
+
+  if (directToken) {
+    return directToken;
+  }
+
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  const nestedPayload = (payload as Record<string, unknown>).data;
+
+  return (
+    getPayloadValue(nestedPayload, 'csrfToken') ??
+    getPayloadValue(nestedPayload, 'csrf_token') ??
+    getPayloadValue(nestedPayload, 'token')
+  );
+}
+
+function readCookieValue(cookieName: string): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const escapedCookieName = cookieName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cookieMatch = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedCookieName}=([^;]*)`));
+
+  if (!cookieMatch?.[1]) {
+    return null;
+  }
+
+  const decodedCookie = decodeURIComponent(cookieMatch[1]).trim();
+  return decodedCookie || null;
+}
+
+function readCookieCsrfToken(): string | null {
+  for (const cookieName of CSRF_COOKIE_NAMES) {
+    const cookieToken = readCookieValue(cookieName);
+
+    if (cookieToken) {
+      return cookieToken;
+    }
+  }
+
+  return null;
+}
+
+function rememberCsrfToken(nextToken: string | null | undefined): string {
+  const normalizedToken = nextToken?.trim() ?? '';
+
+  if (normalizedToken) {
+    csrfToken = normalizedToken;
+  }
+
+  return csrfToken;
+}
+
+function isMutatingRequest(requestConfig: InternalAxiosRequestConfig): boolean {
+  return MUTATING_METHODS.has((requestConfig.method ?? 'get').toLowerCase());
+}
+
 function isRefreshRequest(requestConfig: InternalAxiosRequestConfig | undefined): boolean {
   const url = requestConfig?.url ?? '';
   return url.includes(REFRESH_ENDPOINT_PATH);
+}
+
+async function bootstrapCsrfToken(): Promise<string> {
+  if (csrfToken) {
+    return csrfToken;
+  }
+
+  const cookieBackedToken = readCookieCsrfToken();
+
+  if (cookieBackedToken) {
+    csrfToken = cookieBackedToken;
+    return csrfToken;
+  }
+
+  if (!CSRF_BOOTSTRAP_ENDPOINT) {
+    return csrfToken;
+  }
+
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = api
+      .get(CSRF_BOOTSTRAP_ENDPOINT, {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+        atlasSkipAuthRefresh: true,
+        atlasSkipCsrfBootstrap: true,
+      } as RetriableRequestConfig)
+      .then((response) => {
+        rememberCsrfToken(
+          getHeaderValue(response.headers, 'x-csrf-token') ??
+            extractCsrfTokenFromPayload(response.data) ??
+            readCookieCsrfToken(),
+        );
+        return csrfToken || null;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfBootstrapPromise = null;
+      });
+  }
+
+  const nextToken = await csrfBootstrapPromise;
+  return nextToken ?? csrfToken;
 }
 
 async function runUnauthorizedHandler(): Promise<void> {
@@ -126,8 +253,9 @@ function normalizeApiError(error: unknown): ApiClientError {
   });
 }
 
-function applyRequestHeaders(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  const headers = AxiosHeaders.from(config.headers);
+async function applyRequestHeaders(config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> {
+  const requestConfig = config as RetriableRequestConfig;
+  const headers = AxiosHeaders.from(requestConfig.headers);
 
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -135,20 +263,26 @@ function applyRequestHeaders(config: InternalAxiosRequestConfig): InternalAxiosR
     headers.delete('Authorization');
   }
 
-  if (csrfToken && MUTATING_METHODS.has((config.method ?? 'get').toLowerCase())) {
-    headers.set('X-CSRF-Token', csrfToken);
+  if (isMutatingRequest(requestConfig)) {
+    if (!csrfToken && !requestConfig.atlasSkipCsrfBootstrap) {
+      await bootstrapCsrfToken();
+    }
+
+    if (csrfToken) {
+      headers.set(CSRF_HEADER_NAME, csrfToken);
+    }
   }
 
-  config.headers = headers;
-  return config;
+  requestConfig.headers = headers;
+  return requestConfig;
 }
 
 function captureResponseSessionHeaders(response: AxiosResponse): AxiosResponse {
-  const nextCsrfToken = getHeaderValue(response.headers, 'x-csrf-token');
-
-  if (nextCsrfToken) {
-    csrfToken = nextCsrfToken;
-  }
+  rememberCsrfToken(
+    getHeaderValue(response.headers, 'x-csrf-token') ??
+      extractCsrfTokenFromPayload(response.data) ??
+      readCookieCsrfToken(),
+  );
 
   return response;
 }
@@ -160,6 +294,7 @@ async function retryUnauthorizedRequest(error: AxiosError<ApiErrorResponse>): Pr
     error.response?.status !== 401 ||
     !requestConfig ||
     requestConfig._retry ||
+    requestConfig.atlasSkipAuthRefresh ||
     isRefreshRequest(requestConfig) ||
     !refreshAccessTokenHandler
   ) {
@@ -193,12 +328,13 @@ export const setAccessToken = (token: string): void => {
 export const getAccessToken = (): string => accessToken;
 
 export const setCsrfToken = (token: string): void => {
-  csrfToken = token.trim();
+  rememberCsrfToken(token);
 };
 
 export const clearApiSession = (): void => {
   accessToken = '';
   csrfToken = '';
+  csrfBootstrapPromise = null;
 };
 
 export const configureApiSessionHandlers = (handlers: ApiSessionLifecycleHandlers): void => {
