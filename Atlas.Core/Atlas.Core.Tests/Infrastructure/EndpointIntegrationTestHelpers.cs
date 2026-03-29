@@ -16,7 +16,12 @@ internal static class EndpointIntegrationTestHelpers
     {
         Assert.Equal(expectedStatusCode, (int)response.StatusCode);
         using var document = await ReadJsonAsync(response);
-        Assert.Equal(expectedCode, document.RootElement.GetProperty("error").GetProperty("code").GetString());
+        var error = document.RootElement.GetProperty("error");
+        Assert.Equal(expectedCode, error.GetProperty("code").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(error.GetProperty("message").GetString()));
+        Assert.True(error.TryGetProperty("details", out var details));
+        Assert.Equal(JsonValueKind.Array, details.ValueKind);
+        Assert.False(string.IsNullOrWhiteSpace(error.GetProperty("traceId").GetString()));
     }
 
     public static MultipartFormDataContent CreateAvatarContent(byte[] bytes, string fileName = "avatar.png", string contentType = "image/png")

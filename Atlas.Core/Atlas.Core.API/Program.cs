@@ -115,6 +115,19 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var httpContext = statusCodeContext.HttpContext;
+    if (!httpContext.Request.Path.StartsWithSegments("/api/core"))
+    {
+        return;
+    }
+
+    if (ApiErrorResponseWriter.TryMapStatusCode(httpContext.Response.StatusCode, out var code, out var message))
+    {
+        await ApiErrorResponseWriter.WriteAsync(httpContext, httpContext.Response.StatusCode, code, message);
+    }
+});
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();

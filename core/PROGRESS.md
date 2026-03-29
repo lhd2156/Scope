@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add proper error handling with try/catch and standard error responses
-## Last Updated: 2026-03-29T11:15:00Z
+## Current Task: Handle edge cases: empty inputs, unauthorized access, not found, duplicates
+## Last Updated: 2026-03-29T12:34:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -61,6 +61,9 @@
 - 2026-03-29T11:15:00Z closed the SignalR testing gap by adding authenticated negotiate integration coverage for TripHub, LocationHub, and NotificationHub so all three hub endpoints now prove real JWT-protected connection negotiation through the live ASP.NET Core pipeline
 - 2026-03-29T11:15:00Z expanded hub unit coverage for the remaining subject-claim fallback branches in LocationHub and NotificationHub, and serialized password-reset-ticket tests to eliminate static-state flakiness uncovered while rerunning the full suite in parallel
 - 2026-03-29T11:15:00Z reran Atlas.Core build/test after the hub test expansion and passed build (0 warnings, 0 errors) plus tests (136 passed, 0 failed)
+- 2026-03-29T12:34:00Z centralized API error-envelope writing, hardened ExceptionHandlingMiddleware for malformed HTTP/JSON payloads plus already-started responses, and added API status-code fallback handling so bare 401/404 framework responses now return the Atlas standard error JSON shape
+- 2026-03-29T12:34:00Z strengthened the shared HTTP integration helper to assert message/details/traceId on every error response and added targeted middleware + HTTP tests for unauthorized REST/hub negotiate requests, missing routes, malformed JSON, and internal exception handling branches
+- 2026-03-29T12:34:00Z reran Atlas.Core build/test after the error-handling hardening and passed build (0 warnings, 0 errors) plus tests (145 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -87,7 +90,7 @@
 - [x] Add unit tests until coverage exceeds 80%
 - [x] Write integration tests for every API endpoint (happy path + error cases)
 - [x] Add tests for all SignalR hubs
-- [ ] Add proper error handling with try/catch and standard error responses
+- [x] Add proper error handling with try/catch and standard error responses
 - [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 
 ### Phase 9: Performance & Observability
