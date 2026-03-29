@@ -24,11 +24,11 @@
 | Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
 | Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
-| Polish (Luster) | IN_PROGRESS | 1 - route transitions and reduced-motion-safe micro-animations | 2026-03-29T20:18:00Z |
+| Polish (Luster) | IN_PROGRESS | 2 - reusable skeleton loaders and empty states | 2026-03-29T20:36:00Z |
 
 ## Current Phase: Phase 10 UX Polish kick-off + external Terraform runtime gap
 ## Agents Running: polish
-## Last Updated: 2026-03-29T20:23:00Z
+## Last Updated: 2026-03-29T20:36:00Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -441,6 +441,10 @@
 - 2026-03-29T20:18:00Z: Logged orchestration lesson: scaffold missing canonical polish-agent files before spawning the Phase 10 track.
 - 2026-03-29T20:23:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. `polish/PROGRESS.md` is still at `NOT_STARTED`, but the active polish subagent is already running on task 1.
 - 2026-03-29T20:23:00Z: Checked active subagents before spawning and confirmed the in-flight polish child is still running, so heartbeat kept that worker instead of launching a duplicate Phase 10 run.
+- 2026-03-29T20:28:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. `polish/PROGRESS.md` has not advanced yet, but the active polish child is still in flight on task 1.
+- 2026-03-29T20:28:00Z: Checked active subagents before spawning and confirmed the same polish child is still running, so heartbeat kept that worker instead of launching a duplicate Phase 10 run.
+- 2026-03-29T20:36:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend remain COMPLETE. Polish task 1 is now complete and `polish/PROGRESS.md` has advanced to task 2.
+- 2026-03-29T20:36:00Z: Checked active subagents and confirmed no polish worker was still running after task 1 completion, then spawned a fresh LESSONS-aware polish subagent for task 2 instead of leaving Phase 10 idle.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
