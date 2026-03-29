@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add request/response logging middleware with duration tracking
-## Last Updated: 2026-03-29T13:50:00Z
+## Current Task: Add .AsNoTracking() to all read-only EF Core queries
+## Last Updated: 2026-03-29T14:01:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -76,6 +76,9 @@
 - 2026-03-29T13:50:00Z added ResponseCachingMiddleware with SHA-256 ETag generation for successful JSON GET responses on the core API, excluding health and SignalR endpoints, and returning `304 Not Modified` when `If-None-Match` matches the current representation
 - 2026-03-29T13:50:00Z configured safe private caching semantics for protected read endpoints (`Cache-Control: private, no-cache` and `Vary: Authorization`) so authenticated GET responses can use conditional revalidation without leaking across users or intermediaries
 - 2026-03-29T13:50:00Z added middleware-level and HTTP integration coverage for ETag emission, conditional 304 responses, ETag invalidation after unread-count changes, and health-endpoint exclusion; reran build/test and passed build (0 warnings, 0 errors) plus tests (164 passed, 0 failed)
+- 2026-03-29T14:01:00Z upgraded RequestLoggingMiddleware from a single completion log to true request/response logging: one safe request-start event and one response-complete event with structured method/path/status/duration plus content-type/content-length metadata, while preserving the existing correlation-id and trace-id enrichment
+- 2026-03-29T14:01:00Z expanded log-capture tests to assert both emitted Serilog events and their required structured properties (service, correlation, trace, method, path, status, duration, request metadata, and response metadata) so the architecture logging contract is enforced at test time
+- 2026-03-29T14:01:00Z reran Atlas.Core build/test after the request/response logging hardening and passed build (0 warnings, 0 errors) plus tests (164 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -109,7 +112,7 @@
 - [x] Add Serilog with JSON output and correlation ID enrichment
 - [x] Implement GET /api/core/health endpoint (checks DB + Kafka)
 - [x] Add response caching middleware for read endpoints (ETag support)
-- [ ] Add request/response logging middleware with duration tracking
+- [x] Add request/response logging middleware with duration tracking
 - [ ] Add .AsNoTracking() to all read-only EF Core queries
 - [ ] Configure connection pooling
 - [ ] Implement gzip/brotli response compression

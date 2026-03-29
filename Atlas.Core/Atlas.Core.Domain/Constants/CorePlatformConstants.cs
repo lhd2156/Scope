@@ -99,6 +99,15 @@ public static class CoreLogging
     public const string ServicePropertyName = "Service";
     public const string CorrelationIdHeaderName = "X-Correlation-Id";
     public const string CorrelationIdPropertyName = "CorrelationId";
+    public const string TraceIdPropertyName = "TraceId";
+    public const string MethodPropertyName = "Method";
+    public const string PathPropertyName = "Path";
+    public const string StatusCodePropertyName = "StatusCode";
+    public const string DurationMillisecondsPropertyName = "DurationMs";
+    public const string RequestContentTypePropertyName = "RequestContentType";
+    public const string RequestContentLengthPropertyName = "RequestContentLength";
+    public const string ResponseContentTypePropertyName = "ResponseContentType";
+    public const string ResponseContentLengthPropertyName = "ResponseContentLength";
     public const int MaxCorrelationIdLength = 128;
 }
 
