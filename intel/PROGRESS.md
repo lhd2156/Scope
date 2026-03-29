@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Run pip install -r requirements.txt and verify
-## Last Updated: 2026-03-29T08:57:20Z
+## Current Task: Run pytest and fix any failures
+## Last Updated: 2026-03-29T09:18:50Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -29,6 +29,7 @@
 - `requirements.txt` pins `scikit-learn==1.5.2`, which does not provide a ready wheel for the installed Python 3.14 runtime here, so validation remains environment-blocked without a compatible dependency refresh or Python 3.12/3.13 runtime
 - 2026-03-29: Audited all documented Intel endpoints against `atlas_architecture.tex`; aligned `/api/intel/health` to the bare health payload shape and added endpoint contract tests covering itinerary, recommendations, vibe match, route optimization, weather, and geocoding.
 - 2026-03-29: Bumped `atlas_intel/requirements.txt` from `scikit-learn==1.5.2` to `scikit-learn==1.8.0` so the Intel dependency set meets the Python 3.14 compatibility floor before reinstall/pytest validation.
+- 2026-03-29: Updated `atlas_intel/requirements.txt` to `confluent-kafka==2.13.2` and `numpy==2.4.3`, then ran `python -m pip install -r requirements.txt` successfully and verified Flask, SQLAlchemy, Marshmallow, PyJWT, Requests, scikit-learn, NumPy, and confluent-kafka imports under Python 3.14.3.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -41,7 +42,7 @@
 ### Phase 5: Recheck & Audit
 - [x] Re-read agents.md and verify every endpoint matches atlas_architecture.tex
 - [x] Fix scikit-learn version to >=1.6 for Python 3.14 compatibility
-- [ ] Run pip install -r requirements.txt and verify
+- [x] Run pip install -r requirements.txt and verify
 - [ ] Run pytest and fix any failures
 - [ ] Check for broken imports, TODO comments, hardcoded values
 

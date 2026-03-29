@@ -20,6 +20,7 @@
 - [2026-03-28] ❌ Pinned old pyodbc versions may fail on Python 3.14 → use latest
 - [2026-03-28] ⚠️ Always check Python package compatibility with 3.14 before pinning versions
 - [2026-03-29] ✅ `scikit-learn==1.8.0` is published for Python 3.14.3 on this workstation, so Atlas Intel can safely move off the incompatible `1.5.2` pin.
+- [2026-03-29] ✅ `numpy==2.4.3` and `confluent-kafka==2.13.2` install cleanly on this Windows/Python 3.14.3 workstation; older pins (`numpy==2.1.2`, `confluent-kafka==2.6.0`) fall back to source builds and fail without local compiler toolchains.
 - [2026-03-28] ✅ mssql-django works with Django 5.x on Python 3.14
 
 ## Build & Test Results
