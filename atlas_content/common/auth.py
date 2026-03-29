@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
-from django.contrib.auth.models import AnonymousUser
-from rest_framework import exceptions
-from rest_framework.authentication import BaseAuthentication
+import jwt
+from django.conf import settings
 
 
-@dataclass
+@dataclass(slots=True)
 class TokenUser:
     id: str
     email: str | None = None
@@ -22,13 +23,33 @@ class TokenUser:
         return False
 
 
-class RequestUserAuthentication(BaseAuthentication):
-    def authenticate(self, request):
-        if getattr(request._request, 'jwt_invalid', False):
-            raise exceptions.AuthenticationFailed('Invalid authentication token.')
+def extract_bearer_token(header_value: str | None) -> str | None:
+    if not header_value:
+        return None
+    scheme, _, credentials = header_value.partition(' ')
+    if scheme.lower() != 'bearer' or not credentials:
+        return None
+    return credentials.strip() or None
 
-        user = getattr(request._request, 'user', None)
-        if user is None or isinstance(user, AnonymousUser) or not getattr(user, 'is_authenticated', False):
-            return None
 
-        return (user, None)
+def decode_token(token: str) -> TokenUser:
+    payload = jwt.decode(
+        token,
+        settings.JWT_SECRET,
+        algorithms=['HS256'],
+        issuer=settings.JWT_ISSUER,
+        audience=settings.JWT_AUDIENCE,
+    )
+    return TokenUser(
+        id=payload['sub'],
+        email=payload.get('email'),
+        name=payload.get('name'),
+        roles=payload.get('roles', []),
+    )
+
+
+def authenticate_authorization_header(header_value: str | None) -> TokenUser | None:
+    token = extract_bearer_token(header_value)
+    if token is None:
+        return None
+    return decode_token(token)
