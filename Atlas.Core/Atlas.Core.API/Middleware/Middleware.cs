@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Exceptions;
@@ -82,6 +83,84 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         }, context.Response);
 
         await next(context);
+    }
+}
+
+public sealed class ResponseCachingMiddleware(RequestDelegate next)
+{
+    private static readonly PathString ApiPrefix = new("/api/core");
+    private static readonly PathString HealthPath = new("/api/core/health");
+    private static readonly PathString HubPrefix = new("/api/core/hubs");
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        if (!IsEligibleRequest(context.Request))
+        {
+            await next(context);
+            return;
+        }
+
+        var originalBody = context.Response.Body;
+        await using var bufferedBody = new MemoryStream();
+        context.Response.Body = bufferedBody;
+
+        try
+        {
+            await next(context);
+
+            if (!IsEligibleResponse(context.Response, bufferedBody))
+            {
+                bufferedBody.Position = 0;
+                await bufferedBody.CopyToAsync(originalBody, context.RequestAborted);
+                return;
+            }
+
+            var bodyBytes = bufferedBody.ToArray();
+            var entityTag = BuildEntityTag(bodyBytes);
+            context.Response.Headers[CoreCaching.EntityTagHeaderName] = entityTag;
+            context.Response.Headers[CoreCaching.CacheControlHeaderName] = CoreCaching.CacheControlValue;
+            context.Response.Headers[CoreCaching.VaryHeaderName] = CoreCaching.VaryAuthorizationValue;
+
+            if (HasMatchingEntityTag(context.Request.Headers[CoreCaching.IfNoneMatchHeaderName].ToString(), entityTag))
+            {
+                context.Response.StatusCode = StatusCodes.Status304NotModified;
+                context.Response.ContentLength = 0;
+                context.Response.ContentType = null;
+                return;
+            }
+
+            bufferedBody.Position = 0;
+            await bufferedBody.CopyToAsync(originalBody, context.RequestAborted);
+        }
+        finally
+        {
+            context.Response.Body = originalBody;
+        }
+    }
+
+    private static bool IsEligibleRequest(HttpRequest request)
+        => HttpMethods.IsGet(request.Method)
+           && request.Path.StartsWithSegments(ApiPrefix)
+           && !request.Path.StartsWithSegments(HealthPath)
+           && !request.Path.StartsWithSegments(HubPrefix);
+
+    private static bool IsEligibleResponse(HttpResponse response, MemoryStream bufferedBody)
+        => response.StatusCode == StatusCodes.Status200OK
+           && bufferedBody.Length > 0
+           && response.ContentType?.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string BuildEntityTag(byte[] bodyBytes)
+        => $"\"{Convert.ToHexString(SHA256.HashData(bodyBytes))}\"";
+
+    private static bool HasMatchingEntityTag(string headerValue, string entityTag)
+    {
+        if (string.IsNullOrWhiteSpace(headerValue))
+        {
+            return false;
+        }
+
+        return headerValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(candidate => candidate == "*" || string.Equals(candidate, entityTag, StringComparison.Ordinal));
     }
 }
 

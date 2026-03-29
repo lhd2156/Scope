@@ -101,3 +101,13 @@ public static class CoreLogging
     public const string CorrelationIdPropertyName = "CorrelationId";
     public const int MaxCorrelationIdLength = 128;
 }
+
+public static class CoreCaching
+{
+    public const string EntityTagHeaderName = "ETag";
+    public const string IfNoneMatchHeaderName = "If-None-Match";
+    public const string CacheControlHeaderName = "Cache-Control";
+    public const string CacheControlValue = "private, no-cache";
+    public const string VaryHeaderName = "Vary";
+    public const string VaryAuthorizationValue = "Authorization";
+}

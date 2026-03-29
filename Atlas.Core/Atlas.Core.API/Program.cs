@@ -129,6 +129,7 @@ app.UseStatusCodePages(async statusCodeContext =>
         await ApiErrorResponseWriter.WriteAsync(httpContext, httpContext.Response.StatusCode, code, message);
     }
 });
+app.UseMiddleware<ResponseCachingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();
