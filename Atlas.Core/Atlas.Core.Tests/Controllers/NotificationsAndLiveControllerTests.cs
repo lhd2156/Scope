@@ -177,17 +177,13 @@ public sealed class LiveSessionControllerTests
 public sealed class HealthControllerTests
 {
     [Fact]
-    public async Task Get_ReturnsHealthyWhenDatabaseAndKafkaAreConfigured()
+    public async Task Get_ReturnsHealthyWhenDatabaseAndKafkaChecksSucceed()
     {
         await using var dbContext = TestSupport.CreateDbContext();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [CoreConfigurationKeys.KafkaBootstrapServers] = "localhost:9092"
-            })
-            .Build();
+        var kafkaHealthCheck = new Mock<IKafkaHealthCheckService>();
+        kafkaHealthCheck.Setup(x => x.IsHealthyAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
-        var controller = new HealthController(dbContext, configuration);
+        var controller = new HealthController(dbContext, kafkaHealthCheck.Object);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -197,11 +193,12 @@ public sealed class HealthControllerTests
     }
 
     [Fact]
-    public async Task Get_ReturnsDegradedWhenKafkaConfigurationIsMissing()
+    public async Task Get_ReturnsDegradedWhenKafkaCheckFails()
     {
         await using var dbContext = TestSupport.CreateDbContext();
-        var configuration = new ConfigurationBuilder().Build();
-        var controller = new HealthController(dbContext, configuration);
+        var kafkaHealthCheck = new Mock<IKafkaHealthCheckService>();
+        kafkaHealthCheck.Setup(x => x.IsHealthyAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var controller = new HealthController(dbContext, kafkaHealthCheck.Object);
 
         var result = await controller.Get(CancellationToken.None);
 

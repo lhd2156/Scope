@@ -19,6 +19,11 @@ public interface IKafkaProducerService
     Task PublishAsync(string topic, object payload, CancellationToken cancellationToken = default);
 }
 
+public interface IKafkaHealthCheckService
+{
+    Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default);
+}
+
 public interface IAvatarStorageService
 {
     Task<string> SaveAvatarAsync(Guid userId, string fileName, string contentType, Stream content, CancellationToken cancellationToken = default);

@@ -62,6 +62,7 @@ builder.Services.AddDbContext<CoreDbContext>(options =>
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IKafkaProducerService, KafkaProducerService>();
+builder.Services.AddScoped<IKafkaHealthCheckService, KafkaHealthCheckService>();
 builder.Services.AddScoped<IAvatarStorageService, S3Service>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 

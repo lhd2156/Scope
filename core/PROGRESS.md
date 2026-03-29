@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Implement GET /api/core/health endpoint (checks DB + Kafka)
-## Last Updated: 2026-03-29T13:04:00Z
+## Current Task: Add response caching middleware for read endpoints (ETag support)
+## Last Updated: 2026-03-29T13:31:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -70,6 +70,9 @@
 - 2026-03-29T13:04:00Z refactored Serilog startup into a shared core logging configuration that keeps compact JSON console output while adding service-name enrichment plus `Enrich.FromLogContext()` for request-scoped structured properties
 - 2026-03-29T13:04:00Z upgraded RequestLoggingMiddleware to preserve or generate `X-Correlation-Id`, align `HttpContext.TraceIdentifier` with that correlation ID, and enrich request logs with structured `CorrelationId` and `TraceId` properties so API headers, error envelopes, and logs share the same request identifier
 - 2026-03-29T13:04:00Z added unit tests that capture real Serilog events plus HTTP integration tests for correlation-id header propagation/generation on success, unauthorized REST, and unauthorized hub negotiate responses; reran build/test and passed build (0 warnings, 0 errors) plus tests (159 passed, 0 failed)
+- 2026-03-29T13:31:00Z replaced the placeholder Kafka-configured health check with a real broker probe via IKafkaHealthCheckService + Confluent AdminClient metadata lookup, while keeping the existing DB connectivity check and short per-dependency health timeouts
+- 2026-03-29T13:31:00Z updated the health endpoint/controller and WebApplicationFactory hooks so health integration tests can deterministically verify both healthy and degraded outcomes without requiring a live Kafka broker in the test environment
+- 2026-03-29T13:31:00Z reran Atlas.Core build/test after the health endpoint hardening and passed build (0 warnings, 0 errors) plus tests (159 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -101,7 +104,7 @@
 
 ### Phase 9: Performance & Observability
 - [x] Add Serilog with JSON output and correlation ID enrichment
-- [ ] Implement GET /api/core/health endpoint (checks DB + Kafka)
+- [x] Implement GET /api/core/health endpoint (checks DB + Kafka)
 - [ ] Add response caching middleware for read endpoints (ETag support)
 - [ ] Add request/response logging middleware with duration tracking
 - [ ] Add .AsNoTracking() to all read-only EF Core queries
