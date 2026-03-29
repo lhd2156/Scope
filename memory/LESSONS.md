@@ -148,6 +148,7 @@
 - [2026-03-29] ⚠️ Once all canonical service `PROGRESS.md` files are COMPLETE, heartbeat should stop respawning workers entirely and transition immediately into lead-owned Phase 4 integration work; confirm no lingering `openclaw.mjs agent` nodes remain, then update the lead dashboard and Telegram status accordingly.
 - [2026-03-29] ⚠️ After the all-services-complete transition, don’t stop at a generic “Phase 4 kickoff” note — audit the concrete integration assets immediately (`docker-compose.yml` app services, `.github/workflows/`, `k8s/`, `terraform/`, and Playwright config) so the next lead task is grounded in actual repo gaps.
 - [2026-03-29] ⚠️ During Phase 4, audit `.env.example` against the variables the services actually read before assuming compose wiring is wrong — this repo had drifted (`DEBUG`/`ALLOWED_HOSTS`/`FRONTEND_ORIGIN`/`FLASK_ENV`/`CORE_DB_CONNECTION`/frontend Vite vars), and aligning the env contract was necessary to make the full-stack compose wiring coherent.
+- [2026-03-29] ⚠️ The GitHub Actions job for `atlas_content` needs `unixodbc-dev` installed on Ubuntu before pip-installing Django’s SQL Server stack; otherwise CI can fail even when local Windows/Python validation looks fine.
 
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 

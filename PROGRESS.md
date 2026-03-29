@@ -13,7 +13,7 @@
 - [ ] Phase 8: Documentation & Deployment Prep — README with setup instructions, API docs for all endpoints, docker-compose full-stack smoke test, environment configs, deployment scripts
 - [x] Phase 9: Performance & Observability — complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility — route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
-- [ ] Phase 11: Infrastructure Hardening — Kubernetes manifests (7 files), Terraform IaC (5 files), CI/CD pipelines, Dependabot, and deployment hardening remain after full docker-compose app wiring
+- [ ] Phase 11: Infrastructure Hardening — Kubernetes manifests (7 files), Terraform IaC (5 files), deployment workflow, and deployment hardening remain after docker-compose app wiring, CI automation, and Dependabot setup
 - [x] Phase 12: Final Boss Recheck 🏁 — complete across Core, Content, Intel, and Frontend
 
 ## Agent Status Dashboard
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, and Playwright E2E critical-flow scaffold are in place; seed data, deployment docs, and infra manifests remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, and Dependabot automation are in place; seed data, deployment docs, deploy workflow, and infra manifests remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T17:53:00Z
+## Last Updated: 2026-03-29T18:11:48.0758390Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -379,6 +379,10 @@
 - 2026-03-29T17:45:20.6273541Z: Aligned `.env.example` with the runtime keys the services actually read (`DEBUG`, `ALLOWED_HOSTS`, `FRONTEND_ORIGIN`, `FLASK_ENV`, `CORE_DB_CONNECTION`, frontend Vite vars, and `CONTENT_SERVICE_URL`) so the compose wiring has a coherent local contract.
 - 2026-03-29T17:45:20.6273541Z: Validation: `docker compose config` ✅. Remaining lead-owned integration gaps are CI/CD workflows, Playwright E2E scaffolding, k8s/Terraform manifests, seed data, and deployment documentation.
 - 2026-03-29T17:46:59.7597959Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the new Phase 4 milestone: full-stack docker-compose app wiring is in place and validated, while CI/CD, Playwright, k8s/Terraform, seed data, and deployment docs remain.
+- 2026-03-29T18:10:24.4446822Z: Added `.github/workflows/ci.yml` for compose validation plus per-service build/test jobs (Core/.NET, Content/Django, Intel/Flask, Frontend/Vue) and added `.github/dependabot.yml` for weekly GitHub Actions, NuGet, pip, npm, and Docker dependency updates.
+- 2026-03-29T18:10:24.4446822Z: CI integration details: the workflow now validates `docker compose config`, injects safe CI env defaults, and installs `unixodbc-dev` before Content dependency installation so `mssql-django` environments can resolve cleanly on Ubuntu runners.
+- 2026-03-29T18:10:24.4446822Z: Remaining lead-owned integration gaps are Playwright critical-flow test implementation/validation, seed data, deployment docs, deploy workflow, and k8s/Terraform manifests.
+- 2026-03-29T18:11:48.0758390Z: Validation: `npx --yes yaml@2 valid .github/workflows/ci.yml` ✅ after the final CI workflow and Dependabot updates.
 - 2026-03-29T17:47:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T17:47:00Z: Completed the next lead-owned Phase 4 integration milestone by adding `.github/workflows/ci.yml`, a multi-job GitHub Actions workflow that restores/builds/tests Core, Content, Intel, and Frontend with service-specific CI environment variables.
 - 2026-03-29T17:47:00Z: Validation: `.github/workflows/ci.yml` parsed successfully via `npx --yes yaml@2 valid`. Remaining Phase 4 gaps are Playwright E2E scaffolding, seed data, deployment documentation, and infra manifests/IaC.

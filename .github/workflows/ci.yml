@@ -1,26 +1,50 @@
 name: Atlas CI
 
 on:
+  pull_request:
   push:
     branches:
       - main
       - develop
       - 'feature/**'
-  pull_request:
-  workflow_dispatch:
+
+concurrency:
+  group: atlas-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: atlas-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  core:
-    name: Core (.NET)
+  compose-validate:
+    name: Validate docker-compose
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    env:
+      ACCEPT_EULA: Y
+      SA_PASSWORD: Atlas_Dev_2026!
+      CORE_JWT_SECRET: ci-core-jwt-secret-please-change
+      CORE_JWT_ISSUER: atlas-core
+      CORE_JWT_AUDIENCE: atlas-frontend
+      DJANGO_SECRET_KEY: ci-django-secret-key
+      DJANGO_DEBUG: 'true'
+      FLASK_SECRET_KEY: ci-flask-secret-key
+      FLASK_ENV: development
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AWS_REGION: us-east-1
+      AWS_S3_BUCKET: atlas-photos-ci
+      VITE_MAPBOX_TOKEN: pk.test-ci-token
+      VITE_API_BASE_URL: /
+      VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate compose config
+        run: docker compose config > /tmp/atlas-compose.yaml
+
+  core:
+    name: Core build and test
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Atlas.Core
@@ -28,7 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
@@ -40,71 +64,76 @@ jobs:
         run: dotnet build Atlas.Core.sln --configuration Release --no-restore
 
       - name: Test
+        env:
+          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
+          CORE_JWT_ISSUER: atlas-core
+          CORE_JWT_AUDIENCE: atlas-frontend
+          SQL_SA_PASSWORD: Atlas_Dev_2026!
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: dotnet test Atlas.Core.sln --configuration Release --no-build
 
   content:
-    name: Content (Django)
+    name: Content checks and tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     defaults:
       run:
         working-directory: atlas_content
-    env:
-      DJANGO_SECRET_KEY: atlas-ci-django-secret
-      DEBUG: "false"
-      ALLOWED_HOSTS: localhost,127.0.0.1
-      FRONTEND_ORIGIN: http://localhost:5173
-      DEVELOPMENT_FRONTEND_ORIGIN: http://localhost:5173
-      CORE_JWT_SECRET: atlas-ci-core-jwt-secret
-      CORE_JWT_ISSUER: atlas-core
-      CORE_JWT_AUDIENCE: atlas-frontend
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_REGION: us-east-1
-      AWS_S3_BUCKET: atlas-ci
-      KAFKA_ENABLED: "false"
-      DJANGO_CACHE_BACKEND: django.core.cache.backends.locmem.LocMemCache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.14
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
           cache: pip
           cache-dependency-path: atlas_content/requirements.txt
 
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unixodbc-dev
+
       - name: Install dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
       - name: Django system check
+        env:
+          DJANGO_SECRET_KEY: ci-django-secret-key
+          DEBUG: 'true'
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          FRONTEND_ORIGIN: http://localhost:5173
+          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
+          CORE_JWT_ISSUER: atlas-core
+          CORE_JWT_AUDIENCE: atlas-frontend
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_ENABLED: 'false'
         run: python manage.py check
 
-      - name: Test
-        run: python -m pytest
+      - name: Pytest
+        env:
+          DJANGO_SECRET_KEY: ci-django-secret-key
+          DEBUG: 'true'
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          FRONTEND_ORIGIN: http://localhost:5173
+          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
+          CORE_JWT_ISSUER: atlas-core
+          CORE_JWT_AUDIENCE: atlas-frontend
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_ENABLED: 'false'
+        run: pytest
 
   intel:
-    name: Intel (Flask)
+    name: Intel tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     defaults:
       run:
         working-directory: atlas_intel
-    env:
-      FLASK_SECRET_KEY: atlas-ci-flask-secret
-      CORE_JWT_SECRET: atlas-ci-core-jwt-secret
-      CORE_JWT_ISSUER: atlas-core
-      CORE_JWT_AUDIENCE: atlas-frontend
-      FRONTEND_ORIGIN: http://localhost:5173
-      FLASK_DATABASE_URL: sqlite:///atlas_intel_ci.db
-      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-      CONTENT_SERVICE_URL: http://localhost:8000/api/content
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.14
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
@@ -114,25 +143,29 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
-      - name: Test
-        run: python -m pytest tests
+      - name: Pytest
+        env:
+          FLASK_ENV: development
+          FLASK_SECRET_KEY: ci-flask-secret-key
+          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
+          CORE_JWT_ISSUER: atlas-core
+          CORE_JWT_AUDIENCE: atlas-frontend
+          FRONTEND_ORIGIN: http://localhost:5173
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          CONTENT_SERVICE_URL: http://localhost:8000/api/content
+        run: pytest
 
   frontend:
-    name: Frontend (Vue)
+    name: Frontend build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     defaults:
       run:
         working-directory: atlas-frontend
-    env:
-      VITE_MAPBOX_TOKEN: pk.test-token
-      VITE_API_BASE_URL: /
-      VITE_ENABLE_AUTH_MOCK_FALLBACK: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 24
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -143,7 +176,15 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_API_BASE_URL: /
+          VITE_MAPBOX_TOKEN: pk.test-ci-token
+          VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
         run: npm run build
 
-      - name: Test
+      - name: Unit tests
+        env:
+          VITE_API_BASE_URL: /
+          VITE_MAPBOX_TOKEN: pk.test-ci-token
+          VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
         run: npm run test
