@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Write integration tests for every API endpoint (happy path + error cases)
-## Last Updated: 2026-03-29T11:49:11Z
+## Current Task: Add proper error handling with Flask error handlers
+## Last Updated: 2026-03-29T12:16:15Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -38,6 +38,7 @@
 - 2026-03-29: Added strict Intel CORS via `flask-cors`, pinned `Flask-Cors==6.0.2`, allowed only the configured frontend origin in production plus `http://localhost:5173` in development/test, required credentials, added preflight/error-response CORS tests, and re-ran the full Intel suite successfully (`44 passed`).
 - 2026-03-29: Audited the Intel data layer for raw SQL, confirmed repository access stays on SQLAlchemy model/query APIs, added an AST-based guard test that rejects `execute()`, `text()`, cursors, and literal SQL statements across `app/`, and re-ran the full Intel suite successfully (`46 passed`).
 - 2026-03-29: Added Kafka/ML coverage tests plus an entrypoint smoke test, re-ran the suite successfully (`54 passed`), and measured Intel Python line coverage at 100.0% across `app/`, `config.py`, and `app.py` using the standard-library `trace` module (no new coverage dependency required).
+- 2026-03-29: Added a dedicated endpoint integration suite with an explicit happy path and error path for every Intel endpoint (health, itinerary create/fetch, recommendations, vibe match, route optimize, weather, geocode, reverse-geocode), which also deepened itinerary/recommendation/vibe coverage; full Intel pytest suite now passes at `74 passed`.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -63,8 +64,8 @@
 
 ### Phase 7: Test Coverage
 - [x] Add pytest tests until coverage exceeds 80%
-- [ ] Write integration tests for every API endpoint (happy path + error cases)
-- [ ] Add tests for itinerary, recommendations, vibe matcher
+- [x] Write integration tests for every API endpoint (happy path + error cases)
+- [x] Add tests for itinerary, recommendations, vibe matcher
 - [ ] Add proper error handling with Flask error handlers
 - [ ] Handle edge cases: empty inputs, unauthorized access, invalid coordinates
 
