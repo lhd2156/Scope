@@ -42,6 +42,44 @@ jobs:
       - name: Validate compose config
         run: docker compose config > /tmp/atlas-compose.yaml
 
+  infrastructure-validate:
+    name: Validate infrastructure assets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Validate YAML assets
+        run: |
+          for file in k8s/*.yaml .github/workflows/ci.yml .github/workflows/deploy.yml; do
+            npx --yes yaml@2 valid "$file"
+          done
+
+      - name: Terraform fmt check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
+
   core:
     name: Core build and test
     runs-on: ubuntu-latest

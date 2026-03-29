@@ -30,4 +30,10 @@ terraform plan `
 
 ## Current validation status
 
-The Terraform binary is not installed on the current heartbeat host, so this baseline was authored as static IaC and reviewed for consistency with the existing Kubernetes/docker-compose topology, but it was **not** validated with `terraform fmt`, `terraform validate`, or `terraform plan` on this machine.
+The Terraform binary is not installed on the current heartbeat host, so this baseline was authored and reviewed as static IaC on this machine. The repository CI now performs:
+
+- `terraform fmt -check -recursive`
+- `terraform init -backend=false`
+- `terraform validate`
+
+What still remains unresolved is **runtime** validation against a real AWS account (`terraform plan` / apply-time verification with real credentials, networking, quotas, and naming constraints).
