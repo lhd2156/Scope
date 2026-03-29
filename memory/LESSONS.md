@@ -36,6 +36,7 @@
 - [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
 - [2026-03-29] ⚠️ Atlas Intel auth should read `JWT_SECRET`/issuer/audience from `app.config`, not module-level fallback secrets; make `create_app()` fail fast when `FLASK_SECRET_KEY` or `CORE_JWT_SECRET` is missing and inject explicit test secrets in pytest fixtures.
 - [2026-03-29] ✅ Atlas Intel route-level rate limiting is easiest to verify by marking the decorator wrapper (for coverage across `app.url_map`) and adding one `429` test that asserts the `Retry-After` header from a low-limit test app.
+- [2026-03-29] ⚠️ When Marshmallow validates nested request bodies (like route-optimizer spot lists), flatten `ValidationError.messages` into dot/bracket paths such as `spots[0].longitude`; otherwise generic `", ".join(...)` formatting breaks or loses nested field context.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -50,6 +51,7 @@
 - [2026-03-29] ⚠️ In this frontend dependency set, `useDebounceFn()` should not be assumed to expose a usable `.cancel()` method at runtime; for critical input flows like `SearchBar`, prefer explicit timeout cleanup or verify the helper API before calling `cancel()`.
 - [2026-03-29] ⚠️ When page tests depend on store error banners, plain-object mocked stores are not reactive enough for “set error after mount” assertions; seed the error state before mount or wrap the mock in a reactive store-shaped object.
 - [2026-03-29] ⚠️ Keep auth-service mock fallback opt-in only (`VITE_ENABLE_AUTH_MOCK_FALLBACK=true`); silent login/register fallback hides real network-failure and expired-session bugs during frontend hardening.
+- [2026-03-29] ⚠️ For Vue Router lazy-load verification, `router.getRoutes()` exposes the wrapped route view as `route.components.default`; `defineAsyncComponent` wrappers can be asserted there via the internal `__asyncLoader` property without mounting every page.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -91,6 +93,7 @@
 - [2026-03-29] ⚠️ Lead progress can say an agent is "running" even after that worker process exits; verify the actual `openclaw.mjs agent --session-id ...` process is still alive before you skip a needed respawn.
 - [2026-03-29] ⚠️ A background `openclaw agent` exec can linger as a live `node.exe` even after `process log` shows a completed payload with `"stopReason": "stop"`; treat that as a stale worker, kill it, and relaunch with a fresh session ID instead of assuming it is still making progress.
 - [2026-03-29] ⚠️ If a lone surviving worker has been alive for a long time but its latest payload only reports the *previous* checklist item while the canonical `PROGRESS.md` has not advanced further, treat it as stuck-after-handoff and respawn it instead of preserving it indefinitely.
+- [2026-03-29] ⚠️ If Frontend self-advances into Phase 9 while Phase 4 integration is still pending and the backends are still in Phases 6-7, flag the widened sequencing drift explicitly in lead progress/Telegram and keep respawning lagging services from their first unchecked canonical task instead of following Frontend deeper.
 
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 
