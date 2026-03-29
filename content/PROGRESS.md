@@ -1,6 +1,6 @@
 # Content Engine Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
 ## Tasks
 - [x] 1. Scaffold Django project and settings
@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: COMPLETE
-## Last Updated: 2026-03-29T02:54:00Z
+## Current Task: Phase 5 - Run pip install -r requirements.txt and python manage.py check
+## Last Updated: 2026-03-29T03:01:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -36,6 +36,7 @@
 - `python atlas_content/manage.py makemigrations` reported `No changes detected`
 - Added DRF JWT authentication support so authenticated API requests use the shared Core bearer token inside Django REST Framework
 - `python -m pytest atlas_content/` initially failed with 4 auth/permission regressions, then passed after the JWT auth fix (`6 passed`)
+- Re-audited Section 6.2 endpoints against atlas_architecture.tex and normalized `/api/content/health` to the documented bare JSON contract (`status`, `version`, `uptime`)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -44,3 +45,42 @@
 - Node.js: 24.14.0 — available
 - npm: 11.9.0 — available
 - ALL RUNTIMES ARE INSTALLED. Do NOT report "no runtime" as a blocker.
+
+### Phase 5: Recheck & Audit
+- [x] Re-read agents.md and verify every endpoint matches atlas_architecture.tex
+- [ ] Run pip install -r requirements.txt and python manage.py check
+- [ ] Run pytest and fix any failures
+- [ ] Check for broken imports, TODO comments, hardcoded values
+
+### Phase 6: Security Hardening
+- [ ] Add Django rate limiting middleware to ALL API endpoints
+- [ ] Add input validation on ALL request bodies (max lengths, type checking)
+- [ ] Verify JWT auth middleware is enforced on all protected endpoints
+- [ ] Add CORS configuration via django-cors-headers
+- [ ] Verify parameterized queries (ORM-only, no raw SQL)
+- [ ] Add Content-Security-Policy header
+
+### Phase 7: Test Coverage
+- [ ] Add pytest tests until coverage exceeds 80%
+- [ ] Write integration tests for every API endpoint (happy path + error cases)
+- [ ] Add tests for spots, trips, photos, reviews, feed
+- [ ] Add proper error handling with DRF exception handler
+- [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
+
+### Phase 9: Performance & Observability
+- [ ] Add python-json-logger structured logging with correlation ID
+- [ ] Implement GET /api/content/health endpoint (checks DB + S3)
+- [ ] Add select_related()/prefetch_related() to prevent N+1 queries
+- [ ] Add Django cache framework for spots and feed responses
+- [ ] Add ETag support for spot detail and trip detail endpoints
+- [ ] Add cursor-based pagination for feed endpoint
+
+### Phase 12: Final Boss Recheck
+- [ ] Re-verify every endpoint matches atlas_architecture.tex spec
+- [ ] Run full build and all tests — fix any failures
+- [ ] Verify API response formats match Appendix B exactly
+- [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
+- [ ] Verify all Kafka producers fire correct events
+- [ ] Verify Django Admin is properly configured
+- [ ] Clean up bootstrap_content_append*.py files if not needed
+
