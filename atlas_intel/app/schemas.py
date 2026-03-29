@@ -4,15 +4,27 @@ MAX_INTERESTS = 10
 MAX_RECOMMENDATION_LIMIT = 20
 MAX_ROUTE_SPOTS = 50
 PACE_CHOICES = ("relaxed", "moderate", "packed")
+QUERY_REQUIRED_ERROR = "Missing required query parameter"
+LATITUDE_RANGE = validate.Range(min=-90, max=90)
+LONGITUDE_RANGE = validate.Range(min=-180, max=180)
+
+
+def _not_blank(value: str) -> None:
+    if not value.strip():
+        raise ValidationError("Field cannot be blank")
+
+
+def _non_blank_string(min_length: int, max_length: int):
+    return validate.And(_not_blank, validate.Length(min=min_length, max=max_length))
 
 
 class ItineraryRequestSchema(Schema):
-    destination = fields.String(required=True, validate=validate.Length(min=2, max=255))
+    destination = fields.String(required=True, validate=_non_blank_string(2, 255))
     startDate = fields.Date(required=True)
     endDate = fields.Date(required=True)
     budget = fields.Float(required=True, validate=validate.Range(min=0))
     interests = fields.List(
-        fields.String(validate=validate.Length(min=1, max=50)),
+        fields.String(validate=_non_blank_string(1, 50)),
         required=True,
         validate=validate.Length(min=1, max=MAX_INTERESTS),
     )
@@ -26,14 +38,14 @@ class ItineraryRequestSchema(Schema):
 
 
 class RecommendationRequestSchema(Schema):
-    userId = fields.String(required=True, validate=validate.Length(min=1, max=64))
+    userId = fields.String(required=True, validate=_non_blank_string(1, 64))
     likedSpotIds = fields.List(
-        fields.String(validate=validate.Length(min=1, max=64)),
+        fields.String(validate=_non_blank_string(1, 64)),
         load_default=[],
         validate=validate.Length(max=MAX_RECOMMENDATION_LIMIT),
     )
     interests = fields.List(
-        fields.String(validate=validate.Length(min=1, max=50)),
+        fields.String(validate=_non_blank_string(1, 50)),
         load_default=[],
         validate=validate.Length(max=MAX_INTERESTS),
     )
@@ -45,20 +57,20 @@ class SimilarRecommendationRequestSchema(Schema):
 
 
 class VibeMatchRequestSchema(Schema):
-    description = fields.String(required=True, validate=validate.Length(min=5, max=500))
+    description = fields.String(required=True, validate=_non_blank_string(5, 500))
     limit = fields.Integer(load_default=5, validate=validate.Range(min=1, max=MAX_RECOMMENDATION_LIMIT))
 
 
 class RouteSpotSchema(Schema):
-    spotId = fields.String(required=True, validate=validate.Length(min=1, max=64))
-    latitude = fields.Float(required=True, validate=validate.Range(min=-90, max=90))
-    longitude = fields.Float(required=True, validate=validate.Range(min=-180, max=180))
+    spotId = fields.String(required=True, validate=_non_blank_string(1, 64))
+    latitude = fields.Float(required=True, validate=LATITUDE_RANGE)
+    longitude = fields.Float(required=True, validate=LONGITUDE_RANGE)
 
 
 class RouteOptimizeRequestSchema(Schema):
     spots = fields.List(fields.Nested(RouteSpotSchema), required=True, validate=validate.Length(min=1, max=MAX_ROUTE_SPOTS))
-    startLat = fields.Float(load_default=None, allow_none=True, validate=validate.Range(min=-90, max=90))
-    startLng = fields.Float(load_default=None, allow_none=True, validate=validate.Range(min=-180, max=180))
+    startLat = fields.Float(load_default=None, allow_none=True, validate=LATITUDE_RANGE)
+    startLng = fields.Float(load_default=None, allow_none=True, validate=LONGITUDE_RANGE)
 
     @validates_schema
     def validate_start_coordinates(self, data, **kwargs):
@@ -66,3 +78,18 @@ class RouteOptimizeRequestSchema(Schema):
         has_start_lng = data.get("startLng") is not None
         if has_start_lat != has_start_lng:
             raise ValidationError({"startLng": ["startLat and startLng must be provided together"]})
+
+
+class WeatherQuerySchema(Schema):
+    lat = fields.Float(required=True, validate=LATITUDE_RANGE, error_messages={"required": QUERY_REQUIRED_ERROR})
+    lng = fields.Float(required=True, validate=LONGITUDE_RANGE, error_messages={"required": QUERY_REQUIRED_ERROR})
+    date = fields.Date(required=True, error_messages={"required": QUERY_REQUIRED_ERROR})
+
+
+class GeocodeQuerySchema(Schema):
+    q = fields.String(required=True, validate=_non_blank_string(2, 255), error_messages={"required": QUERY_REQUIRED_ERROR})
+
+
+class ReverseGeocodeQuerySchema(Schema):
+    lat = fields.Float(required=True, validate=LATITUDE_RANGE, error_messages={"required": QUERY_REQUIRED_ERROR})
+    lng = fields.Float(required=True, validate=LONGITUDE_RANGE, error_messages={"required": QUERY_REQUIRED_ERROR})

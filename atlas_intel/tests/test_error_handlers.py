@@ -33,7 +33,7 @@ def test_error_handler_returns_json_for_invalid_query_value(client, auth_header)
     error = response.get_json()["error"]
     assert error["code"] == "VALIDATION_ERROR"
     assert error["message"] == "Invalid input data"
-    assert error["details"] == [{"field": "_schema", "message": "Invalid isoformat string: 'not-a-date'"}]
+    assert error["details"] == [{"field": "date", "message": "Not a valid date."}]
 
 
 def test_error_handler_returns_json_for_method_not_allowed(client):

@@ -16,8 +16,8 @@
 - [x] 11. Add pytest tests for recommendations
 - [x] 12. Add Dockerfile
 
-## Current Task: Handle edge cases: empty inputs, unauthorized access, invalid coordinates
-## Last Updated: 2026-03-29T12:30:35Z
+## Current Task: Add python-json-logger structured logging with correlation ID
+## Last Updated: 2026-03-29T12:52:26Z
 
 ## Log
 - Full Intel API built on feature/intel-api with 12 milestone commits
@@ -40,6 +40,7 @@
 - 2026-03-29: Added Kafka/ML coverage tests plus an entrypoint smoke test, re-ran the suite successfully (`54 passed`), and measured Intel Python line coverage at 100.0% across `app/`, `config.py`, and `app.py` using the standard-library `trace` module (no new coverage dependency required).
 - 2026-03-29: Added a dedicated endpoint integration suite with an explicit happy path and error path for every Intel endpoint (health, itinerary create/fetch, recommendations, vibe match, route optimize, weather, geocode, reverse-geocode), which also deepened itinerary/recommendation/vibe coverage; full Intel pytest suite now passes at `74 passed`.
 - 2026-03-29: Expanded Flask error handling to normalize malformed JSON, missing query parameters, invalid query-value conversions, method-not-allowed responses, and unexpected exceptions into the Atlas error envelope; added dedicated error-handler tests and re-ran the full Intel suite successfully (`79 passed`).
+- 2026-03-29: Added schema-backed query validation for weather/geocode/reverse-geocode, tightened blank-string handling for request/query text fields, added dedicated edge-case tests for empty inputs, invalid coordinates, and unauthorized query access, and re-ran the full Intel suite successfully (`84 passed`).
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -68,7 +69,7 @@
 - [x] Write integration tests for every API endpoint (happy path + error cases)
 - [x] Add tests for itinerary, recommendations, vibe matcher
 - [x] Add proper error handling with Flask error handlers
-- [ ] Handle edge cases: empty inputs, unauthorized access, invalid coordinates
+- [x] Handle edge cases: empty inputs, unauthorized access, invalid coordinates
 
 ### Phase 9: Performance & Observability
 - [ ] Add python-json-logger structured logging with correlation ID
