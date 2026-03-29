@@ -6,7 +6,7 @@
       :placeholder="placeholder"
       type="search"
       class="search-bar__input"
-      :aria-label="ariaLabel"
+      :aria-label="resolvedAriaLabel"
       @input="handleInput"
       @keydown.enter.prevent="emitImmediately"
     />
@@ -33,11 +33,13 @@ const props = withDefaults(
     modelValue: string;
     placeholder?: string;
     ariaLabel?: string;
+    label?: string;
     debounceMs?: number;
   }>(),
   {
     placeholder: 'Search Atlas',
-    ariaLabel: 'Search Atlas',
+    ariaLabel: undefined,
+    label: undefined,
     debounceMs: MIN_SEARCH_DEBOUNCE_MS,
   },
 );
@@ -49,6 +51,7 @@ const emit = defineEmits<{
 
 const inputValue = ref(props.modelValue);
 const effectiveDebounceMs = computed(() => Math.max(MIN_SEARCH_DEBOUNCE_MS, props.debounceMs));
+const resolvedAriaLabel = computed(() => props.ariaLabel ?? props.label ?? 'Search Atlas');
 const showClearButton = computed(() => Boolean(inputValue.value.trim().length));
 let emitTimeoutId: ReturnType<typeof setTimeout> | null = null;
 

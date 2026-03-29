@@ -1,5 +1,7 @@
 import type {
   FeedItem,
+  FriendConnection,
+  FriendRequest,
   Itinerary,
   MapViewport,
   NotificationItem,
@@ -58,6 +60,71 @@ const users: UserProfile[] = [
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
     stats: { spots: 36, trips: 11, friends: 64 },
+  },
+];
+
+const friendRequestUsers: UserProfile[] = [
+  {
+    id: 'user-4',
+    username: 'sofiaramirez',
+    email: 'sofia@example.com',
+    displayName: 'Sofia Ramirez',
+    bio: 'Building food-first city breaks with strong coffee and stronger itineraries.',
+    homeBase: 'San Antonio, TX',
+    interests: ['food', 'culture', 'shopping'],
+    stats: { spots: 19, trips: 4, friends: 42 },
+  },
+  {
+    id: 'user-5',
+    username: 'jordanreed',
+    email: 'jordan@example.com',
+    displayName: 'Jordan Reed',
+    bio: 'Always looking for the next scenic overlook and a clean route between stops.',
+    homeBase: 'Waco, TX',
+    interests: ['scenic', 'nature', 'adventure'],
+    stats: { spots: 24, trips: 5, friends: 38 },
+  },
+];
+
+const friendConnections: FriendConnection[] = [
+  {
+    id: 'connection-1',
+    user: users[1],
+    presence: 'online',
+    sharedTrips: 3,
+    mutualFriends: 18,
+    favoriteCategories: ['scenic', 'culture'],
+    nextAdventure: 'Dallas culture sprint',
+    lastActiveAt: '2026-03-27T04:10:00Z',
+  },
+  {
+    id: 'connection-2',
+    user: users[2],
+    presence: 'planning',
+    sharedTrips: 2,
+    mutualFriends: 12,
+    favoriteCategories: ['adventure', 'food'],
+    nextAdventure: 'Austin sunrise loop',
+    lastActiveAt: '2026-03-27T02:45:00Z',
+  },
+];
+
+const friendRequests: FriendRequest[] = [
+  {
+    id: 'request-1',
+    user: friendRequestUsers[0],
+    direction: 'incoming',
+    createdAt: '2026-03-27T01:30:00Z',
+    mutualFriends: 9,
+    note: 'Would love to trade Texas food routes.',
+  },
+  {
+    id: 'request-2',
+    user: friendRequestUsers[1],
+    direction: 'incoming',
+    createdAt: '2026-03-26T18:55:00Z',
+    mutualFriends: 6,
+    note: 'Saw your scenic pins and wanted to connect.',
   },
 ];
 
@@ -484,6 +551,15 @@ const defaultViewport: MapViewport = {
 };
 
 export const mockUsers = users.map((user) => sanitizeUserProfile(user));
+export const mockFriendConnections = friendConnections.map((connection) => ({
+  ...connection,
+  user: sanitizeUserProfile(connection.user),
+}));
+export const mockFriendRequests = friendRequests.map((request) => ({
+  ...request,
+  user: sanitizeUserProfile(request.user),
+  note: request.note ? sanitizeSingleLineText(request.note) : undefined,
+}));
 export const mockSpots = baseSpots.map((spot) => sanitizeSpotSummary(spot));
 export const mockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
   accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot));

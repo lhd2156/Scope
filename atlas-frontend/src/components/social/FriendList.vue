@@ -34,18 +34,21 @@
 <script setup lang="ts">
 import Avatar from '@/components/common/Avatar.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
+import type { FriendConnection, FriendPresence } from '@/types';
 
 interface FriendConnectionCard {
   id: string;
   displayName: string;
   avatarUrl?: string;
   homeBase?: string;
-  presence?: string;
+  presence?: FriendPresence | string;
 }
+
+type FriendListItem = FriendConnectionCard | FriendConnection;
 
 withDefaults(
   defineProps<{
-    friends: FriendConnectionCard[];
+    friends: FriendListItem[];
     viewportHeight?: number;
   }>(),
   {
@@ -58,6 +61,17 @@ defineEmits<{
 }>();
 
 function toFriend(value: unknown): FriendConnectionCard {
+  if (typeof value === 'object' && value !== null && 'user' in value) {
+    const connection = value as FriendConnection;
+    return {
+      id: connection.user.id,
+      displayName: connection.user.displayName,
+      avatarUrl: connection.user.avatarUrl,
+      homeBase: connection.user.homeBase,
+      presence: connection.presence,
+    };
+  }
+
   return value as FriendConnectionCard;
 }
 

@@ -55,4 +55,15 @@ describe('SearchBar', () => {
     expect(updateEvents?.at(-1)).toEqual(['']);
     expect(searchEvents?.at(-1)).toEqual(['']);
   });
+
+  it('supports the legacy label prop as an aria-label alias', () => {
+    const wrapper = mount(SearchBar, {
+      props: {
+        modelValue: '',
+        label: 'Search spots',
+      },
+    });
+
+    expect(wrapper.get('input').attributes('aria-label')).toBe('Search spots');
+  });
 });
