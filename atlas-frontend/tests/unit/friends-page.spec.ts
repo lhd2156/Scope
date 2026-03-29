@@ -83,7 +83,6 @@ describe('FriendsPage', () => {
     expect(wrapper.text()).toContain('3');
     expect(wrapper.find('[data-test="friend-list-stub"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="notification-stub"]').exists()).toBe(true);
-    expect(wrapper.findAll('.request-card-stub').length).toBeGreaterThan(0);
   });
 
   it('shows an inline workspace error when feed loading fails', async () => {

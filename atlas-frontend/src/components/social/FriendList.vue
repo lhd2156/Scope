@@ -1,234 +1,168 @@
 <template>
-  <section class="friend-list-panel glass-panel">
-    <div class="header-block">
+  <section class="friend-list glass-panel">
+    <header class="friend-list__header">
       <div>
-        <p class="eyebrow">Social graph</p>
-        <h2>{{ title }}</h2>
-        <p class="section-copy">{{ description }}</p>
+        <p class="eyebrow">Connections</p>
+        <h2>{{ friends.length }} friends on Atlas</h2>
       </div>
-      <div class="summary-pills">
-        <span>{{ friends.length }} total</span>
-        <span>{{ onlineCount }} online</span>
-        <span>{{ planningCount }} planning</span>
-      </div>
-    </div>
+      <p class="section-copy">Keep your core travel circle close and jump into their latest plans fast.</p>
+    </header>
 
-    <div class="controls-row">
-      <label class="search-field">
-        <AtlasIcon name="search" label="Search friends" />
-        <input v-model="searchQuery" type="search" :placeholder="searchPlaceholder" />
-      </label>
-      <div class="filter-pills" role="tablist" aria-label="Presence filter">
-        <button
-          v-for="filter in filters"
-          :key="filter.value"
-          type="button"
-          :class="['filter-pill', { active: activeFilter === filter.value }]"
-          @click="activeFilter = filter.value"
-        >
-          {{ filter.label }}
+    <VirtualList
+      :items="friends"
+      :item-height="136"
+      :viewport-height="viewportHeight"
+      list-label="Friend connections"
+      :item-key="friendKey"
+    >
+      <template #default="{ item }">
+        <button class="surface-card friend-row" type="button" @click="$emit('view-profile', toFriend(item).id)">
+          <Avatar :name="toFriend(item).displayName" :src="toFriend(item).avatarUrl" :size="52" />
+          <div class="friend-copy">
+            <strong>{{ toFriend(item).displayName }}</strong>
+            <p>{{ toFriend(item).homeBase || 'Atlas traveler' }}</p>
+          </div>
+          <span class="presence-pill" :class="`presence-${toFriend(item).presence || 'offline'}`">
+            {{ formatPresence(toFriend(item).presence) }}
+          </span>
         </button>
-      </div>
-    </div>
-
-    <div v-if="filteredFriends.length" class="card-grid friends-grid">
-      <UserCard
-        v-for="friend in filteredFriends"
-        :key="friend.id"
-        :user="friend.user"
-        :presence="friend.presence"
-        :meta="`${friend.sharedTrips} shared trips · ${friend.mutualFriends} mutual friends`"
-        :detail="friend.nextAdventure ? `Next up: ${friend.nextAdventure}` : undefined"
-        :tags="friend.favoriteCategories"
-        primary-action-label="View profile"
-        secondary-action-label="Plan trip"
-        @primary-action="$emit('view-profile', $event)"
-        @secondary-action="$emit('plan-trip', $event)"
-      />
-    </div>
-
-    <div v-else class="empty-state surface-card">
-      <h3>No friends match that filter yet.</h3>
-      <p class="section-copy">Try a broader search or switch filters to inspect the rest of the network.</p>
-    </div>
+      </template>
+    </VirtualList>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import AtlasIcon from '@/components/common/AtlasIcon.vue';
-import UserCard from '@/components/social/UserCard.vue';
-import type { FriendConnection, FriendPresence } from '@/types';
+import Avatar from '@/components/common/Avatar.vue';
+import VirtualList from '@/components/common/VirtualList.vue';
 
-const props = withDefaults(
+interface FriendConnectionCard {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  homeBase?: string;
+  presence?: string;
+}
+
+withDefaults(
   defineProps<{
-    friends: FriendConnection[];
-    title?: string;
-    description?: string;
-    searchPlaceholder?: string;
+    friends: FriendConnectionCard[];
+    viewportHeight?: number;
   }>(),
   {
-    title: 'Friends and collaborators',
-    description: 'Search the network, see who is online, and jump straight into the next route-building session.',
-    searchPlaceholder: 'Search by name, city, or interest',
+    viewportHeight: 420,
   },
 );
 
 defineEmits<{
-  (event: 'view-profile', userId: string): void;
-  (event: 'plan-trip', userId: string): void;
+  (event: 'view-profile', friendId: string): void;
 }>();
 
-const searchQuery = ref('');
-const activeFilter = ref<'all' | FriendPresence>('all');
+function toFriend(value: unknown): FriendConnectionCard {
+  return value as FriendConnectionCard;
+}
 
-const filters = [
-  { value: 'all', label: 'All' },
-  { value: 'online', label: 'Online' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'offline', label: 'Offline' },
-] as const;
+function friendKey(friend: unknown, index: number): string | number {
+  return toFriend(friend).id || `friend-${index}`;
+}
 
-const onlineCount = computed(() => props.friends.filter((friend) => friend.presence === 'online').length);
-const planningCount = computed(() => props.friends.filter((friend) => friend.presence === 'planning').length);
+function formatPresence(presence?: string): string {
+  if (!presence) {
+    return 'Offline';
+  }
 
-const filteredFriends = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-
-  return props.friends.filter((friend) => {
-    const matchesFilter = activeFilter.value === 'all' || friend.presence === activeFilter.value;
-    if (!matchesFilter) {
-      return false;
-    }
-
-    if (!query) {
-      return true;
-    }
-
-    const searchable = [
-      friend.user.displayName,
-      friend.user.homeBase,
-      friend.user.bio,
-      ...friend.favoriteCategories,
-      friend.nextAdventure,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    return searchable.includes(query);
-  });
-});
+  return presence.charAt(0).toUpperCase() + presence.slice(1);
+}
 </script>
 
 <style scoped>
-.friend-list-panel {
+.friend-list {
   display: grid;
   gap: var(--space-5);
   padding: var(--space-6);
 }
 
-.header-block,
-.controls-row,
-.summary-pills,
-.filter-pills {
+.friend-list__header {
   display: flex;
-  gap: var(--space-3);
-}
-
-.header-block,
-.controls-row {
   justify-content: space-between;
+  gap: var(--space-4);
   align-items: flex-start;
 }
 
 .eyebrow {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-1);
   color: var(--accent-teal);
-  font-size: var(--font-size-caption);
-  letter-spacing: 0.16em;
   text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
 }
 
-h2,
-.empty-state h3 {
-  margin: 0 0 var(--space-2);
+.friend-list__header h2,
+.friend-list__header p {
+  margin: 0;
 }
 
-.summary-pills,
-.filter-pills {
-  flex-wrap: wrap;
-  justify-content: flex-end;
+.friend-row {
+  width: 100%;
+  height: calc(136px - 0.5rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 0;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  text-align: left;
 }
 
-.summary-pills span,
-.filter-pill {
+.friend-row:hover,
+.friend-row:focus-visible {
+  outline: none;
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.friend-copy {
+  min-width: 0;
+}
+
+.friend-copy strong,
+.friend-copy p {
+  margin: 0;
+}
+
+.friend-copy p {
+  color: var(--text-secondary);
+}
+
+.presence-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.75rem;
   border-radius: var(--radius-full);
-  border: 1px solid var(--border);
+  font-size: var(--font-size-small);
   background: var(--bg-primary);
   color: var(--text-secondary);
-  padding: 0.45rem 0.8rem;
-  font-size: var(--font-size-small);
 }
 
-.search-field {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: min(22rem, 100%);
-  border: 1px solid var(--input-border);
-  border-radius: var(--radius-full);
-  background: var(--input-bg);
-  padding: 0.8rem 1rem;
-  color: var(--text-secondary);
-}
-
-.search-field input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-}
-
-.search-field input:focus {
-  outline: none;
-}
-
-.filter-pill {
-  cursor: pointer;
-  transition:
-    color var(--transition-fast),
-    border-color var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.filter-pill.active,
-.filter-pill:hover,
-.filter-pill:focus-visible {
-  border-color: transparent;
-  background: var(--accent-teal-light);
+.presence-online,
+.presence-planning {
   color: var(--accent-teal);
-  outline: none;
 }
 
-.friends-grid {
-  gap: var(--space-5);
-}
-
-.empty-state {
-  padding: var(--space-6);
-}
-
-@media (max-width: 900px) {
-  .header-block,
-  .controls-row {
+@media (max-width: 720px) {
+  .friend-list__header {
     flex-direction: column;
   }
 
-  .search-field {
-    width: 100%;
+  .friend-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .presence-pill {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 </style>

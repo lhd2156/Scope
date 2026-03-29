@@ -1,20 +1,14 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack">
+    <div class="page-container home-page">
       <section class="glass-panel hero-panel">
         <div class="hero-copy">
-          <p class="eyebrow">Adventure platform</p>
+          <p class="eyebrow">Atlas</p>
           <h1>Atlas turns every outing into a mapped story worth sharing.</h1>
           <p class="section-copy">
-            Document premium spots, plan collaborative trips, and let the intelligence layer build routes from the best community pins.
+            Discover community-loved stops, build smarter itineraries, and keep up with the latest adventure signals from your network.
           </p>
-          <div class="hero-actions">
-            <RouterLink class="button button-primary" to="/explore">Explore the map</RouterLink>
-            <RouterLink class="button button-secondary" to="/trips/new">Plan a trip</RouterLink>
-            <RouterLink class="button button-secondary" to="/friends">View your network</RouterLink>
-          </div>
         </div>
-        <img src="@/assets/hero.png" alt="Atlas hero" class="hero-art" />
       </section>
 
       <article v-if="loadErrorMessage" class="glass-panel error-panel" role="alert">
@@ -23,26 +17,41 @@
         <p class="section-copy">{{ loadErrorMessage }}</p>
       </article>
 
-      <section>
+      <section class="section-stack">
         <SectionHeading
           eyebrow="Trending now"
           title="Community-loved spots"
           description="The strongest Atlas signals across food, nature, culture, nightlife, and scenic loops."
         />
-        <div class="card-grid">
+
+        <div class="spot-grid">
           <SpotCard v-for="spot in spotsStore.featuredSpots" :key="spot.id" :spot="spot" />
         </div>
       </section>
 
-      <section>
+      <section class="section-stack">
         <SectionHeading
-          eyebrow="Social graph"
-          title="Recent activity from the network"
-          description="Feed items wire together the content engine and social layer so trip planning feels alive."
+          eyebrow="Network activity"
+          title="What your community is doing now"
+          description="Recent pins, trip moves, and social proof from the people shaping Atlas in real time."
         />
-        <p v-if="feedStore.loading" class="section-copy">Loading recent network activity...</p>
-        <div v-else class="feed-list">
-          <FeedItem v-for="item in feedStore.items" :key="item.id" :item="item" />
+
+        <VirtualList
+          v-if="feedStore.items.length"
+          :items="feedStore.items"
+          :item-height="232"
+          :viewport-height="560"
+          list-label="Atlas activity feed"
+        >
+          <template #default="{ item }">
+            <div class="feed-row">
+              <FeedItem :item="item" />
+            </div>
+          </template>
+        </VirtualList>
+        <div v-else class="glass-panel empty-panel">
+          <strong>No activity yet</strong>
+          <p>Once your network starts pinning spots and planning trips, the Atlas feed will fill in here.</p>
         </div>
       </section>
     </div>
@@ -53,6 +62,7 @@
 import { computed, onMounted } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
+import VirtualList from '@/components/common/VirtualList.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import { useFeedStore } from '@/stores/feed';
@@ -68,63 +78,51 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.hero-panel {
+.home-page,
+.section-stack {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  align-items: center;
-  overflow: hidden;
+  gap: var(--space-6);
 }
 
-.hero-copy {
-  padding: var(--space-10);
-}
-
-.eyebrow {
-  margin: 0 0 var(--space-3);
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: var(--font-size-caption);
-}
-
-h1 {
-  margin: 0;
-  font-size: var(--font-size-hero);
-  line-height: var(--line-height-tight);
-}
-
-.hero-actions {
-  display: flex;
-  gap: var(--space-3);
-  margin-top: var(--space-6);
-  flex-wrap: wrap;
-}
-
-.hero-art {
-  width: 100%;
-  height: 100%;
-  min-height: 24rem;
-  object-fit: cover;
-}
-
+.hero-panel,
 .error-panel,
-.feed-list {
+.empty-panel {
+  padding: var(--space-6);
+}
+
+.hero-copy,
+.feed-row {
   display: grid;
   gap: var(--space-4);
 }
 
-.error-panel {
-  padding: var(--space-6);
-}
-
+.hero-copy h1,
 .error-panel h2,
-.error-panel p {
+.error-panel p,
+.empty-panel strong,
+.empty-panel p {
   margin: 0;
 }
 
-@media (max-width: 960px) {
-  .hero-panel {
-    grid-template-columns: 1fr;
-  }
+.eyebrow {
+  margin: 0;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
+}
+
+.spot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-4);
+}
+
+.feed-row {
+  padding-bottom: var(--space-4);
+}
+
+.empty-panel p {
+  color: var(--text-secondary);
 }
 </style>
