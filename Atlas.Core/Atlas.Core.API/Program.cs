@@ -2,30 +2,55 @@ using System.Security.Claims;
 using System.Text;
 using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Interfaces;
+using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
 using Atlas.Core.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
-Log.Logger = new LoggerConfiguration().WriteTo.Console(new RenderedCompactJsonFormatter()).CreateLogger();
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new RenderedCompactJsonFormatter())
+    .CreateLogger();
+
 builder.Host.UseSerilog();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var details = context.ModelState
+                .Where(entry => entry.Value?.Errors.Count > 0)
+                .SelectMany(entry => entry.Value!.Errors.Select(error => new ErrorDetail(entry.Key, string.IsNullOrWhiteSpace(error.ErrorMessage) ? "Invalid value" : error.ErrorMessage)))
+                .ToArray();
+
+            return new BadRequestObjectResult(new ErrorEnvelope(new ErrorBody("VALIDATION_ERROR", "Invalid input data", details, context.HttpContext.TraceIdentifier)));
+        };
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
-builder.Services.AddCors(options => options.AddPolicy("default", policy => policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials().SetIsOriginAllowed(_ => true)));
+builder.Services.AddCors(options => options.AddPolicy("default", policy =>
+    policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials().SetIsOriginAllowed(_ => true)));
 
 builder.Services.AddDbContext<CoreDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("CoreDatabase") ?? builder.Configuration["CORE_DB_CONNECTION"] ?? "Server=(localdb)\\mssqllocaldb;Database=AtlasCore;Trusted_Connection=True;TrustServerCertificate=True;"));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("Default")
+        ?? builder.Configuration["CORE_ConnectionStrings__Default"]
+        ?? builder.Configuration["CORE_DB_CONNECTION"]
+        ?? "Server=(localdb)\\mssqllocaldb;Database=AtlasCore;Trusted_Connection=True;TrustServerCertificate=True;"));
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IKafkaProducerService, KafkaProducerService>();
+builder.Services.AddScoped<IAvatarStorageService, S3Service>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 var secret = builder.Configuration["CORE_JWT_SECRET"] ?? "development-secret-development-secret";
@@ -48,16 +73,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = "name",
             RoleClaimType = ClaimTypes.Role
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments("/api/core/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseStaticFiles();
 app.UseCors("default");
 app.UseAuthentication();
 app.UseAuthorization();

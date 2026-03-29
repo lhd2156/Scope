@@ -16,6 +16,7 @@ public class AtlasException : Exception
 
 public sealed class NotFoundException(string message) : AtlasException("NOT_FOUND", message, 404);
 public sealed class UnauthorizedException(string message) : AtlasException("UNAUTHORIZED", message, 401);
+public sealed class ForbiddenException(string message) : AtlasException("FORBIDDEN", message, 403);
 public sealed class ConflictException(string message) : AtlasException("CONFLICT", message, 409);
 public sealed class ValidationException(string message, IReadOnlyList<(string Field, string Message)> details) : AtlasException("VALIDATION_ERROR", message, 400, details);
 public sealed class UnprocessableException(string message) : AtlasException("UNPROCESSABLE", message, 422);
