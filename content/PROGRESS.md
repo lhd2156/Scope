@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Verify all Kafka producers fire correct events
-## Last Updated: 2026-03-29T17:16:00Z
+## Current Task: Clean up bootstrap_content_append*.py files if not needed
+## Last Updated: 2026-03-29T17:27:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -60,6 +60,8 @@
 - Refreshed pinned Python dependencies, ran `python -m compileall atlas_content` as a build smoke test, re-ran `python atlas_content/manage.py check`, and re-ran the full Content pytest suite successfully (`114 passed`); no new build/test failures were found for the Phase 12 full validation pass
 - Locked the Appendix B Content response examples with exact-shape tests for `POST /api/content/spots` and `GET /api/content/spots`, narrowed those two responses to the documented camelCase payloads, added camelCase request alias support for `visitedAt`/`isPublic`, and re-ran `manage.py check` plus the full Content suite successfully (`116 passed`)
 - Completed the Phase 12 hygiene audit for live Content modules: no hardcoded production secret literals, TODO/FIXME markers, or debug-call leftovers were found in active service code; removed two stale unused test imports, added an AST-based source hygiene audit test to guard against secret/debug/comment-marker/unused-import regressions, and re-ran `manage.py check` plus the full Content suite successfully (`119 passed`)
+- Verified all documented Kafka producers against the Section 10 contract: normalized the shared event envelope to `eventId/eventType/timestamp/source/data`, enriched `spot.created` with the architecture example payload fields, restored the missing `photo.uploaded` event, prevented `review.created` and `trip.member.added` from firing on update/idempotent paths, and added helper + HTTP-level producer tests before re-running `manage.py check` and the full Content suite successfully (`127 passed`)
+- Reconciled the stale Phase 12 Django Admin checkbox based on the already-committed admin configuration plus passing admin registration tests in `common/tests/test_admin_configuration.py`; the next real remaining task is cleanup of the leftover `bootstrap_content_append*.py` files
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -103,8 +105,8 @@
 - [x] Run full build and all tests — fix any failures
 - [x] Verify API response formats match Appendix B exactly
 - [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
-- [ ] Verify all Kafka producers fire correct events
-- [ ] Verify Django Admin is properly configured
+- [x] Verify all Kafka producers fire correct events
+- [x] Verify Django Admin is properly configured
 - [ ] Clean up bootstrap_content_append*.py files if not needed
 - Added hot-path indexes for spot/trip/photo/review query patterns, generated migrations, and added model-index assertions so the schema and source models stay aligned; Django checks and the full Content pytest suite passed after the index work
 - Configured Django Admin for Spots, Trips, Photos, Reviews, and Likes with searchable/filterable changelists plus TripSpot/TripMember inlines; added admin registration tests and verified the full Content suite still passes

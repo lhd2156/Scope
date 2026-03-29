@@ -5,11 +5,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 
 from common.cache_utils import FEED_CACHE_NAMESPACE, SPOTS_CACHE_NAMESPACE, invalidate_cache_namespaces
+from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from photos.models import Photo
 from photos.serializers import PhotoSerializer, PhotoUploadSerializer
 from photos.services.s3_service import S3StorageService
+
+producer = AtlasKafkaProducer()
 
 
 @api_view(['POST'])
@@ -28,6 +31,16 @@ def upload_photo(request):
         sort_order=serializer.validated_data.get('sort_order', 0),
     )
     invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
+    producer.publish(
+        'photo.uploaded',
+        {
+            'photoId': str(photo.id),
+            'spotId': str(photo.spot_id),
+            'userId': str(request.user.id),
+            'storageUrl': photo.storage_url,
+            'thumbnailUrl': photo.thumbnail_url,
+        },
+    )
     return data_response(PhotoSerializer(photo).data, status_code=201)
 
 
