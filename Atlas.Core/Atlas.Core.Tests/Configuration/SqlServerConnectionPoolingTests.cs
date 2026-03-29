@@ -53,7 +53,7 @@ public sealed class SqlServerConnectionPoolingTests
             ConnectionString = pooledConnectionString
         };
 
-        Assert.Equal(true, builder["Pooling"]);
+        Assert.True(Convert.ToBoolean(builder["Pooling"]));
         Assert.Equal(5, Convert.ToInt32(builder["Min Pool Size"]));
         Assert.Equal(120, Convert.ToInt32(builder["Max Pool Size"]));
         Assert.Equal(30, Convert.ToInt32(builder["Connect Timeout"]));
@@ -77,7 +77,7 @@ public sealed class SqlServerConnectionPoolingTests
             ConnectionString = pooledConnectionString
         };
 
-        Assert.Equal(true, builder["Pooling"]);
+        Assert.True(Convert.ToBoolean(builder["Pooling"]));
         Assert.Equal(7, Convert.ToInt32(builder["Min Pool Size"]));
         Assert.Equal(200, Convert.ToInt32(builder["Max Pool Size"]));
         Assert.Equal(45, Convert.ToInt32(builder["Connect Timeout"]));

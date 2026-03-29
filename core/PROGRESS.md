@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Verify API response formats match Appendix B exactly
-## Last Updated: 2026-03-29T15:27:00Z
+## Current Task: Check for hardcoded secrets, debug statements, TODO comments, dead code
+## Last Updated: 2026-03-29T15:46:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -93,6 +93,8 @@
 - 2026-03-29T15:15:00Z reran Atlas.Core build/test after the endpoint parity audit and passed build (0 warnings, 0 errors) plus tests (177 passed, 0 failed)
 - 2026-03-29T15:27:00Z completed the Phase 12 full verification sweep by rerunning the entire Atlas.Core solution build and test suite with the dedicated .NET 8 SDK path; no build failures or test regressions remained to fix
 - 2026-03-29T15:27:00Z final validation passed cleanly: build (0 warnings, 0 errors) and tests (177 passed, 0 failed)
+- 2026-03-29T15:46:00Z enforced Appendix B response parity by mapping auth results into dedicated register/session response DTOs, explicitly marking public auth routes with [AllowAnonymous], restoring email-inclusive user search, and suppressing null ApiResponse meta fields so successful payloads match the documented envelope exactly
+- 2026-03-29T15:46:00Z added integration audits for exact register/login payload shapes, paginated response meta, standard error envelope, and bare health payload; reran the full Atlas.Core suite and passed build/test with 182 tests, 0 failures
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -134,7 +136,7 @@
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [x] Run full build and all tests — fix any failures
-- [ ] Verify API response formats match Appendix B exactly
+- [x] Verify API response formats match Appendix B exactly
 - [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify Kafka event schemas match Section 10
 - [ ] Verify SignalR hubs accept connections

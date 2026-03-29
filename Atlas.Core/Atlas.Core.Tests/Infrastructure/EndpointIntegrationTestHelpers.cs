@@ -9,6 +9,12 @@ namespace Atlas.Core.Tests.Infrastructure;
 
 internal static class EndpointIntegrationTestHelpers
 {
+    public static void AssertPropertyNames(JsonElement element, IReadOnlyList<string> expectedNames)
+    {
+        var actualNames = element.EnumerateObject().Select(property => property.Name).ToArray();
+        Assert.Equal(expectedNames, actualNames);
+    }
+
     public static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
         => JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 

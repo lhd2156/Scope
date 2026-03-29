@@ -12,6 +12,7 @@ using Xunit;
 
 namespace Atlas.Core.Tests.Performance;
 
+[Collection(PasswordResetTicketCollections.SharedPasswordResetTickets)]
 public sealed class ReadOnlyQueryAsNoTrackingTests
 {
     [Fact]
