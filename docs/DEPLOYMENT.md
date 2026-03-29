@@ -23,7 +23,7 @@ The following items are still pending lead-owned integration/infrastructure work
 
 - executing the Terraform plan/apply path against a real AWS target account and tuning the resulting resources
 - broader production deployment workflow expansion beyond image publishing, bundle creation, and optional Terraform plan generation
-- full production environment guide for managed cloud services
+- full production environment guide for managed cloud services and environment-specific tuning
 
 Treat this runbook as the **current local/staging deployment guide**, not the final production playbook.
 
@@ -287,9 +287,10 @@ The repository now includes a first-pass Terraform baseline under `terraform/` f
 - Cognito user pool/client/domain
 - ECR repositories for Core, Content, Intel, and Frontend
 
-Reference file:
+Reference files:
 
 - `terraform/README.md`
+- `docs/PRODUCTION-HARDENING.md`
 
 > The Terraform CLI is not installed on the current heartbeat host, so this baseline is documented and committed as static IaC, but it has not yet been runtime-validated with `terraform init`, `terraform plan`, or `terraform apply` from this machine.
 
