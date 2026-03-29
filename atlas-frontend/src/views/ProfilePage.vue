@@ -14,11 +14,7 @@
         <RouterLink class="button button-secondary" to="/friends">Back to your network</RouterLink>
       </article>
 
-      <article v-else-if="isLoading" class="glass-panel state-panel" aria-live="polite">
-        <p class="eyebrow">Loading</p>
-        <h2>Building this explorer view</h2>
-        <p class="section-copy">Atlas is gathering public pins, route participation, and profile context.</p>
-      </article>
+      <ProfileWorkspaceSkeleton v-else-if="isLoading" />
 
       <template v-else-if="profileUser">
         <article v-if="workspaceNotice" class="glass-panel inline-note" role="status">
@@ -53,10 +49,14 @@
               <div v-if="authoredSpots.length" class="card-grid">
                 <SpotCard v-for="spot in authoredSpots" :key="spot.id" :spot="spot" />
               </div>
-              <article v-else class="glass-panel empty-panel">
-                <h3>No public pins yet</h3>
-                <p class="section-copy">When this explorer publishes places to Atlas, they will appear here first.</p>
-              </article>
+              <EmptyStatePanel
+                v-else
+                eyebrow="Highlights"
+                title="No public pins yet"
+                description="When this explorer publishes places to Atlas, they will appear here first."
+                icon="map"
+                heading-level="h3"
+              />
             </section>
 
             <section class="profile-section">
@@ -69,10 +69,14 @@
               <div v-if="collaborativeTrips.length" class="trip-grid">
                 <TripCard v-for="trip in collaborativeTrips" :key="trip.id" :trip="trip" />
               </div>
-              <article v-else class="glass-panel empty-panel">
-                <h3>No collaborative trips yet</h3>
-                <p class="section-copy">Atlas will surface public routes here once this explorer joins or publishes one.</p>
-              </article>
+              <EmptyStatePanel
+                v-else
+                eyebrow="Trips"
+                title="No collaborative trips yet"
+                description="Atlas will surface public routes here once this explorer joins or publishes one."
+                icon="route"
+                heading-level="h3"
+              />
             </section>
           </div>
 
@@ -117,11 +121,16 @@
         </div>
       </template>
 
-      <section v-else class="glass-panel state-panel">
-        <h3>Profile unavailable</h3>
-        <p class="section-copy">Atlas could not find that explorer yet. Try opening another profile from your network.</p>
+      <EmptyStatePanel
+        v-else
+        eyebrow="Profile"
+        title="Profile unavailable"
+        description="Atlas could not find that explorer yet. Try opening another profile from your network."
+        icon="user"
+        heading-level="h3"
+      >
         <RouterLink class="button button-primary" to="/friends">Back to your network</RouterLink>
-      </section>
+      </EmptyStatePanel>
     </div>
   </AppShell>
 </template>
@@ -130,10 +139,12 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import ProfileHeader from '@/components/profile/ProfileHeader.vue';
 import ProfileMap from '@/components/profile/ProfileMap.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
+import ProfileWorkspaceSkeleton from '@/components/profile/ProfileWorkspaceSkeleton.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import TripCard from '@/components/trips/TripCard.vue';
 import { listUserSpots } from '@/services/spotService';
@@ -428,14 +439,7 @@ p {
   font-weight: var(--font-weight-semibold);
 }
 
-.empty-panel {
-  padding: var(--space-5);
-  display: grid;
-  gap: var(--space-3);
-}
-
-.state-panel .button,
-.empty-panel .button {
+.state-panel .button {
   width: fit-content;
 }
 

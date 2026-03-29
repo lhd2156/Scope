@@ -24,6 +24,7 @@ const { feedStoreMock, spotsStoreMock } = vi.hoisted(() => ({
         title: 'Botanic River Walk',
       },
     ],
+    loading: false,
     error: '',
     fetchTrending: vi.fn().mockResolvedValue(undefined),
   },
@@ -41,10 +42,27 @@ import HomePage from '@/views/HomePage.vue';
 
 describe('HomePage', () => {
   beforeEach(() => {
+    feedStoreMock.items = [
+      {
+        id: 'feed-1',
+        type: 'spot',
+        title: 'Louis pinned Sunset Rooftop Tacos',
+      },
+    ];
     feedStoreMock.error = '';
+    spotsStoreMock.featuredSpots = [
+      {
+        id: 'spot-1',
+        title: 'Sunset Rooftop Tacos',
+      },
+      {
+        id: 'spot-2',
+        title: 'Botanic River Walk',
+      },
+    ];
     spotsStoreMock.error = '';
-    feedStoreMock.fetchFeed.mockClear();
-    spotsStoreMock.fetchTrending.mockClear();
+    feedStoreMock.fetchFeed.mockReset().mockResolvedValue(undefined);
+    spotsStoreMock.fetchTrending.mockReset().mockResolvedValue(undefined);
   });
 
   it('loads featured spots and network activity into the landing page', async () => {
@@ -71,6 +89,24 @@ describe('HomePage', () => {
     expect(wrapper.text()).toContain('Atlas turns every outing into a mapped story worth sharing.');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(2);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(1);
+  });
+
+  it('shows reusable skeleton loaders while the home workspace is hydrating', () => {
+    feedStoreMock.items = [];
+    spotsStoreMock.featuredSpots = [];
+    feedStoreMock.fetchFeed.mockImplementation(() => new Promise(() => {}));
+    spotsStoreMock.fetchTrending.mockImplementation(() => new Promise(() => {}));
+
+    const wrapper = mount(HomePage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+        },
+      },
+    });
+
+    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(3);
   });
 
   it('shows an inline error panel when a home feed request fails', async () => {

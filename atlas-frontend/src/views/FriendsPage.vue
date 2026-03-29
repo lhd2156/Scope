@@ -79,8 +79,11 @@
           description="The freshest stories and moves from your travel network."
         />
 
+        <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading network activity">
+          <FeedItemSkeleton v-for="index in 3" :key="`friends-feed-skeleton-${index}`" />
+        </div>
         <VirtualList
-          v-if="feedStore.items.length"
+          v-else-if="feedStore.items.length"
           :items="feedStore.items"
           :item-height="232"
           :viewport-height="560"
@@ -92,10 +95,14 @@
             </div>
           </template>
         </VirtualList>
-        <div v-else class="glass-panel empty-panel">
-          <strong>No activity yet</strong>
-          <p>Once your network starts posting updates, their latest Atlas moves will appear here.</p>
-        </div>
+        <EmptyStatePanel
+          v-else-if="!feedStore.error"
+          eyebrow="Network activity"
+          title="No activity yet"
+          description="Once your network starts posting updates, their latest Atlas moves will appear here."
+          icon="friends"
+          heading-level="h3"
+        />
       </section>
     </div>
   </AppShell>
@@ -105,8 +112,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
+import FeedItemSkeleton from '@/components/social/FeedItemSkeleton.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
 import FriendList from '@/components/social/FriendList.vue';
 import NotificationDropdown from '@/components/social/NotificationDropdown.vue';
@@ -123,10 +132,12 @@ const notificationsStore = useNotificationsStore();
 const router = useRouter();
 const friendConnections = ref([...mockFriendConnections]);
 const friendRequests = ref([...mockFriendRequests]);
+const isBootstrapping = ref(true);
 
 const onlineFriends = computed(() => friendConnections.value.filter((friend) => friend.presence === 'online').length);
 const incomingRequests = computed(() => friendRequests.value);
 const workspaceError = computed(() => feedStore.error || notificationsStore.error || '');
+const showFeedSkeletons = computed(() => isBootstrapping.value && !feedStore.items.length && !feedStore.error);
 
 function requestKey(request: unknown, index: number): string | number {
   if (typeof request === 'object' && request !== null && 'id' in request) {
@@ -191,20 +202,24 @@ function openProfile(friendId: string) {
 }
 
 onMounted(async () => {
-  await Promise.allSettled([feedStore.fetchFeed(), notificationsStore.fetchNotifications()]);
+  try {
+    await Promise.allSettled([feedStore.fetchFeed(), notificationsStore.fetchNotifications()]);
+  } finally {
+    isBootstrapping.value = false;
+  }
 });
 </script>
 
 <style scoped>
 .friends-page,
-.section-stack {
+.section-stack,
+.feed-skeleton-stack {
   display: grid;
   gap: var(--space-6);
 }
 
 .hero-panel,
-.error-panel,
-.empty-panel {
+.error-panel {
   padding: var(--space-6);
 }
 
@@ -232,14 +247,11 @@ onMounted(async () => {
 .metric-card strong,
 .metric-card span,
 .error-panel h2,
-.error-panel p,
-.empty-panel strong,
-.empty-panel p {
+.error-panel p {
   margin: 0;
 }
 
-.metric-card span,
-.empty-panel p {
+.metric-card span {
   color: var(--text-secondary);
 }
 

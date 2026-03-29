@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
-const { fixtureSpots } = vi.hoisted(() => ({
+const { fixtureSpots, listSpotsMock, listTrendingSpotsMock } = vi.hoisted(() => ({
   fixtureSpots: [
     {
       id: 'spot-1',
@@ -42,19 +42,13 @@ const { fixtureSpots } = vi.hoisted(() => ({
       createdAt: '2026-03-20T16:05:00Z',
     },
   ],
+  listSpotsMock: vi.fn(),
+  listTrendingSpotsMock: vi.fn(),
 }));
 
 vi.mock('@/services/spotService', () => ({
-  listSpots: vi.fn().mockResolvedValue({
-    data: fixtureSpots,
-    meta: {
-      page: 1,
-      pageSize: fixtureSpots.length,
-      total: fixtureSpots.length,
-      totalPages: 1,
-    },
-  }),
-  listTrendingSpots: vi.fn().mockResolvedValue({ data: fixtureSpots.slice(0, 2) }),
+  listSpots: listSpotsMock,
+  listTrendingSpots: listTrendingSpotsMock,
   getSpotDetail: vi.fn(),
   createSpot: vi.fn(),
   updateSpot: vi.fn(),
@@ -66,6 +60,16 @@ describe('ExplorePage', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
+    listSpotsMock.mockReset().mockResolvedValue({
+      data: fixtureSpots,
+      meta: {
+        page: 1,
+        pageSize: fixtureSpots.length,
+        total: fixtureSpots.length,
+        totalPages: 1,
+      },
+    });
+    listTrendingSpotsMock.mockReset().mockResolvedValue({ data: fixtureSpots.slice(0, 2) });
   });
 
   afterEach(() => {
@@ -118,9 +122,45 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(1);
 
+    await wrapper.get('input[aria-label="Search spots"]').setValue('Kyoto');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('No spots match the current filters');
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
+
     await wrapper.get('button.button-secondary').trigger('click');
     await flushPromises();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('3');
+  });
+
+  it('shows reusable spot skeletons while the first explore fetch is in flight', async () => {
+    listSpotsMock.mockImplementation(() => new Promise(() => {}));
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/explore',
+          name: 'explore',
+          component: ExplorePage,
+        },
+      ],
+    });
+
+    await router.push('/explore');
+    await router.isReady();
+
+    const wrapper = mount(ExplorePage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+        },
+      },
+    });
+
+    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(8);
   });
 });
