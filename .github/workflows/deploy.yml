@@ -135,6 +135,7 @@ jobs:
           cp docker-compose.yml deploy-bundle/
           cp .env.example deploy-bundle/
           cp -r nginx deploy-bundle/nginx
+          cp -r k8s deploy-bundle/k8s
           cp -r docs deploy-bundle/docs
           cp -r scripts/sql deploy-bundle/sql
           cp .github/workflows/ci.yml deploy-bundle/ci.yml
