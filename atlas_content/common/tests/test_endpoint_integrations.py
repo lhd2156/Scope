@@ -11,9 +11,8 @@ from PIL import Image
 from rest_framework.test import APIClient
 
 from photos.models import Photo
-from reviews.models import Review
 from spots.models import Spot
-from trips.models import TripMember, TripSpot
+from trips.models import TripSpot
 
 pytestmark = pytest.mark.django_db
 

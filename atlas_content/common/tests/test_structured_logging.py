@@ -5,7 +5,6 @@ import json
 import logging
 from collections import namedtuple
 from contextlib import contextmanager
-from uuid import uuid4
 
 import jwt
 import pytest

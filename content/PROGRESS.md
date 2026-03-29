@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Check for hardcoded secrets, debug statements, TODO comments, dead code
-## Last Updated: 2026-03-29T17:03:00Z
+## Current Task: Verify all Kafka producers fire correct events
+## Last Updated: 2026-03-29T17:16:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -59,6 +59,7 @@
 - Re-verified the Content API route surface against `atlas_architecture.tex` with a resolver-based contract audit, removed undocumented `PATCH` support from spot/trip detail endpoints by restricting DRF method exposure, and re-ran `manage.py check` plus the full Content suite successfully (`114 passed`)
 - Refreshed pinned Python dependencies, ran `python -m compileall atlas_content` as a build smoke test, re-ran `python atlas_content/manage.py check`, and re-ran the full Content pytest suite successfully (`114 passed`); no new build/test failures were found for the Phase 12 full validation pass
 - Locked the Appendix B Content response examples with exact-shape tests for `POST /api/content/spots` and `GET /api/content/spots`, narrowed those two responses to the documented camelCase payloads, added camelCase request alias support for `visitedAt`/`isPublic`, and re-ran `manage.py check` plus the full Content suite successfully (`116 passed`)
+- Completed the Phase 12 hygiene audit for live Content modules: no hardcoded production secret literals, TODO/FIXME markers, or debug-call leftovers were found in active service code; removed two stale unused test imports, added an AST-based source hygiene audit test to guard against secret/debug/comment-marker/unused-import regressions, and re-ran `manage.py check` plus the full Content suite successfully (`119 passed`)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -101,7 +102,7 @@
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
 - [x] Run full build and all tests — fix any failures
 - [x] Verify API response formats match Appendix B exactly
-- [ ] Check for hardcoded secrets, debug statements, TODO comments, dead code
+- [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [ ] Verify all Kafka producers fire correct events
 - [ ] Verify Django Admin is properly configured
 - [ ] Clean up bootstrap_content_append*.py files if not needed
