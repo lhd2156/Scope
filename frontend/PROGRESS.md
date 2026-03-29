@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 5.4 — Check for broken imports, TODO comments, hardcoded values
-## Last Updated: 2026-03-29T07:43:23.1854917Z
+## Current Task: Phase 6.1 — Sanitize user inputs before display
+## Last Updated: 2026-03-29T07:53:08.4853181Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -44,6 +44,7 @@
 - 2026-03-29T07:29:50.2773639Z: COMPLETED Phase 5.1 audit — re-read the frontend architecture sections and aligned the app to the spec by adding the missing common components (Button, Sidebar, Modal, Toast, LoadingSpinner, SearchBar), restoring the navbar search + avatar dropdown flow, splitting route guards into `router/guards.ts` with the guest redirect fixed to `/map`, upgrading login/register/settings/review surfaces, and adding a lightbox-capable gallery plus route-aware explore filtering. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests).
 - 2026-03-29T07:38:16.8325462Z: COMPLETED Phase 5.2 build verification — npm.cmd run build ✅ passed on the current frontend worktree with no blocking TypeScript or Vite errors. Vite still reports a non-blocking large-chunk warning from the eagerly bundled Mapbox payload, which should be addressed in Phase 9 lazy-loading/tree-shaking work rather than treated as a Phase 5.2 failure.
 - 2026-03-29T07:43:23.1854917Z: COMPLETED Phase 5.3 test verification — npm.cmd run test ✅ passed on the current frontend worktree with 27 test files / 42 tests green, so no code changes were required for this milestone.
+- 2026-03-29T07:53:08.4853181Z: COMPLETED Phase 5.4 audit — confirmed there are no TODO/FIXME/XXX markers under `atlas-frontend/src` or `atlas-frontend/tests`, removed the dead Vite starter `src/style.css` stylesheet that still carried non-token hardcoded colors, and replaced raw route-layer hex fallbacks with design-token lookups plus named route constants in `RouteLayer.vue`. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests). `npm.cmd run lint` still fails because ESLint 9 expects a flat `eslint.config.*` file that this repo has not been migrated to yet.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -56,7 +57,7 @@
 - [x] Re-read agents.md and verify every component matches atlas_architecture.tex
 - [x] Run npm run build and fix any issues
 - [x] Run npm run test and fix any failures
-- [ ] Check for broken imports, TODO comments, hardcoded values
+- [x] Check for broken imports, TODO comments, hardcoded values
 
 ### Phase 6: Security Hardening
 - [ ] Sanitize user inputs before display
