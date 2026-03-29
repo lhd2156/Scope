@@ -18,10 +18,10 @@ defineProps<{
 
 <style scoped>
 .section-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
   align-items: end;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: clamp(var(--space-3), 1.5vw, var(--space-6));
   margin-bottom: var(--space-6);
 }
 
@@ -41,19 +41,21 @@ h2 {
 
 .description {
   max-width: 34rem;
+  justify-self: end;
   margin: 0;
   color: var(--text-secondary);
-  text-align: right;
+  line-height: var(--line-height-relaxed);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
   .section-heading {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     align-items: start;
   }
 
   .description {
-    text-align: left;
+    max-width: 100%;
+    justify-self: start;
   }
 }
 </style>

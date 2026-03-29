@@ -142,15 +142,18 @@ onMounted(async () => {
 
 <style scoped>
 .map-page {
+  width: min(var(--page-max-width), calc(100% - (var(--shell-side-padding) * 2)));
   min-height: 100vh;
-  padding: 5.75rem 1rem 1.5rem;
+  margin: 0 auto;
+  padding: var(--shell-content-top) 0 var(--space-6);
 }
 
 .map-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(22rem, 24rem);
   gap: var(--space-6);
-  min-height: calc(100vh - 7.25rem);
+  min-height: calc(100vh - var(--shell-content-top) - var(--space-6));
+  align-items: stretch;
 }
 
 .map-stage,
@@ -282,6 +285,7 @@ onMounted(async () => {
 @media (max-width: 1100px) {
   .map-workspace {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 }
 </style>

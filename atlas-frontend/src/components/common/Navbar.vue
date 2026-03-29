@@ -51,13 +51,17 @@ const notificationsStore = useNotificationsStore();
 <style scoped>
 .navbar {
   position: fixed;
-  inset: 1rem 1rem auto;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(var(--page-max-width), calc(100vw - (var(--shell-side-padding) * 2)));
   z-index: var(--z-navbar);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'brand nav actions';
   align-items: center;
   gap: var(--space-4);
-  padding: 1rem 1.25rem;
+  padding: 1rem clamp(1rem, 2vw, 1.25rem);
 }
 
 .brand,
@@ -71,6 +75,7 @@ const notificationsStore = useNotificationsStore();
 }
 
 .brand {
+  grid-area: brand;
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-h3);
 }
@@ -80,8 +85,10 @@ const notificationsStore = useNotificationsStore();
 }
 
 .nav-links {
+  grid-area: nav;
   justify-content: center;
   flex-wrap: wrap;
+  gap: clamp(var(--space-3), 1.5vw, var(--space-5));
 }
 
 .nav-links a,
@@ -103,18 +110,28 @@ const notificationsStore = useNotificationsStore();
 }
 
 .actions {
+  grid-area: actions;
   justify-content: flex-end;
+  justify-self: end;
+  min-width: 0;
 }
 
 .profile-chip {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: var(--bg-secondary);
   padding: 0.35rem 0.45rem;
 }
 
+.profile-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .guest-actions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .accent-link {
@@ -134,24 +151,46 @@ const notificationsStore = useNotificationsStore();
   outline: none;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1120px) {
   .navbar {
-    grid-template-columns: 1fr;
-    justify-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'brand actions'
+      'nav nav';
+    row-gap: var(--space-3);
   }
 
-  .nav-links,
-  .actions {
+  .nav-links {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--glass-border);
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
+  .navbar {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'brand'
+      'actions'
+      'nav';
+    justify-items: stretch;
+  }
+
   .nav-links,
   .actions,
   .guest-actions {
+    width: 100%;
     flex-wrap: wrap;
+  }
+
+  .actions {
+    justify-content: space-between;
+  }
+
+  .profile-chip {
+    width: fit-content;
   }
 
   .profile-chip span {
