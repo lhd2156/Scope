@@ -180,6 +180,8 @@ export interface TripSpot {
   longitude: number;
   category: SpotCategory;
   estimatedCost?: number;
+  photoUrl?: string;
+  city?: string;
 }
 
 export interface TripMember {
@@ -214,6 +216,7 @@ export interface Trip {
   spots: TripSpot[];
   members: TripMember[];
   itinerary?: Itinerary;
+  coverImageUrl?: string;
 }
 
 export interface TripPlannerInput {

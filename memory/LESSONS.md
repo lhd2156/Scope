@@ -36,6 +36,7 @@
 - [2026-03-28] ⚠️ Use conventional commits: `feat(scope): description`
 - [2026-03-28] ⚠️ Work on feature branches (feature/foundation, feature/core-platform, etc.), not main
 - [2026-03-28] ⚠️ Use `git add . ; git commit -m "message"` (semicolons, not &&)
+- [2026-03-28] ⚠️ If `atlas-frontend/` already has unrelated unstaged files from another milestone, stage only task-specific files so parallel frontend work does not get batched into the wrong commit.
 
 ## File & Path Rules
 
@@ -48,6 +49,7 @@
 
 - [2026-03-28] ⚠️ When heartbeat respawns agents via `openclaw agent`, pass a fresh explicit `--session-id` per run to avoid `.jsonl.lock` session-collision failures on repeated background launches.
 - [2026-03-28] ⚠️ Every heartbeat spawn prompt must tell agents to read `C:\Users\dongu\atlas\memory\LESSONS.md` before touching their own task files.
+- [2026-03-28] ⚠️ On the heartbeat channel, thread-bound subagent sessions may be unavailable; use one-shot `sessions_spawn` runs instead of `thread=true` session mode.
 
 ## Common Mistakes to Avoid
 

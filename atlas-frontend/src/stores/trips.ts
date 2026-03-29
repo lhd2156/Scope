@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { generateItinerary, getTripDetail, listTrips } from '@/services/tripService';
 import type { Itinerary, Trip, TripPlannerInput } from '@/types';
@@ -9,25 +9,40 @@ export const useTripsStore = defineStore('trips', () => {
   const previewItinerary = ref<Itinerary | null>(null);
   const loading = ref(false);
 
+  const featuredTrips = computed(() => items.value.slice(0, 3));
+
   async function fetchTrips() {
     loading.value = true;
-    const response = await listTrips();
-    items.value = response.data;
-    loading.value = false;
+
+    try {
+      const response = await listTrips();
+      items.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function fetchTrip(tripId: string) {
     loading.value = true;
-    const response = await getTripDetail(tripId);
-    selectedTrip.value = response.data;
-    loading.value = false;
+    selectedTrip.value = null;
+
+    try {
+      const response = await getTripDetail(tripId);
+      selectedTrip.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function buildItinerary(input: TripPlannerInput) {
     loading.value = true;
-    const response = await generateItinerary(input);
-    previewItinerary.value = response.data;
-    loading.value = false;
+
+    try {
+      const response = await generateItinerary(input);
+      previewItinerary.value = response.data;
+    } finally {
+      loading.value = false;
+    }
   }
 
   return {
@@ -35,6 +50,7 @@ export const useTripsStore = defineStore('trips', () => {
     selectedTrip,
     previewItinerary,
     loading,
+    featuredTrips,
     fetchTrips,
     fetchTrip,
     buildItinerary,

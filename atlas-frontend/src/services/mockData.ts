@@ -200,6 +200,8 @@ const tripSpots: TripSpot[] = baseSpots.slice(0, 4).map((spot, index) => ({
   timeSlot: ['10:00', '12:30', '16:00', '20:00'][index],
   duration: 90,
   estimatedCost: [0, 24, 18, 42][index],
+  photoUrl: spot.photoUrl,
+  city: spot.city,
 }));
 
 const itinerary: Itinerary = {
@@ -237,6 +239,7 @@ const trips: Trip[] = [
       { id: users[2].id, displayName: users[2].displayName, status: 'viewer' },
     ],
     itinerary,
+    coverImageUrl: baseSpots[0].photoUrl,
   },
   {
     id: 'trip-2',
@@ -248,6 +251,7 @@ const trips: Trip[] = [
     endDate: '2026-04-11',
     spots: tripSpots.slice(1, 4),
     members: [{ id: users[2].id, displayName: users[2].displayName, status: 'owner' }],
+    coverImageUrl: baseSpots[3].photoUrl,
   },
 ];
 
@@ -470,6 +474,8 @@ export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
       timeSlot: ['09:00', '12:00', '15:00', '19:00'][days[dayIndex].spots.length] ?? '20:00',
       duration: 90,
       estimatedCost: 20 + index * 8,
+      photoUrl: spot.photoUrl,
+      city: spot.city,
     });
   });
 

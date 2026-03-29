@@ -4,109 +4,98 @@
       <SectionHeading
         eyebrow="Trip detail"
         title="Collaborative itinerary view"
-        description="Trip members, destination framing, and itinerary output rendered from the trip store."
+        description="Atlas renders the route, traveler roster, cost breakdown, and stop-by-stop timeline in one premium planning surface."
       />
 
-      <section v-if="tripsStore.selectedTrip" class="page-stack">
-        <article class="glass-panel trip-hero">
-          <div>
-            <p class="eyebrow">{{ tripsStore.selectedTrip.destination }}</p>
-            <h1>{{ tripsStore.selectedTrip.title }}</h1>
-            <p class="section-copy">{{ tripsStore.selectedTrip.description }}</p>
-          </div>
-          <div class="trip-summary">
-            <span>{{ tripsStore.selectedTrip.startDate }} → {{ tripsStore.selectedTrip.endDate }}</span>
-            <span>{{ tripsStore.selectedTrip.members.length }} members</span>
-            <span>{{ tripsStore.selectedTrip.spots.length }} stops</span>
-          </div>
-        </article>
-
-        <section class="glass-panel members-panel">
-          <h2>Members</h2>
-          <div class="members-grid">
-            <article v-for="member in tripsStore.selectedTrip.members" :key="member.id" class="member-chip">
-              <strong>{{ member.displayName }}</strong>
-              <span>{{ member.status }}</span>
-            </article>
-          </div>
-        </section>
-
-        <ItineraryView :itinerary="tripsStore.selectedTrip.itinerary ?? null" />
+      <section v-if="tripsStore.loading" class="glass-panel state-card">
+        <p class="eyebrow">Loading</p>
+        <h2>Pulling the full trip itinerary</h2>
+        <p class="section-copy">Atlas is syncing member roles, route geometry, and itinerary sequencing.</p>
       </section>
+
+      <section v-else-if="notFound" class="glass-panel state-card">
+        <p class="eyebrow">Missing trip</p>
+        <h2>That itinerary could not be found</h2>
+        <p class="section-copy">The requested trip may have moved, been deleted, or not synced back yet.</p>
+        <RouterLink to="/trips/new" class="state-link">Plan a new trip</RouterLink>
+      </section>
+
+      <TripDetail v-else :trip="activeTrip" />
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import ItineraryView from '@/components/trips/ItineraryView.vue';
+import TripDetail from '@/components/trips/TripDetail.vue';
 import { useTripsStore } from '@/stores/trips';
 
 const route = useRoute();
 const tripsStore = useTripsStore();
+const notFound = ref(false);
 
-onMounted(async () => {
-  await tripsStore.fetchTrip(String(route.params.id));
-});
+const requestedTripId = computed(() => String(route.params.id ?? ''));
+const activeTrip = computed(() => (tripsStore.selectedTrip?.id === requestedTripId.value ? tripsStore.selectedTrip : null));
+
+async function loadTrip(tripId: string): Promise<void> {
+  if (!tripId) {
+    notFound.value = true;
+    return;
+  }
+
+  notFound.value = false;
+
+  try {
+    await tripsStore.fetchTrip(tripId);
+  } catch {
+    notFound.value = true;
+  }
+}
+
+watch(
+  requestedTripId,
+  async (tripId) => {
+    await loadTrip(tripId);
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
-.trip-hero,
-.members-panel {
-  padding: var(--space-6);
-}
-
-.trip-hero {
-  display: flex;
-  justify-content: space-between;
+.page-stack {
+  display: grid;
   gap: var(--space-6);
 }
 
-.trip-hero h1,
-.members-panel h2 {
+.state-card {
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.state-card h2,
+.state-card p {
   margin: 0;
 }
 
-.trip-summary {
-  display: grid;
-  gap: var(--space-2);
-  color: var(--text-secondary);
-  text-align: right;
-}
-
-.members-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-}
-
-.member-chip {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  background: var(--bg-secondary);
-}
-
-.member-chip span,
 .eyebrow {
-  color: var(--text-secondary);
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
 }
 
-@media (max-width: 900px) {
-  .trip-hero {
-    flex-direction: column;
-  }
+.state-link {
+  color: var(--accent-teal);
+  font-weight: var(--font-weight-semibold);
+}
 
-  .trip-summary {
-    text-align: left;
-  }
-
-  .members-grid {
-    grid-template-columns: 1fr;
-  }
+.state-link:hover,
+.state-link:focus-visible {
+  color: var(--accent-teal-hover);
+  outline: none;
 }
 </style>
