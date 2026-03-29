@@ -1,4 +1,6 @@
+import { nextTick } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
+import ThemeToggle from '@/components/common/ThemeToggle.vue';
 
 const { authStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
@@ -21,6 +23,9 @@ import SettingsPage from '@/views/SettingsPage.vue';
 describe('SettingsPage', () => {
   beforeEach(() => {
     authStoreMock.updateCurrentUser.mockClear();
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.style.colorScheme = '';
     vi.useFakeTimers();
   });
 
@@ -59,6 +64,37 @@ describe('SettingsPage', () => {
     });
     expect(wrapper.find('[data-test="theme-toggle-stub"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Settings updated');
+  });
+
+  it('keeps shell and page theme toggles synchronized in the settings workspace', async () => {
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: {
+            components: { ThemeToggle },
+            template: '<div><ThemeToggle /><slot /></div>',
+          },
+          SectionHeading: { template: '<div />' },
+          SettingsForm: { template: '<div />' },
+          Toast: { template: '<div />' },
+        },
+      },
+    });
+
+    const toggles = wrapper.findAll('button.theme-toggle');
+    expect(toggles).toHaveLength(2);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(toggles[0].attributes('aria-label')).toBe('Switch to light mode');
+    expect(toggles[1].attributes('aria-label')).toBe('Switch to light mode');
+
+    await toggles[1].trigger('click');
+    await nextTick();
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+    expect(localStorage.getItem('atlas-theme')).toBe('light');
+    expect(toggles[0].attributes('aria-label')).toBe('Switch to dark mode');
+    expect(toggles[1].attributes('aria-label')).toBe('Switch to dark mode');
   });
 
   it('surfaces a settings error when the profile update throws', async () => {
