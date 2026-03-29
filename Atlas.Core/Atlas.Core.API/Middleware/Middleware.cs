@@ -43,18 +43,53 @@ public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<Reque
     public async Task InvokeAsync(HttpContext context)
     {
         var correlationId = ResolveCorrelationId(context);
+        var requestPath = context.Request.Path.HasValue ? context.Request.Path.Value! : "/";
         context.TraceIdentifier = correlationId;
         context.Response.Headers[CoreLogging.CorrelationIdHeaderName] = correlationId;
 
         using (LogContext.PushProperty(CoreLogging.CorrelationIdPropertyName, correlationId))
-        using (LogContext.PushProperty("TraceId", context.TraceIdentifier))
+        using (LogContext.PushProperty(CoreLogging.TraceIdPropertyName, context.TraceIdentifier))
+        using (LogContext.PushProperty(CoreLogging.MethodPropertyName, context.Request.Method))
+        using (LogContext.PushProperty(CoreLogging.PathPropertyName, requestPath))
         {
+            logger.LogInformation(
+                "HTTP request started {Method} {Path} ({RequestContentType}, {RequestContentLength})",
+                context.Request.Method,
+                requestPath,
+                context.Request.ContentType ?? "none",
+                context.Request.ContentLength ?? 0L);
+
             var stopwatch = Stopwatch.StartNew();
-            await next(context);
-            stopwatch.Stop();
-            logger.LogInformation("HTTP {Method} {Path} => {StatusCode} in {DurationMs}ms", context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
+            try
+            {
+                await next(context);
+            }
+            finally
+            {
+                stopwatch.Stop();
+                var responseContentLength = ResolveResponseContentLength(context.Response);
+                using (LogContext.PushProperty(CoreLogging.StatusCodePropertyName, context.Response.StatusCode))
+                using (LogContext.PushProperty(CoreLogging.DurationMillisecondsPropertyName, stopwatch.ElapsedMilliseconds))
+                using (LogContext.PushProperty(CoreLogging.RequestContentTypePropertyName, context.Request.ContentType ?? "none"))
+                using (LogContext.PushProperty(CoreLogging.RequestContentLengthPropertyName, context.Request.ContentLength ?? 0L))
+                using (LogContext.PushProperty(CoreLogging.ResponseContentTypePropertyName, context.Response.ContentType ?? "none"))
+                using (LogContext.PushProperty(CoreLogging.ResponseContentLengthPropertyName, responseContentLength))
+                {
+                    logger.LogInformation(
+                        "HTTP response completed {Method} {Path} => {StatusCode} in {DurationMs}ms ({ResponseContentType}, {ResponseContentLength})",
+                        context.Request.Method,
+                        requestPath,
+                        context.Response.StatusCode,
+                        stopwatch.ElapsedMilliseconds,
+                        context.Response.ContentType ?? "none",
+                        responseContentLength);
+                }
+            }
         }
     }
+
+    private static long ResolveResponseContentLength(HttpResponse response)
+        => response.ContentLength ?? (response.Body.CanSeek ? response.Body.Length : 0L);
 
     private static string ResolveCorrelationId(HttpContext context)
     {
