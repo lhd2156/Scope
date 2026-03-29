@@ -22,7 +22,7 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 The following items are still pending lead-owned integration/infrastructure work:
 
 - runtime validation + environment-specific tuning of the Terraform baseline
-- production deployment workflow expansion beyond GHCR + bundle publishing
+- broader production deployment workflow expansion beyond image + bundle publishing
 - full production environment guide for managed cloud services
 
 Treat this runbook as the **current local/staging deployment guide**, not the final production playbook.
@@ -306,8 +306,9 @@ Current automation coverage:
 - Intel install/test
 - Frontend install/build/test
 - GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
-- deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, docs, nginx config, SQL seed scripts)
+- deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
+- Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` validation
 
 Dependabot is also configured for:
 

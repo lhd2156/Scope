@@ -28,7 +28,7 @@
 
 ## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, and Terraform baseline are in place; runtime Terraform validation and final production/deployment hardening remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:55:00Z
+## Last Updated: 2026-03-29T19:09:33.1647292Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -412,6 +412,9 @@
 - 2026-03-29T18:55:00Z: Re-read HEARTBEAT.md, LESSONS.md, and all canonical progress files directly from the workspace. Foundation, Core, Content, Intel, and Frontend all remain canonically COMPLETE, so no service-agent respawns were needed.
 - 2026-03-29T18:55:00Z: Completed the next lead-owned Phase 4 / Phase 11 milestone by replacing the empty Terraform placeholder with a real baseline under `terraform/` (`main.tf`, `variables.tf`, `outputs.tf`, `vpc.tf`, `iam.tf`, plus `terraform/README.md`) covering VPC, IAM, EKS, RDS SQL Server, S3, Cognito, and ECR.
 - 2026-03-29T18:55:00Z: Updated `docs/DEPLOYMENT.md` to document the Terraform baseline and current validation limits. Honest validation note: the Terraform CLI is not installed on this host, so this milestone was reviewed as static IaC only and not runtime-validated with `terraform plan`.
+- 2026-03-29T19:08:05.0065350Z: Integrated the existing Terraform baseline into the real deployment surface by updating `.github/workflows/deploy.yml` to ship `terraform/` inside the deployment bundle artifact and by tightening `docs/DEPLOYMENT.md` so automation coverage explicitly includes the Terraform bundle.
+- 2026-03-29T19:08:05.0065350Z: Validation: `npx --yes yaml@2 valid .github/workflows/deploy.yml` ? after the Terraform bundle update. Remaining lead-owned gaps are runtime Terraform validation against a real AWS account and final production/deployment hardening polish.
+- 2026-03-29T19:09:33.1647292Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the Terraform-bundle integration milestone and the narrowed remaining gaps (runtime Terraform validation + final production/deployment hardening).
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
@@ -421,3 +424,4 @@ ALL runtimes are installed on this machine:
 - Node.js 24.14.0: `C:\Program Files\nodejs\`
 - npm 11.9.0: available
 If any sub-agent reports "no runtime available", it is WRONG. Respawn it with correction.
+
