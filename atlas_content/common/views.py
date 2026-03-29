@@ -10,9 +10,7 @@ from photos.services.s3_service import S3StorageService
 
 @api_view(['GET'])
 def health_view(request):
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT 1')
-        cursor.fetchone()
+    connection.ensure_connection()
 
     # Validate storage connectivity as part of the health check, but keep the
     # response contract aligned with atlas_architecture.tex Section 17/18.

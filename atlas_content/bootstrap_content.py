@@ -270,9 +270,8 @@ from rest_framework.response import Response
 from photos.services.s3_service import S3StorageService
 @api_view(['GET'])
 def health_view(request):
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT 1')
-        cursor.fetchone()
+    connection.ensure_connection()
+    S3StorageService().health_status()
     uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
-    return Response({'status': 'healthy', 'version': '1.0.0', 'uptime': uptime, 'checks': {'database': 'ok', 'storage': S3StorageService().health_status()}})
+    return Response({'status': 'healthy', 'version': settings.SERVICE_VERSION, 'uptime': uptime})
 ''')
