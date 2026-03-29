@@ -104,6 +104,18 @@ export interface SpotDetail extends SpotSummary {
   reviews: Review[];
 }
 
+export interface MapPoint {
+  id: string;
+  title: string;
+  latitude: number;
+  longitude: number;
+  category: SpotCategory;
+  city?: string;
+  vibe?: string;
+  rating?: number;
+  photoUrl?: string;
+}
+
 export interface SpotFilters {
   category?: SpotCategory | '';
   city?: string;
@@ -206,6 +218,15 @@ export interface MapViewport {
   center: [number, number];
   zoom: number;
   style: string;
+}
+
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  heading: number | null;
+  speed: number | null;
+  timestamp: number;
 }
 
 export interface LocationPing {

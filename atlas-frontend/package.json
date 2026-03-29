@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --pool forks --poolOptions.forks.singleFork",
+    "test:watch": "vitest --pool forks --poolOptions.forks.singleFork",
     "test:e2e": "playwright test",
     "lint": "eslint . --ext .vue,.ts"
   },
