@@ -43,7 +43,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
 [ApiController]
 [Authorize]
 [Route("api/core/users")]
-public sealed class UsersController(CoreDbContext dbContext, IKafkaProducerService kafkaProducerService) : ControllerBase
+public sealed class UsersController(CoreDbContext dbContext) : ControllerBase
 {
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
@@ -60,7 +60,7 @@ public sealed class UsersController(CoreDbContext dbContext, IKafkaProducerServi
 public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerService kafkaProducerService) : ControllerBase
 {
     [HttpPost("request/{userId:guid}")]
-    public async Task<IActionResult> Request(Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> SendRequest(Guid userId, CancellationToken cancellationToken)
     {
         var requesterId = Guid.Parse(User.FindFirstValue("sub")!);
         var friendship = new Friendship { Id = Guid.NewGuid(), RequesterId = requesterId, AddresseeId = userId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow };
