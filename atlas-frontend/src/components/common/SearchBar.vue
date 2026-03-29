@@ -26,8 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core';
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 
 const props = withDefaults(
@@ -59,6 +58,7 @@ const emit = defineEmits<{
 }>();
 
 const inputValue = ref(props.modelValue);
+let emitTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => props.modelValue,
@@ -69,29 +69,46 @@ watch(
   },
 );
 
-const emitSearch = useDebounceFn((value: string) => {
+function clearScheduledSearch() {
+  if (emitTimeoutId !== null) {
+    clearTimeout(emitTimeoutId);
+    emitTimeoutId = null;
+  }
+}
+
+function emitSearch(value: string) {
   const trimmedValue = value.trim();
   emit('update:modelValue', trimmedValue);
   emit('search', trimmedValue);
-}, props.debounceMs);
+}
+
+function scheduleSearch(value: string) {
+  clearScheduledSearch();
+  emitTimeoutId = setTimeout(() => {
+    emitSearch(value);
+    emitTimeoutId = null;
+  }, props.debounceMs);
+}
 
 function emitImmediately() {
-  emitSearch.cancel();
-  const trimmedValue = inputValue.value.trim();
-  emit('update:modelValue', trimmedValue);
-  emit('search', trimmedValue);
+  clearScheduledSearch();
+  emitSearch(inputValue.value);
 }
 
 function handleInput(event: Event) {
   const target = event.target as HTMLInputElement;
   inputValue.value = target.value;
-  emitSearch(inputValue.value);
+  scheduleSearch(inputValue.value);
 }
 
 function clearSearch() {
   inputValue.value = '';
   emitImmediately();
 }
+
+onBeforeUnmount(() => {
+  clearScheduledSearch();
+});
 </script>
 
 <style scoped>

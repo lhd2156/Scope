@@ -32,6 +32,7 @@
 - [2026-03-28] ⚠️ DRF request auth in Content Engine needs explicit `REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES']`; middleware alone will not authenticate API views/tests that rely on `request.user`
 - [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
 - [2026-03-29] ⚠️ Atlas health endpoints follow the architecture's bare JSON contract (`status`, `version`, `uptime`) instead of the usual `data` envelope; lock that shape in with endpoint contract tests.
+- [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -43,6 +44,7 @@
 - [2026-03-29] ⚠️ In Vitest, do not replace the global `URL` constructor with a plain object just to stub `createObjectURL`; override `URL.createObjectURL` instead, or axios imports can crash with `URL is not a constructor`.
 - [2026-03-29] ⚠️ Frontend silent session hydration must disable mock auth fallbacks; otherwise a stale local session hint can make a fresh tab appear authenticated without a real refresh cookie.
 - [2026-03-29] ⚠️ For frontend auth-guard verification, unit-test `resolveNavigationGuard()` with a mocked auth store and separately assert `router.getRoutes()` meta contracts; that is more stable than mounting full pages when only redirect/auth behavior matters.
+- [2026-03-29] ⚠️ In this frontend dependency set, `useDebounceFn()` should not be assumed to expose a usable `.cancel()` method at runtime; for critical input flows like `SearchBar`, prefer explicit timeout cleanup or verify the helper API before calling `cancel()`.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -80,6 +82,13 @@
 - [2026-03-29] ⚠️ `openclaw agent` launches can survive a local gateway closure by falling back to embedded execution; if spawned workers stay running after a `ws://127.0.0.1:18789` close, treat it as a control-plane issue to flag rather than assuming the worker died immediately.
 
 - [2026-03-29] ⚠️ In Atlas.Core, middleware registered before `MapControllers()`/`MapHub()` also governs SignalR negotiate routes; when auditing cross-cutting policies like rate limiting, add hub-path tests instead of checking controllers only.
+- [2026-03-29] ⚠️ On Windows heartbeats, when OpenClaw child-session metadata is unavailable, inspect `Win32_Process` for `openclaw.mjs agent` plus `--agent` / `--session-id` to confirm which workers are still alive before spawning replacements.
+- [2026-03-29] ⚠️ Lead progress can say an agent is "running" even after that worker process exits; verify the actual `openclaw.mjs agent --session-id ...` process is still alive before you skip a needed respawn.
+- [2026-03-29] ⚠️ A background `openclaw agent` exec can linger as a live `node.exe` even after `process log` shows a completed payload with `"stopReason": "stop"`; treat that as a stale worker, kill it, and relaunch with a fresh session ID instead of assuming it is still making progress.
+
+- [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
+
+- [2026-03-29] ⚠️ In Atlas.Core minimal-hosting integration tests, config values checked directly in `Program.cs` (like `CORE_JWT_SECRET`) must be present before `WebApplicationFactory` boots the app; process env vars are a reliable way to seed those early startup checks.
 
 ## Common Mistakes to Avoid
 
