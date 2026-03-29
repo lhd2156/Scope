@@ -9,7 +9,7 @@
             :aria-label="`Open ${photo.caption || 'photo'} preview`"
             @click="selectedPhoto = photo"
           >
-            <img :src="photo.url" :alt="photo.caption || 'Spot upload preview'" />
+            <LazyImage :src="photo.url" :alt="photo.caption || 'Spot upload preview'" class="gallery-image" />
           </button>
           <button
             v-if="removable"
@@ -57,7 +57,7 @@
       @close="selectedPhoto = null"
     >
       <figure v-if="selectedPhoto" class="lightbox-figure">
-        <img :src="selectedPhoto.url" :alt="selectedPhoto.caption || 'Spot photo preview'" class="lightbox-image" />
+        <LazyImage :src="selectedPhoto.url" :alt="selectedPhoto.caption || 'Spot photo preview'" class="lightbox-image" eager />
         <figcaption>
           <strong>{{ selectedPhoto.caption || 'Community upload' }}</strong>
           <span>{{ selectedPhoto.meta || (selectedPhoto.source === 'upload' ? 'New upload preview' : 'Existing gallery image') }}</span>
@@ -70,6 +70,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import Modal from '@/components/common/Modal.vue';
 import type { PhotoGalleryCaptionUpdate, PhotoGalleryItem } from '@/types';
 
@@ -141,18 +142,18 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
   cursor: zoom-in;
 }
 
-.gallery-media img,
+.gallery-image,
 .preview-button {
   width: 100%;
   height: 100%;
 }
 
-.gallery-media img {
+.gallery-image {
   object-fit: cover;
 }
 
-.preview-button:hover img,
-.preview-button:focus-visible img {
+.preview-button:hover .gallery-image,
+.preview-button:focus-visible .gallery-image {
   transform: scale(1.015);
 }
 
@@ -161,7 +162,7 @@ function handleCaptionInput(photo: PhotoGalleryItem, event: Event) {
   outline-offset: -2px;
 }
 
-.gallery-media img {
+.gallery-image {
   transition: transform var(--transition-normal);
 }
 

@@ -1,7 +1,7 @@
 <template>
   <RouterLink :to="`/trips/${trip.id}`" class="trip-card glass-panel" data-test="trip-card">
     <div class="trip-media">
-      <img v-if="trip.coverImageUrl" :src="trip.coverImageUrl" :alt="trip.title" class="trip-image" />
+      <LazyImage v-if="trip.coverImageUrl" :src="trip.coverImageUrl" :alt="trip.title" class="trip-image" />
       <div v-else class="trip-fallback">
         <AtlasIcon name="route" label="Trip route" />
         <span>Route preview</span>
@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import type { Trip } from '@/types';
 
 const props = defineProps<{

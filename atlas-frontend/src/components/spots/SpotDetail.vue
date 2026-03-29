@@ -2,7 +2,7 @@
   <section v-if="spot" class="spot-detail page-stack">
     <header class="glass-panel hero-panel">
       <div class="hero-media">
-        <img v-if="heroImageUrl" :src="heroImageUrl" :alt="spot.title" class="hero-image" />
+        <LazyImage v-if="heroImageUrl" :src="heroImageUrl" :alt="spot.title" class="hero-image" eager />
         <div v-else class="hero-placeholder">
           <strong>{{ categoryLabel }}</strong>
           <span>Hero image coming soon</span>
@@ -143,6 +143,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
+import LazyImage from '@/components/common/LazyImage.vue';
 import Toast from '@/components/common/Toast.vue';
 import MapView from '@/components/map/MapView.vue';
 import PhotoGallery from '@/components/spots/PhotoGallery.vue';
