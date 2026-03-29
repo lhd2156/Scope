@@ -55,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isHydratingSession = ref(false);
   const hasHydratedSession = ref(false);
   const error = ref<string | null>(null);
+  const sessionExpiredMessage = ref<string | null>(null);
   const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
   let hydrationPromise: Promise<boolean> | null = null;
 
@@ -65,6 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasSessionHint.value = true;
     hasHydratedSession.value = true;
     error.value = null;
+    sessionExpiredMessage.value = null;
     persistAuthSessionHint();
     setAccessToken(token.value);
   }
@@ -80,6 +82,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clearError() {
     error.value = null;
+  }
+
+  function clearSessionExpiredMessage() {
+    sessionExpiredMessage.value = null;
   }
 
   function updateCurrentUser(updates: Partial<UserProfile>) {
@@ -140,8 +146,15 @@ export const useAuthStore = defineStore('auth', () => {
     return hydrationPromise;
   }
 
+  function handleSessionExpired(message = 'Your session expired. Sign in again to keep planning in Atlas.') {
+    clearSession();
+    error.value = null;
+    sessionExpiredMessage.value = message;
+  }
+
   async function login(payload: AuthForm) {
     error.value = null;
+    sessionExpiredMessage.value = null;
 
     try {
       applyAuthPayload(await loginRequest(payload));
@@ -153,6 +166,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(payload: RegisterForm) {
     error.value = null;
+    sessionExpiredMessage.value = null;
 
     try {
       applyAuthPayload(await registerRequest(payload));
@@ -164,6 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loginWithCognito(idToken = 'demo-cognito-id-token') {
     error.value = null;
+    sessionExpiredMessage.value = null;
 
     try {
       applyAuthPayload(await loginWithCognitoRequest(idToken));
@@ -175,6 +190,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout() {
     error.value = null;
+    sessionExpiredMessage.value = null;
 
     try {
       await logoutRequest();
@@ -187,7 +203,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   configureApiSessionHandlers({
     refreshAccessToken: refreshSession,
-    handleUnauthorized: clearSession,
+    handleUnauthorized: handleSessionExpired,
   });
 
   return {
@@ -197,6 +213,7 @@ export const useAuthStore = defineStore('auth', () => {
     isHydratingSession,
     hasHydratedSession,
     error,
+    sessionExpiredMessage,
     isAuthenticated,
     hydrateSession,
     login,
@@ -205,6 +222,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshSession,
     updateCurrentUser,
     clearError,
+    clearSessionExpiredMessage,
     logout,
   };
 });

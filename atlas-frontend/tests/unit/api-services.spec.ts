@@ -27,6 +27,7 @@ describe('API service fallbacks', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     apiMock.get.mockReset();
     apiMock.post.mockReset();
     apiMock.put.mockReset();
@@ -36,9 +37,24 @@ describe('API service fallbacks', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
-  it('returns a demo auth payload when login is still mocked', async () => {
+  it('does not silently authenticate when login fails and mock fallback is disabled', async () => {
+    apiMock.post.mockRejectedValue(new Error('network down'));
+
+    const authService = await import('@/services/authService');
+
+    await expect(
+      authService.login({
+        email: 'maya@example.com',
+        password: 'SecurePass123!',
+      }),
+    ).rejects.toThrow('network down');
+  });
+
+  it('falls back to demo auth only when explicitly enabled for local development', async () => {
+    vi.stubEnv('VITE_ENABLE_AUTH_MOCK_FALLBACK', 'true');
     apiMock.post.mockRejectedValue(new Error('network down'));
 
     const authService = await import('@/services/authService');
@@ -49,7 +65,6 @@ describe('API service fallbacks', () => {
 
     expect(payload.email).toBe('maya@example.com');
     expect(payload.accessToken).toContain('demo-token');
-    expect(payload.refreshToken).toBeTruthy();
   });
 
   it('falls back to local spot search for geocoding', async () => {

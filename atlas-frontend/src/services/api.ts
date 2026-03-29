@@ -212,6 +212,18 @@ async function runUnauthorizedHandler(): Promise<void> {
   await unauthorizedHandler?.();
 }
 
+function getNetworkFailureMessage(error: AxiosError<ApiErrorResponse>): string {
+  if (error.code === 'ECONNABORTED') {
+    return 'Atlas timed out while contacting the server. Check your connection and try again.';
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You appear to be offline. Reconnect to Atlas and try again.';
+  }
+
+  return 'Atlas could not reach the API right now. Check your connection and try again.';
+}
+
 function normalizeApiError(error: unknown): ApiClientError {
   if (error instanceof ApiClientError) {
     return error;
@@ -219,7 +231,7 @@ function normalizeApiError(error: unknown): ApiClientError {
 
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
     const responsePayload = error.response?.data;
-    const fallbackMessage = error.message || 'Atlas could not reach the API right now.';
+    const fallbackMessage = error.response ? error.message || 'Atlas could not reach the API right now.' : getNetworkFailureMessage(error);
 
     if (isApiErrorResponse(responsePayload)) {
       return new ApiClientError({

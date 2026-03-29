@@ -14,22 +14,50 @@
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <label class="field-group">
             <span>Username</span>
-            <input v-model.trim="username" maxlength="40" placeholder="louisdo" autocomplete="username" required />
+            <input
+              v-model.trim="username"
+              maxlength="40"
+              placeholder="louisdo"
+              autocomplete="username"
+              :aria-invalid="Boolean(fieldErrors.username)"
+            />
+            <small v-if="fieldErrors.username" class="field-error">{{ fieldErrors.username }}</small>
           </label>
 
           <label class="field-group">
             <span>Display name</span>
-            <input v-model.trim="displayName" maxlength="80" placeholder="Louis Do" autocomplete="name" required />
+            <input
+              v-model.trim="displayName"
+              maxlength="80"
+              placeholder="Louis Do"
+              autocomplete="name"
+              :aria-invalid="Boolean(fieldErrors.displayName)"
+            />
+            <small v-if="fieldErrors.displayName" class="field-error">{{ fieldErrors.displayName }}</small>
           </label>
 
           <label class="field-group">
             <span>Email</span>
-            <input v-model.trim="email" type="email" autocomplete="email" placeholder="louis@example.com" required />
+            <input
+              v-model.trim="email"
+              type="email"
+              autocomplete="email"
+              placeholder="louis@example.com"
+              :aria-invalid="Boolean(fieldErrors.email)"
+            />
+            <small v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</small>
           </label>
 
           <label class="field-group">
             <span>Password</span>
-            <input v-model="password" type="password" autocomplete="new-password" placeholder="Create a strong password" required />
+            <input
+              v-model="password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Create a strong password"
+              :aria-invalid="Boolean(fieldErrors.password)"
+            />
+            <small v-if="fieldErrors.password" class="field-error">{{ fieldErrors.password }}</small>
           </label>
 
           <Button type="submit" :loading="isSubmitting" block>Create account</Button>
@@ -50,6 +78,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
+import { validateRegisterForm, type RegisterFormErrors } from '@/utils/authValidators';
 
 const username = ref('louisdo');
 const displayName = ref('Louis Do');
@@ -57,6 +86,7 @@ const email = ref('louis@example.com');
 const password = ref('SecurePass123!');
 const isSubmitting = ref(false);
 const formError = ref('');
+const fieldErrors = ref<RegisterFormErrors>({});
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
@@ -67,9 +97,20 @@ function resolveRedirectTarget() {
 }
 
 async function submit() {
-  isSubmitting.value = true;
+  fieldErrors.value = validateRegisterForm({
+    username: username.value,
+    displayName: displayName.value,
+    email: email.value,
+    password: password.value,
+  });
   formError.value = '';
   authStore.clearError();
+
+  if (Object.keys(fieldErrors.value).length) {
+    return;
+  }
+
+  isSubmitting.value = true;
 
   try {
     await authStore.register({
@@ -144,7 +185,8 @@ async function submit() {
   color: var(--text-secondary);
 }
 
-.form-error {
+.form-error,
+.field-error {
   margin: 0;
   color: var(--danger);
 }

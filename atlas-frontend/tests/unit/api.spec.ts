@@ -173,4 +173,36 @@ describe('api client', () => {
       message: 'Trip dates overlap with an existing itinerary.',
     });
   });
+
+  it('surfaces an offline-friendly network message when no response is returned', async () => {
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      value: false,
+    });
+
+    const { default: api, ApiClientError } = await import('@/services/api');
+
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) =>
+      Promise.reject(new AxiosError('Network Error', 'ERR_NETWORK', config));
+
+    await expect(api.get('/api/content/feed')).rejects.toBeInstanceOf(ApiClientError);
+    await expect(api.get('/api/content/feed')).rejects.toMatchObject({
+      code: 'ERR_NETWORK',
+      message: 'You appear to be offline. Reconnect to Atlas and try again.',
+      isNetworkError: true,
+    });
+  });
+
+  it('surfaces a timeout-specific message for stalled requests', async () => {
+    const { default: api } = await import('@/services/api');
+
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) =>
+      Promise.reject(new AxiosError('timeout of 10000ms exceeded', 'ECONNABORTED', config));
+
+    await expect(api.get('/api/content/feed')).rejects.toMatchObject({
+      code: 'ECONNABORTED',
+      message: 'Atlas timed out while contacting the server. Check your connection and try again.',
+      isNetworkError: true,
+    });
+  });
 });
