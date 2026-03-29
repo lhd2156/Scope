@@ -2,15 +2,27 @@ import { nextTick } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 
-const { authStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
+      id: 'user-1',
       displayName: 'Louis Do',
       avatarUrl: '',
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
     },
-    updateCurrentUser: vi.fn(),
+  },
+  userStoreMock: {
+    saving: false,
+    error: null as string | null,
+    saveProfile: vi.fn().mockResolvedValue({
+      id: 'user-1',
+      displayName: 'Louis Do',
+      avatarUrl: '',
+      bio: 'Collecting rooftop taco stops.',
+      homeBase: 'Fort Worth, TX',
+      interests: [],
+    }),
   },
 }));
 
@@ -18,22 +30,22 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => userStoreMock,
+}));
+
 import SettingsPage from '@/views/SettingsPage.vue';
 
 describe('SettingsPage', () => {
   beforeEach(() => {
-    authStoreMock.updateCurrentUser.mockClear();
+    userStoreMock.error = null;
+    userStoreMock.saveProfile.mockClear();
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
-    vi.useFakeTimers();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('wires the settings form into the auth profile shell and success toast', async () => {
+  it('saves through the user profile contract and shows the success toast', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -45,25 +57,26 @@ describe('SettingsPage', () => {
             template: '<button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button>',
           },
           Toast: {
-            props: ['open', 'title'],
-            template: '<div v-if="open" data-test="toast-stub">{{ title }}</div>',
+            props: ['open', 'title', 'message'],
+            template: '<div v-if="open" data-test="toast-stub">{{ title }} - {{ message }}</div>',
           },
         },
       },
     });
 
     await wrapper.get('[data-test="settings-submit"]').trigger('click');
-    await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
 
-    expect(authStoreMock.updateCurrentUser).toHaveBeenCalledWith({
+    expect(userStoreMock.saveProfile).toHaveBeenCalledWith({
       displayName: 'Louis Do',
       avatarUrl: undefined,
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
     });
     expect(wrapper.find('[data-test="theme-toggle-stub"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Settings updated');
+    expect(wrapper.text()).toContain('API-backed');
+    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Settings saved');
+    expect(wrapper.find('[data-test="toast-stub"]').text()).toContain('Profile details synced across your Atlas account.');
   });
 
   it('keeps shell and page theme toggles synchronized in the settings workspace', async () => {
@@ -98,9 +111,8 @@ describe('SettingsPage', () => {
   });
 
   it('surfaces a settings error when the profile update throws', async () => {
-    authStoreMock.updateCurrentUser.mockImplementationOnce(() => {
-      throw new Error('Settings sync failed');
-    });
+    userStoreMock.error = 'Atlas could not update that profile right now.';
+    userStoreMock.saveProfile.mockRejectedValueOnce(new Error('Settings sync failed'));
 
     const wrapper = mount(SettingsPage, {
       global: {
@@ -118,9 +130,8 @@ describe('SettingsPage', () => {
     });
 
     await wrapper.get('[data-test="settings-submit"]').trigger('click');
-    await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Atlas could not save your settings right now.');
+    expect(wrapper.text()).toContain('Atlas could not update that profile right now.');
   });
 });

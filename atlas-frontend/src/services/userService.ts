@@ -11,6 +11,8 @@ import {
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const USERS_BASE_PATH = '/api/core/users';
+const USER_MOCK_FALLBACK_ENABLED =
+  import.meta.env.VITE_ENABLE_USER_MOCK_FALLBACK === 'true' || import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 
 export interface UpdateUserProfileInput {
   username?: string;
@@ -103,7 +105,11 @@ export async function getCurrentUserProfile(fallbackUserId?: string): Promise<Ap
   try {
     const { data } = await api.get<ApiEnvelope<UserProfile> | UserProfile>(`${AUTH_BASE_PATH}/me`);
     return sanitizeUserEnvelope({ data: unwrapApiData(data) });
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     const user = getMockUserOrThrow(fallbackUserId ?? mockUsers[0]?.id ?? 'user-1');
     return sanitizeUserEnvelope({ data: user });
   }
@@ -113,7 +119,11 @@ export async function getUserProfile(userId: string): Promise<ApiEnvelope<UserPr
   try {
     const { data } = await api.get<ApiEnvelope<UserProfile> | UserProfile>(`${USERS_BASE_PATH}/${userId}`);
     return sanitizeUserEnvelope({ data: unwrapApiData(data) });
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     return sanitizeUserEnvelope({ data: getMockUserOrThrow(userId) });
   }
 }
@@ -124,7 +134,11 @@ export async function updateUserProfile(userId: string, updates: UpdateUserProfi
   try {
     const { data } = await api.put<ApiEnvelope<UserProfile> | UserProfile>(`${USERS_BASE_PATH}/${userId}`, sanitizedInput);
     return sanitizeUserEnvelope({ data: unwrapApiData(data) });
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     return sanitizeUserEnvelope({ data: updateMockUser(userId, sanitizedInput) });
   }
 }
@@ -132,7 +146,11 @@ export async function updateUserProfile(userId: string, updates: UpdateUserProfi
 export async function deactivateUserProfile(userId: string): Promise<void> {
   try {
     await api.delete(`${USERS_BASE_PATH}/${userId}`);
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     const userIndex = resolveUserIndex(userId);
 
     if (userIndex >= 0) {
@@ -153,7 +171,11 @@ export async function searchUsers(query: string, page = 1, pageSize = 10): Promi
       },
     });
     return sanitizeUserListEnvelope(data);
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     const normalizedQuery = sanitizedQuery.toLowerCase();
     const matchingUsers = mockUsers.filter((user) => {
       const searchableContent = [user.username, user.displayName, user.email, user.homeBase].filter(Boolean).join(' ').toLowerCase();
@@ -168,7 +190,11 @@ export async function getUserStats(userId: string): Promise<ApiEnvelope<UserStat
   try {
     const { data } = await api.get<ApiEnvelope<UserStats> | UserStats>(`${USERS_BASE_PATH}/${userId}/stats`);
     return sanitizeStatsEnvelope({ data: unwrapApiData(data) });
-  } catch {
+  } catch (error) {
+    if (!USER_MOCK_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     return sanitizeStatsEnvelope({ data: buildFallbackStats(userId) });
   }
 }

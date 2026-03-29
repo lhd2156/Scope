@@ -38,23 +38,21 @@
               </div>
             </div>
 
-            <article class="surface-card sidebar-card route-card">
+            <article class="surface-card sidebar-card route-card" :class="{ 'route-card--empty': !activeTrip }">
               <p class="eyebrow">Featured route</p>
-              <h1>{{ activeTrip?.title ?? 'Atlas route preview' }}</h1>
-              <p class="section-copy">
-                {{ activeTrip?.description ?? 'Trip routes light up here as soon as the content engine returns itinerary data.' }}
-              </p>
+              <h1>{{ routeTitle }}</h1>
+              <p class="section-copy">{{ routeDescription }}</p>
               <div class="route-metrics">
-                <span>{{ routePoints.length }} stops</span>
-                <span>{{ activeTrip?.members.length ?? 0 }} travelers</span>
-                <span>{{ activeTrip?.destination ?? 'Texas demo circuit' }}</span>
+                <span>{{ routePoints.length }} stop{{ routePoints.length === 1 ? '' : 's' }}</span>
+                <span>{{ activeTrip?.members.length ?? 0 }} traveler{{ (activeTrip?.members.length ?? 0) === 1 ? '' : 's' }}</span>
+                <span>{{ routeDestinationLabel }}</span>
               </div>
             </article>
 
             <article v-if="selectedSpot" class="surface-card sidebar-card selected-card">
               <LazyImage :src="selectedSpot.photoUrl" :alt="selectedSpot.title" class="selected-image" eager />
               <div class="selected-copy">
-                <span class="badge" :class="`badge-${selectedSpot.category}`">{{ selectedSpot.category }}</span>
+                <span class="badge" :class="`badge-${selectedSpot.category}`">{{ formatCategory(selectedSpot.category) }}</span>
                 <h2>{{ selectedSpot.title }}</h2>
                 <p>{{ selectedSpot.description }}</p>
                 <div class="selected-meta">
@@ -69,12 +67,13 @@
               <div class="visible-header">
                 <div>
                   <p class="eyebrow">Visible pins</p>
-                  <h2>{{ visibleSpots.length }} spots ready to explore</h2>
+                  <h2>{{ visibleTitle }}</h2>
                 </div>
                 <span class="filter-count">{{ mapStore.activeCategories.length }} active filters</span>
               </div>
 
-              <div class="visible-list">
+              <p v-if="workspaceLoading" class="sidebar-state">Loading map pins and route context…</p>
+              <div v-else-if="visibleSpots.length" class="visible-list">
                 <button
                   v-for="spot in visibleSpots.slice(0, 5)"
                   :key="spot.id"
@@ -89,6 +88,10 @@
                   </div>
                   <span>★ {{ spot.rating.toFixed(1) }}</span>
                 </button>
+              </div>
+              <div v-else class="sidebar-empty-state">
+                <p>No pins match the current category mix.</p>
+                <button type="button" class="button button-secondary" @click="mapStore.resetCategories">Show all categories</button>
               </div>
             </article>
           </Sidebar>
@@ -142,6 +145,7 @@ const mapSpots = computed<MapPoint[]>(() => spotsStore.items.map((spot) => ({
 })));
 
 const activeTrip = computed(() => tripsStore.items[0] ?? null);
+const workspaceLoading = computed(() => spotsStore.loading || tripsStore.loading);
 const workspaceError = computed(() => spotsStore.error || tripsStore.error || '');
 const routePoints = computed<MapPoint[]>(() => (activeTrip.value?.spots ?? []).map((spot) => ({
   id: spot.spotId,
@@ -150,6 +154,25 @@ const routePoints = computed<MapPoint[]>(() => (activeTrip.value?.spots ?? []).m
   longitude: spot.longitude,
   category: spot.category,
 })));
+const routeTitle = computed(() => {
+  if (activeTrip.value?.title) {
+    return activeTrip.value.title;
+  }
+
+  return workspaceLoading.value ? 'Loading route preview' : 'Route preview ready';
+});
+const routeDescription = computed(() => {
+  if (activeTrip.value?.description) {
+    return activeTrip.value.description;
+  }
+
+  if (workspaceLoading.value) {
+    return 'Atlas is syncing trip context into the map workspace.';
+  }
+
+  return 'Pick a trip from the planner to preview its stop sequence and crew context on the map.';
+});
+const routeDestinationLabel = computed(() => activeTrip.value?.destination ?? 'Trip planner');
 
 const visibleSpots = computed(() => {
   const visibleIds = new Set(mapStore.visibleSpotIds);
@@ -158,6 +181,11 @@ const visibleSpots = computed(() => {
     : spotsStore.items.filter((spot) => mapStore.activeCategories.includes(spot.category));
 
   return scopedSpots;
+});
+
+const visibleTitle = computed(() => {
+  const count = visibleSpots.value.length;
+  return `${count} spot${count === 1 ? '' : 's'} ready to explore`;
 });
 
 const selectedSpot = computed(() => spotsStore.items.find((spot) => spot.id === mapStore.selectedSpotId) ?? visibleSpots.value[0] ?? null);
@@ -229,7 +257,8 @@ onMounted(async () => {
 
 .filter-cluster,
 .sidebar-card,
-.selected-copy {
+.selected-copy,
+.sidebar-empty-state {
   display: grid;
   gap: var(--space-4);
 }
@@ -320,9 +349,17 @@ onMounted(async () => {
 .selected-meta,
 .filter-count,
 .selected-copy p,
-.visible-item p {
+.visible-item p,
+.sidebar-state,
+.sidebar-empty-state p {
   color: var(--text-secondary);
   font-size: var(--font-size-small);
+}
+
+.route-card--empty {
+  background:
+    radial-gradient(circle at top right, var(--accent-teal-light), transparent 45%),
+    var(--bg-secondary);
 }
 
 .visible-list {
@@ -365,6 +402,14 @@ onMounted(async () => {
   background: var(--accent-teal-light);
   transform: translateY(-0.0625rem);
   outline: none;
+}
+
+.sidebar-empty-state {
+  justify-items: start;
+}
+
+.sidebar-empty-state .button {
+  width: fit-content;
 }
 
 @media (max-width: 1100px) {

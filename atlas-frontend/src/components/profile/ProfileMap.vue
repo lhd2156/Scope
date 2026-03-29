@@ -44,7 +44,7 @@
 
     <article v-else class="empty-state surface-card">
       <h3>No public pins yet</h3>
-      <p>This explorer has not surfaced any public highlights in the current mock dataset.</p>
+      <p>When this explorer publishes places to Atlas, their map highlights will appear here.</p>
     </article>
   </section>
 </template>

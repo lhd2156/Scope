@@ -59,7 +59,7 @@
 
       <section class="layout-grid">
         <div class="section-stack">
-          <FriendList :friends="friendConnections" />
+          <FriendList :friends="friendConnections" @view-profile="openProfile" />
         </div>
 
         <div class="section-stack">
@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
@@ -119,6 +120,7 @@ import type { UserProfile } from '@/types';
 const authStore = useAuthStore();
 const feedStore = useFeedStore();
 const notificationsStore = useNotificationsStore();
+const router = useRouter();
 const friendConnections = ref([...mockFriendConnections]);
 const friendRequests = ref([...mockFriendRequests]);
 
@@ -182,6 +184,10 @@ function resolveRequestUser(request: Record<string, unknown>): UserProfile {
     displayName,
     interests: [],
   };
+}
+
+function openProfile(friendId: string) {
+  void router.push(`/profile/${friendId}`);
 }
 
 onMounted(async () => {

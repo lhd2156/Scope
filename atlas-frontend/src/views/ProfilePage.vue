@@ -4,10 +4,28 @@
       <SectionHeading
         eyebrow="Profile"
         title="Adventure map and public highlights"
-        description="See how each Atlas explorer is showing up across mapped pins, collaborative routes, and the cities shaping their public footprint."
+        description="See how each Atlas explorer shows up across public pins, collaborative routes, and the cities shaping their visible footprint."
       />
 
-      <template v-if="profileUser">
+      <article v-if="profileError" class="glass-panel state-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Atlas could not open this profile workspace</h2>
+        <p class="section-copy">{{ profileError }}</p>
+        <RouterLink class="button button-secondary" to="/friends">Back to your network</RouterLink>
+      </article>
+
+      <article v-else-if="isLoading" class="glass-panel state-panel" aria-live="polite">
+        <p class="eyebrow">Loading</p>
+        <h2>Building this explorer view</h2>
+        <p class="section-copy">Atlas is gathering public pins, route participation, and profile context.</p>
+      </article>
+
+      <template v-else-if="profileUser">
+        <article v-if="workspaceNotice" class="glass-panel inline-note" role="status">
+          <p class="eyebrow">Partial refresh</p>
+          <p class="section-copy">{{ workspaceNotice }}</p>
+        </article>
+
         <ProfileHeader
           :user="profileUser"
           :is-current-user="isCurrentUser"
@@ -29,15 +47,15 @@
               <SectionHeading
                 eyebrow="Highlights"
                 title="Recent public pins"
-                description="The newest community-facing places surfaced from this profile's adventure log."
+                description="The newest community-facing places surfaced from this explorer's Atlas activity."
               />
 
               <div v-if="authoredSpots.length" class="card-grid">
                 <SpotCard v-for="spot in authoredSpots" :key="spot.id" :spot="spot" />
               </div>
               <article v-else class="glass-panel empty-panel">
-                <h3>No public pins in the current sample</h3>
-                <p class="section-copy">This profile has total Atlas stats, but no surfaced public highlights in the seed dataset yet.</p>
+                <h3>No public pins yet</h3>
+                <p class="section-copy">When this explorer publishes places to Atlas, they will appear here first.</p>
               </article>
             </section>
 
@@ -45,15 +63,15 @@
               <SectionHeading
                 eyebrow="Trips"
                 title="Routes built with friends"
-                description="Collaborative itineraries where this explorer is active across the current frontend sample."
+                description="Collaborative public itineraries where this explorer appears on the crew."
               />
 
-              <div v-if="profileTrips.length" class="trip-grid">
-                <TripCard v-for="trip in profileTrips" :key="trip.id" :trip="trip" />
+              <div v-if="collaborativeTrips.length" class="trip-grid">
+                <TripCard v-for="trip in collaborativeTrips" :key="trip.id" :trip="trip" />
               </div>
               <article v-else class="glass-panel empty-panel">
                 <h3>No collaborative trips yet</h3>
-                <p class="section-copy">Once this user joins a shared route, Atlas will surface those itineraries here.</p>
+                <p class="section-copy">Atlas will surface public routes here once this explorer joins or publishes one.</p>
               </article>
             </section>
           </div>
@@ -64,7 +82,7 @@
               :public-spot-count="authoredSpots.length"
               :city-count="cityCount"
               :average-rating="averageRating"
-              :route-count="profileTrips.length"
+              :route-count="collaborativeTrips.length"
               :favorite-category="favoriteCategory"
             />
 
@@ -85,13 +103,13 @@
                 <div class="surface-card insight-card">
                   <small>Home base</small>
                   <strong>{{ profileUser.homeBase || 'Atlas community' }}</strong>
-                  <span>{{ cityCount }} mapped city{{ cityCount === 1 ? '' : 'ies' }} in the visible sample</span>
+                  <span>{{ cityCount }} mapped city{{ cityCount === 1 ? '' : 'ies' }} in public view</span>
                 </div>
               </div>
 
               <div class="interest-list">
-                <span v-for="interest in profileUser.interests" :key="interest" class="interest-chip" :class="`badge-${interest}`">
-                  {{ formatCategory(interest) }}
+                <span v-for="interest in profileUser.interests" :key="interest" class="interest-chip" :class="`badge-${toBadgeCategory(interest)}`">
+                  {{ formatInterest(interest) }}
                 </span>
               </div>
             </article>
@@ -99,9 +117,9 @@
         </div>
       </template>
 
-      <section v-else class="glass-panel empty-panel">
-        <h3>Profile not found</h3>
-        <p class="section-copy">The requested explorer isn't present in the current frontend sample data.</p>
+      <section v-else class="glass-panel state-panel">
+        <h3>Profile unavailable</h3>
+        <p class="section-copy">Atlas could not find that explorer yet. Try opening another profile from your network.</p>
         <RouterLink class="button button-primary" to="/friends">Back to your network</RouterLink>
       </section>
     </div>
@@ -109,8 +127,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import ProfileHeader from '@/components/profile/ProfileHeader.vue';
@@ -118,29 +136,37 @@ import ProfileMap from '@/components/profile/ProfileMap.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import TripCard from '@/components/trips/TripCard.vue';
-import { mockSpots, mockTrips, mockUsers } from '@/services/mockData';
+import { listUserSpots } from '@/services/spotService';
+import { listPublicTrips } from '@/services/tripService';
 import { useAuthStore } from '@/stores/auth';
+import { useUserStore } from '@/stores/user';
 import type { SpotCategory, SpotSummary, Trip, TripSpot, UserProfile } from '@/types';
+import { toAsyncErrorMessage } from '@/utils/errors';
 
 const route = useRoute();
 const authStore = useAuthStore();
+const userStore = useUserStore();
+const profileUser = ref<UserProfile | null>(null);
+const profileSpots = ref<SpotSummary[]>([]);
+const profileTrips = ref<Trip[]>([]);
+const isLoading = ref(true);
+const profileError = ref('');
+const workspaceNotice = ref('');
+const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
-function uniqueProfiles(users: Array<UserProfile | null | undefined>): UserProfile[] {
-  const byId = new Map<string, UserProfile>();
-
-  users.forEach((user) => {
-    if (!user) {
-      return;
-    }
-
-    byId.set(user.id, user);
-  });
-
-  return [...byId.values()];
-}
+let loadRequestId = 0;
 
 function formatCategory(category: SpotCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function toBadgeCategory(value: string): SpotCategory {
+  const normalizedValue = value.trim().toLowerCase();
+  return availableCategories.find((category) => category === normalizedValue) ?? 'other';
+}
+
+function formatInterest(value: string): string {
+  return formatCategory(toBadgeCategory(value));
 }
 
 function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfile): SpotSummary {
@@ -160,20 +186,14 @@ function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfil
 }
 
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
-const profileDirectory = computed(() => uniqueProfiles([...mockUsers, authStore.currentUser]));
-const profileUser = computed(() => profileDirectory.value.find((user) => user.id === routeUserId.value) ?? null);
 const isCurrentUser = computed(() => profileUser.value?.id === authStore.currentUser?.id);
 
 const authoredSpots = computed(() =>
-  mockSpots
-    .filter((spot) => spot.author?.id === profileUser.value?.id)
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
+  [...profileSpots.value].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
 );
 
-const profileTrips = computed(() =>
-  mockTrips
-    .filter((trip) => trip.members.some((member) => member.id === profileUser.value?.id))
-    .sort((left, right) => new Date(right.startDate).getTime() - new Date(left.startDate).getTime()),
+const collaborativeTrips = computed(() =>
+  [...profileTrips.value].sort((left, right) => new Date(right.startDate).getTime() - new Date(left.startDate).getTime()),
 );
 
 const mapHighlights = computed<SpotSummary[]>(() => {
@@ -187,7 +207,7 @@ const mapHighlights = computed<SpotSummary[]>(() => {
 
   const dedupedSpots = new Map<string, SpotSummary>();
 
-  profileTrips.value.forEach((trip) => {
+  collaborativeTrips.value.forEach((trip) => {
     trip.spots.forEach((spot) => {
       if (!dedupedSpots.has(spot.spotId)) {
         dedupedSpots.set(spot.spotId, buildSpotSummaryFromTripSpot(spot, profileUser.value!));
@@ -227,7 +247,7 @@ const favoriteCategory = computed<SpotCategory | null>(() => {
 });
 
 const latestPublicSpot = computed(() => authoredSpots.value[0] ?? null);
-const latestTrip = computed<Trip | null>(() => profileTrips.value[0] ?? null);
+const latestTrip = computed<Trip | null>(() => collaborativeTrips.value[0] ?? null);
 const latestMomentTitle = computed(() => latestPublicSpot.value?.title ?? latestTrip.value?.title ?? 'No public moments yet');
 const latestMomentMeta = computed(() => {
   if (latestPublicSpot.value) {
@@ -255,10 +275,10 @@ const mapDescription = computed(() => {
   const cities = cityCount.value;
 
   if (!visiblePins) {
-    return `${profileUser.value.displayName} has no visible public pins in the current profile sample yet.`;
+    return `${profileUser.value.displayName} has not published any public pins yet.`;
   }
 
-  return `${profileUser.value.displayName} has ${visiblePins} visible pin${visiblePins === 1 ? '' : 's'} across ${cities} mapped cit${cities === 1 ? 'y' : 'ies'} in the current profile sample.`;
+  return `${profileUser.value.displayName} has ${visiblePins} visible pin${visiblePins === 1 ? '' : 's'} across ${cities} mapped cit${cities === 1 ? 'y' : 'ies'}.`;
 });
 
 const collectionSummary = computed(() => {
@@ -266,10 +286,67 @@ const collectionSummary = computed(() => {
     return 'Profile details are unavailable.';
   }
 
-  const signature = favoriteCategory.value ? formatCategory(favoriteCategory.value) : 'mixed';
-  const tripCount = profileTrips.value.length;
-  return `${profileUser.value.displayName}'s visible Atlas footprint leans ${signature.toLowerCase()} with ${authoredSpots.value.length} surfaced pin${authoredSpots.value.length === 1 ? '' : 's'} and ${tripCount} collaborative route${tripCount === 1 ? '' : 's'} in the active mock dataset.`;
+  const signature = favoriteCategory.value ? formatCategory(favoriteCategory.value) : 'Mixed';
+  const tripCount = collaborativeTrips.value.length;
+  return `${profileUser.value.displayName}'s public Atlas footprint leans ${signature.toLowerCase()} with ${authoredSpots.value.length} surfaced pin${authoredSpots.value.length === 1 ? '' : 's'} and ${tripCount} collaborative route${tripCount === 1 ? '' : 's'}.`;
 });
+
+async function loadProfileWorkspace(userId: string) {
+  const requestId = ++loadRequestId;
+  isLoading.value = true;
+  profileError.value = '';
+  workspaceNotice.value = '';
+  profileUser.value = null;
+  profileSpots.value = [];
+  profileTrips.value = [];
+
+  if (!userId) {
+    profileError.value = 'Choose an Atlas explorer to continue.';
+    isLoading.value = false;
+    return;
+  }
+
+  const profileRequest = userId === authStore.currentUser?.id ? userStore.fetchCurrentProfile() : userStore.fetchProfile(userId);
+  const spotRequest = listUserSpots(userId, 1, 12);
+  const tripRequest = listPublicTrips(1, 24);
+
+  const [profileResult, spotsResult, tripsResult] = await Promise.allSettled([profileRequest, spotRequest, tripRequest]);
+
+  if (requestId !== loadRequestId) {
+    return;
+  }
+
+  if (profileResult.status === 'rejected') {
+    profileError.value = toAsyncErrorMessage(profileResult.reason, 'Atlas could not load that explorer right now.');
+    isLoading.value = false;
+    return;
+  }
+
+  profileUser.value = profileResult.value;
+
+  if (spotsResult.status === 'fulfilled') {
+    profileSpots.value = spotsResult.value.data;
+  }
+
+  if (tripsResult.status === 'fulfilled') {
+    profileTrips.value = tripsResult.value.data.filter((trip) => trip.members.some((member) => member.id === profileResult.value.id));
+  }
+
+  const partialIssues = [spotsResult, tripsResult]
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map((result) => toAsyncErrorMessage(result.reason, 'One part of the profile workspace is still catching up.'));
+
+  workspaceNotice.value = partialIssues[0] ?? '';
+  isLoading.value = false;
+}
+
+watch(
+  routeUserId,
+  (userId) => {
+    void loadProfileWorkspace(userId);
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -278,7 +355,9 @@ const collectionSummary = computed(() => {
 .side-column,
 .profile-section,
 .insight-panel,
-.insight-list {
+.insight-list,
+.state-panel,
+.inline-note {
   display: grid;
   gap: var(--space-6);
 }
@@ -295,7 +374,9 @@ const collectionSummary = computed(() => {
   gap: var(--space-4);
 }
 
-.insight-panel {
+.insight-panel,
+.state-panel,
+.inline-note {
   padding: var(--space-5);
 }
 
@@ -311,7 +392,8 @@ h2,
 h3,
 small,
 strong,
-span {
+span,
+p {
   margin: 0;
 }
 
@@ -352,8 +434,13 @@ span {
   gap: var(--space-3);
 }
 
+.state-panel .button,
 .empty-panel .button {
   width: fit-content;
+}
+
+.inline-note {
+  gap: var(--space-2);
 }
 
 @media (max-width: 1120px) {
