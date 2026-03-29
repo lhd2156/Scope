@@ -14,10 +14,27 @@ on:
         options:
           - 'true'
           - 'false'
+      run_terraform_plan:
+        description: Run terraform plan against the configured AWS target
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      terraform_environment:
+        description: Terraform environment name passed into the plan
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 concurrency:
   group: atlas-deploy-${{ github.ref }}
@@ -120,6 +137,67 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.build_args }}
+
+  terraform-plan:
+    name: Optional Terraform plan
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_terraform_plan == 'true'
+    runs-on: ubuntu-latest
+    needs: preflight
+    env:
+      AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_VAR_environment: ${{ github.event.inputs.terraform_environment }}
+      TF_VAR_project_name: atlas
+      TF_VAR_eks_cluster_name: atlas
+      TF_VAR_photos_bucket_name: ${{ vars.TF_PHOTOS_BUCKET_NAME }}
+      TF_VAR_cognito_domain_prefix: ${{ vars.TF_COGNITO_DOMAIN_PREFIX }}
+      TF_VAR_sqlserver_master_password: ${{ secrets.TF_SQLSERVER_MASTER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate terraform plan configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in AWS_ROLE_TO_ASSUME TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix TF_VAR_sqlserver_master_password; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is not configured for Terraform plan runs."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform plan
+        working-directory: terraform
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Export Terraform plan text
+        working-directory: terraform
+        run: terraform show -no-color tfplan > tfplan.txt
+
+      - name: Upload Terraform plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-terraform-plan
+          path: terraform/tfplan.txt
 
   deployment-bundle:
     name: Publish deployment bundle artifact
