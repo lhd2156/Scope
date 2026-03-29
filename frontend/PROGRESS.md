@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 5.2 — Run npm run build and fix any issues
-## Last Updated: 2026-03-29T07:29:50.2773639Z
+## Current Task: Phase 5.3 — Run npm run test and fix any failures
+## Last Updated: 2026-03-29T07:38:16.8325462Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -42,6 +42,7 @@
 - 2026-03-29T06:45:55.1264288Z: COMPLETED task 15 — upgraded the frontend service layer with a hardened Axios client (JWT + CSRF headers, normalized API errors, silent refresh hooks), new auth/intel/map/S3 service modules, richer spot/trip/feed endpoints with mock-safe fallbacks, and store integration for auth refresh plus notification read APIs. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
 - 2026-03-29T07:02:57.4891383Z: COMPLETED task 16 — polished the desktop-responsive shell with shared page spacing tokens, a two-row medium-width navbar, cleaner section-heading behavior, and a map workspace that no longer collides with the fixed header at 1024px. Verified with Playwright screenshots plus npm.cmd run build ✅ and npm.cmd run test ✅.
 - 2026-03-29T07:29:50.2773639Z: COMPLETED Phase 5.1 audit — re-read the frontend architecture sections and aligned the app to the spec by adding the missing common components (Button, Sidebar, Modal, Toast, LoadingSpinner, SearchBar), restoring the navbar search + avatar dropdown flow, splitting route guards into `router/guards.ts` with the guest redirect fixed to `/map`, upgrading login/register/settings/review surfaces, and adding a lightbox-capable gallery plus route-aware explore filtering. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests).
+- 2026-03-29T07:38:16.8325462Z: COMPLETED Phase 5.2 build verification — npm.cmd run build ✅ passed on the current frontend worktree with no blocking TypeScript or Vite errors. Vite still reports a non-blocking large-chunk warning from the eagerly bundled Mapbox payload, which should be addressed in Phase 9 lazy-loading/tree-shaking work rather than treated as a Phase 5.2 failure.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -52,7 +53,7 @@
 
 ### Phase 5: Recheck & Audit
 - [x] Re-read agents.md and verify every component matches atlas_architecture.tex
-- [ ] Run npm run build and fix any issues
+- [x] Run npm run build and fix any issues
 - [ ] Run npm run test and fix any failures
 - [ ] Check for broken imports, TODO comments, hardcoded values
 
