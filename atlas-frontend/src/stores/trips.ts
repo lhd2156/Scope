@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { generateItinerary, getTripDetail, listTrips } from '@/services/tripService';
+import { generateItinerary } from '@/services/intelService';
+import { getTripDetail, listTrips } from '@/services/tripService';
 import type { Itinerary, Trip, TripPlannerInput } from '@/types';
 
 function toErrorMessage(error: unknown): string {
