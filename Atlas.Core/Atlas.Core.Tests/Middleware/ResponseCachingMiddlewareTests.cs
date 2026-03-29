@@ -32,7 +32,7 @@ public sealed class ResponseCachingMiddlewareTests
         Assert.Equal(StatusCodes.Status304NotModified, context.Response.StatusCode);
         Assert.Equal(expectedEntityTag, context.Response.Headers[CoreCaching.EntityTagHeaderName].ToString());
         Assert.Equal(CoreCaching.CacheControlValue, context.Response.Headers[CoreCaching.CacheControlHeaderName].ToString());
-        Assert.Equal(CoreCaching.VaryAuthorizationValue, context.Response.Headers[CoreCaching.VaryHeaderName].ToString());
+        Assert.Contains(CoreCaching.VaryAuthorizationValue, context.Response.Headers[CoreCaching.VaryHeaderName].ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, context.Response.Body.Length);
     }
 
@@ -57,5 +57,29 @@ public sealed class ResponseCachingMiddlewareTests
         Assert.False(context.Response.Headers.ContainsKey(CoreCaching.EntityTagHeaderName));
         context.Response.Body.Position = 0;
         Assert.Equal("{\"status\":\"healthy\"}", await new StreamReader(context.Response.Body).ReadToEndAsync());
+    }
+
+    [Fact]
+    public async Task ExistingVaryHeader_IsPreservedWhenEntityTagCachingAddsAuthorizationVary()
+    {
+        var payload = "{\"data\":{\"value\":1}}";
+        var middleware = new ResponseCachingMiddleware(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "application/json";
+            context.Response.Headers[CoreCaching.VaryHeaderName] = CoreCaching.VaryAcceptEncodingValue;
+            await context.Response.WriteAsync(payload);
+        });
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = "/api/core/users/11111111-1111-1111-1111-111111111111";
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        var varyHeader = context.Response.Headers[CoreCaching.VaryHeaderName].ToString();
+        Assert.Contains(CoreCaching.VaryAcceptEncodingValue, varyHeader, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(CoreCaching.VaryAuthorizationValue, varyHeader, StringComparison.OrdinalIgnoreCase);
     }
 }

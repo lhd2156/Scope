@@ -154,7 +154,7 @@ public sealed class ResponseCachingMiddleware(RequestDelegate next)
             var entityTag = BuildEntityTag(bodyBytes);
             context.Response.Headers[CoreCaching.EntityTagHeaderName] = entityTag;
             context.Response.Headers[CoreCaching.CacheControlHeaderName] = CoreCaching.CacheControlValue;
-            context.Response.Headers[CoreCaching.VaryHeaderName] = CoreCaching.VaryAuthorizationValue;
+            AppendVaryValue(context.Response.Headers, CoreCaching.VaryAuthorizationValue);
 
             if (HasMatchingEntityTag(context.Request.Headers[CoreCaching.IfNoneMatchHeaderName].ToString(), entityTag))
             {
@@ -186,6 +186,15 @@ public sealed class ResponseCachingMiddleware(RequestDelegate next)
 
     private static string BuildEntityTag(byte[] bodyBytes)
         => $"\"{Convert.ToHexString(SHA256.HashData(bodyBytes))}\"";
+
+    private static void AppendVaryValue(IHeaderDictionary headers, string value)
+    {
+        var existingValues = headers[CoreCaching.VaryHeaderName].ToString()
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        existingValues.Add(value);
+        headers[CoreCaching.VaryHeaderName] = string.Join(", ", existingValues);
+    }
 
     private static bool HasMatchingEntityTag(string headerValue, string entityTag)
     {

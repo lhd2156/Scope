@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Implement gzip/brotli response compression
-## Last Updated: 2026-03-29T14:45:00Z
+## Current Task: Re-verify every endpoint matches atlas_architecture.tex spec
+## Last Updated: 2026-03-29T15:01:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -85,6 +85,9 @@
 - 2026-03-29T14:45:00Z configured production connection pooling in Atlas.Core by switching the service registration to `AddDbContextPool<CoreDbContext>(...)` and normalizing the SQL Server connection string with explicit pooling defaults for min/max pool size and connect timeout while preserving any user-specified connection-string overrides
 - 2026-03-29T14:45:00Z added connection-pooling configuration tests that validate default option parsing, invalid pool-range rejection, default pooling parameter injection, and preservation of explicit connection-string pool settings, plus reran the full Atlas.Core validation cycle
 - 2026-03-29T14:45:00Z reran Atlas.Core build/test after the connection-pooling configuration and passed build (0 warnings, 0 errors) plus tests (171 passed, 0 failed)
+- 2026-03-29T15:01:00Z enabled built-in ASP.NET Core response compression with Brotli and Gzip providers for JSON responses, set fast compression levels for API throughput, and inserted the middleware after custom ETag buffering so compressed variants flow through the existing caching/correlation/error pipeline correctly
+- 2026-03-29T15:01:00Z updated the ETag caching middleware to merge `Vary: Authorization` with any existing `Vary` values so response compression can keep `Accept-Encoding` intact, preventing incorrect cache semantics for compressed authenticated reads
+- 2026-03-29T15:01:00Z added middleware + HTTP integration tests for gzip/brotli compression, decompression correctness, compressed authenticated reads with both `Authorization` and `Accept-Encoding` in `Vary`, and preserved ETag behavior; reran Atlas.Core build/test and passed build (0 warnings, 0 errors) plus tests (175 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -121,7 +124,7 @@
 - [x] Add request/response logging middleware with duration tracking
 - [x] Add .AsNoTracking() to all read-only EF Core queries
 - [x] Configure connection pooling
-- [ ] Implement gzip/brotli response compression
+- [x] Implement gzip/brotli response compression
 
 ### Phase 12: Final Boss Recheck
 - [ ] Re-verify every endpoint matches atlas_architecture.tex spec
