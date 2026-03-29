@@ -35,11 +35,13 @@
 - [2026-03-29] ⚠️ Content Engine settings should load `atlas_content/.env` and fail fast on missing `DJANGO_SECRET_KEY` / `CORE_JWT_SECRET`; keep pytest on `atlas_content.test_settings` so tests seed explicit non-production secrets instead of relying on runtime fallbacks.
 - [2026-03-29] ⚠️ In Django middleware, return `JsonResponse` (or render the DRF response yourself) for early 429 throttles; handing `CommonMiddleware` an unrendered DRF `Response` triggers `ContentNotRenderedError` when it sets `Content-Length`.
 - [2026-03-29] ⚠️ For DRF `DecimalField` inputs in Atlas Content, declare serializer fields with `Decimal('...')` min/max bounds explicitly; relying on float-backed model validators keeps validation working but emits noisy `min_value/max_value should be a Decimal instance` warnings in pytest.
+- [2026-03-29] ⚠️ In Atlas Content, malformed bearer tokens raise DRF `AuthenticationFailed`; handle that explicitly in the custom exception handler or protected routes will leak as `500` instead of the expected `401 UNAUTHORIZED`.
 - [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
 - [2026-03-29] ⚠️ Atlas Intel auth should read `JWT_SECRET`/issuer/audience from `app.config`, not module-level fallback secrets; make `create_app()` fail fast when `FLASK_SECRET_KEY` or `CORE_JWT_SECRET` is missing and inject explicit test secrets in pytest fixtures.
 - [2026-03-29] ✅ Atlas Intel route-level rate limiting is easiest to verify by marking the decorator wrapper (for coverage across `app.url_map`) and adding one `429` test that asserts the `Retry-After` header from a low-limit test app.
 - [2026-03-29] ⚠️ When Marshmallow validates nested request bodies (like route-optimizer spot lists), flatten `ValidationError.messages` into dot/bracket paths such as `spots[0].longitude`; otherwise generic `", ".join(...)` formatting breaks or loses nested field context.
 - [2026-03-29] ✅ For Flask decorator coverage checks, set a marker attribute on the auth wrapper (`_atlas_require_auth`) and let `functools.wraps` propagate it through outer decorators like rate limiting; then assert every protected `/api/intel/*` rule has the marker while `/api/intel/health` does not.
+- [2026-03-29] ✅ Atlas Intel CORS can stay strict and testable by reading `FRONTEND_ORIGIN`/`CORE_FRONTEND_ORIGIN`, allowing `http://localhost:5173` only in development/test, and asserting both preflight and real unauthorized responses carry the credentialed CORS headers.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -56,6 +58,7 @@
 - [2026-03-29] ⚠️ Keep auth-service mock fallback opt-in only (`VITE_ENABLE_AUTH_MOCK_FALLBACK=true`); silent login/register fallback hides real network-failure and expired-session bugs during frontend hardening.
 - [2026-03-29] ⚠️ For Vue Router lazy-load verification, `router.getRoutes()` exposes the wrapped route view as `route.components.default`; `defineAsyncComponent` wrappers can be asserted there via the internal `__asyncLoader` property without mounting every page.
 - [2026-03-29] ⚠️ JSDOM may expose an `IntersectionObserver` stub that keeps lazy-image components in placeholder mode during tests; explicitly override or remove `window.IntersectionObserver` in image specs when you need deterministic eager/deferred assertions.
+- [2026-03-29] ⚠️ Enforce the 300ms debounce floor inside the shared `SearchBar` itself rather than relying on every caller to pass the right prop; that guarantees future search surfaces inherit the performance rule automatically.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -99,6 +102,7 @@
 - [2026-03-29] ⚠️ If a lone surviving worker has been alive for a long time but its latest payload only reports the *previous* checklist item while the canonical `PROGRESS.md` has not advanced further, treat it as stuck-after-handoff and respawn it instead of preserving it indefinitely.
 - [2026-03-29] ⚠️ If Frontend self-advances into Phase 9 while Phase 4 integration is still pending and the backends are still in Phases 6-7, flag the widened sequencing drift explicitly in lead progress/Telegram and keep respawning lagging services from their first unchecked canonical task instead of following Frontend deeper.
 - [2026-03-29] ⚠️ If the live process table shows a newer worker session than the lead dashboard mentions, trust the canonical service `PROGRESS.md` files plus `Win32_Process`, refresh the dashboard, and preserve the live worker when it matches the current first unchecked task instead of blindly respawning it.
+- [2026-03-29] ⚠️ When the `Win32_Process` heartbeat check returns only the temporary PowerShell inspection command and no `openclaw.mjs agent` node processes, treat that as zero live workers and relaunch every non-COMPLETE service from its canonical current task.
 
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 
