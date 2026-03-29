@@ -1,6 +1,6 @@
 # Content Engine Progress
 
-## Status: IN_PROGRESS
+## Status: COMPLETE
 
 ## Tasks
 - [x] 1. Scaffold Django project and settings
@@ -18,12 +18,12 @@
 - [x] 13. Install dependencies: `pip install -r atlas_content/requirements.txt` (create requirements.txt if missing)
 - [x] 14. Run and validate: `python atlas_content/manage.py check`
 - [x] 15. Generate migrations: `python atlas_content/manage.py makemigrations`
-- [ ] 16. Run pytest: `pytest atlas_content/`
-- [ ] 17. Fix any import errors, missing dependencies, or test failures
+- [x] 16. Run pytest: `pytest atlas_content/`
+- [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: 16
-## Last Updated: 2026-03-29T02:48:00Z
+## Current Task: COMPLETE
+## Last Updated: 2026-03-29T02:54:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -34,8 +34,8 @@
 - Installed atlas_content requirements with Django 5.1.7-compatible pins; pip install completed successfully
 - `python atlas_content/manage.py check` passed with no issues
 - `python atlas_content/manage.py makemigrations` reported `No changes detected`
-- Agent MUST generate migrations and run pytest before marking COMPLETE
-- Agent MUST fix any failures before marking COMPLETE
+- Added DRF JWT authentication support so authenticated API requests use the shared Core bearer token inside Django REST Framework
+- `python -m pytest atlas_content/` initially failed with 4 auth/permission regressions, then passed after the JWT auth fix (`6 passed`)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
