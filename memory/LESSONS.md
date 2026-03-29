@@ -19,6 +19,7 @@
 - [2026-03-28] ❌ scikit-learn==1.5.2 FAILS on Python 3.14 → use >=1.6 or latest
 - [2026-03-28] ❌ Pinned old pyodbc versions may fail on Python 3.14 → use latest
 - [2026-03-28] ⚠️ Always check Python package compatibility with 3.14 before pinning versions
+- [2026-03-29] ✅ `scikit-learn==1.8.0` is published for Python 3.14.3 on this workstation, so Atlas Intel can safely move off the incompatible `1.5.2` pin.
 - [2026-03-28] ✅ mssql-django works with Django 5.x on Python 3.14
 
 ## Build & Test Results
@@ -39,6 +40,7 @@
 - [2026-03-29] ⚠️ Frontend `npm.cmd run lint` currently fails because ESLint 9 expects an `eslint.config.*` flat-config file, but this repo still only has the scaffolded lint script; use build/test plus targeted code searches unless the lint setup is explicitly migrated.
 - [2026-03-29] ⚠️ In Vitest, do not replace the global `URL` constructor with a plain object just to stub `createObjectURL`; override `URL.createObjectURL` instead, or axios imports can crash with `URL is not a constructor`.
 - [2026-03-29] ⚠️ Frontend silent session hydration must disable mock auth fallbacks; otherwise a stale local session hint can make a fresh tab appear authenticated without a real refresh cookie.
+- [2026-03-29] ⚠️ For frontend auth-guard verification, unit-test `resolveNavigationGuard()` with a mocked auth store and separately assert `router.getRoutes()` meta contracts; that is more stable than mounting full pages when only redirect/auth behavior matters.
 
 ## Git & Workflow
 
@@ -47,6 +49,7 @@
 - [2026-03-28] ⚠️ Work on feature branches (feature/foundation, feature/core-platform, etc.), not main
 - [2026-03-28] ⚠️ Use `git add . ; git commit -m "message"` (semicolons, not &&)
 - [2026-03-28] ⚠️ If `atlas-frontend/` already has unrelated unstaged files from another milestone, stage only task-specific files so parallel frontend work does not get batched into the wrong commit.
+- [2026-03-29] ⚠️ If the main workspace is on another feature branch with unrelated edits, use a separate git worktree for the target branch instead of switching branches and disturbing in-flight work.
 
 ## File & Path Rules
 
@@ -68,6 +71,9 @@
 - [2026-03-29] ⚠️ When an agent finishes the last Phase 3 task and self-advances into Phase 5.x in its own PROGRESS.md, update lead progress to reflect the phase-sequencing drift and explicitly reconcile Phase 4/Phase 5 work rather than treating it as ordinary leftover frontend scope.
 - [2026-03-29] ⚠️ If the same agent keeps self-advancing from Phase 5.x into Phase 6.x while Phase 4 integration and other services' Phase 5 audits are still pending, flag the compounded sequencing drift explicitly in lead progress and Telegram status instead of masking it as routine frontend progress.
 - [2026-03-29] ⚠️ Some agent PROGRESS files can still say `Status: COMPLETE` while later-phase checklists remain unchecked; when that happens, treat the first unchecked phase task as canonical remaining work and respawn the agent instead of trusting the stale top-line status.
+- [2026-03-29] ⚠️ If a subagent reports success from an isolated branch/worktree but the canonical `C:\Users\dongu\atlas\{agent}\PROGRESS.md` file in the main workspace is still stale, trust the canonical file and relaunch/repair from that state instead of trusting the completion message alone.
+
+- [2026-03-29] ⚠️ `openclaw agent` launches can survive a local gateway closure by falling back to embedded execution; if spawned workers stay running after a `ws://127.0.0.1:18789` close, treat it as a control-plane issue to flag rather than assuming the worker died immediately.
 
 ## Common Mistakes to Avoid
 
