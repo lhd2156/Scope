@@ -17,8 +17,8 @@
 - [x] 12. Run `dotnet test` to validate test suite
 - [x] 13. Fix any build errors, missing NuGet packages, or test failures
 
-## Current Task: Add tests for all SignalR hubs
-## Last Updated: 2026-03-29T11:04:00Z
+## Current Task: Add proper error handling with try/catch and standard error responses
+## Last Updated: 2026-03-29T11:15:00Z
 
 ## Log
 - All core platform code scaffolded in single commit on feature/core-platform
@@ -58,6 +58,9 @@
 - 2026-03-29T11:04:00Z added full WebApplicationFactory-based REST integration coverage for all 31 Atlas.Core API endpoints: auth, users, friends, notifications, live, and health, with both happy-path and failure-path assertions through the real ASP.NET Core middleware/auth/validation pipeline
 - 2026-03-29T11:04:00Z extended the shared API test factory with authenticated JWT clients, DB seeding helpers, stable per-factory in-memory database names, media-root configuration, and a Kafka-configured variant so endpoint tests exercise realistic startup configuration without external infrastructure
 - 2026-03-29T11:04:00Z reran Atlas.Core build/test after the integration suite expansion and passed build (0 warnings, 0 errors) plus tests (131 passed, 0 failed)
+- 2026-03-29T11:15:00Z closed the SignalR testing gap by adding authenticated negotiate integration coverage for TripHub, LocationHub, and NotificationHub so all three hub endpoints now prove real JWT-protected connection negotiation through the live ASP.NET Core pipeline
+- 2026-03-29T11:15:00Z expanded hub unit coverage for the remaining subject-claim fallback branches in LocationHub and NotificationHub, and serialized password-reset-ticket tests to eliminate static-state flakiness uncovered while rerunning the full suite in parallel
+- 2026-03-29T11:15:00Z reran Atlas.Core build/test after the hub test expansion and passed build (0 warnings, 0 errors) plus tests (136 passed, 0 failed)
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe — USE IT
@@ -83,7 +86,7 @@
 ### Phase 7: Test Coverage
 - [x] Add unit tests until coverage exceeds 80%
 - [x] Write integration tests for every API endpoint (happy path + error cases)
-- [ ] Add tests for all SignalR hubs
+- [x] Add tests for all SignalR hubs
 - [ ] Add proper error handling with try/catch and standard error responses
 - [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 

@@ -129,6 +129,51 @@ public sealed class LocationHubTests
 
         await Assert.ThrowsAsync<HubException>(() => hub.ShareLocation(Guid.NewGuid(), 1, 2));
     }
+
+    [Fact]
+    public async Task ShareLocation_UsesSubjectClaimFallbackWhenUserIdentifierMissing()
+    {
+        await using var dbContext = TestSupport.CreateDbContext();
+        var user = TestSupport.CreateUser();
+        var tripId = Guid.NewGuid();
+        dbContext.Users.Add(user);
+        dbContext.LiveSessions.Add(new LiveSession
+        {
+            Id = Guid.NewGuid(),
+            TripId = tripId,
+            UserId = user.Id,
+            IsActive = true,
+            Latitude = 10,
+            Longitude = 20,
+            LastPingAt = DateTimeOffset.UtcNow.AddMinutes(-5)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var clientProxy = new Mock<IClientProxy>();
+        var clients = new Mock<IHubCallerClients>();
+        clients.Setup(x => x.Group($"trip:{tripId}")).Returns(clientProxy.Object);
+
+        var identity = new ClaimsIdentity([
+            new Claim(CoreClaimTypes.Subject, user.Id.ToString())
+        ], "Test");
+
+        var context = new Mock<HubCallerContext>();
+        context.SetupGet(x => x.UserIdentifier).Returns((string?)null);
+        context.SetupGet(x => x.User).Returns(new ClaimsPrincipal(identity));
+
+        var hub = new LocationHub(dbContext)
+        {
+            Context = context.Object,
+            Clients = clients.Object,
+            Groups = Mock.Of<IGroupManager>()
+        };
+
+        await hub.ShareLocation(tripId, 30.123, -97.456);
+
+        Assert.Equal(30.123, dbContext.LiveSessions.Single().Latitude);
+        Assert.Equal(-97.456, dbContext.LiveSessions.Single().Longitude);
+        clientProxy.Verify(x => x.SendCoreAsync("LocationShared", It.Is<object?[]>(args => args.Length == 1), default), Times.Once);
+    }
 }
 
 public sealed class NotificationHubTests
@@ -172,5 +217,31 @@ public sealed class NotificationHubTests
         await hub.OnConnectedAsync();
 
         groupManager.Verify(x => x.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_UsesSubjectClaimFallbackWhenUserIdentifierMissing()
+    {
+        var groupManager = new Mock<IGroupManager>();
+        var userId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var identity = new ClaimsIdentity([
+            new Claim(CoreClaimTypes.Subject, userId.ToString())
+        ], "Test");
+
+        var context = new Mock<HubCallerContext>();
+        context.SetupGet(x => x.ConnectionId).Returns("conn-2");
+        context.SetupGet(x => x.UserIdentifier).Returns((string?)null);
+        context.SetupGet(x => x.User).Returns(new ClaimsPrincipal(identity));
+
+        var hub = new NotificationHub
+        {
+            Context = context.Object,
+            Clients = Mock.Of<IHubCallerClients>(),
+            Groups = groupManager.Object
+        };
+
+        await hub.OnConnectedAsync();
+
+        groupManager.Verify(x => x.AddToGroupAsync("conn-2", $"user:{userId}", default), Times.Once);
     }
 }
