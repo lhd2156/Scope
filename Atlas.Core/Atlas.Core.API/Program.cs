@@ -112,6 +112,7 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 
 app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSwagger();

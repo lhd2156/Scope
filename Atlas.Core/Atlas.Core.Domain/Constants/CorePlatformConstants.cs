@@ -83,3 +83,11 @@ public static class CoreRoles
     public const string User = "user";
     public const string Admin = "admin";
 }
+
+public static class CoreSecurityHeaders
+{
+    public const string ContentSecurityPolicyName = "Content-Security-Policy";
+    public const string XssProtectionName = "X-XSS-Protection";
+    public const string ContentSecurityPolicyValue = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:;";
+    public const string XssProtectionValue = "1; mode=block";
+}

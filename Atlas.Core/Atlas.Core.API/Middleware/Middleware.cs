@@ -17,6 +17,22 @@ public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<Reque
     }
 }
 
+public sealed class SecurityHeadersMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context)
+    {
+        context.Response.OnStarting(static state =>
+        {
+            var response = (HttpResponse)state;
+            response.Headers[CoreSecurityHeaders.ContentSecurityPolicyName] = CoreSecurityHeaders.ContentSecurityPolicyValue;
+            response.Headers[CoreSecurityHeaders.XssProtectionName] = CoreSecurityHeaders.XssProtectionValue;
+            return Task.CompletedTask;
+        }, context.Response);
+
+        await next(context);
+    }
+}
+
 public sealed class RateLimitMiddleware(RequestDelegate next)
 {
     private readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> requests = new();
