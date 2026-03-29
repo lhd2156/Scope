@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
@@ -57,13 +58,13 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         trip = self.get_object()
         if not can_manage_trip(request.user, trip):
-            return data_response({'message': 'forbidden'}, status_code=403)
+            raise PermissionDenied
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         trip = self.get_object()
         if not can_manage_trip(request.user, trip):
-            return data_response({'message': 'forbidden'}, status_code=403)
+            raise PermissionDenied
         return super().destroy(request, *args, **kwargs)
 
 
@@ -80,7 +81,7 @@ def public_trips(request):
 def add_trip_spot(request, pk):
     trip = get_object_or_404(Trip, pk=pk)
     if not can_manage_trip(request.user, trip):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     serializer = TripAddSpotSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     TripSpot.objects.update_or_create(
@@ -100,7 +101,7 @@ def add_trip_spot(request, pk):
 def remove_trip_spot(request, pk, spot_id):
     trip = get_object_or_404(Trip, pk=pk)
     if not can_manage_trip(request.user, trip):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     TripSpot.objects.filter(trip=trip, spot_id=spot_id).delete()
     return data_response({'removed': True})
 
@@ -110,7 +111,7 @@ def remove_trip_spot(request, pk, spot_id):
 def reorder_trip_spots(request, pk):
     trip = get_object_or_404(Trip, pk=pk)
     if not can_manage_trip(request.user, trip):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     serializer = TripReorderSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     for index, spot_data in enumerate(serializer.validated_data['spots']):
@@ -127,10 +128,10 @@ def trip_members(request, pk):
     trip = get_object_or_404(Trip, pk=pk)
     if request.method == 'GET':
         if not can_manage_trip(request.user, trip) and not trip.is_public:
-            return data_response({'message': 'forbidden'}, status_code=403)
+            raise PermissionDenied
         return data_response(TripMemberSerializer(trip.members.all(), many=True).data)
     if not can_manage_trip(request.user, trip):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     serializer = TripMemberCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     member, created = TripMember.objects.get_or_create(
@@ -150,6 +151,6 @@ def trip_members(request, pk):
 def remove_trip_member(request, pk, user_id):
     trip = get_object_or_404(Trip, pk=pk)
     if not can_manage_trip(request.user, trip):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     TripMember.objects.filter(trip=trip, user_id=user_id).exclude(role='owner').delete()
     return data_response({'removed': True})

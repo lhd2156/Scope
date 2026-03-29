@@ -1,6 +1,7 @@
 import uuid
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -24,7 +25,7 @@ def upload_photo(request):
 def photo_detail(request, pk):
     photo = get_object_or_404(Photo, pk=pk)
     if str(photo.user_id) != str(request.user.id) and not getattr(request.user, 'is_admin', False):
-        return data_response({'message': 'forbidden'}, status_code=403)
+        raise PermissionDenied
     if request.method == 'DELETE':
         photo.delete()
         return data_response({'deleted': True})

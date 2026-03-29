@@ -4,6 +4,7 @@ from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
@@ -50,7 +51,7 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         spot = self.get_object()
         if str(spot.user_id) != str(getattr(request.user, 'id', '')) and not getattr(request.user, 'is_admin', False):
-            return data_response({'message': 'forbidden'}, status_code=403)
+            raise PermissionDenied
         response = super().update(request, *args, **kwargs)
         producer.publish('spot.updated', {'spotId': str(spot.id), 'userId': str(request.user.id)})
         return response
@@ -58,7 +59,7 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         spot = self.get_object()
         if str(spot.user_id) != str(getattr(request.user, 'id', '')) and not getattr(request.user, 'is_admin', False):
-            return data_response({'message': 'forbidden'}, status_code=403)
+            raise PermissionDenied
         return super().destroy(request, *args, **kwargs)
 
 

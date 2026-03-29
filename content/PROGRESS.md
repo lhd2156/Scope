@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 7 - Add proper error handling with DRF exception handler
-## Last Updated: 2026-03-29T13:49:00Z
+## Current Task: Phase 7 - Handle edge cases: empty inputs, unauthorized access, not found, duplicates
+## Last Updated: 2026-03-29T13:57:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -49,6 +49,7 @@
 - Added support-module coverage tests (ASGI/WSGI boot, Kafka consumer, permissions, responses, exception handling) plus a stdlib trace coverage script; pytest now passes with `64 passed`, and app-only coverage is `999/1240` executable lines (`81%`)
 - Added endpoint-integration coverage across the full Content route map (health, spots, trips, photos, reviews, feed) with happy-path and error-path assertions; while doing so, fixed the broken mixed-model feed pagination by replacing the unusable DRF cursor/queryset combo with a list-aware feed cursor paginator (`73 passed` total)
 - Phase 7 route-family coverage is now satisfied explicitly: the new integration matrix exercises spots, trips, photos, reviews, and feed endpoints with both success and failure assertions
+- Normalized Content error handling through the DRF exception layer: forbidden ownership/member checks now raise `PermissionDenied`, validation/parse errors preserve detailed field messages, and the full suite passes with the standard Atlas error envelope (`76 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -76,7 +77,7 @@
 - [x] Add pytest tests until coverage exceeds 80%
 - [x] Write integration tests for every API endpoint (happy path + error cases)
 - [x] Add tests for spots, trips, photos, reviews, feed
-- [ ] Add proper error handling with DRF exception handler
+- [x] Add proper error handling with DRF exception handler
 - [ ] Handle edge cases: empty inputs, unauthorized access, not found, duplicates
 
 ### Phase 9: Performance & Observability

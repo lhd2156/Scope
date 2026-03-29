@@ -127,9 +127,11 @@ def test_spot_write_endpoints_handle_happy_and_error_paths(authenticated_client,
     assert update_response.status_code == 200
     assert update_response.json()['title'] == 'Updated Tacos'
     assert forbidden_update.status_code == 403
-    assert forbidden_update.json()['data']['message'] == 'forbidden'
+    assert forbidden_update.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_update.json()['error']['message'] == 'Insufficient permissions'
     assert invalid_nearby.status_code == 400
     assert invalid_nearby.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'lat', 'message': 'Latitude out of range'} in invalid_nearby.json()['error']['details']
     assert missing_like.status_code == 404
     assert missing_like.json()['error']['code'] == 'NOT_FOUND'
     assert delete_response.status_code == 204
@@ -192,11 +194,13 @@ def test_trip_member_and_trip_mutation_endpoints_cover_happy_and_forbidden_paths
     assert list_members_response.status_code == 200
     assert len(list_members_response.json()['data']) == 2
     assert forbidden_members_response.status_code == 403
-    assert forbidden_members_response.json()['data']['message'] == 'forbidden'
+    assert forbidden_members_response.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_members_response.json()['error']['message'] == 'Insufficient permissions'
     assert remove_member_response.status_code == 200
     assert remove_member_response.json()['data']['removed'] is True
     assert forbidden_delete_response.status_code == 403
-    assert forbidden_delete_response.json()['data']['message'] == 'forbidden'
+    assert forbidden_delete_response.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_delete_response.json()['error']['message'] == 'Insufficient permissions'
     assert delete_response.status_code == 204
 
 
@@ -249,13 +253,16 @@ def test_trip_spot_mutation_endpoints_cover_happy_and_validation_paths(auth_head
     assert add_second_response.status_code == 201
     assert invalid_add_response.status_code == 400
     assert invalid_add_response.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'spot_id', 'message': 'Spot does not exist'} in invalid_add_response.json()['error']['details']
     assert reorder_response.status_code == 200
     reordered = {item['spot']: item for item in reorder_response.json()['data']['spots']}
     assert reordered[str(first_spot.id)]['day_number'] == 2
     assert invalid_reorder_response.status_code == 400
     assert invalid_reorder_response.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'spots', 'message': 'Duplicate spotId entries are not allowed'} in invalid_reorder_response.json()['error']['details']
     assert forbidden_remove_response.status_code == 403
-    assert forbidden_remove_response.json()['data']['message'] == 'forbidden'
+    assert forbidden_remove_response.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_remove_response.json()['error']['message'] == 'Insufficient permissions'
     assert remove_response.status_code == 200
     assert remove_response.json()['data']['removed'] is True
 
@@ -311,10 +318,12 @@ def test_photo_endpoints_cover_upload_presigned_update_delete_and_errors(auth_he
     assert upload_response.json()['data']['caption'] == 'Great shot'
     assert invalid_upload_response.status_code == 400
     assert invalid_upload_response.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert invalid_upload_response.json()['error']['details'][0]['field'] == 'file'
     assert update_response.status_code == 200
     assert update_response.json()['data']['caption'] == 'Updated caption'
     assert forbidden_update_response.status_code == 403
-    assert forbidden_update_response.json()['data']['message'] == 'forbidden'
+    assert forbidden_update_response.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_update_response.json()['error']['message'] == 'Insufficient permissions'
     assert delete_response.status_code == 200
     assert delete_response.json()['data']['deleted'] is True
     assert missing_response.status_code == 404
@@ -365,9 +374,11 @@ def test_review_endpoints_cover_create_list_update_delete_and_errors(auth_header
     assert detail_update_response.status_code == 200
     assert detail_update_response.json()['data']['comment'] == 'Edited comment'
     assert forbidden_update_response.status_code == 403
-    assert forbidden_update_response.json()['data']['message'] == 'forbidden'
+    assert forbidden_update_response.json()['error']['code'] == 'FORBIDDEN'
+    assert forbidden_update_response.json()['error']['message'] == 'Insufficient permissions'
     assert invalid_create_response.status_code == 400
     assert invalid_create_response.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'rating', 'message': 'Ensure this value is less than or equal to 5.0.'} in invalid_create_response.json()['error']['details']
     assert delete_response.status_code == 200
     assert delete_response.json()['data']['deleted'] is True
     assert missing_response.status_code == 404

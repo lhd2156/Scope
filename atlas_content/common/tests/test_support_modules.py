@@ -4,9 +4,10 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404
 from django.test import override_settings
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied, ValidationError
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, ParseError, PermissionDenied, ValidationError
 
 from common.exceptions import custom_exception_handler
 from common.kafka_consumer import AtlasKafkaConsumer
@@ -92,6 +93,7 @@ def test_data_response_wraps_payload_and_optional_meta():
         (PermissionDenied(), 403, 'FORBIDDEN', 'Insufficient permissions'),
         (NotAuthenticated(), 401, 'UNAUTHORIZED', 'Missing or expired token'),
         (AuthenticationFailed(), 401, 'UNAUTHORIZED', 'Invalid token'),
+        (ParseError('Malformed JSON'), 400, 'VALIDATION_ERROR', 'Invalid input data'),
         (ValueError('boom'), 500, 'INTERNAL_ERROR', 'Unexpected server error'),
     ],
 )
@@ -118,3 +120,27 @@ def test_custom_exception_handler_flattens_validation_errors():
     assert response.data['error']['traceId'] == 'trace-456'
     assert {'field': 'title', 'message': 'Required field'} in response.data['error']['details']
     assert {'field': 'rating', 'message': 'Out of range'} in response.data['error']['details']
+
+
+@pytest.mark.django_db
+def test_custom_exception_handler_flattens_non_field_error_lists():
+    request = SimpleNamespace(correlation_id='trace-789')
+    exc = ValidationError(['General failure'])
+
+    response = custom_exception_handler(exc, {'request': request})
+
+    assert response.status_code == 400
+    assert response.data['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'non_field_errors', 'message': 'General failure'} in response.data['error']['details']
+
+
+@pytest.mark.django_db
+def test_custom_exception_handler_supports_django_validation_errors():
+    request = SimpleNamespace(correlation_id='trace-999')
+    exc = DjangoValidationError({'title': ['Required from Django']})
+
+    response = custom_exception_handler(exc, {'request': request})
+
+    assert response.status_code == 400
+    assert response.data['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'title', 'message': 'Required from Django'} in response.data['error']['details']
