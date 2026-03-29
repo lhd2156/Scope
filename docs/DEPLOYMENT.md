@@ -21,8 +21,8 @@ GitHub Actions CI is also in place to validate the codebase on pushes and pull r
 
 The following items are still pending lead-owned integration/infrastructure work:
 
-- runtime validation + environment-specific tuning of the Terraform baseline
-- broader production deployment workflow expansion beyond image + bundle publishing
+- executing the Terraform plan/apply path against a real AWS target account and tuning the resulting resources
+- broader production deployment workflow expansion beyond image publishing, bundle creation, and optional Terraform plan generation
 - full production environment guide for managed cloud services
 
 Treat this runbook as the **current local/staging deployment guide**, not the final production playbook.
@@ -49,6 +49,7 @@ Install:
 - `.github/workflows/deploy.yml`
 - `k8s/01-namespace.yaml` through `k8s/07-edge.yaml`
 - `terraform/main.tf`, `variables.tf`, `outputs.tf`, `vpc.tf`, `iam.tf`
+- GitHub repository variable `AWS_ROLE_TO_ASSUME` and Terraform workflow variables/secrets (for optional real-account plan runs)
 - `atlas-frontend/playwright.config.ts`
 - `atlas-frontend/tests/e2e/critical-flows.spec.ts`
 
@@ -307,10 +308,11 @@ Current automation coverage:
 - Frontend install/build/test
 - Kubernetes YAML syntax checks in CI
 - Terraform `fmt` / `init -backend=false` / `validate` checks in CI
+- optional manual Terraform plan via `.github/workflows/deploy.yml` when AWS OIDC + Terraform vars/secrets are configured
 - GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
-- Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` validation
+- Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` execution against an actual AWS target
 
 Dependabot is also configured for:
 
@@ -321,6 +323,26 @@ Dependabot is also configured for:
 - Docker
 
 ---
+
+### Optional real-account Terraform plan
+
+The deploy workflow now supports an **optional** manual Terraform plan job.
+
+Required GitHub configuration:
+
+- Repository variable: `AWS_ROLE_TO_ASSUME`
+- Repository variable: `TF_AWS_REGION` (optional, defaults to `us-east-1`)
+- Repository variable: `TF_PHOTOS_BUCKET_NAME`
+- Repository variable: `TF_COGNITO_DOMAIN_PREFIX`
+- Repository secret: `TF_SQLSERVER_MASTER_PASSWORD`
+
+Then run the `Atlas Deploy` workflow manually with:
+
+- `publish_images = false` or `true` as needed
+- `run_terraform_plan = true`
+- `terraform_environment = staging` or `production`
+
+This produces a `atlas-terraform-plan` artifact containing the plan text.
 
 ## 9. Operational notes
 
@@ -356,7 +378,7 @@ Before calling a deployment candidate ready:
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented
 - [x] deploy workflow is added and reviewed
-- [ ] Terraform baseline is runtime-validated with `terraform plan` against a real AWS target account
+- [ ] Terraform plan workflow is executed successfully against a real AWS target account with actual GitHub vars/secrets/OIDC role configuration
 - [ ] Kubernetes manifests are reviewed against the target cluster and real image namespace/secrets
 
 ---
@@ -365,6 +387,6 @@ Before calling a deployment candidate ready:
 
 The next lead-owned milestones after this runbook are:
 
-1. Terraform infrastructure
-2. production deploy workflow expansion beyond artifact/image publication
+1. Execute the Terraform plan workflow against a real AWS target account and tune any failing resources/quotas
+2. production deploy workflow expansion beyond artifact/image publication and optional planning
 3. broader deployment documentation and release automation

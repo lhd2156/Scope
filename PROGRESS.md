@@ -6,14 +6,14 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) - COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents - run in parallel) - COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent - after backends complete) - COMPLETE
-- [/] Phase 4: Integration - docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, Kubernetes manifests, Terraform baseline, and CI-side infra validation are complete; runtime IaC validation against real cloud resources and final production polish remain
+- [/] Phase 4: Integration - docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, SQL seed assets, deploy workflow automation, Kubernetes manifests, Terraform baseline, CI-side infra validation, and optional real-account Terraform plan workflow support are complete; actual execution against real cloud resources and final production polish remain
 - [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
 - [/] Phase 8: Documentation & Deployment Prep - README/CONTRIBUTING and deployment prep docs are in place; endpoint API docs and final release polish still remain
 - [x] Phase 9: Performance & Observability - complete across Core, Content, Intel, and Frontend
 - [ ] Phase 10: UX Polish & Accessibility - route transitions, skeleton loaders, micro-animations, toast system, modal, error boundaries, empty states, PWA, a11y audit, SEO meta tags
-- [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, and CI-side Terraform/Kubernetes validation are now in repo; runtime cloud validation and broader production hardening still remain
+- [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, CI-side Terraform/Kubernetes validation, and an optional real-account Terraform plan path are now in repo; runtime cloud execution and broader production hardening still remain
 - [x] Phase 12: Final Boss Recheck 🏁 - complete across Core, Content, Intel, and Frontend
 
 ## Agent Status Dashboard
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, and top-level repo docs are in place; runtime Terraform validation against a real AWS account and final production/deployment hardening remain lead-owned
+## Current Phase: Phase 4 integration - docker-compose app wiring, CI/deploy workflows, Playwright critical-flow validation, deployment runbook, SQL seed assets, Kubernetes manifests, Terraform baseline, CI-side infra validation, optional real-account Terraform plan workflow support, and top-level repo docs are in place; executing that plan against a real AWS account and final production/deployment hardening remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T19:19:02.3975412Z
+## Last Updated: 2026-03-29T19:23:46.1853962Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -421,6 +421,10 @@
 - 2026-03-29T19:17:24.8850471Z: Added CI-side infrastructure validation in `.github/workflows/ci.yml`: Kubernetes YAML syntax checks plus `terraform fmt -check -recursive`, `terraform init -backend=false`, and `terraform validate` via `hashicorp/setup-terraform`.
 - 2026-03-29T19:17:24.8850471Z: Updated `docs/DEPLOYMENT.md` and `terraform/README.md` so the deployment surface and validation story match reality: the Terraform baseline is now shipped in the deployment bundle and statically validated in CI, while real-account `terraform plan` remains the unresolved runtime gap.
 - 2026-03-29T19:19:02.3975412Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the CI-side infrastructure validation milestone and the narrowed remaining gaps (real-account Terraform plan/apply validation + final production hardening).
+- 2026-03-29T19:22:26.1119305Z: Extended `.github/workflows/deploy.yml` with a manual `run_terraform_plan` path that can assume an AWS role via GitHub OIDC, run `terraform init` / `terraform plan`, and upload the generated plan text artifact when the required repo vars/secrets are configured.
+- 2026-03-29T19:22:26.1119305Z: Updated `docs/DEPLOYMENT.md` and `terraform/README.md` to document the new real-account plan path, its required GitHub configuration (`AWS_ROLE_TO_ASSUME`, `TF_AWS_REGION`, `TF_PHOTOS_BUCKET_NAME`, `TF_COGNITO_DOMAIN_PREFIX`, `TF_SQLSERVER_MASTER_PASSWORD`), and the remaining runtime gap: actually executing it against a target AWS account.
+- 2026-03-29T19:22:26.1119305Z: Validation: `npx --yes yaml@2 valid .github/workflows/deploy.yml` ✅ after the Terraform-plan workflow update. Remaining lead-owned gaps are executing the plan against a real AWS target and final production/deployment hardening polish.
+- 2026-03-29T19:23:46.1853962Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the optional OIDC-backed Terraform plan workflow milestone and the narrowed remaining gap: actually executing it against a real AWS target plus final production hardening polish.
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
