@@ -33,6 +33,7 @@
 - [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
 - [2026-03-29] ⚠️ Atlas health endpoints follow the architecture's bare JSON contract (`status`, `version`, `uptime`) instead of the usual `data` envelope; lock that shape in with endpoint contract tests.
 - [2026-03-29] ⚠️ Content Engine settings should load `atlas_content/.env` and fail fast on missing `DJANGO_SECRET_KEY` / `CORE_JWT_SECRET`; keep pytest on `atlas_content.test_settings` so tests seed explicit non-production secrets instead of relying on runtime fallbacks.
+- [2026-03-29] ⚠️ In Django middleware, return `JsonResponse` (or render the DRF response yourself) for early 429 throttles; handing `CommonMiddleware` an unrendered DRF `Response` triggers `ContentNotRenderedError` when it sets `Content-Length`.
 - [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
 - [2026-03-29] ⚠️ Atlas Intel auth should read `JWT_SECRET`/issuer/audience from `app.config`, not module-level fallback secrets; make `create_app()` fail fast when `FLASK_SECRET_KEY` or `CORE_JWT_SECRET` is missing and inject explicit test secrets in pytest fixtures.
 - [2026-03-29] ✅ Atlas Intel route-level rate limiting is easiest to verify by marking the decorator wrapper (for coverage across `app.url_map`) and adding one `429` test that asserts the `Retry-After` header from a low-limit test app.
