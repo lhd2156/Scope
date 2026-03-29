@@ -33,7 +33,7 @@ def upload_photo(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedJWT])
-def presigned_upload(request):
+def presigned_url(request):
     key = f'uploads/{request.user.id}'
     url = S3StorageService().presigned_upload_url(key)
     return data_response({'url': url, 'key': key, 'enabled': bool(url)})
