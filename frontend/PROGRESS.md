@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 12.5 - Verify dark/light theme works on all pages
-## Last Updated: 2026-03-29T13:39:00Z
+## Current Task: Phase 12.6 - Check for console.log statements, dead code, unused imports
+## Last Updated: 2026-03-29T13:59:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -63,6 +63,7 @@
 - 2026-03-29T13:04:00Z: COMPLETED Phase 12.2 build/test verification - ran the full production build and full Vitest suite on the current `feature/frontend` worktree with no blocking failures to fix. Validation: npm.cmd run build ✅ (only the previously accepted isolated `mapbox-gl-core` lazy vendor warning remains) and npm.cmd run test ✅ (68 files / 130 tests).
 - 2026-03-29T13:24:00Z: COMPLETED Phase 12.3 Pinia/API contract audit - expanded the store layer to match the documented backend contracts instead of just the currently mounted views: added a real `userService` + contract-complete `user` store for profile/stats/search/deactivate flows, extended `spots` with pagination meta plus nearby/like/delete actions, extended `trips` with pagination/member/CRUD/spot-management actions, and added trending-spot support to `feed`. Locked the audit with focused Vitest store specs. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (70 files / 136 tests).
 - 2026-03-29T13:39:00Z: COMPLETED Phase 12.4 route/auth verification - added a real-router navigation matrix spec that resolves every documented page route plus Atlas authoring routes, verifies public pages and the 404 fallback stay accessible without session hydration, confirms protected-route redirects preserve the full login redirect target, and proves guest-only redirects plus authenticated access succeed through the actual router guards. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (71 files / 140 tests).
+- 2026-03-29T13:59:00Z: COMPLETED Phase 12.5 theme verification - centralized theme state in `utils/theme.ts`, applied the persisted theme at app bootstrap in `main.ts`, upgraded `ThemeToggle` to use the shared theme source plus the design-system sun/moon icons, and added focused coverage proving multiple toggles stay synchronized inside the Settings workspace. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (71 files / 143 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -101,6 +102,6 @@
 - [x] Run npm run build and npm run test - fix any failures
 - [x] Verify all Pinia stores match API contracts
 - [x] Verify all routes work and auth guards redirect properly
-- [ ] Verify dark/light theme works on all pages
+- [x] Verify dark/light theme works on all pages
 - [ ] Check for console.log statements, dead code, unused imports
 
