@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 6 - Add input validation on ALL request bodies (max lengths, type checking)
-## Last Updated: 2026-03-29T10:56:00Z
+## Current Task: Phase 6 - Verify JWT auth middleware is enforced on all protected endpoints
+## Last Updated: 2026-03-29T11:06:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -41,6 +41,7 @@
 - Re-ran `python -m pytest` from `atlas_content/`; all 6 tests passed with no failures
 - Audited `atlas_content/` for broken imports/TODO markers/hardcoded values: no TODO markers found, `python -m compileall` passed, runtime secret fallbacks were removed from settings, and pytest now uses explicit test settings with seeded test secrets
 - Hardened `RateLimitMiddleware` so all `/api/content/*` requests share a global per-IP budget while `/api/content/photos/upload` adds a stricter per-user upload budget; verified `429` + `Retry-After` behavior with new middleware tests (`8 passed` total)
+- Tightened serializer validation across spots, trips, photos, and reviews: enforced trimmed non-blank titles, positive/non-negative numeric fields, ISO-style currency validation, duplicate-checking for trip reorder payloads, upload content-type limits, and explicit Decimal-backed rating bounds; validated with serializer tests (`15 passed` total)
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
@@ -58,7 +59,7 @@
 
 ### Phase 6: Security Hardening
 - [x] Add Django rate limiting middleware to ALL API endpoints
-- [ ] Add input validation on ALL request bodies (max lengths, type checking)
+- [x] Add input validation on ALL request bodies (max lengths, type checking)
 - [ ] Verify JWT auth middleware is enforced on all protected endpoints
 - [ ] Add CORS configuration via django-cors-headers
 - [ ] Verify parameterized queries (ORM-only, no raw SQL)
