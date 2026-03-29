@@ -1,10 +1,17 @@
-from rest_framework.decorators import api_view
+from __future__ import annotations
+
+from rest_framework.decorators import api_view, permission_classes
+
 from common.pagination import FeedCursorPagination
+from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from feed.services.feed_aggregator import FeedAggregator
 from spots.serializers import SpotSerializer
 from trips.serializers import TripSerializer
+
+
 @api_view(['GET'])
+@permission_classes([IsAuthenticatedJWT])
 def social_feed(request):
     items = FeedAggregator().social_feed_queryset(getattr(getattr(request, 'user', None), 'id', None))
     normalized = []
@@ -16,6 +23,8 @@ def social_feed(request):
     paginator = FeedCursorPagination()
     page = paginator.paginate_queryset(normalized, request)
     return paginator.get_paginated_response(page)
+
+
 @api_view(['GET'])
 def trending_spots(request):
     spots = FeedAggregator().trending_spots_queryset()[:20]

@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 9.3 - Add debouncing on all search inputs (300ms minimum)
-## Last Updated: 2026-03-29T11:14:00Z
+## Current Task: Phase 9.4 - Add virtual scrolling for long lists
+## Last Updated: 2026-03-29T11:30:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -55,6 +55,7 @@
 - 2026-03-29T10:46:00Z: COMPLETED Phase 7.4 edge-case hardening - added explicit login/register validation for empty or malformed input, removed silent auth fallback for failed login/register flows unless an opt-in dev env flag is set, normalized offline/timeout API failures into user-safe messages, and introduced session-expired toast + protected-route redirect handling in the app shell with focused Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (64 files / 122 tests).
 - 2026-03-29T10:55:00Z: COMPLETED Phase 9.1 route lazy-loading - replaced raw route import lambdas with a shared `defineAsyncComponent` wrapper, added a reusable route-loading surface, and verified every named route exposes an async loader via router-level Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (66 files / 124 tests). Vite still warns about oversized `notifications` and `mapbox-gl` chunks, so deeper chunk-splitting/tree-shaking remains for later Phase 9 work.
 - 2026-03-29T11:14:00Z: COMPLETED Phase 9.2 image lazy-loading - introduced a shared `LazyImage` component backed by `IntersectionObserver`, rolled it through the main discovery/feed/gallery/sidebar/card image surfaces, and kept above-the-fold detail/sidebar media eager where appropriate. Added focused Vitest coverage for deferred loading and fallback/error behavior. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (67 files / 127 tests). Remaining raw `<img>` tags are intentional exceptions: the home hero, local spot-form previews, and older unrelated dirty trip files left out of this commit.
+- 2026-03-29T11:30:00Z: COMPLETED Phase 9.3 search debouncing - hardened the shared `SearchBar` so every current search surface now enforces a minimum 300ms debounce even if a smaller value is requested, while preserving immediate clear/enter behavior. Added focused Vitest coverage for the debounce floor. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (67 files / 128 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -84,7 +85,7 @@
 ### Phase 9: Performance & Observability
 - [x] Implement lazy-loading for all route views via defineAsyncComponent
 - [x] Add image lazy-loading with Intersection Observer
-- [ ] Add debouncing on all search inputs (300ms minimum)
+- [x] Add debouncing on all search inputs (300ms minimum)
 - [ ] Add virtual scroll for long lists (feed, spot lists)
 - [ ] Bundle analysis and tree-shaking verification
 

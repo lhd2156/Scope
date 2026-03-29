@@ -1,54 +1,44 @@
 <template>
-  <label class="search-bar" :class="{ 'search-bar--compact': compact }">
-    <span class="search-bar__label">{{ label }}</span>
-    <div class="search-bar__field">
-      <AtlasIcon name="search" label="Search" />
-      <input
-        :value="inputValue"
-        :type="type"
-        :placeholder="placeholder"
-        :aria-label="label"
-        :maxlength="maxlength"
-        @input="handleInput"
-        @keydown.enter.prevent="emitImmediately"
-      />
-      <button
-        v-if="clearable && inputValue"
-        type="button"
-        class="search-bar__clear"
-        aria-label="Clear search"
-        @click="clearSearch"
-      >
-        <AtlasIcon name="close" label="Clear search" />
-      </button>
-    </div>
-  </label>
+  <div class="search-bar" role="search">
+    <AtlasIcon name="search" label="Search" class="search-bar__icon" />
+    <input
+      :value="inputValue"
+      :placeholder="placeholder"
+      type="search"
+      class="search-bar__input"
+      :aria-label="ariaLabel"
+      @input="handleInput"
+      @keydown.enter.prevent="emitImmediately"
+    />
+    <button
+      v-if="showClearButton"
+      type="button"
+      class="search-bar__clear"
+      aria-label="Clear search"
+      @click="clearSearch"
+    >
+      <AtlasIcon name="close" label="Clear search" />
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+
+const MIN_SEARCH_DEBOUNCE_MS = 300;
 
 const props = withDefaults(
   defineProps<{
-    modelValue?: string;
-    label?: string;
+    modelValue: string;
     placeholder?: string;
+    ariaLabel?: string;
     debounceMs?: number;
-    clearable?: boolean;
-    compact?: boolean;
-    type?: 'search' | 'text';
-    maxlength?: number;
   }>(),
   {
-    modelValue: '',
-    label: 'Search',
-    placeholder: 'Search',
-    debounceMs: 300,
-    clearable: true,
-    compact: false,
-    type: 'search',
-    maxlength: 120,
+    placeholder: 'Search Atlas',
+    ariaLabel: 'Search Atlas',
+    debounceMs: MIN_SEARCH_DEBOUNCE_MS,
   },
 );
 
@@ -58,6 +48,8 @@ const emit = defineEmits<{
 }>();
 
 const inputValue = ref(props.modelValue);
+const effectiveDebounceMs = computed(() => Math.max(MIN_SEARCH_DEBOUNCE_MS, props.debounceMs));
+const showClearButton = computed(() => Boolean(inputValue.value.trim().length));
 let emitTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 watch(
@@ -87,7 +79,7 @@ function scheduleSearch(value: string) {
   emitTimeoutId = setTimeout(() => {
     emitSearch(value);
     emitTimeoutId = null;
-  }, props.debounceMs);
+  }, effectiveDebounceMs.value);
 }
 
 function emitImmediately() {
@@ -114,89 +106,59 @@ onBeforeUnmount(() => {
 <style scoped>
 .search-bar {
   display: grid;
-  gap: var(--space-2);
-}
-
-.search-bar__label {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.search-bar__field {
-  display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
-  padding: 0.78rem 0.95rem;
+  padding: 0.75rem 0.9rem;
   border-radius: var(--radius-full);
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    background var(--transition-fast);
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
 }
 
-.search-bar__field:focus-within {
+.search-bar:focus-within {
   border-color: var(--input-focus);
   box-shadow: var(--shadow-glow-teal);
 }
 
-.search-bar__field :deep(.atlas-icon) {
-  width: 1rem;
-  height: 1rem;
+.search-bar__icon,
+.search-bar__clear {
   color: var(--text-secondary);
 }
 
-.search-bar input {
+.search-bar__input {
   width: 100%;
-  min-width: 0;
-  padding: 0;
   border: 0;
   background: transparent;
   color: var(--text-primary);
+  font: inherit;
 }
 
-.search-bar input:focus {
+.search-bar__input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-bar__input:focus {
   outline: none;
 }
 
-.search-bar input::placeholder {
-  color: var(--input-placeholder);
-}
-
 .search-bar__clear {
-  width: 1.75rem;
-  height: 1.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 2rem;
+  height: 2rem;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--text-secondary);
   cursor: pointer;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .search-bar__clear:hover,
 .search-bar__clear:focus-visible {
-  background: var(--accent-teal-light);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   outline: none;
-}
-
-.search-bar--compact {
-  gap: var(--space-1);
-}
-
-.search-bar--compact .search-bar__label {
-  font-size: var(--font-size-caption);
-}
-
-.search-bar--compact .search-bar__field {
-  padding-block: 0.68rem;
 }
 </style>
