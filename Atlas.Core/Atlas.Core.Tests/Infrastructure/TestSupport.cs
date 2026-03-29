@@ -11,8 +11,11 @@ namespace Atlas.Core.Tests.Infrastructure;
 internal static class TestSupport
 {
     public static CoreDbContext CreateDbContext()
+        => CreateDbContext(Guid.NewGuid().ToString("N"));
+
+    public static CoreDbContext CreateDbContext(string databaseName)
         => new(new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .UseInMemoryDatabase(databaseName)
             .Options);
 
     public static void AttachUser(ControllerBase controller, Guid userId)

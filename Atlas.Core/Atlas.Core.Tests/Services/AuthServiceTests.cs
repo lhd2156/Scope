@@ -179,7 +179,7 @@ public sealed class AuthServiceTests
         await Assert.ThrowsAsync<UnauthorizedException>(() => service.ResetPasswordAsync("missing-token", "NewPassword123!"));
 
         await service.ForgotPasswordAsync(user.Email);
-        var resetToken = GetOnlyPasswordResetToken();
+        var resetToken = GetPasswordResetTokenForUser(user.Id);
         await service.ResetPasswordAsync(resetToken, "NewPassword123!");
 
         Assert.True(passwordHasher.Verify("NewPassword123!", user.PasswordHash));
@@ -270,12 +270,18 @@ public sealed class AuthServiceTests
     private static int GetPasswordResetTicketCount()
         => (int)GetPasswordResetTickets().GetType().GetProperty("Count")!.GetValue(GetPasswordResetTickets())!;
 
-    private static string GetOnlyPasswordResetToken()
+    private static string GetPasswordResetTokenForUser(Guid userId)
     {
         var tickets = GetPasswordResetTickets();
         return ((IEnumerable)tickets)
             .Cast<object>()
-            .Select(entry => (string)entry.GetType().GetProperty("Key")!.GetValue(entry)!)
+            .Select(entry => new
+            {
+                Key = (string)entry.GetType().GetProperty("Key")!.GetValue(entry)!,
+                Value = entry.GetType().GetProperty("Value")!.GetValue(entry)!
+            })
+            .Where(entry => (Guid)entry.Value.GetType().GetProperty("UserId")!.GetValue(entry.Value)! == userId)
+            .Select(entry => entry.Key)
             .Single();
     }
 
