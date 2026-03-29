@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import logging
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -7,14 +10,32 @@ from rest_framework.response import Response
 
 from photos.services.s3_service import S3StorageService
 
+logger = logging.getLogger(__name__)
+
+
+def _health_payload(status: str) -> dict[str, int | str]:
+    uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
+    return {'status': status, 'version': settings.SERVICE_VERSION, 'uptime': uptime}
+
 
 @api_view(['GET'])
 def health_view(request):
-    connection.ensure_connection()
+    try:
+        connection.ensure_connection()
 
-    # Validate storage connectivity as part of the health check, but keep the
-    # response contract aligned with atlas_architecture.tex Section 17/18.
-    S3StorageService().health_status()
+        # Validate storage connectivity as part of the health check, while
+        # keeping the response contract aligned with atlas_architecture.tex.
+        S3StorageService().health_status()
+    except Exception:
+        logger.exception(
+            'health_check_failed',
+            extra={
+                'correlation_id': getattr(request, 'correlation_id', None),
+                'method': request.method,
+                'path': request.path,
+                'status_code': 503,
+            },
+        )
+        return Response(_health_payload('unhealthy'), status=503)
 
-    uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
-    return Response({'status': 'healthy', 'version': settings.SERVICE_VERSION, 'uptime': uptime})
+    return Response(_health_payload('healthy'))
