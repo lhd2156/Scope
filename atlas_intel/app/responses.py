@@ -2,8 +2,12 @@ from typing import Any
 from flask import jsonify
 
 
-def success_response(data: Any, status_code: int = 200):
-    return jsonify({"data": data}), status_code
+def success_response(data: Any, status_code: int = 200, headers: dict[str, str] | None = None):
+    response = jsonify({"data": data})
+    response.status_code = status_code
+    if headers:
+        response.headers.update(headers)
+    return response
 
 
 def error_response(
