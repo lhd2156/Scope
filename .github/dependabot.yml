@@ -1,0 +1,136 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: nuget
+    directory: /Atlas.Core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:10'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - dotnet
+
+  - package-ecosystem: pip
+    directory: /atlas_content
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:20'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - python
+
+  - package-ecosystem: pip
+    directory: /atlas_intel
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:30'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - python
+
+  - package-ecosystem: npm
+    directory: /atlas-frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:40'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - frontend
+
+  - package-ecosystem: docker
+    directory: /Atlas.Core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:50'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /atlas_content
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:00'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /atlas_intel
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:10'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /atlas-frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:20'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
