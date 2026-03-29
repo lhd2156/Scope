@@ -55,6 +55,7 @@
 - [2026-03-29] ⚠️ When page tests depend on store error banners, plain-object mocked stores are not reactive enough for “set error after mount” assertions; seed the error state before mount or wrap the mock in a reactive store-shaped object.
 - [2026-03-29] ⚠️ Keep auth-service mock fallback opt-in only (`VITE_ENABLE_AUTH_MOCK_FALLBACK=true`); silent login/register fallback hides real network-failure and expired-session bugs during frontend hardening.
 - [2026-03-29] ⚠️ For Vue Router lazy-load verification, `router.getRoutes()` exposes the wrapped route view as `route.components.default`; `defineAsyncComponent` wrappers can be asserted there via the internal `__asyncLoader` property without mounting every page.
+- [2026-03-29] ⚠️ JSDOM may expose an `IntersectionObserver` stub that keeps lazy-image components in placeholder mode during tests; explicitly override or remove `window.IntersectionObserver` in image specs when you need deterministic eager/deferred assertions.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -106,6 +107,8 @@
 - [2026-03-29] ✅ Atlas.Core CORS can stay strict and testable by reading `CORE_FRONTEND_ORIGIN` at startup, adding `http://localhost:5173` only in Development, and verifying preflight behavior with `OPTIONS` integration tests instead of controller-only assertions.
 
 - [2026-03-29] ✅ In Atlas.Core, register security-header middleware with `Response.OnStarting(...)` before auth/rate-limit/exception middleware so CSP and X-XSS-Protection still appear on 401, 429, exception, and SignalR negotiate responses.
+
+- [2026-03-29] ✅ Atlas.Core coverage can be measured directly with `dotnet test --collect:"XPlat Code Coverage"`; a focused mix of controller, service, hub, and domain-contract tests can drive the Cobertura line rate above 80% quickly without needing extra coverage packages.
 
 ## Common Mistakes to Avoid
 

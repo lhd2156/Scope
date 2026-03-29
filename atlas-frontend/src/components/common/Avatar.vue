@@ -1,12 +1,13 @@
 <template>
   <div class="avatar" :style="avatarStyle" :aria-label="label ?? name">
-    <img v-if="imageSource" :src="imageSource" :alt="label ?? name" @error="onImageError" />
+    <LazyImage v-if="imageSource" :src="imageSource" :alt="label ?? name" @error="onImageError" />
     <span v-else>{{ initials }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import { getInitials } from '@/utils/formatters';
 
 const props = withDefaults(

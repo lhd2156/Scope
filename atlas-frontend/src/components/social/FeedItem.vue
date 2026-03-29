@@ -1,7 +1,7 @@
 <template>
   <article class="feed-item glass-panel">
     <div class="media" :class="`media-${item.type}`">
-      <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title" />
+      <LazyImage v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title" class="feed-image" />
       <div v-else class="media-fallback">
         <AtlasIcon :name="item.type === 'trip' ? 'route' : 'pin'" :label="activityLabel" />
       </div>
@@ -47,6 +47,7 @@
 import { computed } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import type { FeedItem as FeedItemModel } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
 
@@ -81,13 +82,13 @@ const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${
   border-right: 1px solid var(--glass-border);
 }
 
-img,
+.feed-image,
 .media-fallback {
   width: 100%;
   height: 100%;
 }
 
-img {
+.feed-image {
   object-fit: cover;
 }
 

@@ -1,7 +1,7 @@
 <template>
   <article class="spot-card glass-panel">
     <div class="spot-media">
-      <img v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="spot-image" />
+      <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="spot-image" />
       <div v-else class="spot-placeholder">
         <strong>{{ categoryLabel }}</strong>
         <span>Cover photo coming soon</span>
@@ -39,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotSummary } from '@/types';
 
 const props = defineProps<{

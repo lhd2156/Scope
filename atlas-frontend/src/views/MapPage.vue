@@ -52,7 +52,7 @@
             </article>
 
             <article v-if="selectedSpot" class="surface-card sidebar-card selected-card">
-              <img :src="selectedSpot.photoUrl" :alt="selectedSpot.title" class="selected-image" />
+              <LazyImage :src="selectedSpot.photoUrl" :alt="selectedSpot.title" class="selected-image" eager />
               <div class="selected-copy">
                 <span class="badge" :class="`badge-${selectedSpot.category}`">{{ selectedSpot.category }}</span>
                 <h2>{{ selectedSpot.title }}</h2>
@@ -111,6 +111,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import Sidebar from '@/components/common/Sidebar.vue';
 import MapView from '@/components/map/MapView.vue';
 import { useMapStore } from '@/stores/map';
