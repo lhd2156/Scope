@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 12.3 - Verify all Pinia stores match API contracts
-## Last Updated: 2026-03-29T13:04:00Z
+## Current Task: Phase 12.4 - Verify all routes work and auth guards redirect properly
+## Last Updated: 2026-03-29T13:24:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -61,6 +61,7 @@
 - 2026-03-29T12:40:00Z: COMPLETED Phase 9.5 bundle analysis/tree-shaking verification - moved both Mapbox consumers (`MapView` and `SpotForm`) onto a shared lazy `mapboxLoader` using the package ESM-min entry so map code only loads on interactive map surfaces, lazy-imported the SignalR bridge from the notifications store so realtime code no longer rides the app shell path, and added Vite manual chunk boundaries for the Mapbox worker/core and SignalR vendor. Validation: npm.cmd run build ✅ with `SpotComposerPage` reduced to 19.68 kB and realtime split into `signalr` (54.75 kB) + `notifications` (174.84 kB); the only remaining chunk warning is the isolated lazy `mapbox-gl-core` vendor chunk (1,581.46 kB), which is an unavoidable Mapbox GL package cost rather than an app-shell bundling regression. npm.cmd run test ✅ (68 files / 130 tests).
 - 2026-03-29T12:53:00Z: COMPLETED Phase 12.1 architecture recheck - re-audited the canonical frontend view/component list against Section 8 and the design-system requirements, found the `NotFoundPage` had drifted into a one-line placeholder with inline spacing, and replaced it with a tokenized recovery state using `AppShell`, `SectionHeading`, and route-safe recovery links back to home, explore, and map. Added focused coverage for the richer 404 surface. Validation: npx.cmd vitest run tests/unit/not-found-page.spec.ts ✅.
 - 2026-03-29T13:04:00Z: COMPLETED Phase 12.2 build/test verification - ran the full production build and full Vitest suite on the current `feature/frontend` worktree with no blocking failures to fix. Validation: npm.cmd run build ✅ (only the previously accepted isolated `mapbox-gl-core` lazy vendor warning remains) and npm.cmd run test ✅ (68 files / 130 tests).
+- 2026-03-29T13:24:00Z: COMPLETED Phase 12.3 Pinia/API contract audit - expanded the store layer to match the documented backend contracts instead of just the currently mounted views: added a real `userService` + contract-complete `user` store for profile/stats/search/deactivate flows, extended `spots` with pagination meta plus nearby/like/delete actions, extended `trips` with pagination/member/CRUD/spot-management actions, and added trending-spot support to `feed`. Locked the audit with focused Vitest store specs. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (70 files / 136 tests).
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -97,7 +98,7 @@
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every view and component matches atlas_architecture.tex spec
 - [x] Run npm run build and npm run test - fix any failures
-- [ ] Verify all Pinia stores match API contracts
+- [x] Verify all Pinia stores match API contracts
 - [ ] Verify all routes work and auth guards redirect properly
 - [ ] Verify dark/light theme works on all pages
 - [ ] Check for console.log statements, dead code, unused imports

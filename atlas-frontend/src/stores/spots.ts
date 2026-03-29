@@ -1,7 +1,18 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { createSpot as createSpotRequest, getSpotDetail, listSpots, listTrendingSpots, updateSpot as updateSpotRequest } from '@/services/spotService';
-import type { SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
+import {
+  createSpot as createSpotRequest,
+  deleteSpot as deleteSpotRequest,
+  getSpotDetail,
+  likeSpot as likeSpotRequest,
+  listNearbySpots,
+  listSpots,
+  listTrendingSpots,
+  unlikeSpot as unlikeSpotRequest,
+  updateSpot as updateSpotRequest,
+  type NearbySpotFilters,
+} from '@/services/spotService';
+import type { PaginationMeta, SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
 function toSpotSummary(spot: SpotDetail): SpotSummary {
@@ -25,9 +36,29 @@ function toSpotSummary(spot: SpotDetail): SpotSummary {
   };
 }
 
+function upsertCollection(collection: SpotSummary[], spot: SpotSummary): SpotSummary[] {
+  const nextCollection = [...collection];
+  const existingIndex = nextCollection.findIndex((entry) => entry.id === spot.id);
+
+  if (existingIndex === -1) {
+    nextCollection.unshift(spot);
+    return nextCollection;
+  }
+
+  nextCollection.splice(existingIndex, 1, spot);
+  return nextCollection;
+}
+
+function removeFromCollection(collection: SpotSummary[], spotId: string): SpotSummary[] {
+  return collection.filter((entry) => entry.id !== spotId);
+}
+
 export const useSpotsStore = defineStore('spots', () => {
   const items = ref<SpotSummary[]>([]);
+  const meta = ref<PaginationMeta | null>(null);
   const trending = ref<SpotSummary[]>([]);
+  const nearby = ref<SpotSummary[]>([]);
+  const nearbyMeta = ref<PaginationMeta | null>(null);
   const selectedSpot = ref<SpotDetail | null>(null);
   const filters = ref<SpotFilters>({ page: 1, pageSize: 12 });
   const loading = ref(false);
@@ -35,6 +66,24 @@ export const useSpotsStore = defineStore('spots', () => {
   const error = ref<string | null>(null);
 
   const featuredSpots = computed(() => (trending.value.length ? trending.value : items.value.slice(0, 4)));
+  const likedSpots = computed(() => {
+    const byId = new Map<string, SpotSummary>();
+    const collections = [items.value, trending.value, nearby.value];
+
+    collections.forEach((collection) => {
+      collection.forEach((spot) => {
+        if (spot.liked) {
+          byId.set(spot.id, spot);
+        }
+      });
+    });
+
+    if (selectedSpot.value?.liked) {
+      byId.set(selectedSpot.value.id, toSpotSummary(selectedSpot.value));
+    }
+
+    return [...byId.values()];
+  });
 
   function matchesActiveFilters(spot: SpotSummary): boolean {
     const activeFilters = filters.value;
@@ -42,19 +91,6 @@ export const useSpotsStore = defineStore('spots', () => {
     const matchesCity = !activeFilters.city || spot.city?.toLowerCase().includes(activeFilters.city.toLowerCase());
     const matchesVibe = !activeFilters.vibe || spot.vibe?.toLowerCase().includes(activeFilters.vibe.toLowerCase());
     return matchesCategory && matchesCity && matchesVibe;
-  }
-
-  function upsertCollection(collection: SpotSummary[], spot: SpotSummary): SpotSummary[] {
-    const nextCollection = [...collection];
-    const existingIndex = nextCollection.findIndex((entry) => entry.id === spot.id);
-
-    if (existingIndex === -1) {
-      nextCollection.unshift(spot);
-      return nextCollection;
-    }
-
-    nextCollection.splice(existingIndex, 1, spot);
-    return nextCollection;
   }
 
   function reconcileItems(spot: SpotSummary): void {
@@ -77,6 +113,22 @@ export const useSpotsStore = defineStore('spots', () => {
     trending.value = upsertCollection(trending.value, spot);
   }
 
+  function reconcileNearby(spot: SpotSummary): void {
+    if (!nearby.value.some((entry) => entry.id === spot.id)) {
+      return;
+    }
+
+    nearby.value = upsertCollection(nearby.value, spot);
+  }
+
+  function applySpotDetail(detail: SpotDetail): void {
+    selectedSpot.value = detail;
+    const summary = toSpotSummary(detail);
+    reconcileItems(summary);
+    reconcileTrending(summary);
+    reconcileNearby(summary);
+  }
+
   async function fetchSpots(nextFilters: SpotFilters = filters.value) {
     loading.value = true;
     error.value = null;
@@ -85,6 +137,8 @@ export const useSpotsStore = defineStore('spots', () => {
     try {
       const response = await listSpots(filters.value);
       items.value = response.data;
+      meta.value = response.meta ?? null;
+      return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not load spots right now.');
       throw nextError;
@@ -93,15 +147,33 @@ export const useSpotsStore = defineStore('spots', () => {
     }
   }
 
-  async function fetchTrending() {
+  async function fetchTrending(limit = 4) {
     loading.value = true;
     error.value = null;
 
     try {
-      const response = await listTrendingSpots();
+      const response = await listTrendingSpots(limit);
       trending.value = response.data;
+      return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not load trending spots right now.');
+      throw nextError;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function fetchNearby(filtersInput: NearbySpotFilters) {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const response = await listNearbySpots(filtersInput);
+      nearby.value = response.data;
+      nearbyMeta.value = response.meta ?? null;
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load nearby spots right now.');
       throw nextError;
     } finally {
       loading.value = false;
@@ -116,6 +188,7 @@ export const useSpotsStore = defineStore('spots', () => {
     try {
       const response = await getSpotDetail(spotId);
       selectedSpot.value = response.data;
+      return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not load that spot right now.');
       throw nextError;
@@ -130,10 +203,7 @@ export const useSpotsStore = defineStore('spots', () => {
 
     try {
       const response = await createSpotRequest(submission, currentUser);
-      selectedSpot.value = response.data;
-      const summary = toSpotSummary(response.data);
-      reconcileItems(summary);
-      reconcileTrending(summary);
+      applySpotDetail(response.data);
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not save that spot right now.');
@@ -149,10 +219,7 @@ export const useSpotsStore = defineStore('spots', () => {
 
     try {
       const response = await updateSpotRequest(spotId, submission, currentUser);
-      selectedSpot.value = response.data;
-      const summary = toSpotSummary(response.data);
-      reconcileItems(summary);
-      reconcileTrending(summary);
+      applySpotDetail(response.data);
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not update that spot right now.');
@@ -162,19 +229,89 @@ export const useSpotsStore = defineStore('spots', () => {
     }
   }
 
+  async function deleteSpot(spotId: string): Promise<void> {
+    saving.value = true;
+    error.value = null;
+
+    try {
+      await deleteSpotRequest(spotId);
+      items.value = removeFromCollection(items.value, spotId);
+      trending.value = removeFromCollection(trending.value, spotId);
+      nearby.value = removeFromCollection(nearby.value, spotId);
+
+      if (selectedSpot.value?.id === spotId) {
+        selectedSpot.value = null;
+      }
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not delete that spot right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function likeSpot(spotId: string): Promise<SpotDetail> {
+    saving.value = true;
+    error.value = null;
+
+    try {
+      const response = await likeSpotRequest(spotId);
+      applySpotDetail(response.data);
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not like that spot right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function unlikeSpot(spotId: string): Promise<SpotDetail> {
+    saving.value = true;
+    error.value = null;
+
+    try {
+      const response = await unlikeSpotRequest(spotId);
+      applySpotDetail(response.data);
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not remove that like right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function toggleLike(spotId: string): Promise<SpotDetail> {
+    const currentSummary = selectedSpot.value?.id === spotId
+      ? toSpotSummary(selectedSpot.value)
+      : items.value.find((spot) => spot.id === spotId) ?? trending.value.find((spot) => spot.id === spotId) ?? nearby.value.find((spot) => spot.id === spotId);
+
+    return currentSummary?.liked ? unlikeSpot(spotId) : likeSpot(spotId);
+  }
+
   return {
     items,
+    meta,
     trending,
+    nearby,
+    nearbyMeta,
     selectedSpot,
     filters,
     loading,
     saving,
     error,
     featuredSpots,
+    likedSpots,
     fetchSpots,
     fetchTrending,
+    fetchNearby,
     fetchSpot,
     createSpot,
     updateSpot,
+    deleteSpot,
+    likeSpot,
+    unlikeSpot,
+    toggleLike,
   };
 });
