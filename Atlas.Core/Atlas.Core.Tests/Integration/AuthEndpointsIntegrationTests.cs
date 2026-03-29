@@ -11,6 +11,7 @@ using Xunit;
 
 namespace Atlas.Core.Tests.Integration;
 
+[Collection(PasswordResetTicketCollections.SharedPasswordResetTickets)]
 public sealed class AuthEndpointsIntegrationTests
 {
     [Fact]

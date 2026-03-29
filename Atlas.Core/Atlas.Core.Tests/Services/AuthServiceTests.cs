@@ -15,6 +15,7 @@ using Xunit;
 
 namespace Atlas.Core.Tests.Services;
 
+[Collection(PasswordResetTicketCollections.SharedPasswordResetTickets)]
 public sealed class AuthServiceTests
 {
     [Fact]
