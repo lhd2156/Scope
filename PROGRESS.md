@@ -6,7 +6,7 @@
 - [x] Phase 1: Foundation (delegated to Architect agent) — COMPLETE
 - [x] Phase 2: Backends (delegated to Sentinel, Cartographer, Oracle agents — run in parallel) — COMPLETE
 - [x] Phase 3: Frontend (delegated to Prism agent — after backends complete) — COMPLETE
-- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, deployment runbook, and SQL seed assets complete; deploy workflow and infra/IaC remain
+- [/] Phase 4: Integration — docker-compose app wiring, CI workflow, Playwright critical-flow E2E validation, deployment runbook, and SQL seed assets complete; deploy workflow and infra/IaC remain
 - [x] Phase 5: Full Recheck & Audit — complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening — complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality — complete across Core, Content, Intel, and Frontend
@@ -26,9 +26,9 @@
 | Frontend (Prism) | COMPLETE | COMPLETE — Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
 | Polish (Luster) | NOT_STARTED | Awaiting Phase 10 | 2026-03-29 |
 
-## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright E2E scaffold, Dependabot automation, deployment runbook, and SQL seed assets are in place; deploy workflow and infra manifests remain lead-owned
+## Current Phase: Phase 4 integration — docker-compose app wiring, CI workflow, Playwright critical-flow validation, Dependabot automation, deployment runbook, and SQL seed assets are in place; deploy workflow and infra manifests/IaC remain lead-owned
 ## Agents Running: none
-## Last Updated: 2026-03-29T18:17:00Z
+## Last Updated: 2026-03-29T18:36:30.0684462Z
 
 ## Log
 - Foundation: All 8 commits done. Docker daemon offline during validation.
@@ -397,6 +397,9 @@
 - 2026-03-29T18:17:00Z: Completed the next lead-owned Phase 4 integration milestone by adding idempotent SQL seed scripts for Core, Content, and Intel (`scripts/sql/*/002_*_seed_data.sql`) plus `scripts/sql/README.md`, and wired the new seed-data execution path into `docs/DEPLOYMENT.md`.
 - 2026-03-29T18:17:00Z: Validation limits were documented honestly: `sqlcmd` is not installed on this host and Docker Desktop's Linux engine is offline, so this milestone was validated as static seed-data asset creation + execution-order documentation rather than live DB execution.
 - 2026-03-29T18:17:00Z: Remaining Phase 4 gaps are deploy workflow automation and infra manifests/IaC.
+- 2026-03-29T18:35:07.3454387Z: Tightened the existing Playwright critical-flow coverage in `atlas-frontend/tests/e2e/critical-flows.spec.ts` so the canonical browser test now mocks `/api/core/auth/*` deterministically, uses SPA navigation to preserve in-memory fallback spot state, and asserts the created pin appears in the map workspace before itinerary generation.
+- 2026-03-29T18:35:07.3454387Z: Validation: `npx playwright test tests/e2e/critical-flows.spec.ts --project=chromium` ✅ inside `atlas-frontend/`. Removed the temporary duplicate `critical-flow.spec.ts` once the stronger canonical spec passed.
+- 2026-03-29T18:36:30.0684462Z: Sent the mandatory Telegram heartbeat to `8744371466` with `buttons: []`, reporting the hardened canonical Playwright browser flow milestone and the narrowed remaining Phase 4 gaps (deploy workflow + infra/IaC + final docs polish).
 
 ## IMPORTANT: Runtime Environment
 ALL runtimes are installed on this machine:
