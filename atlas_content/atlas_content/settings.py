@@ -7,6 +7,7 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DEVELOPMENT_FRONTEND_ORIGIN = 'http://localhost:5173'
 
 
 def _load_env_file(env_path: Path) -> None:
@@ -34,11 +35,34 @@ def _required_env(name: str) -> str:
     )
 
 
+def _normalize_origin(origin: str | None) -> str | None:
+    if origin is None:
+        return None
+    cleaned = origin.strip().rstrip('/')
+    return cleaned or None
+
+
 _load_env_file(BASE_DIR / '.env')
 
 SECRET_KEY = _required_env('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'true').lower() == 'true'
 ALLOWED_HOSTS = [host for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if host]
+FRONTEND_ORIGIN = _normalize_origin(os.getenv('FRONTEND_ORIGIN') or os.getenv('CORE_FRONTEND_ORIGIN'))
+DEVELOPMENT_FRONTEND_ORIGIN = _normalize_origin(
+    os.getenv('DEVELOPMENT_FRONTEND_ORIGIN', DEFAULT_DEVELOPMENT_FRONTEND_ORIGIN)
+)
+CORS_ALLOWED_ORIGINS = []
+if FRONTEND_ORIGIN:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_ORIGIN)
+if DEBUG and DEVELOPMENT_FRONTEND_ORIGIN:
+    CORS_ALLOWED_ORIGINS.append(DEVELOPMENT_FRONTEND_ORIGIN)
+if not DEBUG and not FRONTEND_ORIGIN:
+    raise ImproperlyConfigured('FRONTEND_ORIGIN or CORE_FRONTEND_ORIGIN must be set when DEBUG=false for atlas_content CORS.')
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS))
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = ['authorization', 'content-type']
+CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'POST', 'PUT']
+CORS_URLS_REGEX = r'^/api/content/.*$'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -47,6 +71,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'common',
     'spots',
@@ -58,6 +83,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
