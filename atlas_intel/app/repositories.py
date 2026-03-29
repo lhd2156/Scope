@@ -48,8 +48,8 @@ class IntelRepository:
         return record.id
 
     @staticmethod
-    def get_itinerary(itinerary_id: str) -> dict | None:
-        record = ItineraryCache.query.filter_by(id=itinerary_id).first()
+    def get_itinerary(itinerary_id: str, user_id: str) -> dict | None:
+        record = ItineraryCache.query.filter_by(id=itinerary_id, user_id=user_id).first()
         if record is None:
             return None
         if normalize_utc(record.expires_at) <= utcnow():

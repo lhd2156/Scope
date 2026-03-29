@@ -34,7 +34,7 @@ def generate_itinerary():
 @rate_limited
 @require_auth
 def get_itinerary(itinerary_id: str):
-    itinerary = IntelRepository.get_itinerary(itinerary_id)
+    itinerary = IntelRepository.get_itinerary(itinerary_id, g.current_user["sub"])
     if itinerary is None:
         return error_response(404, "NOT_FOUND", "Resource does not exist", trace_id=getattr(g, "trace_id", None))
     return success_response({"id": itinerary_id, **itinerary})

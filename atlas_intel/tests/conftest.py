@@ -39,13 +39,12 @@ def client(app):
     return app.test_client()
 
 
-@pytest.fixture()
-def auth_header(app):
+def _auth_header_for_subject(app, subject: str, email: str, name: str):
     token = jwt.encode(
         {
-            "sub": "user-1",
-            "email": "user@example.com",
-            "name": "Atlas User",
+            "sub": subject,
+            "email": email,
+            "name": name,
             "roles": ["user"],
             "iss": app.config["JWT_ISSUER"],
             "aud": app.config["JWT_AUDIENCE"],
@@ -54,3 +53,13 @@ def auth_header(app):
         algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def auth_header(app):
+    return _auth_header_for_subject(app, "user-1", "user@example.com", "Atlas User")
+
+
+@pytest.fixture()
+def second_auth_header(app):
+    return _auth_header_for_subject(app, "user-2", "second@example.com", "Second User")
