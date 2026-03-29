@@ -21,8 +21,8 @@
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
 
-## Current Task: Phase 9.1 — Implement lazy-loading for all route views via defineAsyncComponent
-## Last Updated: 2026-03-29T10:46:00Z
+## Current Task: Phase 9.2 — Add image lazy-loading with Intersection Observer
+## Last Updated: 2026-03-29T10:55:00Z
 
 ## Log
 - Foundation scaffold completed on feature/frontend with 7 commits
@@ -53,6 +53,7 @@
 - 2026-03-29T09:51:00Z: COMPLETED Phase 7.2 component coverage — added dedicated Vitest specs for every remaining production component across the common shell, map helpers, profile, social, and review layers, removed the unused Vite starter `HelloWorld.vue`, and fixed a real runtime debounce bug in `SearchBar.vue` uncovered by the new coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (59 files / 98 tests).
 - 2026-03-29T10:18:00Z: COMPLETED Phase 7.3 async error handling — standardized user-facing async error messages, added error state to auth/feed/notifications/spots/trips stores, hardened page-level loaders and auth/settings forms with safe catch paths plus partial-failure UI, and added focused Vitest failure coverage for stores and route views. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (62 files / 113 tests).
 - 2026-03-29T10:46:00Z: COMPLETED Phase 7.4 edge-case hardening — added explicit login/register validation for empty or malformed input, removed silent auth fallback for failed login/register flows unless an opt-in dev env flag is set, normalized offline/timeout API failures into user-safe messages, and introduced session-expired toast + protected-route redirect handling in the app shell with focused Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (64 files / 122 tests).
+- 2026-03-29T10:55:00Z: COMPLETED Phase 9.1 route lazy-loading — replaced raw route import lambdas with a shared `defineAsyncComponent` wrapper, added a reusable route-loading surface, and verified every named route exposes an async loader via router-level Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (66 files / 124 tests). Vite still warns about oversized `notifications` and `mapbox-gl` chunks, so deeper chunk-splitting/tree-shaking remains for later Phase 9 work.
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ — USE IT
@@ -80,7 +81,7 @@
 - [x] Handle edge cases: empty inputs, network failures, expired tokens
 
 ### Phase 9: Performance & Observability
-- [ ] Implement lazy-loading for all route views via defineAsyncComponent
+- [x] Implement lazy-loading for all route views via defineAsyncComponent
 - [ ] Add image lazy-loading with Intersection Observer
 - [ ] Add debouncing on all search inputs (300ms minimum)
 - [ ] Add virtual scroll for long lists (feed, spot lists)
