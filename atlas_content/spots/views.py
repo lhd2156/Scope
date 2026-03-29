@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 
+from common.cache_utils import FEED_CACHE_NAMESPACE, SPOTS_CACHE_NAMESPACE, cached_api_response, invalidate_cache_namespaces
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -21,6 +23,16 @@ producer = AtlasKafkaProducer()
 class SpotListCreateView(generics.ListCreateAPIView):
     serializer_class = SpotSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def list(self, request, *args, **kwargs):
+        parent = super()
+        return cached_api_response(
+            request,
+            SPOTS_CACHE_NAMESPACE,
+            settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+            lambda: parent.list(request, *args, **kwargs),
+            extra='spots-list',
+        )
 
     def get_queryset(self):
         queryset = with_spot_list_relations(
@@ -38,6 +50,7 @@ class SpotListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user_id=request.user.id)
+        invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         producer.publish('spot.created', {'spotId': str(serializer.instance.id), 'userId': str(request.user.id)})
         return data_response(self.get_serializer(serializer.instance).data, status_code=status.HTTP_201_CREATED)
 
@@ -47,11 +60,22 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SpotDetailSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    def retrieve(self, request, *args, **kwargs):
+        parent = super()
+        return cached_api_response(
+            request,
+            SPOTS_CACHE_NAMESPACE,
+            settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+            lambda: parent.retrieve(request, *args, **kwargs),
+            extra=f'spot-detail:{kwargs.get("pk")}',
+        )
+
     def update(self, request, *args, **kwargs):
         spot = self.get_object()
         if str(spot.user_id) != str(getattr(request.user, 'id', '')) and not getattr(request.user, 'is_admin', False):
             raise PermissionDenied
         response = super().update(request, *args, **kwargs)
+        invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         producer.publish('spot.updated', {'spotId': str(spot.id), 'userId': str(request.user.id)})
         return response
 
@@ -59,36 +83,65 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
         spot = self.get_object()
         if str(spot.user_id) != str(getattr(request.user, 'id', '')) and not getattr(request.user, 'is_admin', False):
             raise PermissionDenied
-        return super().destroy(request, *args, **kwargs)
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
+        return response
 
 
 @api_view(['GET'])
 def nearby_spots(request):
-    serializer = NearbyQuerySerializer(data=request.query_params)
-    serializer.is_valid(raise_exception=True)
-    queryset = serializer.filter_queryset(Spot.objects.filter(is_public=True))
-    queryset = with_spot_list_relations(queryset).order_by('-created_at')
-    paginator = SpotListCreateView.pagination_class()
-    page = paginator.paginate_queryset(queryset, request)
-    return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+    def build_response():
+        serializer = NearbyQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        queryset = serializer.filter_queryset(Spot.objects.filter(is_public=True))
+        queryset = with_spot_list_relations(queryset).order_by('-created_at')
+        paginator = SpotListCreateView.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+
+    return cached_api_response(
+        request,
+        SPOTS_CACHE_NAMESPACE,
+        settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+        build_response,
+        extra='spots-nearby',
+    )
 
 
 @api_view(['GET'])
 def user_spots(request, user_id):
-    queryset = with_spot_list_relations(Spot.objects.filter(user_id=user_id, is_public=True)).order_by('-created_at')
-    paginator = SpotListCreateView.pagination_class()
-    page = paginator.paginate_queryset(queryset, request)
-    return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+    def build_response():
+        queryset = with_spot_list_relations(Spot.objects.filter(user_id=user_id, is_public=True)).order_by('-created_at')
+        paginator = SpotListCreateView.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+
+    return cached_api_response(
+        request,
+        SPOTS_CACHE_NAMESPACE,
+        settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+        build_response,
+        extra=f'spots-user:{user_id}',
+    )
 
 
 @api_view(['GET'])
 def explore_spots(request):
-    view = SpotListCreateView()
-    view.request = request
-    queryset = view.get_queryset().filter(is_public=True)
-    paginator = SpotListCreateView.pagination_class()
-    page = paginator.paginate_queryset(queryset, request)
-    return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+    def build_response():
+        view = SpotListCreateView()
+        view.request = request
+        queryset = view.get_queryset().filter(is_public=True)
+        paginator = SpotListCreateView.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+
+    return cached_api_response(
+        request,
+        SPOTS_CACHE_NAMESPACE,
+        settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+        build_response,
+        extra='spots-explore',
+    )
 
 
 @api_view(['POST', 'DELETE'])
@@ -97,14 +150,25 @@ def like_spot(request, pk):
     spot = get_object_or_404(Spot, pk=pk)
     if request.method == 'POST':
         like, created = Like.objects.get_or_create(spot=spot, user_id=request.user.id)
+        invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         if created:
             producer.publish('spot.liked', {'spotId': str(spot.id), 'userId': str(request.user.id)})
         return data_response({'liked': True}, status_code=201 if created else 200)
     Like.objects.filter(spot=spot, user_id=request.user.id).delete()
+    invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
     return data_response({'liked': False})
 
 
 @api_view(['GET'])
 def spot_photos(request, pk):
-    photos = Photo.objects.filter(spot_id=pk).order_by('sort_order', 'created_at')
-    return data_response([{'id': str(photo.id), 'storageUrl': photo.storage_url, 'caption': photo.caption} for photo in photos])
+    def build_response():
+        photos = Photo.objects.filter(spot_id=pk).order_by('sort_order', 'created_at')
+        return data_response([{'id': str(photo.id), 'storageUrl': photo.storage_url, 'caption': photo.caption} for photo in photos])
+
+    return cached_api_response(
+        request,
+        SPOTS_CACHE_NAMESPACE,
+        settings.CACHE_SPOTS_TIMEOUT_SECONDS,
+        build_response,
+        extra=f'spot-photos:{pk}',
+    )

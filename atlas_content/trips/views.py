@@ -6,6 +6,7 @@ from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 
+from common.cache_utils import FEED_CACHE_NAMESPACE, invalidate_cache_namespaces
 from common.kafka_producer import AtlasKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -20,6 +21,7 @@ from trips.serializers import (
 )
 
 producer = AtlasKafkaProducer()
+
 
 
 def can_manage_trip(user, trip):
@@ -45,6 +47,7 @@ class TripListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         trip = serializer.save(creator_id=request.user.id)
         TripMember.objects.get_or_create(trip=trip, user_id=request.user.id, role='owner')
+        invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
         producer.publish('trip.created', {'tripId': str(trip.id), 'userId': str(request.user.id)})
         return data_response(self.get_serializer(trip).data, status_code=201)
 
@@ -58,13 +61,17 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
         trip = self.get_object()
         if not can_manage_trip(request.user, trip):
             raise PermissionDenied
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
+        return response
 
     def destroy(self, request, *args, **kwargs):
         trip = self.get_object()
         if not can_manage_trip(request.user, trip):
             raise PermissionDenied
-        return super().destroy(request, *args, **kwargs)
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
+        return response
 
 
 @api_view(['GET'])
@@ -92,6 +99,7 @@ def add_trip_spot(request, pk):
             'notes': serializer.validated_data.get('notes', ''),
         },
     )
+    invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
     return data_response(TripSerializer(trip).data, status_code=201 if created else 200)
 
 
@@ -102,6 +110,7 @@ def remove_trip_spot(request, pk, spot_id):
     if not can_manage_trip(request.user, trip):
         raise PermissionDenied
     TripSpot.objects.filter(trip=trip, spot_id=spot_id).delete()
+    invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
     return data_response({'removed': True})
 
 
@@ -118,6 +127,7 @@ def reorder_trip_spots(request, pk):
             sort_order=spot_data.get('sortOrder', index),
             day_number=spot_data.get('dayNumber'),
         )
+    invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
     return data_response(TripSerializer(trip).data)
 
 
@@ -141,6 +151,7 @@ def trip_members(request, pk):
     if not created and member.role != serializer.validated_data['role']:
         member.role = serializer.validated_data['role']
         member.save(update_fields=['role'])
+    invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
     producer.publish('trip.member.added', {'tripId': str(trip.id), 'userId': str(serializer.validated_data['user_id'])})
     return data_response(TripMemberSerializer(member).data, status_code=201 if created else 200)
 
@@ -152,4 +163,5 @@ def remove_trip_member(request, pk, user_id):
     if not can_manage_trip(request.user, trip):
         raise PermissionDenied
     TripMember.objects.filter(trip=trip, user_id=user_id).exclude(role='owner').delete()
+    invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
     return data_response({'removed': True})

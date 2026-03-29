@@ -22,8 +22,8 @@
 - [x] 17. Fix any import errors, missing dependencies, or test failures
 - [x] 18. Add Dockerfile
 
-## Current Task: Phase 9 - Add Django cache framework for spots and feed responses
-## Last Updated: 2026-03-29T15:12:00Z
+## Current Task: Phase 9 - Add indexes on hot query fields
+## Last Updated: 2026-03-29T15:40:00Z
 
 ## Log
 - Full Django content engine scaffolded on feature/content-engine
@@ -54,6 +54,7 @@
 - Added real structured JSON logging for Content with python-json-logger 3.2.0: correlation IDs now flow via request context into request-completion logs and Kafka produce/consume logs, every log line carries UTC timestamp/service/level/message/correlationId, and the full suite passes with `88 passed`
 - Finished the Content health endpoint as a real dependency check: DB connectivity uses `connection.ensure_connection()`, storage health verifies S3 bucket access (or local media writability), failures now return bare-contract `{"status":"unhealthy","version":...,"uptime":...}` with HTTP 503, and the suite passes with `93 passed`
 - Eliminated the remaining list/feed N+1 patterns by centralizing optimized spot/trip querysets, reusing them across list/detail/feed endpoints, and updating spot serializers to honor prefetched caches instead of re-querying ordered relations; query-budget tests now guard explore spots, spot detail, public trips, and social feed (`97 passed` total)
+- Added Django cache framework support for spots/feed responses with user-aware cache keys, versioned namespace invalidation, and targeted response-caching tests; spot/feed reads now reuse cached payloads while spot/photo/review/trip mutations bump the relevant cache namespace, and the full Content suite still passes cleanly
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
