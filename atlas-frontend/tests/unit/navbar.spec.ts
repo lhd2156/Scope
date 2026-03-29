@@ -1,9 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
-const { authStoreMock, notificationsStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, notificationsStoreMock, toastStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
+    error: null as string | null,
     currentUser: null as any,
     logout: vi.fn().mockResolvedValue(undefined),
   },
@@ -16,6 +17,10 @@ const { authStoreMock, notificationsStoreMock } = vi.hoisted(() => ({
     markAllRead: vi.fn(),
     markRead: vi.fn(),
   },
+  toastStoreMock: {
+    showSuccess: vi.fn(),
+    showInfo: vi.fn(),
+  },
 }));
 
 vi.mock('@/stores/auth', () => ({
@@ -24,6 +29,10 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/stores/notifications', () => ({
   useNotificationsStore: () => notificationsStoreMock,
+}));
+
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
 }));
 
 import Navbar from '@/components/common/Navbar.vue';
@@ -47,7 +56,10 @@ function buildRouter() {
 
 describe('Navbar', () => {
   beforeEach(() => {
+    authStoreMock.error = null;
     authStoreMock.logout.mockClear();
+    toastStoreMock.showSuccess.mockClear();
+    toastStoreMock.showInfo.mockClear();
   });
 
   it('routes searches to explore and logs authenticated users out through the menu', async () => {
@@ -91,6 +103,10 @@ describe('Navbar', () => {
 
     expect(authStoreMock.logout).toHaveBeenCalledTimes(1);
     expect(router.currentRoute.value.fullPath).toBe('/');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Signed out',
+      message: 'Your Atlas session is closed for now. Come back anytime to keep exploring.',
+    });
   });
 
   it('shows guest actions when no authenticated user is present', async () => {

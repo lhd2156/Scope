@@ -222,3 +222,4 @@
 - [2026-03-29] ?? For Atlas Content source-hygiene audits, scan the live service modules with AST checks for debug calls, obvious prod-secret literals, and unused imports, but exclude 	est_settings.py and the hygiene test itself; otherwise seeded test secrets and the audit regex strings will self-trigger false failures.
 - [2026-03-29] ?? For Atlas Content Kafka verification, test both the shared producer envelope and the HTTP publish sites: photo.uploaded was easy to miss entirely, and 
 eview.created / 	rip.member.added should only fire on true create paths, not update or idempotent retries.
+- [2026-03-29] ?? In Vue views that derive mode/status from `useRoute()`, capture that value before `await router.push(...)`; post-navigation toasts and follow-up copy can otherwise read the next route and announce the wrong success state.

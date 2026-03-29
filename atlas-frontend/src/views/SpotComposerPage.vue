@@ -43,12 +43,14 @@ import SectionHeading from '@/components/common/SectionHeading.vue';
 import SpotForm from '@/components/spots/SpotForm.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
+import { useToastStore } from '@/stores/toasts';
 import type { Photo, SpotFormInput, SpotFormSubmission } from '@/types';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
+const toastStore = useToastStore();
 const pageErrorMessage = ref('');
 
 const mode = computed<'create' | 'edit'>(() => (route.name === 'spot-edit' ? 'edit' : 'create'));
@@ -109,15 +111,27 @@ async function loadEditableSpot(spotId: string): Promise<void> {
 
 async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
   pageErrorMessage.value = '';
+  const isEditingSpot = mode.value === 'edit';
 
   try {
-    const savedSpot = mode.value === 'edit'
+    const savedSpot = isEditingSpot
       ? await spotsStore.updateSpot(requestedSpotId.value, submission, authStore.currentUser)
       : await spotsStore.createSpot(submission, authStore.currentUser);
 
     await router.push(`/spots/${savedSpot.id}`);
+    toastStore.showSuccess({
+      title: isEditingSpot ? 'Spot updated' : 'Spot published',
+      message: isEditingSpot
+        ? 'Atlas saved the latest pin details for explorers.'
+        : 'Your new Atlas pin is now ready for discovery.',
+    });
   } catch {
-    pageErrorMessage.value = spotsStore.error || 'Atlas could not save that spot right now.';
+    const saveErrorMessage = spotsStore.error || 'Atlas could not save that spot right now.';
+    pageErrorMessage.value = saveErrorMessage;
+    toastStore.showError({
+      title: 'Spot save failed',
+      message: saveErrorMessage,
+    });
   }
 }
 

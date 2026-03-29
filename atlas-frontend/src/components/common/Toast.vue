@@ -1,32 +1,30 @@
 <template>
-  <Transition name="toast-slide">
-    <section v-if="open" class="toast glass-panel" :class="[`toast--${tone}`]" role="status" aria-live="polite">
-      <div class="toast-copy">
-        <strong>{{ title }}</strong>
-        <p>{{ message }}</p>
-      </div>
-      <button type="button" class="toast-close" aria-label="Dismiss toast" @click="$emit('close')">
-        <AtlasIcon name="close" label="Dismiss toast" />
-      </button>
-    </section>
-  </Transition>
+  <section class="toast glass-panel" :class="[`toast--${tone}`]" :role="liveRole" :aria-live="liveMode" aria-atomic="true">
+    <div class="toast-copy">
+      <strong>{{ title }}</strong>
+      <p>{{ message }}</p>
+    </div>
+    <button type="button" class="toast-close" aria-label="Dismiss toast" @click="$emit('close')">
+      <AtlasIcon name="close" label="Dismiss toast" />
+    </button>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
+import { computed, onBeforeUnmount, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import type { ToastTone } from '@/types';
 
 const props = withDefaults(
   defineProps<{
-    open: boolean;
     title: string;
     message: string;
-    tone?: 'success' | 'error' | 'info';
+    tone?: ToastTone;
     autoHideMs?: number;
   }>(),
   {
     tone: 'info',
-    autoHideMs: 3600,
+    autoHideMs: 3_600,
   },
 );
 
@@ -34,6 +32,8 @@ const emit = defineEmits<{
   (event: 'close'): void;
 }>();
 
+const liveRole = computed(() => (props.tone === 'error' ? 'alert' : 'status'));
+const liveMode = computed(() => (props.tone === 'error' ? 'assertive' : 'polite'));
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
 function clearTimeoutIfNeeded() {
@@ -43,14 +43,18 @@ function clearTimeoutIfNeeded() {
   }
 }
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    clearTimeoutIfNeeded();
+function scheduleAutoHide() {
+  clearTimeoutIfNeeded();
 
-    if (isOpen && props.autoHideMs > 0) {
-      timeoutId = setTimeout(() => emit('close'), props.autoHideMs);
-    }
+  if (props.autoHideMs > 0) {
+    timeoutId = setTimeout(() => emit('close'), props.autoHideMs);
+  }
+}
+
+watch(
+  () => props.autoHideMs,
+  () => {
+    scheduleAutoHide();
   },
   { immediate: true },
 );
@@ -60,14 +64,10 @@ onBeforeUnmount(clearTimeoutIfNeeded);
 
 <style scoped>
 .toast {
-  position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  z-index: var(--z-toast);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-4);
-  width: min(24rem, calc(100vw - 2rem));
+  width: 100%;
   padding: var(--space-4);
 }
 
@@ -115,16 +115,5 @@ onBeforeUnmount(clearTimeoutIfNeeded);
   background: var(--accent-teal-light);
   color: var(--text-primary);
   outline: none;
-}
-
-.toast-slide-enter-active,
-.toast-slide-leave-active {
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
-}
-
-.toast-slide-enter-from,
-.toast-slide-leave-to {
-  opacity: 0;
-  transform: translateY(0.8rem);
 }
 </style>

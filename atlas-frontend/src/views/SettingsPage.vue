@@ -41,14 +41,6 @@
           />
         </article>
       </section>
-
-      <Toast
-        :open="showToast"
-        title="Settings saved"
-        :message="toastMessage"
-        tone="success"
-        @close="showToast = false"
-      />
     </div>
   </AppShell>
 </template>
@@ -58,17 +50,17 @@ import { computed, ref, watch } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
-import Toast from '@/components/common/Toast.vue';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useToastStore } from '@/stores/toasts';
 import { useUserStore } from '@/stores/user';
 
 const PROFILE_PREVIEW_MODE_ENABLED =
   import.meta.env.VITE_ENABLE_USER_MOCK_FALLBACK === 'true' || import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 const userStore = useUserStore();
-const showToast = ref(false);
 const formError = ref('');
 const settingsValue = ref<SettingsFormValue>({
   displayName: 'Atlas traveler',
@@ -87,7 +79,7 @@ const syncModeDescription = computed(() =>
     ? 'Local preview fallbacks are only active because mock mode is explicitly enabled for development.'
     : 'Changes sync through the account API. If the service is unavailable, Atlas shows the save failure instead of silently swapping to demo data.',
 );
-const toastMessage = computed(() =>
+const successToastMessage = computed(() =>
   PROFILE_PREVIEW_MODE_ENABLED
     ? 'Profile details refreshed in the local preview workspace.'
     : 'Profile details synced across your Atlas account.',
@@ -111,7 +103,12 @@ watch(
 
 async function handleSave(payload: SettingsFormValue) {
   if (!authStore.currentUser?.id) {
-    formError.value = 'Sign in again to update your Atlas settings.';
+    const missingSessionMessage = 'Sign in again to update your Atlas settings.';
+    formError.value = missingSessionMessage;
+    toastStore.showError({
+      title: 'Settings not saved',
+      message: missingSessionMessage,
+    });
     return;
   }
 
@@ -126,9 +123,17 @@ async function handleSave(payload: SettingsFormValue) {
     });
 
     settingsValue.value = payload;
-    showToast.value = true;
+    toastStore.showSuccess({
+      title: 'Settings saved',
+      message: successToastMessage.value,
+    });
   } catch {
-    formError.value = userStore.error ?? 'Atlas could not save your settings right now.';
+    const saveErrorMessage = userStore.error ?? 'Atlas could not save your settings right now.';
+    formError.value = saveErrorMessage;
+    toastStore.showError({
+      title: 'Settings not saved',
+      message: saveErrorMessage,
+    });
   }
 }
 </script>

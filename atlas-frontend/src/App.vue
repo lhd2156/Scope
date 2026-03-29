@@ -12,30 +12,28 @@
     </Transition>
   </RouterView>
 
-  <Toast
-    :open="Boolean(authStore.sessionExpiredMessage)"
-    title="Session expired"
-    :message="authStore.sessionExpiredMessage || ''"
-    tone="error"
-    @close="authStore.clearSessionExpiredMessage()"
-  />
+  <ToastViewport />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from 'vue';
 import { RouterView, useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
-import Toast from '@/components/common/Toast.vue';
+import ToastViewport from '@/components/common/ToastViewport.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationsStore } from '@/stores/notifications';
+import { useToastStore } from '@/stores/toasts';
 import { useReducedMotion } from '@/utils/motion';
 
 const authStore = useAuthStore();
 const notificationsStore = useNotificationsStore();
+const toastStore = useToastStore();
 const reducedMotion = useReducedMotion();
 const route = useRoute();
 const router = useRouter();
 
 const routeTransitionName = computed(() => (reducedMotion.value ? 'route-fade-reduced' : 'route-fade'));
+let activeSessionExpiredToastId: string | null = null;
+let activeSessionExpiredMessage: string | null = null;
 
 void authStore.hydrateSession();
 
@@ -53,6 +51,18 @@ async function syncRealtimeNotifications(isAuthenticated: boolean) {
   }
 }
 
+function dismissSessionExpiredToast(invokeOnClose = false): void {
+  if (!activeSessionExpiredToastId) {
+    activeSessionExpiredMessage = null;
+    return;
+  }
+
+  const toastId = activeSessionExpiredToastId;
+  activeSessionExpiredToastId = null;
+  activeSessionExpiredMessage = null;
+  toastStore.dismissToast(toastId, { invokeOnClose });
+}
+
 function resolveRouteStageKey(activeRoute: RouteLocationNormalizedLoaded): string {
   return activeRoute.path;
 }
@@ -65,6 +75,34 @@ watch(
   () => authStore.isAuthenticated,
   (isAuthenticated) => {
     void syncRealtimeNotifications(isAuthenticated);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => authStore.sessionExpiredMessage,
+  (message) => {
+    if (!message) {
+      dismissSessionExpiredToast(false);
+      return;
+    }
+
+    if (message === activeSessionExpiredMessage) {
+      return;
+    }
+
+    dismissSessionExpiredToast(false);
+    activeSessionExpiredMessage = message;
+    activeSessionExpiredToastId = toastStore.showError({
+      title: 'Session expired',
+      message,
+      autoHideMs: 0,
+      onClose: () => {
+        activeSessionExpiredToastId = null;
+        activeSessionExpiredMessage = null;
+        authStore.clearSessionExpiredMessage();
+      },
+    });
   },
   { immediate: true },
 );
@@ -87,6 +125,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  dismissSessionExpiredToast(false);
   void notificationsStore.disconnect();
 });
 </script>
