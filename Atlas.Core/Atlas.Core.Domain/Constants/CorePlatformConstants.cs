@@ -41,6 +41,8 @@ public static class CoreLimits
     public const int DefaultNotificationPageSize = 20;
     public const int MaxNotificationPageSize = 100;
     public const long AvatarUploadBytes = 10 * 1024 * 1024;
+    public const int GlobalRequestsPerMinute = 100;
+    public const int AuthRequestsPerMinute = 10;
 }
 
 public static class FriendshipStatuses

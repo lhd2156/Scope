@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Atlas.Core.Domain.Constants;
 using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Models;
 
@@ -18,29 +19,60 @@ public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<Reque
 
 public sealed class RateLimitMiddleware(RequestDelegate next)
 {
-    private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> Requests = new();
-    private const int Limit = 100;
+    private readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> requests = new();
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    private static readonly PathString AuthPrefix = new("/api/core/auth");
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var key = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientKey = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         var now = DateTimeOffset.UtcNow;
-        var queue = Requests.GetOrAdd(key, _ => new Queue<DateTimeOffset>());
+
+        if (!TryConsume($"global:{clientKey}", now, CoreLimits.GlobalRequestsPerMinute, out var retryAfterSeconds))
+        {
+            await WriteRateLimitedResponseAsync(context, retryAfterSeconds);
+            return;
+        }
+
+        if (context.Request.Path.StartsWithSegments(AuthPrefix)
+            && !TryConsume($"auth:{clientKey}", now, CoreLimits.AuthRequestsPerMinute, out retryAfterSeconds))
+        {
+            await WriteRateLimitedResponseAsync(context, retryAfterSeconds);
+            return;
+        }
+
+        await next(context);
+    }
+
+    private bool TryConsume(string bucketKey, DateTimeOffset now, int limit, out int retryAfterSeconds)
+    {
+        var queue = requests.GetOrAdd(bucketKey, _ => new Queue<DateTimeOffset>());
         lock (queue)
         {
-            while (queue.Count > 0 && now - queue.Peek() > Window) queue.Dequeue();
-            if (queue.Count >= Limit)
+            while (queue.Count > 0 && now - queue.Peek() >= Window)
             {
-                context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                context.Response.ContentType = "application/json";
-                var body = System.Text.Json.JsonSerializer.Serialize(new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)));
-                context.Response.WriteAsync(body).GetAwaiter().GetResult();
-                return;
+                queue.Dequeue();
             }
+
+            if (queue.Count >= limit)
+            {
+                var retryAfter = queue.Peek().Add(Window) - now;
+                retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+                return false;
+            }
+
             queue.Enqueue(now);
+            retryAfterSeconds = 0;
+            return true;
         }
-        await next(context);
+    }
+
+    private static async Task WriteRateLimitedResponseAsync(HttpContext context, int retryAfterSeconds)
+    {
+        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.Response.ContentType = "application/json";
+        context.Response.Headers["Retry-After"] = retryAfterSeconds.ToString();
+        await context.Response.WriteAsJsonAsync(new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)));
     }
 }
 
