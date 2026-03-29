@@ -3,5 +3,33 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, watch } from 'vue';
 import { RouterView } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+import { useNotificationsStore } from '@/stores/notifications';
+
+const authStore = useAuthStore();
+const notificationsStore = useNotificationsStore();
+
+async function syncRealtimeNotifications(isAuthenticated: boolean) {
+  if (!isAuthenticated) {
+    await notificationsStore.disconnect();
+    return;
+  }
+
+  await notificationsStore.fetchNotifications();
+  await notificationsStore.connect();
+}
+
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    void syncRealtimeNotifications(isAuthenticated);
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  void notificationsStore.disconnect();
+});
 </script>

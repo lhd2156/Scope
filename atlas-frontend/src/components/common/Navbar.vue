@@ -18,6 +18,8 @@
         :notifications="notificationsStore.items.slice(0, 4)"
         :unread-count="notificationsStore.unreadCount"
         :loading="notificationsStore.loading"
+        :connection-state="notificationsStore.connectionState"
+        :connection-error="notificationsStore.connectionError"
         @mark-all-read="notificationsStore.markAllRead"
         @read="notificationsStore.markRead"
       />
@@ -35,7 +37,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
@@ -45,12 +46,6 @@ import { useNotificationsStore } from '@/stores/notifications';
 
 const authStore = useAuthStore();
 const notificationsStore = useNotificationsStore();
-
-onMounted(async () => {
-  if (authStore.isAuthenticated) {
-    await notificationsStore.fetchNotifications();
-  }
-});
 </script>
 
 <style scoped>
