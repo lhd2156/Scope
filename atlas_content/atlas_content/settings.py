@@ -42,6 +42,28 @@ def _normalize_origin(origin: str | None) -> str | None:
     return cleaned or None
 
 
+def _build_content_security_policy() -> str:
+    connect_sources = ["'self'"]
+    if FRONTEND_ORIGIN:
+        connect_sources.append(FRONTEND_ORIGIN)
+    if DEBUG and DEVELOPMENT_FRONTEND_ORIGIN:
+        connect_sources.append(DEVELOPMENT_FRONTEND_ORIGIN)
+
+    directives = {
+        'default-src': ["'self'"],
+        'base-uri': ["'self'"],
+        'frame-ancestors': ["'none'"],
+        'object-src': ["'none'"],
+        'form-action': ["'self'"],
+        'connect-src': list(dict.fromkeys(connect_sources)),
+        'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+        'font-src': ["'self'", 'data:', 'https:'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'script-src': ["'self'", "'unsafe-inline'"],
+    }
+    return '; '.join(f"{directive} {' '.join(sources)}" for directive, sources in directives.items())
+
+
 _load_env_file(BASE_DIR / '.env')
 
 SECRET_KEY = _required_env('DJANGO_SECRET_KEY')
@@ -63,6 +85,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = ['authorization', 'content-type']
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'POST', 'PUT']
 CORS_URLS_REGEX = r'^/api/content/.*$'
+CONTENT_SECURITY_POLICY = _build_content_security_policy()
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -84,6 +107,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'common.middleware.security_headers.ContentSecurityPolicyMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
