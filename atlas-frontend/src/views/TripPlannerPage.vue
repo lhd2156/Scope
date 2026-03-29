@@ -7,8 +7,14 @@
         description="Use the planner to shape budget, timing, pace, and interests, then compare the AI route against saved Atlas trips."
       />
 
+      <article v-if="tripsStore.error" class="glass-panel error-panel" role="alert">
+        <p class="eyebrow">Temporary issue</p>
+        <h2>Atlas could not finish part of the planning flow</h2>
+        <p class="section-copy">{{ tripsStore.error }}</p>
+      </article>
+
       <section class="planner-layout">
-        <TripPlanner :initial-value="plannerSeed" :submitting="tripsStore.loading" @submit="submitPlanner" />
+        <TripPlanner :initial-value="plannerSeed" :submitting="tripsStore.planning" @submit="submitPlanner" />
         <ItineraryView :itinerary="tripsStore.previewItinerary" />
       </section>
 
@@ -49,11 +55,15 @@ const plannerSeed: TripPlannerInput = {
 };
 
 async function submitPlanner(payload: TripPlannerInput): Promise<void> {
-  await tripsStore.buildItinerary(payload);
+  try {
+    await tripsStore.buildItinerary(payload);
+  } catch {
+    // Store error state already powers the inline planner error surface.
+  }
 }
 
 onMounted(async () => {
-  await Promise.all([
+  await Promise.allSettled([
     tripsStore.fetchTrips(),
     tripsStore.buildItinerary(plannerSeed),
   ]);
@@ -62,9 +72,19 @@ onMounted(async () => {
 
 <style scoped>
 .page-stack,
+.error-panel,
 .saved-trips-section {
   display: grid;
   gap: var(--space-6);
+}
+
+.error-panel {
+  padding: var(--space-6);
+}
+
+.error-panel h2,
+.error-panel p {
+  margin: 0;
 }
 
 .planner-layout {

@@ -7,6 +7,7 @@ const { authStoreMock, spotsStoreMock } = vi.hoisted(() => ({
   },
   spotsStoreMock: {
     loading: false,
+    error: '',
     selectedSpot: {
       id: 'spot-1',
       title: 'Sunset Rooftop Tacos',
@@ -36,6 +37,7 @@ import SpotDetailPage from '@/views/SpotDetailPage.vue';
 
 describe('SpotDetailPage', () => {
   beforeEach(() => {
+    spotsStoreMock.error = '';
     spotsStoreMock.fetchSpot.mockClear();
   });
 
@@ -67,5 +69,36 @@ describe('SpotDetailPage', () => {
     expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith('spot-1');
     expect(wrapper.find('[data-test="spot-detail-stub"]').text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('Edit this spot');
+  });
+
+  it('surfaces the store error when the spot fetch fails', async () => {
+    spotsStoreMock.fetchSpot.mockImplementation(async () => {
+      spotsStoreMock.error = 'Atlas could not load that spot right now.';
+      throw new Error('Spot failed');
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/spots/:id', component: SpotDetailPage }],
+    });
+
+    await router.push('/spots/spot-9');
+    await router.isReady();
+
+    const wrapper = mount(SpotDetailPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          LoadingSpinner: { template: '<div>Loading</div>' },
+          SpotDetail: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('That pin is temporarily unavailable');
+    expect(wrapper.text()).toContain('Atlas could not load that spot right now.');
   });
 });

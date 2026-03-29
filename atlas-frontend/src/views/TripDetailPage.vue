@@ -13,10 +13,10 @@
         <p class="section-copy">Atlas is syncing member roles, route geometry, and itinerary sequencing.</p>
       </section>
 
-      <section v-else-if="notFound" class="glass-panel state-card">
+      <section v-else-if="notFound" class="glass-panel state-card" role="alert">
         <p class="eyebrow">Missing trip</p>
-        <h2>That itinerary could not be found</h2>
-        <p class="section-copy">The requested trip may have moved, been deleted, or not synced back yet.</p>
+        <h2>{{ tripsStore.error ? 'Trip unavailable' : 'That itinerary could not be found' }}</h2>
+        <p class="section-copy">{{ tripsStore.error || 'The requested trip may have moved, been deleted, or not synced back yet.' }}</p>
         <RouterLink to="/trips/new" class="state-link">Plan a new trip</RouterLink>
       </section>
 

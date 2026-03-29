@@ -11,6 +11,7 @@
         </div>
 
         <form class="surface-card auth-card" @submit.prevent="submit">
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <label class="field-group">
             <span>Email</span>
             <input v-model.trim="email" type="email" autocomplete="email" placeholder="louis@example.com" required />
@@ -49,6 +50,7 @@ const email = ref('louis@example.com');
 const password = ref('SecurePass123!');
 const isSubmitting = ref(false);
 const isOAuthSubmitting = ref(false);
+const formError = ref('');
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
@@ -60,16 +62,32 @@ function resolveRedirectTarget() {
 
 async function submit() {
   isSubmitting.value = true;
-  await authStore.login({ email: email.value, password: password.value });
-  isSubmitting.value = false;
-  await router.push(resolveRedirectTarget());
+  formError.value = '';
+  authStore.clearError();
+
+  try {
+    await authStore.login({ email: email.value, password: password.value });
+    await router.push(resolveRedirectTarget());
+  } catch {
+    formError.value = authStore.error || 'Atlas could not sign you in right now.';
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function loginWithGoogle() {
   isOAuthSubmitting.value = true;
-  await authStore.loginWithCognito();
-  isOAuthSubmitting.value = false;
-  await router.push(resolveRedirectTarget());
+  formError.value = '';
+  authStore.clearError();
+
+  try {
+    await authStore.loginWithCognito();
+    await router.push(resolveRedirectTarget());
+  } catch {
+    formError.value = authStore.error || 'Atlas could not sign you in with Google right now.';
+  } finally {
+    isOAuthSubmitting.value = false;
+  }
 }
 </script>
 
@@ -129,6 +147,11 @@ async function loginWithGoogle() {
 .field-group span,
 .form-note {
   color: var(--text-secondary);
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger);
 }
 
 .field-group input {

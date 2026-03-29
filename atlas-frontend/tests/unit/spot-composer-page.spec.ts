@@ -11,6 +11,7 @@ const { authStoreMock, spotsStoreMock } = vi.hoisted(() => ({
   spotsStoreMock: {
     loading: false,
     saving: false,
+    error: '',
     selectedSpot: {
       id: 'spot-7',
       title: 'Garden Gallery',
@@ -44,6 +45,7 @@ import SpotComposerPage from '@/views/SpotComposerPage.vue';
 
 describe('SpotComposerPage', () => {
   beforeEach(() => {
+    spotsStoreMock.error = '';
     spotsStoreMock.fetchSpot.mockClear();
     spotsStoreMock.createSpot.mockClear();
     spotsStoreMock.updateSpot.mockClear();
@@ -117,5 +119,43 @@ describe('SpotComposerPage', () => {
 
     expect(spotsStoreMock.updateSpot).toHaveBeenCalledWith('spot-7', expect.any(Object), authStoreMock.currentUser);
     expect(router.currentRoute.value.fullPath).toBe('/spots/spot-7');
+  });
+
+  it('shows a save error when spot creation fails', async () => {
+    spotsStoreMock.createSpot.mockImplementation(async () => {
+      spotsStoreMock.error = 'Atlas could not save that spot right now.';
+      throw new Error('Create failed');
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/new', name: 'spot-create', component: SpotComposerPage },
+        { path: '/spots/:id', name: 'spot-detail', component: { template: '<div>Spot detail target</div>' } },
+      ],
+    });
+
+    await router.push('/spots/new');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            props: ['mode'],
+            emits: ['submit', 'cancel'],
+            template: '<button data-test="spot-form-submit" @click="$emit(\'submit\', { spot: { title: \'Created Spot\', description: \'Demo\', latitude: 32.7, longitude: -97.3, address: \'123 Main\', city: \'Fort Worth\', country: \'US\', category: \'food\', vibe: \'electric\', rating: 4.7, visitedAt: \'2026-03-29\', isPublic: true }, existingPhotos: [], newPhotos: [] })">{{ mode }}</button>',
+          },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="spot-form-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('That spot could not be saved');
+    expect(wrapper.text()).toContain('Atlas could not save that spot right now.');
   });
 });

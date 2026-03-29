@@ -21,10 +21,10 @@
         </div>
       </section>
 
-      <section v-else-if="notFound" class="glass-panel state-card">
+      <section v-else-if="notFound" class="glass-panel state-card" role="alert">
         <p class="eyebrow">Missing spot</p>
-        <h2>That pin could not be found</h2>
-        <p class="section-copy">The requested spot may have moved, been removed, or not synced yet.</p>
+        <h2>{{ spotsStore.error ? 'That pin is temporarily unavailable' : 'That pin could not be found' }}</h2>
+        <p class="section-copy">{{ spotsStore.error || 'The requested spot may have moved, been removed, or not synced yet.' }}</p>
         <RouterLink to="/explore" class="state-link">Back to explore</RouterLink>
       </section>
 

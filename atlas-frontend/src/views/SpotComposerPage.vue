@@ -15,10 +15,10 @@
         <p class="section-copy">Atlas is loading the existing pin so you can refine it safely.</p>
       </section>
 
-      <section v-else-if="loadError" class="glass-panel state-card">
+      <section v-else-if="pageErrorMessage" class="glass-panel state-card" role="alert">
         <p class="eyebrow">Unavailable</p>
-        <h2>That spot could not be loaded</h2>
-        <p class="section-copy">The requested pin may not exist yet or the content engine has not synced it back.</p>
+        <h2>{{ mode === 'edit' ? 'That spot could not be loaded' : 'That spot could not be saved' }}</h2>
+        <p class="section-copy">{{ pageErrorMessage }}</p>
         <RouterLink class="state-link" to="/explore">Back to explore</RouterLink>
       </section>
 
@@ -49,7 +49,7 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
-const loadError = ref(false);
+const pageErrorMessage = ref('');
 
 const mode = computed<'create' | 'edit'>(() => (route.name === 'spot-edit' ? 'edit' : 'create'));
 const requestedSpotId = computed(() => String(route.params.id ?? ''));
@@ -89,25 +89,27 @@ const initialPhotos = computed<Photo[]>(() => (mode.value === 'edit' ? spotsStor
 
 async function loadEditableSpot(spotId: string): Promise<void> {
   if (mode.value !== 'edit') {
-    loadError.value = false;
+    pageErrorMessage.value = '';
     return;
   }
 
   if (!spotId) {
-    loadError.value = true;
+    pageErrorMessage.value = 'The requested pin may not exist yet or the content engine has not synced it back.';
     return;
   }
 
-  loadError.value = false;
+  pageErrorMessage.value = '';
 
   try {
     await spotsStore.fetchSpot(spotId);
   } catch {
-    loadError.value = true;
+    pageErrorMessage.value = spotsStore.error || 'The requested pin may not exist yet or the content engine has not synced it back.';
   }
 }
 
 async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
+  pageErrorMessage.value = '';
+
   try {
     const savedSpot = mode.value === 'edit'
       ? await spotsStore.updateSpot(requestedSpotId.value, submission, authStore.currentUser)
@@ -115,7 +117,7 @@ async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
 
     await router.push(`/spots/${savedSpot.id}`);
   } catch {
-    loadError.value = true;
+    pageErrorMessage.value = spotsStore.error || 'Atlas could not save that spot right now.';
   }
 }
 
@@ -136,7 +138,7 @@ watch(
       return;
     }
 
-    loadError.value = false;
+    pageErrorMessage.value = '';
   },
   { immediate: true },
 );

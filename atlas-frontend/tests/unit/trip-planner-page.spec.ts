@@ -14,6 +14,7 @@ const { tripsStoreMock } = vi.hoisted(() => ({
       days: [],
     },
     planning: false,
+    error: '',
     fetchTrips: vi.fn().mockResolvedValue(undefined),
     buildItinerary: vi.fn().mockResolvedValue(undefined),
   },
@@ -27,6 +28,7 @@ import TripPlannerPage from '@/views/TripPlannerPage.vue';
 
 describe('TripPlannerPage', () => {
   beforeEach(() => {
+    tripsStoreMock.error = '';
     tripsStoreMock.fetchTrips.mockClear();
     tripsStoreMock.buildItinerary.mockClear();
   });
@@ -64,5 +66,30 @@ describe('TripPlannerPage', () => {
     await wrapper.get('[data-test="planner-submit"]').trigger('click');
 
     expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces itinerary generation failures inline', async () => {
+    tripsStoreMock.error = 'Atlas could not generate an itinerary right now.';
+    tripsStoreMock.buildItinerary.mockRejectedValue(new Error('Planner failed'));
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: {
+            props: ['initialValue', 'submitting'],
+            emits: ['submit'],
+            template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
+          },
+          ItineraryView: { template: '<div />' },
+          TripCard: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Atlas could not finish part of the planning flow');
+    expect(wrapper.text()).toContain('Atlas could not generate an itinerary right now.');
   });
 });

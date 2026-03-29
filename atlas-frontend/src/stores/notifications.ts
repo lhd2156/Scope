@@ -9,6 +9,7 @@ import { startNotificationStream, stopNotificationStream } from '@/services/sign
 import { useAuthStore } from '@/stores/auth';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
 import { sanitizeNotificationItem } from '@/utils/sanitizers';
+import { toAsyncErrorMessage } from '@/utils/errors';
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<NotificationItem[]>([]);
@@ -16,6 +17,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const hasLoaded = ref(false);
   const connectionState = ref<NotificationConnectionState>('idle');
   const connectionError = ref<string | null>(null);
+  const error = ref<string | null>(null);
   const unreadCount = computed(() => items.value.filter((notification) => !notification.isRead).length);
   const isRealtimeConnected = computed(() => connectionState.value === 'connected');
 
@@ -25,11 +27,15 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
 
     loading.value = true;
+    error.value = null;
 
     try {
       const response = await getNotifications();
       items.value = response.data;
       hasLoaded.value = true;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not load notifications right now.');
+      throw nextError;
     } finally {
       loading.value = false;
     }
@@ -59,6 +65,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
       return;
     }
 
+    connectionError.value = null;
+
     try {
       await startNotificationStream({
         accessTokenFactory: () => authStore.token,
@@ -69,41 +77,51 @@ export const useNotificationsStore = defineStore('notifications', () => {
           connectionState.value = state;
         },
         onError: (message) => {
+          connectionState.value = 'error';
           connectionError.value = message;
         },
       });
-    } catch {
-      // Connection state and error are already surfaced via callbacks.
+    } catch (nextError) {
+      connectionState.value = 'error';
+      connectionError.value = toAsyncErrorMessage(nextError, 'Atlas could not start realtime notifications right now.');
     }
   }
 
   async function disconnect() {
-    await stopNotificationStream();
-    connectionState.value = 'idle';
-    connectionError.value = null;
+    try {
+      await stopNotificationStream();
+    } catch (nextError) {
+      connectionError.value = toAsyncErrorMessage(nextError, 'Atlas could not stop realtime notifications cleanly.');
+    } finally {
+      connectionState.value = 'idle';
+    }
   }
 
   async function markRead(notificationId: string) {
     const previousItems = [...items.value];
+    error.value = null;
     items.value = items.value.map((notification) =>
       notification.id === notificationId ? { ...notification, isRead: true } : notification,
     );
 
     try {
       await markNotificationRead(notificationId);
-    } catch {
+    } catch (nextError) {
       items.value = previousItems;
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not mark that notification as read.');
     }
   }
 
   async function markAllRead() {
     const previousItems = [...items.value];
+    error.value = null;
     items.value = items.value.map((notification) => ({ ...notification, isRead: true }));
 
     try {
       await markAllNotificationsRead();
-    } catch {
+    } catch (nextError) {
       items.value = previousItems;
+      error.value = toAsyncErrorMessage(nextError, 'Atlas could not mark notifications as read right now.');
     }
   }
 
@@ -114,6 +132,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     unreadCount,
     connectionState,
     connectionError,
+    error,
     isRealtimeConnected,
     fetchNotifications,
     addNotification,

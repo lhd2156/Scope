@@ -38,6 +38,7 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
         photoUrl: 'https://images.example.com/spot-2.jpg',
       },
     ],
+    error: '',
     fetchSpots: vi.fn().mockResolvedValue(undefined),
   },
   tripsStoreMock: {
@@ -59,6 +60,7 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
         ],
       },
     ],
+    error: '',
     fetchTrips: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -79,6 +81,8 @@ import MapPage from '@/views/MapPage.vue';
 
 describe('MapPage', () => {
   beforeEach(() => {
+    spotsStoreMock.error = '';
+    tripsStoreMock.error = '';
     mapStoreMock.toggleCategory.mockClear();
     mapStoreMock.resetCategories.mockClear();
     mapStoreMock.setSelectedSpotId.mockClear();
@@ -115,5 +119,25 @@ describe('MapPage', () => {
     expect(mapStoreMock.setSelectedSpotId).toHaveBeenCalledWith('spot-1');
     expect(mapStoreMock.setCenter).toHaveBeenCalledWith([-97.3308, 32.7555]);
     expect(mapStoreMock.setZoom).toHaveBeenCalledWith(12);
+  });
+
+  it('shows a workspace error panel when route data fails to load', async () => {
+    tripsStoreMock.error = 'Atlas could not load trips right now.';
+    tripsStoreMock.fetchTrips.mockRejectedValue(new Error('Trips failed'));
+
+    const wrapper = mount(MapPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          Sidebar: { template: '<aside><slot /></aside>' },
+          MapView: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Part of the map workspace could not be loaded');
+    expect(wrapper.text()).toContain('Atlas could not load trips right now.');
   });
 });

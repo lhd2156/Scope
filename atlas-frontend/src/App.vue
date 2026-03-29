@@ -19,8 +19,12 @@ async function syncRealtimeNotifications(isAuthenticated: boolean) {
     return;
   }
 
-  await notificationsStore.fetchNotifications();
-  await notificationsStore.connect();
+  try {
+    await notificationsStore.fetchNotifications();
+    await notificationsStore.connect();
+  } catch {
+    // Notification store state already captures the user-facing error surface.
+  }
 }
 
 watch(

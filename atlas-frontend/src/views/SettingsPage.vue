@@ -91,19 +91,25 @@ watch(
 
 async function handleSave(payload: SettingsFormValue) {
   isSaving.value = true;
+  formError.value = '';
 
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 250));
 
-  settingsValue.value = payload;
-  authStore.updateCurrentUser({
-    displayName: payload.displayName,
-    avatarUrl: payload.avatarUrl || undefined,
-    bio: payload.bio || undefined,
-    homeBase: payload.homeBase || undefined,
-  });
+    settingsValue.value = payload;
+    authStore.updateCurrentUser({
+      displayName: payload.displayName,
+      avatarUrl: payload.avatarUrl || undefined,
+      bio: payload.bio || undefined,
+      homeBase: payload.homeBase || undefined,
+    });
 
-  showToast.value = true;
-  isSaving.value = false;
+    showToast.value = true;
+  } catch {
+    formError.value = 'Atlas could not save your settings right now.';
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 

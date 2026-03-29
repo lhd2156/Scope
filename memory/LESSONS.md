@@ -33,6 +33,7 @@
 - [2026-03-28] ⚠️ Intel dependencies need refresh for Python 3.14 compatibility at integration time
 - [2026-03-29] ⚠️ Atlas health endpoints follow the architecture's bare JSON contract (`status`, `version`, `uptime`) instead of the usual `data` envelope; lock that shape in with endpoint contract tests.
 - [2026-03-29] ✅ Atlas Intel `python -m pytest tests` passes from inside `atlas_intel/` on Python 3.14.3 once the dependency pins are refreshed and installed.
+- [2026-03-29] ⚠️ Atlas Intel auth should read `JWT_SECRET`/issuer/audience from `app.config`, not module-level fallback secrets; make `create_app()` fail fast when `FLASK_SECRET_KEY` or `CORE_JWT_SECRET` is missing and inject explicit test secrets in pytest fixtures.
 - [2026-03-28] ✅ Frontend `npm run build` and tests pass in atlas-frontend/
 - [2026-03-29] ⚠️ Vue Test Utils v2 exposes `findAll()` on wrappers for multi-match queries; `getAll()` is not available in this frontend test setup.
 - [2026-03-29] ⚠️ Vitest hoists `vi.mock()` factories; when shared fixture data is needed inside the factory, define it with `vi.hoisted()` or inline it in the mock.
@@ -45,6 +46,7 @@
 - [2026-03-29] ⚠️ Frontend silent session hydration must disable mock auth fallbacks; otherwise a stale local session hint can make a fresh tab appear authenticated without a real refresh cookie.
 - [2026-03-29] ⚠️ For frontend auth-guard verification, unit-test `resolveNavigationGuard()` with a mocked auth store and separately assert `router.getRoutes()` meta contracts; that is more stable than mounting full pages when only redirect/auth behavior matters.
 - [2026-03-29] ⚠️ In this frontend dependency set, `useDebounceFn()` should not be assumed to expose a usable `.cancel()` method at runtime; for critical input flows like `SearchBar`, prefer explicit timeout cleanup or verify the helper API before calling `cancel()`.
+- [2026-03-29] ⚠️ When page tests depend on store error banners, plain-object mocked stores are not reactive enough for “set error after mount” assertions; seed the error state before mount or wrap the mock in a reactive store-shaped object.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -89,6 +91,8 @@
 - [2026-03-29] ✅ Atlas.Core request-body validation works cleanly on .NET 8 with `FluentValidation.AspNetCore`, `AddFluentValidationAutoValidation()`, and `AddValidatorsFromAssemblyContaining<...>()`; keep the shared `InvalidModelStateResponseFactory` so FluentValidation failures still return the standard Atlas error envelope.
 
 - [2026-03-29] ⚠️ In Atlas.Core minimal-hosting integration tests, config values checked directly in `Program.cs` (like `CORE_JWT_SECRET`) must be present before `WebApplicationFactory` boots the app; process env vars are a reliable way to seed those early startup checks.
+
+- [2026-03-29] ✅ Atlas.Core CORS can stay strict and testable by reading `CORE_FRONTEND_ORIGIN` at startup, adding `http://localhost:5173` only in Development, and verifying preflight behavior with `OPTIONS` integration tests instead of controller-only assertions.
 
 ## Common Mistakes to Avoid
 

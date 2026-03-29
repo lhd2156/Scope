@@ -11,6 +11,7 @@ const { authStoreMock, feedStoreMock, notificationsStoreMock } = vi.hoisted(() =
   feedStoreMock: {
     items: [{ id: 'feed-1', title: 'Pinned Sunset Rooftop Tacos' }],
     loading: false,
+    error: '',
     fetchFeed: vi.fn().mockResolvedValue(undefined),
   },
   notificationsStoreMock: {
@@ -19,6 +20,7 @@ const { authStoreMock, feedStoreMock, notificationsStoreMock } = vi.hoisted(() =
     loading: false,
     connectionState: 'connected',
     connectionError: null,
+    error: '',
     fetchNotifications: vi.fn().mockResolvedValue(undefined),
     markAllRead: vi.fn(),
     markRead: vi.fn(),
@@ -41,6 +43,8 @@ import FriendsPage from '@/views/FriendsPage.vue';
 
 describe('FriendsPage', () => {
   beforeEach(() => {
+    feedStoreMock.error = '';
+    notificationsStoreMock.error = '';
     feedStoreMock.fetchFeed.mockClear();
     notificationsStoreMock.fetchNotifications.mockClear();
   });
@@ -80,5 +84,36 @@ describe('FriendsPage', () => {
     expect(wrapper.find('[data-test="friend-list-stub"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="notification-stub"]').exists()).toBe(true);
     expect(wrapper.findAll('.request-card-stub').length).toBeGreaterThan(0);
+  });
+
+  it('shows an inline workspace error when feed loading fails', async () => {
+    feedStoreMock.error = 'Atlas could not load the activity feed right now.';
+    feedStoreMock.fetchFeed.mockRejectedValue(new Error('Feed failed'));
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/friends', component: FriendsPage }],
+    });
+
+    await router.push('/friends');
+    await router.isReady();
+
+    const wrapper = mount(FriendsPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          FeedItem: { template: '<div />' },
+          FriendList: { template: '<div />' },
+          NotificationDropdown: { template: '<div />' },
+          UserCard: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Part of the social workspace is offline');
+    expect(wrapper.text()).toContain('Atlas could not load the activity feed right now.');
   });
 });

@@ -11,6 +11,7 @@
         </div>
 
         <form class="surface-card auth-card" @submit.prevent="submit">
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <label class="field-group">
             <span>Username</span>
             <input v-model.trim="username" maxlength="40" placeholder="louisdo" autocomplete="username" required />
@@ -55,6 +56,7 @@ const displayName = ref('Louis Do');
 const email = ref('louis@example.com');
 const password = ref('SecurePass123!');
 const isSubmitting = ref(false);
+const formError = ref('');
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
@@ -66,14 +68,22 @@ function resolveRedirectTarget() {
 
 async function submit() {
   isSubmitting.value = true;
-  await authStore.register({
-    username: username.value,
-    displayName: displayName.value,
-    email: email.value,
-    password: password.value,
-  });
-  isSubmitting.value = false;
-  await router.push(resolveRedirectTarget());
+  formError.value = '';
+  authStore.clearError();
+
+  try {
+    await authStore.register({
+      username: username.value,
+      displayName: displayName.value,
+      email: email.value,
+      password: password.value,
+    });
+    await router.push(resolveRedirectTarget());
+  } catch {
+    formError.value = authStore.error || 'Atlas could not create your account right now.';
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 </script>
 
@@ -132,6 +142,11 @@ async function submit() {
 .field-group span,
 .form-note {
   color: var(--text-secondary);
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger);
 }
 
 .field-group input {

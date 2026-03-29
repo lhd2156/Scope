@@ -10,6 +10,7 @@ const { feedStoreMock, spotsStoreMock } = vi.hoisted(() => ({
       },
     ],
     loading: false,
+    error: '',
     fetchFeed: vi.fn().mockResolvedValue(undefined),
   },
   spotsStoreMock: {
@@ -23,6 +24,7 @@ const { feedStoreMock, spotsStoreMock } = vi.hoisted(() => ({
         title: 'Botanic River Walk',
       },
     ],
+    error: '',
     fetchTrending: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -39,6 +41,8 @@ import HomePage from '@/views/HomePage.vue';
 
 describe('HomePage', () => {
   beforeEach(() => {
+    feedStoreMock.error = '';
+    spotsStoreMock.error = '';
     feedStoreMock.fetchFeed.mockClear();
     spotsStoreMock.fetchTrending.mockClear();
   });
@@ -67,5 +71,25 @@ describe('HomePage', () => {
     expect(wrapper.text()).toContain('Atlas turns every outing into a mapped story worth sharing.');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(2);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(1);
+  });
+
+  it('shows an inline error panel when a home feed request fails', async () => {
+    spotsStoreMock.error = 'Atlas could not load trending spots right now.';
+    spotsStoreMock.fetchTrending.mockRejectedValue(new Error('Trending failed'));
+
+    const wrapper = mount(HomePage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotCard: { template: '<div />' },
+          FeedItem: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Part of the Atlas home feed could not be loaded');
+    expect(wrapper.text()).toContain('Atlas could not load trending spots right now.');
   });
 });
