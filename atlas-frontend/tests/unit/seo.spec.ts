@@ -16,6 +16,7 @@ describe('seo shell metadata', () => {
     document.head.innerHTML = '';
     document.title = '';
     document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.style.setProperty('--bg-primary', 'rgb(15 15 26)');
   });
 
   it('applies route metadata, public shell tags, and canonical urls for indexable pages', async () => {
@@ -101,13 +102,15 @@ describe('seo shell metadata', () => {
 
     expect(getMetaByName('robots')).toBe('noindex,nofollow');
     expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
-    expect(getMetaByName('theme-color')).toBe('#0f0f1a');
+    expect(getMetaByName('theme-color')).toBe('rgb(15 15 26)');
     expect(getMetaByName('apple-mobile-web-app-status-bar-style')).toBe('black-translucent');
 
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.style.setProperty('--bg-primary', 'rgb(250 250 250)');
     syncThemeColorMeta('light');
 
-    expect(getMetaByName('theme-color')).toBe('#fafafa');
-    expect(getMetaByName('msapplication-TileColor')).toBe('#fafafa');
+    expect(getMetaByName('theme-color')).toBe('rgb(250 250 250)');
+    expect(getMetaByName('msapplication-TileColor')).toBe('rgb(250 250 250)');
     expect(getMetaByName('apple-mobile-web-app-status-bar-style')).toBe('default');
   });
 });
