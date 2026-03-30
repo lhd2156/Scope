@@ -1,12 +1,6 @@
 <template>
   <AppShell>
     <div class="page-container page-stack profile-page">
-      <SectionHeading
-        eyebrow="Profile"
-        title="Adventure map and public highlights"
-        description="See how each Atlas explorer shows up across public pins, collaborative routes, and the cities shaping their visible footprint."
-      />
-
       <article v-if="profileError" class="glass-panel state-panel" role="alert">
         <p class="eyebrow">Temporary issue</p>
         <h2>Atlas could not open this profile workspace</h2>
@@ -22,103 +16,69 @@
           <p class="section-copy">{{ workspaceNotice }}</p>
         </article>
 
-        <ProfileHeader
-          :user="profileUser"
-          :is-current-user="isCurrentUser"
-          :primary-action-label="primaryActionLabel"
-          :primary-action-to="primaryActionTo"
-          :secondary-action-label="secondaryActionLabel"
-          :secondary-action-to="secondaryActionTo"
-        />
+        <section class="profile-hero">
+          <ProfileHeader
+            :user="profileUser"
+            :is-current-user="isCurrentUser"
+            :primary-action-label="primaryActionLabel"
+            :primary-action-to="primaryActionTo"
+            :secondary-action-label="secondaryActionLabel"
+            :secondary-action-to="secondaryActionTo"
+          />
 
-        <div class="workspace-grid">
-          <div class="main-column">
-            <ProfileMap
-              :spots="mapHighlights"
-              :description="mapDescription"
-              title="Pinned places shaping this explorer's map"
-            />
+          <ProfileStats
+            :user="profileUser"
+            :country-count="countryCount"
+            :city-count="cityCount"
+            :trip-count="collaborativeTrips.length"
+            :travel-days="daysTraveled"
+            :public-spot-count="authoredSpots.length"
+            :average-rating="averageRating"
+            :favorite-category="favoriteCategory"
+          />
+        </section>
 
-            <section class="profile-section">
-              <SectionHeading
-                eyebrow="Highlights"
-                title="Recent public pins"
-                description="The newest community-facing places surfaced from this explorer's Atlas activity."
-              />
+        <ProfileMap :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
 
-              <div v-if="authoredSpots.length" class="card-grid">
-                <SpotCard v-for="spot in authoredSpots" :key="spot.id" :spot="spot" />
-              </div>
-              <EmptyStatePanel
-                v-else
-                eyebrow="Highlights"
-                title="No public pins yet"
-                description="When this explorer publishes places to Atlas, they will appear here first."
-                icon="map"
-                heading-level="h3"
-              />
-            </section>
+        <section class="profile-section">
+          <SectionHeading
+            eyebrow="Recent adventures"
+            title="Recent Adventures"
+            description="A premium three-card grid of the collaborative routes shaping this explorer's latest Atlas footprint."
+          />
 
-            <section class="profile-section">
-              <SectionHeading
-                eyebrow="Trips"
-                title="Routes built with friends"
-                description="Collaborative public itineraries where this explorer appears on the crew."
-              />
-
-              <div v-if="collaborativeTrips.length" class="trip-grid">
-                <TripCard v-for="trip in collaborativeTrips" :key="trip.id" :trip="trip" />
-              </div>
-              <EmptyStatePanel
-                v-else
-                eyebrow="Trips"
-                title="No collaborative trips yet"
-                description="Atlas will surface public routes here once this explorer joins or publishes one."
-                icon="route"
-                heading-level="h3"
-              />
-            </section>
+          <div v-if="featuredTrips.length" class="adventure-grid">
+            <ProfileAdventureCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
           </div>
+          <EmptyStatePanel
+            v-else
+            eyebrow="Recent adventures"
+            title="No collaborative routes yet"
+            description="Once this explorer starts planning or joining shared trips, their recent adventures will appear here."
+            icon="route"
+            heading-level="h3"
+          />
+        </section>
 
-          <aside class="side-column">
-            <ProfileStats
-              :user="profileUser"
-              :public-spot-count="authoredSpots.length"
-              :city-count="cityCount"
-              :average-rating="averageRating"
-              :route-count="collaborativeTrips.length"
-              :favorite-category="favoriteCategory"
-            />
+        <section class="profile-section">
+          <SectionHeading
+            eyebrow="Pinned highlights"
+            title="Public pins with the strongest visual payoff"
+            description="A curated strip of the places shaping this explorer's current public Atlas identity."
+          />
 
-            <article class="glass-panel insight-panel">
-              <div>
-                <p class="eyebrow">Collection notes</p>
-                <h2>What defines this map</h2>
-              </div>
-
-              <p class="section-copy">{{ collectionSummary }}</p>
-
-              <div class="insight-list">
-                <div class="surface-card insight-card">
-                  <small>Latest public moment</small>
-                  <strong>{{ latestMomentTitle }}</strong>
-                  <span>{{ latestMomentMeta }}</span>
-                </div>
-                <div class="surface-card insight-card">
-                  <small>Home base</small>
-                  <strong>{{ profileUser.homeBase || 'Atlas community' }}</strong>
-                  <span>{{ cityCount }} mapped city{{ cityCount === 1 ? '' : 'ies' }} in public view</span>
-                </div>
-              </div>
-
-              <div class="interest-list">
-                <span v-for="interest in profileUser.interests" :key="interest" class="interest-chip" :class="`badge-${toBadgeCategory(interest)}`">
-                  {{ formatInterest(interest) }}
-                </span>
-              </div>
-            </article>
-          </aside>
-        </div>
+          <div v-if="featuredSpots.length" class="pin-grid">
+            <SpotCard v-for="spot in featuredSpots" :key="spot.id" :spot="spot" />
+          </div>
+          <EmptyStatePanel
+            v-else
+            eyebrow="Pinned highlights"
+            title="No public pins yet"
+            description="When this explorer publishes places to Atlas, they will appear here first."
+            icon="map"
+            heading-level="h3"
+          />
+        </section>
       </template>
 
       <EmptyStatePanel
@@ -141,18 +101,19 @@ import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
+import ProfileAdventureCard from '@/components/profile/ProfileAdventureCard.vue';
 import ProfileHeader from '@/components/profile/ProfileHeader.vue';
 import ProfileMap from '@/components/profile/ProfileMap.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
 import ProfileWorkspaceSkeleton from '@/components/profile/ProfileWorkspaceSkeleton.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
-import TripCard from '@/components/trips/TripCard.vue';
 import { listUserSpots } from '@/services/spotService';
 import { listPublicTrips } from '@/services/tripService';
 import { useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
 import type { SpotCategory, SpotSummary, Trip, TripSpot, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
+import { getInclusiveDaySpan } from '@/utils/formatters';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -163,22 +124,8 @@ const profileTrips = ref<Trip[]>([]);
 const isLoading = ref(true);
 const profileError = ref('');
 const workspaceNotice = ref('');
-const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 let loadRequestId = 0;
-
-function formatCategory(category: SpotCategory): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
-}
-
-function toBadgeCategory(value: string): SpotCategory {
-  const normalizedValue = value.trim().toLowerCase();
-  return availableCategories.find((category) => category === normalizedValue) ?? 'other';
-}
-
-function formatInterest(value: string): string {
-  return formatCategory(toBadgeCategory(value));
-}
 
 function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfile): SpotSummary {
   return {
@@ -196,6 +143,10 @@ function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfil
   };
 }
 
+function getTripDurationDays(trip: Trip): number {
+  return getInclusiveDaySpan(trip.startDate, trip.endDate);
+}
+
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
 const isCurrentUser = computed(() => profileUser.value?.id === authStore.currentUser?.id);
 
@@ -206,6 +157,9 @@ const authoredSpots = computed(() =>
 const collaborativeTrips = computed(() =>
   [...profileTrips.value].sort((left, right) => new Date(right.startDate).getTime() - new Date(left.startDate).getTime()),
 );
+
+const featuredTrips = computed(() => collaborativeTrips.value.slice(0, 3));
+const featuredSpots = computed(() => authoredSpots.value.slice(0, 6));
 
 const mapHighlights = computed<SpotSummary[]>(() => {
   if (authoredSpots.value.length) {
@@ -230,6 +184,11 @@ const mapHighlights = computed<SpotSummary[]>(() => {
 });
 
 const cityCount = computed(() => new Set(mapHighlights.value.map((spot) => spot.city).filter(Boolean)).size);
+const countryCount = computed(() => {
+  const countries = new Set(mapHighlights.value.map((spot) => spot.country?.trim().toUpperCase()).filter(Boolean));
+  return countries.size || (mapHighlights.value.length ? 1 : 0);
+});
+const daysTraveled = computed(() => collaborativeTrips.value.reduce((total, trip) => total + getTripDurationDays(trip), 0));
 const averageRating = computed(() => {
   if (!authoredSpots.value.length) {
     return 0;
@@ -257,25 +216,10 @@ const favoriteCategory = computed<SpotCategory | null>(() => {
   return (topCategory as SpotCategory | undefined) ?? null;
 });
 
-const latestPublicSpot = computed(() => authoredSpots.value[0] ?? null);
-const latestTrip = computed<Trip | null>(() => collaborativeTrips.value[0] ?? null);
-const latestMomentTitle = computed(() => latestPublicSpot.value?.title ?? latestTrip.value?.title ?? 'No public moments yet');
-const latestMomentMeta = computed(() => {
-  if (latestPublicSpot.value) {
-    return `${latestPublicSpot.value.city || 'Atlas community'} · ${formatCategory(latestPublicSpot.value.category)}`;
-  }
-
-  if (latestTrip.value) {
-    return `${latestTrip.value.destination} · ${latestTrip.value.members.length} traveler${latestTrip.value.members.length === 1 ? '' : 's'}`;
-  }
-
-  return 'Waiting on the next highlight.';
-});
-
 const primaryActionLabel = computed(() => (isCurrentUser.value ? 'Edit preferences' : 'Plan a trip'));
 const primaryActionTo = computed(() => (isCurrentUser.value ? '/settings' : { path: '/trips/new', query: { friend: routeUserId.value } }));
 const secondaryActionLabel = computed(() => (isCurrentUser.value ? 'View friends' : 'Open social graph'));
-const secondaryActionTo = computed(() => (isCurrentUser.value ? '/friends' : '/friends'));
+const secondaryActionTo = computed(() => '/friends');
 
 const mapDescription = computed(() => {
   if (!profileUser.value) {
@@ -289,17 +233,7 @@ const mapDescription = computed(() => {
     return `${profileUser.value.displayName} has not published any public pins yet.`;
   }
 
-  return `${profileUser.value.displayName} has ${visiblePins} visible pin${visiblePins === 1 ? '' : 's'} across ${cities} mapped cit${cities === 1 ? 'y' : 'ies'}.`;
-});
-
-const collectionSummary = computed(() => {
-  if (!profileUser.value) {
-    return 'Profile details are unavailable.';
-  }
-
-  const signature = favoriteCategory.value ? formatCategory(favoriteCategory.value) : 'Mixed';
-  const tripCount = collaborativeTrips.value.length;
-  return `${profileUser.value.displayName}'s public Atlas footprint leans ${signature.toLowerCase()} with ${authoredSpots.value.length} surfaced pin${authoredSpots.value.length === 1 ? '' : 's'} and ${tripCount} collaborative route${tripCount === 1 ? '' : 's'}.`;
+  return `${profileUser.value.displayName} has ${visiblePins} visible pin${visiblePins === 1 ? '' : 's'} across ${cities} mapped cit${cities === 1 ? 'y' : 'ies'} and ${countryCount.value} countr${countryCount.value === 1 ? 'y' : 'ies'}.`;
 });
 
 async function loadProfileWorkspace(userId: string) {
@@ -362,80 +296,42 @@ watch(
 
 <style scoped>
 .profile-page,
-.main-column,
-.side-column,
+.profile-hero,
 .profile-section,
-.insight-panel,
-.insight-list,
 .state-panel,
 .inline-note {
   display: grid;
   gap: var(--space-6);
 }
 
-.workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.8fr);
-  gap: var(--space-6);
-  align-items: start;
-}
-
-.trip-grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.insight-panel,
 .state-panel,
 .inline-note {
   padding: var(--space-5);
 }
 
-.eyebrow {
-  margin: 0 0 var(--space-2);
-  color: var(--accent-teal);
-  font-size: var(--font-size-caption);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.profile-hero {
+  gap: var(--space-4);
+  padding-top: clamp(var(--space-6), 4vw, var(--space-8));
 }
 
+.adventure-grid,
+.pin-grid {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.eyebrow,
 h2,
-h3,
-small,
-strong,
-span,
 p {
   margin: 0;
 }
 
-.insight-list {
-  gap: var(--space-4);
-}
-
-.insight-card {
-  padding: var(--space-4);
-  display: grid;
-  gap: var(--space-2);
-}
-
-.insight-card small,
-.insight-card span {
-  color: var(--text-secondary);
-}
-
-.interest-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.interest-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.55rem 0.85rem;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-small);
+.eyebrow {
+  color: var(--accent-teal);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -448,7 +344,15 @@ p {
 }
 
 @media (max-width: 1120px) {
-  .workspace-grid {
+  .adventure-grid,
+  .pin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .adventure-grid,
+  .pin-grid {
     grid-template-columns: 1fr;
   }
 }

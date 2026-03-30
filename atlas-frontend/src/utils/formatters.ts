@@ -1,5 +1,27 @@
+const calendarDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
 function toDate(value: string | Date): Date {
-  return value instanceof Date ? value : new Date(value);
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (calendarDatePattern.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  return new Date(value);
+}
+
+function toCalendarDayNumber(value: string | Date): number {
+  const date = toDate(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return Number.NaN;
+  }
+
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / millisecondsPerDay;
 }
 
 const relativeTimeUnits = [
@@ -39,6 +61,17 @@ export function formatRelativeTime(value: string | Date, baseDate: string | Date
 export function formatMonthDay(value: string | Date): string {
   const date = toDate(value);
   return Number.isNaN(date.getTime()) ? '' : monthDayFormatter.format(date);
+}
+
+export function getInclusiveDaySpan(start: string | Date, end: string | Date): number {
+  const startDayNumber = toCalendarDayNumber(start);
+  const endDayNumber = toCalendarDayNumber(end);
+
+  if (Number.isNaN(startDayNumber) || Number.isNaN(endDayNumber)) {
+    return 1;
+  }
+
+  return Math.max(1, endDayNumber - startDayNumber + 1);
 }
 
 export function getInitials(name: string): string {

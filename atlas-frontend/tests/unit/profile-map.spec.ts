@@ -10,7 +10,9 @@ const spots: SpotSummary[] = [
     longitude: -97.3308,
     category: 'food',
     city: 'Fort Worth',
+    country: 'US',
     rating: 4.8,
+    photoUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
     createdAt: '2026-03-26T20:00:00Z',
   },
   {
@@ -20,34 +22,29 @@ const spots: SpotSummary[] = [
     longitude: -97.7431,
     category: 'culture',
     city: 'Austin',
+    country: 'US',
     rating: 4.6,
+    photoUrl: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800',
     createdAt: '2026-03-20T16:05:00Z',
   },
 ];
 
 describe('ProfileMap', () => {
-  it('renders the adventure map shell and selectable spot list', async () => {
+  it('renders the global footprint shell and updates the spotlight when a city chip is selected', async () => {
     const wrapper = mount(ProfileMap, {
       props: {
         spots,
       },
-      global: {
-        stubs: {
-          MapView: {
-            props: ['spots', 'selectedSpotId'],
-            template: '<div data-test="map-view-stub">{{ selectedSpotId }} · {{ spots.length }}</div>',
-          },
-        },
-      },
     });
 
-    expect(wrapper.text()).toContain('Mapped public highlights');
+    expect(wrapper.text()).toContain('Global Footprint');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
+    expect(wrapper.findAll('.city-pill')).toHaveLength(2);
+    expect(wrapper.findAll('.footprint-point')).toHaveLength(2);
+
+    await wrapper.findAll('button.city-pill')[1].trigger('click');
+
     expect(wrapper.text()).toContain('Modern Art Garden');
-    expect(wrapper.get('[data-test="map-view-stub"]').text()).toContain('spot-1 · 2');
-
-    await wrapper.findAll('button.spot-row')[1].trigger('click');
-
-    expect(wrapper.get('[data-test="map-view-stub"]').text()).toContain('spot-2 · 2');
+    expect(wrapper.findAll('.city-pill')[1].classes()).toContain('is-active');
   });
 });
