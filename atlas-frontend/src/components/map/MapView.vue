@@ -2,7 +2,7 @@
   <section class="map-view">
     <div ref="mapContainer" class="map-canvas" :class="{ 'is-fallback': !hasToken }" />
 
-    <div class="map-summary glass-panel">
+    <div v-if="showSummary" class="map-summary glass-panel">
       <span>{{ visibleSpotCount }} pins in view</span>
       <span v-if="hasRoute">{{ routePoints.length }} route stops</span>
       <span>{{ mapStore.activeCategories.length }} filters active</span>
@@ -18,6 +18,7 @@
     />
 
     <MapControls
+      v-if="showControls"
       :categories="allCategories"
       :active-categories="mapStore.activeCategories"
       :route-ready="hasRoute"
@@ -48,7 +49,7 @@
       </ul>
     </section>
 
-    <RouteLayer :map-instance="map" :points="routePoints" :style-key="mapStyle" />
+    <RouteLayer :map-instance="map" :points="routePoints" :style-key="mapStyle" :variant="routeVariant" />
   </section>
 </template>
 
@@ -84,6 +85,10 @@ const props = withDefaults(
     showLocationTracker?: boolean;
     clickToSelect?: boolean;
     showFilterPanel?: boolean;
+    showSummary?: boolean;
+    showControls?: boolean;
+    markerVariant?: 'default' | 'sequence';
+    routeVariant?: 'default' | 'planner';
   }>(),
   {
     routePoints: () => [],
@@ -91,6 +96,10 @@ const props = withDefaults(
     showLocationTracker: true,
     clickToSelect: false,
     showFilterPanel: false,
+    showSummary: true,
+    showControls: true,
+    markerVariant: 'default',
+    routeVariant: 'default',
   },
 );
 
@@ -126,6 +135,12 @@ const selectedSpotId = computed(() => props.selectedSpotId ?? mapStore.selectedS
 const filteredSpots = computed(() => props.spots.filter((spot) => mapStore.activeCategories.includes(spot.category)));
 const hasRoute = computed(() => props.routePoints.length > 1);
 const visibleSpotCount = computed(() => mapStore.visibleSpotIds.length || filteredSpots.value.length);
+const showSummary = computed(() => props.showSummary);
+const showControls = computed(() => props.showControls);
+const routeVariant = computed(() => props.routeVariant);
+const routeOrderLookup = computed(() =>
+  new Map(props.routePoints.map((point, index) => [point.id, index + 1])),
+);
 
 function resolveMapStyle(): string {
   if (typeof window === 'undefined') {
@@ -216,6 +231,8 @@ function renderSpotMarkers() {
     const app = createApp(SpotMarker, {
       spot,
       active: selectedSpotId.value === spot.id,
+      variant: props.markerVariant,
+      sequence: routeOrderLookup.value.get(spot.id) ?? null,
       onSelect: () => handleSpotSelect(spot),
     });
 

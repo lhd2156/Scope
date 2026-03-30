@@ -110,6 +110,7 @@
 - [2026-03-30] ✅ For Atlas’s premium fixed navbar, drive the transparent-versus-solid shell from a small `window.scrollY` threshold and explicitly unmount Navbar wrappers in Vitest; otherwise global scroll listeners can leak between tests and make scroll-state assertions flaky.
 - [2026-03-30] ⚠️ On Atlas map surfaces, keep category filtering in one place: if the page already has a dedicated glass sidebar, hide the floating filter panel and leave only the bottom-right control stack, or the workspace drifts away from the Phase 13 mockup and duplicates interaction affordances.
 - [2026-03-30] ⚠️ `src/components/common/Toast.vue` does not honor an `open` prop on its own; direct page-level toast usage must be wrapped in `v-if` (or routed through the store-backed `ToastViewport`) or success/info toasts will render immediately on first paint.
+- [2026-03-30] ✅ For Atlas trip-planner polish, keep the preset route source of truth shared between the planner page seed state and the mock itinerary generator; otherwise the left-hand stop stack, map-side timeline overlay, and generated preview drift out of sync as soon as the destination-specific demo route changes.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -241,3 +242,4 @@
 eview.created / 	rip.member.added should only fire on true create paths, not update or idempotent retries.
 - [2026-03-29] ?? In Vue views that derive mode/status from `useRoute()`, capture that value before `await router.push(...)`; post-navigation toasts and follow-up copy can otherwise read the next route and announce the wrong success state.
 - [2026-03-30] ?? For Atlas frontend visual QA on Vite routes, use a tiny Playwright script that waits for a real page selector before taking screenshots; the bare `playwright screenshot <url>` CLI can capture the pre-hydration shell/background and hide layout regressions.
+- [2026-03-30] [LESSON] For Atlas frontend trip planning, avoid raw new Date('YYYY-MM-DD') parsing when deriving itinerary dates; use calendar-safe helpers so preview timelines and mock route days do not shift by timezone.
