@@ -6,10 +6,13 @@ const { authStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
       displayName: 'Louis Do',
       avatarUrl: '',
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
+      interests: ['food', 'culture', 'adventure'],
     },
   },
   toastStoreMock: {
@@ -55,12 +58,11 @@ describe('SettingsPage', () => {
     document.documentElement.style.colorScheme = '';
   });
 
-  it('saves through the user profile contract and pushes a success toast', async () => {
+  it('renders the premium settings shell and saves through the user profile contract', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
-          ThemeToggle: { template: '<div data-test="theme-toggle-stub">Theme toggle</div>' },
           SettingsForm: {
             props: ['initialValue', 'submitting', 'errorMessage'],
             emits: ['submit', 'update:errorMessage'],
@@ -69,6 +71,10 @@ describe('SettingsPage', () => {
         },
       },
     });
+
+    expect(wrapper.text()).toContain('Shape how Atlas looks, feels, and shares your story.');
+    expect(wrapper.find('[data-test="settings-sidebar"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('API-backed');
 
     await wrapper.get('[data-test="settings-submit"]').trigger('click');
     await flushPromises();
@@ -79,15 +85,13 @@ describe('SettingsPage', () => {
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
     });
-    expect(wrapper.find('[data-test="theme-toggle-stub"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('API-backed');
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Settings saved',
       message: 'Profile details synced across your Atlas account.',
     });
   });
 
-  it('keeps shell and page theme toggles synchronized in the settings workspace', async () => {
+  it('keeps the shell theme toggle synchronized with the appearance controls inside settings', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -95,26 +99,23 @@ describe('SettingsPage', () => {
             components: { ThemeToggle },
             template: '<div><ThemeToggle /><slot /></div>',
           },
-          SectionHeading: { template: '<div />' },
-          SettingsForm: { template: '<div />' },
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
         },
       },
     });
 
-    const toggles = wrapper.findAll('button.theme-toggle');
-    expect(toggles).toHaveLength(2);
+    const shellToggle = wrapper.get('button.theme-toggle');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(toggles[0].attributes('aria-label')).toBe('Switch to light mode');
-    expect(toggles[1].attributes('aria-label')).toBe('Switch to light mode');
+    expect(shellToggle.attributes('aria-label')).toBe('Switch to light mode');
 
-    await toggles[1].trigger('click');
+    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
     await nextTick();
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     expect(document.documentElement.style.colorScheme).toBe('light');
     expect(localStorage.getItem('atlas-theme')).toBe('light');
-    expect(toggles[0].attributes('aria-label')).toBe('Switch to dark mode');
-    expect(toggles[1].attributes('aria-label')).toBe('Switch to dark mode');
+    expect(shellToggle.attributes('aria-label')).toBe('Switch to dark mode');
   });
 
   it('surfaces a settings error when the profile update throws and emits an error toast', async () => {
@@ -125,7 +126,6 @@ describe('SettingsPage', () => {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
-          ThemeToggle: { template: '<div />' },
           SettingsForm: {
             props: ['initialValue', 'submitting', 'errorMessage'],
             emits: ['submit', 'update:errorMessage'],

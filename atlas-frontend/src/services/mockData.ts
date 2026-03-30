@@ -91,7 +91,105 @@ const friendRequestUsers: UserProfile[] = [
     interests: ['scenic', 'nature', 'adventure'],
     stats: { spots: 24, trips: 5, friends: 38 },
   },
+  {
+    id: 'user-13',
+    username: 'aishabello',
+    email: 'aisha@example.com',
+    displayName: 'Aisha Bello',
+    avatarUrl: 'https://i.pravatar.cc/150?img=47',
+    bio: 'Curating culture-heavy city routes with rooftop dinners and design stops.',
+    homeBase: 'Houston, TX',
+    interests: ['culture', 'food', 'shopping'],
+    stats: { spots: 31, trips: 7, friends: 56 },
+  },
 ];
+
+const networkUsers: UserProfile[] = [
+  {
+    id: 'user-6',
+    username: 'priyanair',
+    email: 'priya@example.com',
+    displayName: 'Priya Nair',
+    avatarUrl: 'https://i.pravatar.cc/150?img=14',
+    bio: 'Collecting sunrise hikes, boutique stays, and premium coffee routes.',
+    homeBase: 'Mexico City, MX',
+    interests: ['adventure', 'scenic', 'food'],
+    stats: { spots: 48, trips: 12, friends: 94 },
+  },
+  {
+    id: 'user-7',
+    username: 'theoalvarez',
+    email: 'theo@example.com',
+    displayName: 'Theo Alvarez',
+    avatarUrl: 'https://i.pravatar.cc/150?img=19',
+    bio: 'Mapping nightlife weekends and the best late-checkout brunches.',
+    homeBase: 'Barcelona, ES',
+    interests: ['nightlife', 'food', 'culture'],
+    stats: { spots: 27, trips: 9, friends: 73 },
+  },
+  {
+    id: 'user-8',
+    username: 'camillelaurent',
+    email: 'camille@example.com',
+    displayName: 'Camille Laurent',
+    avatarUrl: 'https://i.pravatar.cc/150?img=41',
+    bio: 'Design museums, hidden gardens, and polished hotel bars are my thing.',
+    homeBase: 'Paris, FR',
+    interests: ['culture', 'shopping', 'scenic'],
+    stats: { spots: 35, trips: 10, friends: 81 },
+  },
+  {
+    id: 'user-9',
+    username: 'noahkim',
+    email: 'noah@example.com',
+    displayName: 'Noah Kim',
+    avatarUrl: 'https://i.pravatar.cc/150?img=57',
+    bio: 'Snowy trails, mountain rail rides, and cinematic viewpoints year-round.',
+    homeBase: 'Vancouver, CA',
+    interests: ['nature', 'adventure', 'scenic'],
+    stats: { spots: 40, trips: 13, friends: 88 },
+  },
+  {
+    id: 'user-10',
+    username: 'lucamoretti',
+    email: 'luca@example.com',
+    displayName: 'Luca Moretti',
+    avatarUrl: 'https://i.pravatar.cc/150?img=29',
+    bio: 'Always scouting elegant coastlines, aperitivo bars, and harbor walks.',
+    homeBase: 'Lisbon, PT',
+    interests: ['scenic', 'food', 'nightlife'],
+    stats: { spots: 22, trips: 6, friends: 44 },
+  },
+  {
+    id: 'user-11',
+    username: 'harpersingh',
+    email: 'harper@example.com',
+    displayName: 'Harper Singh',
+    avatarUrl: 'https://i.pravatar.cc/150?img=34',
+    bio: 'Finding trailhead cafes, alpine stays, and post-hike design shops.',
+    homeBase: 'Denver, CO',
+    interests: ['adventure', 'shopping', 'nature'],
+    stats: { spots: 29, trips: 8, friends: 51 },
+  },
+  {
+    id: 'user-12',
+    username: 'emiliasoto',
+    email: 'emilia@example.com',
+    displayName: 'Emilia Soto',
+    avatarUrl: 'https://i.pravatar.cc/150?img=64',
+    bio: 'Urban architecture loops, market mornings, and boutique stays.',
+    homeBase: 'Buenos Aires, AR',
+    interests: ['culture', 'food', 'shopping'],
+    stats: { spots: 33, trips: 9, friends: 67 },
+  },
+];
+
+interface PeopleYouMayKnowEntry {
+  user: UserProfile;
+  mutualFriends: number;
+  reason: string;
+  favoriteCategories: SpotCategory[];
+}
 
 const friendConnections: FriendConnection[] = [
   {
@@ -114,6 +212,46 @@ const friendConnections: FriendConnection[] = [
     nextAdventure: 'Austin sunrise loop',
     lastActiveAt: '2026-03-27T02:45:00Z',
   },
+  {
+    id: 'connection-3',
+    user: networkUsers[0],
+    presence: 'online',
+    sharedTrips: 4,
+    mutualFriends: 16,
+    favoriteCategories: ['adventure', 'scenic'],
+    nextAdventure: 'Patagonia sunrise camp',
+    lastActiveAt: '2026-03-27T03:22:00Z',
+  },
+  {
+    id: 'connection-4',
+    user: networkUsers[1],
+    presence: 'offline',
+    sharedTrips: 1,
+    mutualFriends: 10,
+    favoriteCategories: ['nightlife', 'food'],
+    nextAdventure: 'Barcelona moonlit tapas crawl',
+    lastActiveAt: '2026-03-26T22:20:00Z',
+  },
+  {
+    id: 'connection-5',
+    user: networkUsers[2],
+    presence: 'offline',
+    sharedTrips: 2,
+    mutualFriends: 14,
+    favoriteCategories: ['culture', 'shopping'],
+    nextAdventure: 'Paris gallery-and-courtyard circuit',
+    lastActiveAt: '2026-03-26T17:05:00Z',
+  },
+  {
+    id: 'connection-6',
+    user: networkUsers[3],
+    presence: 'online',
+    sharedTrips: 5,
+    mutualFriends: 21,
+    favoriteCategories: ['nature', 'scenic'],
+    nextAdventure: 'Glacier rail escape',
+    lastActiveAt: '2026-03-27T05:05:00Z',
+  },
 ];
 
 const friendRequests: FriendRequest[] = [
@@ -132,6 +270,35 @@ const friendRequests: FriendRequest[] = [
     createdAt: '2026-03-26T18:55:00Z',
     mutualFriends: 6,
     note: 'Saw your scenic pins and wanted to connect.',
+  },
+  {
+    id: 'request-3',
+    user: friendRequestUsers[2],
+    direction: 'incoming',
+    createdAt: '2026-03-26T14:10:00Z',
+    mutualFriends: 11,
+    note: 'Your culture-heavy weekend plans look exactly like my travel style.',
+  },
+];
+
+const peopleYouMayKnow: PeopleYouMayKnowEntry[] = [
+  {
+    user: networkUsers[4],
+    mutualFriends: 8,
+    reason: 'Often saves scenic coastal routes and food-first city walks.',
+    favoriteCategories: ['scenic', 'food'],
+  },
+  {
+    user: networkUsers[5],
+    mutualFriends: 5,
+    reason: 'Shares your adventure pace and keeps adding alpine itineraries.',
+    favoriteCategories: ['adventure', 'nature'],
+  },
+  {
+    user: networkUsers[6],
+    mutualFriends: 7,
+    reason: 'Strong overlap in culture, architecture, and market stops.',
+    favoriteCategories: ['culture', 'shopping'],
   },
 ];
 
@@ -620,6 +787,11 @@ export const mockFriendRequests = friendRequests.map((request) => ({
   ...request,
   user: sanitizeUserProfile(request.user),
   note: request.note ? sanitizeSingleLineText(request.note) : undefined,
+}));
+export const mockPeopleYouMayKnow = peopleYouMayKnow.map((entry) => ({
+  ...entry,
+  user: sanitizeUserProfile(entry.user),
+  reason: sanitizeSingleLineText(entry.reason),
 }));
 export const mockSpots = baseSpots.map((spot) => sanitizeSpotSummary(spot));
 export const mockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
