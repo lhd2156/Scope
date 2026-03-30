@@ -23,16 +23,29 @@ const item: FeedItemModel = {
 };
 
 describe('FeedItem', () => {
-  it('renders a premium social card for feed activity', () => {
+  it('renders a premium social feed card with travel media and engagement actions', () => {
     const wrapper = mount(FeedItem, {
       props: {
         item,
       },
+      global: {
+        stubs: {
+          LazyImage: {
+            props: ['src', 'alt'],
+            template: '<img class="lazy-image-stub" :src="src" :alt="alt" />',
+          },
+        },
+      },
     });
 
-    expect(wrapper.text()).toContain('Louis planned North Texas Night + Food Loop');
-    expect(wrapper.text()).toContain('Trip plan');
-    expect(wrapper.text()).toContain('View trip');
-    expect(wrapper.text()).toContain('42 spots');
+    expect(wrapper.text()).toContain('Planned a route');
+    expect(wrapper.text()).toContain('Louis Do');
+    expect(wrapper.text()).toContain('planned North Texas Night + Food Loop');
+    expect(wrapper.text()).toContain('Route snapshot');
+    expect(wrapper.text()).toContain('A two-day itinerary built around food, culture, and nightlife.');
+    expect(wrapper.text()).toContain('Trip update');
+    expect(wrapper.text()).toContain('Open trip');
+    expect(wrapper.findAll('.action-button')).toHaveLength(3);
+    expect(wrapper.find('.lazy-image-stub').attributes('alt')).toBe('Louis planned North Texas Night + Food Loop');
   });
 });

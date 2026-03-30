@@ -2,6 +2,7 @@
   <div
     ref="containerRef"
     class="virtual-list"
+    :class="{ 'virtual-list--stagger': stagger }"
     :style="containerStyle"
     role="list"
     :aria-label="listLabel"
@@ -16,7 +17,9 @@
       role="listitem"
       :style="{ transform: `translateY(${entry.top}px)`, height: `${itemHeight}px` }"
     >
-      <slot :item="entry.item" :index="entry.index" />
+      <div class="virtual-list__item-content">
+        <slot :item="entry.item" :index="entry.index" />
+      </div>
     </div>
   </div>
 </template>
@@ -38,11 +41,13 @@ const props = withDefaults(
     overscan?: number;
     listLabel?: string;
     itemKey?: (item: unknown, index: number) => string | number;
+    stagger?: boolean;
   }>(),
   {
     overscan: 3,
     listLabel: 'Virtualized Atlas list',
     itemKey: undefined,
+    stagger: false,
   },
 );
 
@@ -122,5 +127,49 @@ watch(
   position: absolute;
   inset-inline: 0;
   top: 0;
+}
+
+.virtual-list__item-content {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .virtual-list--stagger .virtual-list__item-content {
+    animation: fadeInUp 0.4s ease both;
+  }
+
+  .virtual-list--stagger .virtual-list__item:nth-child(1) .virtual-list__item-content {
+    animation-delay: 0ms;
+  }
+
+  .virtual-list--stagger .virtual-list__item:nth-child(2) .virtual-list__item-content {
+    animation-delay: 80ms;
+  }
+
+  .virtual-list--stagger .virtual-list__item:nth-child(3) .virtual-list__item-content {
+    animation-delay: 160ms;
+  }
+
+  .virtual-list--stagger .virtual-list__item:nth-child(4) .virtual-list__item-content {
+    animation-delay: 240ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .virtual-list--stagger .virtual-list__item-content {
+    animation: none;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>
