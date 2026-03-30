@@ -251,6 +251,7 @@
 - [2026-03-30] ⚠️ If `sessions_send` times out while nudging an active child but `subagents(action=list)` still shows the worker running, treat it as a gateway-messaging failure rather than proof the child died; preserve the live worker and continue the heartbeat from canonical trackers.
 - [2026-03-30] ⚠️ If `sessions_history` times out against an active child while `subagents(action=list)` still reports it as running, treat the timeout as a local gateway inspection failure, not a reason to respawn a duplicate into the shared workspace.
 - [2026-03-30] ⚠️ If the completed-tasks ledger and a canonical agent `PROGRESS.md` advance one track into the next phase while a sibling track is still finishing the prior phase, refresh the lead dashboard to that split-phase state immediately instead of leaving both tracks pinned to the older phase.
+- [2026-03-30] ⚠️ Once the last open Phase 13 tracker flips complete and both live workers have self-advanced into later phases, close Phase 13 in the lead dashboard immediately and track the active later-phase split instead of keeping stale Phase 13 handoff text.
 
 ## Common Mistakes to Avoid
 
@@ -280,3 +281,4 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-03-30] ✅ For Atlas frontend demo-data passes, export every traveler shown in friends/request/suggestion surfaces through the shared `mockUsers` dataset too; otherwise `/profile/:id` lookups can succeed for core users but fail for network cards that the UI already exposes.
 - [2026-03-30] ⚠️ Frontend avatar/photo-surface tests should assert the current `LazyImage` fallback contract, not raw initials-only assumptions; `Avatar` now swaps broken/missing sources to generated pravatar images before it ever falls back to text.
 - [2026-03-30] [LESSON] For Atlas frontend demo-photo polish, apply fallback travel media in both shared sanitizers and surface components; fixing only one layer leaves Explore/Profile/Map cards vulnerable to empty-image states when mock or API data comes back sparse.
+- [2026-03-30] [LESSON] For Atlas frontend full-page visual QA, scroll nested overflow containers (like virtualized feed rails) and prefer Playwright's bundled Chromium over local Brave defaults; otherwise lazy media can stay blank and long screenshot sweeps can flake from browser-side closures instead of real UI regressions.
