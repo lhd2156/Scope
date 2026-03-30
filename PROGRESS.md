@@ -15,6 +15,14 @@
 - [x] Phase 10: UX Polish & Accessibility - COMPLETE
 - [/] Phase 11: Infrastructure Hardening - Terraform IaC baseline, Kubernetes manifests, deploy workflow automation, CI-side Terraform/Kubernetes validation, and an optional real-account Terraform plan path are now in repo; runtime cloud execution and broader production hardening still remain
 - [x] Phase 12: Final Boss Recheck 🏁 - complete across Core, Content, Intel, and Frontend
+- [ ] Phase 13: Frontend Design Overhaul 🎨 - HIGHEST PRIORITY — premium visual redesign to match new mockups
+- [ ] Phase 14: Comprehensive E2E Testing 🧪 - Playwright browser tests for all critical flows
+- [ ] Phase 15: Data Seeding & Demo Mode 🌱 - standalone demo with mock data
+- [ ] Phase 16: Monitoring, Logging & Alerting 📊 - OpenTelemetry/Prometheus across all services
+- [ ] Phase 17: Mobile Responsiveness & PWA 📱 - responsive breakpoints and PWA enhancements
+- [ ] Phase 18: Analytics & User Telemetry 📈 - page views, user actions, engagement tracking
+- [ ] Phase 19: Onboarding & Tutorial Flow 🎓 - guided first-run experience
+- [ ] Phase 20: Pre-Launch QA Blitz 🏁 - Lighthouse audits, cross-browser testing, final polish
 
 ## Agent Status Dashboard
 | Agent | Status | Current Task | Last Updated |
@@ -23,14 +31,16 @@
 | Core (Sentinel) | COMPLETE | COMPLETE - all Core Phase 12 tasks closed | 2026-03-29T16:33:00Z |
 | Content (Cartographer) | COMPLETE | COMPLETE - all Content Phase 12 tasks closed | 2026-03-29T17:31:00Z |
 | Intel (Oracle) | COMPLETE | COMPLETE - all Intel Phase 12 tasks closed | 2026-03-29T15:34:46Z |
-| Frontend (Prism) | COMPLETE | COMPLETE - Frontend final boss recheck closed | 2026-03-29T14:10:00Z |
-| Polish (Luster) | COMPLETE | COMPLETE | 2026-03-29T22:22:00Z |
+| Frontend (Prism) | IN_PROGRESS | Phase 13.1 — Read DESIGN-SPEC.md and study all mockup images | 2026-03-30T03:05:00Z |
+| Polish (Luster) | IN_PROGRESS | Phase 13.14 — Micro-Animations Pass (after Frontend starts) | 2026-03-30T03:06:00Z |
 
-## Current Phase: All delegated agent tracks complete; remaining work is lead-owned external infrastructure/runtime validation
-## Agents Running: none
-## Last Updated: 2026-03-30T03:04:00Z
+## Current Phase: Phase 13 — Frontend Design Overhaul 🎨. Frontend has been relaunched on task 13.1; Polish remains pending until Frontend advances through tasks 13.1-13.13 per HEARTBEAT.md ordering.
+## Agents Running: Frontend (Prism)
+## Last Updated: 2026-03-30T03:09:00Z
+
 
 ## Log
+- [2026-03-30T03:09:00Z] Re-read `HEARTBEAT.md`, `memory/LESSONS.md`, the canonical progress files, and current subagent state; canonical frontend and polish trackers have reopened into Phase 13, no active subagents were actually running, I relaunched Frontend on task 13.1 using the Phase 13 prompt, deferred Polish until Frontend progresses through 13.1-13.13 per the heartbeat ordering, and refreshed the lead dashboard to reflect the reopened design-overhaul phase.
 - [2026-03-30T03:04:00Z] Re-read `HEARTBEAT.md`, `memory/LESSONS.md`, the canonical progress files, and current subagent state; all delegated agent tracks remain COMPLETE, no active subagents remain, and the only remaining attention item is still lead-owned external infrastructure/runtime validation (real-account Terraform/cloud execution outside this host).
 - [2026-03-30T02:59:00Z] Re-read `HEARTBEAT.md`, `memory/LESSONS.md`, the canonical progress files, and current subagent state; all delegated agent tracks remain COMPLETE, no active subagents remain, and the only remaining attention item is still lead-owned external infrastructure/runtime validation (real-account Terraform/cloud execution outside this host).
 - [2026-03-30T02:54:00Z] Re-read `HEARTBEAT.md`, `memory/LESSONS.md`, the canonical progress files, and current subagent state; all delegated agent tracks remain COMPLETE, no active subagents remain, and the only remaining attention item is still lead-owned external infrastructure/runtime validation (real-account Terraform/cloud execution outside this host).
