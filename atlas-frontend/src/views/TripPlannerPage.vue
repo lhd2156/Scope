@@ -1,62 +1,49 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack">
+    <div class="page-container page-stack planner-page">
       <SectionHeading
         eyebrow="Trip planner"
         title="Generate an itinerary from your travel constraints"
-        description="Shape the destination, timing, budget, and interests first. Atlas Intel handles the stop sequencing and route density."
+        description="Build the trip title, travel window, budget range, and route stack on the left, then review the AI-tuned timeline and map overlay on the right."
       />
 
-      <article v-if="tripsStore.error" class="glass-panel error-panel" role="alert">
-        <p class="eyebrow">Temporary issue</p>
+      <article v-if="tripsStore.error" class="glass-panel planner-alert">
+        <p class="eyebrow">Planner status</p>
         <h2>Atlas could not finish part of the planning flow</h2>
-        <p class="section-copy">{{ tripsStore.error }}</p>
+        <p>{{ tripsStore.error }}</p>
       </article>
 
-      <section class="planner-layout">
-        <TripPlanner :initial-value="plannerDraft" :submitting="tripsStore.planning" @submit="handleGenerate" />
-        <ItineraryView :itinerary="tripsStore.previewItinerary" />
+      <section class="planner-workspace">
+        <TripPlanner
+          :initial-value="plannerDraft"
+          :stops="plannerStops"
+          :suggested-stops="plannerSuggestedStops"
+          :submitting="tripsStore.planning"
+          @update:title="plannerTitle = $event"
+          @update:stops="handleStopsUpdate"
+          @submit="handleGenerate"
+        />
+
+        <ItineraryView
+          :itinerary="tripsStore.previewItinerary"
+          :trip-title="plannerTitle"
+          :members="plannerCrew"
+          :submitting="tripsStore.planning"
+        />
       </section>
 
-      <section class="support-grid">
-        <article class="glass-panel draft-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Draft signal</p>
-              <h2>{{ plannerDraft.destination }}</h2>
-            </div>
-            <span class="meta-pill">{{ plannerDraft.pace }} pace</span>
+      <section class="glass-panel community-panel">
+        <div class="community-header">
+          <div>
+            <p class="eyebrow">Reference trips</p>
+            <h2>Routes already mapped by the Atlas community</h2>
           </div>
+          <span class="community-pill">{{ featuredTrips.length }} ready to remix</span>
+        </div>
 
-          <div class="draft-metrics">
-            <div class="surface-card metric-card">
-              <small>Travel window</small>
-              <strong>{{ plannerDraft.startDate }} → {{ plannerDraft.endDate }}</strong>
-            </div>
-            <div class="surface-card metric-card">
-              <small>Budget</small>
-              <strong>${{ plannerDraft.budget }}</strong>
-            </div>
-            <div class="surface-card metric-card">
-              <small>Interests</small>
-              <strong>{{ interestLabel }}</strong>
-            </div>
-          </div>
-        </article>
-
-        <section class="community-panel">
-          <div class="panel-heading community-heading">
-            <div>
-              <p class="eyebrow">Community routes</p>
-              <h2>Reference trips already mapped in Atlas</h2>
-            </div>
-            <RouterLink class="map-link" to="/map">Open map workspace</RouterLink>
-          </div>
-
-          <div class="trip-grid">
-            <TripCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
-          </div>
-        </section>
+        <div class="community-grid">
+          <TripCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
+        </div>
       </section>
     </div>
   </AppShell>
@@ -69,109 +56,154 @@ import SectionHeading from '@/components/common/SectionHeading.vue';
 import ItineraryView from '@/components/trips/ItineraryView.vue';
 import TripCard from '@/components/trips/TripCard.vue';
 import TripPlanner from '@/components/trips/TripPlanner.vue';
+import { getTripPlannerPreset, matchTripPlannerPreset } from '@/services/tripPlannerPresets';
 import { useToastStore } from '@/stores/toasts';
 import { useTripsStore } from '@/stores/trips';
-import type { TripPlannerInput } from '@/types';
+import type { TripMember, TripPlannerInput, TripSpot } from '@/types';
 
-const toastStore = useToastStore();
 const tripsStore = useTripsStore();
-const defaultPlannerInput: TripPlannerInput = {
-  destination: 'Fort Worth, TX',
-  startDate: '2026-04-01',
-  endDate: '2026-04-03',
-  budget: 500,
-  interests: ['food', 'culture', 'nightlife'],
-  pace: 'moderate',
-  groupSize: 2,
-};
-
+const toastStore = useToastStore();
+const defaultPreset = getTripPlannerPreset('Patagonia, Chile + Argentina');
 const plannerDraft = ref<TripPlannerInput>({
-  ...defaultPlannerInput,
-  interests: [...defaultPlannerInput.interests],
+  destination: defaultPreset.destination,
+  startDate: '2026-11-03',
+  endDate: '2026-11-05',
+  budget: defaultPreset.baseBudget,
+  interests: [...defaultPreset.interests],
+  pace: 'moderate',
+  groupSize: 3,
 });
+const plannerTitle = ref(defaultPreset.tripTitle);
+const plannerStops = ref<TripSpot[]>(cloneStops(defaultPreset.stops));
+const plannerSuggestedStops = ref<TripSpot[]>(cloneStops(defaultPreset.suggestedStops));
+const plannerCrew = ref<TripMember[]>(cloneMembers(defaultPreset.crew));
 
 const featuredTrips = computed(() => tripsStore.items.slice(0, 3));
-const interestLabel = computed(() => plannerDraft.value.interests.map((interest) => interest.charAt(0).toUpperCase() + interest.slice(1)).join(', '));
+
+function cloneStops(stops: TripSpot[]): TripSpot[] {
+  return stops.map((stop) => ({
+    ...stop,
+  }));
+}
+
+function cloneMembers(members: TripMember[]): TripMember[] {
+  return members.map((member) => ({
+    ...member,
+  }));
+}
+
+function syncPresetExperience(destination: string, previousDestination?: string, forceRouteReset = false) {
+  const matchedPreset = matchTripPlannerPreset(destination);
+  if (!matchedPreset) {
+    return null;
+  }
+
+  const previousPreset = previousDestination ? matchTripPlannerPreset(previousDestination) : null;
+  const shouldResetTitle =
+    !plannerTitle.value.trim() ||
+    (previousPreset && plannerTitle.value === previousPreset.tripTitle) ||
+    forceRouteReset;
+
+  if (shouldResetTitle) {
+    plannerTitle.value = matchedPreset.tripTitle;
+  }
+
+  if (forceRouteReset) {
+    plannerStops.value = cloneStops(matchedPreset.stops);
+  }
+
+  plannerSuggestedStops.value = cloneStops(matchedPreset.suggestedStops);
+  plannerCrew.value = cloneMembers(matchedPreset.crew);
+  return matchedPreset;
+}
 
 async function handleGenerate(payload: TripPlannerInput) {
+  const previousDestination = plannerDraft.value.destination;
   plannerDraft.value = {
     ...payload,
     interests: [...payload.interests],
   };
 
+  syncPresetExperience(payload.destination, previousDestination, payload.destination !== previousDestination);
+
   try {
-    const generatedItinerary = await tripsStore.buildItinerary(plannerDraft.value);
-    const itineraryDayCount = generatedItinerary.days.length;
+    await tripsStore.buildItinerary(payload);
     toastStore.showSuccess({
       title: 'Itinerary refreshed',
-      message: itineraryDayCount
-        ? `${generatedItinerary.destination} now has a ${itineraryDayCount}-day route preview ready.`
-        : 'Atlas refreshed your itinerary preview.',
+      message: 'Atlas refreshed your itinerary preview.',
     });
   } catch {
     toastStore.showError({
       title: 'Planner update failed',
-      message: tripsStore.error || 'Atlas could not generate an itinerary right now.',
+      message: tripsStore.error ?? 'Atlas could not generate an itinerary right now.',
     });
   }
 }
 
+function handleStopsUpdate(stops: TripSpot[]) {
+  plannerStops.value = cloneStops(stops);
+}
+
 onMounted(async () => {
-  await Promise.allSettled([tripsStore.fetchTrips(), tripsStore.buildItinerary(plannerDraft.value)]);
+  try {
+    await tripsStore.fetchTrips();
+  } catch {
+    // surfaced through tripsStore.error
+  }
+
+  try {
+    await tripsStore.buildItinerary(plannerDraft.value);
+  } catch {
+    // surfaced through tripsStore.error
+  }
 });
 </script>
 
 <style scoped>
-.page-stack,
-.error-panel,
-.support-grid,
-.draft-panel,
-.draft-metrics,
+.planner-page.page-container {
+  width: min(1480px, calc(100% - (var(--shell-side-padding) * 2)));
+}
+
+.planner-page,
+.planner-workspace,
+.community-panel,
+.community-grid {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.planner-alert,
 .community-panel {
-  display: grid;
-  gap: var(--space-6);
-}
-
-.planner-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: var(--space-6);
-  align-items: start;
-}
-
-.draft-panel,
-.error-panel {
   padding: var(--space-6);
 }
 
-.error-panel h2,
-.error-panel p {
+.planner-alert h2,
+.planner-alert p,
+.community-header h2 {
   margin: 0;
 }
 
-.panel-heading,
-.community-heading {
+.planner-alert {
+  gap: var(--space-3);
+}
+
+.planner-alert p:last-child {
+  color: var(--text-secondary);
+}
+
+.planner-workspace {
+  grid-template-columns: minmax(24rem, 0.4fr) minmax(0, 0.6fr);
+  align-items: stretch;
+}
+
+.community-header {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
   align-items: flex-start;
 }
 
-.eyebrow {
-  margin: 0 0 var(--space-2);
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: var(--font-size-caption);
-}
-
-.panel-heading h2,
-.metric-card small,
-.metric-card strong {
-  margin: 0;
-}
-
-.meta-pill {
+.community-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -180,58 +212,27 @@ onMounted(async () => {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-blur);
+  color: var(--text-primary);
   font-size: var(--font-size-small);
 }
 
-.draft-metrics,
-.trip-grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.draft-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.metric-card {
-  padding: var(--space-4);
-  display: grid;
-  gap: var(--space-2);
-}
-
-.metric-card small {
-  color: var(--text-secondary);
-}
-
-.metric-card strong {
-  color: var(--text-primary);
-}
-
-.trip-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.map-link {
-  color: var(--accent-teal);
-  font-weight: var(--font-weight-semibold);
+.community-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
 }
 
 @media (max-width: 1180px) {
-  .planner-layout,
-  .support-grid,
-  .trip-grid,
-  .draft-metrics {
+  .planner-workspace {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
-  .draft-panel {
+  .planner-alert,
+  .community-panel {
     padding: var(--space-5);
   }
 
-  .panel-heading,
-  .community-heading {
+  .community-header {
     flex-direction: column;
     align-items: flex-start;
   }

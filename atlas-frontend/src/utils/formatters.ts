@@ -14,6 +14,10 @@ function toDate(value: string | Date): Date {
   return new Date(value);
 }
 
+function toCalendarDate(date: Date): string {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
 function toCalendarDayNumber(value: string | Date): number {
   const date = toDate(value);
 
@@ -36,6 +40,11 @@ const relativeTimeUnits = [
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
 
 export function formatRelativeTime(value: string | Date, baseDate: string | Date = new Date()): string {
   const targetDate = toDate(value);
@@ -63,6 +72,11 @@ export function formatMonthDay(value: string | Date): string {
   return Number.isNaN(date.getTime()) ? '' : monthDayFormatter.format(date);
 }
 
+export function formatWeekdayMonthDay(value: string | Date): string {
+  const date = toDate(value);
+  return Number.isNaN(date.getTime()) ? '' : weekdayMonthDayFormatter.format(date);
+}
+
 export function getInclusiveDaySpan(start: string | Date, end: string | Date): number {
   const startDayNumber = toCalendarDayNumber(start);
   const endDayNumber = toCalendarDayNumber(end);
@@ -74,12 +88,25 @@ export function getInclusiveDaySpan(start: string | Date, end: string | Date): n
   return Math.max(1, endDayNumber - startDayNumber + 1);
 }
 
+export function addCalendarDays(value: string | Date, offsetDays: number): string {
+  const date = toDate(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const nextDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsetDays);
+  return toCalendarDate(nextDate);
+}
+
 export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((segment) => segment[0]?.toUpperCase() ?? '')
-    .join('') || 'AT';
+  return (
+    name
+      .split(' ')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase() ?? '')
+      .join('') || 'AT'
+  );
 }

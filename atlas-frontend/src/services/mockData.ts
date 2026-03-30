@@ -29,6 +29,8 @@ import {
   sanitizeTripPlannerInput,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
+import { addCalendarDays } from '@/utils/formatters';
+import { buildTripPlannerPresetItinerary } from '@/services/tripPlannerPresets';
 
 const users: UserProfile[] = [
   {
@@ -765,6 +767,12 @@ export function filterSpots(filters: { category?: SpotCategory | ''; city?: stri
 
 export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
   const sanitizedInput = sanitizeTripPlannerInput(input);
+  const presetItinerary = buildTripPlannerPresetItinerary(sanitizedInput);
+
+  if (presetItinerary) {
+    return sanitizeItinerary(presetItinerary);
+  }
+
   const interests = new Set(sanitizedInput.interests);
   const scoredSpots = mockSpots
     .map((spot) => ({
@@ -779,16 +787,13 @@ export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
 
   const dailyPace = sanitizedInput.pace === 'relaxed' ? 2 : sanitizedInput.pace === 'packed' ? 4 : 3;
   const days: Itinerary['days'] = [];
-  const start = new Date(sanitizedInput.startDate);
 
   scoredSpots.forEach(({ spot }, index) => {
     const dayIndex = Math.floor(index / dailyPace);
     if (!days[dayIndex]) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + dayIndex);
       days[dayIndex] = {
         dayNumber: dayIndex + 1,
-        date: date.toISOString().slice(0, 10),
+        date: addCalendarDays(sanitizedInput.startDate, dayIndex),
         spots: [],
       };
     }

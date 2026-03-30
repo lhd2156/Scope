@@ -2,7 +2,7 @@
   <button
     class="spot-marker"
     :class="[
-      `badge-${spot.category}`,
+      variant === 'sequence' ? 'spot-marker--sequence' : `badge-${spot.category}`,
       {
         'is-active': active,
       },
@@ -12,7 +12,8 @@
     @click="$emit('select')"
   >
     <span class="spot-marker__pin">
-      <AtlasIcon :name="iconName" :label="spot.title" />
+      <span v-if="variant === 'sequence' && sequence" class="spot-marker__sequence">{{ sequence }}</span>
+      <AtlasIcon v-else :name="iconName" :label="spot.title" />
     </span>
     <span class="spot-marker__label">
       <strong>{{ spot.title }}</strong>
@@ -33,9 +34,13 @@ const props = withDefaults(
   defineProps<{
     spot: MapPoint;
     active?: boolean;
+    variant?: 'default' | 'sequence';
+    sequence?: number | null;
   }>(),
   {
     active: false,
+    variant: 'default',
+    sequence: null,
   },
 );
 
@@ -115,6 +120,24 @@ const iconName = computed(() => (props.spot.category === 'other' ? 'pin' : props
   color: var(--text-secondary);
 }
 
+.spot-marker__sequence {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-small);
+  color: var(--bg-primary);
+}
+
+.spot-marker--sequence {
+  color: var(--accent-teal);
+}
+
+.spot-marker--sequence .spot-marker__pin {
+  border-radius: var(--radius-full);
+  border-color: transparent;
+  background: var(--accent-teal);
+  box-shadow: var(--shadow-lg), var(--shadow-glow-teal);
+  transform: none;
+}
+
 .spot-marker.is-active .spot-marker__pin {
   background: currentColor;
   color: var(--bg-primary);
@@ -122,9 +145,27 @@ const iconName = computed(() => (props.spot.category === 'other' ? 'pin' : props
   transform: rotate(45deg) scale(1.05);
 }
 
+.spot-marker--sequence.is-active .spot-marker__pin {
+  transform: scale(1.08);
+}
+
 .spot-marker.is-active .spot-marker__label,
 .spot-marker:hover .spot-marker__label,
 .spot-marker:focus-visible .spot-marker__label {
   display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot-marker,
+  .spot-marker__pin {
+    transition: none;
+  }
+
+  .spot-marker:hover,
+  .spot-marker:focus-visible,
+  .spot-marker.is-active .spot-marker__pin,
+  .spot-marker--sequence.is-active .spot-marker__pin {
+    transform: none;
+  }
 }
 </style>

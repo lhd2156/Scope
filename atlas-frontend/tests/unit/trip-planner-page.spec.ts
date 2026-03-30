@@ -62,13 +62,13 @@ describe('TripPlannerPage', () => {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           TripPlanner: {
-            props: ['initialValue', 'submitting'],
-            emits: ['submit'],
+            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting'],
+            emits: ['submit', 'update:title', 'update:stops'],
             template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
           },
           ItineraryView: {
-            props: ['itinerary'],
-            template: '<div data-test="itinerary-stub">{{ itinerary.destination }}</div>',
+            props: ['itinerary', 'tripTitle', 'members', 'submitting'],
+            template: '<div data-test="itinerary-stub">{{ tripTitle }} · {{ itinerary.destination }}</div>',
           },
           TripCard: {
             props: ['trip'],
@@ -82,7 +82,7 @@ describe('TripPlannerPage', () => {
 
     expect(tripsStoreMock.fetchTrips).toHaveBeenCalledTimes(1);
     expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('Generate an itinerary from your travel constraints');
+    expect(wrapper.text()).toContain('Reference trips');
     expect(wrapper.find('[data-test="itinerary-stub"]').text()).toContain('Fort Worth, TX');
     expect(wrapper.findAll('.trip-card-stub')).toHaveLength(2);
 
@@ -105,7 +105,7 @@ describe('TripPlannerPage', () => {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           TripPlanner: {
-            props: ['initialValue', 'submitting'],
+            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting'],
             emits: ['submit'],
             template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
           },

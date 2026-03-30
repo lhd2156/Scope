@@ -8,18 +8,17 @@ import type { MapPoint } from '@/types';
 const SOURCE_ID = 'atlas-route-source';
 const OUTLINE_LAYER_ID = 'atlas-route-outline';
 const LINE_LAYER_ID = 'atlas-route-line';
-const ROUTE_OUTLINE_WIDTH = 8;
-const ROUTE_OUTLINE_OPACITY = 0.75;
-const ROUTE_LINE_WIDTH = 4;
 
 const props = withDefaults(
   defineProps<{
     mapInstance: mapboxgl.Map | null;
     points: MapPoint[];
     styleKey?: string;
+    variant?: 'default' | 'planner';
   }>(),
   {
     styleKey: 'default',
+    variant: 'default',
   },
 );
 
@@ -72,6 +71,60 @@ function removeRoute(map: mapboxgl.Map | null) {
   }
 }
 
+function ensureLineLayers(map: mapboxgl.Map) {
+  if (!map.getLayer(OUTLINE_LAYER_ID)) {
+    map.addLayer({
+      id: OUTLINE_LAYER_ID,
+      type: 'line',
+      source: SOURCE_ID,
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+      paint: {
+        'line-color': readCssToken('--bg-primary') || readCssToken('--border'),
+        'line-width': props.variant === 'planner' ? 6 : 8,
+        'line-opacity': props.variant === 'planner' ? 0.45 : 0.75,
+      },
+    });
+  }
+
+  if (!map.getLayer(LINE_LAYER_ID)) {
+    map.addLayer({
+      id: LINE_LAYER_ID,
+      type: 'line',
+      source: SOURCE_ID,
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+      paint: {
+        'line-color': readCssToken('--accent-gold') || readCssToken('--accent-teal'),
+        'line-width': props.variant === 'planner' ? 3.5 : 4,
+      },
+    });
+  }
+}
+
+function syncRouteStyle(map: mapboxgl.Map) {
+  const outlineColor = readCssToken('--bg-primary') || readCssToken('--border');
+  const defaultRouteColor = readCssToken('--accent-gold');
+  const plannerRouteColor = readCssToken('--accent-teal');
+  const routeColor = props.variant === 'planner' ? plannerRouteColor : defaultRouteColor;
+
+  if (!outlineColor || !routeColor || typeof map.setPaintProperty !== 'function') {
+    return;
+  }
+
+  map.setPaintProperty(OUTLINE_LAYER_ID, 'line-color', outlineColor);
+  map.setPaintProperty(OUTLINE_LAYER_ID, 'line-width', props.variant === 'planner' ? 6 : 8);
+  map.setPaintProperty(OUTLINE_LAYER_ID, 'line-opacity', props.variant === 'planner' ? 0.45 : 0.75);
+
+  map.setPaintProperty(LINE_LAYER_ID, 'line-color', routeColor);
+  map.setPaintProperty(LINE_LAYER_ID, 'line-width', props.variant === 'planner' ? 3.5 : 4);
+  map.setPaintProperty(LINE_LAYER_ID, 'line-dasharray', props.variant === 'planner' ? [1.2, 1.8] : [1, 0.001]);
+}
+
 function upsertRoute() {
   const map = props.mapInstance;
   if (!map || !map.isStyleLoaded()) {
@@ -94,45 +147,8 @@ function upsertRoute() {
     });
   }
 
-  const outlineColor = readCssToken('--bg-primary');
-  const routeColor = readCssToken('--accent-gold');
-
-  if (!outlineColor || !routeColor) {
-    return;
-  }
-
-  if (!map.getLayer(OUTLINE_LAYER_ID)) {
-    map.addLayer({
-      id: OUTLINE_LAYER_ID,
-      type: 'line',
-      source: SOURCE_ID,
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-color': outlineColor,
-        'line-width': ROUTE_OUTLINE_WIDTH,
-        'line-opacity': ROUTE_OUTLINE_OPACITY,
-      },
-    });
-  }
-
-  if (!map.getLayer(LINE_LAYER_ID)) {
-    map.addLayer({
-      id: LINE_LAYER_ID,
-      type: 'line',
-      source: SOURCE_ID,
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-color': routeColor,
-        'line-width': ROUTE_LINE_WIDTH,
-      },
-    });
-  }
+  ensureLineLayers(map);
+  syncRouteStyle(map);
 }
 
 function handleStyleLoad() {
@@ -150,7 +166,7 @@ watch(
 );
 
 watch(
-  () => [props.points, props.styleKey],
+  () => [props.points, props.styleKey, props.variant],
   () => {
     upsertRoute();
   },
