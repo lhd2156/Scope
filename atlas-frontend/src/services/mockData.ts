@@ -474,7 +474,10 @@ const trips: Trip[] = [
     startDate: '2026-04-10',
     endDate: '2026-04-11',
     spots: austinTripSpots,
-    members: [{ id: users[2].id, displayName: users[2].displayName, status: 'owner' }],
+    members: [
+      { id: users[2].id, displayName: users[2].displayName, status: 'owner' },
+      { id: users[0].id, displayName: users[0].displayName, status: 'viewer' },
+    ],
     itinerary: austinItinerary,
     coverImageUrl: baseSpots[4].photoUrl,
     budget: 180,
