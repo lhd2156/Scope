@@ -51,6 +51,8 @@ vi.mock('@microsoft/signalr', () => ({
 describe('signalrService', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllEnvs();
+    delete (window as Window & { __ATLAS_VISUAL_QA__?: boolean }).__ATLAS_VISUAL_QA__;
 
     signalrMock.connection.state = 'Disconnected';
     signalrMock.connection.start.mockReset().mockImplementation(async () => {
@@ -125,6 +127,48 @@ describe('signalrService', () => {
 
     expect(signalrMock.connection.start).not.toHaveBeenCalled();
     expect(onStateChange).toHaveBeenCalledWith('idle');
+  });
+
+  it('disables the realtime bridge when mock auth fallback is enabled', async () => {
+    vi.stubEnv('VITE_ENABLE_AUTH_MOCK_FALLBACK', 'true');
+    vi.resetModules();
+
+    const { startNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    expect(signalrMock.builder.build).not.toHaveBeenCalled();
+    expect(signalrMock.connection.start).not.toHaveBeenCalled();
+    expect(onStateChange).toHaveBeenCalledWith('idle');
+    expect(onError).toHaveBeenCalledWith(null);
+  });
+
+  it('disables the realtime bridge during visual qa sessions', async () => {
+    vi.resetModules();
+    (window as Window & { __ATLAS_VISUAL_QA__?: boolean }).__ATLAS_VISUAL_QA__ = true;
+
+    const { startNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    expect(signalrMock.builder.build).not.toHaveBeenCalled();
+    expect(signalrMock.connection.start).not.toHaveBeenCalled();
+    expect(onStateChange).toHaveBeenCalledWith('idle');
+    expect(onError).toHaveBeenCalledWith(null);
   });
 
   it('stops the active hub connection cleanly', async () => {

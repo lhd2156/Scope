@@ -75,6 +75,37 @@ describe('notifications store async error handling', () => {
     expect(store.connectionError).toBe('SignalR handshake failed');
   });
 
+  it('keeps the realtime status idle when the bridge clears errors without opening a live connection', async () => {
+    vi.doMock('@/services/feedService', () => ({
+      getNotifications: vi.fn(),
+      markNotificationRead: vi.fn(),
+      markAllNotificationsRead: vi.fn(),
+    }));
+
+    vi.doMock('@/services/signalrService', () => ({
+      startNotificationStream: vi.fn().mockImplementation(async (options) => {
+        options.onStateChange?.('idle');
+        options.onError?.(null);
+      }),
+      stopNotificationStream: vi.fn(),
+    }));
+
+    vi.doMock('@/stores/auth', () => ({
+      useAuthStore: () => ({ isAuthenticated: true, token: 'secure-token' }),
+    }));
+
+    vi.doMock('@/stores/toasts', () => ({
+      useToastStore: () => ({ showInfo: vi.fn(), showError: vi.fn() }),
+    }));
+
+    const store = await bootstrapNotificationsStore();
+
+    await store.connect();
+
+    expect(store.connectionState).toBe('idle');
+    expect(store.connectionError).toBeNull();
+  });
+
   it('adds realtime notifications to the inbox and shows a toast for the incoming update', async () => {
     const toastStoreMock = {
       showInfo: vi.fn(),

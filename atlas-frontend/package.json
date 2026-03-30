@@ -10,6 +10,7 @@
     "test": "vitest run --pool forks --poolOptions.forks.singleFork",
     "test:watch": "vitest --pool forks --poolOptions.forks.singleFork",
     "test:e2e": "playwright test",
+    "qa:visual:phase13": "node ./scripts/phase13-visual-qa.mjs",
     "lint": "eslint . --ext .vue,.ts"
   },
   "dependencies": {

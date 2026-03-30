@@ -89,8 +89,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
           connectionState.value = state;
         },
         onError: (message) => {
-          connectionState.value = 'error';
           connectionError.value = message;
+
+          if (message) {
+            connectionState.value = 'error';
+          }
         },
       });
     } catch (nextError) {

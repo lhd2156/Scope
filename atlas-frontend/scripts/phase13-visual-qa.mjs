@@ -8,7 +8,7 @@ const SCREENSHOT_ROOT = path.resolve('test-results', 'phase13-visual-qa');
 const VIEWPORT = { width: 1440, height: 1120 };
 const DEFAULT_SETTLE_MS = 2200;
 const ROUTE_TIMEOUT_MS = 45000;
-const IMAGE_SETTLE_TIMEOUT_MS = 12000;
+const IMAGE_SETTLE_TIMEOUT_MS = 20000;
 const AUTO_SCROLL_STEP_DELAY_MS = 250;
 const MOCK_REFRESH_PAYLOAD = {
   id: 'user-1',
@@ -137,19 +137,43 @@ async function autoScrollForLazyContent(page) {
     const viewportHeight = window.innerHeight || 900;
     const maxScrollTop = Math.max(0, root.scrollHeight - viewportHeight);
 
-    if (maxScrollTop <= 0) {
-      return;
-    }
+    const scrollContainer = async (element, maxScrollTopForElement, viewportHeightForElement) => {
+      if (maxScrollTopForElement <= 0) {
+        return;
+      }
 
-    const stepSize = Math.max(Math.floor(viewportHeight * 0.72), 320);
+      const stepSize = Math.max(Math.floor(viewportHeightForElement * 0.72), 320);
 
-    for (let scrollTop = 0; scrollTop < maxScrollTop; scrollTop += stepSize) {
-      window.scrollTo({ top: scrollTop, behavior: 'auto' });
+      for (let scrollTop = 0; scrollTop < maxScrollTopForElement; scrollTop += stepSize) {
+        element.scrollTo({ top: scrollTop, behavior: 'auto' });
+        await wait(stepDelayMs);
+      }
+
+      element.scrollTo({ top: maxScrollTopForElement, behavior: 'auto' });
       await wait(stepDelayMs);
+      element.scrollTo({ top: 0, behavior: 'auto' });
+      await wait(stepDelayMs);
+    };
+
+    await scrollContainer(window, maxScrollTop, viewportHeight);
+
+    const nestedScrollContainers = Array.from(document.querySelectorAll('*')).filter((element) => {
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+
+      const overflowY = window.getComputedStyle(element).overflowY;
+      if (!/(auto|scroll)/.test(overflowY)) {
+        return false;
+      }
+
+      return element.scrollHeight - element.clientHeight > 48;
+    });
+
+    for (const element of nestedScrollContainers) {
+      await scrollContainer(element, Math.max(0, element.scrollHeight - element.clientHeight), element.clientHeight || 320);
     }
 
-    window.scrollTo({ top: maxScrollTop, behavior: 'auto' });
-    await wait(stepDelayMs);
     window.scrollTo({ top: 0, behavior: 'auto' });
     await wait(stepDelayMs);
   }, { stepDelayMs: AUTO_SCROLL_STEP_DELAY_MS });
