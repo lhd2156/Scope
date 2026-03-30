@@ -11,6 +11,7 @@
         >
           <LazyImage
             :src="activeGalleryPhoto.url"
+            :fallback-src="heroImageFallback"
             :alt="activeGalleryPhoto.caption || spot.title"
             class="hero-gallery__image"
             eager
@@ -41,7 +42,7 @@
           data-test="gallery-thumb"
           @click="selectedPhotoId = photo.id"
         >
-          <LazyImage :src="photo.url" :alt="photo.caption || spot.title" class="thumbnail-card__image" />
+          <LazyImage :src="photo.url" :fallback-src="heroImageFallback" :alt="photo.caption || spot.title" class="thumbnail-card__image" />
           <span class="thumbnail-card__overlay"></span>
           <span class="thumbnail-card__copy">{{ photo.caption || 'Travel angle' }}</span>
         </button>
@@ -247,7 +248,12 @@
           class="similar-card"
         >
           <div class="similar-card__media">
-            <LazyImage :src="similarSpot.photoUrl || heroImageUrl || ''" :alt="similarSpot.title" class="similar-card__image" />
+            <LazyImage
+              :src="resolveSpotPhotoUrl(similarSpot.category, similarSpot.photoUrl || heroImageUrl, 1200)"
+              :fallback-src="getSpotPhotoFallback(similarSpot.category, 1200)"
+              :alt="similarSpot.title"
+              class="similar-card__image"
+            />
             <span class="similar-card__overlay"></span>
             <div class="similar-card__topline">
               <span class="badge" :class="`badge-${similarSpot.category}`">{{ formatCategory(similarSpot.category) }}</span>
@@ -301,6 +307,7 @@ import ReviewList from '@/components/spots/ReviewList.vue';
 import { listNearbySpots } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 
 const DESIRED_GALLERY_SIZE = 5;
 const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
@@ -401,7 +408,14 @@ function duplicatePhoto(photo: Photo, index: number): Photo {
 }
 
 const categoryLabel = computed(() => (props.spot ? formatCategory(props.spot.category) : 'Spot'));
-const heroImageUrl = computed(() => props.spot?.photoUrl ?? props.spot?.photos[0]?.url ?? '');
+const heroImageFallback = computed(() => getSpotPhotoFallback(props.spot?.category ?? 'scenic', 1400));
+const heroImageUrl = computed(() => {
+  if (!props.spot) {
+    return heroImageFallback.value;
+  }
+
+  return resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl ?? props.spot.photos[0]?.url, 1400);
+});
 const travelCue = computed(() => (props.spot ? travelCueMap[props.spot.category] : travelCueMap.other));
 const galleryPhotos = computed<Photo[]>(() => {
   if (!props.spot) {

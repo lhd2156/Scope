@@ -4,7 +4,13 @@
 
     <div class="avatar-shell" data-test="profile-avatar">
       <div class="avatar-ring">
-        <LazyImage v-if="avatarSource" :src="avatarSource" :alt="`${user.displayName} profile photo`" class="avatar-image" />
+        <LazyImage
+          v-if="avatarSource"
+          :src="avatarSource"
+          :fallback-src="avatarFallbackSource"
+          :alt="`${user.displayName} profile photo`"
+          class="avatar-image"
+        />
         <span v-else class="avatar-fallback">{{ initials }}</span>
       </div>
     </div>
@@ -55,6 +61,7 @@ import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotCategory, UserProfile } from '@/types';
 import { getInitials } from '@/utils/formatters';
+import { buildPravatarUrl } from '@/utils/demoPhotos';
 
 const props = withDefaults(
   defineProps<{
@@ -75,7 +82,8 @@ const props = withDefaults(
 const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 const bioCopy = computed(() => props.user.bio?.trim() || 'Building a premium Atlas footprint one memorable pin at a time.');
-const avatarSource = computed(() => props.user.avatarUrl?.trim() || `https://i.pravatar.cc/240?u=${encodeURIComponent(props.user.id)}`);
+const avatarFallbackSource = computed(() => buildPravatarUrl(props.user.id || props.user.displayName, 240));
+const avatarSource = computed(() => props.user.avatarUrl?.trim() || avatarFallbackSource.value);
 const initials = computed(() => getInitials(props.user.displayName));
 const profileSignature = computed(() => {
   if (props.user.stats?.spots) {

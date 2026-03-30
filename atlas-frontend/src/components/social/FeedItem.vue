@@ -22,12 +22,7 @@
     </header>
 
     <RouterLink class="feed-media" :to="destinationRoute" :aria-label="`Open ${item.title}`">
-      <LazyImage v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title" class="feed-image" />
-      <div v-else class="media-fallback">
-        <AtlasIcon :name="typeIcon" :label="activityLabel" />
-        <strong>{{ typeLabel }}</strong>
-        <span>Travel photo loading</span>
-      </div>
+      <LazyImage :src="feedImageUrl" :fallback-src="feedImageFallback" :alt="item.title" class="feed-image" />
 
       <div class="feed-media-chrome">
         <span class="type-pill" :class="`type-pill--${item.type}`">
@@ -89,6 +84,7 @@ import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { FeedItem as FeedItemModel } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
+import { getFeedPhotoFallback, resolveFeedImageUrl } from '@/utils/demoPhotos';
 
 const props = defineProps<{
   item: FeedItemModel;
@@ -154,6 +150,8 @@ const destinationLabel = computed(() => (props.item.type === 'trip' ? 'Open trip
 const typeIcon = computed(() => (props.item.type === 'trip' ? 'route' : 'pin'));
 const overlayTitle = computed(() => (props.item.type === 'trip' ? 'Route snapshot' : 'Pinned moment'));
 const locationCopy = computed(() => props.item.actor.homeBase?.trim() || 'Atlas community');
+const feedImageFallback = computed(() => getFeedPhotoFallback(props.item, 1200));
+const feedImageUrl = computed(() => resolveFeedImageUrl(props.item, 1200));
 
 const baseLikeCount = computed(() => {
   const friendSeed = props.item.actor.stats?.friends ?? 48;
@@ -336,13 +334,9 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   pointer-events: none;
 }
 
-.feed-image,
-.media-fallback {
+.feed-image {
   width: 100%;
   height: 100%;
-}
-
-.feed-image {
   object-fit: cover;
   transition: transform var(--transition-slow), filter var(--transition-slow);
 }
@@ -350,27 +344,6 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 .feed-item:hover .feed-image,
 .feed-item:focus-within .feed-image {
   transform: scale(var(--motion-image-zoom-subtle));
-}
-
-.media-fallback {
-  display: grid;
-  place-content: center;
-  gap: var(--space-2);
-  padding: var(--space-6);
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.media-fallback strong {
-  color: var(--text-primary);
-  font-size: var(--font-size-h3);
-}
-
-.media-fallback :deep(.atlas-icon) {
-  width: 2rem;
-  height: 2rem;
-  margin: 0 auto;
-  color: var(--accent-teal);
 }
 
 .feed-media-chrome,

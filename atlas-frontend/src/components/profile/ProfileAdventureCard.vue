@@ -1,11 +1,7 @@
 <template>
   <article class="adventure-card glass-panel" data-test="profile-adventure-card">
     <div class="adventure-media">
-      <LazyImage v-if="coverImageUrl" :src="coverImageUrl" :alt="trip.title" class="adventure-image" eager />
-      <div v-else class="adventure-fallback">
-        <AtlasIcon name="route" label="Trip route placeholder" />
-        <span>Adventure cover</span>
-      </div>
+      <LazyImage :src="coverImageUrl" :fallback-src="coverImageFallback" :alt="trip.title" class="adventure-image" eager />
 
       <div class="adventure-media-chrome">
         <span class="destination-pill">{{ trip.destination }}</span>
@@ -45,12 +41,14 @@ import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { Trip, TripStatus } from '@/types';
 import { formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
+import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
 
 const props = defineProps<{
   trip: Trip;
 }>();
 
-const coverImageUrl = computed(() => props.trip.coverImageUrl?.trim() || props.trip.spots[0]?.photoUrl?.trim() || '');
+const coverImageFallback = computed(() => getTripCoverFallback(props.trip, 1200));
+const coverImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, 1200));
 
 const dateRangeLabel = computed(() => {
   const start = formatMonthDay(props.trip.startDate);
@@ -103,13 +101,9 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
   pointer-events: none;
 }
 
-.adventure-image,
-.adventure-fallback {
+.adventure-image {
   width: 100%;
   height: 100%;
-}
-
-.adventure-image {
   object-fit: cover;
   transition: transform var(--transition-slow), filter var(--transition-slow);
 }
@@ -117,22 +111,6 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
 .adventure-card:hover .adventure-image,
 .adventure-card:focus-within .adventure-image {
   transform: scale(1.05);
-}
-
-.adventure-fallback {
-  display: grid;
-  place-content: center;
-  gap: var(--space-2);
-  padding: var(--space-6);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.adventure-fallback :deep(.atlas-icon) {
-  width: 2rem;
-  height: 2rem;
-  margin: 0 auto;
-  color: var(--accent-teal);
 }
 
 .adventure-media-chrome,

@@ -34,8 +34,7 @@
         <p class="eyebrow">Travelers</p>
         <div class="crew-stack">
           <div v-for="member in previewMembers" :key="member.id" class="crew-member">
-            <LazyImage v-if="member.avatarUrl" :src="member.avatarUrl" :alt="member.displayName" class="crew-avatar" />
-            <span v-else class="crew-avatar crew-avatar--fallback">{{ getInitials(member.displayName) }}</span>
+            <Avatar :name="member.displayName" :src="member.avatarUrl" :size="48" class="crew-avatar" />
           </div>
         </div>
         <div class="crew-copy">
@@ -57,7 +56,12 @@
         <div class="timeline-rail">
           <article v-for="day in itinerary.days" :key="day.dayNumber" class="timeline-card">
             <div class="timeline-media">
-              <LazyImage :src="day.spots[0]?.photoUrl ?? ''" :alt="day.spots[0]?.title ?? `Day ${day.dayNumber}`" class="timeline-image" />
+              <LazyImage
+                :src="resolveDayImage(day)"
+                :fallback-src="resolveDayImageFallback(day)"
+                :alt="day.spots[0]?.title ?? `Day ${day.dayNumber}`"
+                class="timeline-image"
+              />
               <div class="timeline-media__overlay">
                 <span class="day-pill">Day {{ day.dayNumber }}</span>
                 <span class="timeline-cost">{{ currencyFormatter.format(getDayCost(day)) }}</span>
@@ -98,10 +102,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import MapView from '@/components/map/MapView.vue';
-import { formatWeekdayMonthDay, getInitials } from '@/utils/formatters';
+import { formatWeekdayMonthDay } from '@/utils/formatters';
 import type { Itinerary, ItineraryDay, MapPoint, TripMember } from '@/types';
+import { getSpotPhotoFallback, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
 
 const props = withDefaults(
   defineProps<{
@@ -127,6 +133,20 @@ function getDayCost(day: ItineraryDay): number {
   return day.spots.reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
 }
 
+function resolveDayImageFallback(day: ItineraryDay): string {
+  return getSpotPhotoFallback(day.spots[0]?.category ?? 'scenic', 1200);
+}
+
+function resolveDayImage(day: ItineraryDay): string {
+  const leadSpot = day.spots[0];
+
+  if (!leadSpot) {
+    return resolveDayImageFallback(day);
+  }
+
+  return resolveTripStopPhotoUrl(leadSpot, 1200);
+}
+
 const displayedTitle = computed(() => props.tripTitle.trim() || props.itinerary?.destination || 'AI itinerary');
 const previewMembers = computed(() => props.members.slice(0, 3));
 const totalStops = computed(() => props.itinerary?.days.reduce((total, day) => total + day.spots.length, 0) ?? 0);
@@ -146,7 +166,7 @@ const mapSpots = computed<MapPoint[]>(() =>
       longitude: spot.longitude,
       category: spot.category,
       city: spot.city,
-      photoUrl: spot.photoUrl,
+      photoUrl: resolveTripStopPhotoUrl(spot, 1200),
     })),
   ) ?? [],
 );
@@ -317,21 +337,12 @@ const mapSpots = computed<MapPoint[]>(() =>
 }
 
 .crew-avatar {
-  width: 3rem;
-  height: 3rem;
   border-radius: var(--radius-full);
-  overflow: hidden;
-  border: 2px solid var(--bg-primary);
-  object-fit: cover;
-  background: var(--bg-secondary);
 }
 
-.crew-avatar--fallback {
-  display: grid;
-  place-items: center;
-  color: var(--accent-teal);
-  font-weight: var(--font-weight-bold);
-  background: var(--accent-teal-light);
+.crew-avatar :deep(img),
+.crew-avatar :deep(.lazy-image) {
+  border: 2px solid var(--bg-primary);
 }
 
 .invite-button {

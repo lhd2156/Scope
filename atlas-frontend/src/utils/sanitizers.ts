@@ -19,6 +19,12 @@ import type {
   TripSpot,
   UserProfile,
 } from '@/types';
+import {
+  resolveAvatarUrl,
+  resolveFeedImageUrl,
+  resolveSpotPhotoUrl,
+  resolveTripCoverImageUrl,
+} from '@/utils/demoPhotos';
 
 const CONTROL_CHARACTERS_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 const INLINE_WHITESPACE_REGEX = /[^\S\n]+/g;
@@ -130,13 +136,14 @@ export function sanitizeAuthPayload(payload: AuthPayload): AuthPayload {
 export function sanitizeUserProfile(user: UserProfile): UserProfile {
   const username = sanitizeSingleLineText(user.username);
   const displayName = sanitizeSingleLineText(user.displayName) || username || DEFAULT_DISPLAY_NAME;
+  const avatarSeed = user.id || username || displayName || DEFAULT_DISPLAY_NAME;
 
   return {
     ...user,
     username: username || 'atlas-user',
     email: sanitizeEmail(user.email) ?? '',
     displayName,
-    avatarUrl: sanitizeImageUrl(user.avatarUrl),
+    avatarUrl: resolveAvatarUrl(sanitizeImageUrl(user.avatarUrl), avatarSeed),
     bio: optionalMultilineText(user.bio),
     homeBase: optionalSingleLineText(user.homeBase),
     interests: (user.interests ?? []).map((interest) => sanitizeSingleLineText(interest)).filter(Boolean),
@@ -169,7 +176,7 @@ export function sanitizeSpotSummary(spot: SpotSummary): SpotSummary {
     city: optionalSingleLineText(spot.city),
     country: optionalSingleLineText(spot.country),
     vibe: optionalSingleLineText(spot.vibe),
-    photoUrl: sanitizeImageUrl(spot.photoUrl),
+    photoUrl: resolveSpotPhotoUrl(spot.category, sanitizeImageUrl(spot.photoUrl)),
     author: spot.author ? sanitizeUserProfile(spot.author) : undefined,
   };
 }
@@ -188,7 +195,7 @@ export function sanitizeMapPoint(point: MapPoint): MapPoint {
     title: sanitizeSingleLineText(point.title) || DEFAULT_SPOT_TITLE,
     city: optionalSingleLineText(point.city),
     vibe: optionalSingleLineText(point.vibe),
-    photoUrl: sanitizeImageUrl(point.photoUrl),
+    photoUrl: resolveSpotPhotoUrl(point.category, sanitizeImageUrl(point.photoUrl)),
   };
 }
 
@@ -197,17 +204,20 @@ export function sanitizeTripSpot(spot: TripSpot): TripSpot {
     ...spot,
     title: sanitizeSingleLineText(spot.title) || DEFAULT_SPOT_TITLE,
     timeSlot: optionalSingleLineText(spot.timeSlot),
-    photoUrl: sanitizeImageUrl(spot.photoUrl),
+    photoUrl: resolveSpotPhotoUrl(spot.category, sanitizeImageUrl(spot.photoUrl)),
     city: optionalSingleLineText(spot.city),
     notes: optionalMultilineText(spot.notes),
   };
 }
 
 export function sanitizeTripMember(member: TripMember): TripMember {
+  const displayName = sanitizeSingleLineText(member.displayName) || DEFAULT_DISPLAY_NAME;
+  const avatarSeed = member.id || displayName || DEFAULT_DISPLAY_NAME;
+
   return {
     ...member,
-    displayName: sanitizeSingleLineText(member.displayName) || DEFAULT_DISPLAY_NAME,
-    avatarUrl: sanitizeImageUrl(member.avatarUrl),
+    displayName,
+    avatarUrl: resolveAvatarUrl(sanitizeImageUrl(member.avatarUrl), avatarSeed),
     status: optionalSingleLineText(member.status),
   };
 }
@@ -225,15 +235,20 @@ export function sanitizeItinerary(itinerary: Itinerary): Itinerary {
 }
 
 export function sanitizeTrip(trip: Trip): Trip {
+  const sanitizedSpots = trip.spots.map((spot) => sanitizeTripSpot(spot));
+
   return {
     ...trip,
     title: sanitizeSingleLineText(trip.title) || DEFAULT_TRIP_TITLE,
     destination: sanitizeSingleLineText(trip.destination) || DEFAULT_DESTINATION,
     description: optionalMultilineText(trip.description),
-    spots: trip.spots.map((spot) => sanitizeTripSpot(spot)),
+    spots: sanitizedSpots,
     members: trip.members.map((member) => sanitizeTripMember(member)),
     itinerary: trip.itinerary ? sanitizeItinerary(trip.itinerary) : undefined,
-    coverImageUrl: sanitizeImageUrl(trip.coverImageUrl),
+    coverImageUrl: resolveTripCoverImageUrl({
+      coverImageUrl: sanitizeImageUrl(trip.coverImageUrl),
+      spots: sanitizedSpots,
+    }),
   };
 }
 
@@ -243,7 +258,10 @@ export function sanitizeFeedItem(item: FeedItem): FeedItem {
     actor: sanitizeUserProfile(item.actor),
     title: sanitizeSingleLineText(item.title) || DEFAULT_FEED_TITLE,
     excerpt: sanitizeMultilineText(item.excerpt),
-    imageUrl: sanitizeImageUrl(item.imageUrl),
+    imageUrl: resolveFeedImageUrl({
+      type: item.type,
+      imageUrl: sanitizeImageUrl(item.imageUrl),
+    }),
   };
 }
 

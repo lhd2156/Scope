@@ -1,9 +1,9 @@
 <template>
   <img
-    v-if="shouldRenderImage && !hasError"
+    v-if="shouldRenderImage && activeSrc && !hasError"
     ref="rootRef"
     v-bind="attrs"
-    :src="src"
+    :src="activeSrc"
     :alt="alt"
     :loading="eager ? 'eager' : 'lazy'"
     :decoding="eager ? 'sync' : 'async'"
@@ -37,12 +37,14 @@ const props = withDefaults(
     eager?: boolean;
     rootMargin?: string;
     threshold?: number;
+    fallbackSrc?: string;
   }>(),
   {
     alt: '',
     eager: false,
     rootMargin: '240px 0px',
     threshold: 0.01,
+    fallbackSrc: '',
   },
 );
 
@@ -56,6 +58,7 @@ const rootRef = ref<HTMLElement | null>(null);
 const isLoaded = ref(false);
 const hasError = ref(false);
 const shouldRenderImage = ref(false);
+const activeSrc = ref('');
 let observer: IntersectionObserver | null = null;
 
 function supportsIntersectionObserver(): boolean {
@@ -68,15 +71,15 @@ function disconnectObserver() {
 }
 
 function revealImage() {
-  shouldRenderImage.value = true;
+  shouldRenderImage.value = Boolean(activeSrc.value);
   disconnectObserver();
 }
 
 function observeVisibility() {
   disconnectObserver();
 
-  if (!props.src || props.eager || !supportsIntersectionObserver()) {
-    shouldRenderImage.value = Boolean(props.src);
+  if (!activeSrc.value || props.eager || !supportsIntersectionObserver()) {
+    shouldRenderImage.value = Boolean(activeSrc.value);
     return;
   }
 
@@ -101,21 +104,44 @@ function observeVisibility() {
   observer.observe(rootRef.value);
 }
 
+function getPrimarySource(): string {
+  return props.src.trim();
+}
+
+function getFallbackSource(): string {
+  return props.fallbackSrc.trim();
+}
+
+function syncSources() {
+  activeSrc.value = getPrimarySource() || getFallbackSource();
+  isLoaded.value = false;
+  hasError.value = false;
+}
+
 function handleLoad() {
   isLoaded.value = true;
   emit('load');
 }
 
 function handleError() {
+  const fallbackSource = getFallbackSource();
+
+  if (fallbackSource && activeSrc.value !== fallbackSource) {
+    activeSrc.value = fallbackSource;
+    hasError.value = false;
+    isLoaded.value = false;
+    shouldRenderImage.value = true;
+    return;
+  }
+
   hasError.value = true;
   emit('error');
 }
 
 watch(
-  () => [props.src, props.eager, props.rootMargin, props.threshold] as const,
+  () => [props.src, props.fallbackSrc, props.eager, props.rootMargin, props.threshold] as const,
   async () => {
-    isLoaded.value = false;
-    hasError.value = false;
+    syncSources();
     await nextTick();
     observeVisibility();
   },

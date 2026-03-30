@@ -1,12 +1,7 @@
 <template>
   <article class="spot-card glass-panel">
     <div class="spot-media">
-      <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="spot-image" />
-      <div v-else class="spot-placeholder">
-        <AtlasIcon name="image" label="Spot cover placeholder" />
-        <strong>{{ categoryLabel }}</strong>
-        <span>Cover photo coming soon</span>
-      </div>
+      <LazyImage :src="spotImageUrl" :fallback-src="spotImageFallback" :alt="spot.title" class="spot-image" />
 
       <div class="spot-media-chrome">
         <span class="badge" :class="`badge-${spot.category}`">{{ categoryLabel }}</span>
@@ -64,6 +59,7 @@ import { computed, ref, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotSummary } from '@/types';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 
 const props = defineProps<{
   spot: SpotSummary;
@@ -95,6 +91,8 @@ function toggleSaved() {
 }
 
 const categoryLabel = computed(() => formatCategory(props.spot.category));
+const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.category, 1200));
+const spotImageUrl = computed(() => resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl, 1200));
 const ratingLabel = computed(() => props.spot.rating.toFixed(1));
 const formattedVibe = computed(() => (props.spot.vibe?.trim() ? formatVibe(props.spot.vibe) : ''));
 const locationLabel = computed(() => {
@@ -157,13 +155,9 @@ const footerCopy = computed(() => {
   pointer-events: none;
 }
 
-.spot-image,
-.spot-placeholder {
+.spot-image {
   width: 100%;
   height: 100%;
-}
-
-.spot-image {
   object-fit: cover;
   transition: transform var(--transition-slow), filter var(--transition-slow);
 }
@@ -171,27 +165,6 @@ const footerCopy = computed(() => {
 .spot-card:hover .spot-image,
 .spot-card:focus-within .spot-image {
   transform: scale(var(--motion-image-zoom));
-}
-
-.spot-placeholder {
-  display: grid;
-  place-content: center;
-  gap: var(--space-2);
-  padding: var(--space-6);
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.spot-placeholder :deep(.atlas-icon) {
-  width: 2rem;
-  height: 2rem;
-  margin: 0 auto;
-  color: var(--accent-teal);
-}
-
-.spot-placeholder strong {
-  color: var(--text-primary);
-  font-size: var(--font-size-h3);
 }
 
 .spot-media-chrome,
