@@ -2,6 +2,46 @@
   <section class="map-view">
     <div ref="mapContainer" class="map-canvas" :class="{ 'is-fallback': !hasToken }" />
 
+    <div v-if="!hasToken" class="map-fallback" data-test="map-fallback-stage" aria-hidden="true">
+      <svg class="map-fallback__canvas" viewBox="0 0 1200 900" preserveAspectRatio="none">
+        <g class="map-fallback__terrain">
+          <path v-for="terrainShape in fallbackTerrainPaths" :key="terrainShape" :d="terrainShape" />
+        </g>
+
+        <g class="map-fallback__rings">
+          <circle v-for="ringRadius in fallbackRingSizes" :key="ringRadius" cx="842" cy="638" :r="ringRadius" />
+        </g>
+
+        <g v-if="fallbackRoutePath" class="map-fallback__route">
+          <path :d="fallbackRoutePath" />
+        </g>
+
+        <g class="map-fallback__markers">
+          <g
+            v-for="marker in fallbackMarkers"
+            :key="marker.id"
+            class="map-fallback__marker"
+            :class="[`is-${marker.category}`, { 'is-active': marker.isActive }]"
+            :data-test="`map-fallback-marker-${marker.id}`"
+          >
+            <circle class="map-fallback__marker-halo" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 34 : 24" />
+            <circle class="map-fallback__marker-ring" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 15 : 12" />
+            <circle class="map-fallback__marker-core" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 8 : 6" />
+
+            <g v-if="marker.sequence !== null" class="map-fallback__sequence">
+              <circle :cx="marker.x + 18" :cy="marker.y - 18" r="12" />
+              <text :x="marker.x + 18" :y="marker.y - 14">{{ marker.sequence }}</text>
+            </g>
+
+            <g v-if="marker.showLabel" class="map-fallback__label">
+              <rect :x="marker.labelX" :y="marker.labelY" :width="marker.labelWidth" height="30" rx="15" ry="15" />
+              <text :x="marker.labelTextX" :y="marker.labelTextY">{{ marker.label }}</text>
+            </g>
+          </g>
+        </g>
+      </svg>
+    </div>
+
     <div v-if="showSummary" class="map-summary glass-panel">
       <span>{{ visibleSpotCount }} pins in view</span>
       <span v-if="hasRoute">{{ routePoints.length }} route stops</span>
@@ -77,6 +117,35 @@ interface MarkerController {
   marker: mapboxgl.Marker;
 }
 
+interface FallbackMarker {
+  id: string;
+  category: SpotCategory;
+  x: number;
+  y: number;
+  label: string;
+  labelX: number;
+  labelY: number;
+  labelTextX: number;
+  labelTextY: number;
+  labelWidth: number;
+  sequence: number | null;
+  isActive: boolean;
+  showLabel: boolean;
+}
+
+const FALLBACK_VIEWPORT = {
+  width: 1200,
+  height: 900,
+};
+
+const fallbackTerrainPaths = [
+  'M 54 142 C 148 74 298 56 422 118 C 534 176 586 292 560 384 C 526 510 380 562 268 618 C 198 652 146 734 88 712 C 30 690 38 590 26 484 C 16 390 -18 198 54 142 Z',
+  'M 298 468 C 370 392 520 370 612 430 C 722 504 742 646 676 742 C 614 828 458 860 340 806 C 236 758 204 566 298 468 Z',
+  'M 690 112 C 796 60 944 86 1034 178 C 1128 274 1146 444 1076 556 C 998 682 810 730 680 672 C 574 624 534 448 570 316 C 596 220 622 144 690 112 Z',
+  'M 888 586 C 960 542 1050 556 1114 620 C 1182 690 1182 802 1106 850 C 1018 906 854 902 786 822 C 734 760 786 648 888 586 Z',
+];
+const fallbackRingSizes = [168, 248, 332];
+
 const props = withDefaults(
   defineProps<{
     spots: MapPoint[];
@@ -141,6 +210,62 @@ const routeVariant = computed(() => props.routeVariant);
 const routeOrderLookup = computed(() =>
   new Map(props.routePoints.map((point, index) => [point.id, index + 1])),
 );
+const fallbackMarkers = computed<FallbackMarker[]>(() => {
+  const projectedSource = filteredSpots.value.length ? filteredSpots.value : props.spots;
+  const activeMarkerId = selectedSpotId.value ?? props.routePoints[0]?.id ?? projectedSource[0]?.id ?? null;
+
+  return projectedSource.map((spot, index) => {
+    const x = Number((((spot.longitude + 180) / 360) * FALLBACK_VIEWPORT.width).toFixed(2));
+    const y = Number((((90 - spot.latitude) / 180) * FALLBACK_VIEWPORT.height).toFixed(2));
+    const label = (spot.city || spot.title).trim().slice(0, 22) || 'Atlas pin';
+    const labelWidth = Math.min(Math.max(label.length * 8 + 30, 104), 180);
+    const labelX = clampNumber(x + 18, 18, FALLBACK_VIEWPORT.width - labelWidth - 18);
+    const labelY = clampNumber(y - 44, 18, FALLBACK_VIEWPORT.height - 48);
+    const sequence = routeOrderLookup.value.get(spot.id) ?? null;
+    const isActive = spot.id === activeMarkerId;
+
+    return {
+      id: spot.id,
+      category: spot.category,
+      x,
+      y,
+      label,
+      labelX,
+      labelY,
+      labelTextX: labelX + 16,
+      labelTextY: labelY + 19,
+      labelWidth,
+      sequence,
+      isActive,
+      showLabel: isActive || sequence !== null || index < 3,
+    };
+  });
+});
+const fallbackRoutePath = computed(() => {
+  if (props.routePoints.length < 2) {
+    return '';
+  }
+
+  const projectedRoutePoints = props.routePoints.map((point) => ({
+    x: Number((((point.longitude + 180) / 360) * FALLBACK_VIEWPORT.width).toFixed(2)),
+    y: Number((((90 - point.latitude) / 180) * FALLBACK_VIEWPORT.height).toFixed(2)),
+  }));
+
+  return projectedRoutePoints.reduce((pathSegments, point, index) => {
+    if (index === 0) {
+      return `M ${point.x} ${point.y}`;
+    }
+
+    const previousPoint = projectedRoutePoints[index - 1];
+    const controlX = Number((((previousPoint.x + point.x) / 2)).toFixed(2));
+    const controlY = Number((Math.max(56, Math.min(previousPoint.y, point.y) - 58)).toFixed(2));
+    return `${pathSegments} Q ${controlX} ${controlY} ${point.x} ${point.y}`;
+  }, '');
+});
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 function resolveMapStyle(): string {
   if (typeof window === 'undefined') {
@@ -511,23 +636,151 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-2xl);
   overflow: hidden;
   background:
-    radial-gradient(circle at top left, var(--accent-teal-light), transparent 35%),
-    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 22%, transparent), transparent 32%),
+    radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-gold) 18%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 100%, transparent), color-mix(in srgb, var(--bg-secondary) 100%, transparent));
 }
 
-.map-canvas {
+.map-canvas,
+.map-fallback {
   position: absolute;
   inset: 0;
 }
 
 .map-canvas.is-fallback {
   background:
-    linear-gradient(90deg, transparent 49%, var(--glass-border) 50%, transparent 51%),
-    linear-gradient(transparent 49%, var(--glass-border) 50%, transparent 51%),
-    radial-gradient(circle at top left, var(--accent-teal-light), transparent 30%),
-    radial-gradient(circle at bottom right, var(--accent-gold-light), transparent 30%),
-    var(--bg-secondary);
-  background-size: 4rem 4rem, 4rem 4rem, auto, auto, auto;
+    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 28%),
+    radial-gradient(circle at 78% 76%, color-mix(in srgb, var(--accent-gold) 16%, transparent), transparent 24%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 98%, transparent), color-mix(in srgb, var(--bg-secondary) 100%, transparent));
+}
+
+.map-fallback {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.map-fallback__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.map-fallback__terrain path {
+  fill: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  stroke: color-mix(in srgb, var(--glass-border) 85%, transparent);
+  stroke-width: 2;
+}
+
+.map-fallback__rings circle {
+  fill: none;
+  stroke: color-mix(in srgb, var(--glass-border) 72%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 14 18;
+}
+
+.map-fallback__route path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent-teal) 72%, transparent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 12 14;
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent-teal) 22%, transparent));
+}
+
+.map-fallback__marker {
+  color: var(--accent-teal);
+}
+
+.map-fallback__marker.is-food {
+  color: var(--accent-teal);
+}
+
+.map-fallback__marker.is-nature {
+  color: var(--success);
+}
+
+.map-fallback__marker.is-nightlife {
+  color: color-mix(in srgb, var(--info) 55%, var(--bg-tertiary));
+}
+
+.map-fallback__marker.is-culture {
+  color: var(--info);
+}
+
+.map-fallback__marker.is-adventure {
+  color: var(--accent-gold);
+}
+
+.map-fallback__marker.is-shopping {
+  color: color-mix(in srgb, var(--accent-gold) 40%, var(--accent-teal));
+}
+
+.map-fallback__marker.is-scenic {
+  color: color-mix(in srgb, var(--accent-teal) 62%, var(--info));
+}
+
+.map-fallback__marker.is-other {
+  color: var(--text-secondary);
+}
+
+.map-fallback__marker-halo,
+.map-fallback__marker-ring,
+.map-fallback__marker-core,
+.map-fallback__label rect,
+.map-fallback__sequence circle {
+  transition:
+    transform var(--transition-normal),
+    opacity var(--transition-normal),
+    fill var(--transition-normal),
+    stroke var(--transition-normal);
+}
+
+.map-fallback__marker-halo {
+  fill: color-mix(in srgb, currentColor 18%, transparent);
+  opacity: 0.65;
+}
+
+.map-fallback__marker-ring {
+  fill: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  stroke: color-mix(in srgb, currentColor 85%, transparent);
+  stroke-width: 2.5;
+}
+
+.map-fallback__marker-core {
+  fill: currentColor;
+}
+
+.map-fallback__marker.is-active .map-fallback__marker-halo {
+  fill: color-mix(in srgb, currentColor 26%, transparent);
+  opacity: 1;
+}
+
+.map-fallback__marker.is-active .map-fallback__marker-ring {
+  stroke: color-mix(in srgb, currentColor 100%, var(--text-primary));
+}
+
+.map-fallback__label rect,
+.map-fallback__sequence circle {
+  fill: color-mix(in srgb, var(--glass-bg) 96%, transparent);
+  stroke: color-mix(in srgb, currentColor 55%, var(--glass-border));
+  stroke-width: 1;
+}
+
+.map-fallback__label text,
+.map-fallback__sequence text {
+  fill: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.map-fallback__label text {
+  dominant-baseline: middle;
+}
+
+.map-fallback__sequence text {
+  font-size: 0.72rem;
+  text-anchor: middle;
 }
 
 .map-summary,
@@ -565,12 +818,14 @@ onBeforeUnmount(() => {
 .empty-state {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: min(32rem, calc(100% - 2rem));
-  transform: translate(-50%, -50%);
+  width: min(28rem, calc(100% - 4rem));
+  transform: translate(-10%, -50%);
   z-index: var(--z-sidebar);
-  padding: var(--space-6);
+  padding: var(--space-5);
   display: grid;
   gap: var(--space-4);
+  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  box-shadow: var(--shadow-lg);
 }
 
 .empty-state h2 {
@@ -607,6 +862,24 @@ code {
   color: var(--text-primary);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .map-fallback__marker.is-active .map-fallback__marker-halo {
+    animation: map-fallback-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-fallback__marker-halo,
+  .map-fallback__marker-ring,
+  .map-fallback__marker-core,
+  .map-fallback__label rect,
+  .map-fallback__sequence circle,
+  .map-fallback__route path {
+    transition: none;
+    animation: none;
+  }
+}
+
 @media (max-width: 960px) {
   .map-summary,
   .tracker-overlay {
@@ -620,6 +893,24 @@ code {
 
   .tracker-overlay {
     bottom: 19rem;
+  }
+
+  .empty-state {
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+    transform: translate(0, -50%);
+  }
+}
+
+@keyframes map-fallback-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 1;
   }
 }
 </style>

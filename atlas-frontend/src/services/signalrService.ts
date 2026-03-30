@@ -4,6 +4,8 @@ import type { NotificationConnectionState, NotificationItem } from '@/types';
 const NOTIFICATION_HUB_URL = '/api/core/hubs/notifications';
 const NOTIFICATION_RECEIVED_EVENT = 'NotificationReceived';
 const RECONNECT_DELAYS_MS = [0, 2_000, 10_000, 30_000];
+const MOCK_AUTH_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
+const VISUAL_QA_FLAG = '__ATLAS_VISUAL_QA__';
 
 export interface NotificationStreamOptions {
   accessTokenFactory: () => string;
@@ -34,6 +36,14 @@ function emitState(state: NotificationConnectionState) {
 
 function emitError(error: unknown) {
   activeOptions?.onError?.(serializeError(error));
+}
+
+function isVisualQaSession() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean((window as Window & { __ATLAS_VISUAL_QA__?: boolean })[VISUAL_QA_FLAG]);
 }
 
 function normalizeNotification(notification: NotificationItem): NotificationItem {
@@ -84,6 +94,12 @@ function ensureConnection(options: NotificationStreamOptions): signalR.HubConnec
 
 export async function startNotificationStream(options: NotificationStreamOptions): Promise<void> {
   activeOptions = options;
+
+  if (MOCK_AUTH_FALLBACK_ENABLED || isVisualQaSession()) {
+    emitState('idle');
+    emitError(null);
+    return;
+  }
 
   const accessToken = options.accessTokenFactory().trim();
   if (!accessToken) {
