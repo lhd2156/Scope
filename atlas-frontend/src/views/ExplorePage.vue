@@ -1,103 +1,104 @@
 <template>
   <AppShell>
     <div class="page-container page-stack explore-page">
-      <section class="glass-panel hero-panel">
-        <div class="hero-copy">
-          <p class="eyebrow">Explore</p>
-          <h1>Find the right vibe for the day.</h1>
-          <p class="section-copy">
-            Search the community map, stack category and city filters, and move from inspiration to a concrete stop list without leaving the discovery flow.
-          </p>
+      <section class="glass-panel discovery-shell">
+        <div class="discovery-shell__header">
+          <div class="discovery-shell__copy">
+            <p class="eyebrow">Discover</p>
+            <h1>Explore standout places through photo-led discovery.</h1>
+            <p class="section-copy">
+              Search by spot, city, or vibe, then refine the shortlist with premium category chips and a ranked trending rail.
+            </p>
+          </div>
+
+          <div class="surface-card discovery-shell__metric">
+            <span class="metric-label">Curated results</span>
+            <strong data-test="results-count">{{ displayedSpots.length }}</strong>
+            <span class="metric-meta">{{ availableCities.length }} cities · {{ categories.length }} categories</span>
+          </div>
         </div>
 
-        <div class="hero-metrics">
-          <article class="surface-card metric-card">
-            <small>Visible results</small>
-            <strong data-test="results-count">{{ filteredSpots.length }}</strong>
-            <span>Spots matching the active discovery filters</span>
-          </article>
-          <article class="surface-card metric-card">
-            <small>Cities covered</small>
-            <strong>{{ availableCities.length }}</strong>
-            <span>Mapped across the current explore dataset</span>
-          </article>
-          <article class="surface-card metric-card">
-            <small>Categories</small>
-            <strong>{{ categories.length }}</strong>
-            <span>Discovery lanes ready to browse</span>
-          </article>
-        </div>
-      </section>
-
-      <section class="glass-panel filter-panel">
-        <div class="filter-toolbar">
+        <div class="discovery-shell__toolbar">
           <SearchBar
             v-model="searchQuery"
-            class="filter-search"
+            class="discover-search"
             label="Search spots"
-            placeholder="Search by title, city, vibe, or description"
+            placeholder="Search spots, cities, vibes..."
           />
 
-          <div class="toolbar-actions">
-            <RouterLink class="button button-primary" to="/spots/new">Drop a new pin</RouterLink>
-            <button type="button" class="button button-secondary" @click="clearFilters">Clear filters</button>
+          <div class="view-toggle" aria-label="Explore layout switch">
+            <button type="button" class="view-toggle__button is-active" aria-pressed="true">Grid</button>
+            <RouterLink class="view-toggle__button" to="/map">Map</RouterLink>
           </div>
         </div>
 
-        <div class="chip-stack">
-          <div class="chip-group">
-            <p class="chip-label">Categories</p>
-            <div class="chip-row">
-              <button type="button" class="filter-chip" :class="{ active: !selectedCategory }" @click="selectedCategory = ''">
-                All
-              </button>
-              <button
-                v-for="category in categories"
-                :key="category"
-                :data-test="`category-chip-${category}`"
-                type="button"
-                class="filter-chip"
-                :class="{ active: selectedCategory === category }"
-                @click="toggleCategory(category)"
-              >
-                {{ formatCategory(category) }}
-              </button>
-            </div>
-          </div>
+        <div class="category-strip" role="toolbar" aria-label="Spot categories">
+          <button type="button" class="filter-chip" :class="{ active: !selectedCategory }" @click="selectedCategory = ''">All</button>
+          <button
+            v-for="category in categories"
+            :key="category"
+            :data-test="`category-chip-${category}`"
+            type="button"
+            class="filter-chip"
+            :class="[
+              { active: selectedCategory === category },
+              selectedCategory === category ? ['chip-toned', `badge-${category}`] : [],
+            ]"
+            @click="toggleCategory(category)"
+          >
+            {{ formatCategory(category) }}
+          </button>
+        </div>
 
-          <div class="chip-group">
-            <p class="chip-label">Cities</p>
-            <div class="chip-row">
-              <button type="button" class="filter-chip" :class="{ active: !selectedCity }" @click="selectedCity = ''">All cities</button>
+        <div class="quick-filter-grid">
+          <section class="quick-filter-group" aria-label="City quick filters">
+            <div class="quick-filter-group__header">
+              <p class="chip-label">Cities</p>
+              <button v-if="selectedCity" type="button" class="text-reset" @click="selectedCity = ''">Reset</button>
+            </div>
+            <div class="quick-filter-row">
+              <button type="button" class="quick-filter-chip" :class="{ active: !selectedCity }" @click="selectedCity = ''">All cities</button>
               <button
                 v-for="city in availableCities"
                 :key="city"
                 type="button"
-                class="filter-chip"
+                class="quick-filter-chip"
                 :class="{ active: selectedCity === city }"
                 @click="toggleCity(city)"
               >
                 {{ city }}
               </button>
             </div>
-          </div>
+          </section>
 
-          <div class="chip-group">
-            <p class="chip-label">Vibes</p>
-            <div class="chip-row">
-              <button type="button" class="filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
+          <section class="quick-filter-group" aria-label="Vibe quick filters">
+            <div class="quick-filter-group__header">
+              <p class="chip-label">Vibes</p>
+              <button v-if="selectedVibe" type="button" class="text-reset" @click="selectedVibe = ''">Reset</button>
+            </div>
+            <div class="quick-filter-row">
+              <button type="button" class="quick-filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
               <button
                 v-for="vibe in availableVibes"
                 :key="vibe"
                 type="button"
-                class="filter-chip"
+                class="quick-filter-chip"
                 :class="{ active: selectedVibe === vibe }"
                 @click="toggleVibe(vibe)"
               >
                 {{ formatVibe(vibe) }}
               </button>
             </div>
+          </section>
+        </div>
+
+        <div class="discovery-shell__footer">
+          <div class="active-filter-row">
+            <span class="active-pill active-pill--summary">{{ displayedSpots.length }} ready to browse</span>
+            <span v-for="pill in activeFilterPills" :key="pill" class="active-pill">{{ pill }}</span>
           </div>
+
+          <button type="button" class="button button-secondary clear-filters" @click="clearFilters">Clear filters</button>
         </div>
       </section>
 
@@ -107,36 +108,110 @@
         <p class="section-copy">{{ spotsStore.error }}</p>
       </article>
 
-      <section class="results-section">
-        <div class="results-header">
-          <div>
-            <p class="eyebrow">Discovery results</p>
-            <h2>Community-loved spots</h2>
+      <section class="explore-layout">
+        <div class="explore-main">
+          <div class="results-header">
+            <div>
+              <p class="eyebrow">Explore grid</p>
+              <h2>Community-loved spots</h2>
+            </div>
+            <p class="results-note">Rich cover imagery, soft gradient overlays, and hover motion tuned to the explore mockup.</p>
           </div>
-          <div class="active-filter-row">
-            <span v-if="selectedCategory" class="active-pill">{{ formatCategory(selectedCategory) }}</span>
-            <span v-if="selectedCity" class="active-pill">{{ selectedCity }}</span>
-            <span v-if="selectedVibe" class="active-pill">{{ formatVibe(selectedVibe) }}</span>
-            <span v-if="searchQuery" class="active-pill">“{{ searchQuery }}”</span>
+
+          <div v-if="showResultsSkeleton" class="results-masonry" role="status" aria-live="polite" aria-label="Loading explore results">
+            <SpotCardSkeleton v-for="index in 6" :key="`explore-skeleton-${index}`" />
           </div>
+          <div v-else-if="displayedSpots.length" class="results-masonry stagger-in" data-test="explore-results">
+            <RouterLink
+              v-for="spot in displayedSpots"
+              :key="spot.id"
+              :to="`/spots/${spot.id}`"
+              class="explore-card glass-panel"
+              data-test="explore-card"
+            >
+              <div class="explore-card__media">
+                <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="explore-card__image" />
+                <div v-else class="explore-card__placeholder">
+                  <AtlasIcon name="image" label="Explore cover placeholder" />
+                  <strong>{{ formatCategory(spot.category) }}</strong>
+                  <span>Photo syncing soon</span>
+                </div>
+
+                <div class="explore-card__chrome">
+                  <span class="badge" :class="`badge-${spot.category}`">{{ formatCategory(spot.category) }}</span>
+                  <span class="explore-card__save" aria-hidden="true">
+                    <AtlasIcon name="heart" />
+                  </span>
+                </div>
+
+                <div class="explore-card__overlay">
+                  <h3>{{ spot.title }}</h3>
+                  <p class="explore-card__location">
+                    <AtlasIcon name="pin" />
+                    <span>{{ formatLocation(spot) }}</span>
+                  </p>
+                  <div class="explore-card__rating-row">
+                    <div class="explore-card__stars" :aria-label="`Rated ${spot.rating.toFixed(1)} out of 5`">
+                      <AtlasIcon
+                        v-for="starIndex in 5"
+                        :key="`${spot.id}-star-${starIndex}`"
+                        name="star-filled"
+                        :class="['explore-card__star', { 'is-active': starIndex <= roundedRating(spot.rating) }]"
+                      />
+                    </div>
+                    <span class="explore-card__rating-value">{{ spot.rating.toFixed(1) }}</span>
+                  </div>
+                </div>
+              </div>
+            </RouterLink>
+          </div>
+          <EmptyStatePanel
+            v-else-if="!spotsStore.error"
+            eyebrow="Discovery results"
+            :title="emptyStateTitle"
+            :description="emptyStateDescription"
+            icon="search"
+            heading-level="h3"
+          >
+            <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
+          </EmptyStatePanel>
         </div>
 
-        <div v-if="showResultsSkeleton" class="results-grid" role="status" aria-live="polite" aria-label="Loading explore results">
-          <SpotCardSkeleton v-for="index in 8" :key="`explore-skeleton-${index}`" />
-        </div>
-        <div v-else-if="filteredSpots.length" class="results-grid">
-          <SpotCard v-for="spot in filteredSpots" :key="spot.id" :spot="spot" />
-        </div>
-        <EmptyStatePanel
-          v-else-if="!spotsStore.error"
-          eyebrow="Discovery results"
-          :title="emptyStateTitle"
-          :description="emptyStateDescription"
-          icon="search"
-          heading-level="h3"
-        >
-          <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
-        </EmptyStatePanel>
+        <aside class="glass-panel trending-panel">
+          <div class="trending-panel__header">
+            <p class="eyebrow">Trending</p>
+            <h2>Trending This Week</h2>
+            <p class="section-copy">
+              Ranked by community saves, momentum, and the places travelers are adding into trip plans right now.
+            </p>
+          </div>
+
+          <div v-if="showResultsSkeleton" class="trending-skeleton-list" aria-hidden="true">
+            <div v-for="index in 6" :key="`trending-skeleton-${index}`" class="trending-skeleton" />
+          </div>
+          <ol v-else-if="trendingSpots.length" class="trending-list" data-test="trending-list">
+            <li v-for="(spot, index) in trendingSpots" :key="`trending-${spot.id}`">
+              <RouterLink :to="`/spots/${spot.id}`" class="trending-item" data-test="trending-item">
+                <span class="trending-item__rank" :aria-label="`Rank ${index + 1}`">#{{ index + 1 }}</span>
+                <div class="trending-item__thumb-wrap">
+                  <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="trending-item__thumb" />
+                  <div v-else class="trending-item__thumb trending-item__thumb--placeholder">
+                    <AtlasIcon name="image" label="Trending placeholder" />
+                  </div>
+                </div>
+                <div class="trending-item__copy">
+                  <strong>{{ spot.title }}</strong>
+                  <p>
+                    <AtlasIcon name="pin" />
+                    <span>{{ formatLocation(spot) }}</span>
+                  </p>
+                  <span>{{ formatCategory(spot.category) }} · {{ formatSaves(spot.likesCount) }}</span>
+                </div>
+              </RouterLink>
+            </li>
+          </ol>
+          <p v-else class="trending-empty">Trending spots are syncing into Atlas right now.</p>
+        </aside>
       </section>
     </div>
   </AppShell>
@@ -146,9 +221,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
+import LazyImage from '@/components/common/LazyImage.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
-import SpotCard from '@/components/spots/SpotCard.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
@@ -173,6 +249,20 @@ function formatVibe(vibe: string): string {
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
+}
+
+function formatLocation(spot: SpotSummary): string {
+  const parts = [spot.city, spot.country].filter((value): value is string => Boolean(value?.trim()));
+  return parts.length ? parts.join(', ') : 'Atlas community pin';
+}
+
+function formatSaves(likesCount?: number): string {
+  const totalSaves = likesCount ?? 0;
+  return totalSaves > 0 ? `${totalSaves} saves` : 'New pin';
+}
+
+function roundedRating(rating: number): number {
+  return Math.max(0, Math.min(5, Math.round(rating)));
 }
 
 function toggleCategory(category: SpotCategory) {
@@ -232,6 +322,40 @@ const filteredSpots = computed(() =>
   }),
 );
 
+const displayedSpots = computed(() =>
+  [...filteredSpots.value].sort(
+    (left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0) || right.rating - left.rating || right.createdAt.localeCompare(left.createdAt),
+  ),
+);
+
+const trendingSpots = computed(() =>
+  [...baseSpots.value]
+    .sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0) || right.rating - left.rating || right.createdAt.localeCompare(left.createdAt))
+    .slice(0, 8),
+);
+
+const activeFilterPills = computed(() => {
+  const pills: string[] = [];
+
+  if (selectedCategory.value) {
+    pills.push(formatCategory(selectedCategory.value));
+  }
+
+  if (selectedCity.value) {
+    pills.push(selectedCity.value);
+  }
+
+  if (selectedVibe.value) {
+    pills.push(formatVibe(selectedVibe.value));
+  }
+
+  if (searchQuery.value) {
+    pills.push(`“${searchQuery.value}”`);
+  }
+
+  return pills;
+});
+
 const showResultsSkeleton = computed(() => isFetchingInitialResults.value && !baseSpots.value.length && !spotsStore.error);
 const emptyStateTitle = computed(() => (hasActiveFilters.value ? 'No spots match the current filters' : 'No community spots yet'));
 const emptyStateDescription = computed(() =>
@@ -275,163 +399,702 @@ onMounted(async () => {
 
 <style scoped>
 .explore-page,
-.hero-panel,
-.hero-copy,
-.hero-metrics,
-.filter-panel,
-.chip-stack,
-.chip-group,
+.discovery-shell,
+.quick-filter-grid,
+.quick-filter-group,
 .error-panel,
-.results-section,
-.results-grid {
+.explore-layout,
+.explore-main,
+.results-masonry,
+.trending-panel,
+.trending-panel__header,
+.trending-list,
+.trending-item__copy,
+.trending-skeleton-list {
   display: grid;
   gap: var(--space-5);
 }
 
-.hero-panel {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
-  align-items: center;
-  padding: var(--space-6);
+.discovery-shell {
+  padding: clamp(var(--space-5), 3vw, var(--space-8));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 16%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 100%, transparent), color-mix(in srgb, var(--bg-secondary) 72%, var(--glass-bg)));
 }
 
-.eyebrow {
-  margin: 0 0 var(--space-2);
+.discovery-shell__header,
+.discovery-shell__toolbar,
+.discovery-shell__footer,
+.results-header,
+.quick-filter-group__header,
+.active-filter-row,
+.category-strip,
+.quick-filter-row,
+.explore-card__chrome,
+.explore-card__rating-row,
+.trending-item,
+.trending-item__copy p {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.discovery-shell__header,
+.discovery-shell__footer,
+.results-header,
+.quick-filter-group__header,
+.trending-item {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.discovery-shell__copy {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.eyebrow,
+.metric-label,
+.chip-label {
+  margin: 0;
   color: var(--accent-teal);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
 }
 
 h1,
 h2,
 h3,
-small,
+p,
 strong,
 span {
   margin: 0;
 }
 
 h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  max-width: 15ch;
+}
+
+h2 {
+  font-size: var(--font-size-h1);
   line-height: var(--line-height-tight);
 }
 
-.hero-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.metric-card,
-.filter-panel,
-.error-panel {
+.discovery-shell__metric {
+  min-width: 12rem;
   padding: var(--space-5);
-}
-
-.metric-card {
   display: grid;
   gap: var(--space-2);
+  align-self: stretch;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent), color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary)));
 }
 
-.metric-card small,
-.metric-card span,
-.chip-label {
+.discovery-shell__metric strong {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.metric-meta,
+.results-note,
+.text-reset,
+.trending-item__copy span,
+.trending-empty {
   color: var(--text-secondary);
 }
 
-.metric-card strong {
+.discovery-shell__toolbar {
+  align-items: stretch;
+}
+
+.discover-search {
+  flex: 1;
+  min-height: 4.25rem;
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-2xl);
+  border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-border) 100%, transparent);
+}
+
+.discover-search:focus-within {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 45%, var(--glass-border)), var(--shadow-glow-teal);
+}
+
+.discover-search :deep(.search-bar__input) {
+  font-size: 1rem;
+}
+
+.discover-search :deep(.search-bar__icon) {
+  color: color-mix(in srgb, var(--text-secondary) 100%, transparent);
+}
+
+.view-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.35rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--glass-bg));
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.view-toggle__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5rem;
+  padding: 0.9rem 1.1rem;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.view-toggle__button:hover,
+.view-toggle__button:focus-visible {
   color: var(--text-primary);
-  font-size: var(--font-size-h2);
+  transform: translateY(-0.0625rem);
+  outline: none;
 }
 
-.filter-toolbar,
-.toolbar-actions,
-.results-header,
-.chip-row,
-.active-filter-row {
-  display: flex;
-  gap: var(--space-3);
+.view-toggle__button.is-active {
+  background: color-mix(in srgb, var(--accent-teal) 18%, var(--bg-secondary));
+  color: var(--text-primary);
+  box-shadow: var(--shadow-glow-teal);
 }
 
-.filter-toolbar,
-.results-header {
-  justify-content: space-between;
-  align-items: flex-end;
-}
-
-.filter-search {
-  min-width: min(100%, 34rem);
-}
-
-.chip-row,
+.category-strip,
+.quick-filter-row,
 .active-filter-row {
   flex-wrap: wrap;
 }
 
+.category-strip,
+.quick-filter-row {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .filter-chip,
-.active-pill {
+.quick-filter-chip,
+.active-pill,
+.badge,
+.explore-card__save {
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.filter-chip,
+.quick-filter-chip,
+.active-pill,
+.badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.65rem 0.95rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
+  width: fit-content;
+  padding: 0.7rem 1rem;
   font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.filter-chip,
+.quick-filter-chip {
+  background: color-mix(in srgb, var(--bg-secondary) 85%, transparent);
+  color: var(--text-secondary);
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
     background var(--transition-fast),
     color var(--transition-fast),
     box-shadow var(--transition-fast);
-}
-
-.filter-chip {
   cursor: pointer;
 }
 
 .filter-chip:hover,
 .filter-chip:focus-visible,
-.filter-chip.active {
-  background: var(--accent-teal-light);
-  border-color: var(--accent-teal);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-glow-teal);
+.quick-filter-chip:hover,
+.quick-filter-chip:focus-visible {
   transform: translateY(-0.0625rem);
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--glass-border));
+  color: var(--text-primary);
   outline: none;
 }
 
-.active-pill {
-  border-color: var(--glass-border);
-  background: var(--glass-bg);
+.filter-chip.active,
+.quick-filter-chip.active {
+  transform: translateY(-0.0625rem);
+  box-shadow: var(--shadow-md);
 }
 
-.results-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.filter-chip.active:not(.chip-toned),
+.quick-filter-chip.active {
+  border-color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.filter-chip.chip-toned {
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent), var(--shadow-md);
+}
+
+.quick-filter-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-filter-group {
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 76%, transparent);
+}
+
+.text-reset {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.text-reset:hover,
+.text-reset:focus-visible {
+  color: var(--text-primary);
+  outline: none;
+}
+
+.discovery-shell__footer {
+  align-items: flex-start;
+}
+
+.active-pill {
+  background: color-mix(in srgb, var(--glass-bg) 100%, transparent);
+  color: var(--text-primary);
+}
+
+.active-pill--summary {
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-secondary));
+}
+
+.clear-filters {
+  flex-shrink: 0;
+}
+
+.error-panel {
+  padding: var(--space-5);
+}
+
+.explore-layout {
+  grid-template-columns: minmax(0, 1fr) 17.5rem;
+  align-items: start;
+}
+
+.results-header {
+  align-items: end;
+}
+
+.results-note {
+  max-width: 28rem;
+  line-height: var(--line-height-relaxed);
+}
+
+.results-masonry {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.explore-card {
+  overflow: hidden;
+  min-height: 0;
+  transition:
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal);
+}
+
+.explore-card:hover,
+.explore-card:focus-visible {
+  transform: translateY(-0.125rem);
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--border-hover));
+  outline: none;
+}
+
+.explore-card__media {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 38%),
+    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+}
+
+.explore-card__media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 8%, transparent) 0%, transparent 30%, color-mix(in srgb, var(--bg-primary) 84%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--accent-teal) 10%, transparent), transparent 50%);
+  pointer-events: none;
+}
+
+.explore-card__image,
+.explore-card__placeholder,
+.trending-item__thumb {
+  width: 100%;
+  height: 100%;
+}
+
+.explore-card__image,
+.trending-item__thumb {
+  object-fit: cover;
+  transition: transform var(--transition-slow), filter var(--transition-slow);
+}
+
+.explore-card:hover .explore-card__image,
+.explore-card:focus-visible .explore-card__image,
+.trending-item:hover .trending-item__thumb,
+.trending-item:focus-visible .trending-item__thumb {
+  transform: scale(1.05);
+}
+
+.explore-card__placeholder,
+.trending-item__thumb--placeholder {
+  display: grid;
+  place-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-secondary);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 45%),
+    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+}
+
+.explore-card__placeholder :deep(.atlas-icon),
+.trending-item__thumb--placeholder :deep(.atlas-icon) {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0 auto;
+  color: var(--accent-teal);
+}
+
+.explore-card__chrome,
+.explore-card__overlay {
+  position: absolute;
+  inset-inline: var(--space-4);
+  z-index: 1;
+}
+
+.explore-card__chrome {
+  top: var(--space-4);
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  box-shadow: var(--shadow-sm);
+  text-transform: capitalize;
+}
+
+.explore-card__save {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.explore-card__save :deep(.atlas-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.explore-card__overlay {
+  bottom: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.explore-card__overlay h3 {
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-shadow: var(--shadow-md);
+}
+
+.explore-card__location,
+.trending-item__copy p {
+  align-items: center;
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--text-secondary));
+  font-size: var(--font-size-small);
+}
+
+.explore-card__location :deep(.atlas-icon),
+.trending-item__copy p :deep(.atlas-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--accent-teal);
+}
+
+.explore-card__rating-row {
+  align-items: center;
+}
+
+.explore-card__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.explore-card__star {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: color-mix(in srgb, var(--accent-gold) 28%, var(--text-muted));
+}
+
+.explore-card__star.is-active {
+  color: var(--accent-gold);
+}
+
+.explore-card__rating-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.trending-panel {
+  padding: var(--space-5);
+  position: sticky;
+  top: calc(var(--shell-content-top) + var(--space-4));
+}
+
+.trending-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.trending-item {
+  padding: var(--space-3);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 76%, transparent);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.trending-item:hover,
+.trending-item:focus-visible {
+  transform: translateY(-0.0625rem);
+  border-color: color-mix(in srgb, var(--accent-teal) 36%, var(--glass-border));
+  box-shadow: var(--shadow-md);
+  outline: none;
+}
+
+.trending-item__rank {
+  min-width: 2.4rem;
+  color: var(--accent-teal);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+}
+
+.trending-item__thumb-wrap {
+  width: 4.25rem;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+}
+
+.trending-item__copy {
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.trending-item__copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  color: var(--text-primary);
+}
+
+.trending-item__copy p,
+.trending-item__copy span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.trending-skeleton-list {
+  gap: var(--space-3);
+}
+
+.trending-skeleton {
+  height: 5.25rem;
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent) 0%, color-mix(in srgb, var(--glass-bg) 100%, transparent) 50%, color-mix(in srgb, var(--bg-secondary) 100%, transparent) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.stagger-in > * {
+  opacity: 0;
 }
 
 @media (max-width: 1200px) {
-  .results-grid,
-  .hero-metrics {
+  .results-masonry {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 960px) {
-  .hero-panel,
-  .results-grid,
-  .hero-metrics {
+@media (max-width: 1080px) {
+  .explore-layout,
+  .quick-filter-grid,
+  .discovery-shell__header,
+  .discovery-shell__toolbar,
+  .discovery-shell__footer,
+  .results-header {
     grid-template-columns: 1fr;
   }
 
-  .filter-toolbar,
-  .results-header {
+  .discovery-shell__header,
+  .discovery-shell__toolbar,
+  .discovery-shell__footer,
+  .results-header,
+  .quick-filter-group__header {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .toolbar-actions {
+  .trending-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .results-masonry {
+    grid-template-columns: 1fr;
+  }
+
+  .view-toggle,
+  .clear-filters {
     width: 100%;
-    flex-wrap: wrap;
+  }
+
+  .view-toggle__button {
+    flex: 1;
+  }
+
+  .explore-card__chrome,
+  .explore-card__rating-row,
+  .trending-item {
+    align-items: flex-start;
+  }
+
+  .trending-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stagger-in > * {
+    animation: fade-in-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .stagger-in > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  .stagger-in > *:nth-child(2) {
+    animation-delay: 100ms;
+  }
+
+  .stagger-in > *:nth-child(3) {
+    animation-delay: 200ms;
+  }
+
+  .stagger-in > *:nth-child(4) {
+    animation-delay: 300ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-in > *,
+  .trending-skeleton {
+    opacity: 1;
+    animation: none;
+  }
+
+  .filter-chip,
+  .quick-filter-chip,
+  .view-toggle__button,
+  .explore-card,
+  .explore-card__image,
+  .trending-item,
+  .trending-item__thumb,
+  .text-reset {
+    transition: none;
+  }
+
+  .filter-chip:hover,
+  .filter-chip:focus-visible,
+  .quick-filter-chip:hover,
+  .quick-filter-chip:focus-visible,
+  .view-toggle__button:hover,
+  .view-toggle__button:focus-visible,
+  .explore-card:hover,
+  .explore-card:focus-visible,
+  .explore-card:hover .explore-card__image,
+  .explore-card:focus-visible .explore-card__image,
+  .trending-item:hover,
+  .trending-item:focus-visible,
+  .trending-item:hover .trending-item__thumb,
+  .trending-item:focus-visible .trending-item__thumb {
+    transform: none;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    background-position: -200% 0;
   }
 }
 </style>
