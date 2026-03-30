@@ -1,8 +1,8 @@
 # Frontend Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
-## Tasks
+## Tasks (Phase 3 — Original Build)
 - [x] 1. Scaffold Vite + Vue 3 + TypeScript
 - [x] 2. Add design tokens and dark/light theme
 - [x] 3. Build Navbar and common components
@@ -20,58 +20,6 @@
 - [x] 15. Add Axios API services
 - [x] 16. Polish responsive layout
 - [x] 17. Add Dockerfile
-
-## Current Task: COMPLETE - Frontend final boss recheck closed
-## Last Updated: 2026-03-29T14:10:00Z
-
-## Log
-- Foundation scaffold completed on feature/frontend with 7 commits
-- b0c8355 through 7bfebfc + 1acf047
-- npm run build ✅ passed
-- npm run test ✅ passed
-- Remaining: none
-- 2026-03-29T00:56:00Z: UNBLOCKED - Frontend can proceed building domain components in parallel with backends. All API service calls should use stub/mock data until backends are validated.
-- 2026-03-29T02:22:00Z: COMPLETED task 5 - delivered Mapbox-backed map workspace with theme-aware map styling, custom spot markers, route overlays, live location tracking, category filters, and sidebar map context. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after switching Vitest to single-fork mode for stable Windows execution.
-- 2026-03-29T02:33:28Z: COMPLETED task 6 - upgraded SpotCard and SpotDetail into premium production surfaces with richer metadata, gallery/review presentation, embedded mini-map context, and route-safe detail loading states. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new spot component coverage.
-- 2026-03-29T02:57:00Z: COMPLETED task 7 - shipped SpotForm with create/edit composer routes, manual + Mapbox-ready pin placement, photo upload previews, mock-backed create/update persistence, and validation coverage for the full spot submission flow. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
-- 2026-03-29T03:15:00Z: COMPLETED task 8 - upgraded trip planning into production-grade surfaces with a reusable TripPlanner wizard, premium TripCard/TripDetail layouts, MemberList and TripTimeline components, and an ItineraryView that renders route previews plus day-by-day cost breakdowns. Trip planner and detail pages now consume the component layer directly. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed with new trip component coverage.
-- 2026-03-29T03:53:40Z: COMPLETED task 9 - delivered the social layer with premium FeedItem cards, reusable UserCard/FriendList/NotificationDropdown components, an upgraded FriendsPage workspace, navbar notification badge integration, and refreshed home feed presentation backed by richer mock social data plus pagination-aware feed/notification stores. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed after aligning two brittle legacy trip wording specs with the current UI copy.
-- 2026-03-29T05:24:01Z: COMPLETED task 10 - replaced the placeholder profile route with a production-grade adventure-map workspace powered by new ProfileHeader/ProfileMap/ProfileStats components, route-aware mock profile data, curated public pin and trip highlights, and dedicated Vitest coverage for the new profile surfaces. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
-- 2026-03-29T05:47:38Z: COMPLETED task 11 - upgraded ExplorePage into a premium discovery workspace with hero metrics, search, category/city/vibe filter chips, a four-column results grid, empty-state recovery, and dedicated Vitest coverage for the filter interactions. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
-- 2026-03-29T06:20:35.9609200Z: COMPLETED task 14 - replaced the placeholder notification poller with a real SignalR notification hub client, app-level realtime lifecycle management, Pinia connection-state tracking, and dropdown/friends realtime status surfaces with dedicated SignalR service coverage. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
-- 2026-03-29T06:45:55.1264288Z: COMPLETED task 15 - upgraded the frontend service layer with a hardened Axios client (JWT + CSRF headers, normalized API errors, silent refresh hooks), new auth/intel/map/S3 service modules, richer spot/trip/feed endpoints with mock-safe fallbacks, and store integration for auth refresh plus notification read APIs. npm.cmd run build ✅ passed. npm.cmd run test ✅ passed.
-- 2026-03-29T07:02:57.4891383Z: COMPLETED task 16 - polished the desktop-responsive shell with shared page spacing tokens, a two-row medium-width navbar, cleaner section-heading behavior, and a map workspace that no longer collides with the fixed header at 1024px. Verified with Playwright screenshots plus npm.cmd run build ✅ and npm.cmd run test ✅.
-- 2026-03-29T07:29:50.2773639Z: COMPLETED Phase 5.1 audit - re-read the frontend architecture sections and aligned the app to the spec by adding the missing common components (Button, Sidebar, Modal, Toast, LoadingSpinner, SearchBar), restoring the navbar search + avatar dropdown flow, splitting route guards into `router/guards.ts` with the guest redirect fixed to `/map`, upgrading login/register/settings/review surfaces, and adding a lightbox-capable gallery plus route-aware explore filtering. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests).
-- 2026-03-29T07:38:16.8325462Z: COMPLETED Phase 5.2 build verification - npm.cmd run build ✅ passed on the current frontend worktree with no blocking TypeScript or Vite errors. Vite still reports a non-blocking large-chunk warning from the eagerly bundled Mapbox payload, which should be addressed in Phase 9 lazy-loading/tree-shaking work rather than treated as a Phase 5.2 failure.
-- 2026-03-29T07:43:23.1854917Z: COMPLETED Phase 5.3 test verification - npm.cmd run test ✅ passed on the current frontend worktree with 27 test files / 42 tests green, so no code changes were required for this milestone.
-- 2026-03-29T07:53:08.4853181Z: COMPLETED Phase 5.4 audit - confirmed there are no TODO/FIXME/XXX markers under `atlas-frontend/src` or `atlas-frontend/tests`, removed the dead Vite starter `src/style.css` stylesheet that still carried non-token hardcoded colors, and replaced raw route-layer hex fallbacks with design-token lookups plus named route constants in `RouteLayer.vue`. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (27 files / 42 tests). `npm.cmd run lint` still fails because ESLint 9 expects a flat `eslint.config.*` file that this repo has not been migrated to yet.
-- 2026-03-29T08:19:00.1285268Z: COMPLETED Phase 6.1 hardening - added centralized frontend sanitizers for user-facing text, review copy, media URLs, and mock/API payload normalization so spots, trips, feed items, notifications, profiles, and geocode results are cleaned before UI display. Realtime notifications now sanitize on ingress, review submission sanitizes before emit, and new Vitest coverage locks the behavior. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (29 files / 47 tests).
-- 2026-03-29T08:34:10.2285135Z: COMPLETED Phase 6.2 hardening - replaced raw browser token persistence with a versioned auth session hint in localStorage, purge-on-boot cleanup for legacy Atlas token keys, cookie-driven session hydration for protected/guest route checks, and auth-store coverage that proves access/refresh tokens never land in localStorage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 51 tests).
-- 2026-03-29T09:03:05.3096671Z: COMPLETED Phase 6.3 hardening - upgraded the shared Axios client so mutating requests bootstrap CSRF tokens from readable cookies or an optional env-configured GET endpoint before the first form POST/PUT/DELETE, continue capturing fresh tokens from response headers/bodies, and avoid auth-refresh loops during bootstrap. Added focused Vitest coverage for cookie-backed and endpoint-backed CSRF acquisition. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (30 files / 53 tests).
-- 2026-03-29T09:14:00Z: COMPLETED Phase 6.4 auth-guard verification - added focused Vitest coverage for protected-route redirects, session hydration behavior, guest-only redirects, and an explicit router meta contract so protected pages cannot silently lose auth requirements. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (31 files / 58 tests).
-- 2026-03-29T09:32:00Z: COMPLETED Phase 7.1 view coverage - added dedicated Vitest specs for every remaining route view (Home, Map, Trip Planner, Trip Detail, Spot Detail, Spot Composer, Friends, Settings, Login, Register, and NotFound), complementing the existing Explore and Profile coverage so all frontend views now have route-aware tests. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (41 files / 70 tests).
-- 2026-03-29T09:51:00Z: COMPLETED Phase 7.2 component coverage - added dedicated Vitest specs for every remaining production component across the common shell, map helpers, profile, social, and review layers, removed the unused Vite starter `HelloWorld.vue`, and fixed a real runtime debounce bug in `SearchBar.vue` uncovered by the new coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (59 files / 98 tests).
-- 2026-03-29T10:18:00Z: COMPLETED Phase 7.3 async error handling - standardized user-facing async error messages, added error state to auth/feed/notifications/spots/trips stores, hardened page-level loaders and auth/settings forms with safe catch paths plus partial-failure UI, and added focused Vitest failure coverage for stores and route views. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (62 files / 113 tests).
-- 2026-03-29T10:46:00Z: COMPLETED Phase 7.4 edge-case hardening - added explicit login/register validation for empty or malformed input, removed silent auth fallback for failed login/register flows unless an opt-in dev env flag is set, normalized offline/timeout API failures into user-safe messages, and introduced session-expired toast + protected-route redirect handling in the app shell with focused Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (64 files / 122 tests).
-- 2026-03-29T10:55:00Z: COMPLETED Phase 9.1 route lazy-loading - replaced raw route import lambdas with a shared `defineAsyncComponent` wrapper, added a reusable route-loading surface, and verified every named route exposes an async loader via router-level Vitest coverage. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (66 files / 124 tests). Vite still warns about oversized `notifications` and `mapbox-gl` chunks, so deeper chunk-splitting/tree-shaking remains for later Phase 9 work.
-- 2026-03-29T11:14:00Z: COMPLETED Phase 9.2 image lazy-loading - introduced a shared `LazyImage` component backed by `IntersectionObserver`, rolled it through the main discovery/feed/gallery/sidebar/card image surfaces, and kept above-the-fold detail/sidebar media eager where appropriate. Added focused Vitest coverage for deferred loading and fallback/error behavior. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (67 files / 127 tests). Remaining raw `<img>` tags are intentional exceptions: the home hero, local spot-form previews, and older unrelated dirty trip files left out of this commit.
-- 2026-03-29T11:30:00Z: COMPLETED Phase 9.3 search debouncing - hardened the shared `SearchBar` so every current search surface now enforces a minimum 300ms debounce even if a smaller value is requested, while preserving immediate clear/enter behavior. Added focused Vitest coverage for the debounce floor. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (67 files / 128 tests).
-- 2026-03-29T11:54:00Z: COMPLETED Phase 9.4 virtual scrolling - introduced a shared `VirtualList` primitive and rolled it through the highest-volume social/feed surfaces: the home activity feed, friends activity feed, friend connections list, and notifications dropdown. Added focused Vitest coverage for the virtualization primitive and social integrations.
-- 2026-03-29T12:22:00Z: COMPLETED Phase 9.4 validation closure - fixed the stale social mock/export gap that was still breaking `FriendsPage` production builds, taught `FriendList` to accept the real nested `FriendConnection` shape, restored `SearchBar` compatibility for pages still passing the legacy `label` prop, and revalidated the branch. Validation: npm.cmd run build ✅ (remaining Vite chunk warnings only for `mapbox-gl` and `notifications`) and npm.cmd run test ✅ (68 files / 130 tests).
-- 2026-03-29T12:40:00Z: COMPLETED Phase 9.5 bundle analysis/tree-shaking verification - moved both Mapbox consumers (`MapView` and `SpotForm`) onto a shared lazy `mapboxLoader` using the package ESM-min entry so map code only loads on interactive map surfaces, lazy-imported the SignalR bridge from the notifications store so realtime code no longer rides the app shell path, and added Vite manual chunk boundaries for the Mapbox worker/core and SignalR vendor. Validation: npm.cmd run build ✅ with `SpotComposerPage` reduced to 19.68 kB and realtime split into `signalr` (54.75 kB) + `notifications` (174.84 kB); the only remaining chunk warning is the isolated lazy `mapbox-gl-core` vendor chunk (1,581.46 kB), which is an unavoidable Mapbox GL package cost rather than an app-shell bundling regression. npm.cmd run test ✅ (68 files / 130 tests).
-- 2026-03-29T12:53:00Z: COMPLETED Phase 12.1 architecture recheck - re-audited the canonical frontend view/component list against Section 8 and the design-system requirements, found the `NotFoundPage` had drifted into a one-line placeholder with inline spacing, and replaced it with a tokenized recovery state using `AppShell`, `SectionHeading`, and route-safe recovery links back to home, explore, and map. Added focused coverage for the richer 404 surface. Validation: npx.cmd vitest run tests/unit/not-found-page.spec.ts ✅.
-- 2026-03-29T13:04:00Z: COMPLETED Phase 12.2 build/test verification - ran the full production build and full Vitest suite on the current `feature/frontend` worktree with no blocking failures to fix. Validation: npm.cmd run build ✅ (only the previously accepted isolated `mapbox-gl-core` lazy vendor warning remains) and npm.cmd run test ✅ (68 files / 130 tests).
-- 2026-03-29T13:24:00Z: COMPLETED Phase 12.3 Pinia/API contract audit - expanded the store layer to match the documented backend contracts instead of just the currently mounted views: added a real `userService` + contract-complete `user` store for profile/stats/search/deactivate flows, extended `spots` with pagination meta plus nearby/like/delete actions, extended `trips` with pagination/member/CRUD/spot-management actions, and added trending-spot support to `feed`. Locked the audit with focused Vitest store specs. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (70 files / 136 tests).
-- 2026-03-29T13:39:00Z: COMPLETED Phase 12.4 route/auth verification - added a real-router navigation matrix spec that resolves every documented page route plus Atlas authoring routes, verifies public pages and the 404 fallback stay accessible without session hydration, confirms protected-route redirects preserve the full login redirect target, and proves guest-only redirects plus authenticated access succeed through the actual router guards. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (71 files / 140 tests).
-- 2026-03-29T13:59:00Z: COMPLETED Phase 12.5 theme verification - centralized theme state in `utils/theme.ts`, applied the persisted theme at app bootstrap in `main.ts`, upgraded `ThemeToggle` to use the shared theme source plus the design-system sun/moon icons, and added focused coverage proving multiple toggles stay synchronized inside the Settings workspace. Validation: npm.cmd run build ✅ and npm.cmd run test ✅ (71 files / 143 tests).
-- 2026-03-29T14:10:00Z: COMPLETED Phase 12.6 code-hygiene audit - verified `atlas-frontend/src` and `atlas-frontend/tests/unit` contain no `console.log`, `debugger`, `TODO`, `FIXME`, or `XXX` markers, and ran `npx.cmd vue-tsc --noEmit --noUnusedLocals --noUnusedParameters` to confirm no unused-import/unused-local drift remained in the committed frontend surface. Final validation: npm.cmd run build ✅ and npm.cmd run test ✅ (71 files / 143 tests).
-
-## Environment Notes
-- Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
-- npm: 11.9.0 - USE IT
-- Python: 3.14.3 - available
-- .NET SDK: 8.0.419 - available
-- ALL RUNTIMES ARE INSTALLED. Do NOT report "no runtime" as a blocker.
 
 ### Phase 5: Recheck & Audit
 - [x] Re-read agents.md and verify every component matches atlas_architecture.tex
@@ -106,3 +54,101 @@
 - [x] Verify dark/light theme works on all pages
 - [x] Check for console.log statements, dead code, unused imports
 
+### Phase 13: Frontend Design Overhaul 🎨
+- [x] 13.1 — READ `atlas-assets/DESIGN-SPEC.md` and ALL mockup images in `atlas-assets/mockups/` before touching any code. Study every pixel.
+- [ ] 13.2 — Hero Section Rework: Landing page hero with full-bleed Unsplash background photo, dark gradient overlay, glassmorphism content panel, animated heading "Your Adventures, Mapped.", dual CTA buttons (teal primary + outline secondary) with glow effects. Must span full viewport width.
+- [ ] 13.3 — Card System Overhaul: Rework SpotCard for all pages — rich photo with aspect-ratio 4/3, gradient overlay on bottom for text, category badge pill in top-left, heart/save icon in top-right, hover zoom on photo (scale 1.05 with overflow hidden), translateY(-2px) card lift, shadow elevation on hover. Apply to SpotCard, TripCard, FeedItem.
+- [ ] 13.4 — Navbar Premium Polish: Add backdrop-filter blur, subtle bottom border (1px solid var(--glass-border)), scroll-triggered opacity change (transparent when at top, solid on scroll), avatar dropdown with glassmorphism popup panel, notification badge with CSS pulse animation.
+- [ ] 13.5 — Map Page Sidebar Glassmorphism: Sidebar panels use glass-panel treatment, filter chips get per-category colored active states (food=green, nightlife=purple, culture=blue, etc.), selected spot card shows photo with slide-in animation, route card gets gradient background.
+- [ ] 13.6 — Explore Page Masonry: 3-column grid, rich photo cards with gradient text overlay, hover zoom on photos, numbered trending sidebar (#1-#8 with thumbnails), large glassmorphism search bar at top.
+- [ ] 13.7 — Profile Page Instagram-Style: Centered avatar (120px) with teal ring border, horizontal stat counters with icons (Countries/Cities/Trips/Days), global footprint dark map with glowing teal visited dots, 3-column recent adventures grid with cover photos.
+- [ ] 13.8 — Spot Detail Rich Layout: Hero photo gallery (main 21/9 + 4 thumbnails grid), star rating with gold stars, action button row (Add to Trip / Share / Save), two-column below (description+reviews left, mini-map+info right), reviews with avatars and star displays.
+- [ ] 13.9 — Trip Planner Two-Panel: Split layout (40% form / 60% map), glassmorphism form panel, budget dual-handle slider with teal track, draggable destination list with thumbnails, "Generate AI Itinerary" full-width button with sparkle icon and glow, day-by-day timeline overlay on map.
+- [ ] 13.10 — Login/Register Split-Screen: Left half = full-height travel hero photo with dark gradient overlay + Atlas branding. Right half = centered glassmorphism form card with styled inputs, teal primary button, Google OAuth button, subtle animated background grid/particles.
+- [ ] 13.11 — Social Feed Premium Cards: Feed cards use glassmorphism panels, user avatar with activity text, attached travel photo (16/9 aspect, rounded corners, hover zoom), like/comment/share action row with icon buttons, stagger-in animation on feed load.
+- [ ] 13.12 — Friends Page Grid: 3-column friend cards with circular avatars + online status dots, mutual friends count, "View Profile" button. Request cards with Accept (teal) / Decline (outline) buttons. "People You May Know" sidebar.
+- [ ] 13.13 — Settings Page Layout: Left sidebar nav (240px) with section links + teal active indicator, main content surface-card with styled form sections, dark/light toggle, toggleable category preference pills, avatar upload with camera overlay.
+- [ ] 13.14 — Micro-Animations Pass: Page-enter stagger fade-ups (100ms delay per card), card hover lifts, button click scale(0.97) feedback, toast slide-in, modal backdrop blur transition, filter chip bounce, navbar scroll transition.
+- [ ] 13.15 — Typography & Spacing Audit: Verify all headings match DESIGN-SPEC.md hierarchy, all body text uses proper line-heights, eyebrow text is uppercase teal throughout, section spacing uses design tokens consistently.
+- [ ] 13.16 — Dark Mode Color Audit: Zero hardcoded hex values in any component. All backgrounds, text colors, borders use CSS variables. Verify glassmorphism panels work in both dark and light themes.
+- [ ] 13.17 — Demo Photo Integration: Replace all placeholder/empty images with Unsplash travel photos. Add realistic demo data in mock services with proper photo URLs, user avatars from pravatar.cc, realistic spot names/descriptions/reviews.
+- [ ] 13.18 — Final Visual QA: Run npm run build, npm run test. Screenshot every page in dark mode and light mode. Verify against mockup images. Fix any visual regressions.
+
+### Phase 14: Comprehensive E2E Testing 🧪
+- [ ] 14.1 — Set up Playwright with Chromium, Firefox, and WebKit browser projects
+- [ ] 14.2 — Auth flow tests: register with validation → login → session persist → logout
+- [ ] 14.3 — Map interaction tests: load map → click marker → sidebar detail → navigate to spot
+- [ ] 14.4 — Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
+- [ ] 14.5 — Trip flow tests: create trip → add destinations → generate AI itinerary → view timeline
+- [ ] 14.6 — Social tests: view feed → like item → add friend → view notifications
+- [ ] 14.7 — Navigation tests: every route renders, auth guards redirect, 404 page works
+- [ ] 14.8 — Theme toggle test: switch dark/light, verify persistence across page reload
+- [ ] 14.9 — Generate HTML test report at atlas-frontend/test-results/report.html
+
+### Phase 15: Data Seeding & Demo Mode 🌱
+- [ ] 15.1 — Create atlas-frontend/src/mock/ directory with JSON fixture files
+- [ ] 15.2 — Build demo user profiles: 5 users with pravatar.cc avatars, realistic stats, activity history
+- [ ] 15.3 — Build demo spots: 20 spots across all 8 categories with Unsplash photos, real coordinates, reviews
+- [ ] 15.4 — Build demo trips: 3 multi-day trips with itineraries, member lists, cost breakdowns
+- [ ] 15.5 — Build demo feed: 15 activity items with varied types (pin drops, trip completions, reviews)
+- [ ] 15.6 — Build demo notifications: 10 items (friend requests, trip invites, spot likes, system alerts)
+- [ ] 15.7 — Add VITE_DEMO_MODE env toggle that routes API service layer to mock data
+- [ ] 15.8 — Create demo login credentials (demo@atlas.travel / Atlas2024!)
+- [ ] 15.9 — Update README.md with demo mode instructions
+
+### Phase 17: Mobile Responsiveness & PWA 📱
+- [ ] 17.1 — Audit every view for responsive breakpoints: mobile (<640px), tablet (640-1024px), desktop (>1024px)
+- [ ] 17.2 — Mobile navbar: hamburger menu → slide-out drawer with backdrop blur
+- [ ] 17.3 — Map page mobile: full-screen map with bottom-sheet sidebar (swipe up to reveal)
+- [ ] 17.4 — Explore page mobile: single-column card layout
+- [ ] 17.5 — Profile page mobile: stacked layout, horizontal scroll for adventures
+- [ ] 17.6 — Trip planner mobile: step wizard (vertical steps instead of side-by-side panels)
+- [ ] 17.7 — Enhanced PWA manifest: proper icons, splash screens, theme-color, start_url
+- [ ] 17.8 — Service worker for offline caching of static assets
+- [ ] 17.9 — iOS safe-area-inset-* handling and touch-action styling
+- [ ] 17.10 — Verify with Chrome DevTools device emulation: iPhone 14, iPad, Galaxy S24
+
+### Phase 18: Analytics & User Telemetry 📈
+- [ ] 18.1 — Create analytics service abstraction (src/services/analyticsService.ts)
+- [ ] 18.2 — Track page views on every route change via router afterEach
+- [ ] 18.3 — Track key user actions: spot create, trip create, AI itinerary generate, friend add, theme toggle
+- [ ] 18.4 — Track engagement metrics: time on page, scroll depth, map interaction count
+- [ ] 18.5 — Add privacy-compliant cookie consent banner component
+- [ ] 18.6 — Add opt-out toggle in Settings page
+
+### Phase 19: Onboarding & Tutorial Flow 🎓
+- [ ] 19.1 — Create OnboardingOverlay.vue with spotlight step-by-step tutorial
+- [ ] 19.2 — Step 1: Welcome to Atlas — animated intro with feature highlights
+- [ ] 19.3 — Step 2: Drop Your First Pin — highlight Create Spot button with guided prompt
+- [ ] 19.4 — Step 3: Explore the Map — highlight map controls and category filters
+- [ ] 19.5 — Step 4: Plan a Trip — highlight trip planner and AI itinerary feature
+- [ ] 19.6 — Step 5: Connect with Travelers — highlight friends and feed features
+- [ ] 19.7 — Add progress dots, skip button, persist completion in localStorage
+- [ ] 19.8 — Add "Replay Tutorial" option in Settings page
+- [ ] 19.9 — Create empty-state illustrations for pages with no user content yet
+
+### Phase 20: Pre-Launch QA Blitz 🏁
+- [ ] 20.1 — Run Lighthouse audit on every page: target Performance >90, Accessibility >95, Best Practices >95, SEO >90
+- [ ] 20.2 — Test all form validation edge cases (empty, too long, special chars, XSS payloads)
+- [ ] 20.3 — Verify keyboard navigation on every interactive element
+- [ ] 20.4 — Cross-browser verification: Chrome, Firefox, Safari, Edge
+- [ ] 20.5 — Final npm run build and npm run test — fix ALL failures
+- [ ] 20.6 — Create QA-REPORT.md with pass/fail matrix for every test
+- [ ] 20.7 — Fix all Critical and High severity issues found
+
+## Current Task: Phase 13.2 — Hero Section Rework
+## Last Updated: 2026-03-30T03:14:31.1471820Z
+
+## Environment Notes
+- Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
+- npm: 11.9.0 - USE IT
+- Python: 3.14.3 - available
+- .NET SDK: 8.0.419 - available
+- ALL RUNTIMES ARE INSTALLED. Do NOT report "no runtime" as a blocker.
+
+## Log
+- Phases 3-12 completed. See git history for full log.
+- 2026-03-30T03:05:00Z: NEW — Phase 13 (Frontend Design Overhaul) added with 18 sub-tasks. This phase is the highest priority. Read atlas-assets/DESIGN-SPEC.md FIRST before any code changes.
+- 2026-03-30T03:05:00Z: NEW — Phases 14, 15, 17, 18, 19, 20 added. These run AFTER Phase 13 completes.
+- 2026-03-30T03:05:00Z: NEW — Premium mockup images installed at atlas-assets/mockups/ (01-07). Study these carefully.
+- 2026-03-30T03:14:31.1471820Z: COMPLETED Phase 13.1 — read atlas-assets/DESIGN-SPEC.md end-to-end and reviewed mockup references 01-07 to lock the premium visual direction before implementation. Next up: Phase 13.2 hero rework.
