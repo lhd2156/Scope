@@ -696,7 +696,7 @@ function handleSubmit(): void {
   margin: 0;
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
 }
@@ -717,8 +717,9 @@ function handleSubmit(): void {
 }
 
 .planner-copy h2 {
-  font-size: clamp(2rem, 3vw, 2.8rem);
-  line-height: 1.1;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .section-copy,

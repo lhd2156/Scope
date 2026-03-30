@@ -259,12 +259,8 @@ onMounted(async () => {
 }
 
 .eyebrow {
-  margin: 0;
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-eyebrow);
 }
 
 .hero-heading,
@@ -274,10 +270,10 @@ onMounted(async () => {
 }
 
 .hero-heading {
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-size: var(--font-size-hero);
   font-weight: var(--font-weight-bold);
-  line-height: 1.1;
-  letter-spacing: -0.04em;
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
   text-shadow: 0 0 2rem color-mix(in srgb, var(--bg-primary) 28%, transparent);
 }
 

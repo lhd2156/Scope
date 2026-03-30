@@ -222,7 +222,7 @@ async function handleSave(payload: SettingsFormValue) {
 
 .settings-shell__copy {
   gap: var(--space-3);
-  max-width: 44rem;
+  max-width: var(--copy-measure-wide);
 }
 
 .settings-shell__copy h1,
@@ -232,16 +232,18 @@ async function handleSave(payload: SettingsFormValue) {
 }
 
 .settings-shell__copy h1 {
-  font-size: clamp(2.5rem, 5vw, 3.75rem);
-  line-height: 1.08;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .eyebrow {
   margin: 0;
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
 }
 
 .settings-shell__meta {

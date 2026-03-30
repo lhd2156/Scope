@@ -19,32 +19,28 @@ defineProps<{
 <style scoped>
 .section-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--copy-measure));
   align-items: end;
   gap: clamp(var(--space-3), 1.5vw, var(--space-6));
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--section-gap-compact);
 }
 
 .eyebrow {
-  margin: 0 0 var(--space-2);
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
 }
 
 h2 {
   margin: 0;
   font-size: var(--font-size-h2);
+  line-height: var(--line-height-tight);
 }
 
 .description {
-  max-width: 34rem;
-  justify-self: end;
   margin: 0;
+  max-width: var(--copy-measure);
+  justify-self: end;
   color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
 }
 
 @media (max-width: 1100px) {

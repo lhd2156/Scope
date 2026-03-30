@@ -235,9 +235,9 @@ p {
 .eyebrow {
   color: var(--accent-teal);
   font-size: var(--font-size-caption);
-  letter-spacing: 0.16em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .meta-pill {
@@ -254,9 +254,9 @@ p {
 }
 
 h1 {
-  font-size: clamp(2.4rem, 5vw, 3.8rem);
-  line-height: 1.04;
-  letter-spacing: -0.05em;
+  font-size: clamp(var(--font-size-h1), 4vw, 3rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .username {

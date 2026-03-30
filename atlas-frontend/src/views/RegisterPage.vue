@@ -211,14 +211,15 @@ async function registerWithGoogle() {
 .eyebrow {
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
 }
 
 .auth-card__header h2 {
-  font-size: clamp(2.15rem, 3vw, 2.75rem);
-  line-height: 1.05;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .auth-card__description {
@@ -302,10 +303,6 @@ async function registerWithGoogle() {
   .auth-card {
     width: 100%;
     gap: var(--space-5);
-  }
-
-  .auth-card__header h2 {
-    font-size: clamp(1.95rem, 11vw, 2.45rem);
   }
 }
 

@@ -7,7 +7,7 @@
   --shell-side-padding: 1rem;
   --shell-content-top: 6.75rem;
   --shell-content-bottom: 3rem;
-  --section-gap: clamp(var(--space-5), 2vw, var(--space-8));
+  --section-gap: var(--section-gap-page);
 }
 
 * {
@@ -243,7 +243,7 @@ img {
 .page-container {
   width: min(var(--page-max-width), calc(100% - (var(--shell-side-padding) * 2)));
   margin: 0 auto;
-  padding: 3rem 0 var(--shell-content-bottom);
+  padding: var(--section-gap-compact) 0 var(--shell-content-bottom);
 }
 
 .layout-shell .page-container {
@@ -288,15 +288,28 @@ img {
   border-color: var(--border-hover);
 }
 
+.eyebrow {
+  margin: 0;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
 .section-title {
   font-size: var(--font-size-h1);
   line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
   margin: 0 0 var(--space-4);
 }
 
 .section-copy {
+  margin: 0;
   color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
 }
 
 .button {
@@ -354,7 +367,7 @@ img {
   :root {
     --shell-side-padding: 0.875rem;
     --shell-content-top: 8.5rem;
-    --section-gap: clamp(var(--space-5), 1.8vw, var(--space-6));
+    --section-gap: var(--section-gap-compact);
   }
 }
 
@@ -363,5 +376,6 @@ img {
     --shell-side-padding: 0.75rem;
     --shell-content-top: 11rem;
     --shell-content-bottom: 2.5rem;
+    --section-gap: var(--section-gap-compact);
   }
 }

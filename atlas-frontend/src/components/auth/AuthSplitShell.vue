@@ -189,14 +189,15 @@ const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
 .eyebrow {
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
 }
 
 .auth-stage__hero-copy h1 {
-  font-size: clamp(2.85rem, 5vw, 4.4rem);
-  line-height: 1.02;
+  font-size: var(--font-size-hero);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
   max-width: 11ch;
 }
 
@@ -204,7 +205,7 @@ const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
   max-width: 32rem;
   color: color-mix(in srgb, var(--text-primary) 78%, var(--text-secondary));
   font-size: 1.05rem;
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
 }
 
 .auth-stage__hero-highlights {
