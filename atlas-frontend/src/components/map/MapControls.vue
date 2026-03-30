@@ -1,21 +1,21 @@
 <template>
-  <div class="map-controls">
-    <section class="control-stack glass-panel">
-      <button class="control-button" type="button" aria-label="Zoom in" :disabled="!interactive" @click="$emit('zoom-in')">
+  <div class="map-controls" :class="{ 'map-controls--with-panel': showFilterPanel }">
+    <section class="control-stack">
+      <button class="control-button glass-panel" type="button" aria-label="Zoom in" :disabled="!interactive" @click="$emit('zoom-in')">
         <AtlasIcon name="zoom-in" label="Zoom in" />
       </button>
-      <button class="control-button" type="button" aria-label="Zoom out" :disabled="!interactive" @click="$emit('zoom-out')">
+      <button class="control-button glass-panel" type="button" aria-label="Zoom out" :disabled="!interactive" @click="$emit('zoom-out')">
         <AtlasIcon name="zoom-out" label="Zoom out" />
       </button>
-      <button class="control-button" type="button" aria-label="Center on my location" :disabled="!interactive" @click="$emit('locate')">
+      <button class="control-button glass-panel" type="button" aria-label="Center on my location" :disabled="!interactive" @click="$emit('locate')">
         <AtlasIcon name="crosshair" label="Center on my location" />
       </button>
-      <button class="control-button" type="button" aria-label="Fit route" :disabled="!interactive || !routeReady" @click="$emit('fit-route')">
+      <button class="control-button glass-panel" type="button" aria-label="Fit route" :disabled="!interactive || !routeReady" @click="$emit('fit-route')">
         <AtlasIcon name="route" label="Fit route" />
       </button>
     </section>
 
-    <section class="filter-panel glass-panel">
+    <section v-if="showFilterPanel" class="filter-panel glass-panel">
       <header>
         <div>
           <p class="eyebrow">Map filters</p>
@@ -64,11 +64,13 @@ const props = withDefaults(
     routeReady?: boolean;
     trackingState?: TrackingState;
     interactive?: boolean;
+    showFilterPanel?: boolean;
   }>(),
   {
     routeReady: false,
     trackingState: 'idle',
     interactive: true,
+    showFilterPanel: false,
   },
 );
 
@@ -113,12 +115,17 @@ const statusCopy = computed(() => {
 <style scoped>
 .map-controls {
   position: absolute;
-  inset: var(--space-4) var(--space-4) var(--space-4) auto;
+  inset: auto var(--space-4) var(--space-4) auto;
   z-index: var(--z-sidebar);
   display: grid;
-  align-content: space-between;
+  justify-items: end;
   gap: var(--space-4);
   pointer-events: none;
+}
+
+.map-controls--with-panel {
+  inset: var(--space-4) var(--space-4) var(--space-4) auto;
+  align-content: space-between;
 }
 
 .control-stack,
@@ -128,8 +135,7 @@ const statusCopy = computed(() => {
 
 .control-stack {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  gap: var(--space-3);
 }
 
 .control-button,
@@ -140,18 +146,20 @@ const statusCopy = computed(() => {
     transform var(--transition-fast),
     border-color var(--transition-fast),
     background var(--transition-fast),
+    box-shadow var(--transition-fast),
     opacity var(--transition-fast);
 }
 
 .control-button {
-  width: 3rem;
-  height: 3rem;
-  border-radius: var(--radius-lg);
-  background: var(--bg-secondary);
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
   color: var(--text-primary);
   display: grid;
   place-items: center;
   cursor: pointer;
+  box-shadow: var(--shadow-lg);
 }
 
 .control-button:hover:not(:disabled),
@@ -160,8 +168,9 @@ const statusCopy = computed(() => {
 .reset-button:focus-visible,
 .filter-chip:hover,
 .filter-chip:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(-0.125rem);
   border-color: var(--border-hover);
+  box-shadow: var(--shadow-lg);
   outline: none;
 }
 
@@ -210,7 +219,7 @@ const statusCopy = computed(() => {
 .reset-button {
   border-radius: var(--radius-full);
   padding: 0.625rem 0.9rem;
-  background: var(--bg-secondary);
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent);
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -233,6 +242,13 @@ const statusCopy = computed(() => {
   cursor: pointer;
 }
 
+.filter-chip:not(.is-muted) {
+  border-color: currentColor;
+  box-shadow:
+    inset 0 0 0 1px currentColor,
+    var(--shadow-sm);
+}
+
 .filter-chip.is-muted {
   opacity: 0.45;
 }
@@ -244,8 +260,11 @@ const statusCopy = computed(() => {
 
 @media (max-width: 960px) {
   .map-controls {
+    inset: auto var(--space-3) var(--space-3) auto;
+  }
+
+  .map-controls--with-panel {
     inset: auto var(--space-3) var(--space-3) var(--space-3);
-    justify-items: end;
   }
 
   .filter-panel {

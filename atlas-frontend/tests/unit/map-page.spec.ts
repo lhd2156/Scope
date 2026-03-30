@@ -22,6 +22,7 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
         category: 'food',
         city: 'Fort Worth',
         country: 'US',
+        vibe: 'electric',
         rating: 4.8,
         photoUrl: 'https://images.example.com/spot-1.jpg',
       },
@@ -34,11 +35,13 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
         category: 'nature',
         city: 'Fort Worth',
         country: 'US',
+        vibe: 'calm',
         rating: 4.7,
         photoUrl: 'https://images.example.com/spot-2.jpg',
       },
     ],
     error: '',
+    loading: false,
     fetchSpots: vi.fn().mockResolvedValue(undefined),
   },
   tripsStoreMock: {
@@ -48,7 +51,11 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
         title: 'North Texas Night + Food Loop',
         description: 'Two days of tacos and skyline views.',
         destination: 'Fort Worth, TX',
-        members: [{ id: 'user-1' }, { id: 'user-2' }],
+        coverImageUrl: 'https://images.example.com/trip-cover.jpg',
+        members: [
+          { id: 'user-1', displayName: 'Louis Do' },
+          { id: 'user-2', displayName: 'Maya Chen' },
+        ],
         spots: [
           {
             spotId: 'spot-1',
@@ -56,11 +63,14 @@ const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
             latitude: 32.7555,
             longitude: -97.3308,
             category: 'food',
+            dayNumber: 1,
+            timeSlot: '11:00',
           },
         ],
       },
     ],
     error: '',
+    loading: false,
     fetchTrips: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -82,7 +92,10 @@ import MapPage from '@/views/MapPage.vue';
 describe('MapPage', () => {
   beforeEach(() => {
     spotsStoreMock.error = '';
+    spotsStoreMock.loading = false;
     tripsStoreMock.error = '';
+    tripsStoreMock.loading = false;
+    mapStoreMock.activeCategories = ['food', 'nature'];
     mapStoreMock.toggleCategory.mockClear();
     mapStoreMock.resetCategories.mockClear();
     mapStoreMock.setSelectedSpotId.mockClear();
@@ -92,12 +105,11 @@ describe('MapPage', () => {
     tripsStoreMock.fetchTrips.mockClear();
   });
 
-  it('loads the map workspace, selected spot details, and visible pin list', async () => {
+  it('loads the premium sidebar workspace with category chips, route preview, and selected spot details', async () => {
     const wrapper = mount(MapPage, {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
-          Sidebar: { template: '<aside><slot /></aside>' },
           MapView: {
             props: ['spots', 'routePoints', 'selectedSpotId'],
             template: '<div data-test="map-view-stub">{{ spots.length }} spots / {{ routePoints.length }} route points / {{ selectedSpotId }}</div>',
@@ -110,9 +122,17 @@ describe('MapPage', () => {
 
     expect(spotsStoreMock.fetchSpots).toHaveBeenCalledTimes(1);
     expect(tripsStoreMock.fetchTrips).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Curate the map by mood');
     expect(wrapper.text()).toContain('North Texas Night + Food Loop');
+    expect(wrapper.text()).toContain('Featured spot');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('2 spots / 1 route points / spot-1');
+
+    const activeChip = wrapper.get('button.filter-chip.badge-food');
+    const inactiveChip = wrapper.get('button.filter-chip.badge-nightlife');
+
+    expect(activeChip.classes()).not.toContain('is-inactive');
+    expect(inactiveChip.classes()).toContain('is-inactive');
 
     await wrapper.get('button.visible-item').trigger('click');
 
@@ -129,7 +149,6 @@ describe('MapPage', () => {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
-          Sidebar: { template: '<aside><slot /></aside>' },
           MapView: { template: '<div />' },
         },
       },

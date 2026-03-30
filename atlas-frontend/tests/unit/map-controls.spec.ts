@@ -5,13 +5,14 @@ import type { SpotCategory } from '@/types';
 const categories: SpotCategory[] = ['food', 'nature', 'culture'];
 
 describe('MapControls', () => {
-  it('emits control actions and category toggles', async () => {
+  it('emits control actions and category toggles when the filter panel is visible', async () => {
     const wrapper = mount(MapControls, {
       props: {
         categories,
         activeCategories: ['food', 'culture'],
         routeReady: true,
         trackingState: 'tracking',
+        showFilterPanel: true,
       },
     });
 
@@ -28,5 +29,18 @@ describe('MapControls', () => {
     expect(wrapper.emitted('fit-route')).toHaveLength(1);
     expect(wrapper.emitted('toggle-category')?.[0]).toEqual(['food']);
     expect(wrapper.text()).toContain('Live GPS is sharing your current position');
+  });
+
+  it('renders a compact bottom-right control stack by default', () => {
+    const wrapper = mount(MapControls, {
+      props: {
+        categories,
+        activeCategories: ['food'],
+      },
+    });
+
+    expect(wrapper.find('.filter-panel').exists()).toBe(false);
+    expect(wrapper.findAll('button')).toHaveLength(4);
+    expect(wrapper.classes()).not.toContain('map-controls--with-panel');
   });
 });

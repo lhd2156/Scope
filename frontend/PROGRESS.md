@@ -59,7 +59,7 @@
 - [x] 13.2 — Hero Section Rework: Landing page hero with full-bleed Unsplash background photo, dark gradient overlay, glassmorphism content panel, animated heading "Your Adventures, Mapped.", dual CTA buttons (teal primary + outline secondary) with glow effects. Must span full viewport width.
 - [x] 13.3 — Card System Overhaul: Rework SpotCard for all pages — rich photo with aspect-ratio 4/3, gradient overlay on bottom for text, category badge pill in top-left, heart/save icon in top-right, hover zoom on photo (scale 1.05 with overflow hidden), translateY(-2px) card lift, shadow elevation on hover. Apply to SpotCard, TripCard, FeedItem.
 - [x] 13.4 — Navbar Premium Polish: Add backdrop-filter blur, subtle bottom border (1px solid var(--glass-border)), scroll-triggered opacity change (transparent when at top, solid on scroll), avatar dropdown with glassmorphism popup panel, notification badge with CSS pulse animation.
-- [ ] 13.5 — Map Page Sidebar Glassmorphism: Sidebar panels use glass-panel treatment, filter chips get per-category colored active states (food=green, nightlife=purple, culture=blue, etc.), selected spot card shows photo with slide-in animation, route card gets gradient background.
+- [x] 13.5 — Map Page Sidebar Glassmorphism: Sidebar panels use glass-panel treatment, filter chips get per-category colored active states (food=green, nightlife=purple, culture=blue, etc.), selected spot card shows photo with slide-in animation, route card gets gradient background.
 - [ ] 13.6 — Explore Page Masonry: 3-column grid, rich photo cards with gradient text overlay, hover zoom on photos, numbered trending sidebar (#1-#8 with thumbnails), large glassmorphism search bar at top.
 - [ ] 13.7 — Profile Page Instagram-Style: Centered avatar (120px) with teal ring border, horizontal stat counters with icons (Countries/Cities/Trips/Days), global footprint dark map with glowing teal visited dots, 3-column recent adventures grid with cover photos.
 - [ ] 13.8 — Spot Detail Rich Layout: Hero photo gallery (main 21/9 + 4 thumbnails grid), star rating with gold stars, action button row (Add to Trip / Share / Save), two-column below (description+reviews left, mini-map+info right), reviews with avatars and star displays.
@@ -136,8 +136,8 @@
 - [ ] 20.6 — Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 — Fix all Critical and High severity issues found
 
-## Current Task: Phase 13.5 — Map Page Sidebar Glassmorphism
-## Last Updated: 2026-03-29T23:36:06.7914725-05:00
+## Current Task: Phase 13.6 — Explore Page Masonry
+## Last Updated: 2026-03-29T23:54:33.2514064-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -155,3 +155,4 @@
 - 2026-03-30T03:34:03.5050327-05:00: COMPLETED Phase 13.2 — rebuilt the landing-page hero into a full-bleed photo experience with layered gradient overlay, centered glassmorphism panel, animated “Your Adventures, Mapped.” headline, premium CTA buttons, smooth scroll demo action, refreshed section headings, green home-page Vitest coverage, successful frontend production build, and a manual Playwright screenshot sanity check. Next up: Phase 13.3 card system overhaul.
 - 2026-03-29T22:57:55.9819881-05:00: COMPLETED Phase 13.3 — overhauled SpotCard, TripCard, and FeedItem into photo-first premium surfaces with glassmorphism chrome, save actions, bottom text gradients, hover lift/zoom motion, reduced-motion safeguards, and updated virtualized feed row sizing in Home/Friends. Validation: `npm.cmd run build`, `npm.cmd run test`, plus focused Vitest coverage for the three upgraded cards. Next up: Phase 13.4 navbar premium polish.
 - 2026-03-29T23:36:06.7914725-05:00: COMPLETED Phase 13.4 — rebuilt the navbar into a full-width premium shell with backdrop blur, a subtle glass border, scroll-triggered transparency-to-solid transitions, a richer glassmorphism avatar menu, and pulsing notification badges that respect reduced motion. Validation: `npm.cmd run build`, `npm.cmd run test`, focused Vitest for `navbar.spec.ts` and `notification-dropdown.spec.ts`, plus a Playwright screenshot sanity check saved to `atlas-frontend/test-results/navbar-home.png`. Next up: Phase 13.5 map page sidebar glassmorphism.
+- 2026-03-29T23:54:33.2514064-05:00: COMPLETED Phase 13.5 — rebuilt the map workspace into a premium split layout with stacked glass sidebar panels, per-category active filter chips, a gradient-rich featured route card, animated selected-spot spotlighting, and a more faithful bottom-right floating control stack on the map. Validation: `npm.cmd run build`, `npm.cmd run test`, plus focused Vitest coverage for `map-page.spec.ts` and `map-controls.spec.ts`. Next up: Phase 13.6 explore page masonry.
