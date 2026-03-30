@@ -23,6 +23,7 @@
       :route-ready="hasRoute"
       :tracking-state="trackingState"
       :interactive="hasToken"
+      :show-filter-panel="showFilterPanel"
       @zoom-in="handleZoom(1)"
       @zoom-out="handleZoom(-1)"
       @locate="handleLocate"
@@ -82,12 +83,14 @@ const props = withDefaults(
     selectedSpotId?: string | null;
     showLocationTracker?: boolean;
     clickToSelect?: boolean;
+    showFilterPanel?: boolean;
   }>(),
   {
     routePoints: () => [],
     selectedSpotId: null,
     showLocationTracker: true,
     clickToSelect: false,
+    showFilterPanel: false,
   },
 );
 
