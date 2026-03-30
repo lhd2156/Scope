@@ -24,7 +24,7 @@ describe('Avatar', () => {
       });
     }
   });
-  it('renders initials and size styles when no image is provided', () => {
+  it('renders a pravatar fallback image and preserves size styles when no image is provided', async () => {
     const wrapper = mount(Avatar, {
       props: {
         name: 'Louis Do',
@@ -32,12 +32,14 @@ describe('Avatar', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('LD');
+    await nextTick();
+
+    expect(wrapper.find('img').attributes('src')).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
     expect(wrapper.attributes('aria-label')).toBe('Louis Do');
     expect((wrapper.element as HTMLElement).style.width).toBe('56px');
   });
 
-  it('falls back to initials when the image fails to load', async () => {
+  it('swaps a broken explicit image to the pravatar fallback before showing initials', async () => {
     const wrapper = mount(Avatar, {
       props: {
         name: 'Maya Chen',
@@ -49,8 +51,9 @@ describe('Avatar', () => {
     expect(wrapper.find('img').attributes('src')).toContain('maya.jpg');
 
     await wrapper.get('img').trigger('error');
+    await nextTick();
 
-    expect(wrapper.find('img').exists()).toBe(false);
-    expect(wrapper.text()).toContain('MC');
+    expect(wrapper.find('img').attributes('src')).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
+    expect(wrapper.text()).not.toContain('MC');
   });
 });

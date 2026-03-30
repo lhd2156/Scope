@@ -1,9 +1,13 @@
 import {
+  sanitizeFeedItem,
   sanitizeImageUrl,
   sanitizeMultilineText,
   sanitizeSpotFormSubmission,
+  sanitizeSpotSummary,
+  sanitizeTrip,
+  sanitizeUserProfile,
 } from '@/utils/sanitizers';
-import type { SpotFormSubmission } from '@/types';
+import type { FeedItem, SpotFormSubmission, SpotSummary, Trip, UserProfile } from '@/types';
 
 describe('sanitizers', () => {
   it('normalizes multiline user content and strips control characters', () => {
@@ -15,6 +19,66 @@ describe('sanitizers', () => {
     expect(sanitizeImageUrl('blob:atlas-preview')).toBe('blob:atlas-preview');
     expect(sanitizeImageUrl('javascript:alert(1)')).toBeUndefined();
     expect(sanitizeImageUrl('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBeUndefined();
+  });
+
+  it('hydrates display models with demo photo and avatar fallbacks when media is missing', () => {
+    const user: UserProfile = {
+      id: 'user-99',
+      username: 'atlas-fallback',
+      email: 'fallback@example.com',
+      displayName: 'Fallback Traveler',
+      interests: ['scenic'],
+    };
+
+    const spot: SpotSummary = {
+      id: 'spot-99',
+      title: 'Fallback Canyon Stop',
+      latitude: 35.1,
+      longitude: -106.6,
+      category: 'adventure',
+      createdAt: '2026-03-30T12:00:00Z',
+      rating: 4.7,
+    };
+
+    const trip: Trip = {
+      id: 'trip-99',
+      title: 'Fallback Route',
+      destination: 'New Mexico',
+      isPublic: true,
+      startDate: '2026-04-02',
+      endDate: '2026-04-03',
+      members: [{ id: 'user-99', displayName: 'Fallback Traveler' }],
+      spots: [
+        {
+          spotId: 'spot-99',
+          title: 'Fallback Canyon Stop',
+          latitude: 35.1,
+          longitude: -106.6,
+          category: 'adventure',
+        },
+      ],
+    };
+
+    const feedItem: FeedItem = {
+      id: 'feed-99',
+      type: 'trip',
+      actor: user,
+      title: 'Fallback Traveler planned Fallback Route',
+      excerpt: 'A route with resilient media fallbacks.',
+      createdAt: '2026-03-30T12:00:00Z',
+      targetId: 'trip-99',
+    };
+
+    const sanitizedUser = sanitizeUserProfile(user);
+    const sanitizedSpot = sanitizeSpotSummary(spot);
+    const sanitizedTrip = sanitizeTrip(trip);
+    const sanitizedFeedItem = sanitizeFeedItem(feedItem);
+
+    expect(sanitizedUser.avatarUrl).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
+    expect(sanitizedSpot.photoUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
+    expect(sanitizedTrip.coverImageUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
+    expect(sanitizedTrip.members[0]?.avatarUrl).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
+    expect(sanitizedFeedItem.imageUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
   });
 
   it('sanitizes spot submissions before they are persisted for display', () => {

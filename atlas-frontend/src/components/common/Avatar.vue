@@ -1,6 +1,6 @@
 <template>
   <div class="avatar" :style="avatarStyle" :aria-label="label ?? name">
-    <LazyImage v-if="imageSource" :src="imageSource" :alt="label ?? name" @error="onImageError" />
+    <LazyImage v-if="!failed" :src="imageSource" :fallback-src="fallbackSource" :alt="label ?? name" @error="onImageError" />
     <span v-else>{{ initials }}</span>
   </div>
 </template>
@@ -9,6 +9,7 @@
 import { computed, ref, watch } from 'vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import { getInitials } from '@/utils/formatters';
+import { resolveAvatarUrl } from '@/utils/demoPhotos';
 
 const props = withDefaults(
   defineProps<{
@@ -27,14 +28,15 @@ const props = withDefaults(
 const failed = ref(false);
 
 watch(
-  () => props.src,
+  () => [props.src, props.name, props.size] as const,
   () => {
     failed.value = false;
   },
 );
 
 const initials = computed(() => getInitials(props.name));
-const imageSource = computed(() => (props.src && !failed.value ? props.src : undefined));
+const fallbackSource = computed(() => resolveAvatarUrl(undefined, props.name || props.label || 'Atlas traveler', props.size));
+const imageSource = computed(() => resolveAvatarUrl(props.src, props.name || props.label || 'Atlas traveler', props.size));
 const avatarStyle = computed(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,

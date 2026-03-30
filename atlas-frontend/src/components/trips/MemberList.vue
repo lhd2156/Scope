@@ -1,21 +1,20 @@
 <template>
-  <section class="member-list glass-panel">
-    <header class="member-list__header">
+  <section class="member-list" data-test="member-list">
+    <header class="list-header">
       <div>
-        <p class="eyebrow">Members</p>
-        <h2>{{ members.length }} traveler{{ members.length === 1 ? '' : 's' }}</h2>
+        <p class="eyebrow">Trip members</p>
+        <h2>{{ title }}</h2>
       </div>
-      <span class="member-list__hint">Roles update collaboration permissions.</span>
+      <span class="meta-pill">{{ members.length }} total</span>
     </header>
 
-    <div class="member-list__grid">
+    <div class="member-grid">
       <article v-for="member in members" :key="member.id" class="surface-card member-card">
-        <img v-if="member.avatarUrl" :src="member.avatarUrl" :alt="member.displayName" class="member-avatar-image" />
-        <span v-else class="member-avatar-fallback">{{ getInitials(member.displayName) }}</span>
+        <Avatar :name="member.displayName" :src="member.avatarUrl" :size="48" class="member-avatar" />
 
         <div class="member-copy">
           <strong>{{ member.displayName }}</strong>
-          <span class="member-role">{{ formatRole(member.status) }}</span>
+          <span>{{ roleLabel(member.status) }}</span>
         </div>
       </article>
     </div>
@@ -23,38 +22,38 @@
 </template>
 
 <script setup lang="ts">
+import Avatar from '@/components/common/Avatar.vue';
 import type { TripMember } from '@/types';
 
-defineProps<{
-  members: TripMember[];
-}>();
+withDefaults(
+  defineProps<{
+    members: TripMember[];
+    title?: string;
+  }>(),
+  {
+    title: 'Crew on this route',
+  },
+);
 
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-}
-
-function formatRole(role?: string): string {
-  if (!role) {
-    return 'Member';
+function roleLabel(status?: string): string {
+  if (!status) {
+    return 'Trip member';
   }
 
-  return role.charAt(0).toUpperCase() + role.slice(1);
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 </script>
 
 <style scoped>
-.member-list {
-  padding: var(--space-5);
+.member-list,
+.member-grid,
+.member-card,
+.member-copy {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
-.member-list__header {
+.list-header {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
@@ -62,64 +61,56 @@ function formatRole(role?: string): string {
 }
 
 .eyebrow {
-  margin: 0 0 var(--space-1);
+  margin: 0 0 var(--space-2);
   color: var(--accent-teal);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: var(--font-size-caption);
 }
 
-.member-list__header h2,
-.member-list__hint,
+.list-header h2,
 .member-copy strong,
 .member-copy span {
   margin: 0;
 }
 
-.member-list__hint,
-.member-role {
-  color: var(--text-secondary);
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  font-size: var(--font-size-small);
 }
 
-.member-list__grid {
-  display: grid;
-  gap: var(--space-4);
+.member-grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
 }
 
 .member-card {
-  display: grid;
   grid-template-columns: auto 1fr;
-  gap: var(--space-3);
   align-items: center;
   padding: var(--space-4);
 }
 
-.member-avatar-image,
-.member-avatar-fallback {
-  width: 3rem;
-  height: 3rem;
+.member-avatar {
   border-radius: var(--radius-full);
 }
 
-.member-avatar-image {
-  object-fit: cover;
+.member-copy strong {
+  color: var(--text-primary);
 }
 
-.member-avatar-fallback {
-  display: grid;
-  place-items: center;
-  background: var(--accent-teal-light);
-  color: var(--accent-teal);
-  font-weight: var(--font-weight-bold);
-}
-
-.member-copy {
-  display: grid;
-  gap: var(--space-1);
+.member-copy span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
 }
 
 @media (max-width: 720px) {
-  .member-list__header {
+  .list-header {
     flex-direction: column;
     align-items: flex-start;
   }

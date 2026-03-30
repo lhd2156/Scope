@@ -1,12 +1,7 @@
 <template>
   <article class="trip-card glass-panel" data-test="trip-card">
     <div class="trip-media">
-      <LazyImage v-if="trip.coverImageUrl" :src="trip.coverImageUrl" :alt="trip.title" class="trip-image" />
-      <div v-else class="trip-fallback">
-        <AtlasIcon name="route" label="Trip route placeholder" />
-        <strong>{{ trip.title }}</strong>
-        <span>Route preview</span>
-      </div>
+      <LazyImage :src="tripImageUrl" :fallback-src="tripImageFallback" :alt="trip.title" class="trip-image" />
 
       <div class="trip-media-chrome">
         <span class="status-pill" :class="`status-pill--${tripStatus}`">{{ statusLabel }}</span>
@@ -73,6 +68,7 @@ import { computed, ref } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { Trip, TripStatus } from '@/types';
+import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
 
 const props = defineProps<{
   trip: Trip;
@@ -103,6 +99,8 @@ const tripLengthDays = computed(() => {
 });
 
 const tripStatus = computed<TripStatus>(() => props.trip.status ?? 'planning');
+const tripImageFallback = computed(() => getTripCoverFallback(props.trip, 1200));
+const tripImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, 1200));
 const statusLabel = computed(() => tripStatus.value.charAt(0).toUpperCase() + tripStatus.value.slice(1));
 const descriptionCopy = computed(() => props.trip.description?.trim() || 'A premium route board is waiting for the first itinerary notes.');
 const memberLabel = computed(() => `${props.trip.members.length} member${props.trip.members.length === 1 ? '' : 's'}`);
@@ -162,13 +160,9 @@ const footerCopy = computed(() => {
   pointer-events: none;
 }
 
-.trip-image,
-.trip-fallback {
+.trip-image {
   width: 100%;
   height: 100%;
-}
-
-.trip-image {
   object-fit: cover;
   transition: transform var(--transition-slow), filter var(--transition-slow);
 }
@@ -178,30 +172,12 @@ const footerCopy = computed(() => {
   transform: scale(var(--motion-image-zoom));
 }
 
-.trip-fallback {
-  display: grid;
-  place-content: center;
-  gap: var(--space-2);
-  padding: var(--space-6);
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.trip-fallback :deep(.atlas-icon) {
-  width: 2rem;
-  height: 2rem;
-  margin: 0 auto;
-  color: var(--accent-teal);
-}
-
-.trip-fallback strong,
 .trip-overlay h3,
 .description,
 .footer-copy {
   margin: 0;
 }
 
-.trip-fallback strong,
 .trip-overlay h3 {
   color: var(--text-primary);
 }

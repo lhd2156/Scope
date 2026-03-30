@@ -46,6 +46,6 @@ describe('FeedItem', () => {
     expect(wrapper.text()).toContain('Trip update');
     expect(wrapper.text()).toContain('Open trip');
     expect(wrapper.findAll('.action-button')).toHaveLength(3);
-    expect(wrapper.find('.lazy-image-stub').attributes('alt')).toBe('Louis planned North Texas Night + Food Loop');
+    expect(wrapper.find('.feed-media .lazy-image-stub').attributes('alt')).toBe('Louis planned North Texas Night + Food Loop');
   });
 });

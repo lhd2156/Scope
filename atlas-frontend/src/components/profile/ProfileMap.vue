@@ -51,10 +51,13 @@
 
         <article class="spotlight-card glass-panel">
           <div class="spotlight-media">
-            <LazyImage v-if="selectedSpot?.photoUrl" :src="selectedSpot.photoUrl" :alt="selectedSpot.title" class="spotlight-image" />
-            <div v-else class="spotlight-fallback">
-              <AtlasIcon name="map" label="Footprint spotlight" />
-            </div>
+            <LazyImage
+              v-if="selectedSpot"
+              :src="selectedSpotImageUrl"
+              :fallback-src="selectedSpotImageFallback"
+              :alt="selectedSpot.title"
+              class="spotlight-image"
+            />
           </div>
 
           <div v-if="selectedSpot" class="spotlight-copy">
@@ -103,6 +106,7 @@ import { computed, ref, watch } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotCategory, SpotSummary } from '@/types';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 
 interface ProjectedSpot extends SpotSummary {
   x: number;
@@ -180,6 +184,14 @@ const latitudeGrid = [67.5, 135, 202.5, 270, 337.5, 405, 472.5];
 const longitudeGrid = [83.33, 166.67, 250, 333.33, 416.67, 500, 583.33, 666.67, 750, 833.33, 916.67];
 
 const selectedSpot = computed(() => sortedSpots.value.find((spot) => spot.id === activeSpotId.value) ?? sortedSpots.value[0] ?? null);
+const selectedSpotImageFallback = computed(() => getSpotPhotoFallback(selectedSpot.value?.category ?? 'scenic', 800));
+const selectedSpotImageUrl = computed(() => {
+  if (!selectedSpot.value) {
+    return selectedSpotImageFallback.value;
+  }
+
+  return resolveSpotPhotoUrl(selectedSpot.value.category, selectedSpot.value.photoUrl, 800);
+});
 const cityCount = computed(() => new Set(sortedSpots.value.map((spot) => spot.city).filter(Boolean)).size);
 const countryCount = computed(() => {
   const countries = new Set(sortedSpots.value.map((spot) => spot.country?.trim().toUpperCase()).filter(Boolean));
@@ -407,25 +419,10 @@ h2 {
     linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
 }
 
-.spotlight-image,
-.spotlight-fallback {
+.spotlight-image {
   width: 100%;
   height: 100%;
-}
-
-.spotlight-image {
   object-fit: cover;
-}
-
-.spotlight-fallback {
-  display: grid;
-  place-items: center;
-  color: var(--accent-teal);
-}
-
-.spotlight-fallback :deep(.atlas-icon) {
-  width: 1.5rem;
-  height: 1.5rem;
 }
 
 .spotlight-topline {

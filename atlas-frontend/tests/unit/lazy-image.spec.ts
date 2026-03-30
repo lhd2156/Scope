@@ -100,6 +100,33 @@ describe('LazyImage', () => {
     expect(disconnect).toHaveBeenCalled();
   });
 
+  it('swaps to a fallback image source before surfacing a terminal error', async () => {
+    removeIntersectionObserver();
+
+    const wrapper = mount(LazyImage, {
+      props: {
+        src: 'https://images.example.com/avatar.jpg',
+        fallbackSrc: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=800',
+        alt: 'Avatar',
+      },
+    });
+
+    await nextTick();
+    expect(wrapper.get('img').attributes('src')).toContain('avatar.jpg');
+
+    await wrapper.get('img').trigger('error');
+    await nextTick();
+
+    expect(wrapper.find('img').attributes('src')).toContain('photo-1506929562872-bb421503ef21?w=800');
+    expect(wrapper.emitted('error')).toBeUndefined();
+
+    await wrapper.get('img').trigger('error');
+
+    expect(wrapper.emitted('error')).toHaveLength(1);
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.find('.lazy-image-placeholder.is-error').exists()).toBe(true);
+  });
+
   it('emits an error event and falls back to the placeholder when the image fails', async () => {
     removeIntersectionObserver();
 

@@ -131,12 +131,12 @@
               data-test="explore-card"
             >
               <div class="explore-card__media">
-                <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="explore-card__image" />
-                <div v-else class="explore-card__placeholder">
-                  <AtlasIcon name="image" label="Explore cover placeholder" />
-                  <strong>{{ formatCategory(spot.category) }}</strong>
-                  <span>Photo syncing soon</span>
-                </div>
+                <LazyImage
+                  :src="resolveExplorePhoto(spot)"
+                  :fallback-src="resolveExplorePhotoFallback(spot)"
+                  :alt="spot.title"
+                  class="explore-card__image"
+                />
 
                 <div class="explore-card__chrome">
                   <span class="badge" :class="`badge-${spot.category}`">{{ formatCategory(spot.category) }}</span>
@@ -195,10 +195,12 @@
               <RouterLink :to="`/spots/${spot.id}`" class="trending-item" data-test="trending-item">
                 <span class="trending-item__rank" :aria-label="`Rank ${index + 1}`">#{{ index + 1 }}</span>
                 <div class="trending-item__thumb-wrap">
-                  <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="trending-item__thumb" />
-                  <div v-else class="trending-item__thumb trending-item__thumb--placeholder">
-                    <AtlasIcon name="image" label="Trending placeholder" />
-                  </div>
+                  <LazyImage
+                    :src="resolveExplorePhoto(spot)"
+                    :fallback-src="resolveExplorePhotoFallback(spot)"
+                    :alt="spot.title"
+                    class="trending-item__thumb"
+                  />
                 </div>
                 <div class="trending-item__copy">
                   <strong>{{ spot.title }}</strong>
@@ -229,6 +231,7 @@ import SearchBar from '@/components/common/SearchBar.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 
 const spotsStore = useSpotsStore();
 const route = useRoute();
@@ -264,6 +267,14 @@ function formatSaves(likesCount?: number): string {
 
 function roundedRating(rating: number): number {
   return Math.max(0, Math.min(5, Math.round(rating)));
+}
+
+function resolveExplorePhotoFallback(spot: SpotSummary): string {
+  return getSpotPhotoFallback(spot.category, 1200);
+}
+
+function resolveExplorePhoto(spot: SpotSummary): string {
+  return resolveSpotPhotoUrl(spot.category, spot.photoUrl, 1200);
 }
 
 function toggleCategory(category: SpotCategory) {
@@ -771,14 +782,9 @@ h2 {
 }
 
 .explore-card__image,
-.explore-card__placeholder,
 .trending-item__thumb {
   width: 100%;
   height: 100%;
-}
-
-.explore-card__image,
-.trending-item__thumb {
   object-fit: cover;
   transition: transform var(--transition-slow), filter var(--transition-slow);
 }
@@ -788,27 +794,6 @@ h2 {
 .trending-item:hover .trending-item__thumb,
 .trending-item:focus-visible .trending-item__thumb {
   transform: scale(var(--motion-image-zoom));
-}
-
-.explore-card__placeholder,
-.trending-item__thumb--placeholder {
-  display: grid;
-  place-content: center;
-  gap: var(--space-2);
-  padding: var(--space-5);
-  text-align: center;
-  color: var(--text-secondary);
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 45%),
-    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
-}
-
-.explore-card__placeholder :deep(.atlas-icon),
-.trending-item__thumb--placeholder :deep(.atlas-icon) {
-  width: 1.5rem;
-  height: 1.5rem;
-  margin: 0 auto;
-  color: var(--accent-teal);
 }
 
 .explore-card__chrome,
