@@ -1,13 +1,14 @@
 import { mockUsers } from '@/services/mockData';
 import type { FriendConnection, FriendRequest, UserProfile } from '@/types';
 import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeUserProfile } from '@/utils/sanitizers';
+import { buildPravatarUrl } from '@/utils/demoPhotos';
 
 const incomingRequestUser: UserProfile = sanitizeUserProfile({
   id: 'user-4',
   username: 'sofia-park',
   email: 'sofia@example.com',
   displayName: 'Sofia Park',
-  avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=80',
+  avatarUrl: buildPravatarUrl('user-4'),
   bio: 'Coffee trails, museum courtyards, and itinerary notes that never miss.',
   homeBase: 'Houston, TX',
   interests: ['culture', 'food', 'shopping'],
@@ -19,7 +20,7 @@ const outgoingRequestUser: UserProfile = sanitizeUserProfile({
   username: 'gabriel-m',
   email: 'gabriel@example.com',
   displayName: 'Gabriel Martinez',
-  avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=80',
+  avatarUrl: buildPravatarUrl('user-5'),
   bio: 'Road-trip optimizer collecting the best sunrise pins in every city.',
   homeBase: 'San Antonio, TX',
   interests: ['adventure', 'nature', 'scenic'],
@@ -31,7 +32,7 @@ export const mockFriendConnections: FriendConnection[] = [
     id: 'friend-1',
     user: {
       ...mockUsers[1],
-      avatarUrl: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=320&q=80',
+      avatarUrl: buildPravatarUrl('user-2'),
     },
     presence: 'online',
     sharedTrips: 2,
@@ -44,7 +45,7 @@ export const mockFriendConnections: FriendConnection[] = [
     id: 'friend-2',
     user: {
       ...mockUsers[2],
-      avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=320&q=80',
+      avatarUrl: buildPravatarUrl('user-3'),
     },
     presence: 'planning',
     sharedTrips: 4,

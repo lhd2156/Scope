@@ -4,7 +4,7 @@
     hero-title="Find the trip you left mid-route."
     hero-description="Sign in to sync saved spots, AI itineraries, traveler activity, and the real-world stories you already mapped across Atlas."
     :hero-highlights="loginHighlights"
-    hero-image-src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920"
+    :hero-image-src="DEMO_HERO_IMAGES.auth"
     hero-image-alt="Sunlit alpine valley surrounded by dramatic mountain peaks"
   >
     <article class="auth-card glass-panel">
@@ -81,6 +81,7 @@ import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
 import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
 import { validateLoginForm, type LoginFormErrors } from '@/utils/authValidators';
+import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 
 const loginHighlights = [
   'Saved spots stay synced',
