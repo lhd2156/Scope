@@ -114,6 +114,8 @@
 - [2026-03-30] ⚠️ `src/components/common/Toast.vue` does not honor an `open` prop on its own; direct page-level toast usage must be wrapped in `v-if` (or routed through the store-backed `ToastViewport`) or success/info toasts will render immediately on first paint.
 - [2026-03-30] ✅ For Atlas trip-planner polish, keep the preset route source of truth shared between the planner page seed state and the mock itinerary generator; otherwise the left-hand stop stack, map-side timeline overlay, and generated preview drift out of sync as soon as the destination-specific demo route changes.
 - [2026-03-30] ✅ Atlas frontend guest auth pages are easiest to keep mockup-faithful by moving them off `AppShell` and into a shared split-screen auth shell; route/query auth tests still pass as long as the views preserve the same redirect and validation contracts.
+- [2026-03-30] ✅ For Atlas settings polish, keep theme state in the shared `utils/theme` helpers and let the settings form call `applyTheme(...)` directly; that keeps the page-level appearance controls and the navbar/shell `ThemeToggle` synchronized without duplicating local state.
+- [2026-03-30] ⚠️ When cleaning up parallel frontend work on a reopened Phase 13 branch, rerun `npm.cmd run build` before restoring older mock data snapshots; the current Friends page depends on `mockPeopleYouMayKnow` from `src/services/mockData.ts`, so removing that export silently breaks unrelated later milestones.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -221,6 +223,8 @@
 - [2026-03-29] ⚠️ In the Atlas.Core worktree layout, source-audit tests must scan `Atlas.Core/Atlas.Core.API`, `Atlas.Core/Atlas.Core.Domain`, and `Atlas.Core/Atlas.Core.Infrastructure` under the repo root; scanning bare `Atlas.Core.API`-style paths silently skips production files and yields false-green hygiene checks.
 - [2026-03-29] ✅ Atlas.Core Kafka events should be published through a shared Section 10 envelope helper (`eventId`, `eventType`, `timestamp`, `source`, `data`) using `JsonSerializerDefaults.Web`; raw `JsonSerializer.Serialize(payload)` emits PascalCase payloads and skips the required metadata envelope.
 - [2026-03-29] ✅ For real Atlas.Core SignalR acceptance tests under `WebApplicationFactory`, use `Microsoft.AspNetCore.SignalR.Client` with `factory.Server.CreateHandler()` and `HttpTransportType.LongPolling`; that gives true authenticated hub connections and method invocations in-process without needing an external Kestrel/WebSocket host.
+
+- [2026-03-30] ✅ When heartbeat must relaunch a worker without higher-level subagent metadata, `openclaw agent --agent <id> --session-id <fresh> --timeout 0 --message "..."` works as a one-shot recovery path; confirm the process table is empty first so you do not double-spawn the shared workspace.
 
 ## Common Mistakes to Avoid
 

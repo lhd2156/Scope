@@ -1,50 +1,91 @@
 import { mount } from '@vue/test-utils';
-import SettingsForm from '@/components/profile/SettingsForm.vue';
+import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
+
+const initialValue: SettingsFormValue = {
+  displayName: 'Louis Do',
+  avatarUrl: '',
+  bio: 'Collecting rooftop taco stops.',
+  homeBase: 'Fort Worth, TX',
+  privacy: 'friends',
+  tripInvites: 'instant',
+  emailAlerts: true,
+  categoryPreferences: ['food', 'culture', 'adventure'],
+  themeMode: 'dark',
+};
 
 describe('SettingsForm', () => {
-  const initialValue = {
-    displayName: 'Louis Do',
-    avatarUrl: ' https://images.example.com/avatar.jpg ',
-    bio: ' Collecting rooftop taco stops. ',
-    homeBase: ' Fort Worth, TX ',
-    privacy: 'friends' as const,
-    tripInvites: 'instant' as const,
-    emailAlerts: true,
-  };
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.style.colorScheme = '';
+  });
 
-  it('emits trimmed settings payloads when the form is valid', async () => {
+  it('emits the premium settings payload with theme and category preferences', async () => {
     const wrapper = mount(SettingsForm, {
       props: {
         initialValue,
+        accountEmail: 'louis@example.com',
+        syncModeLabel: 'API-backed',
+        syncModeDescription: 'Changes sync through the Atlas account API.',
       },
-    });
-
-    await wrapper.get('form').trigger('submit');
-
-    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
-      displayName: 'Louis Do',
-      avatarUrl: 'https://images.example.com/avatar.jpg',
-      bio: 'Collecting rooftop taco stops.',
-      homeBase: 'Fort Worth, TX',
-      privacy: 'friends',
-      tripInvites: 'instant',
-      emailAlerts: true,
-    });
-  });
-
-  it('emits a model update when display name is missing', async () => {
-    const wrapper = mount(SettingsForm, {
-      props: {
-        initialValue: {
-          ...initialValue,
-          displayName: '   ',
+      global: {
+        stubs: {
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
         },
       },
     });
 
+    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
+    await wrapper.get('[data-test="preference-pill-shopping"]').trigger('click');
     await wrapper.get('form').trigger('submit');
 
-    expect(wrapper.emitted('update:errorMessage')?.[0]).toEqual(['Display name is required so your profile stays recognizable.']);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      displayName: 'Louis Do',
+      themeMode: 'light',
+    });
+    expect(wrapper.emitted('submit')?.[0]?.[0].categoryPreferences).toEqual(['food', 'culture', 'adventure', 'shopping']);
+  });
+
+  it('resets draft edits and restores the initial theme when cancel is pressed', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
+    await wrapper.get('input[placeholder="How your name appears in Atlas"]').setValue('Louis D.');
+    await wrapper.get('[data-test="settings-cancel"]').trigger('click');
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect((wrapper.get('input[placeholder="How your name appears in Atlas"]').element as HTMLInputElement).value).toBe('Louis Do');
+  });
+
+  it('requires a display name before submit', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    await wrapper.get('input[placeholder="How your name appears in Atlas"]').setValue('');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.text()).toContain('Display name is required so your profile stays recognizable.');
     expect(wrapper.emitted('submit')).toBeUndefined();
   });
 });

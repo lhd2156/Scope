@@ -67,7 +67,7 @@
 - [x] 13.10 — Login/Register Split-Screen: Left half = full-height travel hero photo with dark gradient overlay + Atlas branding. Right half = centered glassmorphism form card with styled inputs, teal primary button, Google OAuth button, subtle animated background grid/particles.
 - [x] 13.11 — Social Feed Premium Cards: Feed cards use glassmorphism panels, user avatar with activity text, attached travel photo (16/9 aspect, rounded corners, hover zoom), like/comment/share action row with icon buttons, stagger-in animation on feed load.
 - [x] 13.12 — Friends Page Grid: 3-column friend cards with circular avatars + online status dots, mutual friends count, "View Profile" button. Request cards with Accept (teal) / Decline (outline) buttons. "People You May Know" sidebar.
-- [ ] 13.13 — Settings Page Layout: Left sidebar nav (240px) with section links + teal active indicator, main content surface-card with styled form sections, dark/light toggle, toggleable category preference pills, avatar upload with camera overlay.
+- [x] 13.13 — Settings Page Layout: Left sidebar nav (240px) with section links + teal active indicator, main content surface-card with styled form sections, dark/light toggle, toggleable category preference pills, avatar upload with camera overlay.
 - [ ] 13.14 — Micro-Animations Pass: Page-enter stagger fade-ups (100ms delay per card), card hover lifts, button click scale(0.97) feedback, toast slide-in, modal backdrop blur transition, filter chip bounce, navbar scroll transition.
 - [ ] 13.15 — Typography & Spacing Audit: Verify all headings match DESIGN-SPEC.md hierarchy, all body text uses proper line-heights, eyebrow text is uppercase teal throughout, section spacing uses design tokens consistently.
 - [ ] 13.16 — Dark Mode Color Audit: Zero hardcoded hex values in any component. All backgrounds, text colors, borders use CSS variables. Verify glassmorphism panels work in both dark and light themes.
@@ -136,8 +136,8 @@
 - [ ] 20.6 — Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 — Fix all Critical and High severity issues found
 
-## Current Task: Phase 13.13 — Settings Page Layout
-## Last Updated: 2026-03-30T04:17:27.5460806-05:00
+## Current Task: Phase 13.14 — Micro-Animations Pass
+## Last Updated: 2026-03-30T04:52:07.7003621-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -163,3 +163,4 @@
 - 2026-03-30T03:37:41.7363977-05:00: COMPLETED Phase 13.10 — rebuilt login and registration into mockup-aligned split-screen auth experiences with a full-height Unsplash hero, Atlas-branded glass surfaces, styled icon-led inputs, password visibility toggles, Google OAuth CTAs, hover-lifted glass cards, and animated ambient grid/particle backdrops that respect reduced motion. Validation: npm.cmd run build, npm.cmd run test -- tests/unit/auth-pages.spec.ts, npm.cmd run test.
 - 2026-03-30T03:53:57.2849873-05:00: COMPLETED Phase 13.11 — rebuilt the landing and friends activity feeds into centered premium social cards with glassmorphism shells, avatar-led activity headers, 16:9 travel media, like/comment/share chrome, and staggered virtual-list entry motion that respects reduced motion. Validation: npm.cmd run test -- tests/unit/feed-item.spec.ts tests/unit/home-page.spec.ts tests/unit/friends-page.spec.ts tests/unit/virtual-list.spec.ts, npm.cmd run build, npm.cmd run test, and a browser preview sanity check on the home feed. Next up: Phase 13.12 friends page grid.
 - 2026-03-30T04:17:27.5460806-05:00: COMPLETED Phase 13.12 — reworked the friends workspace into a premium social grid with a glass search panel + tab filters, three-column friend cards with avatar status dots and hover-lifted CTAs, dedicated request cards with accept/decline actions, and a "People You May Know" sidebar that complements the realtime notifications/feed stack. Validation: npm.cmd run test -- tests/unit/friend-list.spec.ts tests/unit/friends-page.spec.ts, npm.cmd run build, and a live browser sanity check on /friends using local mock-auth fallback. Next up: Phase 13.13 settings page layout.
+- 2026-03-30T04:52:07.7003621-05:00: COMPLETED Phase 13.13 — rebuilt the settings workspace into a premium account console with a sticky left sidebar nav, glass shell, sectioned surface-card form layout, camera-overlay avatar treatment, synchronized dark/light appearance controls, and toggleable travel preference pills. Validation: npm.cmd run test -- tests/unit/settings-page.spec.ts tests/unit/settings-form.spec.ts, npm.cmd run build, npm.cmd run test. Note: the existing Friends page on this branch required `mockPeopleYouMayKnow` to exist in mockData; restored/exported that dataset while validating the settings milestone. Next up: Phase 13.14 micro-animations pass.
