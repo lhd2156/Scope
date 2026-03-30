@@ -16,6 +16,7 @@ const { fixtures, authStoreMock, userStoreMock, listUserSpotsMock, listPublicTri
         title: 'Sunset Rooftop Tacos',
         category: 'food',
         city: 'Fort Worth',
+        country: 'US',
         latitude: 32.7555,
         longitude: -97.3308,
         rating: 4.8,
@@ -26,6 +27,7 @@ const { fixtures, authStoreMock, userStoreMock, listUserSpotsMock, listPublicTri
         title: 'Design District Gallery Row',
         category: 'culture',
         city: 'Dallas',
+        country: 'US',
         latitude: 32.7821,
         longitude: -96.8123,
         rating: 4.7,
@@ -112,17 +114,17 @@ describe('ProfilePage', () => {
     });
   });
 
-  it('renders the profile workspace with fetched highlights and trips', async () => {
+  it('renders the redesigned profile workspace with footprint, adventures, and pinboard content', async () => {
     const wrapper = mount(ProfilePage, {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           RouterLink: { template: '<a><slot /></a>' },
           ProfileHeader: { props: ['user'], template: '<div data-test="profile-header">{{ user.displayName }}</div>' },
-          ProfileMap: { props: ['description'], template: '<div data-test="profile-map">{{ description }}</div>' },
-          ProfileStats: { template: '<div data-test="profile-stats">Stats</div>' },
+          ProfileStats: { props: ['countryCount'], template: '<div data-test="profile-stats">{{ countryCount }}</div>' },
+          ProfileMap: { props: ['title', 'description'], template: '<div data-test="profile-map">{{ title }} · {{ description }}</div>' },
+          ProfileAdventureCard: { props: ['trip'], template: '<div class="trip-card-stub">{{ trip.title }}</div>' },
           SpotCard: { props: ['spot'], template: '<div class="spot-card-stub">{{ spot.title }}</div>' },
-          TripCard: { props: ['trip'], template: '<div class="trip-card-stub">{{ trip.title }}</div>' },
         },
       },
     });
@@ -132,12 +134,14 @@ describe('ProfilePage', () => {
     expect(userStoreMock.fetchCurrentProfile).toHaveBeenCalledTimes(1);
     expect(listUserSpotsMock).toHaveBeenCalledWith('user-1', 1, 12);
     expect(listPublicTripsMock).toHaveBeenCalledWith(1, 24);
-    expect(wrapper.text()).toContain('Adventure map and public highlights');
     expect(wrapper.text()).toContain('Louis Do');
+    expect(wrapper.text()).toContain('Global Footprint');
+    expect(wrapper.text()).toContain('Recent Adventures');
+    expect(wrapper.text()).toContain('Public pins with the strongest visual payoff');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('Design District Gallery Row');
     expect(wrapper.text()).toContain('North Texas Night + Food Loop');
-    expect(wrapper.find('[data-test="profile-map"]').text()).toContain('Louis Do has 2 visible pins across 2 mapped cities.');
+    expect(wrapper.find('[data-test="profile-map"]').text()).toContain('2 visible pins across 2 mapped cities and 1 country');
   });
 
   it('renders a reusable skeleton while the profile workspace request is in flight', () => {

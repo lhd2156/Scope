@@ -14,7 +14,7 @@ const user: UserProfile = {
 };
 
 describe('ProfileHeader', () => {
-  it('renders profile identity, interests, and action links', () => {
+  it('renders the centered identity layout, travel interests, and action links', () => {
     const wrapper = mount(ProfileHeader, {
       props: {
         user,
@@ -24,15 +24,23 @@ describe('ProfileHeader', () => {
         secondaryActionLabel: 'View friends',
         secondaryActionTo: '/friends',
       },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="typeof to === \'string\' ? to : \'/mock\'"><slot /></a>',
+          },
+        },
+      },
     });
 
+    expect(wrapper.text()).toContain('Your atlas');
     expect(wrapper.text()).toContain('Louis Do');
     expect(wrapper.text()).toContain('@louisdo');
     expect(wrapper.text()).toContain('Fort Worth, TX');
     expect(wrapper.text()).toContain('Edit preferences');
     expect(wrapper.text()).toContain('View friends');
     expect(wrapper.text()).toContain('Food');
-    expect(wrapper.text()).toContain('42');
-    expect(wrapper.text()).toContain('126');
+    expect(wrapper.find('.avatar-ring').exists()).toBe(true);
   });
 });
