@@ -40,6 +40,19 @@ vi.mock('@/stores/spots', () => ({
 
 import HomePage from '@/views/HomePage.vue';
 
+function mountHomePage(overrides: Record<string, unknown> = {}) {
+  return mount(HomePage, {
+    global: {
+      stubs: {
+        AppShell: { template: '<div><slot /></div>' },
+        RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+        LazyImage: { props: ['src', 'alt'], template: '<img :src="src" :alt="alt" />' },
+        ...overrides,
+      },
+    },
+  });
+}
+
 describe('HomePage', () => {
   beforeEach(() => {
     feedStoreMock.items = [
@@ -65,20 +78,15 @@ describe('HomePage', () => {
     spotsStoreMock.fetchTrending.mockReset().mockResolvedValue(undefined);
   });
 
-  it('loads featured spots and network activity into the landing page', async () => {
-    const wrapper = mount(HomePage, {
-      global: {
-        stubs: {
-          AppShell: { template: '<div><slot /></div>' },
-          SpotCard: {
-            props: ['spot'],
-            template: '<div class="spot-card-stub">{{ spot.title }}</div>',
-          },
-          FeedItem: {
-            props: ['item'],
-            template: '<div class="feed-item-stub">{{ item.title }}</div>',
-          },
-        },
+  it('loads the premium hero, featured spots, and network activity into the landing page', async () => {
+    const wrapper = mountHomePage({
+      SpotCard: {
+        props: ['spot'],
+        template: '<div class="spot-card-stub">{{ spot.title }}</div>',
+      },
+      FeedItem: {
+        props: ['item'],
+        template: '<div class="feed-item-stub">{{ item.title }}</div>',
       },
     });
 
@@ -86,7 +94,14 @@ describe('HomePage', () => {
 
     expect(spotsStoreMock.fetchTrending).toHaveBeenCalledTimes(1);
     expect(feedStoreMock.fetchFeed).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('Atlas turns every outing into a mapped story worth sharing.');
+    expect(wrapper.find('.hero-band').exists()).toBe(true);
+    expect(wrapper.find('.hero-heading').text()).toContain('Your Adventures,');
+    expect(wrapper.find('.hero-heading').text()).toContain('Mapped.');
+    expect(wrapper.text()).toContain('Discover, plan, and share unforgettable journeys with Atlas.');
+    expect(wrapper.text()).toContain('Start Exploring');
+    expect(wrapper.text()).toContain('Watch Demo');
+    expect(wrapper.text()).toContain('Trending Destinations');
+    expect(wrapper.text()).toContain('Activity Feed');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(2);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(1);
   });
@@ -97,13 +112,7 @@ describe('HomePage', () => {
     feedStoreMock.fetchFeed.mockImplementation(() => new Promise(() => {}));
     spotsStoreMock.fetchTrending.mockImplementation(() => new Promise(() => {}));
 
-    const wrapper = mount(HomePage, {
-      global: {
-        stubs: {
-          AppShell: { template: '<div><slot /></div>' },
-        },
-      },
-    });
+    const wrapper = mountHomePage();
 
     expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(4);
     expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(3);
@@ -113,14 +122,9 @@ describe('HomePage', () => {
     spotsStoreMock.error = 'Atlas could not load trending spots right now.';
     spotsStoreMock.fetchTrending.mockRejectedValue(new Error('Trending failed'));
 
-    const wrapper = mount(HomePage, {
-      global: {
-        stubs: {
-          AppShell: { template: '<div><slot /></div>' },
-          SpotCard: { template: '<div />' },
-          FeedItem: { template: '<div />' },
-        },
-      },
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
     });
 
     await flushPromises();
