@@ -377,6 +377,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0 0 auto;
   z-index: var(--z-navbar);
+  isolation: isolate;
   padding: 0.85rem 0 0.7rem;
   border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 65%, transparent);
   background:
@@ -386,18 +387,41 @@ onBeforeUnmount(() => {
       color-mix(in srgb, var(--bg-primary) 28%, transparent) 76%,
       transparent 100%
     );
+  opacity: var(--motion-navbar-opacity-rest);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   transition:
+    opacity var(--transition-normal),
     background var(--transition-normal),
     border-color var(--transition-normal),
     box-shadow var(--transition-normal),
     padding var(--transition-normal);
 }
 
+.navbar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(var(--page-max-width), calc(100vw - (var(--shell-side-padding) * 2)));
+  height: 1px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent-teal) 42%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-50%) scaleX(0.92);
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  pointer-events: none;
+}
+
 .navbar--scrolled {
   padding: 0.65rem 0 0.55rem;
   border-bottom-color: var(--glass-border);
+  opacity: var(--motion-navbar-opacity-scrolled);
   background:
     linear-gradient(
       180deg,
@@ -405,6 +429,11 @@ onBeforeUnmount(() => {
       color-mix(in srgb, var(--bg-primary) 92%, transparent) 100%
     );
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--bg-primary) 34%, transparent);
+}
+
+.navbar--scrolled::after {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
 }
 
 .navbar__inner {
@@ -415,6 +444,11 @@ onBeforeUnmount(() => {
   grid-template-areas: 'brand nav actions';
   align-items: center;
   gap: var(--space-4);
+  transition: transform var(--transition-normal), gap var(--transition-normal);
+}
+
+.navbar--scrolled .navbar__inner {
+  transform: translateY(var(--motion-button-lift));
 }
 
 .brand,
@@ -563,6 +597,10 @@ onBeforeUnmount(() => {
   box-shadow:
     var(--shadow-md),
     0 0 0 1px color-mix(in srgb, var(--accent-teal) 16%, transparent);
+}
+
+.profile-chip:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .profile-chip__avatar-shell {
@@ -733,6 +771,11 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
+.menu-dropdown a:active,
+.menu-dropdown button:active {
+  transform: translateY(0) scale(0.97);
+}
+
 .guest-actions {
   flex-wrap: nowrap;
 }
@@ -764,6 +807,10 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
 }
 
+.ghost-link:active {
+  transform: translateY(0) scale(0.97);
+}
+
 .accent-link {
   background: var(--accent-teal);
   color: var(--bg-primary);
@@ -776,6 +823,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 2rem color-mix(in srgb, var(--accent-teal) 34%, transparent);
   outline: none;
   transform: translateY(-1px);
+}
+
+.accent-link:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .dropdown-fade-enter-active,
@@ -791,6 +842,8 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .navbar,
+  .navbar::after,
+  .navbar__inner,
   .nav-links a,
   .profile-chip,
   .menu-dropdown a,
@@ -807,14 +860,20 @@ onBeforeUnmount(() => {
   .profile-chip:hover,
   .profile-chip:focus-visible,
   .profile-chip[aria-expanded='true'],
+  .profile-chip:active,
   .menu-dropdown a:hover,
   .menu-dropdown a:focus-visible,
+  .menu-dropdown a:active,
   .menu-dropdown button:hover,
   .menu-dropdown button:focus-visible,
+  .menu-dropdown button:active,
   .ghost-link:hover,
   .ghost-link:focus-visible,
+  .ghost-link:active,
   .accent-link:hover,
-  .accent-link:focus-visible {
+  .accent-link:focus-visible,
+  .accent-link:active,
+  .navbar--scrolled .navbar__inner {
     transform: none;
   }
 

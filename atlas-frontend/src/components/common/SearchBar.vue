@@ -155,7 +155,10 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-full);
   background: transparent;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .search-bar__clear:hover,
@@ -163,5 +166,19 @@ onBeforeUnmount(() => {
   background: var(--bg-secondary);
   color: var(--text-primary);
   outline: none;
+}
+
+.search-bar__clear:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-bar__clear {
+    transition-duration: 1ms;
+  }
+
+  .search-bar__clear:active {
+    transform: none;
+  }
 }
 </style>

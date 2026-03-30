@@ -71,29 +71,56 @@ body {
 
 @media (prefers-reduced-motion: no-preference) {
   .route-stage :is(.page-container, .map-page) > * {
+    --atlas-stagger-index: 0;
     opacity: 0;
     transform: translateY(var(--space-4));
-    animation: atlas-page-reveal var(--transition-slow) forwards;
+    animation: atlas-page-reveal var(--motion-duration-reveal) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(var(--atlas-stagger-index) * var(--motion-stagger-step));
+    will-change: opacity, transform;
   }
 
   .route-stage :is(.page-container, .map-page) > :nth-child(1) {
-    animation-delay: 40ms;
+    --atlas-stagger-index: 0;
   }
 
   .route-stage :is(.page-container, .map-page) > :nth-child(2) {
-    animation-delay: 90ms;
+    --atlas-stagger-index: 1;
   }
 
   .route-stage :is(.page-container, .map-page) > :nth-child(3) {
-    animation-delay: 140ms;
+    --atlas-stagger-index: 2;
   }
 
   .route-stage :is(.page-container, .map-page) > :nth-child(4) {
-    animation-delay: 190ms;
+    --atlas-stagger-index: 3;
   }
 
-  .route-stage :is(.page-container, .map-page) > :nth-child(n + 5) {
-    animation-delay: 240ms;
+  .route-stage :is(.page-container, .map-page) > :nth-child(5) {
+    --atlas-stagger-index: 4;
+  }
+
+  .route-stage :is(.page-container, .map-page) > :nth-child(n + 6) {
+    --atlas-stagger-index: 5;
+  }
+
+  .stagger-in > * {
+    --atlas-stagger-index: 0;
+    opacity: 0;
+    transform: translateY(var(--space-3));
+    animation: atlas-fade-in-up var(--motion-duration-reveal) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--atlas-stagger-index) * var(--motion-stagger-step));
+    will-change: opacity, transform;
+  }
+
+  :is(
+      .explore-page .filter-chip.active,
+      .explore-page .quick-filter-chip.active,
+      .map-page .filter-chip:not(.is-inactive),
+      .map-controls .filter-chip:not(.is-muted),
+      .trip-planner .interest-chip.active
+    ) {
+    animation: atlas-chip-bounce var(--motion-duration-bounce) cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center;
   }
 }
 
@@ -101,7 +128,9 @@ body {
   .route-fade-enter-active,
   .route-fade-leave-active,
   .route-fade-reduced-enter-active,
-  .route-fade-reduced-leave-active {
+  .route-fade-reduced-leave-active,
+  .button,
+  .surface-card {
     transition-duration: 1ms;
   }
 
@@ -112,14 +141,24 @@ body {
     transform: none;
   }
 
-  .route-stage :is(.page-container, .map-page) > * {
+  .route-stage :is(.page-container, .map-page) > *,
+  .stagger-in > * {
     animation: none;
     opacity: 1;
     transform: none;
   }
+
+  .button:hover,
+  .button:focus-visible,
+  .button:active,
+  .surface-card:hover,
+  .surface-card:focus-within {
+    transform: none;
+  }
 }
 
-:root[data-reduced-motion='reduce'] .route-stage :is(.page-container, .map-page) > * {
+:root[data-reduced-motion='reduce'] .route-stage :is(.page-container, .map-page) > *,
+:root[data-reduced-motion='reduce'] .stagger-in > * {
   animation: none;
   opacity: 1;
   transform: none;
@@ -134,6 +173,32 @@ body {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes atlas-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-3));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes atlas-chip-bounce {
+  0% {
+    transform: translateY(0) scale(0.96);
+  }
+
+  55% {
+    transform: translateY(var(--motion-chip-bounce-lift)) scale(1.03);
+  }
+
+  100% {
+    transform: translateY(var(--motion-chip-active-lift)) scale(1);
   }
 }
 
@@ -210,6 +275,17 @@ img {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.surface-card:hover,
+.surface-card:focus-within {
+  transform: translateY(var(--motion-card-lift));
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
 }
 
 .section-title {
@@ -242,8 +318,13 @@ img {
 
 .button:hover,
 .button:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-button-lift));
   outline: none;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0) scale(var(--motion-press-scale));
+  transition-duration: var(--motion-press-duration);
 }
 
 .button-primary {

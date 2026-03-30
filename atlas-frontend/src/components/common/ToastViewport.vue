@@ -47,13 +47,25 @@ const transitionName = computed(() => (reducedMotion.value ? 'toast-stack-reduce
 .toast-stack-enter-active,
 .toast-stack-leave-active,
 .toast-stack-move {
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal),
+    filter var(--transition-normal);
+  will-change: opacity, transform, filter;
 }
 
 .toast-stack-enter-from,
 .toast-stack-leave-to {
   opacity: 0;
-  transform: translateY(0.8rem);
+  transform: translate3d(var(--motion-toast-slide-x), var(--motion-toast-slide-y), 0) scale(0.98);
+  filter: blur(0.625rem);
+}
+
+.toast-stack-enter-to,
+.toast-stack-leave-from {
+  opacity: 1;
+  transform: none;
+  filter: none;
 }
 
 .toast-stack-reduced-enter-active,

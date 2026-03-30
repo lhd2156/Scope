@@ -226,7 +226,7 @@
             <p class="section-copy">Fresh profiles with overlapping travel taste, strong mutual ties, and premium route energy.</p>
           </header>
 
-          <div v-if="filteredSuggestions.length" class="suggestions-stack">
+          <div v-if="filteredSuggestions.length" class="suggestions-stack stagger-in">
             <article
               v-for="suggestion in filteredSuggestions"
               :key="suggestion.user.id"
@@ -663,6 +663,10 @@ function declineRequest(requestId: string): void {
   outline: none;
 }
 
+.network-tab:active {
+  transform: translateY(0) scale(0.97);
+}
+
 .network-tab::after {
   content: '';
   position: absolute;
@@ -1005,19 +1009,19 @@ function declineRequest(requestId: string): void {
 }
 
 .stagger-in > *:nth-child(2) {
-  animation-delay: 80ms;
+  animation-delay: 100ms;
 }
 
 .stagger-in > *:nth-child(3) {
-  animation-delay: 160ms;
+  animation-delay: 200ms;
 }
 
 .stagger-in > *:nth-child(4) {
-  animation-delay: 240ms;
+  animation-delay: 300ms;
 }
 
 .stagger-in > *:nth-child(n + 5) {
-  animation-delay: 320ms;
+  animation-delay: 400ms;
 }
 
 @keyframes fadeInUp {
@@ -1090,6 +1094,7 @@ function declineRequest(requestId: string): void {
   }
 
   .network-tab:hover,
+  .network-tab:active,
   .friend-card:hover,
   .friend-card:focus-within,
   .request-card:hover,
