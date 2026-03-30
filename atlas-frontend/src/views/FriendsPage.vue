@@ -84,10 +84,12 @@
         </div>
         <VirtualList
           v-else-if="feedStore.items.length"
+          class="feed-list"
           :items="feedStore.items"
-          :item-height="320"
+          :item-height="580"
           :viewport-height="640"
           list-label="Friends activity feed"
+          stagger
         >
           <template #default="{ item }">
             <div class="feed-row">
@@ -215,7 +217,24 @@ onMounted(async () => {
 .section-stack,
 .feed-skeleton-stack {
   display: grid;
+}
+
+.friends-page,
+.section-stack {
   gap: var(--space-6);
+}
+
+.feed-skeleton-stack {
+  gap: var(--space-4);
+  justify-items: center;
+}
+
+.feed-list {
+  width: 100%;
+}
+
+.feed-skeleton-stack :deep(.feed-item-skeleton) {
+  width: min(100%, 42.5rem);
 }
 
 .hero-panel,
@@ -271,6 +290,12 @@ onMounted(async () => {
 .request-row,
 .feed-row {
   padding-bottom: var(--space-4);
+}
+
+.feed-row {
+  display: grid;
+  width: min(100%, 42.5rem);
+  margin: 0 auto;
 }
 
 @media (max-width: 960px) {
