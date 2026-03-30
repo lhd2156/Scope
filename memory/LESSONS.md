@@ -103,6 +103,7 @@
 - [2026-03-29] ✅ For Atlas frontend menu-button accessibility, programmatically focus the first `role="menuitem"` on open, keep menu items at `tabindex="-1"`, and restore focus to the trigger on close; it makes keyboard behavior deterministic in both browsers and Vitest/JSDOM.
 - [2026-03-30] ✅ For Atlas Phase 13 design work, the text spec alone is not enough—review all seven page mockups before editing components so the shared layout patterns (full-bleed hero, glass sidebars, photo-led cards, split auth screen) stay consistent across pages and rework is avoided.
 - [2026-03-30] ⚠️ If the OpenClaw browser tool is unavailable during frontend visual QA, keep the milestone moving by using `npx playwright screenshot ...` against the local Vite server as a fallback proof pass instead of skipping visual verification.
+- [2026-03-30] ✅ For Atlas’s premium fixed navbar, drive the transparent-versus-solid shell from a small `window.scrollY` threshold and explicitly unmount Navbar wrappers in Vitest; otherwise global scroll listeners can leak between tests and make scroll-state assertions flaky.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
