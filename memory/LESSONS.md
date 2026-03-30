@@ -248,6 +248,7 @@
 - [2026-03-30] ⚠️ If a detached `Start-Process` relaunch returns cleanly but repeated delayed `Win32_Process` sweeps still show no matching `openclaw.mjs agent` child, treat that detached launch as failed and fall back to a managed background `openclaw.cmd agent` exec session that you can supervise via `process`.
 - [2026-03-30] ⚠️ If a freshly relaunched managed background agent session immediately logs an embedded provider usage-limit or rate-limit cooldown before any task output, do not count that track as actively running for the heartbeat; mark it blocked and retry on a later cycle instead.
 - [2026-03-30] ⚠️ If `sessions_send` times out while nudging an active child but `subagents(action=list)` still shows the worker running, treat it as a gateway-messaging failure rather than proof the child died; preserve the live worker and continue the heartbeat from canonical trackers.
+- [2026-03-30] ⚠️ If `sessions_history` times out against an active child while `subagents(action=list)` still reports it as running, treat the timeout as a local gateway inspection failure, not a reason to respawn a duplicate into the shared workspace.
 
 ## Common Mistakes to Avoid
 
