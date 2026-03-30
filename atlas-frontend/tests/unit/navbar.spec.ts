@@ -57,7 +57,13 @@ function buildRouter() {
 describe('Navbar', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
     authStoreMock.error = null;
+    authStoreMock.currentUser = null;
     authStoreMock.logout.mockClear();
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showInfo.mockClear();
@@ -67,8 +73,11 @@ describe('Navbar', () => {
     authStoreMock.isAuthenticated = true;
     authStoreMock.currentUser = {
       id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
       displayName: 'Louis Do',
       avatarUrl: 'https://images.example.com/avatar.jpg',
+      homeBase: 'Chicago, IL',
     };
 
     const router = buildRouter();
@@ -95,12 +104,14 @@ describe('Navbar', () => {
 
     expect(wrapper.find('[data-test="notification-stub"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Louis Do');
+    expect(wrapper.text()).toContain('Chicago, IL');
 
     await wrapper.get('[data-test="search-trigger"]').trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.fullPath).toBe('/explore?q=rooftop+tacos');
 
     await wrapper.get('.profile-chip').trigger('click');
+    expect(wrapper.text()).toContain('Signed in as');
     await wrapper.get('.menu-dropdown button').trigger('click');
     await flushPromises();
 
@@ -110,12 +121,50 @@ describe('Navbar', () => {
       title: 'Signed out',
       message: 'Your Atlas session is closed for now. Come back anytime to keep exploring.',
     });
+
+    wrapper.unmount();
+  });
+
+  it('switches from transparent to solid styling after the page scrolls', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: { template: '<div>Search</div>' },
+          ThemeToggle: { template: '<div>Theme</div>' },
+        },
+      },
+    });
+
+    expect(wrapper.get('.navbar').classes()).not.toContain('navbar--scrolled');
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      writable: true,
+      value: 96,
+    });
+    window.dispatchEvent(new Event('scroll'));
+    await flushPromises();
+
+    expect(wrapper.get('.navbar').classes()).toContain('navbar--scrolled');
+
+    wrapper.unmount();
   });
 
   it('opens the profile menu with keyboard controls, cycles items, and restores focus on escape', async () => {
     authStoreMock.isAuthenticated = true;
     authStoreMock.currentUser = {
       id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
       displayName: 'Louis Do',
       avatarUrl: 'https://images.example.com/avatar.jpg',
     };
@@ -163,6 +212,8 @@ describe('Navbar', () => {
 
     expect(profileButton.attributes('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(profileButton.element);
+
+    wrapper.unmount();
   });
 
   it('shows guest actions when no authenticated user is present', async () => {
@@ -187,5 +238,7 @@ describe('Navbar', () => {
     expect(wrapper.text()).toContain('Log in');
     expect(wrapper.text()).toContain('Create account');
     expect(wrapper.find('.profile-chip').exists()).toBe(false);
+
+    wrapper.unmount();
   });
 });

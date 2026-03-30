@@ -262,25 +262,35 @@ onClickOutside(dropdownRef, () => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  border: 1px solid var(--border);
+  min-height: 2.85rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 96%, transparent);
   border-radius: var(--radius-full);
-  background: var(--glass-bg);
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent);
   color: var(--text-primary);
-  padding: 0.7rem 0.95rem;
+  padding: 0.72rem 1rem;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 10%, transparent),
+    0 0.85rem 1.8rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
   transition:
     border-color var(--transition-fast),
     background var(--transition-fast),
-    transform var(--transition-fast);
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .notification-toggle:hover,
 .notification-toggle:focus-visible {
-  border-color: var(--accent-teal);
-  background: var(--accent-teal-light);
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal-light) 72%, transparent);
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 16%, transparent);
   outline: none;
 }
 
+.notification-toggle:hover,
 .notification-toggle:focus-visible {
   transform: translateY(-0.0625rem);
 }
@@ -290,19 +300,35 @@ onClickOutside(dropdownRef, () => {
   display: inline-flex;
 }
 
+.notification-toggle__label {
+  font-weight: var(--font-weight-medium);
+}
+
 .notification-badge {
   position: absolute;
-  inset: -0.4rem -0.5rem auto auto;
+  inset: -0.42rem -0.52rem auto auto;
   min-width: 1.15rem;
   height: 1.15rem;
   border-radius: var(--radius-full);
   background: var(--danger);
-  color: white;
+  color: var(--text-primary);
   font-size: 0.7rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 0.25rem;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  isolation: isolate;
+}
+
+.notification-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--danger) 36%, transparent);
+  z-index: -1;
+  animation: notification-pulse 1.8s ease-out infinite;
 }
 
 .notification-menu {
@@ -427,10 +453,32 @@ onClickOutside(dropdownRef, () => {
   background: var(--accent-teal);
 }
 
+@keyframes notification-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .notification-toggle,
   .notification-row {
     transition-duration: 1ms;
+  }
+
+  .notification-badge::after {
+    animation: none;
+    opacity: 0;
   }
 }
 </style>

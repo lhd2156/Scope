@@ -69,6 +69,8 @@ describe('NotificationDropdown', () => {
       },
     });
 
+    expect(wrapper.get('.notification-badge').text()).toBe('2');
+
     await wrapper.get('.notification-toggle').trigger('click');
 
     expect(wrapper.text()).toContain('Notifications');
