@@ -234,3 +234,4 @@
 - [2026-03-29] ?? For Atlas Content Kafka verification, test both the shared producer envelope and the HTTP publish sites: photo.uploaded was easy to miss entirely, and 
 eview.created / 	rip.member.added should only fire on true create paths, not update or idempotent retries.
 - [2026-03-29] ?? In Vue views that derive mode/status from `useRoute()`, capture that value before `await router.push(...)`; post-navigation toasts and follow-up copy can otherwise read the next route and announce the wrong success state.
+- [2026-03-30] ?? For Atlas frontend visual QA on Vite routes, use a tiny Playwright script that waits for a real page selector before taking screenshots; the bare `playwright screenshot <url>` CLI can capture the pre-hydration shell/background and hide layout regressions.
