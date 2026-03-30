@@ -40,6 +40,8 @@ describe('TripCard', () => {
 
     expect(wrapper.text()).toContain('North Texas Night + Food Loop');
     expect(wrapper.text()).toContain('Fort Worth, TX');
+    expect(wrapper.text()).toContain('Apr 1 → Apr 2');
+    expect(wrapper.text()).toContain('2 days');
     expect(wrapper.text()).toContain('1 member');
     expect(wrapper.text()).toContain('1 stop');
     expect(wrapper.find('a').attributes('href')).toBe('/trips/trip-1');
