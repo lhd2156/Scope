@@ -70,7 +70,7 @@
 - [x] 13.13 - Settings Page Layout: Left sidebar nav (240px) with section links + teal active indicator, main content surface-card with styled form sections, dark/light toggle, toggleable category preference pills, avatar upload with camera overlay.
 - [x] 13.14 - Micro-Animations Pass: Page-enter stagger fade-ups (100ms delay per card), card hover lifts, button click scale(0.97) feedback, toast slide-in, modal backdrop blur transition, filter chip bounce, navbar scroll transition.
 - [x] 13.15 - Typography & Spacing Audit: Verify all headings match DESIGN-SPEC.md hierarchy, all body text uses proper line-heights, eyebrow text is uppercase teal throughout, section spacing uses design tokens consistently.
-- [ ] 13.16 - Dark Mode Color Audit: Zero hardcoded hex values in any component. All backgrounds, text colors, borders use CSS variables. Verify glassmorphism panels work in both dark and light themes.
+- [x] 13.16 - Dark Mode Color Audit: Zero hardcoded hex values in any component. All backgrounds, text colors, borders use CSS variables. Verify glassmorphism panels work in both dark and light themes.
 - [ ] 13.17 - Demo Photo Integration: Replace all placeholder/empty images with Unsplash travel photos. Add realistic demo data in mock services with proper photo URLs, user avatars from pravatar.cc, realistic spot names/descriptions/reviews.
 - [ ] 13.18 - Final Visual QA: Run npm run build, npm run test. Screenshot every page in dark mode and light mode. Verify against mockup images. Fix any visual regressions.
 
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 13.16 - Dark Mode Color Audit
-## Last Updated: 2026-03-30T06:20:00-05:00
+## Current Task: Phase 13.17 - Demo Photo Integration
+## Last Updated: 2026-03-30T06:48:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -166,3 +166,4 @@
 - 2026-03-30T04:52:07.7003621-05:00: COMPLETED Phase 13.13 - rebuilt the settings workspace into a premium account console with a sticky left sidebar nav, glass shell, sectioned surface-card form layout, camera-overlay avatar treatment, synchronized dark/light appearance controls, and toggleable travel preference pills. Validation: npm.cmd run test -- tests/unit/settings-page.spec.ts tests/unit/settings-form.spec.ts, npm.cmd run build, npm.cmd run test. Note: the existing Friends page on this branch required `mockPeopleYouMayKnow` to exist in mockData; restored/exported that dataset while validating the settings milestone. Next up: Phase 13.14 micro-animations pass.
 - 2026-03-30T05:39:37.5490469-05:00: COMPLETED Phase 13.14 - standardized premium motion across the app with 100ms staggered page/card entrances, shared pressed-button scale feedback, richer toast and modal transitions, animated filter-chip bounce on explore/map/settings controls, and a more expressive navbar scroll state. Validation: npm.cmd run build, npm.cmd run test (80 files / 182 tests). Next up: Phase 13.15 typography and spacing audit.
 - 2026-03-30T06:20:00-05:00: COMPLETED Phase 13.15 - audited the shared typography hierarchy and section spacing against the Phase 13 design spec/mockups, verified the premium shells/pages already match the intended hero/page-title/body/eyebrow scales, and validated the pass with the dedicated `typography-spacing-audit` spec so future design work cannot silently drift. Validation: npx.cmd vitest run tests/unit/typography-spacing-audit.spec.ts, npm.cmd run build, npm.cmd run test (81 files / 186 tests). Next up: Phase 13.16 dark mode color audit.
+- 2026-03-30T06:48:00-05:00: COMPLETED Phase 13.16 - verified the frontend palette is sourced from shared design tokens, confirmed `atlas-frontend/src` contains zero hardcoded hex values, kept runtime theme-color metadata derived from the live `--bg-primary` CSS variable, and locked the audit with dedicated dark-mode/SEO contract coverage. Validation: npx.cmd vitest run tests/unit/dark-mode-color-audit.spec.ts tests/unit/seo.spec.ts, npm.cmd run build, npm.cmd run test (82 files / 188 tests). Next up: Phase 13.17 demo photo integration.
