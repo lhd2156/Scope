@@ -109,6 +109,7 @@
 - [2026-03-30] ⚠️ Playwright full-page screenshots of tall Vite pages can exceed the default 30s capture timeout after fonts load; pass `timeout: 0` (or a larger timeout) for reliable visual QA artifacts.
 - [2026-03-30] ✅ For Atlas’s premium fixed navbar, drive the transparent-versus-solid shell from a small `window.scrollY` threshold and explicitly unmount Navbar wrappers in Vitest; otherwise global scroll listeners can leak between tests and make scroll-state assertions flaky.
 - [2026-03-30] ⚠️ On Atlas map surfaces, keep category filtering in one place: if the page already has a dedicated glass sidebar, hide the floating filter panel and leave only the bottom-right control stack, or the workspace drifts away from the Phase 13 mockup and duplicates interaction affordances.
+- [2026-03-30] ⚠️ `src/components/common/Toast.vue` does not honor an `open` prop on its own; direct page-level toast usage must be wrapped in `v-if` (or routed through the store-backed `ToastViewport`) or success/info toasts will render immediately on first paint.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 

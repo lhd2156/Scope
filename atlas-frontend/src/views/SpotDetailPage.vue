@@ -1,14 +1,12 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack">
-      <SectionHeading
-        eyebrow="Spot detail"
-        title="Spot depth view"
-        description="Photos, reviews, and map context pulled into a single premium detail surface."
-      />
-
-      <div v-if="activeSpot && authStore.isAuthenticated" class="page-actions">
-        <p class="section-copy">Need to refresh the copy, photos, or exact coordinates? Open the edit flow for this pin.</p>
+    <div class="page-container page-stack spot-detail-page">
+      <div v-if="activeSpot && authStore.isAuthenticated" class="glass-panel page-actions">
+        <div>
+          <p class="eyebrow">Creator tools</p>
+          <h2>Need to tune the copy, photos, or exact coordinates?</h2>
+          <p class="section-copy">Jump into the edit flow without leaving the premium detail layout.</p>
+        </div>
         <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
       </div>
 
@@ -38,7 +36,6 @@ import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
-import SectionHeading from '@/components/common/SectionHeading.vue';
 import SpotDetail from '@/components/spots/SpotDetail.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
@@ -76,9 +73,10 @@ watch(
 </script>
 
 <style scoped>
-.page-stack {
+.spot-detail-page {
+  --page-max-width: 1280px;
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-5);
 }
 
 .page-actions {
@@ -86,11 +84,20 @@ watch(
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
+  padding: var(--space-5);
 }
 
-.page-actions .section-copy {
+.page-actions h2,
+.page-actions .section-copy,
+.state-card h2,
+.state-card p {
   margin: 0;
-  max-width: 42rem;
+}
+
+.page-actions h2,
+.state-card h2 {
+  font-size: var(--font-size-h2);
+  line-height: var(--line-height-tight);
 }
 
 .action-link {
@@ -129,11 +136,6 @@ watch(
   gap: var(--space-5);
 }
 
-.state-card h2,
-.state-card p {
-  margin: 0;
-}
-
 .eyebrow {
   color: var(--accent-teal);
   text-transform: uppercase;
@@ -161,6 +163,17 @@ watch(
 
   .loading-card {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-link {
+    transition: none;
+  }
+
+  .action-link:hover,
+  .action-link:focus-visible {
+    transform: none;
   }
 }
 </style>

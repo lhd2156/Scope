@@ -11,6 +11,7 @@ const reviews: Review[] = [
       username: 'louisdo',
       email: 'louis@example.com',
       displayName: 'Louis Do',
+      avatarUrl: 'https://i.pravatar.cc/150?img=12',
       interests: ['food'],
     },
     rating: 4.8,
@@ -20,7 +21,7 @@ const reviews: Review[] = [
 ];
 
 describe('ReviewList', () => {
-  it('renders review cards with author, rating, and comment details', () => {
+  it('renders review cards with author, star summary, and comment details', () => {
     const wrapper = mount(ReviewList, {
       props: {
         reviews,
@@ -28,7 +29,8 @@ describe('ReviewList', () => {
     });
 
     expect(wrapper.text()).toContain('Louis Do');
-    expect(wrapper.text()).toContain('★ 4.8');
+    expect(wrapper.find('[aria-label="Rated 4.8 out of 5"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('4.8');
     expect(wrapper.text()).toContain('Perfect rooftop energy right before sunset.');
   });
 

@@ -36,6 +36,7 @@ const users: UserProfile[] = [
     username: 'louisdo',
     email: 'louis@example.com',
     displayName: 'Louis Do',
+    avatarUrl: 'https://i.pravatar.cc/150?img=12',
     bio: 'Collecting food, skyline, and nightlife pins across Texas.',
     homeBase: 'Fort Worth, TX',
     interests: ['food', 'culture', 'nightlife'],
@@ -46,6 +47,7 @@ const users: UserProfile[] = [
     username: 'maya',
     email: 'maya@example.com',
     displayName: 'Maya Chen',
+    avatarUrl: 'https://i.pravatar.cc/150?img=32',
     bio: 'Weekend explorer chasing scenic and cultural spots.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
@@ -56,6 +58,7 @@ const users: UserProfile[] = [
     username: 'elijah',
     email: 'elijah@example.com',
     displayName: 'Elijah Brooks',
+    avatarUrl: 'https://i.pravatar.cc/150?img=45',
     bio: 'Adventure-first trip planner with a thing for great coffee.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
@@ -69,6 +72,7 @@ const friendRequestUsers: UserProfile[] = [
     username: 'sofiaramirez',
     email: 'sofia@example.com',
     displayName: 'Sofia Ramirez',
+    avatarUrl: 'https://i.pravatar.cc/150?img=23',
     bio: 'Building food-first city breaks with strong coffee and stronger itineraries.',
     homeBase: 'San Antonio, TX',
     interests: ['food', 'culture', 'shopping'],
@@ -79,6 +83,7 @@ const friendRequestUsers: UserProfile[] = [
     username: 'jordanreed',
     email: 'jordan@example.com',
     displayName: 'Jordan Reed',
+    avatarUrl: 'https://i.pravatar.cc/150?img=52',
     bio: 'Always looking for the next scenic overlook and a clean route between stops.',
     homeBase: 'Waco, TX',
     interests: ['scenic', 'nature', 'adventure'],
@@ -239,6 +244,51 @@ const baseSpots: SpotSummary[] = [
   },
 ];
 
+const spotDetailPhotoSets: Record<string, Array<{ url: string; caption: string }>> = {
+  'spot-1': [
+    { url: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?auto=format&fit=crop&w=1400&q=80', caption: 'Rooftop skyline dining' },
+    { url: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80', caption: 'Open-air dining angle' },
+    { url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=1200&q=80', caption: 'Signature taco spread' },
+    { url: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80', caption: 'Cocktail bar glow' },
+    { url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80', caption: 'Late-night crowd energy' },
+  ],
+  'spot-2': [
+    { url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=80', caption: 'River walk hero view' },
+    { url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80', caption: 'Morning canopy light' },
+    { url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80', caption: 'Trail through the trees' },
+    { url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1200&q=80', caption: 'Quiet boardwalk section' },
+    { url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80', caption: 'Nearby overlook connection' },
+  ],
+  'spot-3': [
+    { url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80', caption: 'Dance floor hero frame' },
+    { url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80', caption: 'Moody lighting pass' },
+    { url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1200&q=80', caption: 'DJ booth focus' },
+    { url: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1200&q=80', caption: 'Live music setup' },
+    { url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80', caption: 'After-dark street energy' },
+  ],
+  'spot-4': [
+    { url: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1400&q=80', caption: 'Gallery garden hero shot' },
+    { url: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80', caption: 'Sculpture courtyard detail' },
+    { url: 'https://images.unsplash.com/photo-1491156855053-9cdff72c7f85?auto=format&fit=crop&w=1200&q=80', caption: 'Reflective pool composition' },
+    { url: 'https://images.unsplash.com/photo-1499092346589-b9b6be3e94b2?auto=format&fit=crop&w=1200&q=80', caption: 'Architectural walkway lines' },
+    { url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80', caption: 'Culture route pairing' },
+  ],
+  'spot-5': [
+    { url: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1400&q=80', caption: 'Cliffside hero view' },
+    { url: 'https://images.unsplash.com/photo-1527004013197-933c4bb611b3?auto=format&fit=crop&w=1200&q=80', caption: 'Trail summit perspective' },
+    { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80', caption: 'Ridgeline approach' },
+    { url: 'https://images.unsplash.com/photo-1464820453369-31d2c0b651af?auto=format&fit=crop&w=1200&q=80', caption: 'Switchback trail detail' },
+    { url: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&w=1200&q=80', caption: 'Golden hour payoff' },
+  ],
+  'spot-6': [
+    { url: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1400&q=80', caption: 'District storefront hero' },
+    { url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80', caption: 'Premium retail lane' },
+    { url: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1200&q=80', caption: 'Cafe pause between shops' },
+    { url: 'https://images.unsplash.com/photo-1521334884684-d80222895322?auto=format&fit=crop&w=1200&q=80', caption: 'Fashion pop-up close-up' },
+    { url: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1200&q=80', caption: 'Window display detail' },
+  ],
+};
+
 function buildReviews(spotId: string): Review[] {
   return [
     {
@@ -261,12 +311,18 @@ function buildReviews(spotId: string): Review[] {
 }
 
 function buildDetail(spot: SpotSummary): SpotDetail {
+  const detailPhotos = (spotDetailPhotoSets[spot.id] ?? [
+    { url: spot.photoUrl ?? '', caption: 'Primary hero shot' },
+  ]).map((photo, index) => sanitizePhoto({
+    id: `${spot.id}-photo-${index + 1}`,
+    url: photo.url,
+    caption: photo.caption,
+  }));
+
   return {
     ...spot,
-    photos: [
-      { id: `${spot.id}-photo-1`, url: spot.photoUrl ?? '', caption: 'Primary hero shot' },
-      { id: `${spot.id}-photo-2`, url: spot.photoUrl ?? '', caption: 'Alternate angle' },
-    ],
+    photoUrl: spot.photoUrl ?? detailPhotos[0]?.url,
+    photos: detailPhotos,
     reviews: buildReviews(spot.id),
   };
 }
