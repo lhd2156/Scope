@@ -100,6 +100,7 @@
 - [2026-03-29] ⚠️ In `atlas-frontend`, scope Vitest to `tests/unit/**/*.spec.ts`; otherwise `npm.cmd run test` will try to execute Playwright specs under `tests/e2e` and fail with `Playwright Test did not expect test.describe() to be called here`.
 - [2026-03-29] ⚠️ For Atlas frontend loading polish, gate empty states behind a page-level bootstrapping flag (or a reliable `hasLoaded` signal); otherwise the UI can flash “empty” panels before the first async fetch resolves, even when skeleton loaders exist.
 - [2026-03-29] ✅ For Atlas frontend menu-button accessibility, programmatically focus the first `role="menuitem"` on open, keep menu items at `tabindex="-1"`, and restore focus to the trigger on close; it makes keyboard behavior deterministic in both browsers and Vitest/JSDOM.
+- [2026-03-30] ✅ For Atlas Phase 13 design work, the text spec alone is not enough—review all seven page mockups before editing components so the shared layout patterns (full-bleed hero, glass sidebars, photo-led cards, split auth screen) stay consistent across pages and rework is avoided.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
