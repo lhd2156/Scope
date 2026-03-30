@@ -19,6 +19,7 @@ import {
   sanitizeTripMember,
   sanitizeTripSpot,
 } from '@/utils/sanitizers';
+import { addCalendarDays } from '@/utils/formatters';
 
 const TRIPS_BASE_PATH = '/api/content/trips';
 const DEFAULT_TRIP_CURRENCY = 'USD';
@@ -89,11 +90,9 @@ function buildTripItinerary(tripId: string, destination: string, startDate: stri
     const dayNumber = spot.dayNumber ?? Math.floor(index / 3) + 1;
 
     if (!dayLookup.has(dayNumber)) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + dayNumber - 1);
       dayLookup.set(dayNumber, {
         dayNumber,
-        date: date.toISOString().slice(0, 10),
+        date: addCalendarDays(startDate, dayNumber - 1),
         spots: [],
       });
     }

@@ -41,6 +41,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Itinerary, ItineraryDay, SpotCategory } from '@/types';
+import { formatWeekdayMonthDay } from '@/utils/formatters';
 
 const props = withDefaults(
   defineProps<{
@@ -63,11 +64,7 @@ function formatCategory(category: SpotCategory): string {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    weekday: 'short',
-  }).format(new Date(value));
+  return formatWeekdayMonthDay(value);
 }
 
 function getDayCost(day: ItineraryDay): number {

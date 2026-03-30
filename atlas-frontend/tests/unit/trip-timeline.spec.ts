@@ -37,6 +37,7 @@ describe('TripTimeline', () => {
     });
 
     expect(wrapper.text()).toContain('Day 1');
+    expect(wrapper.text()).toContain('Wed, Apr 1');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('12:00');
     expect(wrapper.text()).toContain('$24');

@@ -110,6 +110,9 @@ describe('TripDetail', () => {
     });
 
     expect(wrapper.text()).toContain('North Texas Night + Food Loop');
+    expect(wrapper.text()).toContain('Fort Worth, TX · Apr 1 → Apr 2');
+    expect(wrapper.text()).toContain('Wed, Apr 1');
+    expect(wrapper.text()).toContain('Thu, Apr 2');
     expect(wrapper.text()).toContain('Trip members');
     expect(wrapper.text()).toContain('Daily route breakdown');
     expect(wrapper.text()).toContain('Open with lunch before the city walk.');

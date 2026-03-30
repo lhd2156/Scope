@@ -72,7 +72,7 @@
 - [x] 13.15 - Typography & Spacing Audit: Verify all headings match DESIGN-SPEC.md hierarchy, all body text uses proper line-heights, eyebrow text is uppercase teal throughout, section spacing uses design tokens consistently.
 - [x] 13.16 - Dark Mode Color Audit: Zero hardcoded hex values in any component. All backgrounds, text colors, borders use CSS variables. Verify glassmorphism panels work in both dark and light themes.
 - [x] 13.17 - Demo Photo Integration: Replace all placeholder/empty images with Unsplash travel photos. Add realistic demo data in mock services with proper photo URLs, user avatars from pravatar.cc, realistic spot names/descriptions/reviews.
-- [ ] 13.18 - Final Visual QA: Run npm run build, npm run test. Screenshot every page in dark mode and light mode. Verify against mockup images. Fix any visual regressions.
+- [x] 13.18 - Final Visual QA: Run npm run build, npm run test. Screenshot every page in dark mode and light mode. Verify against mockup images. Fix any visual regressions.
 
 ### Phase 14: Comprehensive E2E Testing 🧪
 - [ ] 14.1 - Set up Playwright with Chromium, Firefox, and WebKit browser projects
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 13.18 - Final Visual QA
-## Last Updated: 2026-03-30T07:20:26.6320615-05:00
+## Current Task: Phase 14.1 - Set up Playwright with Chromium, Firefox, and WebKit browser projects
+## Last Updated: 2026-03-30T18:00:39.8798097-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -168,3 +168,4 @@
 - 2026-03-30T06:20:00-05:00: COMPLETED Phase 13.15 - audited the shared typography hierarchy and section spacing against the Phase 13 design spec/mockups, verified the premium shells/pages already match the intended hero/page-title/body/eyebrow scales, and validated the pass with the dedicated `typography-spacing-audit` spec so future design work cannot silently drift. Validation: npx.cmd vitest run tests/unit/typography-spacing-audit.spec.ts, npm.cmd run build, npm.cmd run test (81 files / 186 tests). Next up: Phase 13.16 dark mode color audit.
 - 2026-03-30T06:48:00-05:00: COMPLETED Phase 13.16 - verified the frontend palette is sourced from shared design tokens, confirmed `atlas-frontend/src` contains zero hardcoded hex values, kept runtime theme-color metadata derived from the live `--bg-primary` CSS variable, and locked the audit with dedicated dark-mode/SEO contract coverage. Validation: npx.cmd vitest run tests/unit/dark-mode-color-audit.spec.ts tests/unit/seo.spec.ts, npm.cmd run build, npm.cmd run test (82 files / 188 tests). Next up: Phase 13.17 demo photo integration.
 - 2026-03-30T07:20:26.6320615-05:00: COMPLETED Phase 13.17 - centralized Atlas demo imagery in a shared media catalog, upgraded mock services with richer Unsplash spot/trip/feed content plus pravatar-backed traveler profiles, expanded the dataset across all eight spot categories with realistic reviews, and aligned photo-surface tests to the current lazy-image/avatar behavior. Validation: `npm.cmd run build`, `npm.cmd run test` (83 files / 194 tests). Next up: Phase 13.18 final visual QA.
+- 2026-03-30T18:00:39.8798097-05:00: COMPLETED Phase 13.18 - ran a full dark/light visual QA pass against the Phase 13 mockups, fixed calendar-safe trip date rendering on TripCard/TripDetail/TripTimeline plus itinerary builders, and stabilized the Playwright screenshot harness for protected-route captures. Validation: `npm.cmd test` (83 files / 197 tests), `npm.cmd run build`, `npm.cmd run qa:visual:phase13` (30 screenshots, 0 console errors, 0 page errors, 0 unexpected routes). Next up: Phase 14.1 Playwright multi-browser project setup.

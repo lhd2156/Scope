@@ -69,6 +69,7 @@ import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { Trip, TripStatus } from '@/types';
 import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
+import { formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 
 const props = defineProps<{
   trip: Trip;
@@ -81,22 +82,12 @@ function toggleSaved() {
 }
 
 const dateRangeLabel = computed(() => {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-
-  const start = formatter.format(new Date(props.trip.startDate));
-  const end = formatter.format(new Date(props.trip.endDate));
+  const start = formatMonthDay(props.trip.startDate);
+  const end = formatMonthDay(props.trip.endDate);
   return start === end ? start : `${start} → ${end}`;
 });
 
-const tripLengthDays = computed(() => {
-  const start = new Date(props.trip.startDate);
-  const end = new Date(props.trip.endDate);
-  const millisecondsPerDay = 24 * 60 * 60 * 1000;
-  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1);
-});
+const tripLengthDays = computed(() => getInclusiveDaySpan(props.trip.startDate, props.trip.endDate));
 
 const tripStatus = computed<TripStatus>(() => props.trip.status ?? 'planning');
 const tripImageFallback = computed(() => getTripCoverFallback(props.trip, 1200));

@@ -754,12 +754,6 @@ function buildTripSpot(
   };
 }
 
-function getDateOffset(startDate: string, offsetDays: number): string {
-  const date = new Date(startDate);
-  date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
-}
-
 function buildItineraryFromTripSpots(options: {
   id: string;
   destination: string;
@@ -774,7 +768,7 @@ function buildItineraryFromTripSpots(options: {
     if (!day) {
       day = {
         dayNumber,
-        date: getDateOffset(options.startDate, dayNumber - 1),
+        date: addCalendarDays(options.startDate, dayNumber - 1),
         spots: [],
       };
       accumulator.push(day);

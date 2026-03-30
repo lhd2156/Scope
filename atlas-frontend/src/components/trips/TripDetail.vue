@@ -77,6 +77,7 @@ import MemberList from '@/components/trips/MemberList.vue';
 import TripTimeline from '@/components/trips/TripTimeline.vue';
 import type { Itinerary, MapPoint, Trip } from '@/types';
 import { getTripCoverFallback, resolveTripCoverImageUrl, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
+import { addCalendarDays, formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 
 const props = defineProps<{
   trip: Trip | null;
@@ -88,12 +89,6 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
-function getDateOffset(startDate: string, offsetDays: number): string {
-  const date = new Date(startDate);
-  date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
-}
-
 function buildFallbackItinerary(trip: Trip): Itinerary {
   const groupedDays = trip.spots.reduce<Itinerary['days']>((accumulator, spot) => {
     const dayNumber = spot.dayNumber ?? 1;
@@ -102,7 +97,7 @@ function buildFallbackItinerary(trip: Trip): Itinerary {
     if (!day) {
       day = {
         dayNumber,
-        date: getDateOffset(trip.startDate, dayNumber - 1),
+        date: addCalendarDays(trip.startDate, dayNumber - 1),
         spots: [],
       };
       accumulator.push(day);
@@ -130,29 +125,15 @@ const resolvedItinerary = computed(() => {
   return props.trip.itinerary ?? buildFallbackItinerary(props.trip);
 });
 
-const totalDays = computed(() => {
-  if (!props.trip) {
-    return 0;
-  }
-
-  const start = new Date(props.trip.startDate);
-  const end = new Date(props.trip.endDate);
-  const millisecondsPerDay = 24 * 60 * 60 * 1000;
-  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1);
-});
+const totalDays = computed(() => (props.trip ? getInclusiveDaySpan(props.trip.startDate, props.trip.endDate) : 0));
 
 const dateRangeLabel = computed(() => {
   if (!props.trip) {
     return '';
   }
 
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-
-  const start = formatter.format(new Date(props.trip.startDate));
-  const end = formatter.format(new Date(props.trip.endDate));
+  const start = formatMonthDay(props.trip.startDate);
+  const end = formatMonthDay(props.trip.endDate);
   return start === end ? start : `${start} → ${end}`;
 });
 
