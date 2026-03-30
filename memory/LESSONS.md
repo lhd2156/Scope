@@ -111,6 +111,7 @@
 - [2026-03-30] ⚠️ On Atlas map surfaces, keep category filtering in one place: if the page already has a dedicated glass sidebar, hide the floating filter panel and leave only the bottom-right control stack, or the workspace drifts away from the Phase 13 mockup and duplicates interaction affordances.
 - [2026-03-30] ⚠️ `src/components/common/Toast.vue` does not honor an `open` prop on its own; direct page-level toast usage must be wrapped in `v-if` (or routed through the store-backed `ToastViewport`) or success/info toasts will render immediately on first paint.
 - [2026-03-30] ✅ For Atlas trip-planner polish, keep the preset route source of truth shared between the planner page seed state and the mock itinerary generator; otherwise the left-hand stop stack, map-side timeline overlay, and generated preview drift out of sync as soon as the destination-specific demo route changes.
+- [2026-03-30] ✅ Atlas frontend guest auth pages are easiest to keep mockup-faithful by moving them off `AppShell` and into a shared split-screen auth shell; route/query auth tests still pass as long as the views preserve the same redirect and validation contracts.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
