@@ -56,7 +56,7 @@
 
 ### Phase 13: Frontend Design Overhaul 🎨
 - [x] 13.1 — READ `atlas-assets/DESIGN-SPEC.md` and ALL mockup images in `atlas-assets/mockups/` before touching any code. Study every pixel.
-- [ ] 13.2 — Hero Section Rework: Landing page hero with full-bleed Unsplash background photo, dark gradient overlay, glassmorphism content panel, animated heading "Your Adventures, Mapped.", dual CTA buttons (teal primary + outline secondary) with glow effects. Must span full viewport width.
+- [x] 13.2 — Hero Section Rework: Landing page hero with full-bleed Unsplash background photo, dark gradient overlay, glassmorphism content panel, animated heading "Your Adventures, Mapped.", dual CTA buttons (teal primary + outline secondary) with glow effects. Must span full viewport width.
 - [ ] 13.3 — Card System Overhaul: Rework SpotCard for all pages — rich photo with aspect-ratio 4/3, gradient overlay on bottom for text, category badge pill in top-left, heart/save icon in top-right, hover zoom on photo (scale 1.05 with overflow hidden), translateY(-2px) card lift, shadow elevation on hover. Apply to SpotCard, TripCard, FeedItem.
 - [ ] 13.4 — Navbar Premium Polish: Add backdrop-filter blur, subtle bottom border (1px solid var(--glass-border)), scroll-triggered opacity change (transparent when at top, solid on scroll), avatar dropdown with glassmorphism popup panel, notification badge with CSS pulse animation.
 - [ ] 13.5 — Map Page Sidebar Glassmorphism: Sidebar panels use glass-panel treatment, filter chips get per-category colored active states (food=green, nightlife=purple, culture=blue, etc.), selected spot card shows photo with slide-in animation, route card gets gradient background.
@@ -136,8 +136,8 @@
 - [ ] 20.6 — Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 — Fix all Critical and High severity issues found
 
-## Current Task: Phase 13.2 — Hero Section Rework
-## Last Updated: 2026-03-30T03:14:31.1471820Z
+## Current Task: Phase 13.3 — Card System Overhaul
+## Last Updated: 2026-03-30T03:34:03.5050327-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -152,3 +152,4 @@
 - 2026-03-30T03:05:00Z: NEW — Phases 14, 15, 17, 18, 19, 20 added. These run AFTER Phase 13 completes.
 - 2026-03-30T03:05:00Z: NEW — Premium mockup images installed at atlas-assets/mockups/ (01-07). Study these carefully.
 - 2026-03-30T03:14:31.1471820Z: COMPLETED Phase 13.1 — read atlas-assets/DESIGN-SPEC.md end-to-end and reviewed mockup references 01-07 to lock the premium visual direction before implementation. Next up: Phase 13.2 hero rework.
+- 2026-03-30T03:34:03.5050327-05:00: COMPLETED Phase 13.2 — rebuilt the landing-page hero into a full-bleed photo experience with layered gradient overlay, centered glassmorphism panel, animated “Your Adventures, Mapped.” headline, premium CTA buttons, smooth scroll demo action, refreshed section headings, green home-page Vitest coverage, successful frontend production build, and a manual Playwright screenshot sanity check. Next up: Phase 13.3 card system overhaul.
