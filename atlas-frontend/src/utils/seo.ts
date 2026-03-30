@@ -8,11 +8,7 @@ const DEFAULT_ROBOTS = 'index,follow';
 const DEFAULT_IMAGE_PATH = '/social-preview.png';
 const DEFAULT_OG_TYPE = 'website';
 const DEFAULT_IMAGE_ALT = 'Atlas preview showing a map-led adventure planning workspace';
-
-export const THEME_COLORS: Record<ThemeMode, string> = {
-  dark: '#0f0f1a',
-  light: '#fafafa',
-};
+const THEME_COLOR_VARIABLE = '--bg-primary';
 
 type MetaValue = string | false | ((route: RouteLocationNormalizedLoaded) => string | false);
 
@@ -155,8 +151,22 @@ export function initializeSeo(router: Router): void {
   });
 }
 
+function resolveThemeColor(): string {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+
+  const rootStyles = getComputedStyle(document.documentElement);
+  return rootStyles.getPropertyValue(THEME_COLOR_VARIABLE).trim();
+}
+
 export function syncThemeColorMeta(theme: ThemeMode): void {
-  upsertMetaTag({ name: 'theme-color' }, THEME_COLORS[theme]);
-  upsertMetaTag({ name: 'msapplication-TileColor' }, THEME_COLORS[theme]);
+  const resolvedThemeColor = resolveThemeColor();
+
+  if (resolvedThemeColor) {
+    upsertMetaTag({ name: 'theme-color' }, resolvedThemeColor);
+    upsertMetaTag({ name: 'msapplication-TileColor' }, resolvedThemeColor);
+  }
+
   upsertMetaTag({ name: 'apple-mobile-web-app-status-bar-style' }, theme === 'dark' ? 'black-translucent' : 'default');
 }
