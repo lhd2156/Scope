@@ -451,7 +451,7 @@ onMounted(async () => {
 .discovery-shell__copy {
   display: grid;
   gap: var(--space-3);
-  max-width: 44rem;
+  max-width: var(--copy-measure-wide);
 }
 
 .eyebrow,
@@ -460,7 +460,7 @@ onMounted(async () => {
   margin: 0;
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
 }
@@ -475,14 +475,14 @@ span {
 }
 
 h1 {
-  font-size: clamp(2.4rem, 5vw, 4rem);
-  line-height: 1.1;
-  letter-spacing: -0.04em;
-  max-width: 15ch;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
+  max-width: 18ch;
 }
 
 h2 {
-  font-size: var(--font-size-h1);
+  font-size: var(--font-size-h2);
   line-height: var(--line-height-tight);
 }
 

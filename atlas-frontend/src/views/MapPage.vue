@@ -427,14 +427,15 @@ onMounted(async () => {
 }
 
 .panel-heading h1 {
-  font-size: clamp(1.55rem, 2vw, 2rem);
-  line-height: 1.1;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .panel-heading h2,
 .selected-copy h2 {
-  font-size: clamp(1.2rem, 1.6vw, 1.5rem);
-  line-height: 1.15;
+  font-size: var(--font-size-h2);
+  line-height: var(--line-height-tight);
 }
 
 .eyebrow,
@@ -442,9 +443,9 @@ onMounted(async () => {
   margin: 0;
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .panel-copy,

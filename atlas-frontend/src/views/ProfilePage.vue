@@ -330,9 +330,9 @@ p {
 .eyebrow {
   color: var(--accent-teal);
   font-size: var(--font-size-caption);
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .state-panel .button {

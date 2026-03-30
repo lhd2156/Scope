@@ -537,7 +537,7 @@ function declineRequest(requestId: string): void {
 
 .network-shell__copy {
   gap: var(--space-3);
-  max-width: 42rem;
+  max-width: var(--copy-measure-wide);
 }
 
 .eyebrow,
@@ -563,14 +563,15 @@ function declineRequest(requestId: string): void {
 .eyebrow {
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
 }
 
 .network-shell__copy h1 {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.1;
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .panel-header {

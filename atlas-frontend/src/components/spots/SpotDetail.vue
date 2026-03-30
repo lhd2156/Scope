@@ -937,8 +937,9 @@ watch(
 }
 
 .headline-copy h1 {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.1;
+  font-size: clamp(var(--font-size-h1), 4vw, 3rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .location-line,

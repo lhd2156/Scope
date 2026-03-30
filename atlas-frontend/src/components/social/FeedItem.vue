@@ -250,9 +250,9 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 .eyebrow {
   color: var(--accent-teal);
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .header-copy h3 {
