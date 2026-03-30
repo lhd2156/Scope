@@ -85,8 +85,8 @@
         <VirtualList
           v-else-if="feedStore.items.length"
           :items="feedStore.items"
-          :item-height="232"
-          :viewport-height="560"
+          :item-height="320"
+          :viewport-height="640"
           list-label="Friends activity feed"
         >
           <template #default="{ item }">

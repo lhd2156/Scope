@@ -1,9 +1,33 @@
 <template>
   <article class="feed-item glass-panel">
-    <div class="media" :class="`media-${item.type}`">
+    <div class="feed-media" :class="`feed-media--${item.type}`">
       <LazyImage v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title" class="feed-image" />
       <div v-else class="media-fallback">
         <AtlasIcon :name="item.type === 'trip' ? 'route' : 'pin'" :label="activityLabel" />
+        <strong>{{ typeLabel }}</strong>
+        <span>Visual update loading</span>
+      </div>
+
+      <div class="feed-media-chrome">
+        <span class="type-pill">
+          <AtlasIcon :name="item.type === 'trip' ? 'route' : 'sparkle'" />
+          <span>{{ typeLabel }}</span>
+        </span>
+        <button
+          type="button"
+          class="save-button"
+          :class="{ active: isSaved }"
+          :aria-pressed="isSaved"
+          :aria-label="isSaved ? `Remove ${item.title} from saved updates` : `Save ${item.title}`"
+          @click="toggleSaved"
+        >
+          <AtlasIcon :name="isSaved ? 'heart-filled' : 'heart'" />
+        </button>
+      </div>
+
+      <div class="feed-overlay">
+        <p class="overlay-kicker">{{ item.actor.displayName }}</p>
+        <p class="overlay-copy">{{ item.excerpt }}</p>
       </div>
     </div>
 
@@ -11,32 +35,29 @@
       <div class="header-row">
         <div class="actor-row">
           <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="48" />
-          <div>
+          <div class="header-copy">
             <p class="eyebrow">{{ activityLabel }}</p>
             <h3>{{ item.title }}</h3>
             <p class="meta">
-              {{ item.actor.displayName }}
-              <span v-if="item.actor.homeBase">· {{ item.actor.homeBase }}</span>
-              <span>· {{ relativeTime }}</span>
+              <span v-if="item.actor.homeBase">{{ item.actor.homeBase }}</span>
+              <span>{{ relativeTime }}</span>
             </p>
           </div>
         </div>
-        <span class="type-pill">
-          <AtlasIcon :name="item.type === 'trip' ? 'calendar' : 'sparkle'" />
-          {{ item.type === 'trip' ? 'Trip plan' : 'Pinned spot' }}
-        </span>
+        <span class="time-pill">{{ relativeTime }}</span>
       </div>
 
-      <p class="excerpt">{{ item.excerpt }}</p>
+      <div class="stat-group">
+        <span>{{ item.actor.stats?.spots ?? 0 }} spots</span>
+        <span>{{ item.actor.stats?.trips ?? 0 }} trips</span>
+        <span>{{ item.actor.stats?.friends ?? 0 }} friends</span>
+      </div>
 
       <div class="footer-row">
-        <div class="stat-group">
-          <span>{{ item.actor.stats?.spots ?? 0 }} spots</span>
-          <span>{{ item.actor.stats?.trips ?? 0 }} trips</span>
-          <span>{{ item.actor.stats?.friends ?? 0 }} friends</span>
-        </div>
+        <p class="footer-copy">{{ footerCopy }}</p>
         <RouterLink class="cta-link" :to="destinationRoute">
-          View {{ item.type === 'trip' ? 'trip' : 'spot' }}
+          <span>View {{ item.type === 'trip' ? 'trip' : 'spot' }}</span>
+          <AtlasIcon name="arrow-right" />
         </RouterLink>
       </div>
     </div>
@@ -44,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
@@ -55,31 +76,69 @@ const props = defineProps<{
   item: FeedItemModel;
 }>();
 
+const isSaved = ref(false);
+
+function toggleSaved() {
+  isSaved.value = !isSaved.value;
+}
+
 const activityLabel = computed(() => (props.item.type === 'trip' ? 'Trip activity' : 'Spot activity'));
+const typeLabel = computed(() => (props.item.type === 'trip' ? 'Trip plan' : 'Pinned spot'));
 const relativeTime = computed(() => formatRelativeTime(props.item.createdAt));
 const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : `/spots/${props.item.targetId}`));
+const footerCopy = computed(() => {
+  const friendCount = props.item.actor.stats?.friends ?? 0;
+  return friendCount ? `${friendCount} travelers are following this explorer` : 'Open the update for the full story';
+});
 </script>
 
 <style scoped>
 .feed-item {
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
-  min-height: 14rem;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  min-height: 18rem;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-.media {
+.feed-item:hover,
+.feed-item:focus-within {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
+}
+
+.feed-media {
   position: relative;
-  min-height: 100%;
-  background: radial-gradient(circle at top, var(--accent-gold-light), transparent 52%), var(--bg-secondary);
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, var(--accent-gold-light), transparent 40%),
+    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
 }
 
-.media-spot {
-  border-right: 1px solid var(--glass-border);
+.feed-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-primary) 12%, transparent) 0%,
+      transparent 32%,
+      color-mix(in srgb, var(--bg-primary) 88%, transparent) 100%
+    ),
+    linear-gradient(0deg, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 40%);
+  pointer-events: none;
 }
 
-.media-trip {
-  border-right: 1px solid var(--glass-border);
+.feed-media--trip {
+  background:
+    radial-gradient(circle at top left, var(--accent-teal-light), transparent 38%),
+    linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
 }
 
 .feed-image,
@@ -90,41 +149,113 @@ const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${
 
 .feed-image {
   object-fit: cover;
+  transition: transform var(--transition-slow), filter var(--transition-slow);
+}
+
+.feed-item:hover .feed-image,
+.feed-item:focus-within .feed-image {
+  transform: scale(1.05);
 }
 
 .media-fallback {
   display: grid;
-  place-items: center;
+  place-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.media-fallback strong {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-h3);
+}
+
+.media-fallback :deep(.atlas-icon) {
+  width: 2rem;
+  height: 2rem;
+  margin: 0 auto;
   color: var(--accent-teal);
-  font-size: 2.5rem;
+}
+
+.feed-media-chrome,
+.feed-overlay,
+.copy,
+.header-copy,
+.stat-group,
+.footer-row {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.feed-media-chrome {
+  position: absolute;
+  inset: var(--space-4) var(--space-4) auto;
+  z-index: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.feed-overlay {
+  position: absolute;
+  inset-inline: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1;
+}
+
+.overlay-kicker,
+.overlay-copy,
+.eyebrow,
+h3,
+.meta,
+.footer-copy {
+  margin: 0;
+}
+
+.overlay-kicker {
+  color: color-mix(in srgb, var(--text-primary) 78%, var(--text-secondary));
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--font-size-caption);
+}
+
+.overlay-copy {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .copy {
-  display: grid;
-  gap: var(--space-5);
   padding: var(--space-6);
 }
 
 .header-row,
 .actor-row,
-.footer-row,
-.stat-group {
+.meta {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .header-row,
 .footer-row {
-  justify-content: space-between;
   align-items: flex-start;
+  justify-content: space-between;
 }
 
 .actor-row {
   align-items: center;
 }
 
+.header-copy {
+  gap: var(--space-2);
+}
+
 .eyebrow {
-  margin: 0 0 var(--space-2);
   color: var(--accent-teal);
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -132,67 +263,131 @@ const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${
 }
 
 h3 {
-  margin: 0;
-  font-size: var(--font-size-h2);
+  font-size: var(--font-size-h3);
+  line-height: 1.2;
 }
 
 .meta,
-.excerpt,
-.stat-group {
+.footer-copy {
   color: var(--text-secondary);
 }
 
-.meta,
-.excerpt {
-  margin: 0;
+.meta {
+  flex-wrap: wrap;
+  font-size: var(--font-size-small);
 }
 
-.excerpt {
-  line-height: var(--line-height-relaxed);
+.time-pill,
+.type-pill,
+.stat-group span,
+.save-button {
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
+.time-pill,
 .type-pill,
 .stat-group span {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  padding: 0.45rem 0.8rem;
+  width: fit-content;
+  padding: 0.55rem 0.85rem;
+  background: color-mix(in srgb, var(--glass-bg) 100%, transparent);
+  box-shadow: var(--shadow-sm);
   font-size: var(--font-size-small);
 }
 
-.type-pill {
+.type-pill,
+.stat-group span {
   color: var(--text-primary);
-  white-space: nowrap;
+}
+
+.type-pill :deep(.atlas-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--accent-teal);
 }
 
 .stat-group {
-  flex-wrap: wrap;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  align-items: start;
+}
+
+.save-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.save-button:hover,
+.save-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 55%, var(--glass-border));
+  box-shadow: var(--shadow-glow-teal);
+  outline: none;
+}
+
+.save-button.active {
+  color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
+}
+
+.save-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.save-button :deep(.atlas-icon) {
+  width: 1rem;
+  height: 1rem;
 }
 
 .cta-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
+  width: fit-content;
   padding: 0.8rem 1rem;
   border-radius: var(--radius-full);
-  background: var(--accent-teal);
-  color: var(--bg-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
   transition:
     transform var(--transition-fast),
-    background var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .cta-link:hover,
 .cta-link:focus-visible {
-  background: var(--accent-teal-hover);
+  transform: translateY(-1px);
+  border-color: var(--accent-teal);
   box-shadow: var(--shadow-glow-teal);
-  transform: translateY(-0.0625rem);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
   outline: none;
+}
+
+.cta-link :deep(.atlas-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 @media (max-width: 960px) {
@@ -200,25 +395,56 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .media {
-    min-height: 12rem;
-    border-right: none;
-    border-bottom: 1px solid var(--glass-border);
+  .feed-media {
+    min-height: 15rem;
+  }
+
+  .stat-group {
+    grid-template-columns: repeat(2, minmax(0, max-content));
   }
 }
 
 @media (max-width: 720px) {
-  .header-row,
-  .footer-row {
-    flex-direction: column;
+  .copy {
+    padding: var(--space-4);
   }
 
+  .header-row,
+  .footer-row,
+  .feed-media-chrome,
+  .stat-group {
+    grid-template-columns: 1fr;
+  }
+
+  .header-row,
   .actor-row {
+    flex-direction: column;
     align-items: flex-start;
   }
 
+  .time-pill {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-item,
+  .feed-image,
+  .save-button,
   .cta-link {
-    width: fit-content;
+    transition: none;
+  }
+
+  .feed-item:hover,
+  .feed-item:focus-within,
+  .feed-item:hover .feed-image,
+  .feed-item:focus-within .feed-image,
+  .save-button:hover,
+  .save-button:focus-visible,
+  .save-button:active,
+  .cta-link:hover,
+  .cta-link:focus-visible {
+    transform: none;
   }
 }
 </style>

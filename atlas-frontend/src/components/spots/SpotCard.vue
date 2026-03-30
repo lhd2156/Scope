@@ -3,42 +3,65 @@
     <div class="spot-media">
       <LazyImage v-if="spot.photoUrl" :src="spot.photoUrl" :alt="spot.title" class="spot-image" />
       <div v-else class="spot-placeholder">
+        <AtlasIcon name="image" label="Spot cover placeholder" />
         <strong>{{ categoryLabel }}</strong>
         <span>Cover photo coming soon</span>
       </div>
 
-      <div class="media-overlay">
+      <div class="spot-media-chrome">
         <span class="badge" :class="`badge-${spot.category}`">{{ categoryLabel }}</span>
-        <div class="rating-pill" :aria-label="`Rated ${ratingLabel} out of 5`">
-          <span class="rating-stars" aria-hidden="true">{{ ratingStars }}</span>
-          <strong>{{ ratingLabel }}</strong>
+        <button
+          type="button"
+          class="save-button"
+          :class="{ active: isSaved }"
+          :aria-pressed="isSaved"
+          :aria-label="isSaved ? `Remove ${spot.title} from saved spots` : `Save ${spot.title}`"
+          @click="toggleSaved"
+        >
+          <AtlasIcon :name="isSaved ? 'heart-filled' : 'heart'" />
+        </button>
+      </div>
+
+      <div class="spot-overlay">
+        <p class="location-row">
+          <AtlasIcon name="pin" />
+          <span>{{ locationLabel }}</span>
+        </p>
+
+        <div class="overlay-copy">
+          <h3>{{ spot.title }}</h3>
+          <div class="overlay-meta">
+            <span class="rating-pill" :aria-label="`Rated ${ratingLabel} out of 5`">
+              <AtlasIcon name="star-filled" />
+              <strong>{{ ratingLabel }}</strong>
+            </span>
+            <span class="meta-pill">{{ tractionLabel }}</span>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="spot-body">
-      <div class="eyebrow-row">
-        <p class="location">{{ locationLabel }}</p>
-        <span v-if="spot.vibe" class="meta-pill">{{ spot.vibe }}</span>
-      </div>
-
-      <div class="title-row">
-        <h3>{{ spot.title }}</h3>
-        <span class="meta-pill">{{ tractionLabel }}</span>
-      </div>
-
       <p class="description">{{ descriptionCopy }}</p>
 
       <div class="spot-footer">
-        <span class="footer-copy">{{ footerCopy }}</span>
-        <RouterLink :to="`/spots/${spot.id}`" class="link">View details</RouterLink>
+        <div class="footer-meta">
+          <span v-if="formattedVibe" class="body-pill">{{ formattedVibe }}</span>
+          <span class="footer-copy">{{ footerCopy }}</span>
+        </div>
+
+        <RouterLink :to="`/spots/${spot.id}`" class="cta-link">
+          <span>View details</span>
+          <AtlasIcon name="arrow-right" />
+        </RouterLink>
       </div>
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotSummary } from '@/types';
 
@@ -46,16 +69,34 @@ const props = defineProps<{
   spot: SpotSummary;
 }>();
 
+const isSaved = ref(Boolean(props.spot.liked));
+
+watch(
+  () => props.spot.liked,
+  (liked) => {
+    isSaved.value = Boolean(liked);
+  },
+);
+
 function formatCategory(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
+function formatVibe(vibe: string): string {
+  return vibe
+    .split(/[-\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function toggleSaved() {
+  isSaved.value = !isSaved.value;
+}
+
 const categoryLabel = computed(() => formatCategory(props.spot.category));
 const ratingLabel = computed(() => props.spot.rating.toFixed(1));
-const ratingStars = computed(() => {
-  const filledStars = Math.max(1, Math.min(5, Math.round(props.spot.rating)));
-  return `${'★'.repeat(filledStars)}${'☆'.repeat(5 - filledStars)}`;
-});
+const formattedVibe = computed(() => (props.spot.vibe?.trim() ? formatVibe(props.spot.vibe) : ''));
 const locationLabel = computed(() => {
   const parts = [props.spot.city, props.spot.country].filter((value): value is string => Boolean(value?.trim()));
   return parts.length ? parts.join(', ') : 'Atlas community pin';
@@ -70,7 +111,7 @@ const footerCopy = computed(() => {
     return `Pinned by ${props.spot.author.displayName}`;
   }
 
-  return props.spot.liked ? 'Already saved to your atlas' : 'Open the full detail view';
+  return isSaved.value ? 'Saved to your atlas' : 'Open the full detail view';
 });
 </script>
 
@@ -78,7 +119,6 @@ const footerCopy = computed(() => {
 .spot-card {
   overflow: hidden;
   display: grid;
-  grid-template-rows: 15rem 1fr;
   transition:
     transform var(--transition-normal),
     box-shadow var(--transition-normal),
@@ -87,16 +127,34 @@ const footerCopy = computed(() => {
 
 .spot-card:hover,
 .spot-card:focus-within {
-  transform: translateY(-0.125rem);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
 }
 
 .spot-media {
   position: relative;
-  min-height: 15rem;
+  isolation: isolate;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
   background:
-    radial-gradient(circle at top left, var(--accent-teal-light), transparent 35%),
+    radial-gradient(circle at top left, var(--accent-teal-light), transparent 38%),
     linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+}
+
+.spot-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-primary) 10%, transparent) 0%,
+      transparent 34%,
+      color-mix(in srgb, var(--bg-primary) 88%, transparent) 100%
+    ),
+    linear-gradient(0deg, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 45%);
+  pointer-events: none;
 }
 
 .spot-image,
@@ -107,15 +165,28 @@ const footerCopy = computed(() => {
 
 .spot-image {
   object-fit: cover;
+  transition: transform var(--transition-slow), filter var(--transition-slow);
+}
+
+.spot-card:hover .spot-image,
+.spot-card:focus-within .spot-image {
+  transform: scale(1.05);
 }
 
 .spot-placeholder {
   display: grid;
   place-content: center;
   gap: var(--space-2);
-  padding: var(--space-5);
+  padding: var(--space-6);
   text-align: center;
   color: var(--text-secondary);
+}
+
+.spot-placeholder :deep(.atlas-icon) {
+  width: 2rem;
+  height: 2rem;
+  margin: 0 auto;
+  color: var(--accent-teal);
 }
 
 .spot-placeholder strong {
@@ -123,112 +194,237 @@ const footerCopy = computed(() => {
   font-size: var(--font-size-h3);
 }
 
-.media-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.spot-media-chrome,
+.spot-overlay,
+.overlay-copy,
+.overlay-meta,
+.spot-body,
+.spot-footer,
+.footer-meta {
+  display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
-  background: linear-gradient(180deg, transparent 0%, transparent 45%, var(--glass-bg) 100%);
 }
 
-.rating-pill,
-.meta-pill {
+.spot-media-chrome,
+.overlay-meta,
+.spot-footer {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.spot-media-chrome,
+.spot-overlay {
+  position: absolute;
+  inset-inline: var(--space-4);
+  z-index: 1;
+}
+
+.spot-media-chrome {
+  top: var(--space-4);
+}
+
+.spot-overlay {
+  bottom: var(--space-4);
+}
+
+.location-row {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-sm);
-}
-
-.rating-pill {
-  color: var(--text-primary);
-}
-
-.rating-stars {
-  color: var(--accent-gold);
-  letter-spacing: 0.08em;
+  margin: 0;
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
   font-size: var(--font-size-small);
 }
 
-.spot-body {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5);
+.location-row :deep(.atlas-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--accent-teal);
 }
 
-.eyebrow-row,
-.title-row,
-.spot-footer {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.location,
+.overlay-copy h3,
 .description,
 .footer-copy {
-  color: var(--text-secondary);
-}
-
-.location,
-.description,
-.footer-copy,
-.title-row h3 {
   margin: 0;
 }
 
-.location,
-.footer-copy,
+.overlay-copy h3 {
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-shadow: var(--shadow-md);
+}
+
+.badge,
+.rating-pill,
 .meta-pill,
-.rating-pill {
-  font-size: var(--font-size-small);
+.body-pill,
+.save-button {
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
-.title-row h3 {
-  flex: 1;
-  font-size: var(--font-size-h3);
-  line-height: var(--line-height-tight);
-}
-
-.description {
-  line-height: var(--line-height-relaxed);
-}
-
-.spot-footer {
+.badge,
+.rating-pill,
+.meta-pill,
+.body-pill {
+  display: inline-flex;
   align-items: center;
-}
-
-.link {
-  color: var(--accent-teal);
+  gap: var(--space-2);
+  width: fit-content;
+  padding: 0.5rem 0.85rem;
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
 }
 
-.link:hover,
-.link:focus-visible {
-  color: var(--accent-teal-hover);
+.badge {
+  text-transform: capitalize;
+}
+
+.rating-pill,
+.meta-pill,
+.body-pill {
+  background: color-mix(in srgb, var(--glass-bg) 100%, transparent);
+  color: var(--text-primary);
+}
+
+.rating-pill :deep(.atlas-icon) {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--accent-gold);
+}
+
+.save-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.save-button:hover,
+.save-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 55%, var(--glass-border));
+  box-shadow: var(--shadow-glow-teal);
   outline: none;
 }
 
+.save-button.active {
+  color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
+}
+
+.save-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.save-button :deep(.atlas-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.spot-body {
+  padding: var(--space-5);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent), color-mix(in srgb, var(--bg-primary) 10%, var(--bg-secondary)));
+}
+
+.description {
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.footer-meta {
+  gap: var(--space-2);
+}
+
+.footer-copy {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: fit-content;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.cta-link:hover,
+.cta-link:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--accent-teal);
+  box-shadow: var(--shadow-glow-teal);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  outline: none;
+}
+
+.cta-link :deep(.atlas-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 @media (max-width: 720px) {
-  .eyebrow-row,
-  .title-row,
-  .spot-footer,
-  .media-overlay {
-    flex-direction: column;
-    align-items: flex-start;
+  .spot-media-chrome,
+  .overlay-meta,
+  .spot-footer {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 
-  .spot-card {
-    grid-template-rows: 13rem 1fr;
+  .spot-body {
+    padding: var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot-card,
+  .spot-image,
+  .save-button,
+  .cta-link {
+    transition: none;
+  }
+
+  .spot-card:hover,
+  .spot-card:focus-within,
+  .spot-card:hover .spot-image,
+  .spot-card:focus-within .spot-image,
+  .save-button:hover,
+  .save-button:focus-visible,
+  .save-button:active,
+  .cta-link:hover,
+  .cta-link:focus-visible {
+    transform: none;
   }
 }
 </style>
