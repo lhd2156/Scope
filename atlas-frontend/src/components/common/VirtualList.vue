@@ -11,13 +11,13 @@
     <div class="virtual-list__spacer" :style="{ height: `${totalHeight}px` }" aria-hidden="true" />
 
     <div
-      v-for="entry in visibleEntries"
+      v-for="(entry, visibleIndex) in visibleEntries"
       :key="getItemKey(entry.item, entry.index)"
       class="virtual-list__item"
       role="listitem"
       :style="{ transform: `translateY(${entry.top}px)`, height: `${itemHeight}px` }"
     >
-      <div class="virtual-list__item-content">
+      <div class="virtual-list__item-content" :style="{ '--atlas-stagger-index': visibleIndex }">
         <slot :item="entry.item" :index="entry.index" />
       </div>
     </div>
@@ -135,36 +135,24 @@ watch(
 
 @media (prefers-reduced-motion: no-preference) {
   .virtual-list--stagger .virtual-list__item-content {
-    animation: fadeInUp 0.4s ease both;
-  }
-
-  .virtual-list--stagger .virtual-list__item:nth-child(1) .virtual-list__item-content {
-    animation-delay: 0ms;
-  }
-
-  .virtual-list--stagger .virtual-list__item:nth-child(2) .virtual-list__item-content {
-    animation-delay: 80ms;
-  }
-
-  .virtual-list--stagger .virtual-list__item:nth-child(3) .virtual-list__item-content {
-    animation-delay: 160ms;
-  }
-
-  .virtual-list--stagger .virtual-list__item:nth-child(4) .virtual-list__item-content {
-    animation-delay: 240ms;
+    opacity: 0;
+    animation: atlas-virtual-fade-in-up var(--motion-duration-reveal) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--atlas-stagger-index, 0) * var(--motion-stagger-step));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .virtual-list--stagger .virtual-list__item-content {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 
-@keyframes fadeInUp {
+@keyframes atlas-virtual-fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(var(--space-3));
   }
 
   to {

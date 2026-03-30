@@ -173,6 +173,26 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 350ms ease;
+
+  /* Motion */
+  --motion-duration-reveal: 400ms;
+  --motion-duration-bounce: 280ms;
+  --motion-stagger-step: 100ms;
+  --motion-press-duration: 50ms;
+  --motion-card-lift: -0.125rem;
+  --motion-button-lift: -0.0625rem;
+  --motion-chip-active-lift: -0.0625rem;
+  --motion-chip-bounce-lift: -0.125rem;
+  --motion-press-scale: 0.97;
+  --motion-image-zoom: 1.05;
+  --motion-image-zoom-subtle: 1.02;
+  --motion-navbar-opacity-rest: 0.94;
+  --motion-navbar-opacity-scrolled: 1;
+  --motion-toast-slide-x: 1rem;
+  --motion-toast-slide-y: 0.45rem;
+  --motion-modal-backdrop-blur-rest: blur(0px);
+  --motion-modal-backdrop-blur-active: blur(16px);
+  --motion-modal-panel-shift: 0.75rem;
 }
 
 /* ============================================

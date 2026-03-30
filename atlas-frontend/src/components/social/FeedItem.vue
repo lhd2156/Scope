@@ -208,7 +208,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .feed-item:hover,
 .feed-item:focus-within {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: var(--border-hover);
 }
@@ -349,7 +349,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .feed-item:hover .feed-image,
 .feed-item:focus-within .feed-image {
-  transform: scale(1.02);
+  transform: scale(var(--motion-image-zoom-subtle));
 }
 
 .media-fallback {
@@ -474,7 +474,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 .action-button:focus-visible,
 .cta-link:hover,
 .cta-link:focus-visible {
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-button-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 55%, var(--glass-border));
   box-shadow: var(--shadow-glow-teal);
   outline: none;
@@ -482,7 +482,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .action-button:active,
 .cta-link:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .action-button--active {

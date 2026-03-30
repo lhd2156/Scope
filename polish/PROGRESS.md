@@ -1,8 +1,8 @@
 # Polish Agent Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
-## Phase 10: UX Polish & Accessibility
+## Phase 10: UX Polish & Accessibility (COMPLETED)
 - [x] Add route transitions and reduced-motion-safe page micro-animations
 - [x] Add reusable skeleton loaders and empty states for key frontend surfaces
 - [x] Add a toast/notification system for inline success and error feedback
@@ -10,13 +10,25 @@
 - [x] Add PWA/SEO polish for the frontend shell where appropriate
 - [x] Run `npm run build` and `npm run test`, fix any polish regressions, and record the validation pass
 
-## Current Task: COMPLETE
-## Last Updated: 2026-03-29 17:22 CDT
+## Phase 13: Frontend Design Overhaul — Polish Track 🎨
+You assist the Frontend agent (Prism) on Phase 13. Your focus is sub-tasks 13.14 through 13.18:
+
+- [x] 13.14 — Micro-Animations Pass: Page-enter stagger fade-ups (100ms delay per card), card hover lifts, button click scale(0.97) feedback, toast slide-in, modal backdrop blur transition, filter chip bounce, navbar scroll-triggered opacity transition. Respect `prefers-reduced-motion`.
+- [ ] 13.15 — Typography & Spacing Audit: Verify all headings match DESIGN-SPEC.md hierarchy, all body text uses proper line-heights, eyebrow text is uppercase teal with letter-spacing 0.14em, section spacing uses design token variables consistently.
+- [ ] 13.16 — Dark Mode Color Audit: Zero hardcoded hex values in any component under `atlas-frontend/src/`. Every background, text color, border, shadow must use CSS custom properties from design-tokens.css. Verify glassmorphism panels render cleanly in both dark and light themes.
+- [ ] 13.17 — Demo Photo Integration: Replace ALL placeholder/empty/broken images across the frontend with high-quality Unsplash travel photos. Use `https://images.unsplash.com/photo-XXXXX?w=800` format. User avatars from `https://i.pravatar.cc/150?img=N`. Every SpotCard, TripCard, FeedItem, and ProfileHeader must show a real photo.
+- [ ] 13.18 — Final Visual QA: Run `npm run build` and `npm run test`. Screenshot every page in dark mode and light mode. Check against the mockup images in `atlas-assets/mockups/`. Fix any visual regressions or mismatches.
+
+## Phase 19: Onboarding & Tutorial Flow — Polish Track 🎓
+- [ ] 19.1 — Create OnboardingOverlay.vue with step-by-step spotlight tutorial
+- [ ] 19.7 — Add progress dots, skip button, persist onboarding completion in localStorage
+- [ ] 19.9 — Create premium empty-state illustrations/panels for pages with no user content
+
+## Current Task: Phase 13.15 — Typography & Spacing Audit
+## Last Updated: 2026-03-30T10:43:15Z
 
 ## Log
-- [2026-03-29 15:32 CDT] Completed Task 1: added pathname-keyed route transitions, reduced-motion-aware page reveal animations, shared motion preference bootstrap, targeted route/motion tests, and tightened Vitest to unit specs so `npm.cmd run build ; npm.cmd run test` passes cleanly.
-- [2026-03-29 15:55 CDT] Completed Task 2: added reusable skeleton and empty-state primitives, applied polished loading/empty UX across Home/Explore/Friends/Profile plus notifications, and verified the milestone with `npm.cmd run build ; npm.cmd run test`.
-- [2026-03-29 16:19 CDT] Completed Task 3: replaced the one-off toast with a global queued toast system, wired success/error feedback into settings/spot/trip/logout + realtime notifications/session expiry, and verified the milestone with `npm.cmd run build ; npm.cmd run test`.
-- [2026-03-29 16:48 CDT] Completed Task 4: hardened modal focus trapping/body scroll lock, upgraded profile + notification dropdown keyboard semantics, added an accessible route-level error boundary, and revalidated the frontend with `npm.cmd run build ; npm.cmd run test`.
-- [2026-03-29 17:13 CDT] Completed Task 5: polished the frontend shell with route-aware SEO metadata, static shell meta tags, a manifest/offline/service-worker PWA baseline, a social preview asset, and dedicated SEO/PWA tests; `npm.cmd run build ; npm.cmd run test` now passes cleanly.
-- [2026-03-29 17:22 CDT] Completed Task 6: reran `npm.cmd run build ; npm.cmd run test`, confirmed the full Phase 10 polish suite passes without regressions (79 test files / 173 tests), and marked UX Polish & Accessibility complete.
+- Phase 10 completed with 6 tasks. See git history.
+- 2026-03-30T03:06:00Z: NEW — Phase 13 polish sub-tasks (13.14-13.18) and Phase 19 onboarding tasks added.
+- 2026-03-30T03:06:00Z: IMPORTANT — Read `atlas-assets/DESIGN-SPEC.md` FIRST before any code changes. Study the mockup images in `atlas-assets/mockups/`.
+- 2026-03-30T10:43:15Z: DONE — 13.14 Micro-Animations Pass completed across shared motion tokens/utilities, Home/Explore/Map/TripPlanner staggered entry states, card/button feedback, toast/modal/navbar transitions, and reduced-motion-safe interaction polish. Validation: `npm run build`; `npm run test`.
