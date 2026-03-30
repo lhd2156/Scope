@@ -31,6 +31,29 @@ function sanitizeUserEnvelope(response: ApiEnvelope<UserProfile>): ApiEnvelope<U
   };
 }
 
+function isUserProfilePayload(value: unknown): value is UserProfile {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<UserProfile>;
+  return typeof candidate.id === 'string'
+    && typeof candidate.username === 'string'
+    && typeof candidate.email === 'string'
+    && typeof candidate.displayName === 'string'
+    && Array.isArray(candidate.interests);
+}
+
+function unwrapUserProfilePayload(payload: ApiEnvelope<UserProfile> | UserProfile): UserProfile {
+  const unwrappedPayload = unwrapApiData(payload);
+
+  if (!isUserProfilePayload(unwrappedPayload)) {
+    throw new Error('Invalid user profile payload');
+  }
+
+  return unwrappedPayload;
+}
+
 function sanitizeUserListEnvelope(response: ApiEnvelope<UserProfile[]>): ApiEnvelope<UserProfile[]> {
   return {
     ...response,
@@ -104,7 +127,7 @@ function updateMockUser(userId: string, updates: UpdateUserProfileInput): UserPr
 export async function getCurrentUserProfile(fallbackUserId?: string): Promise<ApiEnvelope<UserProfile>> {
   try {
     const { data } = await api.get<ApiEnvelope<UserProfile> | UserProfile>(`${AUTH_BASE_PATH}/me`);
-    return sanitizeUserEnvelope({ data: unwrapApiData(data) });
+    return sanitizeUserEnvelope({ data: unwrapUserProfilePayload(data) });
   } catch (error) {
     if (!USER_MOCK_FALLBACK_ENABLED) {
       throw error;
@@ -118,7 +141,7 @@ export async function getCurrentUserProfile(fallbackUserId?: string): Promise<Ap
 export async function getUserProfile(userId: string): Promise<ApiEnvelope<UserProfile>> {
   try {
     const { data } = await api.get<ApiEnvelope<UserProfile> | UserProfile>(`${USERS_BASE_PATH}/${userId}`);
-    return sanitizeUserEnvelope({ data: unwrapApiData(data) });
+    return sanitizeUserEnvelope({ data: unwrapUserProfilePayload(data) });
   } catch (error) {
     if (!USER_MOCK_FALLBACK_ENABLED) {
       throw error;

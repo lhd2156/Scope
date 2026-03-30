@@ -75,6 +75,20 @@ describe('API service fallbacks', () => {
     await expect(userService.getCurrentUserProfile('user-1')).rejects.toThrow('profile offline');
   });
 
+  it('uses the explicit preview fallback for invalid profile payloads when preview mode is enabled', async () => {
+    vi.stubEnv('VITE_ENABLE_USER_MOCK_FALLBACK', 'true');
+    apiMock.get.mockResolvedValue({ data: '<!doctype html><html></html>' });
+
+    const userService = await import('@/services/userService');
+    const response = await userService.getCurrentUserProfile('user-1');
+
+    expect(response.data).toMatchObject({
+      id: 'user-1',
+      displayName: 'Louis Do',
+      username: 'louisdo',
+    });
+  });
+
   it('uses the explicit preview fallback for profile saves when preview mode is enabled', async () => {
     vi.stubEnv('VITE_ENABLE_USER_MOCK_FALLBACK', 'true');
     apiMock.put.mockRejectedValue(new Error('profile offline'));
