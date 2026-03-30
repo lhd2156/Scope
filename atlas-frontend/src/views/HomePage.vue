@@ -50,7 +50,12 @@
           <SpotCardSkeleton v-for="index in 4" :key="`featured-skeleton-${index}`" />
         </div>
         <div v-else-if="spotsStore.featuredSpots.length" class="spot-grid stagger-in">
-          <SpotCard v-for="spot in spotsStore.featuredSpots" :key="spot.id" :spot="spot" />
+          <SpotCard
+            v-for="(spot, index) in spotsStore.featuredSpots"
+            :key="spot.id"
+            :spot="spot"
+            :style="{ '--atlas-stagger-index': index }"
+          />
         </div>
         <EmptyStatePanel
           v-else-if="!spotsStore.error"
@@ -331,7 +336,7 @@ onMounted(async () => {
 }
 
 .hero-action:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .spot-grid {

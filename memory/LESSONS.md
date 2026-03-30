@@ -116,6 +116,7 @@
 - [2026-03-30] ✅ Atlas frontend guest auth pages are easiest to keep mockup-faithful by moving them off `AppShell` and into a shared split-screen auth shell; route/query auth tests still pass as long as the views preserve the same redirect and validation contracts.
 - [2026-03-30] ✅ For Atlas settings polish, keep theme state in the shared `utils/theme` helpers and let the settings form call `applyTheme(...)` directly; that keeps the page-level appearance controls and the navbar/shell `ThemeToggle` synchronized without duplicating local state.
 - [2026-03-30] ⚠️ When cleaning up parallel frontend work on a reopened Phase 13 branch, rerun `npm.cmd run build` before restoring older mock data snapshots; the current Friends page depends on `mockPeopleYouMayKnow` from `src/services/mockData.ts`, so removing that export silently breaks unrelated later milestones.
+- [2026-03-30] ✅ For Atlas’s Phase 13 motion polish, keep the cross-app pieces centralized in `src/assets/base.css` (route/card stagger timing, shared press feedback, reduced-motion fallbacks) and layer the page-specific flourishes in scoped view/component styles (toast slide-in, modal blur, navbar scroll accent, chip bounce) so the behavior stays consistent without scattering timing constants.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 
@@ -225,6 +226,10 @@
 - [2026-03-29] ✅ For real Atlas.Core SignalR acceptance tests under `WebApplicationFactory`, use `Microsoft.AspNetCore.SignalR.Client` with `factory.Server.CreateHandler()` and `HttpTransportType.LongPolling`; that gives true authenticated hub connections and method invocations in-process without needing an external Kestrel/WebSocket host.
 
 - [2026-03-30] ✅ When heartbeat must relaunch a worker without higher-level subagent metadata, `openclaw agent --agent <id> --session-id <fresh> --timeout 0 --message "..."` works as a one-shot recovery path; confirm the process table is empty first so you do not double-spawn the shared workspace.
+- [2026-03-30] ⚠️ On this Windows heartbeat host, the PowerShell `openclaw.ps1` wrapper can drop `openclaw agent --message` entirely; for reliable relaunches, use `Start-Process` with an explicit argument list against `C:\Users\dongu\AppData\Roaming\npm\openclaw.cmd`, then verify the child `openclaw.mjs agent` node in `Win32_Process`.
+- [2026-03-30] ⚠️ For reopened Atlas Phase 13 work, if the lead dashboard still says Frontend/Polish are running but a fresh `Win32_Process` check shows no `openclaw.mjs agent` nodes, trust the empty process table and immediately relaunch both agents on the same first unchecked canonical task.
+- [2026-03-30] ✅ When heartbeat needs launch visibility on this Windows host, running `& C:\Users\dongu\AppData\Roaming\npm\openclaw.cmd agent ...` in an `exec` background session keeps the worker attached to a manageable session for `process` polling/logs and is easier to supervise than a detached `Start-Process` relaunch.
+- [2026-03-30] ⚠️ When invoking `openclaw.cmd agent` from a PowerShell `exec`, keep the `--message` payload on one shell argument (for example, flatten embedded newlines to spaces); multiline prompt strings can make the CLI think `--message` has no value and abort immediately.
 
 ## Common Mistakes to Avoid
 

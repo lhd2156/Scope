@@ -212,8 +212,9 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: rgba(5, 8, 16, 0.7);
-  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+  backdrop-filter: var(--motion-modal-backdrop-blur-active);
+  -webkit-backdrop-filter: var(--motion-modal-backdrop-blur-active);
 }
 
 .modal-panel {
@@ -223,6 +224,10 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-2xl);
   padding: var(--space-5);
   z-index: var(--z-modal);
+  transition:
+    transform var(--transition-normal),
+    opacity var(--transition-normal),
+    box-shadow var(--transition-normal);
 }
 
 .modal-panel:focus-visible {
@@ -278,10 +283,14 @@ onBeforeUnmount(() => {
 
 .modal-close:hover,
 .modal-close:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-button-lift));
   border-color: var(--accent-teal);
   background: var(--accent-teal-light);
   outline: none;
+}
+
+.modal-close:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .modal-body {
@@ -291,28 +300,53 @@ onBeforeUnmount(() => {
 
 .modal-fade-enter-active,
 .modal-fade-leave-active {
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  transition:
+    opacity var(--transition-normal),
+    background var(--transition-normal),
+    backdrop-filter var(--transition-normal),
+    -webkit-backdrop-filter var(--transition-normal);
+}
+
+.modal-fade-enter-active .modal-panel,
+.modal-fade-leave-active .modal-panel {
+  transition:
+    transform var(--transition-normal),
+    opacity var(--transition-normal),
+    box-shadow var(--transition-normal);
 }
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
+  background: color-mix(in srgb, var(--bg-primary) 18%, transparent);
+  backdrop-filter: var(--motion-modal-backdrop-blur-rest);
+  -webkit-backdrop-filter: var(--motion-modal-backdrop-blur-rest);
 }
 
 .modal-fade-enter-from .modal-panel,
 .modal-fade-leave-to .modal-panel {
-  transform: translateY(0.75rem);
+  opacity: 0;
+  transform: translateY(var(--motion-modal-panel-shift)) scale(0.98);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .modal-close,
   .modal-fade-enter-active,
-  .modal-fade-leave-active {
+  .modal-fade-leave-active,
+  .modal-fade-enter-active .modal-panel,
+  .modal-fade-leave-active .modal-panel {
     transition-duration: 1ms;
   }
 
+  .modal-fade-enter-from,
+  .modal-fade-leave-to,
   .modal-fade-enter-from .modal-panel,
-  .modal-fade-leave-to .modal-panel {
+  .modal-fade-leave-to .modal-panel,
+  .modal-close:active {
     transform: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 </style>

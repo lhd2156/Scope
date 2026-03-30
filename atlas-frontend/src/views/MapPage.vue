@@ -9,7 +9,7 @@
 
       <section class="map-workspace">
         <aside class="map-sidebar stagger-in" aria-label="Map workspace sidebar">
-          <article class="glass-panel sidebar-panel filter-panel">
+          <article class="glass-panel sidebar-panel filter-panel" style="--atlas-stagger-index: 0;">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Explore categories</p>
@@ -42,7 +42,7 @@
             </div>
           </article>
 
-          <article class="glass-panel sidebar-panel route-card" :class="{ 'route-card--empty': !activeTrip }">
+          <article class="glass-panel sidebar-panel route-card" :class="{ 'route-card--empty': !activeTrip }" style="--atlas-stagger-index: 1;">
             <div class="panel-heading route-heading">
               <div>
                 <p class="eyebrow">Featured route</p>
@@ -102,7 +102,7 @@
             </div>
           </article>
 
-          <article v-if="selectedSpot" :key="selectedSpot.id" class="glass-panel sidebar-panel selected-card">
+          <article v-if="selectedSpot" :key="selectedSpot.id" class="glass-panel sidebar-panel selected-card" style="--atlas-stagger-index: 2;">
             <div class="selected-media">
               <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
               <div class="selected-media-gradient" />
@@ -128,7 +128,7 @@
             </div>
           </article>
 
-          <article class="glass-panel sidebar-panel visible-card">
+          <article class="glass-panel sidebar-panel visible-card" style="--atlas-stagger-index: 3;">
             <div class="panel-heading visible-heading">
               <div>
                 <p class="eyebrow">Your adventure map</p>
@@ -524,8 +524,15 @@ onMounted(async () => {
 .detail-link:focus-visible,
 .visible-item:hover,
 .visible-item:focus-visible {
-  transform: translateY(-0.125rem);
+  transform: translateY(var(--motion-card-lift));
   outline: none;
+}
+
+.filter-chip:active,
+.text-link:active,
+.detail-link:active,
+.visible-item:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .filter-chip.is-inactive:hover,
@@ -823,7 +830,7 @@ onMounted(async () => {
 .visible-item:focus-visible .visible-image,
 .selected-card:hover .selected-image,
 .route-card:hover .route-hero-image {
-  transform: scale(1.05);
+  transform: scale(var(--motion-image-zoom));
 }
 
 .visible-image {
@@ -854,38 +861,13 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.stagger-in > * {
-  opacity: 0;
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .stagger-in > * {
-    animation: fade-in-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .stagger-in > *:nth-child(1) {
-    animation-delay: 0ms;
-  }
-
-  .stagger-in > *:nth-child(2) {
-    animation-delay: 100ms;
-  }
-
-  .stagger-in > *:nth-child(3) {
-    animation-delay: 200ms;
-  }
-
-  .stagger-in > *:nth-child(4) {
-    animation-delay: 300ms;
-  }
-
   .selected-card {
     animation: selected-spot-slide-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stagger-in > *,
   .selected-card {
     opacity: 1;
     animation: none;
@@ -894,12 +876,16 @@ onMounted(async () => {
   .filter-chip,
   .filter-chip:hover,
   .filter-chip:focus-visible,
+  .filter-chip:active,
   .text-link:hover,
   .text-link:focus-visible,
+  .text-link:active,
   .detail-link:hover,
   .detail-link:focus-visible,
+  .detail-link:active,
   .visible-item:hover,
   .visible-item:focus-visible,
+  .visible-item:active,
   .visible-item:hover .visible-image,
   .visible-item:focus-visible .visible-image,
   .selected-card:hover .selected-image,
@@ -908,22 +894,10 @@ onMounted(async () => {
   }
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes selected-spot-slide-in {
   from {
     opacity: 0;
-    transform: translateX(-1rem);
+    transform: translateX(calc(var(--motion-modal-panel-shift) * -1));
   }
 
   to {

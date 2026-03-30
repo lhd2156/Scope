@@ -1,5 +1,5 @@
 <template>
-  <form class="settings-form" @submit.prevent="submitForm">
+  <form class="settings-form stagger-in" @submit.prevent="submitForm">
     <section id="settings-account" class="surface-card settings-section" tabindex="-1" data-test="settings-section-account">
       <div class="section-header">
         <div class="section-heading">
@@ -377,6 +377,10 @@ function submitForm(): void {
   gap: var(--space-5);
 }
 
+.stagger-in > * {
+  opacity: 0;
+}
+
 .settings-section {
   gap: var(--space-4);
   padding: var(--space-5);
@@ -568,6 +572,10 @@ function submitForm(): void {
   box-shadow: var(--shadow-glow-teal);
 }
 
+.profile-avatar__camera:active {
+  transform: translateY(0) scale(0.97);
+}
+
 .profile-avatar__camera :deep(.atlas-icon) {
   width: 1rem;
   height: 1rem;
@@ -667,6 +675,14 @@ function submitForm(): void {
   transform: translateY(-1px);
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
+}
+
+.option-card:active,
+.option-pill:active,
+.preference-pill:active,
+.theme-option:active,
+.toggle-row:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .option-card {
@@ -792,6 +808,70 @@ function submitForm(): void {
   min-width: 9rem;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .stagger-in > * {
+    animation: fade-in-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .stagger-in > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  .stagger-in > *:nth-child(2) {
+    animation-delay: 100ms;
+  }
+
+  .stagger-in > *:nth-child(3) {
+    animation-delay: 200ms;
+  }
+
+  .stagger-in > *:nth-child(4) {
+    animation-delay: 300ms;
+  }
+
+  .stagger-in > *:nth-child(5) {
+    animation-delay: 400ms;
+  }
+
+  .stagger-in > *:nth-child(n + 6) {
+    animation-delay: 500ms;
+  }
+
+  .option-card.is-active,
+  .option-pill.is-active,
+  .preference-pill.is-active,
+  .theme-option.is-active,
+  .toggle-row.is-active {
+    animation: chip-bounce 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chip-bounce {
+  0% {
+    transform: translateY(0) scale(0.96);
+  }
+
+  55% {
+    transform: translateY(-0.0625rem) scale(1.03);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 900px) {
   .profile-hero,
   .field-grid {
@@ -826,6 +906,16 @@ function submitForm(): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .stagger-in > *,
+  .option-card.is-active,
+  .option-pill.is-active,
+  .preference-pill.is-active,
+  .theme-option.is-active,
+  .toggle-row.is-active {
+    opacity: 1;
+    animation: none;
+  }
+
   .settings-section,
   .profile-avatar-shell :deep(img),
   .profile-avatar__camera,
@@ -842,16 +932,22 @@ function submitForm(): void {
   .settings-section:focus-within,
   .option-card:hover,
   .option-card:focus-visible,
+  .option-card:active,
   .option-pill:hover,
   .option-pill:focus-visible,
+  .option-pill:active,
   .preference-pill:hover,
   .preference-pill:focus-visible,
+  .preference-pill:active,
   .theme-option:hover,
   .theme-option:focus-visible,
+  .theme-option:active,
   .toggle-row:hover,
   .toggle-row:focus-visible,
+  .toggle-row:active,
   .profile-avatar__camera:hover,
-  .profile-avatar__camera:focus-visible {
+  .profile-avatar__camera:focus-visible,
+  .profile-avatar__camera:active {
     transform: none;
   }
 }

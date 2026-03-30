@@ -123,10 +123,11 @@
           </div>
           <div v-else-if="displayedSpots.length" class="results-masonry stagger-in" data-test="explore-results">
             <RouterLink
-              v-for="spot in displayedSpots"
+              v-for="(spot, index) in displayedSpots"
               :key="spot.id"
               :to="`/spots/${spot.id}`"
               class="explore-card glass-panel"
+              :style="{ '--atlas-stagger-index': index }"
               data-test="explore-card"
             >
               <div class="explore-card__media">
@@ -189,8 +190,8 @@
           <div v-if="showResultsSkeleton" class="trending-skeleton-list" aria-hidden="true">
             <div v-for="index in 6" :key="`trending-skeleton-${index}`" class="trending-skeleton" />
           </div>
-          <ol v-else-if="trendingSpots.length" class="trending-list" data-test="trending-list">
-            <li v-for="(spot, index) in trendingSpots" :key="`trending-${spot.id}`">
+          <ol v-else-if="trendingSpots.length" class="trending-list stagger-in" data-test="trending-list">
+            <li v-for="(spot, index) in trendingSpots" :key="`trending-${spot.id}`" :style="{ '--atlas-stagger-index': index }">
               <RouterLink :to="`/spots/${spot.id}`" class="trending-item" data-test="trending-item">
                 <span class="trending-item__rank" :aria-label="`Rank ${index + 1}`">#{{ index + 1 }}</span>
                 <div class="trending-item__thumb-wrap">
@@ -565,8 +566,12 @@ h2 {
 .view-toggle__button:hover,
 .view-toggle__button:focus-visible {
   color: var(--text-primary);
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-button-lift));
   outline: none;
+}
+
+.view-toggle__button:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .view-toggle__button.is-active {
@@ -628,15 +633,20 @@ h2 {
 .filter-chip:focus-visible,
 .quick-filter-chip:hover,
 .quick-filter-chip:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-chip-active-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--glass-border));
   color: var(--text-primary);
   outline: none;
 }
 
+.filter-chip:active,
+.quick-filter-chip:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
+}
+
 .filter-chip.active,
 .quick-filter-chip.active {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-chip-active-lift));
   box-shadow: var(--shadow-md);
 }
 
@@ -669,13 +679,17 @@ h2 {
   background: transparent;
   font: inherit;
   cursor: pointer;
-  transition: color var(--transition-fast);
+  transition: transform var(--transition-fast), color var(--transition-fast);
 }
 
 .text-reset:hover,
 .text-reset:focus-visible {
   color: var(--text-primary);
   outline: none;
+}
+
+.text-reset:active {
+  transform: scale(var(--motion-press-scale));
 }
 
 .discovery-shell__footer {
@@ -730,7 +744,7 @@ h2 {
 
 .explore-card:hover,
 .explore-card:focus-visible {
-  transform: translateY(-0.125rem);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--border-hover));
   outline: none;
@@ -773,7 +787,7 @@ h2 {
 .explore-card:focus-visible .explore-card__image,
 .trending-item:hover .trending-item__thumb,
 .trending-item:focus-visible .trending-item__thumb {
-  transform: scale(1.05);
+  transform: scale(var(--motion-image-zoom));
 }
 
 .explore-card__placeholder,
@@ -908,7 +922,7 @@ h2 {
 
 .trending-item:hover,
 .trending-item:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-button-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 36%, var(--glass-border));
   box-shadow: var(--shadow-md);
   outline: none;
@@ -961,10 +975,6 @@ h2 {
     linear-gradient(90deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent) 0%, color-mix(in srgb, var(--glass-bg) 100%, transparent) 50%, color-mix(in srgb, var(--bg-secondary) 100%, transparent) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.2s ease-in-out infinite;
-}
-
-.stagger-in > * {
-  opacity: 0;
 }
 
 @media (max-width: 1200px) {
@@ -1022,30 +1032,7 @@ h2 {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .stagger-in > * {
-    animation: fade-in-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .stagger-in > *:nth-child(1) {
-    animation-delay: 0ms;
-  }
-
-  .stagger-in > *:nth-child(2) {
-    animation-delay: 100ms;
-  }
-
-  .stagger-in > *:nth-child(3) {
-    animation-delay: 200ms;
-  }
-
-  .stagger-in > *:nth-child(4) {
-    animation-delay: 300ms;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .stagger-in > *,
   .trending-skeleton {
     opacity: 1;
     animation: none;
@@ -1064,10 +1051,13 @@ h2 {
 
   .filter-chip:hover,
   .filter-chip:focus-visible,
+  .filter-chip:active,
   .quick-filter-chip:hover,
   .quick-filter-chip:focus-visible,
+  .quick-filter-chip:active,
   .view-toggle__button:hover,
   .view-toggle__button:focus-visible,
+  .view-toggle__button:active,
   .explore-card:hover,
   .explore-card:focus-visible,
   .explore-card:hover .explore-card__image,
@@ -1075,19 +1065,8 @@ h2 {
   .trending-item:hover,
   .trending-item:focus-visible,
   .trending-item:hover .trending-item__thumb,
-  .trending-item:focus-visible .trending-item__thumb {
-    transform: none;
-  }
-}
-
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
-  }
-
-  to {
-    opacity: 1;
+  .trending-item:focus-visible .trending-item__thumb,
+  .text-reset:active {
     transform: none;
   }
 }

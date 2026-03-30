@@ -69,6 +69,15 @@ onBeforeUnmount(clearTimeoutIfNeeded);
   gap: var(--space-4);
   width: 100%;
   padding: var(--space-4);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.toast:hover {
+  transform: translateY(-0.0625rem);
+  box-shadow: var(--shadow-lg);
 }
 
 .toast-copy {
@@ -108,6 +117,10 @@ onBeforeUnmount(clearTimeoutIfNeeded);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .toast-close:hover,
@@ -115,5 +128,21 @@ onBeforeUnmount(clearTimeoutIfNeeded);
   background: var(--accent-teal-light);
   color: var(--text-primary);
   outline: none;
+}
+
+.toast-close:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast-close {
+    transition-duration: 1ms;
+  }
+
+  .toast:hover,
+  .toast-close:active {
+    transform: none;
+  }
 }
 </style>
