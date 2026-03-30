@@ -127,7 +127,7 @@ const footerCopy = computed(() => {
 
 .spot-card:hover,
 .spot-card:focus-within {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: var(--border-hover);
 }
@@ -170,7 +170,7 @@ const footerCopy = computed(() => {
 
 .spot-card:hover .spot-image,
 .spot-card:focus-within .spot-image {
-  transform: scale(1.05);
+  transform: scale(var(--motion-image-zoom));
 }
 
 .spot-placeholder {
@@ -316,7 +316,7 @@ const footerCopy = computed(() => {
 
 .save-button:hover,
 .save-button:focus-visible {
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-button-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 55%, var(--glass-border));
   box-shadow: var(--shadow-glow-teal);
   outline: none;
@@ -328,7 +328,7 @@ const footerCopy = computed(() => {
 }
 
 .save-button:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .save-button :deep(.atlas-icon) {
@@ -382,7 +382,7 @@ const footerCopy = computed(() => {
 
 .cta-link:hover,
 .cta-link:focus-visible {
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-button-lift));
   border-color: var(--accent-teal);
   box-shadow: var(--shadow-glow-teal);
   background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));

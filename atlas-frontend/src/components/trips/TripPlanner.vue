@@ -954,7 +954,7 @@ function handleSubmit(): void {
 .pace-card:hover,
 .pace-card:focus-visible,
 .planner-summary:hover {
-  transform: translateY(-0.125rem);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: var(--border-hover);
 }
@@ -996,7 +996,7 @@ function handleSubmit(): void {
 .drag-handle:hover,
 .stop-action:hover:not(:disabled),
 .stop-action:focus-visible {
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-button-lift));
   background: var(--accent-teal-light);
   color: var(--accent-teal);
   outline: none;
@@ -1024,7 +1024,7 @@ function handleSubmit(): void {
 
 .stop-card:hover .stop-image,
 .stop-card:focus-within .stop-image {
-  transform: scale(1.05);
+  transform: scale(var(--motion-image-zoom));
 }
 
 .stop-body {
@@ -1097,7 +1097,7 @@ function handleSubmit(): void {
 .interest-chip:hover,
 .interest-chip:focus-visible {
   opacity: 1;
-  transform: translateY(-0.0625rem);
+  transform: translateY(var(--motion-chip-active-lift));
   box-shadow: var(--shadow-md);
   outline: none;
 }
@@ -1146,14 +1146,14 @@ function handleSubmit(): void {
 
 .submit-button:hover:not(:disabled),
 .submit-button:focus-visible {
-  transform: translateY(-0.125rem);
+  transform: translateY(var(--motion-card-lift));
   background: var(--accent-teal-hover);
   box-shadow: 0 0 30px var(--accent-teal-light);
   outline: none;
 }
 
 .submit-button:active:not(:disabled) {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .submit-button:disabled {

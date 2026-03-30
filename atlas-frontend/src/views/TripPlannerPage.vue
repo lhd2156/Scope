@@ -41,8 +41,13 @@
           <span class="community-pill">{{ featuredTrips.length }} ready to remix</span>
         </div>
 
-        <div class="community-grid">
-          <TripCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
+        <div class="community-grid stagger-in">
+          <TripCard
+            v-for="(trip, index) in featuredTrips"
+            :key="trip.id"
+            :trip="trip"
+            :style="{ '--atlas-stagger-index': index }"
+          />
         </div>
       </section>
     </div>

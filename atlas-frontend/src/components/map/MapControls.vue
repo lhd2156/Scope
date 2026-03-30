@@ -168,7 +168,7 @@ const statusCopy = computed(() => {
 .reset-button:focus-visible,
 .filter-chip:hover,
 .filter-chip:focus-visible {
-  transform: translateY(-0.125rem);
+  transform: translateY(var(--motion-card-lift));
   border-color: var(--border-hover);
   box-shadow: var(--shadow-lg);
   outline: none;
@@ -177,6 +177,12 @@ const statusCopy = computed(() => {
 .control-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.control-button:active:not(:disabled),
+.reset-button:active,
+.filter-chip:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
 }
 
 .control-button :deep(.atlas-icon) {
