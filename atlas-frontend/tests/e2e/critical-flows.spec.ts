@@ -66,7 +66,7 @@ test.describe('Atlas critical user flow', () => {
     await page.getByPlaceholder('Louis Do').fill(displayName);
     await page.getByPlaceholder('louis@example.com').fill(emailAddress);
     await page.getByPlaceholder('Create a strong password').fill(password);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.getByRole('button', { name: 'Create Account' }).click();
 
     await expect(page).toHaveURL(/\/map$/);
     await expect(page.getByRole('heading', { name: 'Filters and highlights' })).toBeVisible();
@@ -79,7 +79,7 @@ test.describe('Atlas critical user flow', () => {
     await page.goto('/login');
     await page.getByPlaceholder('louis@example.com').fill(emailAddress);
     await page.getByPlaceholder('Enter your password').fill(password);
-    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.getByRole('button', { name: 'Sign In' }).click();
 
     await expect(page).toHaveURL(/\/map$/);
     await expect(page.getByRole('heading', { name: 'Filters and highlights' })).toBeVisible();

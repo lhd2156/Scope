@@ -120,6 +120,36 @@ describe('auth page views', () => {
     expect(router.currentRoute.value.fullPath).toBe('/login');
   });
 
+  it('toggles password visibility and continues with Google from login', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/login', component: LoginPage },
+        { path: '/map', component: { template: '<div>Map target</div>' } },
+      ],
+    });
+
+    await router.push('/login');
+    await router.isReady();
+
+    const wrapper = mount(LoginPage, {
+      global: {
+        plugins: [router],
+      },
+    });
+
+    const passwordInput = wrapper.get('input[type="password"]');
+    await wrapper.get('button[aria-label="Show password"]').trigger('click');
+
+    expect(passwordInput.element.getAttribute('type')).toBe('text');
+
+    await wrapper.get('button.oauth-button').trigger('click');
+    await flushPromises();
+
+    expect(authStoreMock.loginWithCognito).toHaveBeenCalledTimes(1);
+    expect(router.currentRoute.value.fullPath).toBe('/map');
+  });
+
   it('submits registration and redirects to the requested protected route', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
