@@ -4,7 +4,7 @@
     hero-title="Map the stories waiting beyond the next ridge."
     hero-description="Create an account to drop pins, upload rich travel photography, and turn real-world community data into smarter itineraries."
     :hero-highlights="registerHighlights"
-    hero-image-src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920"
+    :hero-image-src="DEMO_HERO_IMAGES.auth"
     hero-image-alt="Golden hour over an alpine valley with winding rivers and steep mountain ridges"
   >
     <article class="auth-card glass-panel">
@@ -92,6 +92,7 @@ import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
 import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
 import { validateRegisterForm, type RegisterFormErrors } from '@/utils/authValidators';
+import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 
 const registerHighlights = [
   'Drop pins with real photos',

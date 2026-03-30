@@ -186,6 +186,7 @@ import { useMapStore } from '@/stores/map';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
 import type { MapPoint, SpotCategory } from '@/types';
+import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
 
 interface RoutePreviewStop {
   id: string;
@@ -198,16 +199,6 @@ interface RoutePreviewStop {
 }
 
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
-const categoryPhotoFallbacks: Record<SpotCategory, string> = {
-  food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
-  nature: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',
-  nightlife: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800',
-  culture: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800',
-  adventure: 'https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800',
-  shopping: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800',
-  scenic: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=800',
-  other: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800',
-};
 
 const mapStore = useMapStore();
 const spotsStore = useSpotsStore();
@@ -222,7 +213,7 @@ function categoryIconName(category: SpotCategory): string {
 }
 
 function getFallbackPhoto(category: SpotCategory): string {
-  return categoryPhotoFallbacks[category];
+  return CATEGORY_TRAVEL_PHOTOS[category];
 }
 
 function getSpotPhotoUrl(category: SpotCategory, photoUrl?: string): string {

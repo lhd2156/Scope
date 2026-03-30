@@ -4,7 +4,7 @@
       <section class="hero-band" aria-labelledby="home-hero-title">
         <LazyImage
           class="hero-image"
-          src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1920"
+          :src="DEMO_HERO_IMAGES.landing"
           alt=""
           eager
         />
@@ -119,6 +119,7 @@ import SpotCard from '@/components/spots/SpotCard.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useFeedStore } from '@/stores/feed';
 import { useSpotsStore } from '@/stores/spots';
+import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 import { useReducedMotion } from '@/utils/motion';
 
 const spotsStore = useSpotsStore();
