@@ -1,3 +1,4 @@
+import { createPinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import FriendsPage from '@/views/FriendsPage.vue';
@@ -32,7 +33,7 @@ describe('FriendsPage', () => {
 
     const wrapper = mount(FriendsPage, {
       global: {
-        plugins: [router],
+        plugins: [router, createPinia()],
         stubs: globalStubs,
       },
     });
@@ -54,7 +55,7 @@ describe('FriendsPage', () => {
 
     const wrapper = mount(FriendsPage, {
       global: {
-        plugins: [router],
+        plugins: [router, createPinia()],
         stubs: globalStubs,
       },
     });
@@ -87,7 +88,7 @@ describe('FriendsPage', () => {
 
     const wrapper = mount(FriendsPage, {
       global: {
-        plugins: [router],
+        plugins: [router, createPinia()],
         stubs: globalStubs,
       },
     });
