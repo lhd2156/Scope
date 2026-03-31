@@ -265,6 +265,7 @@
 - [2026-03-31] ✅ If the latest Frontend `sessions_history` entry is a still-pending child `process` poll after one or more browser passes, treat the auth-flow suite as still in flight and preserve the worker rather than assuming the silence means it stalled.
 - [2026-03-31] ✅ If a Frontend auth-flow worker clears one browser in a standalone verification pass and then immediately starts a full three-browser rerun, treat the earlier single-browser success as progress only; preserve the worker until the full rerun resolves before advancing heartbeat state.
 - [2026-03-31] ✅ If `memory/COMPLETED-TASKS.md` and the canonical `frontend/PROGRESS.md` both advance Frontend to the next E2E checkpoint while the same worker is still active in `subagents(action=list)`, refresh the lead dashboard to that new checkpoint immediately and preserve the worker instead of pinning heartbeat to the old task or spawning a duplicate.
+- [2026-03-31] ✅ If the canonical Frontend tracker is already on the next E2E task but latest `sessions_history` still ends on the previous task's final validation poll, keep heartbeat pinned to the canonical next checkpoint and preserve the worker; the visible child history can lag the tracker by one handoff.
 
 ## Common Mistakes to Avoid
 
