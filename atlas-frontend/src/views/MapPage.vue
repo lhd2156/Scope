@@ -102,7 +102,13 @@
             </div>
           </article>
 
-          <article v-if="selectedSpot" :key="selectedSpot.id" class="glass-panel sidebar-panel selected-card" style="--atlas-stagger-index: 2;">
+          <article
+            v-if="selectedSpot"
+            :key="selectedSpot.id"
+            class="glass-panel sidebar-panel selected-card"
+            style="--atlas-stagger-index: 2;"
+            data-test="map-selected-spot-card"
+          >
             <div class="selected-media">
               <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
               <div class="selected-media-gradient" />
@@ -121,7 +127,7 @@
                 <span>{{ selectedSpotLocation }}</span>
                 <span v-if="selectedSpot.vibe">{{ selectedSpot.vibe }}</span>
               </div>
-              <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`">
+              <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
                 <span>Open detail</span>
                 <AtlasIcon name="navigation" label="Open selected spot detail" />
               </RouterLink>

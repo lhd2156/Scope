@@ -24,6 +24,19 @@
             :class="[`is-${marker.category}`, { 'is-active': marker.isActive }]"
             :data-test="`map-fallback-marker-${marker.id}`"
           >
+            <circle
+              class="map-fallback__marker-hit-area"
+              :cx="marker.x"
+              :cy="marker.y"
+              :r="marker.isActive ? 42 : 34"
+              :data-test="`map-fallback-marker-hit-${marker.id}`"
+              role="button"
+              tabindex="0"
+              :aria-label="`Open ${marker.title}`"
+              @click="handleFallbackMarkerSelect(marker.id)"
+              @keydown.enter.prevent="handleFallbackMarkerSelect(marker.id)"
+              @keydown.space.prevent="handleFallbackMarkerSelect(marker.id)"
+            />
             <circle class="map-fallback__marker-halo" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 34 : 24" />
             <circle class="map-fallback__marker-ring" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 15 : 12" />
             <circle class="map-fallback__marker-core" :cx="marker.x" :cy="marker.y" :r="marker.isActive ? 8 : 6" />
@@ -119,6 +132,7 @@ interface MarkerController {
 
 interface FallbackMarker {
   id: string;
+  title: string;
   category: SpotCategory;
   x: number;
   y: number;
@@ -145,6 +159,38 @@ const fallbackTerrainPaths = [
   'M 888 586 C 960 542 1050 556 1114 620 C 1182 690 1182 802 1106 850 C 1018 906 854 902 786 822 C 734 760 786 648 888 586 Z',
 ];
 const fallbackRingSizes = [168, 248, 332];
+const FALLBACK_MARKER_CLEARANCE = 54;
+const FALLBACK_MARKER_PADDING = 26;
+const FALLBACK_COORDINATE_PADDING_RATIO = 0.16;
+const FALLBACK_MIN_COORDINATE_RANGE = 0.18;
+const FALLBACK_HORIZONTAL_PADDING = 120;
+const FALLBACK_VERTICAL_PADDING = 112;
+const fallbackMarkerOffsets = [
+  { x: 0, y: 0 },
+  { x: 56, y: -24 },
+  { x: -56, y: -24 },
+  { x: 0, y: 56 },
+  { x: 72, y: 24 },
+  { x: -72, y: 24 },
+  { x: 32, y: -72 },
+  { x: -32, y: -72 },
+  { x: 88, y: 0 },
+  { x: -88, y: 0 },
+  { x: 0, y: -96 },
+  { x: 0, y: 96 },
+] as const;
+
+interface FallbackProjection {
+  x: number;
+  y: number;
+}
+
+interface FallbackProjectionBounds {
+  minLongitude: number;
+  maxLongitude: number;
+  minLatitude: number;
+  maxLatitude: number;
+}
 
 const props = withDefaults(
   defineProps<{
@@ -210,25 +256,67 @@ const routeVariant = computed(() => props.routeVariant);
 const routeOrderLookup = computed(() =>
   new Map(props.routePoints.map((point, index) => [point.id, index + 1])),
 );
-const fallbackMarkers = computed<FallbackMarker[]>(() => {
-  const projectedSource = filteredSpots.value.length ? filteredSpots.value : props.spots;
-  const activeMarkerId = selectedSpotId.value ?? props.routePoints[0]?.id ?? projectedSource[0]?.id ?? null;
+const fallbackMarkerSpots = computed(() => (filteredSpots.value.length ? filteredSpots.value : props.spots));
+const fallbackProjectionBounds = computed<FallbackProjectionBounds>(() => {
+  const projectionSpots = [...props.routePoints, ...props.spots];
+  if (!projectionSpots.length) {
+    return {
+      minLongitude: -1,
+      maxLongitude: 1,
+      minLatitude: -1,
+      maxLatitude: 1,
+    };
+  }
 
-  return projectedSource.map((spot, index) => {
-    const x = Number((((spot.longitude + 180) / 360) * FALLBACK_VIEWPORT.width).toFixed(2));
-    const y = Number((((90 - spot.latitude) / 180) * FALLBACK_VIEWPORT.height).toFixed(2));
+  const longitudes = projectionSpots.map((spot) => spot.longitude);
+  const latitudes = projectionSpots.map((spot) => spot.latitude);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const longitudePadding = Math.max((maxLongitude - minLongitude) * FALLBACK_COORDINATE_PADDING_RATIO, FALLBACK_MIN_COORDINATE_RANGE / 2);
+  const latitudePadding = Math.max((maxLatitude - minLatitude) * FALLBACK_COORDINATE_PADDING_RATIO, FALLBACK_MIN_COORDINATE_RANGE / 2);
+
+  return {
+    minLongitude: minLongitude - longitudePadding,
+    maxLongitude: maxLongitude + longitudePadding,
+    minLatitude: minLatitude - latitudePadding,
+    maxLatitude: maxLatitude + latitudePadding,
+  };
+});
+const fallbackProjectedPoints = computed(() => {
+  const projectionBySpotId = new Map<string, FallbackProjection>();
+  const placedProjections: FallbackProjection[] = [];
+  const uniqueProjectionSpots = [...props.routePoints, ...props.spots].filter((spot, index, collection) => (
+    collection.findIndex((candidate) => candidate.id === spot.id) === index
+  ));
+
+  uniqueProjectionSpots.forEach((spot) => {
+    const resolvedProjection = resolveFallbackProjection(projectFallbackPoint(spot, fallbackProjectionBounds.value), placedProjections);
+    placedProjections.push(resolvedProjection);
+    projectionBySpotId.set(spot.id, resolvedProjection);
+  });
+
+  return projectionBySpotId;
+});
+const fallbackMarkers = computed<FallbackMarker[]>(() => {
+  const activeMarkerId = selectedSpotId.value ?? props.routePoints[0]?.id ?? fallbackMarkerSpots.value[0]?.id ?? null;
+
+  return fallbackMarkerSpots.value.map((spot, index) => {
+    const projection = fallbackProjectedPoints.value.get(spot.id) ?? projectFallbackPoint(spot, fallbackProjectionBounds.value);
     const label = (spot.city || spot.title).trim().slice(0, 22) || 'Atlas pin';
     const labelWidth = Math.min(Math.max(label.length * 8 + 30, 104), 180);
-    const labelX = clampNumber(x + 18, 18, FALLBACK_VIEWPORT.width - labelWidth - 18);
-    const labelY = clampNumber(y - 44, 18, FALLBACK_VIEWPORT.height - 48);
+    const labelX = clampNumber(projection.x + 18, 18, FALLBACK_VIEWPORT.width - labelWidth - 18);
+    const labelY = clampNumber(projection.y - 44, 18, FALLBACK_VIEWPORT.height - 48);
     const sequence = routeOrderLookup.value.get(spot.id) ?? null;
     const isActive = spot.id === activeMarkerId;
 
     return {
       id: spot.id,
+      title: spot.title,
       category: spot.category,
-      x,
-      y,
+      x: projection.x,
+      y: projection.y,
       label,
       labelX,
       labelY,
@@ -246,10 +334,7 @@ const fallbackRoutePath = computed(() => {
     return '';
   }
 
-  const projectedRoutePoints = props.routePoints.map((point) => ({
-    x: Number((((point.longitude + 180) / 360) * FALLBACK_VIEWPORT.width).toFixed(2)),
-    y: Number((((90 - point.latitude) / 180) * FALLBACK_VIEWPORT.height).toFixed(2)),
-  }));
+  const projectedRoutePoints = props.routePoints.map((point) => fallbackProjectedPoints.value.get(point.id) ?? projectFallbackPoint(point, fallbackProjectionBounds.value));
 
   return projectedRoutePoints.reduce((pathSegments, point, index) => {
     if (index === 0) {
@@ -265,6 +350,42 @@ const fallbackRoutePath = computed(() => {
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function projectFallbackPoint(point: MapPoint, projectionBounds: FallbackProjectionBounds): FallbackProjection {
+  const longitudeRange = Math.max(projectionBounds.maxLongitude - projectionBounds.minLongitude, FALLBACK_MIN_COORDINATE_RANGE);
+  const latitudeRange = Math.max(projectionBounds.maxLatitude - projectionBounds.minLatitude, FALLBACK_MIN_COORDINATE_RANGE);
+  const usableWidth = FALLBACK_VIEWPORT.width - FALLBACK_HORIZONTAL_PADDING * 2;
+  const usableHeight = FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING * 2;
+  const x = FALLBACK_HORIZONTAL_PADDING + (((point.longitude - projectionBounds.minLongitude) / longitudeRange) * usableWidth);
+  const y = FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING - (((point.latitude - projectionBounds.minLatitude) / latitudeRange) * usableHeight);
+
+  return {
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+  };
+}
+
+function distanceBetweenFallbackPoints(firstPoint: FallbackProjection, secondPoint: FallbackProjection): number {
+  return Math.hypot(firstPoint.x - secondPoint.x, firstPoint.y - secondPoint.y);
+}
+
+function resolveFallbackProjection(baseProjection: FallbackProjection, placedProjections: FallbackProjection[]): FallbackProjection {
+  for (const offset of fallbackMarkerOffsets) {
+    const candidateProjection = {
+      x: clampNumber(baseProjection.x + offset.x, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.width - FALLBACK_MARKER_PADDING),
+      y: clampNumber(baseProjection.y + offset.y, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.height - FALLBACK_MARKER_PADDING),
+    };
+
+    if (placedProjections.every((placedProjection) => distanceBetweenFallbackPoints(candidateProjection, placedProjection) >= FALLBACK_MARKER_CLEARANCE)) {
+      return candidateProjection;
+    }
+  }
+
+  return {
+    x: clampNumber(baseProjection.x, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.width - FALLBACK_MARKER_PADDING),
+    y: clampNumber(baseProjection.y, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.height - FALLBACK_MARKER_PADDING),
+  };
 }
 
 function resolveMapStyle(): string {
@@ -339,6 +460,15 @@ function clearSpotMarkers() {
 function handleSpotSelect(spot: MapPoint) {
   mapStore.setSelectedSpotId(spot.id);
   emit('spot-select', spot);
+}
+
+function handleFallbackMarkerSelect(markerId: string) {
+  const fallbackSpot = fallbackMarkerSpots.value.find((spot) => spot.id === markerId);
+  if (!fallbackSpot) {
+    return;
+  }
+
+  handleSpotSelect(fallbackSpot);
 }
 
 function renderSpotMarkers() {
@@ -690,6 +820,30 @@ onBeforeUnmount(() => {
 
 .map-fallback__marker {
   color: var(--accent-teal);
+}
+
+.map-fallback__marker-hit-area {
+  fill: transparent;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.map-fallback__marker-hit-area:focus-visible {
+  outline: none;
+}
+
+.map-fallback__marker-hit-area:focus-visible + .map-fallback__marker-halo {
+  fill: color-mix(in srgb, currentColor 22%, transparent);
+  opacity: 1;
+}
+
+.map-fallback__marker-hit-area:focus-visible + .map-fallback__marker-halo + .map-fallback__marker-ring {
+  stroke: color-mix(in srgb, var(--text-primary) 80%, currentColor);
+  stroke-width: 3.5;
+}
+
+.map-fallback__marker-hit-area:focus-visible + .map-fallback__marker-halo + .map-fallback__marker-ring + .map-fallback__marker-core {
+  fill: color-mix(in srgb, currentColor 92%, var(--text-primary));
 }
 
 .map-fallback__marker.is-food {
