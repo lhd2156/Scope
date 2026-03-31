@@ -303,6 +303,7 @@ import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import { mockFriendConnections, mockFriendRequests, mockPeopleYouMayKnow } from '@/services/mockData';
+import { useNotificationsStore } from '@/stores/notifications';
 import type { FriendConnection, FriendPresence, FriendRequest, SpotCategory, UserProfile } from '@/types';
 import { formatMonthDay } from '@/utils/formatters';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
@@ -313,6 +314,7 @@ type SuggestedConnectionEntry = (typeof mockPeopleYouMayKnow)[number];
 const SPOT_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 const router = useRouter();
+const notificationsStore = useNotificationsStore();
 const activeTab = ref<FriendTab>('all');
 const searchQuery = ref('');
 const friendConnections = ref<FriendConnection[]>([...mockFriendConnections]);
@@ -461,6 +463,15 @@ function acceptRequest(requestId: string): void {
     favoriteCategories: categoriesForUser(acceptedRequest.user),
     nextAdventure: acceptedRequest.note || 'Ready to map a first route together.',
     lastActiveAt: new Date().toISOString(),
+  });
+
+  notificationsStore.addNotification({
+    id: `notification-friend-${acceptedRequest.id}`,
+    title: 'New Atlas friend',
+    body: `${acceptedRequest.user.displayName} is now in your Atlas travel circle. Start planning the first route together.`,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+    type: 'friend.accepted',
   });
 
   activeTab.value = 'all';

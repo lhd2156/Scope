@@ -4,6 +4,8 @@ const VISUAL_QA_FLAG = '__ATLAS_VISUAL_QA__';
 const DEFAULT_PASSWORD = 'SecurePass123!';
 const AUTH_SESSION_HINT_STORAGE_KEY = 'atlas-auth-session-hint';
 const AUTH_SESSION_HINT_VERSION = 1;
+const ONBOARDING_COMPLETION_STORAGE_KEY = 'atlas-onboarding-completed-v1';
+const ONBOARDING_COMPLETION_VALUE = 'completed';
 const PLAYWRIGHT_SESSION_COOKIE_NAME = 'atlas-playwright-session';
 const DEFAULT_APP_ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 
@@ -83,6 +85,26 @@ interface AtlasTrip {
   budget?: number;
   currency?: string;
   status?: string;
+}
+
+interface AtlasFeedItem {
+  id: string;
+  type: 'spot' | 'trip';
+  actor: AtlasUserProfile;
+  title: string;
+  excerpt: string;
+  createdAt: string;
+  imageUrl?: string;
+  targetId: string;
+}
+
+interface AtlasNotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  type: string;
 }
 
 export interface AtlasApiMock {
@@ -175,6 +197,19 @@ function cloneTrip(trip: AtlasTrip): AtlasTrip {
     spots: trip.spots.map(cloneTripSpot),
     members: trip.members.map(cloneTripMember),
     itinerary: trip.itinerary ? cloneItinerary(trip.itinerary) : undefined,
+  };
+}
+
+function cloneFeedItem(feedItem: AtlasFeedItem): AtlasFeedItem {
+  return {
+    ...feedItem,
+    actor: cloneUserProfile(feedItem.actor),
+  };
+}
+
+function cloneNotification(notification: AtlasNotificationItem): AtlasNotificationItem {
+  return {
+    ...notification,
   };
 }
 
@@ -588,6 +623,80 @@ function buildSeedTrips(knownUsers: AtlasUserProfile[]): AtlasTrip[] {
   ].map(cloneTrip);
 }
 
+function buildSeedNotifications(): AtlasNotificationItem[] {
+  return [
+    {
+      id: 'notification-1',
+      title: 'Trip invite',
+      body: 'Maya invited you to join North Texas Night + Food Loop for a rooftop-first weekend.',
+      isRead: false,
+      createdAt: '2026-03-27T03:00:00Z',
+      type: 'trip.member.added',
+    },
+    {
+      id: 'notification-2',
+      title: 'Spot liked',
+      body: 'Elijah liked Sunset Rooftop Tacos and saved it into his Austin-to-Dallas route.',
+      isRead: true,
+      createdAt: '2026-03-26T21:14:00Z',
+      type: 'spot.liked',
+    },
+    {
+      id: 'notification-3',
+      title: 'Review posted',
+      body: 'Maya left a new 4.8-star review on Trinity Bluff Sunrise.',
+      isRead: false,
+      createdAt: '2026-03-26T15:20:00Z',
+      type: 'spot.reviewed',
+    },
+    {
+      id: 'notification-4',
+      title: 'Friend request accepted',
+      body: 'Sofia accepted your request and shared a brunch-heavy San Antonio guide.',
+      isRead: true,
+      createdAt: '2026-03-25T17:45:00Z',
+      type: 'friend.accepted',
+    },
+  ].map(cloneNotification);
+}
+
+function buildSeedFeed(knownUsers: AtlasUserProfile[]): AtlasFeedItem[] {
+  const [louis = cloneUserProfile(seedUsers[0]!), maya = cloneUserProfile(seedUsers[1]!), elijah = cloneUserProfile(seedUsers[2]!)] = knownUsers;
+
+  return [
+    {
+      id: 'feed-1',
+      type: 'spot',
+      actor: maya,
+      title: 'Maya pinned Botanic River Walk',
+      excerpt: 'Golden-hour river light, low-crowd boardwalks, and a premium scenic reset for any Fort Worth route.',
+      createdAt: '2026-03-27T00:20:00Z',
+      imageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200',
+      targetId: 'spot-2',
+    },
+    {
+      id: 'feed-2',
+      type: 'trip',
+      actor: louis,
+      title: 'Louis planned North Texas Night + Food Loop',
+      excerpt: 'A two-day itinerary built around rooftop lunches, skyline overlooks, and a vinyl-club close.',
+      createdAt: '2026-03-26T18:05:00Z',
+      imageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1200',
+      targetId: 'trip-1',
+    },
+    {
+      id: 'feed-3',
+      type: 'spot',
+      actor: elijah,
+      title: 'Elijah pinned Midnight Vinyl Club',
+      excerpt: 'A moody late-night room with strong cocktails, premium sound, and enough energy to anchor the whole evening.',
+      createdAt: '2026-03-26T13:40:00Z',
+      imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200',
+      targetId: 'spot-3',
+    },
+  ].map(cloneFeedItem);
+}
+
 function buildSessionHint() {
   return {
     version: AUTH_SESSION_HINT_VERSION,
@@ -671,9 +780,13 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
   const state: {
     currentSession: AtlasAuthSession | null;
     trips: AtlasTrip[];
+    feed: AtlasFeedItem[];
+    notifications: AtlasNotificationItem[];
   } = {
     currentSession: null,
     trips: buildSeedTrips(registeredUsers),
+    feed: buildSeedFeed(registeredUsers),
+    notifications: buildSeedNotifications(),
   };
 
   function findKnownUser(overrides: Partial<AtlasAuthSession> = {}): AtlasUserProfile | undefined {
@@ -712,9 +825,23 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     return state.trips.find((trip) => trip.id === tripId);
   }
 
+  function findNotification(notificationId: string): AtlasNotificationItem | undefined {
+    return state.notifications.find((notification) => notification.id === notificationId);
+  }
+
   await page.addInitScript((flagName) => {
     (window as Window & Record<string, boolean>)[flagName] = true;
   }, VISUAL_QA_FLAG);
+
+  await page.context().addInitScript(
+    ({ storageKey, storageValue }) => {
+      window.localStorage.setItem(storageKey, storageValue);
+    },
+    {
+      storageKey: ONBOARDING_COMPLETION_STORAGE_KEY,
+      storageValue: ONBOARDING_COMPLETION_VALUE,
+    },
+  );
 
   await page.context().route('**/api/**', async (route) => {
     const request = route.request();
@@ -936,6 +1063,85 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
 
       await fulfillJson(route, 200, {
         data: matchingKnownUser,
+      });
+      return;
+    }
+
+    if (requestPath === '/api/core/notifications' && requestMethod === 'GET') {
+      const pageNumber = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
+      const requestedPageSize = Number(requestUrl.searchParams.get('pageSize') ?? String(state.notifications.length || 1)) || state.notifications.length || 1;
+      const pageSize = Math.max(1, requestedPageSize);
+      const startIndex = Math.max(0, (pageNumber - 1) * pageSize);
+      const pagedNotifications = state.notifications.slice(startIndex, startIndex + pageSize).map(cloneNotification);
+
+      await fulfillJson(route, 200, {
+        data: pagedNotifications,
+        meta: {
+          page: pageNumber,
+          pageSize,
+          total: state.notifications.length,
+          totalPages: Math.max(1, Math.ceil(state.notifications.length / pageSize)),
+        },
+      });
+      return;
+    }
+
+    if (requestPath === '/api/core/notifications/read-all' && requestMethod === 'PUT') {
+      state.notifications = state.notifications.map((notification) => ({
+        ...cloneNotification(notification),
+        isRead: true,
+      }));
+
+      await route.fulfill({
+        status: 204,
+        body: '',
+      });
+      return;
+    }
+
+    if (requestPath.startsWith('/api/core/notifications/') && requestPath.endsWith('/read') && requestMethod === 'PUT') {
+      const pathSegments = requestPath.split('/').filter(Boolean);
+      const notificationId = pathSegments[3] ?? '';
+      const matchingNotification = findNotification(notificationId);
+
+      if (!matchingNotification) {
+        await fulfillJson(route, 404, JSON.stringify({
+          error: {
+            code: 'NOTIFICATION_NOT_FOUND',
+            message: `Notification ${notificationId} was not found.`,
+          },
+        }));
+        return;
+      }
+
+      const updatedNotification = {
+        ...cloneNotification(matchingNotification),
+        isRead: true,
+      };
+      const notificationIndex = state.notifications.findIndex((notification) => notification.id === notificationId);
+      state.notifications.splice(notificationIndex, 1, updatedNotification);
+
+      await fulfillJson(route, 200, {
+        data: updatedNotification,
+      });
+      return;
+    }
+
+    if (requestPath === '/api/content/feed' && requestMethod === 'GET') {
+      const pageNumber = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
+      const requestedPageSize = Number(requestUrl.searchParams.get('pageSize') ?? String(state.feed.length || 1)) || state.feed.length || 1;
+      const pageSize = Math.max(1, requestedPageSize);
+      const startIndex = Math.max(0, (pageNumber - 1) * pageSize);
+      const pagedFeed = state.feed.slice(startIndex, startIndex + pageSize).map(cloneFeedItem);
+
+      await fulfillJson(route, 200, {
+        data: pagedFeed,
+        meta: {
+          page: pageNumber,
+          pageSize,
+          total: state.feed.length,
+          totalPages: Math.max(1, Math.ceil(state.feed.length / pageSize)),
+        },
       });
       return;
     }

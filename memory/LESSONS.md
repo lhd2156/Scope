@@ -125,6 +125,8 @@
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
 - [2026-03-31] ⚠️ Atlas frontend’s trip planner title input is currently editable/local UI state, but the generated itinerary summary still follows the preview itinerary payload/preset; Playwright trip-flow coverage should assert custom trip naming on the planner form itself unless a persisted save flow explicitly wires that title into the itinerary response.
 
+- [2026-03-31] ⚠️ Atlas frontend home-page Playwright flows must pre-mark onboarding as completed (for example via the shared fixture’s `atlas-onboarding-completed-v1` localStorage key); otherwise the onboarding scrim intercepts feed interactions in Chromium, Firefox, and WebKit and turns honest social-flow coverage into 3-minute click timeouts.
+
 ## Git & Workflow
 
 - [2026-03-28] ⚠️ Always commit after EACH task, never batch multiple tasks

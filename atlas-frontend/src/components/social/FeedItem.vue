@@ -1,5 +1,5 @@
 <template>
-  <article class="feed-item glass-panel">
+  <article class="feed-item glass-panel" :data-test="`feed-item-${item.id}`">
     <header class="feed-header">
       <div class="actor-row">
         <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="52" />
@@ -40,6 +40,7 @@
     <footer class="feed-footer">
       <div class="action-group" aria-label="Feed engagement actions">
         <button
+          :data-test="`feed-like-${item.id}`"
           type="button"
           class="action-button"
           :class="{ 'action-button--active': isLiked }"
@@ -57,6 +58,7 @@
         </RouterLink>
 
         <button
+          :data-test="`feed-share-${item.id}`"
           type="button"
           class="action-button"
           :class="{ 'action-button--active': isShared }"

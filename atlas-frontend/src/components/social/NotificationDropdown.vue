@@ -4,6 +4,7 @@
       :id="triggerId"
       ref="toggleRef"
       class="notification-toggle"
+      data-test="notification-toggle"
       type="button"
       aria-haspopup="dialog"
       :aria-expanded="String(isOpen)"
@@ -13,7 +14,7 @@
     >
       <span class="notification-toggle__icon">
         <AtlasIcon name="bell" label="Notifications" />
-        <span v-if="notificationsStore.unreadCount" class="notification-badge">{{ notificationsStore.unreadCount }}</span>
+        <span v-if="notificationsStore.unreadCount" class="notification-badge" data-test="notification-badge">{{ notificationsStore.unreadCount }}</span>
       </span>
       <span class="notification-toggle__label">Notifications</span>
     </button>
@@ -23,6 +24,7 @@
       :id="panelId"
       ref="panelRef"
       class="glass-panel notification-menu"
+      data-test="notification-menu"
       role="dialog"
       :aria-labelledby="panelHeadingId"
       :aria-describedby="panelDescriptionId"
@@ -34,7 +36,7 @@
           <p class="eyebrow">Inbox</p>
           <h3 :id="panelHeadingId">Recent updates</h3>
         </div>
-        <button v-if="notificationsStore.items.length" class="link-button" type="button" @click="void notificationsStore.markAllRead()">
+        <button v-if="notificationsStore.items.length" class="link-button" data-test="notification-mark-all-read" type="button" @click="void notificationsStore.markAllRead()">
           Mark all read
         </button>
       </header>
@@ -80,7 +82,7 @@
         list-label="Notifications"
       >
         <template #default="{ item }">
-          <button class="notification-row surface-card" type="button" @click="void markRead(toNotification(item))">
+          <button :data-test="`notification-row-${toNotification(item).id}`" class="notification-row surface-card" type="button" @click="void markRead(toNotification(item))">
             <div class="notification-row__copy">
               <strong>{{ toNotification(item).title }}</strong>
               <p>{{ toNotification(item).body || 'Atlas update' }}</p>
