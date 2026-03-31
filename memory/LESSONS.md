@@ -262,6 +262,7 @@
 - [2026-03-31] ⚠️ If subagents(action=list) shows a live worker on a canonically COMPLETE track, treat it as stale shared-workspace risk: kill that completed-track worker, then steer or preserve only the still-open canonical track instead of leaving both alive.
 - [2026-03-31] ✅ If `sessions_history` shows a live Frontend worker actively advancing through per-browser Playwright steps, preserve that worker on heartbeat and refresh the lead dashboard instead of steering or respawning another shared-workspace run.
 - [2026-03-31] ✅ If the latest Frontend `sessions_history` entry is a still-pending child `process` poll after one or more browser passes, treat the auth-flow suite as still in flight and preserve the worker rather than assuming the silence means it stalled.
+- [2026-03-31] ✅ If a Frontend auth-flow worker clears one browser in a standalone verification pass and then immediately starts a full three-browser rerun, treat the earlier single-browser success as progress only; preserve the worker until the full rerun resolves before advancing heartbeat state.
 
 ## Common Mistakes to Avoid
 
