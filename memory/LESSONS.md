@@ -268,6 +268,8 @@
 - [2026-03-31] ✅ If the canonical Frontend tracker is already on the next E2E task but latest `sessions_history` still ends on the previous task's final validation poll, keep heartbeat pinned to the canonical next checkpoint and preserve the worker; the visible child history can lag the tracker by one handoff.
 - [2026-03-31] ✅ If `memory_search` returns no heartbeat-specific recall hits, keep the heartbeat grounded in the canonical `memory/COMPLETED-TASKS.md` plus agent `PROGRESS.md` files instead of treating the empty semantic result as missing status data.
 - [2026-03-31] ✅ If consecutive heartbeats still show the same pending Frontend child `process` poll while `subagents(action=list)` keeps the worker in `running` state and the canonical tracker has not changed, treat it as an in-flight wait state and preserve the worker rather than spawning a duplicate into the shared workspace.
+- [2026-03-31] ✅ If `subagents(action=list)` later goes empty right after the canonical Frontend tracker advances, treat the finished run as a clean handoff and immediately relaunch from the new first unchecked checkpoint instead of waiting on stale lead-dashboard state.
+- [2026-03-31] ✅ If the next heartbeat after a canonical relaunch already shows the replacement Frontend worker alive in `subagents(action=list)`, preserve that fresh worker and just refresh the lead dashboard/Telegram status instead of relaunching again.
 
 ## Common Mistakes to Avoid
 
