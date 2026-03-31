@@ -32,7 +32,7 @@
 
             <button type="button" class="hero-tour-link" @click="startTour">
               <AtlasIcon name="sparkle" label="Start the guided Atlas tour" />
-              <span>Take the guided tour</span>
+              <span>{{ guidedTourLabel }}</span>
             </button>
           </div>
         </div>
@@ -135,6 +135,7 @@ const onboardingStore = useOnboardingStore();
 const reducedMotion = useReducedMotion();
 const feedSectionRef = ref<HTMLElement | null>(null);
 const isBootstrapping = ref(true);
+const guidedTourLabel = computed(() => (onboardingStore.hasCompleted ? 'Replay the guided tour' : 'Take the guided tour'));
 const loadErrorMessage = computed(() => spotsStore.error || feedStore.error || '');
 const showFeaturedSkeletons = computed(() => isBootstrapping.value && !spotsStore.featuredSpots.length && !spotsStore.error);
 const showFeedSkeletons = computed(() => isBootstrapping.value && !feedStore.items.length && !feedStore.error);
@@ -151,6 +152,8 @@ function startTour() {
 }
 
 onMounted(async () => {
+  onboardingStore.startIfPending();
+
   try {
     await Promise.allSettled([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
   } finally {

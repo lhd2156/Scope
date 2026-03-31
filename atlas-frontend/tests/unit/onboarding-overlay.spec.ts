@@ -14,7 +14,7 @@ vi.mock('@/stores/auth', () => ({
 }));
 
 import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
-import { useOnboardingStore } from '@/stores/onboarding';
+import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
 
 const spotlightRects: Record<string, { top: number; left: number; width: number; height: number }> = {
   'home-hero': { top: 120, left: 120, width: 520, height: 280 },
@@ -83,6 +83,7 @@ describe('OnboardingOverlay', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     authStoreMock.isAuthenticated = true;
+    localStorage.clear();
 
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect() {
       const targetKey = (this as HTMLElement).dataset.onboardingTarget;
@@ -99,7 +100,7 @@ describe('OnboardingOverlay', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders the current walkthrough step and spotlights the matching target', async () => {
+  it('renders the current walkthrough step, spotlight, and progress dots', async () => {
     const router = buildRouter();
     await router.push('/');
     await router.isReady();
@@ -123,6 +124,36 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.text()).toContain('Step 1 of 4');
     expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
     expect(wrapper.find('.onboarding-overlay__spotlight').attributes('style')).toContain('width: 548px;');
+    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(4);
+    expect(wrapper.findAll('.onboarding-overlay__progress-dot.is-active')).toHaveLength(1);
+    expect(wrapper.find('.onboarding-overlay__skip').exists()).toBe(true);
+  });
+
+  it('jumps to a selected step when a progress dot is activated', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          transition: false,
+        },
+      },
+    });
+
+    const onboardingStore = useOnboardingStore();
+    onboardingStore.start();
+    await settleOnboarding();
+
+    await wrapper.findAll('.onboarding-overlay__progress-dot')[2].trigger('click');
+    await settleOnboarding();
+
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(wrapper.text()).toContain('See the route come alive on the map');
   });
 
   it('navigates between routed walkthrough steps when the traveler advances', async () => {
@@ -152,7 +183,7 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.text()).toContain('Refine the shortlist in Explore');
   });
 
-  it('closes the overlay when the final walkthrough step is finished', async () => {
+  it('skips the overlay and persists completion when the traveler dismisses the tour', async () => {
     const router = buildRouter();
     await router.push('/');
     await router.isReady();
@@ -169,16 +200,15 @@ describe('OnboardingOverlay', () => {
     });
 
     const onboardingStore = useOnboardingStore();
-    onboardingStore.start('planner-submit');
+    onboardingStore.start();
     await settleOnboarding();
 
-    expect(router.currentRoute.value.name).toBe('trip-planner');
-    expect(wrapper.text()).toContain('Turn the brief into an AI itinerary');
-
-    await wrapper.get('.button.button-primary').trigger('click');
+    await wrapper.get('.onboarding-overlay__skip').trigger('click');
     await settleOnboarding();
 
     expect(onboardingStore.isActive).toBe(false);
+    expect(onboardingStore.hasCompleted).toBe(true);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
     expect(wrapper.find('.onboarding-overlay__card').exists()).toBe(false);
   });
 });
