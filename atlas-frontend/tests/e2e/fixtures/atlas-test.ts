@@ -4,6 +4,8 @@ const VISUAL_QA_FLAG = '__ATLAS_VISUAL_QA__';
 const DEFAULT_PASSWORD = 'SecurePass123!';
 const AUTH_SESSION_HINT_STORAGE_KEY = 'atlas-auth-session-hint';
 const AUTH_SESSION_HINT_VERSION = 1;
+const PLAYWRIGHT_SESSION_COOKIE_NAME = 'atlas-playwright-session';
+const DEFAULT_APP_ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 
 interface AtlasAuthSession {
   id: string;
@@ -84,6 +86,14 @@ const seedUsers: AtlasUserProfile[] = [
   },
 ];
 
+function cloneUserProfile(user: AtlasUserProfile): AtlasUserProfile {
+  return {
+    ...user,
+    interests: [...user.interests],
+    stats: user.stats ? { ...user.stats } : undefined,
+  };
+}
+
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -143,8 +153,8 @@ function buildAuthSession(overrides: Partial<AtlasAuthSession> = {}): AtlasAuthS
   };
 }
 
-function buildUserProfile(session: AtlasAuthSession): AtlasUserProfile {
-  const matchingSeedUser = seedUsers.find(
+function buildUserProfile(session: AtlasAuthSession, knownUsers: AtlasUserProfile[]): AtlasUserProfile {
+  const matchingKnownUser = knownUsers.find(
     (candidate) =>
       candidate.id === session.id ||
       candidate.username === session.username ||
@@ -156,11 +166,11 @@ function buildUserProfile(session: AtlasAuthSession): AtlasUserProfile {
     username: session.username,
     email: session.email,
     displayName: session.displayName,
-    avatarUrl: matchingSeedUser?.avatarUrl ?? 'https://i.pravatar.cc/160?img=12',
-    bio: matchingSeedUser?.bio ?? 'Mapping premium city routes with skyline dinners, polished museums, and sunset lookouts.',
-    homeBase: matchingSeedUser?.homeBase ?? 'Fort Worth, TX',
-    interests: matchingSeedUser?.interests ?? ['food', 'culture', 'nightlife'],
-    stats: matchingSeedUser?.stats ?? {
+    avatarUrl: matchingKnownUser?.avatarUrl ?? 'https://i.pravatar.cc/160?img=12',
+    bio: matchingKnownUser?.bio ?? 'Mapping premium city routes with skyline dinners, polished museums, and sunset lookouts.',
+    homeBase: matchingKnownUser?.homeBase ?? 'Fort Worth, TX',
+    interests: matchingKnownUser?.interests ?? ['food', 'culture', 'nightlife'],
+    stats: matchingKnownUser?.stats ?? {
       spots: 12,
       trips: 3,
       friends: 18,
@@ -176,10 +186,52 @@ function buildSessionHint() {
   };
 }
 
+function resolveAppOrigin(page: Page): string {
+  try {
+    const currentOrigin = new URL(page.url()).origin;
+    return currentOrigin && currentOrigin !== 'null' ? currentOrigin : DEFAULT_APP_ORIGIN;
+  } catch {
+    return DEFAULT_APP_ORIGIN;
+  }
+}
+
+function readMockSessionCookie(cookieHeader: string | undefined): string {
+  if (!cookieHeader) {
+    return '';
+  }
+
+  const sessionCookie = cookieHeader
+    .split(';')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${PLAYWRIGHT_SESSION_COOKIE_NAME}=`));
+
+  if (!sessionCookie) {
+    return '';
+  }
+
+  return decodeURIComponent(sessionCookie.slice(`${PLAYWRIGHT_SESSION_COOKIE_NAME}=`.length));
+}
+
+async function persistMockSessionCookie(page: Page, sessionId: string, origin = resolveAppOrigin(page)): Promise<void> {
+  await page.context().addCookies([
+    {
+      name: PLAYWRIGHT_SESSION_COOKIE_NAME,
+      value: encodeURIComponent(sessionId),
+      url: origin,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+}
+
+async function clearMockSessionCookie(page: Page): Promise<void> {
+  await page.context().clearCookies();
+}
+
 async function persistSessionHint(page: Page): Promise<void> {
   const serializedHint = JSON.stringify(buildSessionHint());
 
-  await page.addInitScript(
+  await page.context().addInitScript(
     ({ storageKey, storageValue }) => {
       window.localStorage.setItem(storageKey, storageValue);
     },
@@ -191,7 +243,7 @@ async function persistSessionHint(page: Page): Promise<void> {
 }
 
 async function clearSessionHint(page: Page): Promise<void> {
-  await page.addInitScript((storageKey) => {
+  await page.context().addInitScript((storageKey) => {
     window.localStorage.removeItem(storageKey);
   }, AUTH_SESSION_HINT_STORAGE_KEY);
 }
@@ -208,12 +260,45 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
   const state: { currentSession: AtlasAuthSession | null } = {
     currentSession: null,
   };
+  const registeredUsers = seedUsers.map(cloneUserProfile);
+
+  function findKnownUser(overrides: Partial<AtlasAuthSession> = {}): AtlasUserProfile | undefined {
+    const normalizedId = normalizeString(overrides.id);
+    const normalizedUsername = normalizeString(overrides.username);
+    const normalizedEmail = normalizeString(overrides.email).toLowerCase();
+
+    return registeredUsers.find(
+      (candidate) =>
+        (normalizedId && candidate.id === normalizedId) ||
+        (normalizedUsername && candidate.username === normalizedUsername) ||
+        (normalizedEmail && candidate.email.toLowerCase() === normalizedEmail),
+    );
+  }
+
+  function upsertKnownUser(user: AtlasUserProfile): AtlasUserProfile {
+    const userIndex = registeredUsers.findIndex(
+      (candidate) =>
+        candidate.id === user.id ||
+        candidate.username === user.username ||
+        candidate.email.toLowerCase() === user.email.toLowerCase(),
+    );
+
+    const nextUser = cloneUserProfile(user);
+
+    if (userIndex >= 0) {
+      registeredUsers.splice(userIndex, 1, nextUser);
+    } else {
+      registeredUsers.push(nextUser);
+    }
+
+    return nextUser;
+  }
 
   await page.addInitScript((flagName) => {
     (window as Window & Record<string, boolean>)[flagName] = true;
   }, VISUAL_QA_FLAG);
 
-  await page.route('**/api/**', async (route) => {
+  await page.context().route('**/api/**', async (route) => {
     const request = route.request();
     const requestBody = readJsonBody(request);
     const requestUrl = new URL(request.url());
@@ -248,13 +333,30 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
         return;
       }
 
-      state.currentSession = buildAuthSession({
+      const registeredUser = upsertKnownUser({
         id: `user-${username}`,
         username,
         email,
         displayName,
+        avatarUrl: 'https://i.pravatar.cc/160?img=64',
+        bio: 'Freshly registered traveler mapping first-class routes with Playwright precision.',
+        homeBase: 'Fort Worth, TX',
+        interests: ['food', 'culture', 'nightlife'],
+        stats: {
+          spots: 0,
+          trips: 0,
+          friends: 0,
+        },
       });
 
+      state.currentSession = buildAuthSession({
+        id: registeredUser.id,
+        username: registeredUser.username,
+        email: registeredUser.email,
+        displayName: registeredUser.displayName,
+      });
+
+      await persistMockSessionCookie(page, state.currentSession.id, requestUrl.origin);
       await fulfillJson(route, 200, state.currentSession);
       return;
     }
@@ -268,10 +370,10 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
         return;
       }
 
-      const matchingSeedUser = seedUsers.find((candidate) => candidate.email === email);
+      const matchingKnownUser = findKnownUser({ email });
       const fallbackUsername = email.split('@')[0] || 'atlas-user';
-      const username = matchingSeedUser?.username ?? fallbackUsername;
-      const displayName = matchingSeedUser?.displayName ?? username;
+      const username = matchingKnownUser?.username ?? fallbackUsername;
+      const displayName = matchingKnownUser?.displayName ?? username;
 
       if (requestPath === '/api/core/auth/login' && password && password !== DEFAULT_PASSWORD) {
         await fulfillJson(route, 401, JSON.stringify({
@@ -284,17 +386,32 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
       }
 
       state.currentSession = buildAuthSession({
-        id: matchingSeedUser?.id ?? `user-${username}`,
+        id: matchingKnownUser?.id ?? `user-${username}`,
         username,
         email,
         displayName,
       });
 
+      await persistMockSessionCookie(page, state.currentSession.id, requestUrl.origin);
       await fulfillJson(route, 200, state.currentSession);
       return;
     }
 
     if (requestPath === '/api/core/auth/refresh' && requestMethod === 'POST') {
+      if (!state.currentSession) {
+        const sessionUserId = readMockSessionCookie(request.headers().cookie);
+        const matchingKnownUser = findKnownUser({ id: sessionUserId });
+
+        if (matchingKnownUser) {
+          state.currentSession = buildAuthSession({
+            id: matchingKnownUser.id,
+            username: matchingKnownUser.username,
+            email: matchingKnownUser.email,
+            displayName: matchingKnownUser.displayName,
+          });
+        }
+      }
+
       if (!state.currentSession) {
         await fulfillJson(route, 401, createUnauthorizedError());
         return;
@@ -305,12 +422,14 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
         accessToken: `playwright-access-${state.currentSession.username}-${Date.now()}`,
       });
 
+      await persistMockSessionCookie(page, state.currentSession.id, requestUrl.origin);
       await fulfillJson(route, 200, state.currentSession);
       return;
     }
 
     if (requestPath === '/api/core/auth/logout' && requestMethod === 'POST') {
       state.currentSession = null;
+      await clearMockSessionCookie(page);
       await route.fulfill({
         status: 204,
         body: '',
@@ -320,19 +439,33 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
 
     if (requestPath === '/api/core/auth/me' && requestMethod === 'GET') {
       if (!state.currentSession) {
+        const sessionUserId = readMockSessionCookie(request.headers().cookie);
+        const matchingKnownUser = findKnownUser({ id: sessionUserId });
+
+        if (matchingKnownUser) {
+          state.currentSession = buildAuthSession({
+            id: matchingKnownUser.id,
+            username: matchingKnownUser.username,
+            email: matchingKnownUser.email,
+            displayName: matchingKnownUser.displayName,
+          });
+        }
+      }
+
+      if (!state.currentSession) {
         await fulfillJson(route, 401, createUnauthorizedError());
         return;
       }
 
       await fulfillJson(route, 200, {
-        data: buildUserProfile(state.currentSession),
+        data: buildUserProfile(state.currentSession, registeredUsers),
       });
       return;
     }
 
     if (requestPath === '/api/core/users/search' && requestMethod === 'GET') {
       const query = normalizeString(requestUrl.searchParams.get('q')).toLowerCase();
-      const matchingUsers = seedUsers.filter((user) => {
+      const matchingUsers = registeredUsers.filter((user) => {
         if (!query) {
           return true;
         }
@@ -360,9 +493,9 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     if (requestPath.startsWith('/api/core/users/') && requestMethod === 'GET') {
       const pathSegments = requestPath.split('/').filter(Boolean);
       const userId = pathSegments[3] ?? '';
-      const matchingSeedUser = seedUsers.find((candidate) => candidate.id === userId);
+      const matchingKnownUser = findKnownUser({ id: userId });
 
-      if (!matchingSeedUser) {
+      if (!matchingKnownUser) {
         await fulfillJson(route, 404, JSON.stringify({
           error: {
             code: 'USER_NOT_FOUND',
@@ -374,7 +507,7 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
 
       if (requestPath.endsWith('/stats')) {
         await fulfillJson(route, 200, {
-          data: matchingSeedUser.stats ?? {
+          data: matchingKnownUser.stats ?? {
             spots: 0,
             trips: 0,
             friends: 0,
@@ -384,7 +517,7 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
       }
 
       await fulfillJson(route, 200, {
-        data: matchingSeedUser,
+        data: matchingKnownUser,
       });
       return;
     }
@@ -395,27 +528,24 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
   return {
     getCurrentSession: () => state.currentSession,
     seedSession: async (page, overrides = {}) => {
-      const matchingSeedUser = seedUsers.find(
-        (candidate) =>
-          candidate.id === overrides.id ||
-          candidate.username === overrides.username ||
-          candidate.email === overrides.email,
-      );
+      const matchingKnownUser = findKnownUser(overrides);
 
       state.currentSession = buildAuthSession({
-        id: overrides.id ?? matchingSeedUser?.id,
-        username: overrides.username ?? matchingSeedUser?.username,
-        email: overrides.email ?? matchingSeedUser?.email,
-        displayName: overrides.displayName ?? matchingSeedUser?.displayName,
+        id: overrides.id ?? matchingKnownUser?.id,
+        username: overrides.username ?? matchingKnownUser?.username,
+        email: overrides.email ?? matchingKnownUser?.email,
+        displayName: overrides.displayName ?? matchingKnownUser?.displayName,
         accessToken: overrides.accessToken,
         refreshToken: overrides.refreshToken,
       });
 
+      await persistMockSessionCookie(page, state.currentSession.id);
       await persistSessionHint(page);
       return state.currentSession;
     },
     clearSession: async (page) => {
       state.currentSession = null;
+      await clearMockSessionCookie(page);
       await clearSessionHint(page);
     },
   };
