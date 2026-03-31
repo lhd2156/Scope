@@ -252,6 +252,7 @@
 - [2026-03-30] ⚠️ If `sessions_history` times out against an active child while `subagents(action=list)` still reports it as running, treat the timeout as a local gateway inspection failure, not a reason to respawn a duplicate into the shared workspace.
 - [2026-03-30] ⚠️ If the completed-tasks ledger and a canonical agent `PROGRESS.md` advance one track into the next phase while a sibling track is still finishing the prior phase, refresh the lead dashboard to that split-phase state immediately instead of leaving both tracks pinned to the older phase.
 - [2026-03-30] ⚠️ Once the last open Phase 13 tracker flips complete and both live workers have self-advanced into later phases, close Phase 13 in the lead dashboard immediately and track the active later-phase split instead of keeping stale Phase 13 handoff text.
+- [2026-03-31] ⚠️ A subagent run can still advance the canonical tracker and complete a checklist item before terminating as failed; trust the updated `PROGRESS.md`, refresh the lead dashboard to the new current task, and respawn only from that new canonical checkpoint.
 
 ## Common Mistakes to Avoid
 
