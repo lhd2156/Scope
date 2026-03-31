@@ -172,6 +172,7 @@
             :title="emptyStateTitle"
             :description="emptyStateDescription"
             icon="search"
+            artwork="discovery"
             heading-level="h3"
           >
             <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
@@ -213,7 +214,18 @@
               </RouterLink>
             </li>
           </ol>
-          <p v-else class="trending-empty">Trending spots are syncing into Atlas right now.</p>
+          <EmptyStatePanel
+            v-else
+            compact
+            tone="surface"
+            alignment="center"
+            eyebrow="Trending"
+            title="Trending spots are still syncing"
+            description="As soon as the first community saves and remixes land, this rail will surface the strongest movers here."
+            icon="sparkle"
+            artwork="activity"
+            heading-level="h3"
+          />
         </aside>
       </section>
     </div>
@@ -515,8 +527,7 @@ h2 {
 .metric-meta,
 .results-note,
 .text-reset,
-.trending-item__copy span,
-.trending-empty {
+.trending-item__copy span {
   color: var(--text-secondary);
 }
 

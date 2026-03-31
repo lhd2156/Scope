@@ -82,7 +82,7 @@ describe('ItineraryView', () => {
     expect(wrapper.find('[data-test="route-map"]').exists()).toBe(true);
   });
 
-  it('shows an empty state when no itinerary is available', () => {
+  it('shows a premium empty state when no itinerary is available', () => {
     const wrapper = mount(ItineraryView, {
       props: {
         itinerary: null,
@@ -91,10 +91,12 @@ describe('ItineraryView', () => {
         stubs: {
           MapView: true,
           LazyImage: true,
+          AtlasIcon: { template: '<span class="icon-stub" />' },
         },
       },
     });
 
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('No itinerary yet');
   });
 });

@@ -68,6 +68,7 @@
           title="Featured spots are waiting on the first pin drop"
           description="Once travelers start surfacing standout places, Atlas will spotlight them here first."
           icon="map"
+          artwork="discovery"
           heading-level="h3"
         />
       </section>
@@ -103,6 +104,7 @@
           title="No activity yet"
           description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
           icon="sparkle"
+          artwork="activity"
           heading-level="h3"
         />
       </section>

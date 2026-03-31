@@ -68,6 +68,7 @@
         title="No new Atlas updates yet"
         description="Trip invites, comments, and route changes will land here as soon as they happen."
         icon="bell"
+        artwork="notification"
         heading-level="h4"
       />
 

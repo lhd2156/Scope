@@ -47,4 +47,20 @@ describe('ProfileMap', () => {
     expect(wrapper.text()).toContain('Modern Art Garden');
     expect(wrapper.findAll('.city-pill')[1].classes()).toContain('is-active');
   });
+
+  it('shows a premium empty-state panel when there are no public pins yet', () => {
+    const wrapper = mount(ProfileMap, {
+      props: {
+        spots: [],
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { template: '<span class="icon-stub" />' },
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('No public pins yet');
+  });
 });

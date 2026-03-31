@@ -56,6 +56,7 @@
             title="No collaborative routes yet"
             description="Once this explorer starts planning or joining shared trips, their recent adventures will appear here."
             icon="route"
+            artwork="itinerary"
             heading-level="h3"
           />
         </section>
@@ -76,6 +77,7 @@
             title="No public pins yet"
             description="When this explorer publishes places to Atlas, they will appear here first."
             icon="map"
+            artwork="profile"
             heading-level="h3"
           />
         </section>
@@ -83,10 +85,12 @@
 
       <EmptyStatePanel
         v-else
+        alignment="center"
         eyebrow="Profile"
         title="Profile unavailable"
         description="Atlas could not find that explorer yet. Try opening another profile from your network."
         icon="user"
+        artwork="profile"
         heading-level="h3"
       >
         <RouterLink class="button button-primary" to="/friends">Back to your network</RouterLink>

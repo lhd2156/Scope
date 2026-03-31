@@ -64,6 +64,7 @@
       title="Your Atlas circle is still forming"
       description="As you accept requests and invite collaborators, your core travel crew will appear here."
       icon="friends"
+      artwork="community"
       heading-level="h3"
     />
   </section>
