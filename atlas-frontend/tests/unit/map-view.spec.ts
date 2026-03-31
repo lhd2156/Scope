@@ -69,7 +69,27 @@ describe('MapView', () => {
     expect(wrapper.text()).toContain('2 pins in view');
     expect(wrapper.find('.map-canvas').classes()).toContain('is-fallback');
     expect(wrapper.find('[data-test="map-fallback-stage"]').exists()).toBe(true);
-    expect(wrapper.findAll('[data-test^="map-fallback-marker-"]')).toHaveLength(2);
+    expect(wrapper.findAll('g[data-test^="map-fallback-marker-"]')).toHaveLength(2);
     expect(mapStore.visibleSpotIds).toEqual(['spot-1', 'spot-2']);
+  });
+
+  it('selects a fallback marker and emits the chosen spot when the static map is used', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+      },
+    });
+
+    await nextTick();
+
+    const mapStore = useMapStore();
+    const secondMarkerHitArea = wrapper.get('[data-test="map-fallback-marker-hit-spot-2"]');
+
+    await secondMarkerHitArea.trigger('click');
+    await nextTick();
+
+    expect(mapStore.selectedSpotId).toBe('spot-2');
+    expect(wrapper.emitted('spot-select')).toEqual([[spots[1]]]);
+    expect(wrapper.get('[data-test="map-fallback-marker-spot-2"]').classes()).toContain('is-active');
   });
 });
