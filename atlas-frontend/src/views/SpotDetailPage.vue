@@ -1,13 +1,23 @@
 <template>
   <AppShell>
     <div class="page-container page-stack spot-detail-page">
-      <div v-if="activeSpot && authStore.isAuthenticated" class="glass-panel page-actions">
+      <div v-if="activeSpot && canManageSpot" class="glass-panel page-actions" data-test="spot-detail-creator-tools">
         <div>
           <p class="eyebrow">Creator tools</p>
           <h2>Need to tune the copy, photos, or exact coordinates?</h2>
           <p class="section-copy">Jump into the edit flow without leaving the premium detail layout.</p>
         </div>
-        <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
+        <div class="creator-actions">
+          <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
+          <button
+            type="button"
+            class="action-link action-link--danger"
+            :disabled="spotsStore.saving"
+            @click="openDeleteModal"
+          >
+            Delete this spot
+          </button>
+        </div>
       </div>
 
       <section v-if="spotsStore.loading" class="glass-panel state-card loading-card">
@@ -28,25 +38,92 @@
 
       <SpotDetail v-else :spot="activeSpot" />
     </div>
+
+    <Modal :open="showDeleteModal" title="Delete this spot?" eyebrow="Creator tools" size="sm" @close="closeDeleteModal">
+      <div class="delete-modal" data-test="spot-delete-modal">
+        <p class="section-copy">
+          Atlas will remove this pin from explore, maps, and itinerary suggestions for everyone using the current demo workspace.
+        </p>
+        <p v-if="deleteErrorMessage" class="delete-error" role="alert">{{ deleteErrorMessage }}</p>
+        <div class="modal-actions">
+          <button type="button" class="button button-secondary" :disabled="spotsStore.saving" @click="closeDeleteModal">Keep spot</button>
+          <button type="button" class="button delete-button" :disabled="spotsStore.saving" @click="handleDeleteSpot">
+            {{ spotsStore.saving ? 'Deleting…' : 'Delete spot' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
   </AppShell>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import Modal from '@/components/common/Modal.vue';
 import SpotDetail from '@/components/spots/SpotDetail.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
+import { useToastStore } from '@/stores/toasts';
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
+const toastStore = useToastStore();
 const notFound = ref(false);
+const showDeleteModal = ref(false);
+const deleteErrorMessage = ref('');
 
 const requestedSpotId = computed(() => String(route.params.id ?? ''));
 const activeSpot = computed(() => (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
+const canManageSpot = computed(() => {
+  if (!activeSpot.value || !authStore.isAuthenticated) {
+    return false;
+  }
+
+  const authorId = activeSpot.value.author?.id;
+  return !authorId || authorId === authStore.currentUser?.id;
+});
+
+function openDeleteModal() {
+  deleteErrorMessage.value = '';
+  showDeleteModal.value = true;
+}
+
+function closeDeleteModal() {
+  if (spotsStore.saving) {
+    return;
+  }
+
+  deleteErrorMessage.value = '';
+  showDeleteModal.value = false;
+}
+
+async function handleDeleteSpot() {
+  if (!activeSpot.value) {
+    return;
+  }
+
+  deleteErrorMessage.value = '';
+
+  try {
+    await spotsStore.deleteSpot(activeSpot.value.id);
+    showDeleteModal.value = false;
+    await router.push('/explore');
+    toastStore.showSuccess({
+      title: 'Spot deleted',
+      message: 'Atlas removed the pin from the current workspace.',
+    });
+  } catch {
+    deleteErrorMessage.value = spotsStore.error || 'Atlas could not delete that spot right now.';
+    toastStore.showError({
+      title: 'Delete failed',
+      message: deleteErrorMessage.value,
+    });
+  }
+}
 
 async function loadSpot(spotId: string) {
   if (!spotId) {
@@ -55,6 +132,8 @@ async function loadSpot(spotId: string) {
   }
 
   notFound.value = false;
+  deleteErrorMessage.value = '';
+  showDeleteModal.value = false;
 
   try {
     await spotsStore.fetchSpot(spotId);
@@ -87,6 +166,17 @@ watch(
   padding: var(--space-5);
 }
 
+.creator-actions,
+.modal-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.creator-actions {
+  justify-content: flex-end;
+}
+
 .page-actions h2,
 .page-actions .section-copy,
 .state-card h2,
@@ -110,10 +200,13 @@ watch(
   background: var(--accent-teal);
   color: var(--bg-primary);
   font-weight: var(--font-weight-semibold);
+  cursor: pointer;
   transition:
     transform var(--transition-fast),
     background var(--transition-fast),
-    box-shadow var(--transition-fast);
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .action-link:hover,
@@ -124,7 +217,28 @@ watch(
   outline: none;
 }
 
-.state-card {
+.action-link--danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+.action-link--danger:hover,
+.action-link--danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border));
+  box-shadow: none;
+}
+
+.action-link:disabled,
+.delete-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.state-card,
+.delete-modal {
   padding: var(--space-6);
   display: grid;
   gap: var(--space-3);
@@ -134,6 +248,34 @@ watch(
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: var(--space-5);
+}
+
+.delete-modal {
+  padding: 0;
+  gap: var(--space-4);
+}
+
+.delete-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-size-small);
+}
+
+.modal-actions {
+  justify-content: flex-end;
+}
+
+.delete-button {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--danger) 92%, black);
+  color: var(--bg-primary);
+}
+
+.delete-button:hover,
+.delete-button:focus-visible {
+  background: color-mix(in srgb, var(--danger) 78%, black);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--danger) 22%, transparent);
+  outline: none;
 }
 
 .eyebrow {
@@ -159,6 +301,16 @@ watch(
   .loading-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .creator-actions,
+  .modal-actions {
+    width: 100%;
+  }
+
+  .creator-actions > *,
+  .modal-actions > * {
+    flex: 1 1 100%;
   }
 
   .loading-card {
