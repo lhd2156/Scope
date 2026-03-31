@@ -271,6 +271,7 @@
 - [2026-03-31] ✅ If `subagents(action=list)` later goes empty right after the canonical Frontend tracker advances, treat the finished run as a clean handoff and immediately relaunch from the new first unchecked checkpoint instead of waiting on stale lead-dashboard state.
 - [2026-03-31] ✅ If the next heartbeat after a canonical relaunch already shows the replacement Frontend worker alive in `subagents(action=list)`, preserve that fresh worker and just refresh the lead dashboard/Telegram status instead of relaunching again.
 - [2026-03-31] ✅ Right after a Frontend relaunch, `sessions_history` can lag behind and still show older auth-flow poll entries even while `subagents(action=list)` already reports the replacement worker as running; trust the active subagent list plus canonical tracker and preserve the fresh worker.
+- [2026-03-31] ✅ If `memory/COMPLETED-TASKS.md` records `frontend 14.3 ✅` and `frontend/PROGRESS.md` advances the current task to 14.4 while the same Frontend subagent is still active, update the lead dashboard row/current phase immediately and preserve that worker instead of leaving heartbeat pinned to 14.3.
 
 ## Common Mistakes to Avoid
 
