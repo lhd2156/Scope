@@ -78,7 +78,7 @@
 - [x] 14.1 - Set up Playwright with Chromium, Firefox, and WebKit browser projects
 - [x] 14.2 - Auth flow tests: register with validation → login → session persist → logout
 - [x] 14.3 - Map interaction tests: load map → click marker → sidebar detail → navigate to spot
-- [ ] 14.4 - Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
+- [x] 14.4 - Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
 - [ ] 14.5 - Trip flow tests: create trip → add destinations → generate AI itinerary → view timeline
 - [ ] 14.6 - Social tests: view feed → like item → add friend → view notifications
 - [ ] 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 14.4 - Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
-## Last Updated: 2026-03-31T14:40:47.1408328-05:00
+## Current Task: Phase 14.5 - Trip flow tests: create trip → add destinations → generate AI itinerary → view timeline
+## Last Updated: 2026-03-31T15:28:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -172,3 +172,4 @@
 - 2026-03-30T20:19:28.8830377-05:00: COMPLETED Phase 14.1 - stood up the Playwright E2E harness with Chromium/Firefox/WebKit projects, deterministic `/api/*` interception via a shared fixture, preview-mode web serving for stable cross-browser startup, and a multi-browser smoke spec that validates guest-route redirects plus seeded protected workspace rendering. Validation: `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit critical-flows.spec.ts` (6 passed), plus focused Vitest regression checks with `npm.cmd run test -- tests/unit/router-navigation.spec.ts tests/unit/theme.spec.ts`. Next up: Phase 14.2 auth flow coverage.
 - 2026-03-31T13:40:15.1193258-05:00: COMPLETED Phase 14.2 - added a dedicated multi-browser auth E2E that covers registration validation, redirect-aware register/login success paths, full page-reload session persistence on protected settings, and logout guard recovery; hardened the shared Playwright auth fixture to persist registered users/cookie-backed sessions across refreshes; and disabled preview service-worker registration plus silent auth fallbacks during Playwright runs so WebKit follows the same deterministic mocked network contract as Chromium/Firefox. Validation: `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit auth-flow.spec.ts critical-flows.spec.ts` (9 passed), `npm.cmd run test -- tests/unit/pwa.spec.ts tests/unit/router-navigation.spec.ts`, `npm.cmd run build`. Next up: Phase 14.3 map interaction coverage.
 - 2026-03-31T14:40:47.1408328-05:00: COMPLETED Phase 14.3 - added a dedicated multi-browser map E2E that loads the fallback map workspace, clicks a deterministic mock marker, verifies the selected sidebar spotlight card, and navigates into the mocked spot detail page; upgraded the fallback map to expose stable marker hit areas plus selected-spot test hooks; and replaced the world-scale static projection with bounds-aware local projection/collision spacing so clustered Texas mock pins remain clickable across Chromium, Firefox, and WebKit. Validation: `npm.cmd run test -- tests/unit/map-view.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/map-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.4 spot CRUD coverage.
+- 2026-03-31T15:28:00-05:00: COMPLETED Phase 14.4 - added a dedicated multi-browser Playwright CRUD flow that seeds an authenticated session, creates a spot with photo upload, edits the pin, verifies the updated detail state, deletes through a creator-side confirmation modal, and confirms the pin no longer appears in explore; also upgraded `SpotDetailPage` with owner-aware edit/delete tools and toast-backed delete handling so the full user flow exists in the premium detail shell. Validation: `npm.cmd run test -- tests/unit/spot-detail-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/spot-crud-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.5 trip flow coverage.
