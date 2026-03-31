@@ -273,6 +273,7 @@
 - [2026-03-31] ✅ If the next heartbeat after a canonical relaunch already shows the replacement Frontend worker alive in `subagents(action=list)`, preserve that fresh worker and just refresh the lead dashboard/Telegram status instead of relaunching again.
 - [2026-03-31] ✅ Right after a Frontend relaunch, `sessions_history` can lag behind and still show older auth-flow poll entries even while `subagents(action=list)` already reports the replacement worker as running; trust the active subagent list plus canonical tracker and preserve the fresh worker.
 - [2026-03-31] ✅ If `memory/COMPLETED-TASKS.md` records `frontend 14.3 ✅` and `frontend/PROGRESS.md` advances the current task to 14.4 while the same Frontend subagent is still active, update the lead dashboard row/current phase immediately and preserve that worker instead of leaving heartbeat pinned to 14.3.
+- [2026-03-31] ✅ If the Frontend E2E tracker advances again (for example 14.4 → 14.5) while the same subagent remains active in `subagents(action=list)`, treat it as a clean checkpoint handoff: refresh the lead dashboard to the new canonical task and keep the existing worker alive instead of relaunching.
 
 ## Common Mistakes to Avoid
 
