@@ -259,6 +259,8 @@
 - [2026-03-31] ⚠️ On this Windows heartbeat host, `openclaw.cmd agent ... --message <text>` can still drop the message payload even when invoked from PowerShell with separate arguments; if that happens, relaunch via direct `C:\Program Files\nodejs\node.exe C:\Users\dongu\AppData\Roaming\npm\node_modules\openclaw\openclaw.mjs agent ... --message <text>` instead of leaving the track idle.
 - [2026-03-31] ⚠️ If the direct-node relaunch still drops `--message` with a long prompt, retry with a shorter literal prompt that tells the agent to read its canonical `agents.md` + `PROGRESS.md` and execute the current checkpoint; concise literal messages survive this CLI path more reliably than long interpolated prompts.
 - [2026-03-31] ⚠️ Parallel heartbeat relaunches can partially succeed; preserve any accepted live child immediately, then verify a timed-out sibling with one fresh child-state check and mark only that track for retry if no worker appears.
+- [2026-03-31] ⚠️ If subagents(action=list) shows a live worker on a canonically COMPLETE track, treat it as stale shared-workspace risk: kill that completed-track worker, then steer or preserve only the still-open canonical track instead of leaving both alive.
+- [2026-03-31] ✅ If `sessions_history` shows a live Frontend worker actively advancing through per-browser Playwright steps, preserve that worker on heartbeat and refresh the lead dashboard instead of steering or respawning another shared-workspace run.
 
 ## Common Mistakes to Avoid
 
