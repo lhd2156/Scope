@@ -270,6 +270,7 @@
 - [2026-03-31] ✅ If consecutive heartbeats still show the same pending Frontend child `process` poll while `subagents(action=list)` keeps the worker in `running` state and the canonical tracker has not changed, treat it as an in-flight wait state and preserve the worker rather than spawning a duplicate into the shared workspace.
 - [2026-03-31] ✅ If `subagents(action=list)` later goes empty right after the canonical Frontend tracker advances, treat the finished run as a clean handoff and immediately relaunch from the new first unchecked checkpoint instead of waiting on stale lead-dashboard state.
 - [2026-03-31] ✅ If the next heartbeat after a canonical relaunch already shows the replacement Frontend worker alive in `subagents(action=list)`, preserve that fresh worker and just refresh the lead dashboard/Telegram status instead of relaunching again.
+- [2026-03-31] ✅ Right after a Frontend relaunch, `sessions_history` can lag behind and still show older auth-flow poll entries even while `subagents(action=list)` already reports the replacement worker as running; trust the active subagent list plus canonical tracker and preserve the fresh worker.
 
 ## Common Mistakes to Avoid
 
