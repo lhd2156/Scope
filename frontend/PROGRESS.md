@@ -81,7 +81,7 @@
 - [x] 14.4 - Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
 - [x] 14.5 - Trip flow tests: create trip → add destinations → generate AI itinerary → view timeline
 - [x] 14.6 - Social tests: view feed → like item → add friend → view notifications
-- [ ] 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
+- [x] 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
 - [ ] 14.8 - Theme toggle test: switch dark/light, verify persistence across page reload
 - [ ] 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
 
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
-## Last Updated: 2026-03-31T17:44:24.3360008-05:00
+## Current Task: Phase 14.8 - Theme toggle test: switch dark/light, verify persistence across page reload
+## Last Updated: 2026-03-31T18:10:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -175,3 +175,4 @@
 - 2026-03-31T15:28:00-05:00: COMPLETED Phase 14.4 - added a dedicated multi-browser Playwright CRUD flow that seeds an authenticated session, creates a spot with photo upload, edits the pin, verifies the updated detail state, deletes through a creator-side confirmation modal, and confirms the pin no longer appears in explore; also upgraded `SpotDetailPage` with owner-aware edit/delete tools and toast-backed delete handling so the full user flow exists in the premium detail shell. Validation: `npm.cmd run test -- tests/unit/spot-detail-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/spot-crud-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.5 trip flow coverage.
 - 2026-03-31T16:33:45.9188969-05:00: COMPLETED Phase 14.5 - added a dedicated multi-browser Playwright trip-planner flow that seeds an authenticated session, builds a new trip brief, adds deterministic Patagonia stops through the premium planner controls, regenerates the AI itinerary, and verifies the packed timeline overlay across Chromium, Firefox, and WebKit; also hardened the shared Playwright `/api/*` fixture with explicit trip/intel mocks plus stable trip-planner/itinerary data-test hooks so the trip flow no longer depends on client-side fallback behavior. Validation: `npm.cmd run test -- tests/unit/trip-planner-page.spec.ts tests/unit/itinerary-view.spec.ts tests/unit/trip-detail-page.spec.ts tests/unit/trip-detail.spec.ts tests/unit/trip-timeline.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/trip-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.6 social flow coverage.
 - 2026-03-31T17:44:24.3360008-05:00: COMPLETED Phase 14.6 - added a dedicated multi-browser Playwright social flow that seeds an authenticated session, verifies the premium activity feed, likes a deterministic feed item, accepts a friend request, and opens the notifications inbox to confirm the newly-added social update across Chromium, Firefox, and WebKit; also extended the shared Playwright `/api/*` fixture with explicit feed/notification mocks, stable social data-test hooks, and a persisted onboarding-complete flag so the home-page tour no longer intercepts cross-browser E2E interactions. Validation: `npm.cmd run test -- tests/unit/friends-page.spec.ts tests/unit/feed-item.spec.ts tests/unit/notification-dropdown.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/social-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.7 navigation coverage.
+- 2026-03-31T18:10:00-05:00: COMPLETED Phase 14.7 - added a dedicated multi-browser Playwright route-matrix spec that verifies every public route renders, every protected route redirects guests to `/login` with the full redirect target preserved, every protected workspace renders under a seeded session, guest-only routes bounce authenticated users back to `/map`, and the 404 fallback survives unknown paths across Chromium, Firefox, and WebKit. Validation: `npm.cmd run test:e2e -- tests/e2e/navigation-flow.spec.ts --project=chromium --project=firefox --project=webkit` (9 passed). Next up: Phase 14.8 theme toggle E2E coverage.
