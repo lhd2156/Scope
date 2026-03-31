@@ -75,6 +75,7 @@ describe('TripDetailPage', () => {
         plugins: [router],
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
+          AtlasIcon: { template: '<span class="icon-stub" />' },
           TripDetail: { template: '<div />' },
         },
       },
@@ -82,7 +83,9 @@ describe('TripDetailPage', () => {
 
     await flushPromises();
 
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Trip unavailable');
     expect(wrapper.text()).toContain('Atlas could not load that trip right now.');
+    expect(wrapper.text()).toContain('Open planner');
   });
 });

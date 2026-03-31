@@ -11,21 +11,27 @@
         <TripDetail :trip="tripsStore.selectedTrip" />
       </div>
 
-      <div v-else class="glass-panel state-card" role="alert">
-        <p class="eyebrow">Trip detail</p>
-        <h1>{{ tripsStore.error ? 'Trip unavailable' : 'Trip not found' }}</h1>
-        <p class="section-copy">
-          {{ tripsStore.error || 'The requested trip could not be loaded. It may have been deleted or the route has not been synced into Atlas yet.' }}
-        </p>
-      </div>
+      <EmptyStatePanel
+        v-else
+        alignment="center"
+        eyebrow="Trip detail"
+        :title="tripsStore.error ? 'Trip unavailable' : 'Trip not found'"
+        :description="tripsStore.error || 'The requested trip could not be loaded. It may have been deleted or the route has not been synced into Atlas yet.'"
+        icon="route"
+        artwork="itinerary"
+        heading-level="h1"
+      >
+        <RouterLink class="button button-secondary" to="/trips/new">Open planner</RouterLink>
+      </EmptyStatePanel>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
 import { watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import TripDetail from '@/components/trips/TripDetail.vue';
 import { useTripsStore } from '@/stores/trips';
 

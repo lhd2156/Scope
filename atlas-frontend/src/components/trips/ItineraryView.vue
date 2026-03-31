@@ -89,13 +89,17 @@
       <div v-if="submitting" class="overlay-card loading-card">Refreshing itinerary preview…</div>
     </template>
 
-    <div v-else class="empty-state">
-      <AtlasIcon name="sparkle" label="AI itinerary" />
-      <div>
-        <h2>No itinerary yet</h2>
-        <p>Dial in the destination, dates, budget, pace, and route order to let Atlas lay out a premium travel plan.</p>
-      </div>
-    </div>
+    <EmptyStatePanel
+      v-else
+      class="empty-state"
+      alignment="center"
+      eyebrow="AI itinerary"
+      title="No itinerary yet"
+      description="Dial in the destination, dates, budget, pace, and route order to let Atlas lay out a premium travel plan."
+      icon="sparkle"
+      artwork="itinerary"
+      heading-level="h2"
+    />
   </section>
 </template>
 
@@ -103,6 +107,7 @@
 import { computed } from 'vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import MapView from '@/components/map/MapView.vue';
 import { formatWeekdayMonthDay } from '@/utils/formatters';
@@ -452,15 +457,6 @@ const mapSpots = computed<MapPoint[]>(() =>
 .empty-state {
   min-height: 34rem;
   place-content: center;
-  justify-items: center;
-  padding: var(--space-8) var(--space-6);
-  text-align: center;
-}
-
-.empty-state :deep(.atlas-icon) {
-  width: 2.75rem;
-  height: 2.75rem;
-  color: var(--accent-teal);
 }
 
 @media (max-width: 1080px) {

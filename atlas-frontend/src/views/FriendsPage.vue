@@ -211,6 +211,7 @@
             :title="emptyStateTitle"
             :description="emptyStateDescription"
             icon="friends"
+            artwork="community"
             heading-level="h3"
           >
             <button v-if="searchQuery" type="button" class="button button-secondary" @click="searchQuery = ''">Clear search</button>
@@ -283,6 +284,7 @@
             title="No fresh matches"
             description="Try a broader search to reveal more travelers who fit your route style."
             icon="search"
+            artwork="community"
             heading-level="h3"
           />
         </aside>

@@ -94,16 +94,25 @@
       </div>
     </div>
 
-    <article v-else class="empty-state surface-card">
-      <h3>No public pins yet</h3>
-      <p>When this explorer publishes places to Atlas, their global footprint will glow here first.</p>
-    </article>
+    <EmptyStatePanel
+      v-else
+      class="empty-state"
+      compact
+      tone="surface"
+      alignment="center"
+      eyebrow="Adventure map"
+      title="No public pins yet"
+      description="When this explorer publishes places to Atlas, their global footprint will glow here first."
+      icon="map"
+      artwork="profile"
+      heading-level="h3"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
