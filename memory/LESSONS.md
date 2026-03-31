@@ -261,6 +261,7 @@
 - [2026-03-31] ⚠️ Parallel heartbeat relaunches can partially succeed; preserve any accepted live child immediately, then verify a timed-out sibling with one fresh child-state check and mark only that track for retry if no worker appears.
 - [2026-03-31] ⚠️ If subagents(action=list) shows a live worker on a canonically COMPLETE track, treat it as stale shared-workspace risk: kill that completed-track worker, then steer or preserve only the still-open canonical track instead of leaving both alive.
 - [2026-03-31] ✅ If `sessions_history` shows a live Frontend worker actively advancing through per-browser Playwright steps, preserve that worker on heartbeat and refresh the lead dashboard instead of steering or respawning another shared-workspace run.
+- [2026-03-31] ✅ If the latest Frontend `sessions_history` entry is a still-pending child `process` poll after one or more browser passes, treat the auth-flow suite as still in flight and preserve the worker rather than assuming the silence means it stalled.
 
 ## Common Mistakes to Avoid
 
