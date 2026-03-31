@@ -32,6 +32,59 @@ interface AtlasUserProfile {
   };
 }
 
+interface AtlasTripSpot {
+  spotId: string;
+  title: string;
+  latitude: number;
+  longitude: number;
+  category: string;
+  city?: string;
+  dayNumber?: number;
+  timeSlot?: string;
+  duration?: number;
+  estimatedCost?: number;
+  photoUrl?: string;
+  notes?: string;
+}
+
+interface AtlasTripMember {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  status?: string;
+}
+
+interface AtlasItineraryDay {
+  dayNumber: number;
+  date: string;
+  spots: AtlasTripSpot[];
+}
+
+interface AtlasItinerary {
+  id: string;
+  destination: string;
+  days: AtlasItineraryDay[];
+  totalEstimatedCost: number;
+  weatherForecast: string;
+}
+
+interface AtlasTrip {
+  id: string;
+  title: string;
+  destination: string;
+  description?: string;
+  isPublic: boolean;
+  startDate: string;
+  endDate: string;
+  spots: AtlasTripSpot[];
+  members: AtlasTripMember[];
+  itinerary?: AtlasItinerary;
+  coverImageUrl?: string;
+  budget?: number;
+  currency?: string;
+  status?: string;
+}
+
 export interface AtlasApiMock {
   getCurrentSession: () => AtlasAuthSession | null;
   seedSession: (page: Page, overrides?: Partial<AtlasAuthSession>) => Promise<AtlasAuthSession>;
@@ -93,6 +146,112 @@ function cloneUserProfile(user: AtlasUserProfile): AtlasUserProfile {
     stats: user.stats ? { ...user.stats } : undefined,
   };
 }
+
+function cloneTripSpot(spot: AtlasTripSpot): AtlasTripSpot {
+  return {
+    ...spot,
+  };
+}
+
+function cloneTripMember(member: AtlasTripMember): AtlasTripMember {
+  return {
+    ...member,
+  };
+}
+
+function cloneItinerary(itinerary: AtlasItinerary): AtlasItinerary {
+  return {
+    ...itinerary,
+    days: itinerary.days.map((day) => ({
+      ...day,
+      spots: day.spots.map(cloneTripSpot),
+    })),
+  };
+}
+
+function cloneTrip(trip: AtlasTrip): AtlasTrip {
+  return {
+    ...trip,
+    spots: trip.spots.map(cloneTripSpot),
+    members: trip.members.map(cloneTripMember),
+    itinerary: trip.itinerary ? cloneItinerary(trip.itinerary) : undefined,
+  };
+}
+
+const tripTimeSlots = ['08:30', '12:30', '16:30', '19:30'] as const;
+const calendarDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const patagoniaPlannerStops: AtlasTripSpot[] = [
+  {
+    spotId: 'planner-fitz-roy',
+    title: 'Mount Fitz Roy',
+    latitude: -49.2711,
+    longitude: -73.0439,
+    category: 'adventure',
+    city: 'El Chaltén',
+    dayNumber: 1,
+    timeSlot: '08:30',
+    duration: 180,
+    estimatedCost: 180,
+    photoUrl: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800',
+    notes: 'Start with the signature alpine ascent while the granite faces catch first light.',
+  },
+  {
+    spotId: 'planner-perito-moreno',
+    title: 'Perito Moreno Glacier',
+    latitude: -50.496,
+    longitude: -73.1373,
+    category: 'scenic',
+    city: 'El Calafate',
+    dayNumber: 2,
+    timeSlot: '12:30',
+    duration: 150,
+    estimatedCost: 210,
+    photoUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800',
+    notes: 'Layer in a glacier cruise and boardwalk loop for the visual crescendo of the route.',
+  },
+  {
+    spotId: 'planner-torres',
+    title: 'Torres del Paine',
+    latitude: -50.9423,
+    longitude: -72.9874,
+    category: 'nature',
+    city: 'Torres del Paine',
+    dayNumber: 3,
+    timeSlot: '16:30',
+    duration: 210,
+    estimatedCost: 240,
+    photoUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800',
+    notes: 'Finish on the iconic towers for the biggest end-of-day payoff and photo set.',
+  },
+  {
+    spotId: 'planner-puerto-natales',
+    title: 'Puerto Natales Waterfront',
+    latitude: -51.7295,
+    longitude: -72.5066,
+    category: 'culture',
+    city: 'Puerto Natales',
+    dayNumber: 2,
+    timeSlot: '19:30',
+    duration: 90,
+    estimatedCost: 95,
+    photoUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800',
+    notes: 'A harbor-side recovery stop for dinner, gear checks, and softer cultural pacing.',
+  },
+  {
+    spotId: 'planner-ushuaia',
+    title: 'Beagle Channel Outlook',
+    latitude: -54.8019,
+    longitude: -68.303,
+    category: 'scenic',
+    city: 'Ushuaia',
+    dayNumber: 4,
+    timeSlot: '08:30',
+    duration: 120,
+    estimatedCost: 130,
+    photoUrl: 'https://images.unsplash.com/photo-1527631746610-bca00a040d60?w=800',
+    notes: 'Optional southern extension for a boat ride and dramatic sea-meets-mountain framing.',
+  },
+];
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -178,6 +337,257 @@ function buildUserProfile(session: AtlasAuthSession, knownUsers: AtlasUserProfil
   };
 }
 
+function toCalendarDayNumber(value: string): number {
+  const matched = calendarDatePattern.exec(value);
+  if (!matched) {
+    return Number.NaN;
+  }
+
+  const [, year, month, day] = matched;
+  const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+
+  if (
+    parsedDate.getFullYear() !== Number(year) ||
+    parsedDate.getMonth() !== Number(month) - 1 ||
+    parsedDate.getDate() !== Number(day)
+  ) {
+    return Number.NaN;
+  }
+
+  return Date.UTC(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate()) / (24 * 60 * 60 * 1000);
+}
+
+function getInclusiveDaySpan(startDate: string, endDate: string): number {
+  const startDayNumber = toCalendarDayNumber(startDate);
+  const endDayNumber = toCalendarDayNumber(endDate);
+
+  if (Number.isNaN(startDayNumber) || Number.isNaN(endDayNumber)) {
+    return 1;
+  }
+
+  return Math.max(1, endDayNumber - startDayNumber + 1);
+}
+
+function addCalendarDays(calendarDate: string, offsetDays: number): string {
+  const matched = calendarDatePattern.exec(calendarDate);
+  if (!matched) {
+    return calendarDate;
+  }
+
+  const [, year, month, day] = matched;
+  const nextDate = new Date(Number(year), Number(month) - 1, Number(day) + offsetDays);
+  return [
+    nextDate.getFullYear(),
+    String(nextDate.getMonth() + 1).padStart(2, '0'),
+    String(nextDate.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function getPlannerStopCount(totalDays: number, pace: string, availableCount: number): number {
+  const extraStops = pace === 'packed' ? 2 : pace === 'moderate' ? 1 : 0;
+  return Math.min(availableCount, Math.max(totalDays, totalDays + extraStops));
+}
+
+function buildTripPlannerItinerary(requestBody: Record<string, unknown>): AtlasItinerary {
+  const destination = normalizeString(requestBody.destination) || 'Patagonia, Chile + Argentina';
+  const startDate = normalizeString(requestBody.startDate) || '2026-11-03';
+  const endDate = normalizeString(requestBody.endDate) || startDate;
+  const pace = normalizeString(requestBody.pace).toLowerCase() || 'moderate';
+  const totalDays = Math.max(1, Math.min(getInclusiveDaySpan(startDate, endDate), 5));
+  const selectedStopCount = getPlannerStopCount(totalDays, pace, patagoniaPlannerStops.length);
+  const selectedStops = patagoniaPlannerStops.slice(0, selectedStopCount).map(cloneTripSpot);
+  const days = Array.from({ length: totalDays }, (_, index) => ({
+    dayNumber: index + 1,
+    date: addCalendarDays(startDate, index),
+    spots: [] as AtlasTripSpot[],
+  }));
+
+  selectedStops.forEach((stop, index) => {
+    const dayNumber = index < totalDays ? index + 1 : ((index - totalDays) % totalDays) + 1;
+    const stopIndexForDay = days[dayNumber - 1]?.spots.length ?? 0;
+
+    days[dayNumber - 1]?.spots.push({
+      ...stop,
+      dayNumber,
+      timeSlot: tripTimeSlots[stopIndexForDay] ?? '20:00',
+    });
+  });
+
+  const itineraryDays = days.filter((day) => day.spots.length > 0);
+  const totalEstimatedCost = itineraryDays
+    .flatMap((day) => day.spots)
+    .reduce((total, stop) => total + (stop.estimatedCost ?? 0), 0);
+
+  return {
+    id: `itinerary-${destination.replace(/\s+/g, '-').toLowerCase()}`,
+    destination,
+    days: itineraryDays,
+    totalEstimatedCost,
+    weatherForecast: 'Crisp alpine mornings with clear glacier light.',
+  };
+}
+
+function buildSeedTrips(knownUsers: AtlasUserProfile[]): AtlasTrip[] {
+  const [louis = cloneUserProfile(seedUsers[0]!), maya = cloneUserProfile(seedUsers[1]!), elijah = cloneUserProfile(seedUsers[2]!)] = knownUsers;
+  const patagoniaItinerary = buildTripPlannerItinerary({
+    destination: 'Patagonia, Chile + Argentina',
+    startDate: '2026-11-03',
+    endDate: '2026-11-05',
+    pace: 'packed',
+  });
+
+  return [
+    {
+      id: 'trip-1',
+      title: 'North Texas Night + Food Loop',
+      destination: 'Fort Worth, TX',
+      description: 'Two days of tacos, skyline views, galleries, and nightlife.',
+      isPublic: true,
+      startDate: '2026-04-01',
+      endDate: '2026-04-02',
+      budget: 320,
+      currency: 'USD',
+      status: 'planning',
+      coverImageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1200',
+      members: [
+        { id: louis.id, displayName: louis.displayName, avatarUrl: louis.avatarUrl, status: 'owner' },
+        { id: maya.id, displayName: maya.displayName, avatarUrl: maya.avatarUrl, status: 'editor' },
+      ],
+      spots: [
+        {
+          spotId: 'spot-1',
+          title: 'Sunset Rooftop Tacos',
+          latitude: 32.7555,
+          longitude: -97.3308,
+          category: 'food',
+          city: 'Fort Worth',
+          dayNumber: 1,
+          timeSlot: '11:00',
+          duration: 75,
+          estimatedCost: 24,
+          photoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800',
+          notes: 'Open with lunch before the city walk.',
+        },
+        {
+          spotId: 'spot-2',
+          title: 'Midnight Vinyl Club',
+          latitude: 32.7812,
+          longitude: -96.8003,
+          category: 'nightlife',
+          city: 'Dallas',
+          dayNumber: 2,
+          timeSlot: '20:30',
+          duration: 120,
+          estimatedCost: 42,
+          photoUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800',
+          notes: 'Close with a dance-floor stop.',
+        },
+      ],
+      itinerary: {
+        id: 'itinerary-trip-1',
+        destination: 'Fort Worth, TX',
+        totalEstimatedCost: 66,
+        weatherForecast: 'Clear skies with warm city evenings.',
+        days: [
+          {
+            dayNumber: 1,
+            date: '2026-04-01',
+            spots: [
+              {
+                spotId: 'spot-1',
+                title: 'Sunset Rooftop Tacos',
+                latitude: 32.7555,
+                longitude: -97.3308,
+                category: 'food',
+                city: 'Fort Worth',
+                dayNumber: 1,
+                timeSlot: '11:00',
+                duration: 75,
+                estimatedCost: 24,
+                photoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800',
+                notes: 'Open with lunch before the city walk.',
+              },
+            ],
+          },
+          {
+            dayNumber: 2,
+            date: '2026-04-02',
+            spots: [
+              {
+                spotId: 'spot-2',
+                title: 'Midnight Vinyl Club',
+                latitude: 32.7812,
+                longitude: -96.8003,
+                category: 'nightlife',
+                city: 'Dallas',
+                dayNumber: 2,
+                timeSlot: '20:30',
+                duration: 120,
+                estimatedCost: 42,
+                photoUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800',
+                notes: 'Close with a dance-floor stop.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: 'trip-2',
+      title: 'Austin Scenic Sprint',
+      destination: 'Austin, TX',
+      description: 'Hill-country lookouts, coffee breaks, and golden-hour music stops.',
+      isPublic: true,
+      startDate: '2026-05-14',
+      endDate: '2026-05-16',
+      budget: 420,
+      currency: 'USD',
+      status: 'active',
+      coverImageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200',
+      members: [
+        { id: maya.id, displayName: maya.displayName, avatarUrl: maya.avatarUrl, status: 'owner' },
+        { id: elijah.id, displayName: elijah.displayName, avatarUrl: elijah.avatarUrl, status: 'guide' },
+      ],
+      spots: [
+        {
+          spotId: 'spot-3',
+          title: 'Mount Bonnell Lookout',
+          latitude: 30.3213,
+          longitude: -97.7739,
+          category: 'scenic',
+          city: 'Austin',
+          dayNumber: 1,
+          timeSlot: '08:00',
+          duration: 60,
+          estimatedCost: 18,
+          photoUrl: 'https://images.unsplash.com/photo-1472396961693-142e6e269027?w=800',
+          notes: 'Start with a skyline overview before the coffee crawl.',
+        },
+      ],
+    },
+    {
+      id: 'trip-3',
+      title: 'Epic Patagonia Trek',
+      destination: 'Patagonia, Chile + Argentina',
+      description: 'Glacier walks, alpine ridgelines, and a premium southbound finale.',
+      isPublic: true,
+      startDate: '2026-11-03',
+      endDate: '2026-11-05',
+      budget: 3000,
+      currency: 'USD',
+      status: 'planning',
+      coverImageUrl: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=1200',
+      members: [
+        { id: elijah.id, displayName: elijah.displayName, avatarUrl: elijah.avatarUrl, status: 'owner' },
+        { id: louis.id, displayName: louis.displayName, avatarUrl: louis.avatarUrl, status: 'lead' },
+        { id: maya.id, displayName: maya.displayName, avatarUrl: maya.avatarUrl, status: 'photo' },
+      ],
+      spots: patagoniaPlannerStops.slice(0, 5).map(cloneTripSpot),
+      itinerary: patagoniaItinerary,
+    },
+  ].map(cloneTrip);
+}
+
 function buildSessionHint() {
   return {
     version: AUTH_SESSION_HINT_VERSION,
@@ -257,10 +667,14 @@ async function fulfillJson(route: Route, status: number, payload: unknown): Prom
 }
 
 async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
-  const state: { currentSession: AtlasAuthSession | null } = {
-    currentSession: null,
-  };
   const registeredUsers = seedUsers.map(cloneUserProfile);
+  const state: {
+    currentSession: AtlasAuthSession | null;
+    trips: AtlasTrip[];
+  } = {
+    currentSession: null,
+    trips: buildSeedTrips(registeredUsers),
+  };
 
   function findKnownUser(overrides: Partial<AtlasAuthSession> = {}): AtlasUserProfile | undefined {
     const normalizedId = normalizeString(overrides.id);
@@ -292,6 +706,10 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     }
 
     return nextUser;
+  }
+
+  function findTrip(tripId: string): AtlasTrip | undefined {
+    return state.trips.find((trip) => trip.id === tripId);
   }
 
   await page.addInitScript((flagName) => {
@@ -518,6 +936,60 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
 
       await fulfillJson(route, 200, {
         data: matchingKnownUser,
+      });
+      return;
+    }
+
+    if (requestPath === '/api/content/trips' && requestMethod === 'GET') {
+      const pageNumber = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
+      const requestedPageSize = Number(requestUrl.searchParams.get('pageSize') ?? String(state.trips.length || 1)) || state.trips.length || 1;
+      const pageSize = Math.max(1, requestedPageSize);
+      const startIndex = Math.max(0, (pageNumber - 1) * pageSize);
+      const pagedTrips = state.trips.slice(startIndex, startIndex + pageSize).map(cloneTrip);
+
+      await fulfillJson(route, 200, {
+        data: pagedTrips,
+        meta: {
+          page: pageNumber,
+          pageSize,
+          total: state.trips.length,
+          totalPages: Math.max(1, Math.ceil(state.trips.length / pageSize)),
+        },
+      });
+      return;
+    }
+
+    if (requestPath.startsWith('/api/content/trips/') && requestMethod === 'GET') {
+      const pathSegments = requestPath.split('/').filter(Boolean);
+      const tripId = pathSegments[3] ?? '';
+      const matchingTrip = findTrip(tripId);
+
+      if (!matchingTrip) {
+        await fulfillJson(route, 404, JSON.stringify({
+          error: {
+            code: 'TRIP_NOT_FOUND',
+            message: `Trip ${tripId} was not found.`,
+          },
+        }));
+        return;
+      }
+
+      if (requestPath.endsWith('/members')) {
+        await fulfillJson(route, 200, {
+          data: matchingTrip.members.map(cloneTripMember),
+        });
+        return;
+      }
+
+      await fulfillJson(route, 200, {
+        data: cloneTrip(matchingTrip),
+      });
+      return;
+    }
+
+    if (requestPath === '/api/intel/itinerary/generate' && requestMethod === 'POST') {
+      await fulfillJson(route, 200, {
+        data: buildTripPlannerItinerary(requestBody),
       });
       return;
     }
