@@ -18,7 +18,7 @@
           </div>
         </div>
 
-        <div class="discovery-shell__toolbar">
+        <div class="discovery-shell__toolbar" data-onboarding-target="explore-toolbar">
           <SearchBar
             v-model="searchQuery"
             class="discover-search"

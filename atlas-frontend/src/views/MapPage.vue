@@ -9,7 +9,7 @@
 
       <section class="map-workspace">
         <aside class="map-sidebar stagger-in" aria-label="Map workspace sidebar">
-          <article class="glass-panel sidebar-panel filter-panel" style="--atlas-stagger-index: 0;">
+          <article class="glass-panel sidebar-panel filter-panel" style="--atlas-stagger-index: 0;" data-onboarding-target="map-filters">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Explore categories</p>

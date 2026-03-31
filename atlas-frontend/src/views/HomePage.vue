@@ -11,7 +11,7 @@
         <div class="hero-overlay" aria-hidden="true" />
 
         <div class="hero-shell">
-          <div class="hero-panel glass-panel">
+          <div class="hero-panel glass-panel" data-onboarding-target="home-hero">
             <p class="eyebrow">Adventure platform</p>
             <h1 id="home-hero-title" class="hero-heading">
               <span>Your Adventures,</span>
@@ -29,6 +29,11 @@
                 Watch Demo
               </button>
             </div>
+
+            <button type="button" class="hero-tour-link" @click="startTour">
+              <AtlasIcon name="sparkle" label="Start the guided Atlas tour" />
+              <span>Take the guided tour</span>
+            </button>
           </div>
         </div>
       </section>
@@ -109,6 +114,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
@@ -118,12 +124,14 @@ import FeedItem from '@/components/social/FeedItem.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useFeedStore } from '@/stores/feed';
+import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 import { useReducedMotion } from '@/utils/motion';
 
 const spotsStore = useSpotsStore();
 const feedStore = useFeedStore();
+const onboardingStore = useOnboardingStore();
 const reducedMotion = useReducedMotion();
 const feedSectionRef = ref<HTMLElement | null>(null);
 const isBootstrapping = ref(true);
@@ -136,6 +144,10 @@ function scrollToFeed() {
     behavior: reducedMotion.value ? 'auto' : 'smooth',
     block: 'start',
   });
+}
+
+function startTour() {
+  onboardingStore.start();
 }
 
 onMounted(async () => {
@@ -336,6 +348,35 @@ onMounted(async () => {
   transform: translateY(0) scale(var(--motion-press-scale));
 }
 
+.hero-tour-link {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--accent-teal));
+  padding: 0;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.hero-tour-link:hover,
+.hero-tour-link:focus-visible {
+  color: var(--accent-teal);
+  transform: translateY(-1px);
+}
+
+.hero-tour-link:focus-visible {
+  outline: none;
+}
+
+.hero-tour-link .atlas-icon {
+  font-size: 1rem;
+}
+
 .spot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
@@ -380,7 +421,10 @@ onMounted(async () => {
   .hero-action,
   .hero-action:hover,
   .hero-action:focus-visible,
-  .hero-action:active {
+  .hero-action:active,
+  .hero-tour-link,
+  .hero-tour-link:hover,
+  .hero-tour-link:focus-visible {
     transform: none;
   }
 }
