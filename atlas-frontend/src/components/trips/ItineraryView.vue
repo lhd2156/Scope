@@ -14,7 +14,7 @@
         <div class="map-vignette" />
       </div>
 
-      <header class="overlay-card summary-card">
+      <header class="overlay-card summary-card" data-test="itinerary-summary-card">
         <div>
           <p class="eyebrow">AI itinerary</p>
           <h2>{{ displayedTitle }}</h2>
@@ -24,9 +24,9 @@
         </div>
 
         <div class="summary-metrics">
-          <span class="summary-pill">{{ itinerary.days.length }} day{{ itinerary.days.length === 1 ? '' : 's' }}</span>
-          <span class="summary-pill">{{ totalStops }} stops</span>
-          <span class="summary-pill summary-pill--accent">{{ currencyFormatter.format(itinerary.totalEstimatedCost) }}</span>
+          <span class="summary-pill" data-test="itinerary-summary-days">{{ itinerary.days.length }} day{{ itinerary.days.length === 1 ? '' : 's' }}</span>
+          <span class="summary-pill" data-test="itinerary-summary-stops">{{ totalStops }} stops</span>
+          <span class="summary-pill summary-pill--accent" data-test="itinerary-summary-cost">{{ currencyFormatter.format(itinerary.totalEstimatedCost) }}</span>
         </div>
       </header>
 
@@ -44,7 +44,7 @@
         <button class="invite-button" type="button">+ Invite</button>
       </aside>
 
-      <section class="overlay-card timeline-overlay">
+      <section class="overlay-card timeline-overlay" data-test="itinerary-timeline-overlay">
         <header class="timeline-header">
           <div>
             <p class="eyebrow">Day by day</p>
@@ -54,7 +54,7 @@
         </header>
 
         <div class="timeline-rail">
-          <article v-for="day in itinerary.days" :key="day.dayNumber" class="timeline-card">
+          <article v-for="day in itinerary.days" :key="day.dayNumber" class="timeline-card" data-test="itinerary-day-card">
             <div class="timeline-media">
               <LazyImage
                 :src="resolveDayImage(day)"

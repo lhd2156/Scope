@@ -123,6 +123,7 @@
 - [2026-03-30] ✅ For Atlas’s dark-mode/frontend color audits, keep `src/assets/tokens.css` as a runtime extension layer that `@import`s `atlas-assets/design-tokens.css` instead of duplicating palette hex locally, and derive runtime SEO theme-color tags from the live `--bg-primary` CSS variable so source-level zero-hex tests stay enforceable.
 
 - [2026-03-29] ⚠️ Atlas.Core should fail fast when `CORE_JWT_SECRET` is missing; do not keep fallback JWT secrets in `appsettings.json`, and lock the behavior with JwtTokenService coverage.
+- [2026-03-31] ⚠️ Atlas frontend’s trip planner title input is currently editable/local UI state, but the generated itinerary summary still follows the preview itinerary payload/preset; Playwright trip-flow coverage should assert custom trip naming on the planner form itself unless a persisted save flow explicitly wires that title into the itinerary response.
 
 ## Git & Workflow
 

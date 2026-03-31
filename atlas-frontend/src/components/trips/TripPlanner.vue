@@ -125,7 +125,7 @@
           <p class="eyebrow">Route order</p>
           <h3>Draggable destination list</h3>
         </div>
-        <button type="button" class="button button-secondary add-stop-button" @click="handleAddSuggestedStop">
+        <button type="button" class="button button-secondary add-stop-button" data-test="trip-add-stop" @click="handleAddSuggestedStop">
           <AtlasIcon name="plus" label="Add suggested stop" />
           <span>Add stop</span>
         </button>
@@ -151,11 +151,13 @@
         Reorder the route before generating. The current destination search steers Atlas, while the stop stack defines the adventure arc.
       </p>
 
-      <div class="stop-list" role="list">
+      <div class="stop-list" data-test="trip-stop-list" role="list">
         <article
           v-for="stop in destinationStops"
           :key="stop.spotId"
           class="stop-card glass-panel"
+          data-test="trip-stop-card"
+          :data-stop-id="stop.spotId"
           :class="{ 'is-dragging': draggingStopId === stop.spotId, 'is-drop-target': dropTargetStopId === stop.spotId }"
           draggable="true"
           role="listitem"
@@ -216,6 +218,7 @@
             :key="option.value"
             type="button"
             class="pace-card glass-panel"
+            :data-test="`trip-pace-${option.value}`"
             :class="{ active: form.pace === option.value }"
             @click="form.pace = option.value"
           >
