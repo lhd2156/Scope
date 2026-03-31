@@ -268,7 +268,7 @@
         </div>
       </div>
 
-      <button class="submit-button" data-test="trip-planner-submit" type="submit" :disabled="submitting">
+      <button class="submit-button" data-test="trip-planner-submit" data-onboarding-target="planner-submit" type="submit" :disabled="submitting">
         <AtlasIcon name="sparkle" label="Generate AI itinerary" />
         <span>{{ submitting ? 'Generating AI Itinerary…' : 'Generate AI Itinerary' }}</span>
       </button>
