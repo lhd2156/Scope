@@ -10,12 +10,13 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
-import { useOnboardingStore } from '@/stores/onboarding';
+import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
 
 describe('useOnboardingStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     authStoreMock.isAuthenticated = false;
+    localStorage.clear();
   });
 
   it('returns the public walkthrough by default', () => {
@@ -27,6 +28,7 @@ describe('useOnboardingStore', () => {
       'map-filters',
     ]);
     expect(onboardingStore.totalSteps).toBe(3);
+    expect(onboardingStore.hasCompleted).toBe(false);
   });
 
   it('adds the planner step for authenticated travelers', () => {
@@ -42,11 +44,11 @@ describe('useOnboardingStore', () => {
     expect(onboardingStore.totalSteps).toBe(4);
   });
 
-  it('starts, advances, rewinds, and finishes the walkthrough', () => {
+  it('starts, advances, rewinds, and persists completion when the walkthrough finishes', () => {
     authStoreMock.isAuthenticated = true;
     const onboardingStore = useOnboardingStore();
 
-    onboardingStore.start();
+    expect(onboardingStore.startIfPending()).toBe(true);
     expect(onboardingStore.isActive).toBe(true);
     expect(onboardingStore.activeStep?.id).toBe('home-hero');
 
@@ -56,11 +58,32 @@ describe('useOnboardingStore', () => {
     onboardingStore.previous();
     expect(onboardingStore.activeStep?.id).toBe('home-hero');
 
-    onboardingStore.start('planner-submit');
+    onboardingStore.goToStep(3);
     expect(onboardingStore.activeStep?.id).toBe('planner-submit');
 
     onboardingStore.next();
     expect(onboardingStore.isActive).toBe(false);
     expect(onboardingStore.activeStepIndex).toBe(0);
+    expect(onboardingStore.hasCompleted).toBe(true);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
+  });
+
+  it('persists skip state and allows a replay after completion is reset', () => {
+    const onboardingStore = useOnboardingStore();
+
+    onboardingStore.start();
+    onboardingStore.skip();
+
+    expect(onboardingStore.hasCompleted).toBe(true);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
+    expect(onboardingStore.startIfPending()).toBe(false);
+
+    onboardingStore.resetCompletion();
+    expect(onboardingStore.hasCompleted).toBe(false);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBeNull();
+
+    expect(onboardingStore.restart('map-filters')).toBe(true);
+    expect(onboardingStore.isActive).toBe(true);
+    expect(onboardingStore.activeStep?.id).toBe('map-filters');
   });
 });

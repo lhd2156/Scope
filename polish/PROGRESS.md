@@ -21,11 +21,11 @@ You assist the Frontend agent (Prism) on Phase 13. Your focus is sub-tasks 13.14
 
 ## Phase 19: Onboarding & Tutorial Flow — Polish Track 🎓
 - [x] 19.1 — Create OnboardingOverlay.vue with step-by-step spotlight tutorial
-- [ ] 19.7 — Add progress dots, skip button, persist onboarding completion in localStorage
+- [x] 19.7 — Add progress dots, skip button, persist onboarding completion in localStorage
 - [ ] 19.9 — Create premium empty-state illustrations/panels for pages with no user content
 
-## Current Task: Phase 19.7 — Add progress dots, skip button, persist onboarding completion in localStorage
-## Last Updated: 2026-03-31T00:20:31Z
+## Current Task: Phase 19.9 — Create premium empty-state illustrations/panels for pages with no user content
+## Last Updated: 2026-03-31T01:30:00Z
 
 ## Log
 - Phase 10 completed with 6 tasks. See git history.
@@ -37,3 +37,4 @@ You assist the Frontend agent (Prism) on Phase 13. Your focus is sub-tasks 13.14
 - 2026-03-30T12:20:40Z: DONE — 13.17 Demo Photo Integration completed by standardizing demo travel media helpers to spec-compliant Unsplash/pravatar URLs, adding resilient image fallbacks in LazyImage plus photo-safe SpotCard/TripCard/FeedItem/ProfileHeader surfaces, routing sanitizers and mock data through real media defaults so Explore/Profile/Map/Trip surfaces stop hitting empty-image states, and adding Vitest coverage for fallback media behavior. Validation: `npm run build`; `npm run test`.
 - 2026-03-30T23:29:14Z: DONE — 13.18 Final Visual QA completed by hardening the Phase 13 Playwright screenshot sweep to use a stable Chromium launch path, mock authenticated sessions, disable realtime noise during capture, scroll nested overflow regions so virtualized/lazy media render before screenshots, and regenerate a full 30-shot dark/light artifact set in `atlas-frontend/test-results/phase13-visual-qa/` with zero console errors, page errors, or unexpected route landings. Validation: `npm run build`; `npm run test`; `npm run qa:visual:phase13`.
 - 2026-03-31T00:20:31Z: DONE — 19.1 Onboarding overlay completed by adding a routed `OnboardingOverlay.vue` spotlight walkthrough with guided steps for Home, Explore, Map, and authenticated Trip Planner surfaces, wiring a guided-tour launcher into the home hero, tagging stable tutorial targets across the frontend, and locking the flow with dedicated onboarding store + overlay Vitest coverage. Validation: `npm run build`; `npm run test`.
+- 2026-03-31T01:30:00Z: DONE — 19.7 onboarding persistence controls completed by versioning onboarding completion in localStorage, auto-starting the walkthrough once from Home when it is still pending, adding progress dots plus a skip action to the overlay, switching the home CTA into replay mode after completion, and expanding Vitest coverage for overlay progress, skip persistence, store replay flows, and the home auto-start hook. Validation: `npm run build`; `npm run test`.

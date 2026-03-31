@@ -5,9 +5,9 @@
         v-if="onboardingStore.isActive && activeStep"
         class="onboarding-overlay"
         role="presentation"
-        @click.self="onboardingStore.finish"
+        @click.self="handleSkip"
       >
-        <div class="onboarding-overlay__scrim" aria-hidden="true" @click="onboardingStore.finish" />
+        <div class="onboarding-overlay__scrim" aria-hidden="true" @click="handleSkip" />
 
         <div
           v-if="spotlightStyle"
@@ -32,6 +32,28 @@
           </p>
           <h2 :id="titleId" class="onboarding-overlay__title">{{ activeStep.title }}</h2>
           <p :id="descriptionId" class="onboarding-overlay__description">{{ activeStep.description }}</p>
+
+          <div class="onboarding-overlay__meta">
+            <div class="onboarding-overlay__progress" role="list" aria-label="Onboarding progress">
+              <button
+                v-for="(step, index) in onboardingStore.steps"
+                :key="step.id"
+                type="button"
+                class="onboarding-overlay__progress-dot"
+                :class="{
+                  'is-active': index === onboardingStore.activeStepIndex,
+                  'is-complete': index < onboardingStore.activeStepIndex,
+                }"
+                :aria-label="`Go to step ${index + 1}: ${step.title}`"
+                :aria-current="index === onboardingStore.activeStepIndex ? 'step' : undefined"
+                @click="handleDotSelect(index)"
+              />
+            </div>
+
+            <button type="button" class="onboarding-overlay__skip" @click="handleSkip">
+              Skip tour
+            </button>
+          </div>
 
           <div class="onboarding-overlay__actions">
             <button
@@ -131,7 +153,7 @@ function resolveFallbackCardPosition(): CardPosition {
 
 function resolveCardPosition(rect: SpotlightRect): CardPosition {
   const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - (VIEWPORT_MARGIN * 2));
-  const estimatedHeight = cardRef.value?.offsetHeight ?? 240;
+  const estimatedHeight = cardRef.value?.offsetHeight ?? 280;
   const stepPlacement = activeStep.value?.placement ?? 'bottom';
 
   if (window.innerWidth <= MOBILE_BREAKPOINT) {
@@ -228,7 +250,7 @@ async function syncPresentation(): Promise<void> {
     try {
       await router.push({ name: currentStep.routeName });
     } catch {
-      onboardingStore.finish();
+      onboardingStore.close();
       return;
     }
 
@@ -305,6 +327,14 @@ function handleAdvance(): void {
   onboardingStore.next();
 }
 
+function handleSkip(): void {
+  onboardingStore.skip();
+}
+
+function handleDotSelect(stepIndex: number): void {
+  onboardingStore.goToStep(stepIndex);
+}
+
 function handleKeydown(event: KeyboardEvent): void {
   if (!onboardingStore.isActive) {
     return;
@@ -312,7 +342,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
   if (event.key === 'Escape') {
     event.preventDefault();
-    onboardingStore.finish();
+    handleSkip();
     return;
   }
 
@@ -464,6 +494,72 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
+.onboarding-overlay__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.onboarding-overlay__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onboarding-overlay__progress-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--text-primary) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-border) 90%, transparent);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.onboarding-overlay__progress-dot:hover,
+.onboarding-overlay__progress-dot:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent-teal) 28%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 35%, transparent),
+    0 0 0 0.2rem color-mix(in srgb, var(--accent-teal-light) 55%, transparent);
+}
+
+.onboarding-overlay__progress-dot.is-complete,
+.onboarding-overlay__progress-dot.is-active {
+  background: var(--accent-teal);
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.onboarding-overlay__progress-dot.is-active {
+  transform: scale(1.16);
+}
+
+.onboarding-overlay__skip {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.onboarding-overlay__skip:hover,
+.onboarding-overlay__skip:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
 .onboarding-overlay__actions {
   display: flex;
   flex-wrap: wrap;
@@ -496,6 +592,19 @@ onBeforeUnmount(() => {
   .onboarding-overlay__spotlight {
     animation: none;
   }
+
+  .onboarding-overlay__progress-dot,
+  .onboarding-overlay__skip {
+    transition-duration: 1ms;
+  }
+
+  .onboarding-overlay__progress-dot:hover,
+  .onboarding-overlay__progress-dot:focus-visible,
+  .onboarding-overlay__skip:hover,
+  .onboarding-overlay__skip:focus-visible,
+  .onboarding-overlay__progress-dot.is-active {
+    transform: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -506,12 +615,20 @@ onBeforeUnmount(() => {
     bottom: var(--space-4) !important;
   }
 
+  .onboarding-overlay__meta,
   .onboarding-overlay__actions {
     justify-content: stretch;
   }
 
+  .onboarding-overlay__progress {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .onboarding-overlay__skip,
   .onboarding-overlay__actions .button {
     flex: 1 1 12rem;
+    text-align: center;
   }
 }
 

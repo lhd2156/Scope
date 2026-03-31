@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { feedStoreMock, spotsStoreMock } = vi.hoisted(() => ({
+const { feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi.hoisted(() => ({
   feedStoreMock: {
     items: [
       {
@@ -28,6 +28,11 @@ const { feedStoreMock, spotsStoreMock } = vi.hoisted(() => ({
     error: '',
     fetchTrending: vi.fn().mockResolvedValue(undefined),
   },
+  onboardingStoreMock: {
+    hasCompleted: false,
+    start: vi.fn(),
+    startIfPending: vi.fn(),
+  },
 }));
 
 vi.mock('@/stores/feed', () => ({
@@ -36,6 +41,10 @@ vi.mock('@/stores/feed', () => ({
 
 vi.mock('@/stores/spots', () => ({
   useSpotsStore: () => spotsStoreMock,
+}));
+
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => onboardingStoreMock,
 }));
 
 import HomePage from '@/views/HomePage.vue';
@@ -74,8 +83,11 @@ describe('HomePage', () => {
       },
     ];
     spotsStoreMock.error = '';
+    onboardingStoreMock.hasCompleted = false;
     feedStoreMock.fetchFeed.mockReset().mockResolvedValue(undefined);
     spotsStoreMock.fetchTrending.mockReset().mockResolvedValue(undefined);
+    onboardingStoreMock.start.mockReset();
+    onboardingStoreMock.startIfPending.mockReset();
   });
 
   it('loads the premium hero, featured spots, and network activity into the landing page', async () => {
@@ -92,6 +104,7 @@ describe('HomePage', () => {
 
     await flushPromises();
 
+    expect(onboardingStoreMock.startIfPending).toHaveBeenCalledTimes(1);
     expect(spotsStoreMock.fetchTrending).toHaveBeenCalledTimes(1);
     expect(feedStoreMock.fetchFeed).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.hero-band').exists()).toBe(true);
@@ -100,10 +113,24 @@ describe('HomePage', () => {
     expect(wrapper.text()).toContain('Discover, plan, and share unforgettable journeys with Atlas.');
     expect(wrapper.text()).toContain('Start Exploring');
     expect(wrapper.text()).toContain('Watch Demo');
+    expect(wrapper.text()).toContain('Take the guided tour');
     expect(wrapper.text()).toContain('Trending Destinations');
     expect(wrapper.text()).toContain('Activity Feed');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(2);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(1);
+  });
+
+  it('switches the onboarding call-to-action copy to replay mode after completion', async () => {
+    onboardingStoreMock.hasCompleted = true;
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Replay the guided tour');
   });
 
   it('shows reusable skeleton loaders while the home workspace is hydrating', () => {

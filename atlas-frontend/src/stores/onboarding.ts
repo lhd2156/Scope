@@ -3,25 +3,87 @@ import { defineStore } from 'pinia';
 import { resolveOnboardingSteps } from '@/config/onboarding';
 import { useAuthStore } from '@/stores/auth';
 
+export const ONBOARDING_COMPLETION_STORAGE_KEY = 'atlas-onboarding-completed-v1';
+const ONBOARDING_COMPLETION_VALUE = 'completed';
+
+function readPersistedCompletion(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY) === ONBOARDING_COMPLETION_VALUE;
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedCompletion(isCompleted: boolean): void {
+  try {
+    if (isCompleted) {
+      localStorage.setItem(ONBOARDING_COMPLETION_STORAGE_KEY, ONBOARDING_COMPLETION_VALUE);
+      return;
+    }
+
+    localStorage.removeItem(ONBOARDING_COMPLETION_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures and keep the in-memory onboarding state usable.
+  }
+}
+
 export const useOnboardingStore = defineStore('onboarding', () => {
   const authStore = useAuthStore();
   const isActive = ref(false);
   const activeStepIndex = ref(0);
+  const hasCompleted = ref(readPersistedCompletion());
+  const hasStartedThisSession = ref(false);
   const steps = computed(() => resolveOnboardingSteps(authStore.isAuthenticated));
   const activeStep = computed(() => steps.value[activeStepIndex.value] ?? null);
   const totalSteps = computed(() => steps.value.length);
 
-  function start(stepId?: string): void {
+  function resolveRequestedIndex(stepId?: string): number {
     if (!steps.value.length) {
-      return;
+      return 0;
     }
 
     const requestedIndex = stepId
       ? steps.value.findIndex((step) => step.id === stepId)
       : 0;
 
-    activeStepIndex.value = requestedIndex >= 0 ? requestedIndex : 0;
+    return requestedIndex >= 0 ? requestedIndex : 0;
+  }
+
+  function close(): void {
+    isActive.value = false;
+    activeStepIndex.value = 0;
+  }
+
+  function persistCompletion(): void {
+    hasCompleted.value = true;
+    writePersistedCompletion(true);
+  }
+
+  function start(stepId?: string): boolean {
+    if (!steps.value.length) {
+      return false;
+    }
+
+    activeStepIndex.value = resolveRequestedIndex(stepId);
+    hasStartedThisSession.value = true;
     isActive.value = true;
+    return true;
+  }
+
+  function startIfPending(stepId?: string): boolean {
+    if (hasCompleted.value || hasStartedThisSession.value || isActive.value) {
+      return false;
+    }
+
+    return start(stepId);
+  }
+
+  function goToStep(stepIndex: number): void {
+    if (!isActive.value || !steps.value.length) {
+      return;
+    }
+
+    activeStepIndex.value = Math.min(Math.max(stepIndex, 0), steps.value.length - 1);
   }
 
   function next(): void {
@@ -46,15 +108,30 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function finish(): void {
-    isActive.value = false;
-    activeStepIndex.value = 0;
+    persistCompletion();
+    close();
+  }
+
+  function skip(): void {
+    persistCompletion();
+    close();
+  }
+
+  function resetCompletion(): void {
+    hasCompleted.value = false;
+    writePersistedCompletion(false);
+  }
+
+  function restart(stepId?: string): boolean {
+    resetCompletion();
+    return start(stepId);
   }
 
   watch(
     steps,
     (nextSteps) => {
       if (!nextSteps.length) {
-        finish();
+        close();
         return;
       }
 
@@ -71,9 +148,16 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     activeStep,
     steps,
     totalSteps,
+    hasCompleted,
     start,
+    startIfPending,
+    goToStep,
     next,
     previous,
+    close,
     finish,
+    skip,
+    resetCompletion,
+    restart,
   };
 });
