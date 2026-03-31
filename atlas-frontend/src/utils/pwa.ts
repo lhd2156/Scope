@@ -10,8 +10,9 @@ interface RegisterAppServiceWorkerOptions {
 export async function registerAppServiceWorker(options: RegisterAppServiceWorkerOptions = {}): Promise<ServiceWorkerRegistration | null> {
   const isProduction = options.isProduction ?? import.meta.env.PROD;
   const serviceWorkerContainer = options.serviceWorkerContainer ?? (typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined);
+  const serviceWorkerDisabled = import.meta.env.VITE_DISABLE_SERVICE_WORKER === 'true';
 
-  if (!isProduction || !serviceWorkerContainer) {
+  if (!isProduction || !serviceWorkerContainer || serviceWorkerDisabled) {
     return null;
   }
 

@@ -55,10 +55,11 @@ export default defineConfig({
     timeout: 300 * 1000,
     env: {
       ...process.env,
-      VITE_ENABLE_AUTH_MOCK_FALLBACK: process.env.VITE_ENABLE_AUTH_MOCK_FALLBACK ?? 'true',
+      VITE_ENABLE_AUTH_MOCK_FALLBACK: process.env.VITE_ENABLE_AUTH_MOCK_FALLBACK ?? 'false',
       VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? '/',
       VITE_CSRF_ENDPOINT: process.env.VITE_CSRF_ENDPOINT ?? '',
       VITE_MAPBOX_TOKEN: process.env.VITE_MAPBOX_TOKEN ?? '',
+      VITE_DISABLE_SERVICE_WORKER: process.env.VITE_DISABLE_SERVICE_WORKER ?? 'true',
     },
   },
 });
