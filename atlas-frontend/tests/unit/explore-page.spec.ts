@@ -3,6 +3,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
+const ORIGINAL_INNER_WIDTH = window.innerWidth;
+
 const { fixtureSpots, listSpotsMock, listTrendingSpotsMock } = vi.hoisted(() => ({
   fixtureSpots: [
     {
@@ -86,6 +88,14 @@ vi.mock('@/services/spotService', () => ({
 
 import ExplorePage from '@/views/ExplorePage.vue';
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
+
 function buildRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -109,7 +119,9 @@ function buildRouter() {
   });
 }
 
-async function mountExplorePage() {
+async function mountExplorePage(options?: { mobile?: boolean }) {
+  setViewportWidth(options?.mobile ? 390 : 1280);
+
   const router = buildRouter();
   await router.push('/explore');
   await router.isReady();
@@ -137,6 +149,7 @@ describe('ExplorePage', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
+    setViewportWidth(1280);
     listSpotsMock.mockReset().mockResolvedValue({
       data: fixtureSpots,
       meta: {
@@ -151,6 +164,10 @@ describe('ExplorePage', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  afterAll(() => {
+    setViewportWidth(ORIGINAL_INNER_WIDTH);
   });
 
   it('filters the explore grid by search query and category chips', async () => {
@@ -193,6 +210,14 @@ describe('ExplorePage', () => {
     expect(trendingItems[0].text()).toContain('#1');
     expect(trendingItems[0].text()).toContain('Sunset Rooftop Tacos');
     expect(trendingItems[1].text()).toContain('#2');
+  });
+
+  it('switches to the mobile single-column explore layout at the shared breakpoint', async () => {
+    const { wrapper } = await mountExplorePage({ mobile: true });
+
+    expect(wrapper.get('.explore-page').attributes('data-explore-layout')).toBe('mobile');
+    expect(wrapper.get('[data-test="explore-results"]').attributes('data-results-layout')).toBe('single-column');
+    expect(wrapper.get('[data-test="trending-panel"]').attributes('data-trending-layout')).toBe('stacked');
   });
 
   it('shows reusable spot skeletons while the first explore fetch is in flight', async () => {

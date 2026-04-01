@@ -1,6 +1,6 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack explore-page">
+    <div class="page-container page-stack explore-page" :data-explore-layout="isMobileExploreLayout ? 'mobile' : 'desktop'">
       <section class="glass-panel discovery-shell">
         <div class="discovery-shell__header">
           <div class="discovery-shell__copy">
@@ -121,7 +121,12 @@
           <div v-if="showResultsSkeleton" class="results-masonry" role="status" aria-live="polite" aria-label="Loading explore results">
             <SpotCardSkeleton v-for="index in 6" :key="`explore-skeleton-${index}`" />
           </div>
-          <div v-else-if="displayedSpots.length" class="results-masonry stagger-in" data-test="explore-results">
+          <div
+            v-else-if="displayedSpots.length"
+            class="results-masonry stagger-in"
+            data-test="explore-results"
+            :data-results-layout="isMobileExploreLayout ? 'single-column' : 'masonry'"
+          >
             <RouterLink
               v-for="(spot, index) in displayedSpots"
               :key="spot.id"
@@ -179,7 +184,11 @@
           </EmptyStatePanel>
         </div>
 
-        <aside class="glass-panel trending-panel">
+        <aside
+          class="glass-panel trending-panel"
+          data-test="trending-panel"
+          :data-trending-layout="isMobileExploreLayout ? 'stacked' : 'sidebar'"
+        >
           <div class="trending-panel__header">
             <p class="eyebrow">Trending</p>
             <h2>Trending This Week</h2>
@@ -233,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
@@ -245,6 +254,8 @@ import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 
+const EXPLORE_MOBILE_BREAKPOINT = 640;
+
 const spotsStore = useSpotsStore();
 const route = useRoute();
 const router = useRouter();
@@ -254,6 +265,7 @@ const selectedCategory = ref<SpotCategory | ''>('');
 const selectedCity = ref('');
 const selectedVibe = ref('');
 const isFetchingInitialResults = ref(true);
+const isMobileExploreLayout = ref(false);
 
 function formatCategory(category: SpotCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -299,6 +311,18 @@ function toggleCity(city: string) {
 
 function toggleVibe(vibe: string) {
   selectedVibe.value = selectedVibe.value === vibe ? '' : vibe;
+}
+
+function resolveIsMobileExploreLayout(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.innerWidth <= EXPLORE_MOBILE_BREAKPOINT;
+}
+
+function syncMobileExploreLayout() {
+  isMobileExploreLayout.value = resolveIsMobileExploreLayout();
 }
 
 function clearFilters() {
@@ -411,6 +435,9 @@ watch(searchQuery, (query) => {
 });
 
 onMounted(async () => {
+  syncMobileExploreLayout();
+  window.addEventListener('resize', syncMobileExploreLayout, { passive: true });
+
   try {
     await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
   } catch {
@@ -418,6 +445,10 @@ onMounted(async () => {
   } finally {
     isFetchingInitialResults.value = false;
   }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncMobileExploreLayout);
 });
 </script>
 
@@ -732,6 +763,25 @@ h2 {
   flex-shrink: 0;
 }
 
+.explore-page[data-explore-layout='mobile'] {
+  gap: var(--space-4);
+}
+
+.explore-page[data-explore-layout='mobile'] :is(.category-strip, .quick-filter-row, .active-filter-row) {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  padding-inline: var(--space-1);
+  margin-inline: calc(var(--space-1) * -1);
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.explore-page[data-explore-layout='mobile'] :is(.filter-chip, .quick-filter-chip, .active-pill) {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
 .error-panel {
   padding: var(--space-5);
 }
@@ -753,6 +803,10 @@ h2 {
 .results-masonry {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+.results-masonry[data-results-layout='single-column'] {
+  grid-template-columns: 1fr;
 }
 
 .explore-card {
@@ -898,6 +952,10 @@ h2 {
   top: calc(var(--shell-content-top) + var(--space-4));
 }
 
+.trending-panel[data-trending-layout='stacked'] {
+  position: static;
+}
+
 .trending-list {
   list-style: none;
   padding: 0;
@@ -981,11 +1039,7 @@ h2 {
 
 @media (max-width: 1080px) {
   .explore-layout,
-  .quick-filter-grid,
-  .discovery-shell__header,
-  .discovery-shell__toolbar,
-  .discovery-shell__footer,
-  .results-header {
+  .quick-filter-grid {
     grid-template-columns: 1fr;
   }
 
@@ -996,6 +1050,11 @@ h2 {
   .quick-filter-group__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .discovery-shell__metric {
+    width: 100%;
+    min-width: 0;
   }
 
   .trending-panel {
@@ -1022,9 +1081,102 @@ h2 {
   .trending-item {
     align-items: flex-start;
   }
+}
+
+@media (max-width: 640px) {
+  .discovery-shell {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .discovery-shell__copy,
+  .quick-filter-group,
+  .trending-panel {
+    gap: var(--space-4);
+  }
+
+  h1 {
+    max-width: 12ch;
+    font-size: clamp(1.9rem, 9vw, 2.75rem);
+  }
+
+  .section-copy,
+  .results-note,
+  .metric-meta,
+  .trending-item__copy span {
+    font-size: var(--font-size-small);
+  }
+
+  .discover-search {
+    min-height: 3.75rem;
+    padding-inline: var(--space-3);
+  }
+
+  .discover-search :deep(.search-bar__input) {
+    font-size: var(--font-size-small);
+  }
+
+  .quick-filter-group {
+    padding: var(--space-3);
+  }
+
+  .explore-layout,
+  .explore-main,
+  .results-masonry,
+  .trending-panel,
+  .trending-list {
+    gap: var(--space-4);
+  }
+
+  .results-header {
+    gap: var(--space-2);
+  }
+
+  .explore-card {
+    border-radius: var(--radius-xl);
+  }
+
+  .explore-card__media {
+    aspect-ratio: 5 / 4;
+    min-height: 20rem;
+  }
+
+  .explore-card__chrome,
+  .explore-card__overlay {
+    inset-inline: var(--space-3);
+  }
+
+  .explore-card__chrome {
+    top: var(--space-3);
+  }
+
+  .explore-card__overlay {
+    bottom: var(--space-3);
+  }
+
+  .explore-card__overlay h3 {
+    max-width: 13ch;
+    font-size: clamp(1.45rem, 6vw, 1.8rem);
+  }
+
+  .trending-panel {
+    padding: var(--space-4);
+  }
 
   .trending-item {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: auto 4.5rem minmax(0, 1fr);
+    justify-content: stretch;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .trending-item__rank {
+    min-width: 2rem;
+  }
+
+  .trending-item__thumb-wrap {
+    width: 4.5rem;
   }
 }
 
