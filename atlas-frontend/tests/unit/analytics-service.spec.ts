@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AnalyticsRecord } from '@/services/analyticsService';
-import { createAnalyticsService } from '@/services/analyticsService';
+import { createAnalyticsService, trackRoutePageView } from '@/services/analyticsService';
 
 describe('analyticsService', () => {
   it('queues page views until consent is granted and a provider is available', () => {
@@ -114,6 +114,36 @@ describe('analyticsService', () => {
 
     expect(providerTrack).not.toHaveBeenCalled();
     expect(analytics.getQueuedRecords()).toHaveLength(0);
+  });
+
+  it('maps router locations into canonical page-view payloads', () => {
+    const tracker = {
+      trackPageView: vi.fn(),
+    };
+
+    trackRoutePageView({
+      path: '/settings',
+      fullPath: '/settings?tab=privacy',
+      name: 'settings',
+      meta: {
+        title: 'Account settings | Atlas',
+        requiresAuth: true,
+        guestOnly: false,
+        robots: 'noindex,nofollow',
+      },
+    } as Parameters<typeof trackRoutePageView>[0], tracker);
+
+    expect(tracker.trackPageView).toHaveBeenCalledWith({
+      path: '/settings',
+      title: 'Account settings | Atlas',
+      routeName: 'settings',
+      search: '?tab=privacy',
+      metadata: {
+        requiresAuth: true,
+        guestOnly: false,
+        robots: 'noindex,nofollow',
+      },
+    });
   });
 
   it('flushes registered providers on demand', () => {

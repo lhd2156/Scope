@@ -1,3 +1,5 @@
+import type { RouteLocationNormalizedLoaded } from 'vue-router';
+
 export type AnalyticsConsentState = 'unknown' | 'granted' | 'denied';
 
 export interface AnalyticsMetadata {
@@ -125,6 +127,30 @@ function resolveReferrer(referrer?: string): string | undefined {
 
   return document.referrer || undefined;
 }
+
+function resolveRouteMetaString(route: RouteLocationNormalizedLoaded, value: unknown): string | undefined {
+  if (typeof value === 'function') {
+    const resolvedValue = (value as (currentRoute: RouteLocationNormalizedLoaded) => string | false)(route);
+    return typeof resolvedValue === 'string' ? resolvedValue : undefined;
+  }
+
+  return typeof value === 'string' ? value : undefined;
+}
+
+function resolveRouteSearch(route: RouteLocationNormalizedLoaded): string | undefined {
+  const queryStartIndex = route.fullPath.indexOf('?');
+
+  if (queryStartIndex < 0) {
+    return undefined;
+  }
+
+  const hashStartIndex = route.fullPath.indexOf('#', queryStartIndex);
+  return hashStartIndex >= 0
+    ? route.fullPath.slice(queryStartIndex, hashStartIndex)
+    : route.fullPath.slice(queryStartIndex);
+}
+
+export type AnalyticsPageViewTracker = Pick<AnalyticsService, 'trackPageView'>;
 
 export class AnalyticsService {
   private enabled: boolean;
@@ -279,6 +305,25 @@ export class AnalyticsService {
       void provider.track(record);
     }
   }
+}
+
+export function trackRoutePageView(
+  route: RouteLocationNormalizedLoaded,
+  tracker?: AnalyticsPageViewTracker,
+): void {
+  const resolvedTracker = tracker ?? analyticsService;
+
+  resolvedTracker.trackPageView({
+    path: route.path,
+    title: resolveRouteMetaString(route, route.meta.title),
+    routeName: typeof route.name === 'string' ? route.name : undefined,
+    search: resolveRouteSearch(route),
+    metadata: {
+      requiresAuth: Boolean(route.meta.requiresAuth),
+      guestOnly: Boolean(route.meta.guestOnly),
+      robots: resolveRouteMetaString(route, route.meta.robots),
+    },
+  });
 }
 
 export function createAnalyticsService(options: AnalyticsServiceOptions = {}): AnalyticsService {

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { resolveNavigationGuard } from '@/router/guards';
 import { lazyView } from '@/router/lazyView';
+import { trackRoutePageView } from '@/services/analyticsService';
 
 const HomePage = lazyView(() => import('@/views/HomePage.vue'));
 const ExplorePage = lazyView(() => import('@/views/ExplorePage.vue'));
@@ -183,5 +184,12 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => resolveNavigationGuard(to));
+router.afterEach((to, _from, failure) => {
+  if (failure) {
+    return;
+  }
+
+  trackRoutePageView(to);
+});
 
 export default router;
