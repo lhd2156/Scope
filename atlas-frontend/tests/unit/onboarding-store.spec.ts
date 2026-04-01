@@ -72,6 +72,22 @@ describe('useOnboardingStore', () => {
     expect(onboardingStore.totalSteps).toBe(5);
   });
 
+  it('hydrates completion from localStorage and keeps auto-start disabled until replay', () => {
+    localStorage.setItem(ONBOARDING_COMPLETION_STORAGE_KEY, 'completed');
+
+    const onboardingStore = useOnboardingStore();
+
+    expect(onboardingStore.hasCompleted).toBe(true);
+    expect(onboardingStore.startIfPending()).toBe(false);
+    expect(onboardingStore.isActive).toBe(false);
+
+    expect(onboardingStore.restart('home-hero')).toBe(true);
+    expect(onboardingStore.hasCompleted).toBe(false);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBeNull();
+    expect(onboardingStore.isActive).toBe(true);
+    expect(onboardingStore.activeStep?.id).toBe('home-hero');
+  });
+
   it('starts, advances, rewinds, and persists completion when the walkthrough finishes', () => {
     authStoreMock.isAuthenticated = true;
     const onboardingStore = useOnboardingStore();
