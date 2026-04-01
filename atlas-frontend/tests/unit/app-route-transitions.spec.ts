@@ -26,12 +26,21 @@ const notificationsStoreMock = {
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
+const toastStoreMock = {
+  showError: vi.fn().mockReturnValue('toast-session-expired'),
+  dismissToast: vi.fn(),
+};
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
 vi.mock('@/stores/notifications', () => ({
   useNotificationsStore: () => notificationsStoreMock,
+}));
+
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
 }));
 
 import App from '@/App.vue';
@@ -45,6 +54,8 @@ describe('App route transitions', () => {
     notificationsStoreMock.fetchNotifications.mockClear();
     notificationsStoreMock.connect.mockClear();
     notificationsStoreMock.disconnect.mockClear();
+    toastStoreMock.showError.mockClear();
+    toastStoreMock.dismissToast.mockClear();
   });
 
   it('keys the route transition by path so query-only updates do not remount the active page', async () => {
@@ -82,7 +93,9 @@ describe('App route transitions', () => {
       global: {
         plugins: [router],
         stubs: {
-          Toast: { template: '<div />' },
+          CookieConsentBanner: { template: '<div data-test="cookie-consent-banner-stub" />' },
+          OnboardingOverlay: { template: '<div data-test="onboarding-overlay-stub" />' },
+          ToastViewport: { template: '<div data-test="toast-viewport-stub" />' },
         },
       },
     });

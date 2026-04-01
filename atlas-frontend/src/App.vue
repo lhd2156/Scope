@@ -15,6 +15,7 @@
   </RouterView>
 
   <OnboardingOverlay />
+  <CookieConsentBanner />
   <ToastViewport />
 </template>
 
@@ -22,6 +23,7 @@
 import { computed, onBeforeUnmount, watch } from 'vue';
 import { RouterView, useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary.vue';
+import CookieConsentBanner from '@/components/common/CookieConsentBanner.vue';
 import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
 import ToastViewport from '@/components/common/ToastViewport.vue';
 import { useAuthStore } from '@/stores/auth';

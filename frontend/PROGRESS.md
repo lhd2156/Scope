@@ -113,7 +113,7 @@
 - [x] 18.2 - Track page views on every route change via router afterEach
 - [x] 18.3 - Track key user actions: spot create, trip create, AI itinerary generate, friend add, theme toggle
 - [x] 18.4 - Track engagement metrics: time on page, scroll depth, map interaction count
-- [ ] 18.5 - Add privacy-compliant cookie consent banner component
+- [x] 18.5 - Add privacy-compliant cookie consent banner component
 - [ ] 18.6 - Add opt-out toggle in Settings page
 
 ### Phase 19: Onboarding & Tutorial Flow 🎓
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 18.5 - Add privacy-compliant cookie consent banner component
-## Last Updated: 2026-04-01T06:08:00-05:00
+## Current Task: Phase 18.6 - Add opt-out toggle in Settings page
+## Last Updated: 2026-04-01T06:29:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -198,3 +198,4 @@
 - 2026-04-01T05:01:00-05:00: COMPLETED Phase 18.2 - wired the shared analytics service into the real router with a `router.afterEach` page-view hook, centralized route-to-payload mapping in `trackRoutePageView`, and added focused service/router coverage so successful navigations record canonical path, route name, title, query string, and route privacy metadata without duplicating SEO logic. Validation: `npm.cmd run test -- tests/unit/analytics-service.spec.ts tests/unit/router-navigation.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (91 files / 240 tests). Next up: Phase 18.3 key interaction tracking.
 - 2026-04-01T05:31:00-05:00: COMPLETED Phase 18.3 - extended the analytics abstraction with dedicated key-action helpers, instrumented spot creation, trip creation, user-triggered AI itinerary generation, friend acceptance, and theme changes without counting automatic planner bootstraps, and added focused integration coverage across services/stores/views/theme utilities so the shared telemetry contract stays stable. Validation: `npm.cmd run test -- tests/unit/analytics-service.spec.ts tests/unit/spots-store.spec.ts tests/unit/trips-store.spec.ts tests/unit/friends-page.spec.ts tests/unit/theme.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (91 files / 243 tests). Next up: Phase 18.4 engagement metrics.
 - 2026-04-01T06:08:00-05:00: COMPLETED Phase 18.4 - added a shared page-engagement tracker that attaches once at the router boundary, measures visible time on page, captures max scroll depth across each route session, aggregates map-workspace interactions into a single `map_interaction_count` metric, and flushes cleanly on route changes/page hide so analytics stay session-based instead of click-by-click noise. Validation: `npm.cmd run test -- tests/unit/analytics-service.spec.ts tests/unit/router-navigation.spec.ts tests/unit/map-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (91 files / 245 tests). Next up: Phase 18.5 cookie consent banner.
+- 2026-04-01T06:29:00-05:00: COMPLETED Phase 18.5 - added a privacy-compliant `CookieConsentBanner.vue` to the global app shell, introduced a shared `analyticsConsent` utility that persists granted/denied choices to localStorage and syncs them into the analytics service during bootstrap, and covered the banner plus consent hydration flow with focused unit specs while keeping future Settings opt-out work on the same source of truth. Validation: `npm.cmd run test -- tests/unit/analytics-consent.spec.ts tests/unit/cookie-consent-banner.spec.ts tests/unit/app-session.spec.ts tests/unit/app-route-transitions.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 250 tests). Next up: Phase 18.6 analytics opt-out in Settings.

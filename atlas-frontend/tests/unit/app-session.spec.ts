@@ -74,6 +74,8 @@ describe('App session edge cases', () => {
       global: {
         plugins: [router],
         stubs: {
+          CookieConsentBanner: { template: '<div data-test="cookie-consent-banner-stub" />' },
+          OnboardingOverlay: { template: '<div data-test="onboarding-overlay-stub" />' },
           ToastViewport: { template: '<div data-test="toast-viewport-stub" />' },
         },
       },
