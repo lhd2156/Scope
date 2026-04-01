@@ -1,5 +1,10 @@
 <template>
-  <form class="trip-planner glass-panel" data-test="trip-planner" @submit.prevent="handleSubmit">
+  <form
+    class="trip-planner glass-panel"
+    data-test="trip-planner"
+    :data-planner-mode="mobileWizard ? 'mobile-wizard' : 'desktop'"
+    @submit.prevent="handleSubmit"
+  >
     <header class="planner-header">
       <div class="planner-copy">
         <p class="eyebrow">Trip planner</p>
@@ -15,267 +20,353 @@
       </div>
     </header>
 
-    <section class="planner-grid">
-      <article class="planner-card glass-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Core brief</p>
-            <h3>Title, dates, and destination</h3>
-          </div>
-          <span class="meta-pill">{{ form.groupSize }} traveler{{ form.groupSize === 1 ? '' : 's' }}</span>
-        </div>
+    <section class="planner-step-shell" :data-step-state="getWizardStepState(1)">
+      <button
+        v-if="mobileWizard"
+        type="button"
+        class="planner-step-toggle"
+        data-test="planner-step-1-toggle"
+        :aria-expanded="String(isWizardStepActive(1))"
+        aria-controls="planner-step-1-content"
+        @click="emitWizardStepChange(1)"
+      >
+        <span class="planner-step-toggle__index">1</span>
+        <span class="planner-step-toggle__copy">
+          <span class="eyebrow">Step 1</span>
+          <strong>Trip brief</strong>
+          <span>{{ stepOneSummary }}</span>
+        </span>
+        <span class="planner-step-toggle__state">{{ getWizardStepLabel(1) }}</span>
+      </button>
 
-        <div class="field-grid">
-          <label class="field field-full">
-            <span>Trip title</span>
-            <div class="input-shell">
-              <AtlasIcon name="route" label="Trip title" />
-              <input v-model.trim="tripTitle" data-test="trip-title-input" type="text" maxlength="120" placeholder="Epic Patagonia Trek" />
+      <div id="planner-step-1-content" class="planner-step-content" data-test="planner-step-1-content" v-show="!mobileWizard || isWizardStepActive(1)">
+        <section class="planner-grid">
+          <article class="planner-card glass-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Core brief</p>
+                <h3>Title, dates, and destination</h3>
+              </div>
+              <span class="meta-pill">{{ form.groupSize }} traveler{{ form.groupSize === 1 ? '' : 's' }}</span>
             </div>
-          </label>
 
-          <label class="field">
-            <span>Start date</span>
-            <div class="input-shell">
-              <AtlasIcon name="calendar" label="Start date" />
-              <input v-model="form.startDate" type="date" />
+            <div class="field-grid">
+              <label class="field field-full">
+                <span>Trip title</span>
+                <div class="input-shell">
+                  <AtlasIcon name="route" label="Trip title" />
+                  <input v-model.trim="tripTitle" data-test="trip-title-input" type="text" maxlength="120" placeholder="Epic Patagonia Trek" />
+                </div>
+              </label>
+
+              <label class="field">
+                <span>Start date</span>
+                <div class="input-shell">
+                  <AtlasIcon name="calendar" label="Start date" />
+                  <input v-model="form.startDate" type="date" />
+                </div>
+                <small v-if="errors.startDate" class="field-error">{{ errors.startDate }}</small>
+              </label>
+
+              <label class="field">
+                <span>End date</span>
+                <div class="input-shell">
+                  <AtlasIcon name="calendar" label="End date" />
+                  <input v-model="form.endDate" type="date" />
+                </div>
+                <small v-if="errors.endDate" class="field-error">{{ errors.endDate }}</small>
+              </label>
+
+              <label class="field field-full">
+                <span>Destination search</span>
+                <div class="input-shell">
+                  <AtlasIcon name="search" label="Destination search" />
+                  <input
+                    v-model.trim="form.destination"
+                    data-test="destination-input"
+                    type="text"
+                    maxlength="120"
+                    placeholder="Patagonia, Chile + Argentina"
+                  />
+                </div>
+                <small v-if="errors.destination" class="field-error">{{ errors.destination }}</small>
+              </label>
             </div>
-            <small v-if="errors.startDate" class="field-error">{{ errors.startDate }}</small>
-          </label>
+          </article>
 
-          <label class="field">
-            <span>End date</span>
-            <div class="input-shell">
-              <AtlasIcon name="calendar" label="End date" />
-              <input v-model="form.endDate" type="date" />
+          <article class="planner-card glass-panel budget-card">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Budget dual-handle</p>
+                <h3>{{ budgetRangeLabel }}</h3>
+              </div>
+              <span class="meta-pill">{{ dailyBudgetLabel }}</span>
             </div>
-            <small v-if="errors.endDate" class="field-error">{{ errors.endDate }}</small>
-          </label>
 
-          <label class="field field-full">
-            <span>Destination search</span>
-            <div class="input-shell">
-              <AtlasIcon name="search" label="Destination search" />
+            <div class="budget-slider-shell" aria-hidden="true">
+              <div class="budget-slider-track" />
               <input
-                v-model.trim="form.destination"
-                data-test="destination-input"
-                type="text"
-                maxlength="120"
-                placeholder="Patagonia, Chile + Argentina"
+                class="budget-slider"
+                type="range"
+                :min="resolvedBudgetBounds.min"
+                :max="resolvedBudgetBounds.max"
+                :step="resolvedBudgetBounds.step"
+                :value="budgetFloor"
+                @input="handleBudgetFloorInput"
+              />
+              <input
+                class="budget-slider"
+                type="range"
+                :min="resolvedBudgetBounds.min"
+                :max="resolvedBudgetBounds.max"
+                :step="resolvedBudgetBounds.step"
+                :value="budgetCeiling"
+                @input="handleBudgetCeilingInput"
               />
             </div>
-            <small v-if="errors.destination" class="field-error">{{ errors.destination }}</small>
-          </label>
-        </div>
-      </article>
 
-      <article class="planner-card glass-panel budget-card">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Budget dual-handle</p>
-            <h3>{{ budgetRangeLabel }}</h3>
-          </div>
-          <span class="meta-pill">{{ dailyBudgetLabel }}</span>
-        </div>
-
-        <div class="budget-slider-shell" aria-hidden="true">
-          <div class="budget-slider-track" />
-          <input
-            class="budget-slider"
-            type="range"
-            :min="resolvedBudgetBounds.min"
-            :max="resolvedBudgetBounds.max"
-            :step="resolvedBudgetBounds.step"
-            :value="budgetFloor"
-            @input="handleBudgetFloorInput"
-          />
-          <input
-            class="budget-slider"
-            type="range"
-            :min="resolvedBudgetBounds.min"
-            :max="resolvedBudgetBounds.max"
-            :step="resolvedBudgetBounds.step"
-            :value="budgetCeiling"
-            @input="handleBudgetCeilingInput"
-          />
-        </div>
-
-        <div class="budget-scale">
-          <span>{{ currencyFormatter.format(resolvedBudgetBounds.min) }}</span>
-          <span>{{ currencyFormatter.format(resolvedBudgetBounds.max) }}</span>
-        </div>
-
-        <div class="budget-summary">
-          <article class="budget-metric glass-panel">
-            <span>Budget floor</span>
-            <strong>{{ currencyFormatter.format(budgetFloor) }}</strong>
-          </article>
-          <article class="budget-metric glass-panel">
-            <span>Budget ceiling</span>
-            <strong>{{ currencyFormatter.format(budgetCeiling) }}</strong>
-          </article>
-        </div>
-        <small v-if="errors.budget" class="field-error">{{ errors.budget }}</small>
-      </article>
-    </section>
-
-    <section class="planner-card glass-panel stop-section">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Route order</p>
-          <h3>Draggable destination list</h3>
-        </div>
-        <button type="button" class="button button-secondary add-stop-button" data-test="trip-add-stop" @click="handleAddSuggestedStop">
-          <AtlasIcon name="plus" label="Add suggested stop" />
-          <span>Add stop</span>
-        </button>
-      </div>
-
-      <div class="stop-tools">
-        <label class="field stop-search">
-          <span>Add a destination</span>
-          <div class="input-shell">
-            <AtlasIcon name="search" label="Search suggested stops" />
-            <input
-              v-model.trim="destinationSearch"
-              data-test="destination-search-input"
-              type="text"
-              maxlength="120"
-              placeholder="Search suggested stops"
-            />
-          </div>
-        </label>
-      </div>
-
-      <p class="section-copy stop-copy">
-        Reorder the route before generating. The current destination search steers Atlas, while the stop stack defines the adventure arc.
-      </p>
-
-      <div class="stop-list" data-test="trip-stop-list" role="list">
-        <article
-          v-for="stop in destinationStops"
-          :key="stop.spotId"
-          class="stop-card glass-panel"
-          data-test="trip-stop-card"
-          :data-stop-id="stop.spotId"
-          :class="{ 'is-dragging': draggingStopId === stop.spotId, 'is-drop-target': dropTargetStopId === stop.spotId }"
-          draggable="true"
-          role="listitem"
-          @dragstart="handleDragStart(stop.spotId, $event)"
-          @dragenter.prevent="handleDragEnter(stop.spotId)"
-          @dragover.prevent
-          @drop="handleDrop(stop.spotId)"
-          @dragend="handleDragEnd"
-        >
-          <button type="button" class="drag-handle" aria-label="Drag stop">
-            <AtlasIcon name="grip" label="Drag stop" />
-          </button>
-
-          <div class="stop-media">
-            <LazyImage :src="stop.photoUrl ?? ''" :alt="stop.title" class="stop-image" />
-          </div>
-
-          <div class="stop-body">
-            <div class="stop-heading">
-              <div>
-                <span class="stop-day">Day {{ stop.dayNumber ?? 1 }}</span>
-                <strong>{{ stop.title }}</strong>
-              </div>
-              <span class="badge stop-badge" :class="`badge-${stop.category}`">{{ categoryLabels[stop.category] }}</span>
+            <div class="budget-scale">
+              <span>{{ currencyFormatter.format(resolvedBudgetBounds.min) }}</span>
+              <span>{{ currencyFormatter.format(resolvedBudgetBounds.max) }}</span>
             </div>
 
-            <p class="stop-meta">
-              {{ stop.city }} · {{ stop.timeSlot ?? 'Flexible' }} · {{ currencyFormatter.format(stop.estimatedCost ?? 0) }}
-            </p>
-            <p class="stop-notes">{{ stop.notes }}</p>
-          </div>
+            <div class="budget-summary">
+              <article class="budget-metric glass-panel">
+                <span>Budget floor</span>
+                <strong>{{ currencyFormatter.format(budgetFloor) }}</strong>
+              </article>
+              <article class="budget-metric glass-panel">
+                <span>Budget ceiling</span>
+                <strong>{{ currencyFormatter.format(budgetCeiling) }}</strong>
+              </article>
+            </div>
+            <small v-if="errors.budget" class="field-error">{{ errors.budget }}</small>
+          </article>
+        </section>
 
-          <button
-            type="button"
-            class="stop-action"
-            :disabled="destinationStops.length === 1"
-            :aria-label="`Remove ${stop.title}`"
-            @click="removeStop(stop.spotId)"
-          >
-            <AtlasIcon name="close" label="Remove stop" />
+        <div v-if="mobileWizard" class="planner-step-actions">
+          <button type="button" class="button button-secondary step-action-button" data-test="planner-step-1-continue" @click="emitWizardStepChange(2)">
+            Continue to route
           </button>
-        </article>
+        </div>
       </div>
     </section>
 
-    <section class="planner-grid planner-grid--secondary">
-      <article class="planner-card glass-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Pace</p>
-            <h3>How intense should the route feel?</h3>
-          </div>
-        </div>
-
-        <div class="pace-grid">
-          <button
-            v-for="option in paceOptions"
-            :key="option.value"
-            type="button"
-            class="pace-card glass-panel"
-            :data-test="`trip-pace-${option.value}`"
-            :class="{ active: form.pace === option.value }"
-            @click="form.pace = option.value"
-          >
-            <strong>{{ option.label }}</strong>
-            <span>{{ option.copy }}</span>
-          </button>
-        </div>
-      </article>
-
-      <article class="planner-card glass-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Interests</p>
-            <h3>Tell Atlas what should dominate the route</h3>
-          </div>
-          <span class="meta-pill">{{ form.interests.length }} selected</span>
-        </div>
-
-        <div class="chip-grid">
-          <button
-            v-for="category in categories"
-            :key="category"
-            type="button"
-            class="interest-chip"
-            :class="[
-              `badge-${category}`,
-              {
-                active: form.interests.includes(category),
-              },
-            ]"
-            @click="toggleCategory(category)"
-          >
-            <AtlasIcon :name="category === 'other' ? 'pin' : category" :label="categoryLabels[category]" />
-            <span>{{ categoryLabels[category] }}</span>
-          </button>
-        </div>
-        <small v-if="errors.interests" class="field-error">{{ errors.interests }}</small>
-      </article>
-    </section>
-
-    <footer class="planner-footer">
-      <div class="planner-summary glass-panel">
-        <div>
-          <span>Destination</span>
-          <strong>{{ destinationLabel }}</strong>
-        </div>
-        <div>
-          <span>Interests</span>
-          <strong>{{ interestsLabel }}</strong>
-        </div>
-      </div>
-
-      <button class="submit-button" data-test="trip-planner-submit" data-onboarding-target="planner-submit" type="submit" :disabled="submitting">
-        <AtlasIcon name="sparkle" label="Generate AI itinerary" />
-        <span>{{ submitting ? 'Generating AI Itinerary…' : 'Generate AI Itinerary' }}</span>
+    <section class="planner-step-shell" :data-step-state="getWizardStepState(2)">
+      <button
+        v-if="mobileWizard"
+        type="button"
+        class="planner-step-toggle"
+        data-test="planner-step-2-toggle"
+        :aria-expanded="String(isWizardStepActive(2))"
+        aria-controls="planner-step-2-content"
+        @click="emitWizardStepChange(2)"
+      >
+        <span class="planner-step-toggle__index">2</span>
+        <span class="planner-step-toggle__copy">
+          <span class="eyebrow">Step 2</span>
+          <strong>Route order</strong>
+          <span>{{ stepTwoSummary }}</span>
+        </span>
+        <span class="planner-step-toggle__state">{{ getWizardStepLabel(2) }}</span>
       </button>
-    </footer>
+
+      <div id="planner-step-2-content" class="planner-step-content" data-test="planner-step-2-content" v-show="!mobileWizard || isWizardStepActive(2)">
+        <section class="planner-card glass-panel stop-section">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Route order</p>
+              <h3>Draggable destination list</h3>
+            </div>
+            <button type="button" class="button button-secondary add-stop-button" data-test="trip-add-stop" @click="handleAddSuggestedStop">
+              <AtlasIcon name="plus" label="Add suggested stop" />
+              <span>Add stop</span>
+            </button>
+          </div>
+
+          <div class="stop-tools">
+            <label class="field stop-search">
+              <span>Add a destination</span>
+              <div class="input-shell">
+                <AtlasIcon name="search" label="Search suggested stops" />
+                <input
+                  v-model.trim="destinationSearch"
+                  data-test="destination-search-input"
+                  type="text"
+                  maxlength="120"
+                  placeholder="Search suggested stops"
+                />
+              </div>
+            </label>
+          </div>
+
+          <p class="section-copy stop-copy">
+            Reorder the route before generating. The current destination search steers Atlas, while the stop stack defines the adventure arc.
+          </p>
+
+          <div class="stop-list" data-test="trip-stop-list" role="list">
+            <article
+              v-for="stop in destinationStops"
+              :key="stop.spotId"
+              class="stop-card glass-panel"
+              data-test="trip-stop-card"
+              :data-stop-id="stop.spotId"
+              :class="{ 'is-dragging': draggingStopId === stop.spotId, 'is-drop-target': dropTargetStopId === stop.spotId }"
+              draggable="true"
+              role="listitem"
+              @dragstart="handleDragStart(stop.spotId, $event)"
+              @dragenter.prevent="handleDragEnter(stop.spotId)"
+              @dragover.prevent
+              @drop="handleDrop(stop.spotId)"
+              @dragend="handleDragEnd"
+            >
+              <button type="button" class="drag-handle" aria-label="Drag stop">
+                <AtlasIcon name="grip" label="Drag stop" />
+              </button>
+
+              <div class="stop-media">
+                <LazyImage :src="stop.photoUrl ?? ''" :alt="stop.title" class="stop-image" />
+              </div>
+
+              <div class="stop-body">
+                <div class="stop-heading">
+                  <div>
+                    <span class="stop-day">Day {{ stop.dayNumber ?? 1 }}</span>
+                    <strong>{{ stop.title }}</strong>
+                  </div>
+                  <span class="badge stop-badge" :class="`badge-${stop.category}`">{{ categoryLabels[stop.category] }}</span>
+                </div>
+
+                <p class="stop-meta">
+                  {{ stop.city }} · {{ stop.timeSlot ?? 'Flexible' }} · {{ currencyFormatter.format(stop.estimatedCost ?? 0) }}
+                </p>
+                <p class="stop-notes">{{ stop.notes }}</p>
+              </div>
+
+              <button
+                type="button"
+                class="stop-action"
+                :disabled="destinationStops.length === 1"
+                :aria-label="`Remove ${stop.title}`"
+                @click="removeStop(stop.spotId)"
+              >
+                <AtlasIcon name="close" label="Remove stop" />
+              </button>
+            </article>
+          </div>
+        </section>
+
+        <div v-if="mobileWizard" class="planner-step-actions planner-step-actions--split">
+          <button type="button" class="button button-secondary step-action-button" data-test="planner-step-2-back" @click="emitWizardStepChange(1)">
+            Back to brief
+          </button>
+          <button type="button" class="button button-secondary step-action-button" data-test="planner-step-2-continue" @click="emitWizardStepChange(3)">
+            Continue to trip vibe
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="planner-step-shell" :data-step-state="getWizardStepState(3)">
+      <button
+        v-if="mobileWizard"
+        type="button"
+        class="planner-step-toggle"
+        data-test="planner-step-3-toggle"
+        :aria-expanded="String(isWizardStepActive(3))"
+        aria-controls="planner-step-3-content"
+        @click="emitWizardStepChange(3)"
+      >
+        <span class="planner-step-toggle__index">3</span>
+        <span class="planner-step-toggle__copy">
+          <span class="eyebrow">Step 3</span>
+          <strong>Trip vibe</strong>
+          <span>{{ stepThreeSummary }}</span>
+        </span>
+        <span class="planner-step-toggle__state">{{ getWizardStepLabel(3) }}</span>
+      </button>
+
+      <div id="planner-step-3-content" class="planner-step-content" data-test="planner-step-3-content" v-show="!mobileWizard || isWizardStepActive(3)">
+        <section class="planner-grid planner-grid--secondary">
+          <article class="planner-card glass-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Pace</p>
+                <h3>How intense should the route feel?</h3>
+              </div>
+            </div>
+
+            <div class="pace-grid">
+              <button
+                v-for="option in paceOptions"
+                :key="option.value"
+                type="button"
+                class="pace-card glass-panel"
+                :data-test="`trip-pace-${option.value}`"
+                :class="{ active: form.pace === option.value }"
+                @click="form.pace = option.value"
+              >
+                <strong>{{ option.label }}</strong>
+                <span>{{ option.copy }}</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="planner-card glass-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Interests</p>
+                <h3>Tell Atlas what should dominate the route</h3>
+              </div>
+              <span class="meta-pill">{{ form.interests.length }} selected</span>
+            </div>
+
+            <div class="chip-grid">
+              <button
+                v-for="category in categories"
+                :key="category"
+                type="button"
+                class="interest-chip"
+                :class="[
+                  `badge-${category}`,
+                  {
+                    active: form.interests.includes(category),
+                  },
+                ]"
+                @click="toggleCategory(category)"
+              >
+                <AtlasIcon :name="category === 'other' ? 'pin' : category" :label="categoryLabels[category]" />
+                <span>{{ categoryLabels[category] }}</span>
+              </button>
+            </div>
+            <small v-if="errors.interests" class="field-error">{{ errors.interests }}</small>
+          </article>
+        </section>
+
+        <footer class="planner-footer" :class="{ 'planner-footer--mobile': mobileWizard }">
+          <div class="planner-summary glass-panel">
+            <div>
+              <span>Destination</span>
+              <strong>{{ destinationLabel }}</strong>
+            </div>
+            <div>
+              <span>Interests</span>
+              <strong>{{ interestsLabel }}</strong>
+            </div>
+          </div>
+
+          <div class="planner-footer-actions">
+            <button v-if="mobileWizard" type="button" class="button button-secondary step-action-button" data-test="planner-step-3-back" @click="emitWizardStepChange(2)">
+              Back to route
+            </button>
+            <button class="submit-button" data-test="trip-planner-submit" data-onboarding-target="planner-submit" type="submit" :disabled="submitting">
+              <AtlasIcon name="sparkle" label="Generate AI itinerary" />
+              <span>{{ submitting ? 'Generating AI Itinerary…' : 'Generate AI Itinerary' }}</span>
+            </button>
+          </div>
+        </footer>
+      </div>
+    </section>
   </form>
 </template>
 
@@ -294,6 +385,8 @@ interface PlannerErrors {
   groupSize?: string;
   interests?: string;
 }
+
+type PlannerWizardStep = 1 | 2 | 3 | 4;
 
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 const categoryLabels: Record<SpotCategory, string> = {
@@ -329,6 +422,8 @@ const props = withDefaults(
     stops?: TripSpot[];
     suggestedStops?: TripSpot[];
     submitting?: boolean;
+    mobileWizard?: boolean;
+    mobileActiveStep?: PlannerWizardStep;
   }>(),
   {
     initialValue: () => ({}),
@@ -338,6 +433,8 @@ const props = withDefaults(
     stops: () => [],
     suggestedStops: () => [],
     submitting: false,
+    mobileWizard: false,
+    mobileActiveStep: 1 as PlannerWizardStep,
   },
 );
 
@@ -345,6 +442,7 @@ const emit = defineEmits<{
   (event: 'submit', payload: TripPlannerInput): void;
   (event: 'update:stops', payload: TripSpot[]): void;
   (event: 'update:title', payload: string): void;
+  (event: 'wizard-step-change', payload: PlannerWizardStep): void;
 }>();
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -422,6 +520,64 @@ const destinationLabel = computed(() => form.destination.trim() || 'Choose a des
 const interestsLabel = computed(() => (form.interests.length ? form.interests.map((interest) => categoryLabels[interest]).join(', ') : 'Select at least one interest'));
 const budgetRangeLabel = computed(() => `${currencyFormatter.format(budgetFloor.value)} - ${currencyFormatter.format(budgetCeiling.value)}`);
 const dailyBudgetLabel = computed(() => `${currencyFormatter.format(dailyBudget.value)} / day`);
+const stepOneSummary = computed(() => `${destinationLabel.value} · ${tripLengthDays.value} day${tripLengthDays.value === 1 ? '' : 's'}`);
+const stepTwoSummary = computed(() => {
+  const stopCount = destinationStops.value.length;
+  const leadStop = destinationStops.value[0]?.title ?? 'Choose stops';
+  return `${stopCount} stop${stopCount === 1 ? '' : 's'} · ${leadStop}`;
+});
+const stepThreeSummary = computed(() => `${paceLabel.value} pace · ${form.interests.length} interest${form.interests.length === 1 ? '' : 's'}`);
+
+function clampWizardStep(step: number): PlannerWizardStep {
+  if (step <= 1) {
+    return 1;
+  }
+
+  if (step >= 4) {
+    return 4;
+  }
+
+  return step as PlannerWizardStep;
+}
+
+function isWizardStepActive(step: PlannerWizardStep): boolean {
+  return !props.mobileWizard || props.mobileActiveStep === step;
+}
+
+function getWizardStepState(step: PlannerWizardStep): 'desktop' | 'current' | 'complete' | 'upcoming' {
+  if (!props.mobileWizard) {
+    return 'desktop';
+  }
+
+  if (props.mobileActiveStep === step) {
+    return 'current';
+  }
+
+  return props.mobileActiveStep > step ? 'complete' : 'upcoming';
+}
+
+function getWizardStepLabel(step: PlannerWizardStep): string {
+  const stepState = getWizardStepState(step);
+
+  switch (stepState) {
+    case 'complete':
+      return 'Done';
+    case 'current':
+      return 'Current';
+    case 'upcoming':
+      return 'Next';
+    default:
+      return '';
+  }
+}
+
+function emitWizardStepChange(step: number): void {
+  if (!props.mobileWizard) {
+    return;
+  }
+
+  emit('wizard-step-change', clampWizardStep(step));
+}
 
 function buildTripTitle(destination?: string): string {
   const sanitizedDestination = destination?.trim();
@@ -630,11 +786,24 @@ function validatePlanner(): PlannerErrors {
   return nextErrors;
 }
 
+function resolveErrorStep(nextErrors: PlannerErrors): PlannerWizardStep {
+  if (nextErrors.destination || nextErrors.startDate || nextErrors.endDate || nextErrors.budget || nextErrors.groupSize) {
+    return 1;
+  }
+
+  if (nextErrors.interests) {
+    return 3;
+  }
+
+  return 1;
+}
+
 function handleSubmit(): void {
   const nextErrors = validatePlanner();
   errors.value = nextErrors;
 
   if (Object.keys(nextErrors).length > 0) {
+    emitWizardStepChange(resolveErrorStep(nextErrors));
     return;
   }
 
@@ -668,7 +837,10 @@ function handleSubmit(): void {
 .chip-grid,
 .planner-footer,
 .planner-summary,
-.budget-summary {
+.budget-summary,
+.planner-step-shell,
+.planner-step-content,
+.planner-step-toggle__copy {
   display: grid;
   gap: var(--space-4);
 }
@@ -682,7 +854,10 @@ function handleSubmit(): void {
 .panel-heading,
 .stop-heading,
 .stop-card,
-.planner-footer {
+.planner-footer,
+.planner-step-toggle,
+.planner-step-actions,
+.planner-footer-actions {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
@@ -690,7 +865,10 @@ function handleSubmit(): void {
 
 .planner-header,
 .panel-heading,
-.planner-footer {
+.planner-footer,
+.planner-step-toggle,
+.planner-step-actions,
+.planner-footer-actions {
   align-items: flex-start;
 }
 
@@ -715,7 +893,10 @@ function handleSubmit(): void {
 .budget-metric span,
 .budget-metric strong,
 .field span,
-.field-error {
+.field-error,
+.planner-step-toggle__copy strong,
+.planner-step-toggle__copy span,
+.planner-step-toggle__state {
   margin: 0;
 }
 
@@ -731,7 +912,9 @@ function handleSubmit(): void {
 .planner-summary span,
 .budget-metric span,
 .budget-scale span,
-.pace-card span {
+.pace-card span,
+.planner-step-toggle__copy > span:last-child,
+.planner-step-toggle__state {
   color: var(--text-secondary);
 }
 
@@ -755,6 +938,88 @@ function handleSubmit(): void {
 
 .meta-pill--accent {
   color: var(--accent-gold);
+}
+
+.planner-step-toggle {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  background: color-mix(in srgb, var(--glass-bg) 94%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.planner-step-toggle:hover,
+.planner-step-toggle:focus-visible {
+  transform: translateY(var(--motion-card-lift));
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  outline: none;
+}
+
+.planner-step-shell[data-step-state='current'] .planner-step-toggle {
+  border-color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--glass-bg));
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.planner-step-shell[data-step-state='complete'] .planner-step-toggle {
+  border-color: color-mix(in srgb, var(--accent-teal) 34%, var(--glass-border));
+}
+
+.planner-step-toggle__index {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 20%, var(--bg-primary));
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.planner-step-toggle__copy {
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.planner-step-toggle__copy strong {
+  color: var(--text-primary);
+}
+
+.planner-step-toggle__state {
+  align-self: center;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+}
+
+.planner-step-shell[data-step-state='complete'] .planner-step-toggle__state,
+.planner-step-shell[data-step-state='current'] .planner-step-toggle__state {
+  color: var(--accent-teal);
+}
+
+.planner-step-actions {
+  flex-wrap: wrap;
+}
+
+.planner-step-actions--split {
+  justify-content: space-between;
+}
+
+.step-action-button {
+  flex: 1;
+  min-width: 0;
 }
 
 .planner-grid {
@@ -1115,6 +1380,10 @@ function handleSubmit(): void {
   align-items: center;
 }
 
+.planner-footer--mobile {
+  align-items: stretch;
+}
+
 .planner-summary {
   flex: 1;
   display: grid;
@@ -1125,6 +1394,10 @@ function handleSubmit(): void {
 .planner-summary span {
   display: block;
   font-size: var(--font-size-small);
+}
+
+.planner-footer-actions {
+  flex-wrap: wrap;
 }
 
 .submit-button {
@@ -1188,7 +1461,9 @@ function handleSubmit(): void {
   .panel-heading,
   .planner-footer,
   .stop-card,
-  .stop-heading {
+  .stop-heading,
+  .planner-step-actions,
+  .planner-footer-actions {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1203,7 +1478,39 @@ function handleSubmit(): void {
     grid-template-columns: 1fr;
   }
 
-  .submit-button {
+  .submit-button,
+  .step-action-button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .trip-planner[data-planner-mode='mobile-wizard'] {
+    padding: var(--space-4);
+    gap: var(--space-5);
+  }
+
+  .trip-planner[data-planner-mode='mobile-wizard'] .planner-step-toggle {
+    border-radius: var(--radius-xl);
+  }
+
+  .trip-planner[data-planner-mode='mobile-wizard'] .planner-card {
+    padding: var(--space-4);
+  }
+
+  .trip-planner[data-planner-mode='mobile-wizard'] .planner-step-actions,
+  .trip-planner[data-planner-mode='mobile-wizard'] .planner-footer-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trip-planner[data-planner-mode='mobile-wizard'] .planner-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-planner[data-planner-mode='mobile-wizard'] .submit-button,
+  .trip-planner[data-planner-mode='mobile-wizard'] .step-action-button {
     width: 100%;
     min-width: 0;
   }
@@ -1218,7 +1525,8 @@ function handleSubmit(): void {
   .pace-card,
   .interest-chip,
   .planner-summary,
-  .submit-button {
+  .submit-button,
+  .planner-step-toggle {
     transition-duration: 1ms;
     animation: none;
   }
@@ -1235,7 +1543,9 @@ function handleSubmit(): void {
   .interest-chip.active,
   .drag-handle:hover,
   .stop-action:hover:not(:disabled),
-  .stop-action:focus-visible {
+  .stop-action:focus-visible,
+  .planner-step-toggle:hover,
+  .planner-step-toggle:focus-visible {
     transform: none;
   }
 
