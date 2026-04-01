@@ -104,7 +104,7 @@ describe('OnboardingOverlay', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders the current walkthrough step, spotlight, and progress dots', async () => {
+  it('renders the premium welcome intro with feature highlights and progress dots', async () => {
     const router = buildRouter();
     await router.push('/');
     await router.isReady();
@@ -125,10 +125,15 @@ describe('OnboardingOverlay', () => {
     onboardingStore.start();
     await settleOnboarding();
 
-    expect(wrapper.text()).toContain('Start on the home launchpad');
+    expect(wrapper.text()).toContain('Map every adventure before you ever leave home');
     expect(wrapper.text()).toContain('Step 1 of 4');
-    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
-    expect(wrapper.find('.onboarding-overlay__spotlight').attributes('style')).toContain('width: 548px;');
+    expect(wrapper.text()).toContain('Drop memorable pins');
+    expect(wrapper.text()).toContain('Explore the live map');
+    expect(wrapper.text()).toContain('Plan with Atlas Intel');
+    expect(wrapper.text()).toContain('Travel with your crew');
+    expect(wrapper.find('.onboarding-overlay__card--welcome').exists()).toBe(true);
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="onboarding-feature-card"]')).toHaveLength(4);
     expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(4);
     expect(wrapper.findAll('.onboarding-overlay__progress-dot.is-active')).toHaveLength(1);
     expect(wrapper.find('.onboarding-overlay__skip').exists()).toBe(true);

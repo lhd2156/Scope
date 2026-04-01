@@ -19,6 +19,9 @@
         <section
           ref="cardRef"
           class="onboarding-overlay__card glass-panel"
+          :class="{
+            'onboarding-overlay__card--welcome': isWelcomeStep,
+          }"
           :style="cardStyle"
           role="dialog"
           aria-modal="true"
@@ -27,11 +30,49 @@
           tabindex="-1"
           @click.stop
         >
+          <div v-if="isWelcomeStep" class="onboarding-overlay__welcome-brand">
+            <span class="onboarding-overlay__welcome-brand-mark" aria-hidden="true">
+              <AtlasIcon name="logo" />
+            </span>
+            <div class="onboarding-overlay__welcome-brand-copy">
+              <p class="onboarding-overlay__welcome-kicker">Guided welcome</p>
+              <p class="onboarding-overlay__welcome-caption">A premium tour of the map-first travel workspace</p>
+            </div>
+          </div>
+
           <p class="eyebrow onboarding-overlay__eyebrow">
             {{ activeStep.eyebrow }} · Step {{ onboardingStore.activeStepIndex + 1 }} of {{ onboardingStore.totalSteps }}
           </p>
           <h2 :id="titleId" class="onboarding-overlay__title">{{ activeStep.title }}</h2>
           <p :id="descriptionId" class="onboarding-overlay__description">{{ activeStep.description }}</p>
+
+          <div
+            v-if="activeStep.highlights?.length"
+            class="onboarding-overlay__highlights"
+            role="list"
+            aria-label="Atlas feature highlights"
+          >
+            <article
+              v-for="(highlight, index) in activeStep.highlights"
+              :key="highlight.title"
+              class="onboarding-overlay__highlight-card"
+              :style="{ '--onboarding-feature-index': index }"
+              role="listitem"
+              data-test="onboarding-feature-card"
+            >
+              <span class="onboarding-overlay__highlight-icon" aria-hidden="true">
+                <AtlasIcon :name="highlight.icon" />
+              </span>
+              <div class="onboarding-overlay__highlight-copy">
+                <h3 class="onboarding-overlay__highlight-title">{{ highlight.title }}</h3>
+                <p class="onboarding-overlay__highlight-description">{{ highlight.description }}</p>
+              </div>
+            </article>
+          </div>
+
+          <p v-if="isWelcomeStep" class="onboarding-overlay__welcome-note">
+            We will hop through the real Atlas surfaces next, so you can see where discovery, planning, and community tools live before you start exploring solo.
+          </p>
 
           <div class="onboarding-overlay__meta">
             <div class="onboarding-overlay__progress" role="list" aria-label="Onboarding progress">
@@ -77,6 +118,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useReducedMotion } from '@/utils/motion';
 
@@ -98,7 +140,10 @@ interface CardPosition {
 const VIEWPORT_MARGIN = 16;
 const SPOTLIGHT_PADDING = 14;
 const CARD_GAP = 20;
-const CARD_MAX_WIDTH = 360;
+const DEFAULT_CARD_MAX_WIDTH = 360;
+const WELCOME_CARD_MAX_WIDTH = 540;
+const DEFAULT_CARD_ESTIMATED_HEIGHT = 280;
+const WELCOME_CARD_ESTIMATED_HEIGHT = 480;
 const MOBILE_BREAKPOINT = 720;
 const ROUTE_WAIT_MS = 180;
 const TARGET_LOOKUP_ATTEMPTS = 12;
@@ -112,10 +157,23 @@ const cardRef = ref<HTMLElement | null>(null);
 const spotlightRect = ref<SpotlightRect | null>(null);
 const cardPosition = ref<CardPosition | null>(null);
 const activeStep = computed(() => onboardingStore.activeStep);
+const isWelcomeStep = computed(() => activeStep.value?.variant === 'welcome');
 const isLastStep = computed(() => onboardingStore.activeStepIndex === onboardingStore.totalSteps - 1);
 const titleId = `onboarding-overlay-title-${useId()}`;
 const descriptionId = `onboarding-overlay-description-${useId()}`;
 let syncSequence = 0;
+
+function resolveCardMaxWidth(): number {
+  return isWelcomeStep.value ? WELCOME_CARD_MAX_WIDTH : DEFAULT_CARD_MAX_WIDTH;
+}
+
+function resolveEstimatedCardHeight(): number {
+  if (cardRef.value?.offsetHeight) {
+    return cardRef.value.offsetHeight;
+  }
+
+  return isWelcomeStep.value ? WELCOME_CARD_ESTIMATED_HEIGHT : DEFAULT_CARD_ESTIMATED_HEIGHT;
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
@@ -143,7 +201,7 @@ function measureElement(element: HTMLElement): SpotlightRect {
 }
 
 function resolveFallbackCardPosition(): CardPosition {
-  const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - (VIEWPORT_MARGIN * 2));
+  const width = Math.min(resolveCardMaxWidth(), window.innerWidth - (VIEWPORT_MARGIN * 2));
   return {
     width,
     left: Math.max((window.innerWidth - width) / 2, VIEWPORT_MARGIN),
@@ -151,9 +209,32 @@ function resolveFallbackCardPosition(): CardPosition {
   };
 }
 
+function resolveStandaloneCardPosition(): CardPosition {
+  const width = Math.min(resolveCardMaxWidth(), window.innerWidth - (VIEWPORT_MARGIN * 2));
+  const estimatedHeight = resolveEstimatedCardHeight();
+
+  if (window.innerWidth <= MOBILE_BREAKPOINT) {
+    return {
+      width,
+      left: Math.max((window.innerWidth - width) / 2, VIEWPORT_MARGIN),
+      bottom: VIEWPORT_MARGIN,
+    };
+  }
+
+  return {
+    width,
+    left: clamp((window.innerWidth - width) / 2, VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN),
+    top: clamp(
+      (window.innerHeight - estimatedHeight) / 2,
+      VIEWPORT_MARGIN,
+      window.innerHeight - estimatedHeight - VIEWPORT_MARGIN,
+    ),
+  };
+}
+
 function resolveCardPosition(rect: SpotlightRect): CardPosition {
-  const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - (VIEWPORT_MARGIN * 2));
-  const estimatedHeight = cardRef.value?.offsetHeight ?? 280;
+  const width = Math.min(resolveCardMaxWidth(), window.innerWidth - (VIEWPORT_MARGIN * 2));
+  const estimatedHeight = resolveEstimatedCardHeight();
   const stepPlacement = activeStep.value?.placement ?? 'bottom';
 
   if (window.innerWidth <= MOBILE_BREAKPOINT) {
@@ -265,6 +346,14 @@ async function syncPresentation(): Promise<void> {
     return;
   }
 
+  if (currentStep.showSpotlight === false) {
+    spotlightRect.value = null;
+    cardPosition.value = resolveStandaloneCardPosition();
+    await nextTick();
+    cardRef.value?.focus();
+    return;
+  }
+
   const target = await waitForTarget(currentStep.selector);
   if (syncId !== syncSequence) {
     return;
@@ -303,6 +392,12 @@ async function syncPresentation(): Promise<void> {
 
 function refreshLayout(): void {
   if (!onboardingStore.isActive || !activeStep.value) {
+    return;
+  }
+
+  if (activeStep.value.showSpotlight === false) {
+    spotlightRect.value = null;
+    cardPosition.value = resolveStandaloneCardPosition();
     return;
   }
 
@@ -374,7 +469,7 @@ const spotlightStyle = computed(() => {
 const cardStyle = computed(() => {
   const position = cardPosition.value ?? resolveFallbackCardPosition();
   return {
-    width: `${position.width ?? Math.min(CARD_MAX_WIDTH, window.innerWidth - (VIEWPORT_MARGIN * 2))}px`,
+    width: `${position.width ?? Math.min(resolveCardMaxWidth(), window.innerWidth - (VIEWPORT_MARGIN * 2))}px`,
     top: position.top === undefined ? 'auto' : `${position.top}px`,
     left: position.left === undefined ? 'auto' : `${position.left}px`,
     right: position.right === undefined ? 'auto' : `${position.right}px`,
@@ -479,6 +574,143 @@ onBeforeUnmount(() => {
     0 0 2rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
 }
 
+.onboarding-overlay__card--welcome {
+  gap: var(--space-5);
+  padding: clamp(var(--space-6), 4vw, var(--space-8));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 16%, transparent), transparent 46%),
+    linear-gradient(160deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-elevated) 94%, transparent));
+}
+
+.onboarding-overlay__card--welcome::before {
+  content: '';
+  position: absolute;
+  inset: auto -16% -34% 32%;
+  height: 16rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-teal) 24%, transparent), transparent 68%);
+  filter: blur(44px);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.onboarding-overlay__card--welcome > * {
+  position: relative;
+  z-index: 1;
+}
+
+.onboarding-overlay__welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.onboarding-overlay__welcome-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
+  color: var(--accent-teal);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 24%, transparent),
+    0 0 1.5rem color-mix(in srgb, var(--accent-teal) 24%, transparent);
+}
+
+.onboarding-overlay__welcome-brand-mark :deep(.atlas-icon) {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.onboarding-overlay__welcome-brand-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.onboarding-overlay__welcome-kicker,
+.onboarding-overlay__welcome-caption,
+.onboarding-overlay__welcome-note,
+.onboarding-overlay__highlight-title,
+.onboarding-overlay__highlight-description {
+  margin: 0;
+}
+
+.onboarding-overlay__welcome-kicker {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.onboarding-overlay__welcome-caption {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.onboarding-overlay__highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.onboarding-overlay__highlight-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
+    0 0.75rem 2rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
+}
+
+.onboarding-overlay__highlight-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  color: var(--accent-teal);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 24%, transparent);
+}
+
+.onboarding-overlay__highlight-icon :deep(.atlas-icon) {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.onboarding-overlay__highlight-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.onboarding-overlay__highlight-title {
+  font-size: 0.98rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.onboarding-overlay__highlight-description {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.onboarding-overlay__welcome-note {
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--accent-teal) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.6;
+}
+
 .onboarding-overlay__eyebrow,
 .onboarding-overlay__title,
 .onboarding-overlay__description {
@@ -581,6 +813,24 @@ onBeforeUnmount(() => {
   .onboarding-overlay__spotlight {
     animation: onboarding-spotlight-pulse 1.8s ease-in-out infinite;
   }
+
+  .onboarding-overlay__card--welcome::before {
+    animation: onboarding-aurora-drift 6s ease-in-out infinite;
+  }
+
+  .onboarding-overlay__welcome-brand,
+  .onboarding-overlay__welcome-note {
+    animation: onboarding-welcome-rise 0.55s ease both;
+  }
+
+  .onboarding-overlay__welcome-note {
+    animation-delay: 260ms;
+  }
+
+  .onboarding-overlay__highlight-card {
+    animation: onboarding-feature-enter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--onboarding-feature-index, 0) * 90ms + 120ms);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -589,7 +839,11 @@ onBeforeUnmount(() => {
     transition-duration: 1ms;
   }
 
-  .onboarding-overlay__spotlight {
+  .onboarding-overlay__spotlight,
+  .onboarding-overlay__card--welcome::before,
+  .onboarding-overlay__welcome-brand,
+  .onboarding-overlay__welcome-note,
+  .onboarding-overlay__highlight-card {
     animation: none;
   }
 
@@ -613,6 +867,14 @@ onBeforeUnmount(() => {
     left: var(--space-4) !important;
     width: auto !important;
     bottom: var(--space-4) !important;
+  }
+
+  .onboarding-overlay__welcome-brand {
+    align-items: flex-start;
+  }
+
+  .onboarding-overlay__highlights {
+    grid-template-columns: 1fr;
   }
 
   .onboarding-overlay__meta,
@@ -640,6 +902,41 @@ onBeforeUnmount(() => {
 
   50% {
     transform: scale(1.006);
+  }
+}
+
+@keyframes onboarding-feature-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-welcome-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-1.25rem, -0.75rem, 0) scale(1.06);
   }
 }
 </style>
