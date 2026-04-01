@@ -379,3 +379,33 @@ img {
     --section-gap: var(--section-gap-compact);
   }
 }
+
+/* Phase 17.1 — shared responsive breakpoint audit guardrails */
+@media (max-width: 1024px) {
+  :where(.page-container) {
+    width: min(100%, calc(100vw - (var(--space-5) * 2)));
+  }
+
+  :where(.page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.glass-panel) {
+    padding: var(--space-6);
+  }
+}
+
+@media (max-width: 640px) {
+  :where(.page-container) {
+    width: min(100%, calc(100vw - (var(--space-4) * 2)));
+  }
+
+  :where(.page-stack, .page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
+    gap: var(--space-4);
+  }
+
+  :where(.glass-panel) {
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+}
