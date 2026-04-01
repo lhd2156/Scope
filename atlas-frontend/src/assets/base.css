@@ -5,8 +5,15 @@
   color: var(--text-primary);
   --page-max-width: 1200px;
   --shell-side-padding: 1rem;
-  --shell-content-top: 6.75rem;
-  --shell-content-bottom: 3rem;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --shell-content-top-base: 6.75rem;
+  --shell-content-top: calc(var(--shell-content-top-base) + var(--safe-area-top));
+  --shell-content-bottom-base: 3rem;
+  --shell-content-bottom: calc(var(--shell-content-bottom-base) + var(--safe-area-bottom));
+  --shell-max-width-with-safe-area: calc(var(--page-max-width) + (var(--shell-side-padding) * 2) + var(--safe-area-left) + var(--safe-area-right));
   --section-gap: var(--section-gap-page);
 }
 
@@ -19,9 +26,12 @@ body,
 #app {
   margin: 0;
   min-height: 100%;
+  min-height: 100dvh;
 }
 
 html {
+  background: var(--bg-primary);
+  -webkit-text-size-adjust: 100%;
   scroll-padding-top: calc(var(--shell-content-top) + var(--space-4));
 }
 
@@ -36,6 +46,13 @@ body {
 
 .route-stage .layout-shell {
   min-height: 100vh;
+}
+
+.route-stage,
+.route-stage .layout-shell,
+.layout-shell,
+.layout-shell main {
+  min-height: 100dvh;
 }
 
 .route-fade-enter-active,
@@ -214,6 +231,17 @@ select {
   font: inherit;
 }
 
+button,
+a,
+[role='button'],
+summary {
+  touch-action: manipulation;
+}
+
+input[type='range'] {
+  touch-action: pan-x;
+}
+
 img {
   max-width: 100%;
   display: block;
@@ -241,9 +269,14 @@ img {
 }
 
 .page-container {
-  width: min(var(--page-max-width), calc(100% - (var(--shell-side-padding) * 2)));
+  width: 100%;
+  max-width: var(--shell-max-width-with-safe-area);
   margin: 0 auto;
-  padding: var(--section-gap-compact) 0 var(--shell-content-bottom);
+  padding:
+    var(--section-gap-compact)
+    calc(var(--shell-side-padding) + var(--safe-area-right))
+    var(--shell-content-bottom)
+    calc(var(--shell-side-padding) + var(--safe-area-left));
 }
 
 .layout-shell .page-container {
@@ -366,7 +399,7 @@ img {
 @media (max-width: 1120px) {
   :root {
     --shell-side-padding: 0.875rem;
-    --shell-content-top: 8.5rem;
+    --shell-content-top-base: 8.5rem;
     --section-gap: var(--section-gap-compact);
   }
 }
@@ -374,8 +407,8 @@ img {
 @media (max-width: 720px) {
   :root {
     --shell-side-padding: 0.75rem;
-    --shell-content-top: 11rem;
-    --shell-content-bottom: 2.5rem;
+    --shell-content-top-base: 11rem;
+    --shell-content-bottom-base: 2.5rem;
     --section-gap: var(--section-gap-compact);
   }
 }
@@ -383,7 +416,7 @@ img {
 /* Phase 17.1 - shared responsive breakpoint audit guardrails */
 @media (max-width: 1024px) {
   :where(.page-container) {
-    width: min(100%, calc(100vw - (var(--space-5) * 2)));
+    max-width: 100%;
   }
 
   :where(.page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
@@ -397,7 +430,7 @@ img {
 
 @media (max-width: 640px) {
   :where(.page-container) {
-    width: min(100%, calc(100vw - (var(--space-4) * 2)));
+    max-width: 100%;
   }
 
   :where(.page-stack, .page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
