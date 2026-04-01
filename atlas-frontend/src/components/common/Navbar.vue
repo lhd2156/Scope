@@ -737,7 +737,7 @@ onBeforeUnmount(() => {
   inset: 0 0 auto;
   z-index: var(--z-navbar);
   isolation: isolate;
-  padding: 0.85rem 0 0.7rem;
+  padding: calc(var(--safe-area-top) + 0.85rem) 0 0.7rem;
   border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 65%, transparent);
   background:
     linear-gradient(
@@ -762,7 +762,7 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: min(var(--page-max-width), calc(100vw - (var(--shell-side-padding) * 2)));
+  width: min(var(--shell-max-width-with-safe-area), 100vw);
   height: 1px;
   border-radius: var(--radius-full);
   background: linear-gradient(
@@ -778,7 +778,7 @@ onBeforeUnmount(() => {
 }
 
 .navbar--scrolled {
-  padding: 0.65rem 0 0.55rem;
+  padding: calc(var(--safe-area-top) + 0.65rem) 0 0.55rem;
   border-bottom-color: var(--glass-border);
   opacity: var(--motion-navbar-opacity-scrolled);
   background:
@@ -813,8 +813,10 @@ onBeforeUnmount(() => {
 }
 
 .navbar__inner {
-  width: min(var(--page-max-width), calc(100vw - (var(--shell-side-padding) * 2)));
+  width: 100%;
+  max-width: var(--shell-max-width-with-safe-area);
   margin: 0 auto;
+  padding: 0 calc(var(--shell-side-padding) + var(--safe-area-right)) 0 calc(var(--shell-side-padding) + var(--safe-area-left));
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(16rem, auto) auto;
   grid-template-areas: 'brand nav actions mobile';
@@ -1273,7 +1275,7 @@ onBeforeUnmount(() => {
     calc(env(safe-area-inset-top, 0px) + 4.85rem)
     max(var(--space-4), env(safe-area-inset-right, 0px))
     max(var(--space-4), env(safe-area-inset-bottom, 0px))
-    var(--space-4);
+    max(var(--space-4), env(safe-area-inset-left, 0px));
   background: color-mix(in srgb, var(--bg-primary) 42%, transparent);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
@@ -1627,7 +1629,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1024px) {
   .navbar {
-    padding-top: 0.75rem;
+    padding-top: calc(var(--safe-area-top) + 0.75rem);
   }
 
   .navbar__inner {
@@ -1691,7 +1693,7 @@ onBeforeUnmount(() => {
       calc(env(safe-area-inset-top, 0px) + 4.4rem)
       max(var(--space-3), env(safe-area-inset-right, 0px))
       max(var(--space-3), env(safe-area-inset-bottom, 0px))
-      var(--space-3);
+      max(var(--space-3), env(safe-area-inset-left, 0px));
   }
 
   .navbar__mobile-drawer {

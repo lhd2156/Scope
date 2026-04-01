@@ -625,10 +625,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .map-page {
-  width: calc(100vw - (var(--shell-side-padding) * 2));
+  width: 100%;
+  max-width: var(--shell-max-width-with-safe-area);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: calc(var(--shell-content-top) - var(--space-3)) 0 var(--space-6);
+  padding:
+    calc(var(--shell-content-top) - var(--space-3))
+    calc(var(--shell-side-padding) + var(--safe-area-right))
+    calc(var(--space-6) + var(--safe-area-bottom))
+    calc(var(--shell-side-padding) + var(--safe-area-left));
   display: grid;
   gap: var(--space-5);
 }
@@ -647,7 +653,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(20rem, 21.5rem) minmax(0, 1fr);
   gap: var(--space-4);
-  min-height: calc(100vh - var(--shell-content-top) - var(--space-5));
+  min-height: calc(100dvh - var(--shell-content-top) - var(--space-5));
   align-items: stretch;
 }
 
@@ -1138,7 +1144,7 @@ onBeforeUnmount(() => {
 }
 
 .map-stage {
-  min-height: calc(100vh - var(--shell-content-top) - var(--space-5));
+  min-height: calc(100dvh - var(--shell-content-top) - var(--space-5));
   padding: 0;
   overflow: hidden;
 }
@@ -1225,7 +1231,7 @@ onBeforeUnmount(() => {
   }
 
   .map-page--mobile .error-panel {
-    margin: 0 var(--space-3);
+    margin-inline: max(var(--space-3), var(--safe-area-left)) max(var(--space-3), var(--safe-area-right));
   }
 
   .map-workspace--mobile {
@@ -1248,6 +1254,14 @@ onBeforeUnmount(() => {
     border-radius: 0;
   }
 
+  .map-stage--mobile :deep(.map-controls) {
+    --atlas-map-controls-right: max(var(--space-3), var(--safe-area-right));
+    --atlas-map-controls-bottom: max(var(--space-3), var(--safe-area-bottom));
+    --atlas-map-controls-panel-right: max(var(--space-3), var(--safe-area-right));
+    --atlas-map-controls-panel-bottom: max(var(--space-3), var(--safe-area-bottom));
+    --atlas-map-controls-panel-left: max(var(--space-3), var(--safe-area-left));
+  }
+
   .map-sidebar--mobile {
     position: absolute;
     inset: auto 0 0;
@@ -1256,7 +1270,11 @@ onBeforeUnmount(() => {
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--space-3);
     height: calc(100% - var(--space-3));
-    padding: 0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    padding:
+      0
+      max(var(--space-3), var(--safe-area-right))
+      calc(var(--space-3) + var(--safe-area-bottom))
+      max(var(--space-3), var(--safe-area-left));
     transform: translateY(calc(100% - var(--atlas-mobile-sheet-visible) + var(--atlas-mobile-sheet-drag-offset, 0px)));
     transition: transform var(--transition-normal);
     will-change: transform;
