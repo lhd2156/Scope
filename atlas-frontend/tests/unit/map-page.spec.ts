@@ -124,6 +124,10 @@ function mountMapPage(options?: {
     global: {
       stubs: {
         AppShell: { template: '<div><slot /></div>' },
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="typeof to === \'string\' ? to : String(to)"><slot /></a>',
+        },
         MapView: options?.mapViewStub ?? {
           props: ['spots', 'routePoints', 'selectedSpotId'],
           template: '<div data-test="map-view-stub">{{ spots.length }} spots / {{ routePoints.length }} route points / {{ selectedSpotId }}</div>',
@@ -135,6 +139,58 @@ function mountMapPage(options?: {
 
 describe('MapPage', () => {
   beforeEach(() => {
+    spotsStoreMock.items = [
+      {
+        id: 'spot-1',
+        title: 'Sunset Rooftop Tacos',
+        description: 'Skyline tacos and late-night energy.',
+        latitude: 32.7555,
+        longitude: -97.3308,
+        category: 'food',
+        city: 'Fort Worth',
+        country: 'US',
+        vibe: 'electric',
+        rating: 4.8,
+        photoUrl: 'https://images.example.com/spot-1.jpg',
+      },
+      {
+        id: 'spot-2',
+        title: 'Botanic River Walk',
+        description: 'Greenway loop with river views.',
+        latitude: 32.749,
+        longitude: -97.363,
+        category: 'nature',
+        city: 'Fort Worth',
+        country: 'US',
+        vibe: 'calm',
+        rating: 4.7,
+        photoUrl: 'https://images.example.com/spot-2.jpg',
+      },
+    ];
+    tripsStoreMock.items = [
+      {
+        id: 'trip-1',
+        title: 'North Texas Night + Food Loop',
+        description: 'Two days of tacos and skyline views.',
+        destination: 'Fort Worth, TX',
+        coverImageUrl: 'https://images.example.com/trip-cover.jpg',
+        members: [
+          { id: 'user-1', displayName: 'Louis Do' },
+          { id: 'user-2', displayName: 'Maya Chen' },
+        ],
+        spots: [
+          {
+            spotId: 'spot-1',
+            title: 'Sunset Rooftop Tacos',
+            latitude: 32.7555,
+            longitude: -97.3308,
+            category: 'food',
+            dayNumber: 1,
+            timeSlot: '11:00',
+          },
+        ],
+      },
+    ];
     spotsStoreMock.error = '';
     spotsStoreMock.loading = false;
     tripsStoreMock.error = '';
@@ -192,6 +248,29 @@ describe('MapPage', () => {
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(1, 'category_toggle');
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(2, 'visible_spot_focus');
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(3, 'category_reset');
+  });
+
+  it('renders premium illustrated empty states when no trip preview or visible pins are available yet', async () => {
+    tripsStoreMock.items = [];
+    mapStoreMock.visibleSpotIds = [];
+    mapStoreMock.activeCategories = [];
+    mapStoreMock.selectedSpotId = '';
+
+    const wrapper = mountMapPage();
+
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-test="empty-state-panel"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-test="empty-state-artwork"]')).toHaveLength(2);
+    expect(wrapper.findAll('.empty-state-panel--artwork-map')).toHaveLength(2);
+    expect(wrapper.text()).toContain('Planner previews land here');
+    expect(wrapper.text()).toContain('No pins match this category mix');
+    expect(wrapper.get('[data-test="map-empty-route-cta"]').attributes('href')).toContain('/trips/new');
+
+    await wrapper.get('[data-test="map-empty-reset-categories"]').trigger('click');
+
+    expect(mapStoreMock.resetCategories).toHaveBeenCalledTimes(1);
+    expect(mapInteractionTrackMock).toHaveBeenCalledWith('category_reset');
   });
 
   it('switches to a mobile bottom-sheet sidebar and reveals it after selecting a map pin', async () => {
