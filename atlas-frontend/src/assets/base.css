@@ -380,7 +380,7 @@ img {
   }
 }
 
-/* Phase 17.1 — shared responsive breakpoint audit guardrails */
+/* Phase 17.1 - shared responsive breakpoint audit guardrails */
 @media (max-width: 1024px) {
   :where(.page-container) {
     width: min(100%, calc(100vw - (var(--space-5) * 2)));
