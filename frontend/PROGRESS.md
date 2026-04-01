@@ -117,7 +117,7 @@
 - [x] 18.6 - Add opt-out toggle in Settings page
 
 ### Phase 19: Onboarding & Tutorial Flow 🎓
-- [ ] 19.1 - Create OnboardingOverlay.vue with spotlight step-by-step tutorial
+- [x] 19.1 - Create OnboardingOverlay.vue with spotlight step-by-step tutorial
 - [ ] 19.2 - Step 1: Welcome to Atlas - animated intro with feature highlights
 - [ ] 19.3 - Step 2: Drop Your First Pin - highlight Create Spot button with guided prompt
 - [ ] 19.4 - Step 3: Explore the Map - highlight map controls and category filters
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 19.1 - Create OnboardingOverlay.vue with spotlight step-by-step tutorial
-## Last Updated: 2026-04-01T06:42:00-05:00
+## Current Task: Phase 19.2 - Step 1: Welcome to Atlas - animated intro with feature highlights
+## Last Updated: 2026-04-01T12:05:01.2743366-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -200,3 +200,4 @@
 - 2026-04-01T06:08:00-05:00: COMPLETED Phase 18.4 - added a shared page-engagement tracker that attaches once at the router boundary, measures visible time on page, captures max scroll depth across each route session, aggregates map-workspace interactions into a single `map_interaction_count` metric, and flushes cleanly on route changes/page hide so analytics stay session-based instead of click-by-click noise. Validation: `npm.cmd run test -- tests/unit/analytics-service.spec.ts tests/unit/router-navigation.spec.ts tests/unit/map-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (91 files / 245 tests). Next up: Phase 18.5 cookie consent banner.
 - 2026-04-01T06:29:00-05:00: COMPLETED Phase 18.5 - added a privacy-compliant `CookieConsentBanner.vue` to the global app shell, introduced a shared `analyticsConsent` utility that persists granted/denied choices to localStorage and syncs them into the analytics service during bootstrap, and covered the banner plus consent hydration flow with focused unit specs while keeping future Settings opt-out work on the same source of truth. Validation: `npm.cmd run test -- tests/unit/analytics-consent.spec.ts tests/unit/cookie-consent-banner.spec.ts tests/unit/app-session.spec.ts tests/unit/app-route-transitions.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 250 tests). Next up: Phase 18.6 analytics opt-out in Settings.
 - 2026-04-01T06:42:00-05:00: COMPLETED Phase 18.6 - added a shared analytics opt-out control to the Settings privacy section, wired it directly to the persisted `analyticsConsent` utility so travelers can grant or deny optional analytics without hitting the profile-save API, and extended the settings form/page specs to lock the immediate local toggle behavior alongside the existing banner consent flow. Validation: `npm.cmd run test -- tests/unit/settings-form.spec.ts tests/unit/settings-page.spec.ts tests/unit/analytics-consent.spec.ts tests/unit/cookie-consent-banner.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 252 tests). Next up: Phase 19.1 onboarding overlay shell.
+- 2026-04-01T12:05:01.2743366-05:00: COMPLETED Phase 19.1 - reconciled the stale tracker against the existing onboarding overlay milestone already present on this branch (`OnboardingOverlay.vue`, onboarding store/config, App shell wiring, and unit coverage), then revalidated the spotlight tutorial shell with focused onboarding/home-page Vitest coverage plus a fresh production build. Validation: `npm.cmd run test -- tests/unit/onboarding-overlay.spec.ts tests/unit/onboarding-store.spec.ts tests/unit/home-page.spec.ts`, `npm.cmd run build`. Next up: Phase 19.2 welcome-step content.
