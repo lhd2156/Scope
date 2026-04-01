@@ -66,7 +66,7 @@ const publicOnboardingSteps: readonly OnboardingStep[] = [
     title: 'Capture the places worth sharing',
     description: 'Use Create Spot whenever you find a rooftop, trail, or hidden cafe worth saving. Atlas turns one tap into a photo-rich pin your crew can revisit later.',
     placement: 'bottom',
-    ctaLabel: 'See discovery tools',
+    ctaLabel: 'Open the live map',
     highlights: [
       {
         icon: 'camera',
@@ -79,16 +79,6 @@ const publicOnboardingSteps: readonly OnboardingStep[] = [
         description: 'Save the category, location, and quick notes so every future route starts from better signal.',
       },
     ],
-  },
-  {
-    id: 'explore-toolbar',
-    routeName: 'explore',
-    selector: '[data-onboarding-target="explore-toolbar"]',
-    eyebrow: 'Discovery controls',
-    title: 'Refine the shortlist in Explore',
-    description: 'Search by city, vibe, or spot name, then layer quick filters to narrow the places that deserve a closer look.',
-    placement: 'bottom',
-    ctaLabel: 'Open the live map',
   },
   {
     id: 'map-filters',
@@ -124,7 +114,7 @@ const authenticatedOnboardingSteps: readonly OnboardingStep[] = [
     title: 'Shape the route, then let Atlas Intel compose the days',
     description: 'Build the brief, route order, pace, and interests inside the planner. Atlas Intel keeps the AI preview beside you so every tweak instantly sharpens the trip before you share it.',
     placement: 'right',
-    ctaLabel: 'Finish tour',
+    ctaLabel: 'Connect with travelers',
     highlights: [
       {
         icon: 'route',
@@ -141,6 +131,32 @@ const authenticatedOnboardingSteps: readonly OnboardingStep[] = [
       '[data-onboarding-target="planner-submit"]',
       '[data-onboarding-target="itinerary-stage"]',
       '[data-onboarding-target="planner-preview-toggle"]',
+    ],
+  },
+  {
+    id: 'social-hub',
+    routeName: 'home',
+    selector: '[data-onboarding-target="social-hub"]',
+    eyebrow: 'Connect with travelers',
+    title: 'Grow your circle, then let the feed surface the strongest signals',
+    description: 'Open the Friends hub to accept requests, keep trusted explorers close, and turn shared taste into real trip momentum. Atlas keeps the live feed right beside that network so fresh pins, finished routes, and reviews never fall out of view.',
+    placement: 'bottom',
+    ctaLabel: 'Finish tour',
+    highlights: [
+      {
+        icon: 'friends',
+        title: 'Keep your crew close',
+        description: 'Review requests, mutuals, and trusted co-planners before the next route starts taking shape.',
+      },
+      {
+        icon: 'sparkle',
+        title: 'Read the live signal',
+        description: 'The activity feed turns new pins, trip completions, and reviews into fast-moving inspiration you can open in one tap.',
+      },
+    ],
+    accentSelectors: [
+      '[data-onboarding-target="friends-hub-button"]',
+      '[data-onboarding-target="activity-feed-list"]',
     ],
   },
 ] as const;

@@ -1,6 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi.hoisted(() => ({
+  authStoreMock: {
+    isAuthenticated: true,
+  },
   feedStoreMock: {
     items: [
       {
@@ -35,6 +38,10 @@ const { feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi.hoisted(() => 
   },
 }));
 
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authStoreMock,
+}));
+
 vi.mock('@/stores/feed', () => ({
   useFeedStore: () => feedStoreMock,
 }));
@@ -64,6 +71,7 @@ function mountHomePage(overrides: Record<string, unknown> = {}) {
 
 describe('HomePage', () => {
   beforeEach(() => {
+    authStoreMock.isAuthenticated = true;
     feedStoreMock.items = [
       {
         id: 'feed-1',
@@ -116,6 +124,9 @@ describe('HomePage', () => {
     expect(wrapper.text()).toContain('Take the guided tour');
     expect(wrapper.text()).toContain('Trending Destinations');
     expect(wrapper.text()).toContain('Activity Feed');
+    expect(wrapper.text()).toContain('Connect with travelers and keep the journey alive between trips.');
+    expect(wrapper.text()).toContain('Open Friends hub');
+    expect(wrapper.get('[data-test="social-hub"]').attributes('data-onboarding-target')).toBe('social-hub');
     expect(wrapper.findAll('.spot-card-stub')).toHaveLength(2);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(1);
   });
@@ -131,6 +142,19 @@ describe('HomePage', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Replay the guided tour');
+  });
+
+  it('keeps the social onboarding callout hidden for signed-out visitors', async () => {
+    authStoreMock.isAuthenticated = false;
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="social-hub"]').exists()).toBe(false);
   });
 
   it('shows reusable skeleton loaders while the home workspace is hydrating', () => {
