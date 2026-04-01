@@ -314,6 +314,7 @@
 - [2026-04-01] ? If memory/COMPLETED-TASKS.md records the just-finished Frontend mobile task and rontend/PROGRESS.md advances to the next 17.x checkpoint while Win32_Process shows no surviving Frontend worker, treat it as a clean handoff: refresh the lead dashboard immediately and relaunch Prism from the new canonical task in the same heartbeat.
 
 - [2026-04-01] ⚠️ When auditing `Win32_Process` for live OpenClaw agents from PowerShell, filter the result down to real `node.exe` agent processes; otherwise the inspection PowerShell command can self-match on the literal `openclaw.mjs agent` search string and create a false-positive "live worker" result.
+- [2026-04-01] ⚠️ If `sessions_send` times out while steering a live Frontend worker but `subagents(action=list)` still shows it running, preserve the worker, record the timeout as a gateway messaging failure, and avoid spawning a duplicate into the shared frontend workspace.
 
 ## Common Mistakes to Avoid
 
