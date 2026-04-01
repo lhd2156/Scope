@@ -222,6 +222,7 @@ const emit = defineEmits<{
   (event: 'spot-select', spot: MapPoint): void;
   (event: 'location-update', location: UserLocation): void;
   (event: 'map-click', payload: { latitude: number; longitude: number }): void;
+  (event: 'interaction', payload: { type: string }): void;
 }>();
 
 const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
@@ -532,6 +533,7 @@ function fitToPoints(points: MapPoint[]) {
 }
 
 function fitToRoute() {
+  emit('interaction', { type: 'fit_route' });
   fitToPoints(props.routePoints.length > 1 ? props.routePoints : filteredSpots.value);
 }
 
@@ -541,6 +543,7 @@ function handleZoom(delta: number) {
     return;
   }
 
+  emit('interaction', { type: delta > 0 ? 'zoom_in' : 'zoom_out' });
   instance.easeTo({
     zoom: Math.min(Math.max(instance.getZoom() + delta, 2), 18),
     duration: 250,
@@ -561,6 +564,8 @@ function centerOnLocation(location: UserLocation) {
 }
 
 function handleLocate() {
+  emit('interaction', { type: 'locate' });
+
   const location = locationTracker.value?.focusUserLocation() ?? null;
   if (location) {
     centerOnLocation(location);
@@ -631,6 +636,7 @@ async function setupMap() {
       return;
     }
 
+    emit('interaction', { type: 'map_click' });
     emit('map-click', {
       latitude: Number(event.lngLat.lat.toFixed(6)),
       longitude: Number(event.lngLat.lng.toFixed(6)),
