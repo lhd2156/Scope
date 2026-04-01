@@ -30,7 +30,9 @@ describe('typography and spacing audit', () => {
     const baseStyles = readFrontendFile('src/assets/base.css');
     const sectionHeading = readFrontendFile('src/components/common/SectionHeading.vue');
 
-    expect(baseStyles).toContain('padding: var(--section-gap-compact) 0 var(--shell-content-bottom);');
+    expect(baseStyles).toContain('max-width: var(--shell-max-width-with-safe-area);');
+    expect(baseStyles).toContain('calc(var(--shell-side-padding) + var(--safe-area-right))');
+    expect(baseStyles).toContain('calc(var(--shell-side-padding) + var(--safe-area-left))');
     expect(baseStyles).toContain('gap: var(--section-gap);');
     expect(baseStyles).toContain('letter-spacing: var(--letter-spacing-eyebrow);');
     expect(baseStyles).toContain('line-height: var(--line-height-normal);');

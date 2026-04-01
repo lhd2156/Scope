@@ -288,7 +288,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .planner-page.page-container {
-  width: min(1480px, calc(100% - (var(--shell-side-padding) * 2)));
+  width: 100%;
+  max-width: calc(1480px + (var(--shell-side-padding) * 2) + var(--safe-area-left) + var(--safe-area-right));
 }
 
 .planner-page,
