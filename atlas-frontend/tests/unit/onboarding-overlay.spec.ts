@@ -18,6 +18,7 @@ import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/
 
 const spotlightRects: Record<string, { top: number; left: number; width: number; height: number }> = {
   'home-hero': { top: 120, left: 120, width: 520, height: 280 },
+  'create-spot-button': { top: 28, left: 860, width: 168, height: 48 },
   'explore-toolbar': { top: 140, left: 140, width: 640, height: 96 },
   'map-filters': { top: 128, left: 56, width: 320, height: 260 },
   'planner-submit': { top: 640, left: 180, width: 280, height: 56 },
@@ -32,7 +33,7 @@ const Shell = defineComponent({
     RouterView,
     OnboardingOverlay,
   },
-  template: '<div><RouterView /><OnboardingOverlay /></div>',
+  template: '<div><button data-onboarding-target="create-spot-button">Create spot</button><RouterView /><OnboardingOverlay /></div>',
 });
 
 function buildRouter() {
@@ -126,7 +127,7 @@ describe('OnboardingOverlay', () => {
     await settleOnboarding();
 
     expect(wrapper.text()).toContain('Map every adventure before you ever leave home');
-    expect(wrapper.text()).toContain('Step 1 of 4');
+    expect(wrapper.text()).toContain('Step 1 of 5');
     expect(wrapper.text()).toContain('Drop memorable pins');
     expect(wrapper.text()).toContain('Explore the live map');
     expect(wrapper.text()).toContain('Plan with Atlas Intel');
@@ -134,7 +135,7 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.find('.onboarding-overlay__card--welcome').exists()).toBe(true);
     expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
     expect(wrapper.findAll('[data-test="onboarding-feature-card"]')).toHaveLength(4);
-    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(4);
+    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(5);
     expect(wrapper.findAll('.onboarding-overlay__progress-dot.is-active')).toHaveLength(1);
     expect(wrapper.find('.onboarding-overlay__skip').exists()).toBe(true);
   });
@@ -160,14 +161,14 @@ describe('OnboardingOverlay', () => {
     onboardingStore.start();
     await settleOnboarding();
 
-    await wrapper.findAll('.onboarding-overlay__progress-dot')[2].trigger('click');
+    await wrapper.findAll('.onboarding-overlay__progress-dot')[3].trigger('click');
     await settleOnboarding();
 
     expect(router.currentRoute.value.name).toBe('map');
     expect(wrapper.text()).toContain('See the route come alive on the map');
   });
 
-  it('navigates between routed walkthrough steps when the traveler advances', async () => {
+  it('highlights the create-spot CTA before routing into the later walkthrough steps', async () => {
     const router = buildRouter();
     await router.push('/');
     await router.isReady();
@@ -187,6 +188,15 @@ describe('OnboardingOverlay', () => {
     const onboardingStore = useOnboardingStore();
     onboardingStore.start();
     await settleOnboarding();
+
+    await wrapper.get('.button.button-primary').trigger('click');
+    await settleOnboarding();
+
+    expect(router.currentRoute.value.name).toBe('home');
+    expect(wrapper.text()).toContain('Capture the places worth sharing');
+    expect(wrapper.text()).toContain('Add visual proof');
+    expect(wrapper.get('[data-onboarding-target="create-spot-button"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
 
     await wrapper.get('.button.button-primary').trigger('click');
     await settleOnboarding();

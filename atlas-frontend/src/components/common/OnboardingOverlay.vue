@@ -162,6 +162,7 @@ const isLastStep = computed(() => onboardingStore.activeStepIndex === onboarding
 const titleId = `onboarding-overlay-title-${useId()}`;
 const descriptionId = `onboarding-overlay-description-${useId()}`;
 let syncSequence = 0;
+let activeTargetElement: HTMLElement | null = null;
 
 function resolveCardMaxWidth(): number {
   return isWelcomeStep.value ? WELCOME_CARD_MAX_WIDTH : DEFAULT_CARD_MAX_WIDTH;
@@ -183,6 +184,43 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function isTargetVisible(element: HTMLElement): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  const bounds = element.getBoundingClientRect();
+  const computedStyle = window.getComputedStyle(element);
+
+  return (
+    bounds.width > 0
+    && bounds.height > 0
+    && computedStyle.display !== 'none'
+    && computedStyle.visibility !== 'hidden'
+  );
+}
+
+function findVisibleTarget(selector: string): HTMLElement | null {
+  const targets = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  return targets.find((target) => isTargetVisible(target)) ?? null;
+}
+
+function setActiveTarget(target: HTMLElement | null): void {
+  if (activeTargetElement === target) {
+    return;
+  }
+
+  if (activeTargetElement) {
+    activeTargetElement.removeAttribute('data-onboarding-active');
+  }
+
+  activeTargetElement = target;
+
+  if (activeTargetElement) {
+    activeTargetElement.setAttribute('data-onboarding-active', 'true');
+  }
 }
 
 function measureElement(element: HTMLElement): SpotlightRect {
@@ -306,7 +344,7 @@ function resolveCardPosition(rect: SpotlightRect): CardPosition {
 
 async function waitForTarget(selector: string): Promise<HTMLElement | null> {
   for (let attempt = 0; attempt < TARGET_LOOKUP_ATTEMPTS; attempt += 1) {
-    const target = document.querySelector<HTMLElement>(selector);
+    const target = findVisibleTarget(selector);
     if (target) {
       return target;
     }
@@ -322,6 +360,7 @@ async function syncPresentation(): Promise<void> {
   if (!onboardingStore.isActive || !currentStep || typeof window === 'undefined') {
     spotlightRect.value = null;
     cardPosition.value = null;
+    setActiveTarget(null);
     return;
   }
 
@@ -349,6 +388,7 @@ async function syncPresentation(): Promise<void> {
   if (currentStep.showSpotlight === false) {
     spotlightRect.value = null;
     cardPosition.value = resolveStandaloneCardPosition();
+    setActiveTarget(null);
     await nextTick();
     cardRef.value?.focus();
     return;
@@ -362,10 +402,13 @@ async function syncPresentation(): Promise<void> {
   if (!target) {
     spotlightRect.value = null;
     cardPosition.value = resolveFallbackCardPosition();
+    setActiveTarget(null);
     await nextTick();
     cardRef.value?.focus();
     return;
   }
+
+  setActiveTarget(target);
 
   target.scrollIntoView({
     behavior: reducedMotion.value ? 'auto' : 'smooth',
@@ -392,21 +435,26 @@ async function syncPresentation(): Promise<void> {
 
 function refreshLayout(): void {
   if (!onboardingStore.isActive || !activeStep.value) {
+    setActiveTarget(null);
     return;
   }
 
   if (activeStep.value.showSpotlight === false) {
     spotlightRect.value = null;
     cardPosition.value = resolveStandaloneCardPosition();
+    setActiveTarget(null);
     return;
   }
 
-  const target = document.querySelector<HTMLElement>(activeStep.value.selector);
+  const target = findVisibleTarget(activeStep.value.selector);
   if (!target) {
     spotlightRect.value = null;
     cardPosition.value = resolveFallbackCardPosition();
+    setActiveTarget(null);
     return;
   }
+
+  setActiveTarget(target);
 
   const nextSpotlightRect = measureElement(target);
   spotlightRect.value = nextSpotlightRect;
@@ -483,6 +531,7 @@ watch(
     if (!isActive) {
       spotlightRect.value = null;
       cardPosition.value = null;
+      setActiveTarget(null);
       return;
     }
 
@@ -519,6 +568,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', refreshLayout);
   window.removeEventListener('scroll', refreshLayout, true);
   window.removeEventListener('keydown', handleKeydown);
+  setActiveTarget(null);
 });
 </script>
 

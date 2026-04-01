@@ -58,6 +58,28 @@ const publicOnboardingSteps: readonly OnboardingStep[] = [
     ],
   },
   {
+    id: 'create-spot-button',
+    routeName: 'home',
+    selector: '[data-onboarding-target="create-spot-button"]',
+    eyebrow: 'Drop your first pin',
+    title: 'Capture the places worth sharing',
+    description: 'Use Create Spot whenever you find a rooftop, trail, or hidden cafe worth saving. Atlas turns one tap into a photo-rich pin your crew can revisit later.',
+    placement: 'bottom',
+    ctaLabel: 'See discovery tools',
+    highlights: [
+      {
+        icon: 'camera',
+        title: 'Add visual proof',
+        description: 'Lead with the view, menu, trailhead, or detail shot that makes the place memorable.',
+      },
+      {
+        icon: 'pin',
+        title: 'Lock in the context',
+        description: 'Save the category, location, and quick notes so every future route starts from better signal.',
+      },
+    ],
+  },
+  {
     id: 'explore-toolbar',
     routeName: 'explore',
     selector: '[data-onboarding-target="explore-toolbar"]',

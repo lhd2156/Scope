@@ -24,6 +24,22 @@
           @search="handleSearch"
         />
 
+        <RouterLink
+          class="create-spot-link"
+          :to="{ name: 'spot-create' }"
+          aria-label="Create Spot"
+          data-onboarding-target="create-spot-button"
+          data-test="create-spot-link"
+        >
+          <span class="create-spot-link__icon-shell" aria-hidden="true">
+            <AtlasIcon name="pin" />
+          </span>
+          <span class="create-spot-link__copy">
+            <span>Create</span>
+            <span class="create-spot-link__copy-extended">Spot</span>
+          </span>
+        </RouterLink>
+
         <NotificationDropdown
           v-if="authStore.isAuthenticated"
           :notifications="notificationsStore.items.slice(0, 4)"
@@ -944,6 +960,103 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-glow-teal);
 }
 
+.create-spot-link {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: 2.85rem;
+  padding: 0.42rem 0.8rem 0.42rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 34%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-teal) 94%, transparent) 0%,
+      color-mix(in srgb, var(--accent-teal-hover) 92%, transparent) 100%
+    );
+  color: var(--bg-primary);
+  box-shadow:
+    var(--shadow-glow-teal),
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 24%, transparent);
+  text-decoration: none;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    filter var(--transition-fast);
+}
+
+.create-spot-link::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--text-primary) 14%, transparent),
+    color-mix(in srgb, var(--accent-gold) 14%, transparent)
+  );
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.create-spot-link:hover,
+.create-spot-link:focus-visible,
+.create-spot-link.router-link-active,
+.create-spot-link[data-onboarding-active='true'] {
+  outline: none;
+  transform: translateY(var(--motion-button-lift));
+  border-color: color-mix(in srgb, var(--accent-gold) 26%, var(--accent-teal));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-gold) 14%, transparent),
+    0 0 2.5rem color-mix(in srgb, var(--accent-teal) 36%, transparent),
+    0 1.1rem 2rem color-mix(in srgb, var(--accent-teal) 20%, transparent);
+  filter: saturate(1.05);
+}
+
+.create-spot-link:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
+}
+
+.create-spot-link__icon-shell,
+.create-spot-link__copy {
+  position: relative;
+  z-index: 1;
+}
+
+.create-spot-link__icon-shell {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 14%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+.create-spot-link__icon-shell :deep(.atlas-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.create-spot-link__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.92rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.create-spot-link__copy-extended {
+  color: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+}
+
 .menu-shell {
   position: relative;
 }
@@ -1611,6 +1724,12 @@ onBeforeUnmount(() => {
   transform: translateX(1.25rem);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .create-spot-link[data-onboarding-active='true'] {
+    animation: navbar-create-spot-pulse 1.8s ease-in-out infinite;
+  }
+}
+
 @media (max-width: 1260px) {
   .navbar__inner {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -1652,6 +1771,20 @@ onBeforeUnmount(() => {
     gap: var(--space-2);
   }
 
+  .create-spot-link {
+    min-height: 2.75rem;
+    padding: 0.38rem 0.72rem 0.38rem 0.42rem;
+  }
+
+  .create-spot-link__icon-shell {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .create-spot-link__copy {
+    font-size: 0.88rem;
+  }
+
   .actions :deep(.notification-toggle) {
     width: 2.75rem;
     min-height: 2.75rem;
@@ -1683,6 +1816,14 @@ onBeforeUnmount(() => {
     gap: var(--space-3);
   }
 
+  .create-spot-link {
+    padding-right: 0.72rem;
+  }
+
+  .create-spot-link__copy-extended {
+    display: none;
+  }
+
   .actions :deep(.notification-menu) {
     right: calc(-1 * var(--space-2));
     width: min(20rem, calc(100vw - (var(--space-4) * 2)));
@@ -1707,11 +1848,29 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes navbar-create-spot-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent-gold) 14%, transparent),
+      0 0 2.5rem color-mix(in srgb, var(--accent-teal) 36%, transparent),
+      0 1.1rem 2rem color-mix(in srgb, var(--accent-teal) 20%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent-gold) 24%, transparent),
+      0 0 3rem color-mix(in srgb, var(--accent-teal) 48%, transparent),
+      0 1.3rem 2.4rem color-mix(in srgb, var(--accent-teal) 24%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .navbar,
   .navbar::after,
   .navbar__inner,
   .nav-links a,
+  .create-spot-link,
   .profile-chip,
   .menu-dropdown a,
   .menu-dropdown button,
@@ -1733,6 +1892,11 @@ onBeforeUnmount(() => {
 
   .nav-links a:hover,
   .nav-links a:focus-visible,
+  .create-spot-link:hover,
+  .create-spot-link:focus-visible,
+  .create-spot-link:active,
+  .create-spot-link.router-link-active,
+  .create-spot-link[data-onboarding-active='true'],
   .profile-chip:hover,
   .profile-chip:focus-visible,
   .profile-chip[aria-expanded='true'],

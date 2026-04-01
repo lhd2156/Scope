@@ -24,6 +24,7 @@ describe('useOnboardingStore', () => {
 
     expect(onboardingStore.steps.map((step) => step.id)).toEqual([
       'home-hero',
+      'create-spot-button',
       'explore-toolbar',
       'map-filters',
     ]);
@@ -32,7 +33,8 @@ describe('useOnboardingStore', () => {
       showSpotlight: false,
     });
     expect(onboardingStore.steps[0].highlights).toHaveLength(4);
-    expect(onboardingStore.totalSteps).toBe(3);
+    expect(onboardingStore.steps[1].highlights).toHaveLength(2);
+    expect(onboardingStore.totalSteps).toBe(4);
     expect(onboardingStore.hasCompleted).toBe(false);
   });
 
@@ -42,11 +44,12 @@ describe('useOnboardingStore', () => {
 
     expect(onboardingStore.steps.map((step) => step.id)).toEqual([
       'home-hero',
+      'create-spot-button',
       'explore-toolbar',
       'map-filters',
       'planner-submit',
     ]);
-    expect(onboardingStore.totalSteps).toBe(4);
+    expect(onboardingStore.totalSteps).toBe(5);
   });
 
   it('starts, advances, rewinds, and persists completion when the walkthrough finishes', () => {
@@ -58,12 +61,12 @@ describe('useOnboardingStore', () => {
     expect(onboardingStore.activeStep?.id).toBe('home-hero');
 
     onboardingStore.next();
-    expect(onboardingStore.activeStep?.id).toBe('explore-toolbar');
+    expect(onboardingStore.activeStep?.id).toBe('create-spot-button');
 
     onboardingStore.previous();
     expect(onboardingStore.activeStep?.id).toBe('home-hero');
 
-    onboardingStore.goToStep(3);
+    onboardingStore.goToStep(4);
     expect(onboardingStore.activeStep?.id).toBe('planner-submit');
 
     onboardingStore.next();
