@@ -27,6 +27,11 @@ describe('useOnboardingStore', () => {
       'explore-toolbar',
       'map-filters',
     ]);
+    expect(onboardingStore.steps[0]).toMatchObject({
+      variant: 'welcome',
+      showSpotlight: false,
+    });
+    expect(onboardingStore.steps[0].highlights).toHaveLength(4);
     expect(onboardingStore.totalSteps).toBe(3);
     expect(onboardingStore.hasCompleted).toBe(false);
   });
