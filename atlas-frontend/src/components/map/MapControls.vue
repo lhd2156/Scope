@@ -115,7 +115,10 @@ const statusCopy = computed(() => {
 <style scoped>
 .map-controls {
   position: absolute;
-  inset: auto var(--space-4) var(--space-4) auto;
+  top: var(--atlas-map-controls-top, auto);
+  right: var(--atlas-map-controls-right, var(--space-4));
+  bottom: var(--atlas-map-controls-bottom, var(--space-4));
+  left: var(--atlas-map-controls-left, auto);
   z-index: var(--z-sidebar);
   display: grid;
   justify-items: end;
@@ -124,7 +127,10 @@ const statusCopy = computed(() => {
 }
 
 .map-controls--with-panel {
-  inset: var(--space-4) var(--space-4) var(--space-4) auto;
+  top: var(--atlas-map-controls-panel-top, var(--space-4));
+  right: var(--atlas-map-controls-panel-right, var(--space-4));
+  bottom: var(--atlas-map-controls-panel-bottom, var(--space-4));
+  left: var(--atlas-map-controls-panel-left, auto);
   align-content: space-between;
 }
 
@@ -266,11 +272,22 @@ const statusCopy = computed(() => {
 
 @media (max-width: 960px) {
   .map-controls {
-    inset: auto var(--space-3) var(--space-3) auto;
+    top: var(--atlas-map-controls-top, auto);
+    right: var(--atlas-map-controls-right, var(--space-3));
+    bottom: var(--atlas-map-controls-bottom, var(--space-3));
+    left: var(--atlas-map-controls-left, auto);
   }
 
   .map-controls--with-panel {
-    inset: auto var(--space-3) var(--space-3) var(--space-3);
+    top: var(--atlas-map-controls-panel-top, auto);
+    right: var(--atlas-map-controls-panel-right, var(--space-3));
+    bottom: var(--atlas-map-controls-panel-bottom, var(--space-3));
+    left: var(--atlas-map-controls-panel-left, var(--space-3));
+  }
+
+  .control-button {
+    width: 3.25rem;
+    height: 3.25rem;
   }
 
   .filter-panel {
