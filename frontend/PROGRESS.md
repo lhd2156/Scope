@@ -86,7 +86,7 @@
 - [x] 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
 
 ### Phase 15: Data Seeding & Demo Mode 🌱
-- [ ] 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
+- [x] 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
 - [ ] 15.2 - Build demo user profiles: 5 users with pravatar.cc avatars, realistic stats, activity history
 - [ ] 15.3 - Build demo spots: 20 spots across all 8 categories with Unsplash photos, real coordinates, reviews
 - [ ] 15.4 - Build demo trips: 3 multi-day trips with itineraries, member lists, cost breakdowns
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
-## Last Updated: 2026-03-31T20:52:48.3508248-05:00
+## Current Task: Phase 15.2 - Build demo user profiles: 5 users with pravatar.cc avatars, realistic stats, activity history
+## Last Updated: 2026-03-31T21:03:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -178,3 +178,4 @@
 - 2026-03-31T18:10:00-05:00: COMPLETED Phase 14.7 - added a dedicated multi-browser Playwright route-matrix spec that verifies every public route renders, every protected route redirects guests to `/login` with the full redirect target preserved, every protected workspace renders under a seeded session, guest-only routes bounce authenticated users back to `/map`, and the 404 fallback survives unknown paths across Chromium, Firefox, and WebKit. Validation: `npm.cmd run test:e2e -- tests/e2e/navigation-flow.spec.ts --project=chromium --project=firefox --project=webkit` (9 passed). Next up: Phase 14.8 theme toggle E2E coverage.
 - 2026-03-31T18:21:00-05:00: COMPLETED Phase 14.8 - added a dedicated multi-browser Playwright theme-flow spec that seeds an authenticated session, toggles dark/light mode from the global shell, verifies `data-theme`, `colorScheme`, `localStorage`, and live `theme-color` metadata sync, and confirms the Settings appearance controls stay aligned through page reloads across Chromium, Firefox, and WebKit. Validation: `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/theme-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.9 HTML report generation.
 - 2026-03-31T20:52:48.3508248-05:00: COMPLETED Phase 14.9 - added a stable `atlas-frontend/test-results/report.html` entrypoint plus a Playwright wrapper so every `npm.cmd run test:e2e` invocation refreshes the HTML report automatically alongside `atlas-frontend/test-results/html-report/index.html`. Validation: `npm.cmd run test:e2e -- tests/e2e/theme-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed), `npm.cmd run test -- tests/unit/theme.spec.ts tests/unit/theme-toggle.spec.ts tests/unit/settings-page.spec.ts tests/unit/settings-form.spec.ts`, `npm.cmd run build`. Next up: Phase 15.1 demo fixture scaffolding.
+- 2026-03-31T21:03:00-05:00: COMPLETED Phase 15.1 - scaffolded `atlas-frontend/src/mock/` with domain-specific JSON fixture files for users, spots, trips, feed, and notifications so the remaining demo-mode tasks can populate each surface independently without changing the runtime service layer yet. Validation: `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.2 demo user profiles.
