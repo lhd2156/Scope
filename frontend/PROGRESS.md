@@ -123,7 +123,7 @@
 - [x] 19.4 - Step 3: Explore the Map - highlight map controls and category filters
 - [x] 19.5 - Step 4: Plan a Trip - highlight trip planner and AI itinerary feature
 - [x] 19.6 - Step 5: Connect with Travelers - highlight friends and feed features
-- [ ] 19.7 - Add progress dots, skip button, persist completion in localStorage
+- [x] 19.7 - Add progress dots, skip button, persist completion in localStorage
 - [ ] 19.8 - Add "Replay Tutorial" option in Settings page
 - [ ] 19.9 - Create empty-state illustrations for pages with no user content yet
 
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 19.7 - Add progress dots, skip button, persist completion in localStorage
-## Last Updated: 2026-04-01T13:44:26.9960043-05:00
+## Current Task: Phase 19.8 - Add "Replay Tutorial" option in Settings page
+## Last Updated: 2026-04-01T13:54:49.0564055-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -206,3 +206,4 @@
 - 2026-04-01T13:08:34.4187538-05:00: COMPLETED Phase 19.4 - upgraded the map onboarding step to spotlight the category filter rail while simultaneously accenting the floating map control stack, added richer premium coaching cards/copy for the map workspace, auto-expanded the mobile map bottom sheet during the tutorial so both surfaces stay visible, and extended onboarding/map Vitest coverage before revalidating the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 254 tests). Next up: Phase 19.5 trip-planner guidance.
 - 2026-04-01T13:19:20.9536465-05:00: COMPLETED Phase 19.5 - upgraded the final authenticated onboarding step to spotlight the trip-planner shell, accent the AI itinerary companion surfaces (submit CTA, preview panel, and mobile preview toggle), added richer premium trip-planning coaching copy/cards, and extended onboarding store/overlay coverage plus planner-adjacent regression checks before revalidating the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 255 tests). Next up: Phase 19.6 friends-and-feed guidance.
 - 2026-04-01T13:44:26.9960043-05:00: COMPLETED Phase 19.6 - added the premium authenticated social onboarding finale with a new home-page friends/feed callout, spotlight + accent targets for the Friends hub CTA and live activity stage, and updated the onboarding flow to map cleanly to the five canonical Phase 19 steps by routing from Create Spot straight into the map step. Validation: `npm run build`, `npm run test` (93 files / 257 tests). Next up: Phase 19.7 progress dots, skip, and persistence audit.
+- 2026-04-01T13:54:49.0564055-05:00: COMPLETED Phase 19.7 - revalidated the premium onboarding overlay against the existing progress-dot, skip-action, and localStorage persistence implementation, added a focused onboarding-store regression to prove completed tours hydrate from storage and stay auto-suppressed until replay, and reran the full frontend validation suite. Validation: `npm run test -- tests/unit/onboarding-store.spec.ts`, `npm run build`, `npm run test` (93 files / 258 tests). Next up: Phase 19.8 replay tutorial entry in Settings.
