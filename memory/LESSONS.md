@@ -354,3 +354,4 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 
 - [2026-04-01] [LESSON] For Atlas frontend PWA polish on this workstation, generate installable PNG icons and iOS startup images with a small Playwright script in `atlas-frontend/scripts/`; it keeps the manifest/index asset set reproducible without introducing extra image-build dependencies.
 
+- [2026-04-01] [LESSON] For Atlas frontend service-worker QA, rebuild dist before running Vite preview; otherwise manual offline checks can still be served by the previous sw.js build and give false results.

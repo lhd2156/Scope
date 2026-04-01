@@ -65,6 +65,8 @@ async function settleOnboarding() {
 }
 
 describe('OnboardingOverlay', () => {
+  let activeWrapper: ReturnType<typeof mount> | null = null;
+
   beforeAll(() => {
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
@@ -96,6 +98,8 @@ describe('OnboardingOverlay', () => {
   });
 
   afterEach(() => {
+    activeWrapper?.unmount();
+    activeWrapper = null;
     vi.restoreAllMocks();
     document.body.innerHTML = '';
   });
@@ -105,7 +109,7 @@ describe('OnboardingOverlay', () => {
     await router.push('/');
     await router.isReady();
 
-    const wrapper = mount(Shell, {
+    activeWrapper = mount(Shell, {
       attachTo: document.body,
       global: {
         plugins: [router],
@@ -115,6 +119,7 @@ describe('OnboardingOverlay', () => {
         },
       },
     });
+    const wrapper = activeWrapper;
 
     const onboardingStore = useOnboardingStore();
     onboardingStore.start();
@@ -134,7 +139,7 @@ describe('OnboardingOverlay', () => {
     await router.push('/');
     await router.isReady();
 
-    const wrapper = mount(Shell, {
+    activeWrapper = mount(Shell, {
       attachTo: document.body,
       global: {
         plugins: [router],
@@ -144,6 +149,7 @@ describe('OnboardingOverlay', () => {
         },
       },
     });
+    const wrapper = activeWrapper;
 
     const onboardingStore = useOnboardingStore();
     onboardingStore.start();
@@ -161,7 +167,7 @@ describe('OnboardingOverlay', () => {
     await router.push('/');
     await router.isReady();
 
-    const wrapper = mount(Shell, {
+    activeWrapper = mount(Shell, {
       attachTo: document.body,
       global: {
         plugins: [router],
@@ -171,6 +177,7 @@ describe('OnboardingOverlay', () => {
         },
       },
     });
+    const wrapper = activeWrapper;
 
     const onboardingStore = useOnboardingStore();
     onboardingStore.start();
@@ -188,7 +195,7 @@ describe('OnboardingOverlay', () => {
     await router.push('/');
     await router.isReady();
 
-    const wrapper = mount(Shell, {
+    activeWrapper = mount(Shell, {
       attachTo: document.body,
       global: {
         plugins: [router],
@@ -198,6 +205,7 @@ describe('OnboardingOverlay', () => {
         },
       },
     });
+    const wrapper = activeWrapper;
 
     const onboardingStore = useOnboardingStore();
     onboardingStore.start();
@@ -212,3 +220,4 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.find('.onboarding-overlay__card').exists()).toBe(false);
   });
 });
+
