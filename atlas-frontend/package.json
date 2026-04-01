@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "serve:e2e": "npm run build && vite preview --host 127.0.0.1 --port 4173",
+    "serve:e2e": "node ./scripts/serve-playwright-preview.mjs",
     "test": "vitest run --pool forks --poolOptions.forks.singleFork",
     "test:watch": "vitest --pool forks --poolOptions.forks.singleFork",
-    "test:e2e": "playwright test",
+    "test:e2e": "node ./scripts/run-playwright-with-report.mjs",
+    "test:e2e:raw": "playwright test",
     "qa:visual:phase13": "node ./scripts/phase13-visual-qa.mjs",
     "lint": "eslint . --ext .vue,.ts"
   },

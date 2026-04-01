@@ -83,7 +83,7 @@
 - [x] 14.6 - Social tests: view feed → like item → add friend → view notifications
 - [x] 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
 - [x] 14.8 - Theme toggle test: switch dark/light, verify persistence across page reload
-- [ ] 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
+- [x] 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
 
 ### Phase 15: Data Seeding & Demo Mode 🌱
 - [ ] 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
-## Last Updated: 2026-03-31T18:21:00-05:00
+## Current Task: Phase 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
+## Last Updated: 2026-03-31T20:19:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -177,3 +177,4 @@
 - 2026-03-31T17:44:24.3360008-05:00: COMPLETED Phase 14.6 - added a dedicated multi-browser Playwright social flow that seeds an authenticated session, verifies the premium activity feed, likes a deterministic feed item, accepts a friend request, and opens the notifications inbox to confirm the newly-added social update across Chromium, Firefox, and WebKit; also extended the shared Playwright `/api/*` fixture with explicit feed/notification mocks, stable social data-test hooks, and a persisted onboarding-complete flag so the home-page tour no longer intercepts cross-browser E2E interactions. Validation: `npm.cmd run test -- tests/unit/friends-page.spec.ts tests/unit/feed-item.spec.ts tests/unit/notification-dropdown.spec.ts`, `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/social-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.7 navigation coverage.
 - 2026-03-31T18:10:00-05:00: COMPLETED Phase 14.7 - added a dedicated multi-browser Playwright route-matrix spec that verifies every public route renders, every protected route redirects guests to `/login` with the full redirect target preserved, every protected workspace renders under a seeded session, guest-only routes bounce authenticated users back to `/map`, and the 404 fallback survives unknown paths across Chromium, Firefox, and WebKit. Validation: `npm.cmd run test:e2e -- tests/e2e/navigation-flow.spec.ts --project=chromium --project=firefox --project=webkit` (9 passed). Next up: Phase 14.8 theme toggle E2E coverage.
 - 2026-03-31T18:21:00-05:00: COMPLETED Phase 14.8 - added a dedicated multi-browser Playwright theme-flow spec that seeds an authenticated session, toggles dark/light mode from the global shell, verifies `data-theme`, `colorScheme`, `localStorage`, and live `theme-color` metadata sync, and confirms the Settings appearance controls stay aligned through page reloads across Chromium, Firefox, and WebKit. Validation: `npm.cmd run build`, `npm.cmd run test:e2e -- tests/e2e/theme-flow.spec.ts --project=chromium --project=firefox --project=webkit` (3 passed). Next up: Phase 14.9 HTML report generation.
+- 2026-03-31T20:19:00-05:00: COMPLETED Phase 14.9 - added a stable `atlas-frontend/test-results/report.html` entrypoint that redirects into the Playwright HTML bundle, switched `test:e2e` to publish the report automatically, and generated the full multi-browser Phase 14 report. Validation: `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit` produced `atlas-frontend/test-results/report.html` plus `atlas-frontend/test-results/html-report/index.html`; current suite status in that report is 23 passed / 10 failed, with remaining failures isolated to WebKit. Next up: Phase 15.1 demo fixture scaffolding.
