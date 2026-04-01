@@ -134,6 +134,7 @@
 - [2026-03-31] ⚠️ Atlas frontend’s trip planner title input is currently editable/local UI state, but the generated itinerary summary still follows the preview itinerary payload/preset; Playwright trip-flow coverage should assert custom trip naming on the planner form itself unless a persisted save flow explicitly wires that title into the itinerary response.
 
 - [2026-03-31] ⚠️ Atlas frontend home-page Playwright flows must pre-mark onboarding as completed (for example via the shared fixture’s `atlas-onboarding-completed-v1` localStorage key); otherwise the onboarding scrim intercepts feed interactions in Chromium, Firefox, and WebKit and turns honest social-flow coverage into 3-minute click timeouts.
+- [2026-04-01] ✅ For Atlas mobile map workspaces, keep the bottom sheet owned by the page shell and reposition shared `MapControls` through inherited CSS custom properties; it preserves scoped styles, keeps `MapView` reusable, and avoids forking the map interaction stack just for mobile.
 
 ## Git & Workflow
 

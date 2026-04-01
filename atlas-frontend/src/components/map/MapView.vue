@@ -771,6 +771,10 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 100%, transparent), color-mix(in srgb, var(--bg-secondary) 100%, transparent));
 }
 
+.map-view--mobile {
+  border-radius: 0;
+}
+
 .map-canvas,
 .map-fallback {
   position: absolute;
@@ -1000,6 +1004,26 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
 }
 
+.map-view--mobile .map-summary {
+  top: var(--space-3);
+  left: var(--space-3);
+  right: auto;
+  max-width: calc(100% - 6.75rem);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.map-view--mobile .tracker-overlay {
+  display: none;
+}
+
+.map-view--mobile .empty-state {
+  left: 50%;
+  right: auto;
+  width: min(24rem, calc(100% - 2rem));
+  transform: translate(-50%, -50%);
+}
+
 .eyebrow {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-caption);
@@ -1054,6 +1078,21 @@ code {
     right: var(--space-3);
     width: auto;
     transform: translate(0, -50%);
+  }
+
+  .map-view--mobile .map-summary {
+    max-width: calc(100% - 6.75rem);
+  }
+
+  .map-view--mobile .tracker-overlay {
+    display: none;
+  }
+
+  .map-view--mobile .empty-state {
+    left: 50%;
+    right: auto;
+    width: min(24rem, calc(100% - 2rem));
+    transform: translate(-50%, -50%);
   }
 }
 
