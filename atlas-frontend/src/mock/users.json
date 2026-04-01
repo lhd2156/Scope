@@ -7,7 +7,11 @@
     "avatarUrl": "https://i.pravatar.cc/300?img=12",
     "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
     "homeBase": "Fort Worth, TX",
-    "interests": ["food", "culture", "nightlife"],
+    "interests": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
     "stats": {
       "spots": 42,
       "trips": 8,
@@ -56,7 +60,11 @@
     "avatarUrl": "https://i.pravatar.cc/300?img=32",
     "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
     "homeBase": "Dallas, TX",
-    "interests": ["scenic", "culture", "shopping"],
+    "interests": [
+      "scenic",
+      "culture",
+      "shopping"
+    ],
     "stats": {
       "spots": 28,
       "trips": 6,
@@ -67,11 +75,11 @@
       {
         "id": "demo-activity-4",
         "type": "trip-planned",
-        "title": "Planned Dallas Design Weekend",
+        "title": "Planned River Walk Aperitivo Evening",
         "targetType": "trip",
         "targetId": "demo-trip-2",
-        "summary": "Mapped a boutique-hotel weekend with museum tickets, brunch reservations, and riverwalk golden hour.",
-        "location": "Dallas, TX",
+        "summary": "Drafted a polished San Antonio weekend with courtyard breakfast, Pearl gallery time, canal cocktails, and a Southtown art walk.",
+        "location": "San Antonio, TX",
         "occurredAt": "2026-03-28T16:20:00Z"
       },
       {
@@ -104,7 +112,11 @@
     "avatarUrl": "https://i.pravatar.cc/300?img=45",
     "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
     "homeBase": "Austin, TX",
-    "interests": ["adventure", "food", "nature"],
+    "interests": [
+      "adventure",
+      "food",
+      "nature"
+    ],
     "stats": {
       "spots": 36,
       "trips": 11,
@@ -152,7 +164,11 @@
     "avatarUrl": "https://i.pravatar.cc/300?img=23",
     "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
     "homeBase": "San Antonio, TX",
-    "interests": ["food", "culture", "shopping"],
+    "interests": [
+      "food",
+      "culture",
+      "shopping"
+    ],
     "stats": {
       "spots": 19,
       "trips": 4,
@@ -200,7 +216,11 @@
     "avatarUrl": "https://i.pravatar.cc/300?img=52",
     "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
     "homeBase": "Houston, TX",
-    "interests": ["scenic", "nature", "adventure"],
+    "interests": [
+      "scenic",
+      "nature",
+      "adventure"
+    ],
     "stats": {
       "spots": 24,
       "trips": 5,
@@ -221,11 +241,11 @@
       {
         "id": "demo-activity-14",
         "type": "trip-completed",
-        "title": "Completed Gulf Coast Golden Hour Drive",
+        "title": "Completed North Texas Night + Food Loop",
         "targetType": "trip",
         "targetId": "demo-trip-1",
-        "summary": "Wrapped a coastline route with boardwalk stops, seafood lunch, and one cinematic lighthouse detour.",
-        "location": "Galveston, TX",
+        "summary": "Wrapped a two-day city route with Stockyards shopping, skyline tacos, contemporary art, and a vinyl-bar finish.",
+        "location": "Fort Worth & Dallas, TX",
         "occurredAt": "2026-03-24T23:40:00Z"
       },
       {
