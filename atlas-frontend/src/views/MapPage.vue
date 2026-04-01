@@ -48,7 +48,7 @@
                   <p class="eyebrow">Explore categories</p>
                   <h1>Curate the map by mood</h1>
                 </div>
-                <button type="button" class="text-link" @click="mapStore.resetCategories">Reset</button>
+                <button type="button" class="text-link" @click="handleResetCategories">Reset</button>
               </div>
 
               <p class="panel-copy">
@@ -67,7 +67,7 @@
                       'is-inactive': !mapStore.activeCategories.includes(category),
                     },
                   ]"
-                  @click="mapStore.toggleCategory(category)"
+                  @click="handleCategoryToggle(category)"
                 >
                   <AtlasIcon :name="categoryIconName(category)" :label="formatCategory(category)" />
                   <span>{{ formatCategory(category) }}</span>
@@ -196,7 +196,7 @@
               </div>
               <div v-else class="sidebar-empty-state">
                 <p>No pins match the current category mix.</p>
-                <button type="button" class="button button-secondary" @click="mapStore.resetCategories">Show all categories</button>
+                <button type="button" class="button button-secondary" @click="handleResetCategories">Show all categories</button>
               </div>
             </article>
           </div>
@@ -211,6 +211,7 @@
             :route-points="routePoints"
             :selected-spot-id="mapStore.selectedSpotId"
             @spot-select="handleSpotSelect"
+            @interaction="handleMapInteraction"
           />
         </article>
       </section>
@@ -225,6 +226,7 @@ import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import MapView from '@/components/map/MapView.vue';
+import { analyticsPageEngagementTracker } from '@/services/analyticsService';
 import { useMapStore } from '@/stores/map';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
@@ -570,8 +572,23 @@ function revealMobileSheet() {
   setMobileSheetState('mid');
 }
 
+function handleMapInteraction(payload: { type: string }) {
+  analyticsPageEngagementTracker.recordMapInteraction(payload.type);
+}
+
+function handleCategoryToggle(category: SpotCategory) {
+  mapStore.toggleCategory(category);
+  handleMapInteraction({ type: 'category_toggle' });
+}
+
+function handleResetCategories() {
+  mapStore.resetCategories();
+  handleMapInteraction({ type: 'category_reset' });
+}
+
 function handleSpotSelect(spot: MapPoint) {
   mapStore.setSelectedSpotId(spot.id);
+  handleMapInteraction({ type: 'spot_select' });
   revealMobileSheet();
 }
 
@@ -584,6 +601,7 @@ function focusSpot(spotId: string) {
   mapStore.setSelectedSpotId(spot.id);
   mapStore.setCenter([spot.longitude, spot.latitude]);
   mapStore.setZoom(12);
+  handleMapInteraction({ type: 'visible_spot_focus' });
   revealMobileSheet();
 }
 

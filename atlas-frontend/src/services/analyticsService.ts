@@ -150,8 +150,38 @@ function resolveRouteSearch(route: RouteLocationNormalizedLoaded): string | unde
     : route.fullPath.slice(queryStartIndex);
 }
 
+function clampMetricValue(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export interface AnalyticsRouteContext {
+  path: string;
+  fullPath: string;
+  title?: string;
+  routeName?: string;
+  search?: string;
+  metadata?: AnalyticsMetadata;
+}
+
 export type AnalyticsPageViewTracker = Pick<AnalyticsService, 'trackPageView'>;
 export type AnalyticsEventTracker = Pick<AnalyticsService, 'trackEvent'>;
+export type AnalyticsEngagementTracker = Pick<AnalyticsService, 'trackEngagement'>;
+export type AnalyticsPageSessionTracker = Pick<AnalyticsPageEngagementTracker, 'attach' | 'beginPage'>;
+
+export function resolveAnalyticsRouteContext(route: RouteLocationNormalizedLoaded): AnalyticsRouteContext {
+  return {
+    path: route.path,
+    fullPath: route.fullPath,
+    title: resolveRouteMetaString(route, route.meta.title),
+    routeName: typeof route.name === 'string' ? route.name : undefined,
+    search: resolveRouteSearch(route),
+    metadata: {
+      requiresAuth: Boolean(route.meta.requiresAuth),
+      guestOnly: Boolean(route.meta.guestOnly),
+      robots: resolveRouteMetaString(route, route.meta.robots),
+    },
+  };
+}
 
 export interface AnalyticsUserActionContext {
   path?: string;
@@ -359,22 +389,261 @@ export class AnalyticsService {
   }
 }
 
+export type AnalyticsPageSessionEndReason = 'route-change' | 'pagehide' | 'teardown';
+
+export interface AnalyticsPageEngagementTrackerOptions {
+  tracker?: AnalyticsEngagementTracker;
+  now?: () => number;
+  win?: Window | null;
+  doc?: Document | null;
+}
+
+interface ActiveAnalyticsPageSession extends AnalyticsRouteContext {
+  key: string;
+  isVisible: boolean;
+  visibleSegmentStartedAtMs: number;
+  accumulatedVisibleMs: number;
+  maxScrollDepth: number;
+  mapInteractionCount: number;
+  mapInteractionTypeCounts: Record<string, number>;
+}
+
+function buildSessionMetadata(
+  session: ActiveAnalyticsPageSession,
+  reason: AnalyticsPageSessionEndReason,
+  extraMetadata?: AnalyticsMetadata,
+): AnalyticsMetadata {
+  return {
+    ...(session.metadata ?? {}),
+    ...(extraMetadata ?? {}),
+    pageKey: session.key,
+    flushReason: reason,
+  };
+}
+
+function buildMapInteractionMetadata(
+  session: ActiveAnalyticsPageSession,
+  reason: AnalyticsPageSessionEndReason,
+): AnalyticsMetadata {
+  const interactionTypeMetadata = Object.entries(session.mapInteractionTypeCounts).reduce<AnalyticsMetadata>((metadata, [interactionType, count]) => {
+    metadata[`mapInteraction_${interactionType}`] = count;
+    return metadata;
+  }, {});
+
+  return buildSessionMetadata(session, reason, interactionTypeMetadata);
+}
+
+export class AnalyticsPageEngagementTracker {
+  private readonly tracker: AnalyticsEngagementTracker;
+  private readonly now: () => number;
+  private readonly win: Window | null;
+  private readonly doc: Document | null;
+  private activeSession: ActiveAnalyticsPageSession | null = null;
+  private listenersAttached = false;
+
+  constructor(options: AnalyticsPageEngagementTrackerOptions = {}) {
+    this.tracker = options.tracker ?? analyticsService;
+    this.now = options.now ?? (() => Date.now());
+    this.win = options.win ?? (typeof window === 'undefined' ? null : window);
+    this.doc = options.doc ?? (typeof document === 'undefined' ? null : document);
+  }
+
+  attach(): void {
+    if (this.listenersAttached) {
+      return;
+    }
+
+    this.win?.addEventListener('scroll', this.handleScroll, { passive: true });
+    this.win?.addEventListener('pagehide', this.handlePageHide);
+    this.doc?.addEventListener('visibilitychange', this.handleVisibilityChange);
+    this.listenersAttached = true;
+  }
+
+  detach(): void {
+    if (!this.listenersAttached) {
+      return;
+    }
+
+    this.win?.removeEventListener('scroll', this.handleScroll);
+    this.win?.removeEventListener('pagehide', this.handlePageHide);
+    this.doc?.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    this.listenersAttached = false;
+  }
+
+  reset(): void {
+    this.activeSession = null;
+  }
+
+  beginPage(context: AnalyticsRouteContext): void {
+    const pageKey = context.fullPath || context.path;
+
+    if (this.activeSession?.key === pageKey) {
+      this.activeSession = {
+        ...this.activeSession,
+        ...context,
+        metadata: {
+          ...(this.activeSession.metadata ?? {}),
+          ...(context.metadata ?? {}),
+        },
+      };
+      return;
+    }
+
+    this.flushCurrentPage('route-change');
+
+    const startedAtMs = this.now();
+    this.activeSession = {
+      ...context,
+      key: pageKey,
+      isVisible: !Boolean(this.doc?.hidden),
+      visibleSegmentStartedAtMs: startedAtMs,
+      accumulatedVisibleMs: 0,
+      maxScrollDepth: 0,
+      mapInteractionCount: 0,
+      mapInteractionTypeCounts: {},
+    };
+  }
+
+  recordMapInteraction(interactionType: string): void {
+    if (!this.activeSession) {
+      return;
+    }
+
+    this.activeSession.mapInteractionCount += 1;
+    this.activeSession.mapInteractionTypeCounts[interactionType] = (this.activeSession.mapInteractionTypeCounts[interactionType] ?? 0) + 1;
+  }
+
+  flushCurrentPage(reason: AnalyticsPageSessionEndReason = 'teardown'): void {
+    if (!this.activeSession) {
+      return;
+    }
+
+    this.updateScrollDepth();
+    this.pauseCurrentPage();
+
+    const completedSession = this.activeSession;
+    this.activeSession = null;
+    const durationSeconds = Number((completedSession.accumulatedVisibleMs / 1000).toFixed(2));
+
+    this.tracker.trackEngagement({
+      metric: 'time_on_page',
+      path: completedSession.path,
+      title: completedSession.title,
+      routeName: completedSession.routeName,
+      durationMs: completedSession.accumulatedVisibleMs,
+      value: durationSeconds,
+      metadata: buildSessionMetadata(completedSession, reason),
+    });
+
+    this.tracker.trackEngagement({
+      metric: 'scroll_depth',
+      path: completedSession.path,
+      title: completedSession.title,
+      routeName: completedSession.routeName,
+      value: completedSession.maxScrollDepth,
+      metadata: buildSessionMetadata(completedSession, reason),
+    });
+
+    if (completedSession.routeName === 'map' || completedSession.path === '/map' || completedSession.mapInteractionCount > 0) {
+      this.tracker.trackEngagement({
+        metric: 'map_interaction_count',
+        path: completedSession.path,
+        title: completedSession.title,
+        routeName: completedSession.routeName,
+        value: completedSession.mapInteractionCount,
+        metadata: buildMapInteractionMetadata(completedSession, reason),
+      });
+    }
+  }
+
+  private handleScroll = (): void => {
+    this.updateScrollDepth();
+  };
+
+  private handlePageHide = (): void => {
+    this.flushCurrentPage('pagehide');
+  };
+
+  private handleVisibilityChange = (): void => {
+    if (!this.activeSession) {
+      return;
+    }
+
+    if (this.doc?.hidden) {
+      this.updateScrollDepth();
+      this.pauseCurrentPage();
+      return;
+    }
+
+    this.resumeCurrentPage();
+  };
+
+  private pauseCurrentPage(): void {
+    if (!this.activeSession?.isVisible) {
+      return;
+    }
+
+    this.activeSession.accumulatedVisibleMs += Math.max(0, this.now() - this.activeSession.visibleSegmentStartedAtMs);
+    this.activeSession.isVisible = false;
+  }
+
+  private resumeCurrentPage(): void {
+    if (!this.activeSession || this.activeSession.isVisible) {
+      return;
+    }
+
+    this.activeSession.visibleSegmentStartedAtMs = this.now();
+    this.activeSession.isVisible = true;
+  }
+
+  private updateScrollDepth(): void {
+    if (!this.activeSession) {
+      return;
+    }
+
+    this.activeSession.maxScrollDepth = Math.max(
+      this.activeSession.maxScrollDepth,
+      this.resolveCurrentScrollDepth(),
+    );
+  }
+
+  private resolveCurrentScrollDepth(): number {
+    const documentElement = this.doc?.documentElement;
+    const body = this.doc?.body;
+    const scrollTop = this.win?.scrollY
+      ?? this.win?.pageYOffset
+      ?? documentElement?.scrollTop
+      ?? body?.scrollTop
+      ?? 0;
+    const scrollHeight = Math.max(documentElement?.scrollHeight ?? 0, body?.scrollHeight ?? 0);
+    const clientHeight = documentElement?.clientHeight ?? this.win?.innerHeight ?? 0;
+    const scrollableDistance = Math.max(scrollHeight - clientHeight, 0);
+
+    if (scrollHeight <= 0 || clientHeight <= 0) {
+      return 0;
+    }
+
+    if (scrollableDistance <= 0) {
+      return 100;
+    }
+
+    return clampMetricValue(Math.round((scrollTop / scrollableDistance) * 100), 0, 100);
+  }
+}
+
 export function trackRoutePageView(
   route: RouteLocationNormalizedLoaded,
   tracker?: AnalyticsPageViewTracker,
 ): void {
   const resolvedTracker = tracker ?? analyticsService;
+  const routeContext = resolveAnalyticsRouteContext(route);
 
   resolvedTracker.trackPageView({
-    path: route.path,
-    title: resolveRouteMetaString(route, route.meta.title),
-    routeName: typeof route.name === 'string' ? route.name : undefined,
-    search: resolveRouteSearch(route),
-    metadata: {
-      requiresAuth: Boolean(route.meta.requiresAuth),
-      guestOnly: Boolean(route.meta.guestOnly),
-      robots: resolveRouteMetaString(route, route.meta.robots),
-    },
+    path: routeContext.path,
+    title: routeContext.title,
+    routeName: routeContext.routeName,
+    search: routeContext.search,
+    metadata: routeContext.metadata,
   });
 }
 
@@ -484,8 +753,26 @@ export function trackThemeToggle(payload: AnalyticsThemeTogglePayload, tracker?:
   });
 }
 
+export function attachAnalyticsPageEngagementTracker(tracker?: Pick<AnalyticsPageEngagementTracker, 'attach'>): void {
+  (tracker ?? analyticsPageEngagementTracker).attach();
+}
+
+export function beginRoutePageEngagement(
+  route: RouteLocationNormalizedLoaded,
+  tracker?: Pick<AnalyticsPageEngagementTracker, 'beginPage'>,
+): void {
+  (tracker ?? analyticsPageEngagementTracker).beginPage(resolveAnalyticsRouteContext(route));
+}
+
+export function createAnalyticsPageEngagementTracker(
+  options: AnalyticsPageEngagementTrackerOptions = {},
+): AnalyticsPageEngagementTracker {
+  return new AnalyticsPageEngagementTracker(options);
+}
+
 export function createAnalyticsService(options: AnalyticsServiceOptions = {}): AnalyticsService {
   return new AnalyticsService(options);
 }
 
 export const analyticsService = createAnalyticsService();
+export const analyticsPageEngagementTracker = createAnalyticsPageEngagementTracker();

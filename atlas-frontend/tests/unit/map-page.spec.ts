@@ -2,7 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
 
-const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
+const { mapInteractionTrackMock, mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
+  mapInteractionTrackMock: vi.fn(),
   mapStoreMock: {
     activeCategories: ['food', 'nature'],
     visibleSpotIds: ['spot-1', 'spot-2'],
@@ -89,6 +90,12 @@ vi.mock('@/stores/trips', () => ({
   useTripsStore: () => tripsStoreMock,
 }));
 
+vi.mock('@/services/analyticsService', () => ({
+  analyticsPageEngagementTracker: {
+    recordMapInteraction: mapInteractionTrackMock,
+  },
+}));
+
 import MapPage from '@/views/MapPage.vue';
 
 function setViewportWidth(width: number) {
@@ -127,6 +134,7 @@ describe('MapPage', () => {
     mapStoreMock.activeCategories = ['food', 'nature'];
     mapStoreMock.visibleSpotIds = ['spot-1', 'spot-2'];
     mapStoreMock.selectedSpotId = 'spot-1';
+    mapInteractionTrackMock.mockReset();
     mapStoreMock.toggleCategory.mockReset();
     mapStoreMock.resetCategories.mockReset();
     mapStoreMock.setSelectedSpotId.mockReset().mockImplementation((spotId: string) => {
@@ -162,11 +170,18 @@ describe('MapPage', () => {
     expect(activeChip.classes()).not.toContain('is-inactive');
     expect(inactiveChip.classes()).toContain('is-inactive');
 
+    await activeChip.trigger('click');
     await wrapper.get('button.visible-item').trigger('click');
+    await wrapper.get('button.text-link').trigger('click');
 
+    expect(mapStoreMock.toggleCategory).toHaveBeenCalledWith('food');
     expect(mapStoreMock.setSelectedSpotId).toHaveBeenCalledWith('spot-1');
     expect(mapStoreMock.setCenter).toHaveBeenCalledWith([-97.3308, 32.7555]);
     expect(mapStoreMock.setZoom).toHaveBeenCalledWith(12);
+    expect(mapStoreMock.resetCategories).toHaveBeenCalledTimes(1);
+    expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(1, 'category_toggle');
+    expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(2, 'visible_spot_focus');
+    expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(3, 'category_reset');
   });
 
   it('switches to a mobile bottom-sheet sidebar and reveals it after selecting a map pin', async () => {
@@ -175,9 +190,14 @@ describe('MapPage', () => {
       mapViewStub: {
         props: ['spots', 'routePoints', 'selectedSpotId'],
         template: `
-          <button data-test="map-view-mobile-select" @click="$emit('spot-select', spots[1])">
-            {{ selectedSpotId }} / {{ spots.length }}
-          </button>
+          <div>
+            <button data-test="map-view-mobile-select" @click="$emit('spot-select', spots[1])">
+              {{ selectedSpotId }} / {{ spots.length }}
+            </button>
+            <button data-test="map-view-mobile-interaction" @click="$emit('interaction', { type: 'fit_route' })">
+              Emit map interaction
+            </button>
+          </div>
         `,
       },
     });
@@ -193,8 +213,13 @@ describe('MapPage', () => {
     await flushPromises();
 
     expect(mapStoreMock.setSelectedSpotId).toHaveBeenLastCalledWith('spot-2');
+    expect(mapInteractionTrackMock).toHaveBeenCalledWith('spot_select');
     expect(getSheetState()).toBe('mid');
     expect(wrapper.text()).toContain('Botanic River Walk');
+
+    await wrapper.get('[data-test="map-view-mobile-interaction"]').trigger('click');
+
+    expect(mapInteractionTrackMock).toHaveBeenLastCalledWith('fit_route');
 
     await wrapper.get('[data-test="map-mobile-sheet-toggle"]').trigger('click');
 
