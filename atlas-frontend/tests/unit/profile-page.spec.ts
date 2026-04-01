@@ -1,4 +1,15 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+
+const ORIGINAL_INNER_WIDTH = window.innerWidth;
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
 
 const { fixtures, authStoreMock, userStoreMock, listUserSpotsMock, listPublicTripsMock } = vi.hoisted(() => ({
   fixtures: {
@@ -97,6 +108,7 @@ import ProfilePage from '@/views/ProfilePage.vue';
 
 describe('ProfilePage', () => {
   beforeEach(() => {
+    setViewportWidth(1280);
     authStoreMock.currentUser = {
       id: 'user-1',
       username: 'louisdo',
@@ -159,6 +171,31 @@ describe('ProfilePage', () => {
     expect(wrapper.find('[data-test="profile-workspace-skeleton"]').exists()).toBe(true);
   });
 
+  it('switches to the stacked mobile profile layout and scrollable adventures rail at the shared breakpoint', async () => {
+    setViewportWidth(390);
+
+    const wrapper = mount(ProfilePage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          RouterLink: { template: '<a><slot /></a>' },
+          ProfileHeader: { props: ['user'], template: '<div data-test="profile-header">{{ user.displayName }}</div>' },
+          ProfileStats: { props: ['countryCount'], template: '<div data-test="profile-stats">{{ countryCount }}</div>' },
+          ProfileMap: { props: ['title', 'description'], template: '<div data-test="profile-map">{{ title }} · {{ description }}</div>' },
+          ProfileAdventureCard: { props: ['trip'], template: '<div class="trip-card-stub">{{ trip.title }}</div>' },
+          SpotCard: { props: ['spot'], template: '<div class="spot-card-stub">{{ spot.title }}</div>' },
+        },
+      },
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.get('.profile-page').attributes('data-profile-layout')).toBe('mobile');
+    expect(wrapper.get('.adventure-grid').attributes('data-adventure-layout')).toBe('rail');
+    expect(wrapper.get('.pin-grid').attributes('data-pin-layout')).toBe('stacked');
+  });
+
   it('shows an error state when the profile contract cannot be loaded', async () => {
     authStoreMock.currentUser = {
       id: 'user-9',
@@ -182,5 +219,9 @@ describe('ProfilePage', () => {
 
     expect(wrapper.text()).toContain('Atlas could not open this profile workspace');
     expect(wrapper.text()).toContain('Profile offline');
+  });
+
+  afterAll(() => {
+    setViewportWidth(ORIGINAL_INNER_WIDTH);
   });
 });

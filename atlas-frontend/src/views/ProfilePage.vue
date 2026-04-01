@@ -1,6 +1,6 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack profile-page">
+    <div class="page-container page-stack profile-page" :data-profile-layout="isMobileProfileLayout ? 'mobile' : 'desktop'">
       <article v-if="profileError" class="glass-panel state-panel" role="alert">
         <p class="eyebrow">Temporary issue</p>
         <h2>Atlas could not open this profile workspace</h2>
@@ -47,7 +47,7 @@
             description="A premium three-card grid of the collaborative routes shaping this explorer's latest Atlas footprint."
           />
 
-          <div v-if="featuredTrips.length" class="adventure-grid">
+          <div v-if="featuredTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
             <ProfileAdventureCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
           </div>
           <EmptyStatePanel
@@ -68,7 +68,7 @@
             description="A curated strip of the places shaping this explorer's current public Atlas identity."
           />
 
-          <div v-if="featuredSpots.length" class="pin-grid">
+          <div v-if="featuredSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
             <SpotCard v-for="spot in featuredSpots" :key="spot.id" :spot="spot" />
           </div>
           <EmptyStatePanel
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
@@ -119,10 +119,13 @@ import type { SpotCategory, SpotSummary, Trip, TripSpot, UserProfile } from '@/t
 import { toAsyncErrorMessage } from '@/utils/errors';
 import { getInclusiveDaySpan } from '@/utils/formatters';
 
+const PROFILE_MOBILE_BREAKPOINT = 640;
+
 const route = useRoute();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 const profileUser = ref<UserProfile | null>(null);
+const isMobileProfileLayout = ref(resolveIsMobileProfileLayout());
 const profileSpots = ref<SpotSummary[]>([]);
 const profileTrips = ref<Trip[]>([]);
 const isLoading = ref(true);
@@ -149,6 +152,18 @@ function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfil
 
 function getTripDurationDays(trip: Trip): number {
   return getInclusiveDaySpan(trip.startDate, trip.endDate);
+}
+
+function resolveIsMobileProfileLayout(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.innerWidth <= PROFILE_MOBILE_BREAKPOINT;
+}
+
+function syncMobileProfileLayout() {
+  isMobileProfileLayout.value = resolveIsMobileProfileLayout();
 }
 
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
@@ -289,6 +304,15 @@ async function loadProfileWorkspace(userId: string) {
   isLoading.value = false;
 }
 
+onMounted(() => {
+  syncMobileProfileLayout();
+  window.addEventListener('resize', syncMobileProfileLayout, { passive: true });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncMobileProfileLayout);
+});
+
 watch(
   routeUserId,
   (userId) => {
@@ -347,6 +371,36 @@ p {
   gap: var(--space-2);
 }
 
+.profile-page[data-profile-layout='mobile'] {
+  gap: var(--space-4);
+}
+
+.profile-page[data-profile-layout='mobile'] :is(.profile-hero, .profile-section) {
+  gap: var(--space-4);
+}
+
+.profile-page[data-profile-layout='mobile'] .adventure-grid[data-adventure-layout='rail'] {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(17.5rem, 84vw);
+  overflow-x: auto;
+  padding-inline: var(--space-1);
+  padding-bottom: 0.15rem;
+  margin-inline: calc(var(--space-1) * -1);
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.profile-page[data-profile-layout='mobile'] .adventure-grid[data-adventure-layout='rail'] > * {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.profile-page[data-profile-layout='mobile'] .pin-grid[data-pin-layout='stacked'] {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 1120px) {
   .adventure-grid,
   .pin-grid {
@@ -355,7 +409,6 @@ p {
 }
 
 @media (max-width: 640px) {
-  .adventure-grid,
   .pin-grid {
     grid-template-columns: 1fr;
   }
