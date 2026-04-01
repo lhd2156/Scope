@@ -162,7 +162,7 @@ const isLastStep = computed(() => onboardingStore.activeStepIndex === onboarding
 const titleId = `onboarding-overlay-title-${useId()}`;
 const descriptionId = `onboarding-overlay-description-${useId()}`;
 let syncSequence = 0;
-let activeTargetElement: HTMLElement | null = null;
+let activeTargetElements: HTMLElement[] = [];
 
 function resolveCardMaxWidth(): number {
   return isWelcomeStep.value ? WELCOME_CARD_MAX_WIDTH : DEFAULT_CARD_MAX_WIDTH;
@@ -207,20 +207,27 @@ function findVisibleTarget(selector: string): HTMLElement | null {
   return targets.find((target) => isTargetVisible(target)) ?? null;
 }
 
-function setActiveTarget(target: HTMLElement | null): void {
-  if (activeTargetElement === target) {
-    return;
-  }
+function resolveVisibleTargets(selectors?: readonly string[]): HTMLElement[] {
+  return (selectors ?? [])
+    .map((selector) => findVisibleTarget(selector))
+    .filter((target): target is HTMLElement => Boolean(target));
+}
 
-  if (activeTargetElement) {
-    activeTargetElement.removeAttribute('data-onboarding-active');
-  }
+function setActiveTargets(targets: readonly HTMLElement[]): void {
+  const nextActiveTargets = Array.from(new Set(targets));
+  const nextTargetSet = new Set(nextActiveTargets);
 
-  activeTargetElement = target;
+  activeTargetElements.forEach((target) => {
+    if (!nextTargetSet.has(target)) {
+      target.removeAttribute('data-onboarding-active');
+    }
+  });
 
-  if (activeTargetElement) {
-    activeTargetElement.setAttribute('data-onboarding-active', 'true');
-  }
+  nextActiveTargets.forEach((target) => {
+    target.setAttribute('data-onboarding-active', 'true');
+  });
+
+  activeTargetElements = nextActiveTargets;
 }
 
 function measureElement(element: HTMLElement): SpotlightRect {
@@ -360,7 +367,7 @@ async function syncPresentation(): Promise<void> {
   if (!onboardingStore.isActive || !currentStep || typeof window === 'undefined') {
     spotlightRect.value = null;
     cardPosition.value = null;
-    setActiveTarget(null);
+    setActiveTargets([]);
     return;
   }
 
@@ -388,7 +395,7 @@ async function syncPresentation(): Promise<void> {
   if (currentStep.showSpotlight === false) {
     spotlightRect.value = null;
     cardPosition.value = resolveStandaloneCardPosition();
-    setActiveTarget(null);
+    setActiveTargets(resolveVisibleTargets(currentStep.accentSelectors));
     await nextTick();
     cardRef.value?.focus();
     return;
@@ -399,16 +406,18 @@ async function syncPresentation(): Promise<void> {
     return;
   }
 
+  const accentTargets = resolveVisibleTargets(currentStep.accentSelectors);
+
   if (!target) {
     spotlightRect.value = null;
     cardPosition.value = resolveFallbackCardPosition();
-    setActiveTarget(null);
+    setActiveTargets(accentTargets);
     await nextTick();
     cardRef.value?.focus();
     return;
   }
 
-  setActiveTarget(target);
+  setActiveTargets([target, ...accentTargets]);
 
   target.scrollIntoView({
     behavior: reducedMotion.value ? 'auto' : 'smooth',
@@ -435,26 +444,27 @@ async function syncPresentation(): Promise<void> {
 
 function refreshLayout(): void {
   if (!onboardingStore.isActive || !activeStep.value) {
-    setActiveTarget(null);
+    setActiveTargets([]);
     return;
   }
 
   if (activeStep.value.showSpotlight === false) {
     spotlightRect.value = null;
     cardPosition.value = resolveStandaloneCardPosition();
-    setActiveTarget(null);
+    setActiveTargets(resolveVisibleTargets(activeStep.value.accentSelectors));
     return;
   }
 
   const target = findVisibleTarget(activeStep.value.selector);
+  const accentTargets = resolveVisibleTargets(activeStep.value.accentSelectors);
   if (!target) {
     spotlightRect.value = null;
     cardPosition.value = resolveFallbackCardPosition();
-    setActiveTarget(null);
+    setActiveTargets(accentTargets);
     return;
   }
 
-  setActiveTarget(target);
+  setActiveTargets([target, ...accentTargets]);
 
   const nextSpotlightRect = measureElement(target);
   spotlightRect.value = nextSpotlightRect;
@@ -531,7 +541,7 @@ watch(
     if (!isActive) {
       spotlightRect.value = null;
       cardPosition.value = null;
-      setActiveTarget(null);
+      setActiveTargets([]);
       return;
     }
 
@@ -568,7 +578,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', refreshLayout);
   window.removeEventListener('scroll', refreshLayout, true);
   window.removeEventListener('keydown', handleKeydown);
-  setActiveTarget(null);
+  setActiveTargets([]);
 });
 </script>
 

@@ -120,7 +120,7 @@
 - [x] 19.1 - Create OnboardingOverlay.vue with spotlight step-by-step tutorial
 - [x] 19.2 - Step 1: Welcome to Atlas - animated intro with feature highlights
 - [x] 19.3 - Step 2: Drop Your First Pin - highlight Create Spot button with guided prompt
-- [ ] 19.4 - Step 3: Explore the Map - highlight map controls and category filters
+- [x] 19.4 - Step 3: Explore the Map - highlight map controls and category filters
 - [ ] 19.5 - Step 4: Plan a Trip - highlight trip planner and AI itinerary feature
 - [ ] 19.6 - Step 5: Connect with Travelers - highlight friends and feed features
 - [ ] 19.7 - Add progress dots, skip button, persist completion in localStorage
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 19.4 - Step 3: Explore the Map - highlight map controls and category filters
-## Last Updated: 2026-04-01T12:52:08.5368206-05:00
+## Current Task: Phase 19.5 - Step 4: Plan a Trip - highlight trip planner and AI itinerary feature
+## Last Updated: 2026-04-01T13:08:34.4187538-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -203,3 +203,4 @@
 - 2026-04-01T12:05:01.2743366-05:00: COMPLETED Phase 19.1 - reconciled the stale tracker against the existing onboarding overlay milestone already present on this branch (`OnboardingOverlay.vue`, onboarding store/config, App shell wiring, and unit coverage), then revalidated the spotlight tutorial shell with focused onboarding/home-page Vitest coverage plus a fresh production build. Validation: `npm.cmd run test -- tests/unit/onboarding-overlay.spec.ts tests/unit/onboarding-store.spec.ts tests/unit/home-page.spec.ts`, `npm.cmd run build`. Next up: Phase 19.2 welcome-step content.
 - 2026-04-01T12:25:54.4936236-05:00: COMPLETED Phase 19.2 - upgraded the onboarding welcome step into a premium animated intro with Atlas branding, four feature-highlight cards, standalone centered presentation before spotlight steps, and reduced-motion-safe motion tuned in scoped styles; extended onboarding config/store metadata plus welcome-step Vitest coverage, then revalidated the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 252 tests). Next up: Phase 19.3 drop-your-first-pin guidance.
 - 2026-04-01T12:52:08.5368206-05:00: COMPLETED Phase 19.3 - added a premium Create Spot CTA to the shared navbar, inserted a guided "Drop your first pin" onboarding step that spotlights the button on the home route with richer coaching copy/cards, taught the overlay to resolve visible targets and tag the active CTA for reduced-motion-safe highlighting, and extended navbar/onboarding Vitest coverage before revalidating the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 253 tests). Next up: Phase 19.4 explore-the-map guidance.
+- 2026-04-01T13:08:34.4187538-05:00: COMPLETED Phase 19.4 - upgraded the map onboarding step to spotlight the category filter rail while simultaneously accenting the floating map control stack, added richer premium coaching cards/copy for the map workspace, auto-expanded the mobile map bottom sheet during the tutorial so both surfaces stay visible, and extended onboarding/map Vitest coverage before revalidating the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 254 tests). Next up: Phase 19.5 trip-planner guidance.

@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
 
-const { mapInteractionTrackMock, mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
+const { mapInteractionTrackMock, mapStoreMock, onboardingStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
   mapInteractionTrackMock: vi.fn(),
   mapStoreMock: {
     activeCategories: ['food', 'nature'],
@@ -13,6 +13,10 @@ const { mapInteractionTrackMock, mapStoreMock, spotsStoreMock, tripsStoreMock } 
     setSelectedSpotId: vi.fn(),
     setCenter: vi.fn(),
     setZoom: vi.fn(),
+  },
+  onboardingStoreMock: {
+    isActive: false,
+    activeStep: null as null | { routeName: string },
   },
   spotsStoreMock: {
     items: [
@@ -82,6 +86,10 @@ vi.mock('@/stores/map', () => ({
   useMapStore: () => mapStoreMock,
 }));
 
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => onboardingStoreMock,
+}));
+
 vi.mock('@/stores/spots', () => ({
   useSpotsStore: () => spotsStoreMock,
 }));
@@ -134,6 +142,8 @@ describe('MapPage', () => {
     mapStoreMock.activeCategories = ['food', 'nature'];
     mapStoreMock.visibleSpotIds = ['spot-1', 'spot-2'];
     mapStoreMock.selectedSpotId = 'spot-1';
+    onboardingStoreMock.isActive = false;
+    onboardingStoreMock.activeStep = null;
     mapInteractionTrackMock.mockReset();
     mapStoreMock.toggleCategory.mockReset();
     mapStoreMock.resetCategories.mockReset();
@@ -224,6 +234,18 @@ describe('MapPage', () => {
     await wrapper.get('[data-test="map-mobile-sheet-toggle"]').trigger('click');
 
     expect(getSheetState()).toBe('full');
+  });
+
+  it('opens the mobile sheet fully during the map onboarding step so filters stay visible', async () => {
+    onboardingStoreMock.isActive = true;
+    onboardingStoreMock.activeStep = { routeName: 'map' };
+
+    const wrapper = mountMapPage({ mobile: true });
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="map-mobile-sheet"]').attributes('data-sheet-state')).toBe('full');
+    expect(wrapper.get('[data-onboarding-target="map-filters"]').exists()).toBe(true);
   });
 
   it('shows a workspace error panel when route data fails to load', async () => {

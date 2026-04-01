@@ -1,6 +1,6 @@
 <template>
   <div class="map-controls" :class="{ 'map-controls--with-panel': showFilterPanel }">
-    <section class="control-stack">
+    <section class="control-stack" data-onboarding-target="map-controls">
       <button class="control-button glass-panel" type="button" aria-label="Zoom in" :disabled="!interactive" @click="$emit('zoom-in')">
         <AtlasIcon name="zoom-in" label="Zoom in" />
       </button>
@@ -142,6 +142,22 @@ const statusCopy = computed(() => {
 .control-stack {
   display: grid;
   gap: var(--space-3);
+}
+
+.control-stack[data-onboarding-active='true'] {
+  padding: var(--space-2);
+  border-radius: calc(var(--radius-2xl) + var(--space-2));
+  background: color-mix(in srgb, var(--glass-bg) 94%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 20%, transparent),
+    0 0 2rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
+.control-stack[data-onboarding-active='true'] .control-button {
+  border-color: color-mix(in srgb, var(--accent-teal) 30%, transparent);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 1.4rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
 }
 
 .control-button,

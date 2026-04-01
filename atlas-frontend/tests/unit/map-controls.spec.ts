@@ -42,5 +42,6 @@ describe('MapControls', () => {
     expect(wrapper.find('.filter-panel').exists()).toBe(false);
     expect(wrapper.findAll('button')).toHaveLength(4);
     expect(wrapper.classes()).not.toContain('map-controls--with-panel');
+    expect(wrapper.get('.control-stack').attributes('data-onboarding-target')).toBe('map-controls');
   });
 });

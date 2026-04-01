@@ -228,6 +228,7 @@ import LazyImage from '@/components/common/LazyImage.vue';
 import MapView from '@/components/map/MapView.vue';
 import { analyticsPageEngagementTracker } from '@/services/analyticsService';
 import { useMapStore } from '@/stores/map';
+import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
 import type { MapPoint, SpotCategory } from '@/types';
@@ -252,6 +253,7 @@ const MOBILE_SHEET_STATES: MobileSheetState[] = ['peek', 'mid', 'full'];
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 const mapStore = useMapStore();
+const onboardingStore = useOnboardingStore();
 const spotsStore = useSpotsStore();
 const tripsStore = useTripsStore();
 const isMobileMapLayout = ref(false);
@@ -534,6 +536,10 @@ const mobileSheetStyle = computed(() => {
     '--atlas-mobile-sheet-drag-offset': `${mobileSheetDragOffset.value}px`,
   };
 });
+const isMapOnboardingStepActive = computed(() => (
+  onboardingStore.isActive
+  && onboardingStore.activeStep?.routeName === 'map'
+));
 const mapViewStyle = computed(() => {
   if (!isMobileMapLayout.value) {
     return undefined;
@@ -612,14 +618,17 @@ function handleSidebarKeydown(event: KeyboardEvent) {
 }
 
 watch(
-  isMobileMapLayout,
-  (isMobile) => {
+  [isMobileMapLayout, isMapOnboardingStepActive],
+  ([isMobile, isMapOnboardingStep]) => {
     if (!isMobile) {
       cancelMobileSheetDrag();
+      ignoreNextMobileSheetClick.value = false;
+      mobileSheetState.value = 'peek';
+      return;
     }
 
     ignoreNextMobileSheetClick.value = false;
-    mobileSheetState.value = 'peek';
+    mobileSheetState.value = isMapOnboardingStep ? 'full' : 'peek';
   },
   { immediate: true },
 );
@@ -703,6 +712,23 @@ onBeforeUnmount(() => {
   isolation: isolate;
   padding: var(--space-5);
   box-shadow: var(--shadow-lg);
+}
+
+.filter-panel[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 22%, transparent),
+    0 0 2.4rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
+.filter-panel[data-onboarding-active='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0.75rem;
+  border-radius: calc(var(--radius-xl) - 0.3rem);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, transparent);
+  pointer-events: none;
 }
 
 .panel-heading,
