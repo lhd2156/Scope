@@ -34,6 +34,10 @@ describe('useOnboardingStore', () => {
     });
     expect(onboardingStore.steps[0].highlights).toHaveLength(4);
     expect(onboardingStore.steps[1].highlights).toHaveLength(2);
+    expect(onboardingStore.steps[3]).toMatchObject({
+      accentSelectors: ['[data-onboarding-target="map-controls"]'],
+    });
+    expect(onboardingStore.steps[3].highlights).toHaveLength(2);
     expect(onboardingStore.totalSteps).toBe(4);
     expect(onboardingStore.hasCompleted).toBe(false);
   });

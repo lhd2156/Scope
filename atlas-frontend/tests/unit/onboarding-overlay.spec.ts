@@ -21,12 +21,20 @@ const spotlightRects: Record<string, { top: number; left: number; width: number;
   'create-spot-button': { top: 28, left: 860, width: 168, height: 48 },
   'explore-toolbar': { top: 140, left: 140, width: 640, height: 96 },
   'map-filters': { top: 128, left: 56, width: 320, height: 260 },
+  'map-controls': { top: 620, left: 1060, width: 72, height: 232 },
   'planner-submit': { top: 640, left: 180, width: 280, height: 56 },
 };
 
 const HomeRoute = { template: '<section data-onboarding-target="home-hero">Home hero</section>' };
 const ExploreRoute = { template: '<section data-onboarding-target="explore-toolbar">Explore toolbar</section>' };
-const MapRoute = { template: '<section data-onboarding-target="map-filters">Map filters</section>' };
+const MapRoute = {
+  template: `
+    <div>
+      <section data-onboarding-target="map-filters">Map filters</section>
+      <aside data-onboarding-target="map-controls">Map controls</aside>
+    </div>
+  `,
+};
 const TripPlannerRoute = { template: '<button data-onboarding-target="planner-submit">Generate</button>' };
 const Shell = defineComponent({
   components: {
@@ -165,7 +173,11 @@ describe('OnboardingOverlay', () => {
     await settleOnboarding();
 
     expect(router.currentRoute.value.name).toBe('map');
-    expect(wrapper.text()).toContain('See the route come alive on the map');
+    expect(wrapper.text()).toContain('Guide the canvas with controls and category lanes');
+    expect(wrapper.text()).toContain('Move the map fast');
+    expect(wrapper.text()).toContain('Filter by mood');
+    expect(wrapper.get('[data-onboarding-target="map-filters"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.get('[data-onboarding-target="map-controls"]').attributes('data-onboarding-active')).toBe('true');
   });
 
   it('highlights the create-spot CTA before routing into the later walkthrough steps', async () => {

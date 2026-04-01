@@ -20,6 +20,7 @@ export interface OnboardingStep {
   variant?: OnboardingStepVariant;
   showSpotlight?: boolean;
   highlights?: readonly OnboardingFeatureHighlight[];
+  accentSelectors?: readonly string[];
 }
 
 const publicOnboardingSteps: readonly OnboardingStep[] = [
@@ -93,11 +94,24 @@ const publicOnboardingSteps: readonly OnboardingStep[] = [
     id: 'map-filters',
     routeName: 'map',
     selector: '[data-onboarding-target="map-filters"]',
-    eyebrow: 'Live map workspace',
-    title: 'See the route come alive on the map',
-    description: 'Category toggles reshape the live pin canvas instantly, so you can compare moods, neighborhoods, and route potential without leaving the workspace.',
+    eyebrow: 'Explore the map',
+    title: 'Guide the canvas with controls and category lanes',
+    description: 'Use the floating controls to zoom, recenter, or fit the route, then tap category filters to instantly reshape which pins Atlas keeps in play.',
     placement: 'right',
-    ctaLabel: 'Keep going',
+    ctaLabel: 'Plan a trip',
+    highlights: [
+      {
+        icon: 'crosshair',
+        title: 'Move the map fast',
+        description: 'The floating stack keeps zoom, locate, and route-fit actions within reach without covering the canvas.',
+      },
+      {
+        icon: 'map',
+        title: 'Filter by mood',
+        description: 'Blend food, culture, adventure, and nightlife lanes to compare the strongest clusters before you open a spot.',
+      },
+    ],
+    accentSelectors: ['[data-onboarding-target="map-controls"]'],
   },
 ] as const;
 
