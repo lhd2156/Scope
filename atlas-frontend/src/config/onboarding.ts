@@ -119,12 +119,29 @@ const authenticatedOnboardingSteps: readonly OnboardingStep[] = [
   {
     id: 'planner-submit',
     routeName: 'trip-planner',
-    selector: '[data-onboarding-target="planner-submit"]',
-    eyebrow: 'Atlas Intel',
-    title: 'Turn the brief into an AI itinerary',
-    description: 'Once the route brief feels right, Atlas Intel can generate a polished day-by-day plan you can review, refine, and share with your crew.',
-    placement: 'top',
+    selector: '[data-onboarding-target="planner-shell"]',
+    eyebrow: 'Plan a trip',
+    title: 'Shape the route, then let Atlas Intel compose the days',
+    description: 'Build the brief, route order, pace, and interests inside the planner. Atlas Intel keeps the AI preview beside you so every tweak instantly sharpens the trip before you share it.',
+    placement: 'right',
     ctaLabel: 'Finish tour',
+    highlights: [
+      {
+        icon: 'route',
+        title: 'Tune the route stack',
+        description: 'Lock the dates, budget range, and stop order until the adventure arc feels right for your crew.',
+      },
+      {
+        icon: 'sparkle',
+        title: 'Generate a polished preview',
+        description: 'Atlas Intel turns the brief into a map-backed timeline with day cards, budget context, and share-ready momentum.',
+      },
+    ],
+    accentSelectors: [
+      '[data-onboarding-target="planner-submit"]',
+      '[data-onboarding-target="itinerary-stage"]',
+      '[data-onboarding-target="planner-preview-toggle"]',
+    ],
   },
 ] as const;
 

@@ -53,6 +53,15 @@ describe('useOnboardingStore', () => {
       'map-filters',
       'planner-submit',
     ]);
+    expect(onboardingStore.steps[4]).toMatchObject({
+      selector: '[data-onboarding-target="planner-shell"]',
+      accentSelectors: [
+        '[data-onboarding-target="planner-submit"]',
+        '[data-onboarding-target="itinerary-stage"]',
+        '[data-onboarding-target="planner-preview-toggle"]',
+      ],
+    });
+    expect(onboardingStore.steps[4].highlights).toHaveLength(2);
     expect(onboardingStore.totalSteps).toBe(5);
   });
 

@@ -22,7 +22,9 @@ const spotlightRects: Record<string, { top: number; left: number; width: number;
   'explore-toolbar': { top: 140, left: 140, width: 640, height: 96 },
   'map-filters': { top: 128, left: 56, width: 320, height: 260 },
   'map-controls': { top: 620, left: 1060, width: 72, height: 232 },
-  'planner-submit': { top: 640, left: 180, width: 280, height: 56 },
+  'planner-shell': { top: 144, left: 84, width: 452, height: 676 },
+  'planner-submit': { top: 728, left: 152, width: 312, height: 56 },
+  'itinerary-stage': { top: 144, left: 592, width: 604, height: 676 },
 };
 
 const HomeRoute = { template: '<section data-onboarding-target="home-hero">Home hero</section>' };
@@ -35,7 +37,16 @@ const MapRoute = {
     </div>
   `,
 };
-const TripPlannerRoute = { template: '<button data-onboarding-target="planner-submit">Generate</button>' };
+const TripPlannerRoute = {
+  template: `
+    <div class="planner-route-stub">
+      <section data-onboarding-target="planner-shell">
+        <button data-onboarding-target="planner-submit">Generate AI itinerary</button>
+      </section>
+      <aside data-onboarding-target="itinerary-stage">Live AI preview</aside>
+    </div>
+  `,
+};
 const Shell = defineComponent({
   components: {
     RouterView,
@@ -215,6 +226,41 @@ describe('OnboardingOverlay', () => {
 
     expect(router.currentRoute.value.name).toBe('explore');
     expect(wrapper.text()).toContain('Refine the shortlist in Explore');
+  });
+
+  it('routes into the trip planner step and accents the planner plus AI preview surfaces', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          transition: false,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+
+    const onboardingStore = useOnboardingStore();
+    onboardingStore.start();
+    await settleOnboarding();
+
+    await wrapper.findAll('.onboarding-overlay__progress-dot')[4].trigger('click');
+    await settleOnboarding();
+
+    expect(router.currentRoute.value.name).toBe('trip-planner');
+    expect(wrapper.text()).toContain('Shape the route, then let Atlas Intel compose the days');
+    expect(wrapper.text()).toContain('Tune the route stack');
+    expect(wrapper.text()).toContain('Generate a polished preview');
+    expect(wrapper.text()).toContain('Step 5 of 5');
+    expect(wrapper.get('[data-onboarding-target="planner-shell"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.get('[data-onboarding-target="planner-submit"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.get('[data-onboarding-target="itinerary-stage"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
   });
 
   it('skips the overlay and persists completion when the traveler dismisses the tour', async () => {
