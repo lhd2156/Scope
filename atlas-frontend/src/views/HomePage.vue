@@ -80,33 +80,81 @@
           description="Recent pins, trip moves, and social proof from the people shaping Atlas in real time."
         />
 
-        <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading Atlas activity feed">
-          <FeedItemSkeleton v-for="index in 3" :key="`feed-skeleton-${index}`" />
-        </div>
-        <VirtualList
-          v-else-if="feedStore.items.length"
-          class="feed-list"
-          :items="feedStore.items"
-          :item-height="580"
-          :viewport-height="640"
-          list-label="Atlas activity feed"
-          stagger
+        <article
+          v-if="authStore.isAuthenticated"
+          class="feed-social-callout glass-panel"
+          data-onboarding-target="social-hub"
+          data-test="social-hub"
         >
-          <template #default="{ item }">
-            <div class="feed-row">
-              <FeedItem :item="item" />
-            </div>
-          </template>
-        </VirtualList>
-        <EmptyStatePanel
-          v-else-if="!feedStore.error"
-          eyebrow="Network activity"
-          title="No activity yet"
-          description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
-          icon="sparkle"
-          artwork="activity"
-          heading-level="h3"
-        />
+          <div class="feed-social-callout__copy">
+            <p class="eyebrow">Travel circle</p>
+            <h3>Connect with travelers and keep the journey alive between trips.</h3>
+            <p class="section-copy">
+              Open Friends to accept requests, follow trusted explorers, and turn shared taste into real route momentum.
+              Atlas keeps that same energy flowing below with a live feed of fresh pins, finished trips, and social proof.
+            </p>
+          </div>
+
+          <div class="feed-social-callout__highlights" aria-label="Social features">
+            <article class="feed-social-pill surface-card">
+              <span class="feed-social-pill__icon" aria-hidden="true">
+                <AtlasIcon name="friends" />
+              </span>
+              <div class="feed-social-pill__copy">
+                <strong>Friends hub</strong>
+                <p>Requests, mutuals, and future co-planners stay one tap away.</p>
+              </div>
+            </article>
+
+            <article class="feed-social-pill surface-card">
+              <span class="feed-social-pill__icon" aria-hidden="true">
+                <AtlasIcon name="sparkle" />
+              </span>
+              <div class="feed-social-pill__copy">
+                <strong>Live feed</strong>
+                <p>New pins, itinerary wins, and community proof update in one scroll.</p>
+              </div>
+            </article>
+          </div>
+
+          <RouterLink
+            class="button button-secondary feed-social-callout__action"
+            to="/friends"
+            data-onboarding-target="friends-hub-button"
+          >
+            Open Friends hub
+          </RouterLink>
+        </article>
+
+        <div class="feed-activity-stage" data-onboarding-target="activity-feed-list">
+          <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading Atlas activity feed">
+            <FeedItemSkeleton v-for="index in 3" :key="`feed-skeleton-${index}`" />
+          </div>
+          <VirtualList
+            v-else-if="feedStore.items.length"
+            class="feed-list"
+            :items="feedStore.items"
+            :item-height="580"
+            :viewport-height="640"
+            list-label="Atlas activity feed"
+            stagger
+          >
+            <template #default="{ item }">
+              <div class="feed-row">
+                <FeedItem :item="item" />
+              </div>
+            </template>
+          </VirtualList>
+          <EmptyStatePanel
+            v-else-if="!feedStore.error"
+            eyebrow="Network activity"
+            title="No activity yet"
+            description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
+            icon="sparkle"
+            artwork="activity"
+            heading-level="h3"
+          />
+        </div>
       </section>
     </div>
   </AppShell>
@@ -125,12 +173,14 @@ import FeedItemSkeleton from '@/components/social/FeedItemSkeleton.vue';
 import FeedItem from '@/components/social/FeedItem.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
+import { useAuthStore } from '@/stores/auth';
 import { useFeedStore } from '@/stores/feed';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 import { useReducedMotion } from '@/utils/motion';
 
+const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const feedStore = useFeedStore();
 const onboardingStore = useOnboardingStore();
@@ -167,7 +217,13 @@ onMounted(async () => {
 <style scoped>
 .home-page,
 .section-stack,
-.feed-skeleton-stack {
+.feed-skeleton-stack,
+.feed-activity-stage,
+.feed-social-callout,
+.feed-social-callout__copy,
+.feed-social-callout__highlights,
+.feed-social-pill,
+.feed-social-pill__copy {
   display: grid;
 }
 
@@ -176,13 +232,151 @@ onMounted(async () => {
 }
 
 .section-stack,
-.hero-panel {
+.hero-panel,
+.feed-activity-stage,
+.feed-social-callout,
+.feed-social-callout__copy,
+.feed-social-callout__highlights,
+.feed-social-pill,
+.feed-social-pill__copy {
   gap: var(--space-6);
 }
 
 .feed-skeleton-stack {
   gap: var(--space-4);
   justify-items: center;
+}
+
+.feed-social-callout {
+  position: relative;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) auto;
+  align-items: center;
+  padding: clamp(var(--space-5), 3vw, var(--space-7));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent));
+  border-color: color-mix(in srgb, var(--glass-border) 88%, var(--accent-teal) 12%);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.feed-social-callout::before,
+.feed-social-callout::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.feed-social-callout::before {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--text-primary) 7%, transparent), transparent 48%),
+    linear-gradient(315deg, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 42%);
+}
+
+.feed-social-callout::after {
+  inset: auto -20% -45% auto;
+  width: 18rem;
+  height: 18rem;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-teal) 22%, transparent), transparent 68%);
+}
+
+.feed-social-callout > * {
+  position: relative;
+  z-index: 1;
+}
+
+.feed-social-callout__copy h3,
+.feed-social-pill__copy p,
+.feed-social-pill__copy strong {
+  margin: 0;
+}
+
+.feed-social-callout__copy h3 {
+  font-size: clamp(1.4rem, 2vw, 1.85rem);
+  line-height: var(--line-height-tight);
+}
+
+.feed-social-callout__copy :deep(.section-copy) {
+  margin: 0;
+  max-width: 38rem;
+}
+
+.feed-social-callout__highlights {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.feed-social-pill {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  border-color: color-mix(in srgb, var(--glass-border) 82%, var(--accent-teal) 18%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.feed-social-pill__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  color: var(--accent-teal);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-teal) 22%, transparent);
+}
+
+.feed-social-pill__icon :deep(.atlas-icon) {
+  font-size: 1rem;
+}
+
+.feed-social-pill__copy {
+  gap: var(--space-2);
+}
+
+.feed-social-pill__copy strong {
+  font-size: var(--font-size-small);
+}
+
+.feed-social-pill__copy p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.feed-social-callout__action {
+  min-width: 12.5rem;
+  justify-self: end;
+  border-color: color-mix(in srgb, var(--accent-teal) 24%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 7%, transparent);
+}
+
+.feed-social-callout__action:hover,
+.feed-social-callout__action:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  box-shadow: 0 0 1.5rem color-mix(in srgb, var(--accent-teal) 16%, transparent);
+}
+
+.feed-social-callout:hover,
+.feed-social-callout:focus-within {
+  transform: translateY(-2px);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--glass-border) 92%, transparent),
+    0 0 2.5rem color-mix(in srgb, var(--accent-teal) 14%, transparent);
+}
+
+.feed-activity-stage {
+  padding: clamp(var(--space-4), 3vw, var(--space-6));
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--accent-teal) 18%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 78%, transparent), color-mix(in srgb, var(--bg-secondary) 92%, transparent)),
+    radial-gradient(circle at top center, color-mix(in srgb, var(--accent-teal) 10%, transparent), transparent 52%);
+  box-shadow: var(--shadow-md);
 }
 
 .feed-list {
@@ -399,6 +593,47 @@ onMounted(async () => {
   scroll-margin-top: calc(var(--shell-content-top) + var(--space-6));
 }
 
+.feed-social-callout[data-onboarding-active='true'],
+.feed-activity-stage[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 58%, var(--glass-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 26%, transparent),
+    0 0 2.6rem color-mix(in srgb, var(--accent-teal) 22%, transparent);
+}
+
+.feed-social-callout[data-onboarding-active='true'] {
+  transform: translateY(-2px);
+}
+
+.feed-social-callout__action[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 66%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  box-shadow:
+    var(--shadow-md),
+    0 0 1.8rem color-mix(in srgb, var(--accent-teal) 22%, transparent);
+}
+
+@media (max-width: 1080px) {
+  .feed-social-callout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feed-social-callout__action {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .feed-social-callout__highlights {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feed-activity-stage {
+    padding: var(--space-4);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .hero-panel {
     animation: hero-panel-enter 720ms ease both;
@@ -429,7 +664,11 @@ onMounted(async () => {
   .hero-action:active,
   .hero-tour-link,
   .hero-tour-link:hover,
-  .hero-tour-link:focus-visible {
+  .hero-tour-link:focus-visible,
+  .feed-social-callout,
+  .feed-social-callout:hover,
+  .feed-social-callout:focus-within,
+  .feed-social-callout[data-onboarding-active='true'] {
     transform: none;
   }
 }

@@ -25,7 +25,6 @@ describe('useOnboardingStore', () => {
     expect(onboardingStore.steps.map((step) => step.id)).toEqual([
       'home-hero',
       'create-spot-button',
-      'explore-toolbar',
       'map-filters',
     ]);
     expect(onboardingStore.steps[0]).toMatchObject({
@@ -34,31 +33,39 @@ describe('useOnboardingStore', () => {
     });
     expect(onboardingStore.steps[0].highlights).toHaveLength(4);
     expect(onboardingStore.steps[1].highlights).toHaveLength(2);
-    expect(onboardingStore.steps[3]).toMatchObject({
+    expect(onboardingStore.steps[2]).toMatchObject({
       accentSelectors: ['[data-onboarding-target="map-controls"]'],
     });
-    expect(onboardingStore.steps[3].highlights).toHaveLength(2);
-    expect(onboardingStore.totalSteps).toBe(4);
+    expect(onboardingStore.steps[2].highlights).toHaveLength(2);
+    expect(onboardingStore.totalSteps).toBe(3);
     expect(onboardingStore.hasCompleted).toBe(false);
   });
 
-  it('adds the planner step for authenticated travelers', () => {
+  it('adds the planner and social steps for authenticated travelers', () => {
     authStoreMock.isAuthenticated = true;
     const onboardingStore = useOnboardingStore();
 
     expect(onboardingStore.steps.map((step) => step.id)).toEqual([
       'home-hero',
       'create-spot-button',
-      'explore-toolbar',
       'map-filters',
       'planner-submit',
+      'social-hub',
     ]);
-    expect(onboardingStore.steps[4]).toMatchObject({
+    expect(onboardingStore.steps[3]).toMatchObject({
       selector: '[data-onboarding-target="planner-shell"]',
       accentSelectors: [
         '[data-onboarding-target="planner-submit"]',
         '[data-onboarding-target="itinerary-stage"]',
         '[data-onboarding-target="planner-preview-toggle"]',
+      ],
+    });
+    expect(onboardingStore.steps[3].highlights).toHaveLength(2);
+    expect(onboardingStore.steps[4]).toMatchObject({
+      selector: '[data-onboarding-target="social-hub"]',
+      accentSelectors: [
+        '[data-onboarding-target="friends-hub-button"]',
+        '[data-onboarding-target="activity-feed-list"]',
       ],
     });
     expect(onboardingStore.steps[4].highlights).toHaveLength(2);
@@ -80,7 +87,7 @@ describe('useOnboardingStore', () => {
     expect(onboardingStore.activeStep?.id).toBe('home-hero');
 
     onboardingStore.goToStep(4);
-    expect(onboardingStore.activeStep?.id).toBe('planner-submit');
+    expect(onboardingStore.activeStep?.id).toBe('social-hub');
 
     onboardingStore.next();
     expect(onboardingStore.isActive).toBe(false);

@@ -19,16 +19,28 @@ import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/
 const spotlightRects: Record<string, { top: number; left: number; width: number; height: number }> = {
   'home-hero': { top: 120, left: 120, width: 520, height: 280 },
   'create-spot-button': { top: 28, left: 860, width: 168, height: 48 },
-  'explore-toolbar': { top: 140, left: 140, width: 640, height: 96 },
   'map-filters': { top: 128, left: 56, width: 320, height: 260 },
   'map-controls': { top: 620, left: 1060, width: 72, height: 232 },
   'planner-shell': { top: 144, left: 84, width: 452, height: 676 },
   'planner-submit': { top: 728, left: 152, width: 312, height: 56 },
   'itinerary-stage': { top: 144, left: 592, width: 604, height: 676 },
+  'social-hub': { top: 232, left: 120, width: 820, height: 220 },
+  'friends-hub-button': { top: 308, left: 780, width: 176, height: 44 },
+  'activity-feed-list': { top: 488, left: 120, width: 704, height: 360 },
 };
 
-const HomeRoute = { template: '<section data-onboarding-target="home-hero">Home hero</section>' };
-const ExploreRoute = { template: '<section data-onboarding-target="explore-toolbar">Explore toolbar</section>' };
+const HomeRoute = {
+  template: `
+    <div>
+      <section data-onboarding-target="home-hero">Home hero</section>
+      <section data-onboarding-target="social-hub">
+        <button data-onboarding-target="friends-hub-button">Open Friends hub</button>
+      </section>
+      <div data-onboarding-target="activity-feed-list">Live activity feed</div>
+    </div>
+  `,
+};
+const ExploreRoute = { template: '<section>Explore toolbar</section>' };
 const MapRoute = {
   template: `
     <div>
@@ -180,7 +192,7 @@ describe('OnboardingOverlay', () => {
     onboardingStore.start();
     await settleOnboarding();
 
-    await wrapper.findAll('.onboarding-overlay__progress-dot')[3].trigger('click');
+    await wrapper.findAll('.onboarding-overlay__progress-dot')[2].trigger('click');
     await settleOnboarding();
 
     expect(router.currentRoute.value.name).toBe('map');
@@ -224,8 +236,8 @@ describe('OnboardingOverlay', () => {
     await wrapper.get('.button.button-primary').trigger('click');
     await settleOnboarding();
 
-    expect(router.currentRoute.value.name).toBe('explore');
-    expect(wrapper.text()).toContain('Refine the shortlist in Explore');
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(wrapper.text()).toContain('Guide the canvas with controls and category lanes');
   });
 
   it('routes into the trip planner step and accents the planner plus AI preview surfaces', async () => {
@@ -249,17 +261,49 @@ describe('OnboardingOverlay', () => {
     onboardingStore.start();
     await settleOnboarding();
 
-    await wrapper.findAll('.onboarding-overlay__progress-dot')[4].trigger('click');
+    await wrapper.findAll('.onboarding-overlay__progress-dot')[3].trigger('click');
     await settleOnboarding();
 
     expect(router.currentRoute.value.name).toBe('trip-planner');
     expect(wrapper.text()).toContain('Shape the route, then let Atlas Intel compose the days');
     expect(wrapper.text()).toContain('Tune the route stack');
     expect(wrapper.text()).toContain('Generate a polished preview');
-    expect(wrapper.text()).toContain('Step 5 of 5');
+    expect(wrapper.text()).toContain('Step 4 of 5');
     expect(wrapper.get('[data-onboarding-target="planner-shell"]').attributes('data-onboarding-active')).toBe('true');
     expect(wrapper.get('[data-onboarding-target="planner-submit"]').attributes('data-onboarding-active')).toBe('true');
     expect(wrapper.get('[data-onboarding-target="itinerary-stage"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
+  });
+
+  it('routes back home for the social step and accents the friends hub plus live feed', async () => {
+    const router = buildRouter();
+    await router.push('/trips/new');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          transition: false,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+
+    const onboardingStore = useOnboardingStore();
+    onboardingStore.start('social-hub');
+    await settleOnboarding();
+
+    expect(router.currentRoute.value.name).toBe('home');
+    expect(wrapper.text()).toContain('Grow your circle, then let the feed surface the strongest signals');
+    expect(wrapper.text()).toContain('Keep your crew close');
+    expect(wrapper.text()).toContain('Read the live signal');
+    expect(wrapper.text()).toContain('Step 5 of 5');
+    expect(wrapper.get('[data-onboarding-target="social-hub"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.get('[data-onboarding-target="friends-hub-button"]').attributes('data-onboarding-active')).toBe('true');
+    expect(wrapper.get('[data-onboarding-target="activity-feed-list"]').attributes('data-onboarding-active')).toBe('true');
     expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
   });
 
