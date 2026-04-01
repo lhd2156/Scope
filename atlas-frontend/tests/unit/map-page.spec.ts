@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
+const ORIGINAL_INNER_WIDTH = window.innerWidth;
+
 const { mapStoreMock, spotsStoreMock, tripsStoreMock } = vi.hoisted(() => ({
   mapStoreMock: {
     activeCategories: ['food', 'nature'],
@@ -89,6 +91,33 @@ vi.mock('@/stores/trips', () => ({
 
 import MapPage from '@/views/MapPage.vue';
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
+
+function mountMapPage(options?: {
+  mobile?: boolean;
+  mapViewStub?: { props?: string[]; template: string };
+}) {
+  setViewportWidth(options?.mobile ? 390 : 1280);
+
+  return mount(MapPage, {
+    global: {
+      stubs: {
+        AppShell: { template: '<div><slot /></div>' },
+        MapView: options?.mapViewStub ?? {
+          props: ['spots', 'routePoints', 'selectedSpotId'],
+          template: '<div data-test="map-view-stub">{{ spots.length }} spots / {{ routePoints.length }} route points / {{ selectedSpotId }}</div>',
+        },
+      },
+    },
+  });
+}
+
 describe('MapPage', () => {
   beforeEach(() => {
     spotsStoreMock.error = '';
@@ -96,27 +125,26 @@ describe('MapPage', () => {
     tripsStoreMock.error = '';
     tripsStoreMock.loading = false;
     mapStoreMock.activeCategories = ['food', 'nature'];
-    mapStoreMock.toggleCategory.mockClear();
-    mapStoreMock.resetCategories.mockClear();
-    mapStoreMock.setSelectedSpotId.mockClear();
-    mapStoreMock.setCenter.mockClear();
-    mapStoreMock.setZoom.mockClear();
-    spotsStoreMock.fetchSpots.mockClear();
-    tripsStoreMock.fetchTrips.mockClear();
+    mapStoreMock.visibleSpotIds = ['spot-1', 'spot-2'];
+    mapStoreMock.selectedSpotId = 'spot-1';
+    mapStoreMock.toggleCategory.mockReset();
+    mapStoreMock.resetCategories.mockReset();
+    mapStoreMock.setSelectedSpotId.mockReset().mockImplementation((spotId: string) => {
+      mapStoreMock.selectedSpotId = spotId;
+    });
+    mapStoreMock.setCenter.mockReset();
+    mapStoreMock.setZoom.mockReset();
+    spotsStoreMock.fetchSpots.mockReset().mockResolvedValue(undefined);
+    tripsStoreMock.fetchTrips.mockReset().mockResolvedValue(undefined);
+    setViewportWidth(1280);
+  });
+
+  afterAll(() => {
+    setViewportWidth(ORIGINAL_INNER_WIDTH);
   });
 
   it('loads the premium sidebar workspace with category chips, route preview, and selected spot details', async () => {
-    const wrapper = mount(MapPage, {
-      global: {
-        stubs: {
-          AppShell: { template: '<div><slot /></div>' },
-          MapView: {
-            props: ['spots', 'routePoints', 'selectedSpotId'],
-            template: '<div data-test="map-view-stub">{{ spots.length }} spots / {{ routePoints.length }} route points / {{ selectedSpotId }}</div>',
-          },
-        },
-      },
-    });
+    const wrapper = mountMapPage();
 
     await flushPromises();
 
@@ -141,18 +169,43 @@ describe('MapPage', () => {
     expect(mapStoreMock.setZoom).toHaveBeenCalledWith(12);
   });
 
+  it('switches to a mobile bottom-sheet sidebar and reveals it after selecting a map pin', async () => {
+    const wrapper = mountMapPage({
+      mobile: true,
+      mapViewStub: {
+        props: ['spots', 'routePoints', 'selectedSpotId'],
+        template: `
+          <button data-test="map-view-mobile-select" @click="$emit('spot-select', spots[1])">
+            {{ selectedSpotId }} / {{ spots.length }}
+          </button>
+        `,
+      },
+    });
+
+    await flushPromises();
+
+    const getSheetState = () => wrapper.get('[data-test="map-mobile-sheet"]').attributes('data-sheet-state');
+
+    expect(getSheetState()).toBe('peek');
+    expect(wrapper.get('[data-test="map-mobile-sheet-toggle"]').attributes('aria-expanded')).toBe('false');
+
+    await wrapper.get('[data-test="map-view-mobile-select"]').trigger('click');
+    await flushPromises();
+
+    expect(mapStoreMock.setSelectedSpotId).toHaveBeenLastCalledWith('spot-2');
+    expect(getSheetState()).toBe('mid');
+    expect(wrapper.text()).toContain('Botanic River Walk');
+
+    await wrapper.get('[data-test="map-mobile-sheet-toggle"]').trigger('click');
+
+    expect(getSheetState()).toBe('full');
+  });
+
   it('shows a workspace error panel when route data fails to load', async () => {
     tripsStoreMock.error = 'Atlas could not load trips right now.';
     tripsStoreMock.fetchTrips.mockRejectedValue(new Error('Trips failed'));
 
-    const wrapper = mount(MapPage, {
-      global: {
-        stubs: {
-          AppShell: { template: '<div><slot /></div>' },
-          MapView: { template: '<div />' },
-        },
-      },
-    });
+    const wrapper = mountMapPage();
 
     await flushPromises();
 
