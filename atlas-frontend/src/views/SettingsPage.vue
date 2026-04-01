@@ -61,12 +61,12 @@ import SettingsForm, { type SettingsFormValue } from '@/components/profile/Setti
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
 import { useUserStore } from '@/stores/user';
+import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
 import { useReducedMotion } from '@/utils/motion';
 import { getStoredTheme } from '@/utils/theme';
 import type { SpotCategory } from '@/types';
 
-const PROFILE_PREVIEW_MODE_ENABLED =
-  import.meta.env.VITE_ENABLE_USER_MOCK_FALLBACK === 'true' || import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
+const PROFILE_PREVIEW_MODE_ENABLED = USER_MOCK_FALLBACK_ENABLED;
 
 const PREFERENCE_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 const DEFAULT_CATEGORY_PREFERENCES: SpotCategory[] = ['food', 'culture', 'adventure'];

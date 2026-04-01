@@ -32,6 +32,8 @@ import {
 } from '@/utils/sanitizers';
 import { addCalendarDays } from '@/utils/formatters';
 import { buildPravatarAvatarUrl } from '@/utils/demoMedia';
+import { demoFeed, demoNotifications, demoSpotDetails, demoSpots, demoTrips, demoUsers, demoViewport } from '@/mock';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { buildTripPlannerPresetItinerary } from '@/services/tripPlannerPresets';
 
 const users: UserProfile[] = [
@@ -1066,7 +1068,17 @@ const defaultViewport: MapViewport = {
   style: 'mapbox://styles/mapbox/dark-v11',
 };
 
-export const mockUsers = allUsers.map((user) => sanitizeUserProfile(user));
+const defaultMockUsers = allUsers.map((user) => sanitizeUserProfile(user));
+const defaultMockSpots = baseSpots.map((spot) => sanitizeSpotSummary(spot));
+const defaultMockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
+  accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot));
+  return accumulator;
+}, {});
+const defaultMockTrips = trips.map((trip) => sanitizeTrip(trip));
+const defaultMockNotifications = notifications.map((notification) => sanitizeNotificationItem(notification));
+const defaultMockFeed = feed.map((item) => sanitizeFeedItem(item));
+
+export const mockUsers = DEMO_MODE_ENABLED ? demoUsers : defaultMockUsers;
 export const mockFriendConnections = friendConnections.map((connection) => ({
   ...connection,
   user: sanitizeUserProfile(connection.user),
@@ -1081,15 +1093,12 @@ export const mockPeopleYouMayKnow = peopleYouMayKnow.map((entry) => ({
   user: sanitizeUserProfile(entry.user),
   reason: sanitizeSingleLineText(entry.reason),
 }));
-export const mockSpots = baseSpots.map((spot) => sanitizeSpotSummary(spot));
-export const mockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
-  accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot));
-  return accumulator;
-}, {});
-export const mockTrips = trips.map((trip) => sanitizeTrip(trip));
-export const mockNotifications = notifications.map((notification) => sanitizeNotificationItem(notification));
-export const mockFeed = feed.map((item) => sanitizeFeedItem(item));
-export const mockViewport = defaultViewport;
+export const mockSpots = DEMO_MODE_ENABLED ? demoSpots : defaultMockSpots;
+export const mockSpotDetails = DEMO_MODE_ENABLED ? demoSpotDetails : defaultMockSpotDetails;
+export const mockTrips = DEMO_MODE_ENABLED ? demoTrips : defaultMockTrips;
+export const mockNotifications = DEMO_MODE_ENABLED ? demoNotifications : defaultMockNotifications;
+export const mockFeed = DEMO_MODE_ENABLED ? demoFeed : defaultMockFeed;
+export const mockViewport = DEMO_MODE_ENABLED ? demoViewport : defaultViewport;
 
 function mapSubmissionPhotos(submission: SpotFormSubmission, fallbackCaption: string): Photo[] {
   const existingPhotos = submission.existingPhotos.map((photo) =>

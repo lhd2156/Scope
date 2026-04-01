@@ -150,6 +150,27 @@ describe('signalrService', () => {
     expect(onError).toHaveBeenCalledWith(null);
   });
 
+  it('disables the realtime bridge when demo mode is enabled', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    vi.resetModules();
+
+    const { startNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    expect(signalrMock.builder.build).not.toHaveBeenCalled();
+    expect(signalrMock.connection.start).not.toHaveBeenCalled();
+    expect(onStateChange).toHaveBeenCalledWith('idle');
+    expect(onError).toHaveBeenCalledWith(null);
+  });
+
   it('disables the realtime bridge during visual qa sessions', async () => {
     vi.resetModules();
     (window as Window & { __ATLAS_VISUAL_QA__?: boolean }).__ATLAS_VISUAL_QA__ = true;
