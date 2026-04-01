@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AnalyticsRecord } from '@/services/analyticsService';
 import {
+  createAnalyticsPageEngagementTracker,
   createAnalyticsService,
   trackFriendAdd,
   trackItineraryGenerate,
@@ -9,6 +10,15 @@ import {
   trackThemeToggle,
   trackTripCreate,
 } from '@/services/analyticsService';
+
+function restoreProperty(target: object, property: string, descriptor?: PropertyDescriptor): void {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+    return;
+  }
+
+  delete (target as Record<string, unknown>)[property];
+}
 
 describe('analyticsService', () => {
   it('queues page views until consent is granted and a provider is available', () => {
@@ -259,6 +269,181 @@ describe('analyticsService', () => {
         robots: 'noindex,nofollow',
       },
     });
+  });
+
+  it('aggregates time on page, scroll depth, and map interactions per page session', () => {
+    const trackEngagement = vi.fn();
+    let nowMs = 0;
+    let scrollY = 0;
+    let hidden = false;
+
+    const originalHiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+    const originalScrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
+    const originalPageYOffsetDescriptor = Object.getOwnPropertyDescriptor(window, 'pageYOffset');
+    const originalDocumentClientHeightDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, 'clientHeight');
+    const originalDocumentScrollHeightDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, 'scrollHeight');
+    const originalBodyScrollHeightDescriptor = Object.getOwnPropertyDescriptor(document.body, 'scrollHeight');
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    });
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      get: () => scrollY,
+    });
+    Object.defineProperty(window, 'pageYOffset', {
+      configurable: true,
+      get: () => scrollY,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      configurable: true,
+      get: () => 1000,
+    });
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => 4000,
+    });
+    Object.defineProperty(document.body, 'scrollHeight', {
+      configurable: true,
+      get: () => 4000,
+    });
+
+    try {
+      const pageTracker = createAnalyticsPageEngagementTracker({
+        tracker: { trackEngagement },
+        now: () => nowMs,
+        win: window,
+        doc: document,
+      });
+
+      pageTracker.attach();
+      pageTracker.beginPage({
+        path: '/map',
+        fullPath: '/map?view=city',
+        title: 'Live adventure map | Atlas',
+        routeName: 'map',
+        metadata: {
+          requiresAuth: false,
+        },
+      });
+
+      nowMs = 1200;
+      scrollY = 1500;
+      window.dispatchEvent(new Event('scroll'));
+      pageTracker.recordMapInteraction('spot_select');
+      pageTracker.recordMapInteraction('zoom_in');
+      pageTracker.recordMapInteraction('spot_select');
+
+      nowMs = 4200;
+      pageTracker.beginPage({
+        path: '/explore',
+        fullPath: '/explore',
+        title: 'Explore community-loved spots | Atlas',
+        routeName: 'explore',
+      });
+      pageTracker.detach();
+      pageTracker.reset();
+
+      expect(trackEngagement).toHaveBeenCalledTimes(3);
+      expect(trackEngagement).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        metric: 'time_on_page',
+        path: '/map',
+        routeName: 'map',
+        durationMs: 4200,
+        value: 4.2,
+        metadata: expect.objectContaining({
+          pageKey: '/map?view=city',
+          flushReason: 'route-change',
+          requiresAuth: false,
+        }),
+      }));
+      expect(trackEngagement).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        metric: 'scroll_depth',
+        path: '/map',
+        routeName: 'map',
+        value: 50,
+      }));
+      expect(trackEngagement).toHaveBeenNthCalledWith(3, expect.objectContaining({
+        metric: 'map_interaction_count',
+        path: '/map',
+        routeName: 'map',
+        value: 3,
+        metadata: expect.objectContaining({
+          mapInteraction_spot_select: 2,
+          mapInteraction_zoom_in: 1,
+        }),
+      }));
+    } finally {
+      restoreProperty(document, 'hidden', originalHiddenDescriptor);
+      restoreProperty(window, 'scrollY', originalScrollYDescriptor);
+      restoreProperty(window, 'pageYOffset', originalPageYOffsetDescriptor);
+      restoreProperty(document.documentElement, 'clientHeight', originalDocumentClientHeightDescriptor);
+      restoreProperty(document.documentElement, 'scrollHeight', originalDocumentScrollHeightDescriptor);
+      restoreProperty(document.body, 'scrollHeight', originalBodyScrollHeightDescriptor);
+    }
+  });
+
+  it('pauses time-on-page accumulation while the document is hidden', () => {
+    const trackEngagement = vi.fn();
+    let nowMs = 0;
+    let hidden = false;
+
+    const originalHiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    });
+
+    try {
+      const pageTracker = createAnalyticsPageEngagementTracker({
+        tracker: { trackEngagement },
+        now: () => nowMs,
+        win: window,
+        doc: document,
+      });
+
+      pageTracker.attach();
+      pageTracker.beginPage({
+        path: '/friends',
+        fullPath: '/friends',
+        title: 'Friend graph | Atlas',
+        routeName: 'friends',
+      });
+
+      nowMs = 1500;
+      hidden = true;
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      nowMs = 5500;
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      nowMs = 7000;
+      pageTracker.flushCurrentPage();
+      pageTracker.detach();
+      pageTracker.reset();
+
+      expect(trackEngagement).toHaveBeenCalledTimes(2);
+      expect(trackEngagement).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        metric: 'time_on_page',
+        path: '/friends',
+        routeName: 'friends',
+        durationMs: 3000,
+        value: 3,
+        metadata: expect.objectContaining({
+          flushReason: 'teardown',
+        }),
+      }));
+      expect(trackEngagement).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        metric: 'scroll_depth',
+        path: '/friends',
+        routeName: 'friends',
+      }));
+    } finally {
+      restoreProperty(document, 'hidden', originalHiddenDescriptor);
+    }
   });
 
   it('flushes registered providers on demand', () => {

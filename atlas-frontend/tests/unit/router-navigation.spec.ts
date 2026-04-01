@@ -2,6 +2,8 @@ import { flushPromises } from '@vue/test-utils';
 import type { Router } from 'vue-router';
 
 const trackRoutePageViewMock = vi.hoisted(() => vi.fn());
+const beginRoutePageEngagementMock = vi.hoisted(() => vi.fn());
+const attachAnalyticsPageEngagementTrackerMock = vi.hoisted(() => vi.fn());
 
 interface MockAuthStore {
   hasHydratedSession: boolean;
@@ -20,6 +22,8 @@ async function loadRouterWithAuthStore(authStore: MockAuthStore): Promise<Router
   }));
 
   vi.doMock('@/services/analyticsService', () => ({
+    attachAnalyticsPageEngagementTracker: attachAnalyticsPageEngagementTrackerMock,
+    beginRoutePageEngagement: beginRoutePageEngagementMock,
     trackRoutePageView: trackRoutePageViewMock,
   }));
 
@@ -47,6 +51,8 @@ describe('router navigation matrix', () => {
     vi.doUnmock('@/services/analyticsService');
     vi.clearAllMocks();
     trackRoutePageViewMock.mockReset();
+    beginRoutePageEngagementMock.mockReset();
+    attachAnalyticsPageEngagementTrackerMock.mockReset();
   });
 
   it(
@@ -118,13 +124,25 @@ describe('router navigation matrix', () => {
       await navigate(router, '/explore?city=austin');
       await navigate(router, '/spots/spot-1');
 
+      expect(attachAnalyticsPageEngagementTrackerMock).toHaveBeenCalledTimes(1);
       expect(trackRoutePageViewMock).toHaveBeenCalledTimes(2);
+      expect(beginRoutePageEngagementMock).toHaveBeenCalledTimes(2);
       expect(trackRoutePageViewMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
         path: '/explore',
         fullPath: '/explore?city=austin',
         name: 'explore',
       }));
+      expect(beginRoutePageEngagementMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        path: '/explore',
+        fullPath: '/explore?city=austin',
+        name: 'explore',
+      }));
       expect(trackRoutePageViewMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        path: '/spots/spot-1',
+        fullPath: '/spots/spot-1',
+        name: 'spot-detail',
+      }));
+      expect(beginRoutePageEngagementMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
         path: '/spots/spot-1',
         fullPath: '/spots/spot-1',
         name: 'spot-detail',

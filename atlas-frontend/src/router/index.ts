@@ -1,7 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { resolveNavigationGuard } from '@/router/guards';
 import { lazyView } from '@/router/lazyView';
-import { trackRoutePageView } from '@/services/analyticsService';
+import {
+  attachAnalyticsPageEngagementTracker,
+  beginRoutePageEngagement,
+  trackRoutePageView,
+} from '@/services/analyticsService';
 
 const HomePage = lazyView(() => import('@/views/HomePage.vue'));
 const ExplorePage = lazyView(() => import('@/views/ExplorePage.vue'));
@@ -183,6 +187,8 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 });
 
+attachAnalyticsPageEngagementTracker();
+
 router.beforeEach((to) => resolveNavigationGuard(to));
 router.afterEach((to, _from, failure) => {
   if (failure) {
@@ -190,6 +196,7 @@ router.afterEach((to, _from, failure) => {
   }
 
   trackRoutePageView(to);
+  beginRoutePageEngagement(to);
 });
 
 export default router;
