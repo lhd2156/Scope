@@ -55,6 +55,7 @@ export default defineConfig({
     timeout: 300 * 1000,
     env: {
       ...process.env,
+      VITE_DEMO_MODE: process.env.VITE_DEMO_MODE ?? 'false',
       VITE_ENABLE_AUTH_MOCK_FALLBACK: process.env.VITE_ENABLE_AUTH_MOCK_FALLBACK ?? 'false',
       VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? '/',
       VITE_CSRF_ENDPOINT: process.env.VITE_CSRF_ENDPOINT ?? '',

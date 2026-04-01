@@ -1,10 +1,15 @@
 import api from '@/services/api';
+import {
+  AUTH_MOCK_FALLBACK_ENABLED,
+  DEMO_LOGIN_EMAIL,
+  DEMO_LOGIN_ERROR_MESSAGE,
+  DEMO_LOGIN_PASSWORD,
+  DEMO_MODE_ENABLED,
+} from '@/services/demoMode';
 import { mockUsers } from '@/services/mockData';
 import { unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm } from '@/types';
 import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/utils/sanitizers';
-
-const AUTH_MOCK_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const DEFAULT_DEMO_ACCESS_TOKEN = 'demo-token';
@@ -38,8 +43,37 @@ function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPay
   });
 }
 
+function buildDemoAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPayload {
+  const demoUser = mockUsers.find((user) => user.email === DEMO_LOGIN_EMAIL) ?? mockUsers[0];
+
+  return buildFallbackAuthPayload({
+    id: demoUser?.id,
+    username: demoUser?.username,
+    email: DEMO_LOGIN_EMAIL,
+    displayName: demoUser?.displayName,
+    accessToken: overrides.accessToken,
+    refreshToken: overrides.refreshToken,
+  });
+}
+
+function assertDemoCredentials(credentials: AuthForm): void {
+  const sanitizedCredentials = sanitizeAuthForm(credentials);
+
+  if (
+    sanitizedCredentials.email !== DEMO_LOGIN_EMAIL ||
+    sanitizedCredentials.password !== DEMO_LOGIN_PASSWORD
+  ) {
+    throw new Error(DEMO_LOGIN_ERROR_MESSAGE);
+  }
+}
+
 export async function login(credentials: AuthForm): Promise<AuthPayload> {
   const sanitizedCredentials = sanitizeAuthForm(credentials);
+
+  if (DEMO_MODE_ENABLED) {
+    assertDemoCredentials(sanitizedCredentials);
+    return buildDemoAuthPayload();
+  }
 
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/login`, sanitizedCredentials);
@@ -55,6 +89,10 @@ export async function login(credentials: AuthForm): Promise<AuthPayload> {
 
 export async function register(payload: RegisterForm): Promise<AuthPayload> {
   const sanitizedPayload = sanitizeRegisterForm(payload);
+
+  if (DEMO_MODE_ENABLED) {
+    return buildDemoAuthPayload();
+  }
 
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/register`, sanitizedPayload);
@@ -73,6 +111,13 @@ export async function register(payload: RegisterForm): Promise<AuthPayload> {
 }
 
 export async function refreshSession(options: RefreshSessionOptions = {}): Promise<AuthPayload> {
+  if (DEMO_MODE_ENABLED) {
+    return buildDemoAuthPayload({
+      accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
+      refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
+    });
+  }
+
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, undefined);
     return sanitizeAuthPayload(unwrapApiData(data));
@@ -89,6 +134,10 @@ export async function refreshSession(options: RefreshSessionOptions = {}): Promi
 }
 
 export async function logout(): Promise<void> {
+  if (DEMO_MODE_ENABLED) {
+    return;
+  }
+
   try {
     await api.post(`${AUTH_BASE_PATH}/logout`, undefined);
   } catch {
@@ -97,6 +146,10 @@ export async function logout(): Promise<void> {
 }
 
 export async function loginWithCognito(idToken: string): Promise<AuthPayload> {
+  if (DEMO_MODE_ENABLED) {
+    return buildDemoAuthPayload();
+  }
+
   try {
     const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/oauth/cognito`, {
       idToken: idToken.trim(),

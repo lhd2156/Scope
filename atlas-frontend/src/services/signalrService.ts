@@ -1,10 +1,10 @@
 import * as signalR from '@microsoft/signalr';
+import { AUTH_MOCK_FALLBACK_ENABLED, DEMO_MODE_ENABLED } from '@/services/demoMode';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
 
 const NOTIFICATION_HUB_URL = '/api/core/hubs/notifications';
 const NOTIFICATION_RECEIVED_EVENT = 'NotificationReceived';
 const RECONNECT_DELAYS_MS = [0, 2_000, 10_000, 30_000];
-const MOCK_AUTH_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 const VISUAL_QA_FLAG = '__ATLAS_VISUAL_QA__';
 
 export interface NotificationStreamOptions {
@@ -95,7 +95,7 @@ function ensureConnection(options: NotificationStreamOptions): signalR.HubConnec
 export async function startNotificationStream(options: NotificationStreamOptions): Promise<void> {
   activeOptions = options;
 
-  if (MOCK_AUTH_FALLBACK_ENABLED || isVisualQaSession()) {
+  if (DEMO_MODE_ENABLED || AUTH_MOCK_FALLBACK_ENABLED || isVisualQaSession()) {
     emitState('idle');
     emitError(null);
     return;

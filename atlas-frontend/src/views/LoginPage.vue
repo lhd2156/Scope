@@ -14,6 +14,9 @@
         <p class="section-copy auth-card__description">
           Keep your routes, wishlists, and collaborative trip plans moving across every device.
         </p>
+        <p v-if="DEMO_MODE_ENABLED" class="demo-credentials" role="note">
+          Demo mode is on — use <strong>{{ DEMO_LOGIN_EMAIL }}</strong> / <strong>{{ DEMO_LOGIN_PASSWORD }}</strong>.
+        </p>
       </header>
 
       <form class="auth-form" @submit.prevent="submit">
@@ -79,6 +82,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AuthField from '@/components/auth/AuthField.vue';
 import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
 import Button from '@/components/common/Button.vue';
+import { DEMO_LOGIN_EMAIL, DEMO_LOGIN_PASSWORD, DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { useAuthStore } from '@/stores/auth';
 import { validateLoginForm, type LoginFormErrors } from '@/utils/authValidators';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
@@ -89,8 +93,8 @@ const loginHighlights = [
   'Traveler activity follows you',
 ];
 
-const email = ref('louis@example.com');
-const password = ref('SecurePass123!');
+const email = ref(DEMO_MODE_ENABLED ? DEMO_LOGIN_EMAIL : 'louis@example.com');
+const password = ref(DEMO_MODE_ENABLED ? DEMO_LOGIN_PASSWORD : 'SecurePass123!');
 const rememberMe = ref(true);
 const showPassword = ref(false);
 const isSubmitting = ref(false);
@@ -206,6 +210,20 @@ async function loginWithGoogle() {
 
 .auth-card__description {
   color: var(--text-secondary);
+}
+
+.demo-credentials {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-teal) 10%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+}
+
+.demo-credentials strong {
+  color: var(--accent-teal);
 }
 
 .form-error {

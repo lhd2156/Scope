@@ -89,12 +89,12 @@
 - [x] 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
 - [x] 15.2 - Build demo user profiles: 5 users with pravatar.cc avatars, realistic stats, activity history
 - [x] 15.3 - Build demo spots: 20 spots across all 8 categories with Unsplash photos, real coordinates, reviews
-- [ ] 15.4 - Build demo trips: 3 multi-day trips with itineraries, member lists, cost breakdowns
-- [ ] 15.5 - Build demo feed: 15 activity items with varied types (pin drops, trip completions, reviews)
-- [ ] 15.6 - Build demo notifications: 10 items (friend requests, trip invites, spot likes, system alerts)
-- [ ] 15.7 - Add VITE_DEMO_MODE env toggle that routes API service layer to mock data
-- [ ] 15.8 - Create demo login credentials (demo@atlas.travel / Atlas2024!)
-- [ ] 15.9 - Update README.md with demo mode instructions
+- [x] 15.4 - Build demo trips: 3 multi-day trips with itineraries, member lists, cost breakdowns
+- [x] 15.5 - Build demo feed: 15 activity items with varied types (pin drops, trip completions, reviews)
+- [x] 15.6 - Build demo notifications: 10 items (friend requests, trip invites, spot likes, system alerts)
+- [x] 15.7 - Add VITE_DEMO_MODE env toggle that routes API service layer to mock data
+- [x] 15.8 - Create demo login credentials (demo@atlas.travel / Atlas2024!)
+- [x] 15.9 - Update README.md with demo mode instructions
 
 ### Phase 17: Mobile Responsiveness & PWA 📱
 - [ ] 17.1 - Audit every view for responsive breakpoints: mobile (<640px), tablet (640-1024px), desktop (>1024px)
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 15.5 - Build demo feed: 15 activity items from users + spots + trips
-## Last Updated: 2026-03-31T22:00:00-05:00
+## Current Task: Phase 17.1 - Audit every view for responsive breakpoints: mobile, tablet, desktop
+## Last Updated: 2026-03-31T22:10:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -182,3 +182,4 @@
 - 2026-03-31T21:18:00-05:00: COMPLETED Phase 15.2 - populated `src/mock/users.json` with 5 demo-ready traveler profiles using `pravatar.cc` avatars, realistic stats, home bases, interests, bios, and activity history entries cross-referenced to future demo trip/spot ids. The primary seeded account now aligns with the eventual demo login email to keep later fixture tasks stable. Validation: `node -e` JSON sanity check, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.3 demo spots.
 - 2026-03-31T21:37:00-05:00: COMPLETED Phase 15.3 - populated `src/mock/spots.json` with 20 demo-ready spots spanning all 8 categories, each with real Texas coordinates, deterministic Unsplash imagery, author cross-references to the seeded demo users, and at least two reviews plus a photo gallery. Kept key spot ids/titles aligned with the already-shipped demo user activity history so later trip/feed fixtures can join cleanly. Validation: `node -e` spot/category/id sanity checks, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.4 demo trips.
 - 2026-03-31T22:00:00-05:00: COMPLETED Phase 15.4 - populated `src/mock/trips.json` with 3 public demo trips built from the seeded Texas spot catalog, each including members, ordered stops, and day-by-day itinerary structure. Reconciled the existing demo user activity history so every referenced `demo-trip-*` id now points at the same canonical trip title across the dataset. Validation: `node -e` trip/public/itinerary/cross-link sanity checks, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.5 demo feed.
+- 2026-03-31T22:10:00-05:00: COMPLETED Phases 15.5-15.9 - populated `src/mock/feed.json` with 15 cross-linked activity items, populated `src/mock/notifications.json` with 10 seeded inbox states, added `src/mock/index.ts` plus a dedicated `VITE_DEMO_MODE` runtime path that short-circuits the API layer to curated local fixtures, introduced the shared demo credentials (`demo@atlas.travel` / `Atlas2024!`) in both auth services and the login screen, and documented local/Docker demo-mode setup in `atlas-frontend/README.md` and `.env.example`. Validation: `npm.cmd run test` (86 files / 213 tests), `npm.cmd run build`. Next up: Phase 17.1 responsive breakpoint audit.

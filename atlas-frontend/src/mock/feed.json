@@ -1,1 +1,152 @@
-[]
+[
+  {
+    "id": "demo-feed-1",
+    "type": "trip",
+    "actorId": "demo-user-1",
+    "title": "Louis completed North Texas Night + Food Loop",
+    "excerpt": "Wrapped a two-day run across rooftop tacos, boutique retail, vinyl-bar energy, and one final museum-light brunch stop without wasting daylight.",
+    "createdAt": "2026-03-31T01:15:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-1"
+  },
+  {
+    "id": "demo-feed-2",
+    "type": "trip",
+    "actorId": "demo-user-2",
+    "title": "Maya planned Dallas Design Weekend",
+    "excerpt": "Sequenced brunch, museum light, boutique pacing, and a San Antonio aperitivo close for a premium multi-city weekend.",
+    "createdAt": "2026-03-30T22:40:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-2"
+  },
+  {
+    "id": "demo-feed-3",
+    "type": "trip",
+    "actorId": "demo-user-3",
+    "title": "Elijah finished Hill Country Sunrise Sprint",
+    "excerpt": "Closed out the sprint with a sunrise overlook, espresso reset, skyline boardwalk, bathhouse calm, and a river-launch finale.",
+    "createdAt": "2026-03-30T19:05:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-3"
+  },
+  {
+    "id": "demo-feed-4",
+    "type": "spot",
+    "actorId": "demo-user-1",
+    "title": "Louis published Sunset Rooftop Tacos",
+    "excerpt": "Dropped the skyline-heavy taco stop that anchors Atlas demo mode with warm lantern light and shareable plates.",
+    "createdAt": "2026-03-30T17:30:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-3"
+  },
+  {
+    "id": "demo-feed-5",
+    "type": "spot",
+    "actorId": "demo-user-2",
+    "title": "Maya dropped a pin for Klyde Warren Garden Brunch",
+    "excerpt": "Flagged an easy brunch-and-park opener for weekends that need softer pacing before museums and shopping.",
+    "createdAt": "2026-03-30T15:55:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-6"
+  },
+  {
+    "id": "demo-feed-6",
+    "type": "spot",
+    "actorId": "demo-user-4",
+    "title": "Sofia added Mercado Courtyard Breakfast",
+    "excerpt": "Shared opening-hour timing, pan dulce picks, and the best tile-table angles for a colorful San Antonio morning.",
+    "createdAt": "2026-03-30T13:20:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-15"
+  },
+  {
+    "id": "demo-feed-7",
+    "type": "spot",
+    "actorId": "demo-user-5",
+    "title": "Jordan pinned Buffalo Bayou Skyline Run",
+    "excerpt": "Mapped the smoothest sunset route, best parking window, and a post-run taco stop for Houston first-timers.",
+    "createdAt": "2026-03-30T11:45:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1470770903676-69b98201ea1c?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-20"
+  },
+  {
+    "id": "demo-feed-8",
+    "type": "spot",
+    "actorId": "demo-user-2",
+    "title": "Maya uploaded gallery shots for Dallas Contemporary Atrium",
+    "excerpt": "Added vertical compositions that make the atrium's skylight and negative space feel premium in-feed.",
+    "createdAt": "2026-03-30T09:10:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-14"
+  },
+  {
+    "id": "demo-feed-9",
+    "type": "spot",
+    "actorId": "demo-user-3",
+    "title": "Elijah reviewed East Austin Espresso Lab",
+    "excerpt": "Called out the cortado quality, quiet upstairs tables, and why the café works as a route-planning reset.",
+    "createdAt": "2026-03-29T23:35:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-10"
+  },
+  {
+    "id": "demo-feed-10",
+    "type": "spot",
+    "actorId": "demo-user-4",
+    "title": "Sofia reviewed Blue Hour Gallery Walk",
+    "excerpt": "Recommended a slow sunset-to-night route with gallery windows, murals, and two easy wine-bar detours.",
+    "createdAt": "2026-03-29T21:05:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-18"
+  },
+  {
+    "id": "demo-feed-11",
+    "type": "trip",
+    "actorId": "demo-user-4",
+    "title": "Sofia refined the River Walk evening on Dallas Design Weekend",
+    "excerpt": "Adjusted the pacing so the San Antonio aperitivo chapter lands right as the canal reflections turn electric.",
+    "createdAt": "2026-03-29T19:20:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-2"
+  },
+  {
+    "id": "demo-feed-12",
+    "type": "trip",
+    "actorId": "demo-user-5",
+    "title": "Jordan saved Hill Country Sunrise Sprint",
+    "excerpt": "Booked the itinerary as a future reset because the creek overlook and kayak finish waste almost zero daylight.",
+    "createdAt": "2026-03-29T17:00:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-3"
+  },
+  {
+    "id": "demo-feed-13",
+    "type": "spot",
+    "actorId": "demo-user-2",
+    "title": "Maya saved Greenbelt Creek Overlook",
+    "excerpt": "Marked the limestone ledge as the exact kind of high-payoff nature opener she wants in more city-break itineraries.",
+    "createdAt": "2026-03-29T14:45:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-9"
+  },
+  {
+    "id": "demo-feed-14",
+    "type": "trip",
+    "actorId": "demo-user-1",
+    "title": "Louis shared North Texas Night + Food Loop",
+    "excerpt": "Sent the finished two-day route to collaborators after tightening brunch timing and the late-night vinyl close.",
+    "createdAt": "2026-03-29T12:30:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-trip-1"
+  },
+  {
+    "id": "demo-feed-15",
+    "type": "spot",
+    "actorId": "demo-user-3",
+    "title": "Elijah published Greenbelt Creek Overlook",
+    "excerpt": "Added parking notes, trail timing, and a post-hike taco recommendation so the overlook is effortless to demo live.",
+    "createdAt": "2026-03-29T10:15:00Z",
+    "imageUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    "targetId": "demo-spot-9"
+  }
+]

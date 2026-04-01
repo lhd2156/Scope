@@ -1,5 +1,6 @@
 import api from '@/services/api';
 import { mockSpots, mockTrips, mockUsers } from '@/services/mockData';
+import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, UserProfile, UserStats } from '@/types';
 import {
@@ -11,8 +12,6 @@ import {
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const USERS_BASE_PATH = '/api/core/users';
-const USER_MOCK_FALLBACK_ENABLED =
-  import.meta.env.VITE_ENABLE_USER_MOCK_FALLBACK === 'true' || import.meta.env.VITE_ENABLE_AUTH_MOCK_FALLBACK === 'true';
 
 export interface UpdateUserProfileInput {
   username?: string;

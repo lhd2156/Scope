@@ -4,6 +4,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import type { ApiErrorDetail, ApiErrorResponse } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '/';
@@ -266,6 +267,13 @@ function normalizeApiError(error: unknown): ApiClientError {
 }
 
 async function applyRequestHeaders(config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> {
+  if (DEMO_MODE_ENABLED) {
+    throw new ApiClientError({
+      message: 'Atlas demo mode routes API requests to local fixture data.',
+      code: 'demo_mode',
+    });
+  }
+
   const requestConfig = config as RetriableRequestConfig;
   const headers = AxiosHeaders.from(requestConfig.headers);
 
