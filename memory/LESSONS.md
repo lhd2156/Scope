@@ -327,6 +327,8 @@
 
 - [2026-04-01] ⚠️ If a long Frontend subagent closes multiple sequential checkpoints before the next heartbeat and no active Prism child remains, trust `memory/COMPLETED-TASKS.md` plus `frontend/PROGRESS.md`, refresh the lead dashboard to the newest first unchecked task, and relaunch directly on that canonical checkpoint instead of replaying the intermediate completed tasks.
 
+- [2026-04-01] ⚠️ If `frontend/PROGRESS.md` and `polish/PROGRESS.md` disagree about a Phase 19 checkpoint, treat `frontend/PROGRESS.md` as the canonical heartbeat source for Prism relaunches; do not skip an unchecked Frontend onboarding task just because the Polish track already marked a similarly named item complete.
+
 ## Common Mistakes to Avoid
 
 - [2026-03-28] ❌ Do NOT just read files and report status — actually DO the work
