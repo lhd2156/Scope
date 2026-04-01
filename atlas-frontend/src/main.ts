@@ -4,12 +4,14 @@ import App from './App.vue';
 import router from './router';
 import '@/assets/tokens.css';
 import '@/assets/base.css';
+import { initializeAnalyticsConsent } from '@/utils/analyticsConsent';
 import { initializeMotionPreference } from '@/utils/motion';
 import { registerAppServiceWorker } from '@/utils/pwa';
 import { initializeSeo } from '@/utils/seo';
 import { initializeTheme } from '@/utils/theme';
 
 initializeTheme();
+initializeAnalyticsConsent();
 initializeMotionPreference();
 initializeSeo(router);
 void registerAppServiceWorker();
