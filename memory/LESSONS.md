@@ -161,6 +161,7 @@
 - [2026-03-28] ⚠️ When heartbeat respawns agents via `openclaw agent`, pass a fresh explicit `--session-id` per run to avoid `.jsonl.lock` session-collision failures on repeated background launches.
 - [2026-03-28] ⚠️ Every heartbeat spawn prompt must tell agents to read `C:\Users\dongu\atlas\memory\LESSONS.md` before touching their own task files.
 - [2026-03-28] ⚠️ On the heartbeat channel, thread-bound subagent sessions may be unavailable; use one-shot `sessions_spawn` runs instead of `thread=true` session mode.
+- [2026-04-01] ⚠️ `sessions_spawn` with `runtime="subagent"` rejects `streamTo`; omit that field on heartbeat relaunches or the launch fails before work starts.
 - [2026-03-28] ⚠️ If `sessions_spawn` hits the max active child limit, list active subagents and kill stale duplicate runs before launching more work.
 - [2026-03-28] ⚠️ Before re-spawning a long-running agent task, check whether the same agent already has an active child on that task; keep the in-flight worker and kill any new duplicate.
 - [2026-03-29] ⚠️ After steering a suspected stuck subagent, inspect its recent session history before replacing it; long-running workers may resume productive file edits after a steer.
@@ -316,6 +317,12 @@
 
 - [2026-04-01] ⚠️ When auditing `Win32_Process` for live OpenClaw agents from PowerShell, filter the result down to real `node.exe` agent processes; otherwise the inspection PowerShell command can self-match on the literal `openclaw.mjs agent` search string and create a false-positive "live worker" result.
 - [2026-04-01] ⚠️ If `sessions_send` times out while steering a live Frontend worker but `subagents(action=list)` still shows it running, preserve the worker, record the timeout as a gateway messaging failure, and avoid spawning a duplicate into the shared frontend workspace.
+- [2026-04-01] ⚠️ If `frontend/PROGRESS.md` has already self-advanced from Phase 17 into Phase 18 and a fresh `Win32_Process` audit shows no real `openclaw.mjs agent`, close Phase 17 in the lead tracker immediately and relaunch Prism on the canonical Phase 18.1 checkpoint instead of trusting a stale “Frontend running” dashboard row.
+- [2026-04-01] ✅ When Frontend’s canonical tracker advances again into Phase 18.2 and no Prism worker survives, relaunch with the exact current checkpoint text; a fresh `Win32_Process` match on the new `--session-id` plus the still-running background `exec` session is enough to treat the worker as live even before stdout arrives.
+- [2026-04-01] ⚠️ If a Frontend relaunch later dies with `.jsonl.lock` / model-fallback noise after the canonical tracker already advanced (for example 18.2 → 18.3), trust `frontend/PROGRESS.md` + `memory/COMPLETED-TASKS.md`, confirm no `openclaw.mjs agent` remains in `Win32_Process`, and relaunch Prism on the new current task instead of treating the old failure as the active worker.
+- [2026-04-01] ✅ If `memory/COMPLETED-TASKS.md` advances again (for example 18.3 ✅) and `frontend/PROGRESS.md` points at the next task (18.4) while the lead dashboard still shows the previous checkpoint, treat the dashboard as stale, re-audit `Win32_Process`, and relaunch directly on the new canonical task if no Prism worker remains.
+
+- [2026-04-01] ⚠️ If a long Frontend subagent closes multiple sequential checkpoints before the next heartbeat and no active Prism child remains, trust `memory/COMPLETED-TASKS.md` plus `frontend/PROGRESS.md`, refresh the lead dashboard to the newest first unchecked task, and relaunch directly on that canonical checkpoint instead of replaying the intermediate completed tasks.
 
 ## Common Mistakes to Avoid
 
