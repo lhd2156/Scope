@@ -1,6 +1,7 @@
 import { nextTick } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
+import { resetAnalyticsConsent } from '@/utils/analyticsConsent';
 
 const { authStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
@@ -53,6 +54,7 @@ describe('SettingsPage', () => {
     userStoreMock.saveProfile.mockClear();
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showError.mockClear();
+    resetAnalyticsConsent();
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
@@ -116,6 +118,32 @@ describe('SettingsPage', () => {
     expect(document.documentElement.style.colorScheme).toBe('light');
     expect(localStorage.getItem('atlas-theme')).toBe('light');
     expect(shellToggle.attributes('aria-label')).toBe('Switch to dark mode');
+  });
+
+  it('updates the analytics opt-out control locally without hitting the profile save contract', async () => {
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    expect(localStorage.getItem('atlas-analytics-consent')).toBeNull();
+
+    await wrapper.get('[data-test="analytics-consent-toggle"]').trigger('click');
+    await nextTick();
+
+    expect(localStorage.getItem('atlas-analytics-consent')).toBe('granted');
+    expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
+
+    await wrapper.get('[data-test="analytics-consent-toggle"]').trigger('click');
+    await nextTick();
+
+    expect(localStorage.getItem('atlas-analytics-consent')).toBe('denied');
+    expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
   });
 
   it('surfaces a settings error when the profile update throws and emits an error toast', async () => {

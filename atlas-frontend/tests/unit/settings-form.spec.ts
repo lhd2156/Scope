@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
+import { resetAnalyticsConsent } from '@/utils/analyticsConsent';
 
 const initialValue: SettingsFormValue = {
   displayName: 'Louis Do',
@@ -15,6 +16,7 @@ const initialValue: SettingsFormValue = {
 
 describe('SettingsForm', () => {
   beforeEach(() => {
+    resetAnalyticsConsent();
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
@@ -67,6 +69,32 @@ describe('SettingsForm', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect((wrapper.get('input[placeholder="How your name appears in Atlas"]').element as HTMLInputElement).value).toBe('Louis Do');
+  });
+
+  it('toggles analytics consent immediately from the privacy controls', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-test="analytics-consent-status"]').text()).toContain('No analytics choice saved yet');
+
+    await wrapper.get('[data-test="analytics-consent-toggle"]').trigger('click');
+
+    expect(localStorage.getItem('atlas-analytics-consent')).toBe('granted');
+    expect(wrapper.get('[data-test="analytics-consent-status"]').text()).toContain('Analytics enabled');
+
+    await wrapper.get('[data-test="analytics-consent-toggle"]').trigger('click');
+
+    expect(localStorage.getItem('atlas-analytics-consent')).toBe('denied');
+    expect(wrapper.get('[data-test="analytics-consent-status"]').text()).toContain('Analytics opted out');
   });
 
   it('requires a display name before submit', async () => {

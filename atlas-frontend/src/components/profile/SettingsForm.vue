@@ -112,6 +112,28 @@
           <span>{{ option.description }}</span>
         </button>
       </div>
+
+      <div class="settings-stack settings-stack--privacy">
+        <button
+          data-test="analytics-consent-toggle"
+          type="button"
+          class="toggle-row"
+          :class="{ 'is-active': analyticsConsentEnabled }"
+          @click="toggleAnalyticsConsent"
+        >
+          <div>
+            <strong>Usage analytics</strong>
+            <p data-test="analytics-consent-copy">{{ analyticsConsentCopy }}</p>
+          </div>
+          <span class="toggle-switch" :class="{ 'is-active': analyticsConsentEnabled }" aria-hidden="true">
+            <span class="toggle-switch__thumb" />
+          </span>
+        </button>
+
+        <p class="section-copy settings-note" data-test="analytics-consent-status">
+          {{ analyticsConsentStatusLabel }}
+        </p>
+      </div>
     </section>
 
     <section id="settings-notifications" class="surface-card settings-section" tabindex="-1" data-test="settings-section-notifications">
@@ -228,10 +250,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import Button from '@/components/common/Button.vue';
+import { setAnalyticsConsent, useAnalyticsConsent } from '@/utils/analyticsConsent';
 import { applyTheme, initializeTheme, useTheme } from '@/utils/theme';
 import type { SpotCategory, ThemeMode } from '@/types';
 
@@ -281,9 +304,32 @@ const emit = defineEmits<{
 
 initializeTheme();
 const theme = useTheme();
+const { consent } = useAnalyticsConsent();
 const avatarUrlInputRef = ref<HTMLInputElement | null>(null);
 const form = reactive<SettingsFormValue>(cloneSettingsFormValue(props.initialValue));
 const errorMessage = defineModel<string>('errorMessage', { default: '' });
+
+const analyticsConsentEnabled = computed(() => consent.value === 'granted');
+const analyticsConsentStatusLabel = computed(() => {
+  switch (consent.value) {
+    case 'granted':
+      return 'Analytics enabled — Atlas can measure optional usage patterns to improve route planning, map ergonomics, and product quality.';
+    case 'denied':
+      return 'Analytics opted out — Atlas keeps only the essential storage needed for sign-in, theme, onboarding, and offline reliability.';
+    default:
+      return 'No analytics choice saved yet — the cookie banner will keep asking until you explicitly allow analytics or opt out.';
+  }
+});
+const analyticsConsentCopy = computed(() => {
+  switch (consent.value) {
+    case 'granted':
+      return 'Optional analytics are on for page usage, map interaction, and trip-planning improvements.';
+    case 'denied':
+      return 'Only necessary storage is active. Turn this back on any time if you want to share anonymous usage analytics.';
+    default:
+      return 'Turn this on to allow optional analytics, or leave it off if you prefer to keep only necessary storage.';
+  }
+});
 
 watch(
   () => props.initialValue,
@@ -333,6 +379,10 @@ function toggleCategory(category: SpotCategory): void {
   form.categoryPreferences = [...form.categoryPreferences, category];
 }
 
+function toggleAnalyticsConsent(): void {
+  setAnalyticsConsent(analyticsConsentEnabled.value ? 'denied' : 'granted');
+}
+
 function resetForm(): void {
   Object.assign(form, cloneSettingsFormValue(props.initialValue));
   applyTheme(props.initialValue.themeMode);
@@ -375,6 +425,14 @@ function submitForm(): void {
 
 .settings-form {
   gap: var(--space-5);
+}
+
+.settings-stack--privacy {
+  gap: var(--space-3);
+}
+
+.settings-note {
+  margin: 0;
 }
 
 .stagger-in > * {
