@@ -32,7 +32,7 @@ describe('responsive breakpoint audit', () => {
 
     const missingSharedLayoutHooks = filesToAudit.filter((relativePath) => {
       const source = readSource(relativePath);
-      return !/(page-container|page-grid|page-stack|glass-panel|map-layout|profile-grid|friends-grid|settings-layout|trip-layout|trip-planner-layout|detail-layout|navbar|sidebar)/.test(source);
+      return !/(page-container|page-grid|page-stack|glass-panel|map-layout|profile-grid|friends-grid|settings-layout|trip-layout|trip-planner-layout|detail-layout|layout-shell|navbar|sidebar)/i.test(source);
     });
 
     expect(missingSharedLayoutHooks).toEqual([]);

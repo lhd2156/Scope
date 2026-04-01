@@ -67,8 +67,11 @@ interface DemoTripSeed extends Omit<Trip, 'spots' | 'members' | 'itinerary' | 'c
   highlights?: string[];
 }
 
-interface DemoFeedSeed extends Omit<FeedItem, 'actor'> {
-  actorId: string;
+interface DemoFeedSeed extends Omit<FeedItem, 'actor' | 'imageUrl'> {
+  actorId?: string;
+  actor?: DemoUserFixture;
+  imageUrl?: string | null;
+  photoUrl?: string | null;
 }
 
 const DEMO_MAP_STYLE = 'mapbox://styles/mapbox/dark-v11';
@@ -215,11 +218,22 @@ const seededTrips = (rawTrips as DemoTripSeed[]).map((seed) => {
 });
 
 function buildFeedItem(seed: DemoFeedSeed): FeedItem {
-  const { actorId, ...feedMeta } = seed;
+  const actor = seed.actor ? sanitizeUserProfile({ ...seed.actor }) : undefined;
+  const actorId = seed.actorId ?? actor?.id;
+
+  if (!actor && !actorId) {
+    throw new Error(`Demo feed item ${seed.id} is missing an actor reference`);
+  }
 
   return sanitizeFeedItem({
-    ...feedMeta,
-    actor: requireDemoUser(actorId),
+    id: seed.id,
+    type: seed.type,
+    actor: actor ?? requireDemoUser(actorId!),
+    title: seed.title,
+    excerpt: seed.excerpt,
+    createdAt: seed.createdAt,
+    imageUrl: seed.imageUrl ?? seed.photoUrl ?? undefined,
+    targetId: seed.targetId,
   });
 }
 
