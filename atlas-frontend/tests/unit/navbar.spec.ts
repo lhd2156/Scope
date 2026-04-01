@@ -216,6 +216,70 @@ describe('Navbar', () => {
     wrapper.unmount();
   });
 
+  it('opens the mobile drawer, locks page scroll, and closes on escape or navigation', async () => {
+    authStoreMock.isAuthenticated = true;
+    authStoreMock.currentUser = {
+      id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
+      displayName: 'Louis Do',
+      avatarUrl: 'https://images.example.com/avatar.jpg',
+      homeBase: 'Chicago, IL',
+    };
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: {
+            emits: ['search'],
+            template: '<button data-test="search-trigger" @click="$emit(\'search\', \'patagonia\')">Search</button>',
+          },
+          NotificationDropdown: { template: '<div data-test="notification-stub">Notifications</div>' },
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          Avatar: { template: '<div data-test="avatar-stub">Avatar</div>' },
+          AtlasIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+
+    const mobileToggle = wrapper.get('[data-test="mobile-menu-toggle"]');
+    await mobileToggle.trigger('click');
+    await flushPromises();
+
+    const mobileDrawer = wrapper.get('[data-test="mobile-drawer"]');
+    expect(mobileDrawer.text()).toContain('Take Atlas with you');
+    expect(mobileDrawer.text()).toContain('Louis Do');
+    expect(mobileDrawer.text()).toContain('Profile');
+    expect(document.body.style.overflow).toBe('hidden');
+
+    await mobileDrawer.trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
+    expect(document.body.style.overflow).toBe('');
+    expect(document.activeElement).toBe(mobileToggle.element);
+
+    await mobileToggle.trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(true);
+
+    await router.push('/explore');
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
+    expect(document.body.style.overflow).toBe('');
+
+    wrapper.unmount();
+  });
+
   it('shows guest actions when no authenticated user is present', async () => {
     authStoreMock.isAuthenticated = false;
     authStoreMock.currentUser = null;

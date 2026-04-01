@@ -142,6 +142,7 @@
 - [2026-03-28] ⚠️ Work on feature branches (feature/foundation, feature/core-platform, etc.), not main
 - [2026-03-28] ⚠️ Use `git add . ; git commit -m "message"` (semicolons, not &&)
 - [2026-03-28] ⚠️ If `atlas-frontend/` already has unrelated unstaged files from another milestone, stage only task-specific files so parallel frontend work does not get batched into the wrong commit.
+- [2026-04-01] ⚠️ On the shared Atlas frontend workspace, a reopened milestone can already have partial unstaged edits in the target component; diff the file against `HEAD` before continuing so you can preserve the intended direction without inheriting incomplete details (for Phase 17.2 this exposed an unfinished navbar drawer using an undefined `--navbar-height` token and no validation coverage).
 - [2026-03-29] ⚠️ If the main workspace is on another feature branch with unrelated edits, use a separate git worktree for the target branch instead of switching branches and disturbing in-flight work.
 
 ## File & Path Rules
