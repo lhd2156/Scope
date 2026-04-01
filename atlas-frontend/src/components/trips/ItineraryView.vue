@@ -2,6 +2,7 @@
   <section
     class="glass-panel itinerary-stage"
     data-test="itinerary-view"
+    data-onboarding-target="itinerary-stage"
     :data-itinerary-mode="mobileWizard ? 'mobile-wizard' : 'desktop'"
   >
     <div class="itinerary-step-shell" :data-step-state="getWizardStepState(4)">
@@ -10,6 +11,7 @@
         type="button"
         class="itinerary-step-toggle"
         data-test="planner-step-4-toggle"
+        data-onboarding-target="planner-preview-toggle"
         :aria-expanded="String(isWizardStepActive(4))"
         aria-controls="planner-step-4-content"
         @click="emitWizardStepChange(4)"
@@ -304,6 +306,22 @@ const mapSpots = computed<MapPoint[]>(() =>
   padding: 0;
 }
 
+.itinerary-stage[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 22%, transparent),
+    0 0 2.6rem color-mix(in srgb, var(--accent-teal) 20%, transparent);
+}
+
+.itinerary-stage[data-onboarding-active='true'] .summary-card,
+.itinerary-stage[data-onboarding-active='true'] .timeline-overlay {
+  border-color: color-mix(in srgb, var(--accent-teal) 28%, var(--glass-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 1.8rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
 .itinerary-stage[data-itinerary-mode='mobile-wizard'] {
   min-height: auto;
   overflow: visible;
@@ -355,11 +373,20 @@ const mapSpots = computed<MapPoint[]>(() =>
 }
 
 .itinerary-step-toggle:hover,
-.itinerary-step-toggle:focus-visible {
+.itinerary-step-toggle:focus-visible,
+.itinerary-step-toggle[data-onboarding-active='true'] {
   transform: translateY(var(--motion-card-lift));
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
   outline: none;
+}
+
+.itinerary-step-toggle[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--glass-bg));
+  box-shadow:
+    var(--shadow-md),
+    0 0 1.5rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
 }
 
 .itinerary-step-shell[data-step-state='current'] .itinerary-step-toggle {
@@ -737,7 +764,8 @@ const mapSpots = computed<MapPoint[]>(() =>
   .timeline-card:focus-within .timeline-image,
   .loading-card,
   .itinerary-step-toggle:hover,
-  .itinerary-step-toggle:focus-visible {
+  .itinerary-step-toggle:focus-visible,
+  .itinerary-step-toggle[data-onboarding-active='true'] {
     transform: none;
   }
 }

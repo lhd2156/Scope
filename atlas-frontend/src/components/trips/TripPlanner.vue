@@ -2,6 +2,7 @@
   <form
     class="trip-planner glass-panel"
     data-test="trip-planner"
+    data-onboarding-target="planner-shell"
     :data-planner-mode="mobileWizard ? 'mobile-wizard' : 'desktop'"
     @submit.prevent="handleSubmit"
   >
@@ -846,8 +847,26 @@ function handleSubmit(): void {
 }
 
 .trip-planner {
+  position: relative;
   padding: var(--space-6);
   min-height: 100%;
+}
+
+.trip-planner[data-onboarding-active='true'] {
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 22%, transparent),
+    0 0 2.4rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
+.trip-planner[data-onboarding-active='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0.9rem;
+  border-radius: calc(var(--radius-2xl) - 0.35rem);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  pointer-events: none;
 }
 
 .planner-header,
@@ -1421,8 +1440,16 @@ function handleSubmit(): void {
     opacity var(--transition-fast);
 }
 
+.submit-button[data-onboarding-active='true'] {
+  box-shadow:
+    var(--shadow-glow-teal),
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 12%, transparent),
+    0 0 2rem color-mix(in srgb, var(--accent-teal) 24%, transparent);
+}
+
 .submit-button:hover:not(:disabled),
-.submit-button:focus-visible {
+.submit-button:focus-visible,
+.submit-button[data-onboarding-active='true'] {
   transform: translateY(var(--motion-card-lift));
   background: var(--accent-teal-hover);
   box-shadow: 0 0 30px var(--accent-teal-light);
@@ -1538,6 +1565,7 @@ function handleSubmit(): void {
   .planner-summary:hover,
   .submit-button:hover:not(:disabled),
   .submit-button:focus-visible,
+  .submit-button[data-onboarding-active='true'],
   .interest-chip:hover,
   .interest-chip:focus-visible,
   .interest-chip.active,
