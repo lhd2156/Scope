@@ -109,7 +109,7 @@
 - [x] 17.10 - Verify with Chrome DevTools device emulation: iPhone 14, iPad, Galaxy S24
 
 ### Phase 18: Analytics & User Telemetry 📈
-- [ ] 18.1 - Create analytics service abstraction (src/services/analyticsService.ts)
+- [x] 18.1 - Create analytics service abstraction (src/services/analyticsService.ts)
 - [ ] 18.2 - Track page views on every route change via router afterEach
 - [ ] 18.3 - Track key user actions: spot create, trip create, AI itinerary generate, friend add, theme toggle
 - [ ] 18.4 - Track engagement metrics: time on page, scroll depth, map interaction count
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 18.1 - Create analytics service abstraction (src/services/analyticsService.ts)
-## Last Updated: 2026-04-01T04:34:05.9053549-05:00
+## Current Task: Phase 18.2 - Track page views on every route change via router afterEach
+## Last Updated: 2026-04-01T04:45:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -194,3 +194,4 @@
 - 2026-04-01T03:58:16.2244153-05:00: COMPLETED Phase 17.8 - replaced the minimal shell worker with a versioned offline strategy that precaches the public app shell + install icons, caches navigations separately, runtime-caches same-origin static assets with stale-while-revalidate behavior, and honors `SKIP_WAITING` for fast upgrades; added a VM-backed `service-worker.spec.ts` harness to assert install/activate/fetch behavior; and stabilized `onboarding-overlay.spec.ts` cleanup so the full suite stays green during frontend validation. Validation: `npm.cmd run build`, `npm.cmd run test`, plus a Playwright preview smoke that reloaded `/map?source=pwa` offline and confirmed the cached map shell rendered under `atlas-shell-v2` / `atlas-static-v2`. Next up: Phase 17.9 iOS safe-area handling.
 - 2026-04-01T04:25:41.7587239-05:00: COMPLETED Phase 17.9 - enabled `viewport-fit=cover` in the shell, introduced shared safe-area CSS variables and tap-optimized `touch-action` rules in `src/assets/base.css`, threaded safe-area-aware spacing through the fixed navbar/mobile drawer shell, and updated the mobile map bottom sheet + floating map controls to stay clear of iPhone cutouts and the home indicator. Validation: `npm.cmd run build`, `npm.cmd run test` (90 files / 234 tests), including the new `ios-safe-area.spec.ts` audit coverage. Next up: Phase 17.10 device-emulation verification.
 - 2026-04-01T04:34:05.9053549-05:00: COMPLETED Phase 17.10 - added a Chromium Playwright device-emulation checkpoint at `tests/e2e/device-emulation.spec.ts` that validates the real responsive shell under iPhone 14, iPad, and Galaxy S24-sized contexts, asserts there is no horizontal overflow, and attaches screenshots to the HTML report for manual review. Validation: `npm.cmd run test:e2e -- --project=chromium tests/e2e/device-emulation.spec.ts` (3 passed in 1.9m) after Vite preview rebuilt the app for the emulated sessions. Next up: Phase 18.1 analytics service abstraction.
+- 2026-04-01T04:45:00-05:00: COMPLETED Phase 18.1 - added a provider-based `src/services/analyticsService.ts` abstraction with typed page-view, event, and engagement records, queueing for pre-consent telemetry, and provider flush controls so later analytics milestones can plug into one shared surface instead of scattering direct calls. Validation: `npm.cmd run test -- tests/unit/analytics-service.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (91 files / 238 tests). Next up: Phase 18.2 route-level page-view tracking.
