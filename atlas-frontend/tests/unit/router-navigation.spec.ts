@@ -1,6 +1,8 @@
 import { flushPromises } from '@vue/test-utils';
 import type { Router } from 'vue-router';
 
+const trackRoutePageViewMock = vi.hoisted(() => vi.fn());
+
 interface MockAuthStore {
   hasHydratedSession: boolean;
   isAuthenticated: boolean;
@@ -15,6 +17,10 @@ async function loadRouterWithAuthStore(authStore: MockAuthStore): Promise<Router
 
   vi.doMock('@/stores/auth', () => ({
     useAuthStore: () => authStore,
+  }));
+
+  vi.doMock('@/services/analyticsService', () => ({
+    trackRoutePageView: trackRoutePageViewMock,
   }));
 
   const router = (await import('@/router')).default;
@@ -38,7 +44,9 @@ describe('router navigation matrix', () => {
   afterEach(() => {
     consoleWarnSpy.mockRestore();
     vi.doUnmock('@/stores/auth');
+    vi.doUnmock('@/services/analyticsService');
     vi.clearAllMocks();
+    trackRoutePageViewMock.mockReset();
   });
 
   it(
@@ -94,6 +102,33 @@ describe('router navigation matrix', () => {
       await navigate(router, '/missing/path');
       expect(router.currentRoute.value.name).toBe('not-found');
       expect(authStore.hydrateSession).not.toHaveBeenCalled();
+    },
+    ROUTER_NAVIGATION_TIMEOUT_MS,
+  );
+
+  it(
+    'tracks page views after successful navigations through the real router afterEach hook',
+    async () => {
+      const router = await loadRouterWithAuthStore({
+        hasHydratedSession: true,
+        isAuthenticated: false,
+        hydrateSession: vi.fn().mockResolvedValue(false),
+      });
+
+      await navigate(router, '/explore?city=austin');
+      await navigate(router, '/spots/spot-1');
+
+      expect(trackRoutePageViewMock).toHaveBeenCalledTimes(2);
+      expect(trackRoutePageViewMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        path: '/explore',
+        fullPath: '/explore?city=austin',
+        name: 'explore',
+      }));
+      expect(trackRoutePageViewMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        path: '/spots/spot-1',
+        fullPath: '/spots/spot-1',
+        name: 'spot-detail',
+      }));
     },
     ROUTER_NAVIGATION_TIMEOUT_MS,
   );
