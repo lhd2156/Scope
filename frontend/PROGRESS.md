@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 15.4 - Build demo trips: 3 public trips using demo spots with itineraries
-## Last Updated: 2026-03-31T21:37:00-05:00
+## Current Task: Phase 15.5 - Build demo feed: 15 activity items from users + spots + trips
+## Last Updated: 2026-03-31T22:00:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -181,3 +181,4 @@
 - 2026-03-31T21:03:00-05:00: COMPLETED Phase 15.1 - scaffolded `atlas-frontend/src/mock/` with domain-specific JSON fixture files for users, spots, trips, feed, and notifications so the remaining demo-mode tasks can populate each surface independently without changing the runtime service layer yet. Validation: `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.2 demo user profiles.
 - 2026-03-31T21:18:00-05:00: COMPLETED Phase 15.2 - populated `src/mock/users.json` with 5 demo-ready traveler profiles using `pravatar.cc` avatars, realistic stats, home bases, interests, bios, and activity history entries cross-referenced to future demo trip/spot ids. The primary seeded account now aligns with the eventual demo login email to keep later fixture tasks stable. Validation: `node -e` JSON sanity check, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.3 demo spots.
 - 2026-03-31T21:37:00-05:00: COMPLETED Phase 15.3 - populated `src/mock/spots.json` with 20 demo-ready spots spanning all 8 categories, each with real Texas coordinates, deterministic Unsplash imagery, author cross-references to the seeded demo users, and at least two reviews plus a photo gallery. Kept key spot ids/titles aligned with the already-shipped demo user activity history so later trip/feed fixtures can join cleanly. Validation: `node -e` spot/category/id sanity checks, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.4 demo trips.
+- 2026-03-31T22:00:00-05:00: COMPLETED Phase 15.4 - populated `src/mock/trips.json` with 3 public demo trips built from the seeded Texas spot catalog, each including members, ordered stops, and day-by-day itinerary structure. Reconciled the existing demo user activity history so every referenced `demo-trip-*` id now points at the same canonical trip title across the dataset. Validation: `node -e` trip/public/itinerary/cross-link sanity checks, `npm.cmd run build`, `npm.cmd run test` (85 files / 210 tests). Next up: Phase 15.5 demo feed.
