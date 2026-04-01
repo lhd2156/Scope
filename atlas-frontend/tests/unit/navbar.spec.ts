@@ -44,6 +44,7 @@ function buildRouter() {
       { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
       { path: '/explore', name: 'explore', component: { template: '<div>Explore</div>' } },
       { path: '/map', name: 'map', component: { template: '<div>Map</div>' } },
+      { path: '/spots/new', name: 'spot-create', component: { template: '<div>Create Spot</div>' } },
       { path: '/trips/new', name: 'trip-planner', component: { template: '<div>Trips</div>' } },
       { path: '/friends', name: 'friends', component: { template: '<div>Friends</div>' } },
       { path: '/profile/:id', name: 'profile', component: { template: '<div>Profile</div>' } },
@@ -121,6 +122,33 @@ describe('Navbar', () => {
       title: 'Signed out',
       message: 'Your Atlas session is closed for now. Come back anytime to keep exploring.',
     });
+
+    wrapper.unmount();
+  });
+
+  it('keeps the create-spot CTA visible and accessible in the navbar chrome', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: { template: '<div>Search</div>' },
+          ThemeToggle: { template: '<div>Theme</div>' },
+          Transition: false,
+        },
+      },
+    });
+
+    const createSpotLink = wrapper.get('[data-test="create-spot-link"]');
+    expect(createSpotLink.text()).toContain('Create');
+    expect(createSpotLink.attributes('aria-label')).toBe('Create Spot');
 
     wrapper.unmount();
   });
