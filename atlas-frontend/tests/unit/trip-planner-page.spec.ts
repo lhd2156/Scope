@@ -1,4 +1,15 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+
+const ORIGINAL_INNER_WIDTH = window.innerWidth;
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
 
 const { toastStoreMock, tripsStoreMock } = vi.hoisted(() => ({
   toastStoreMock: {
@@ -42,6 +53,7 @@ import TripPlannerPage from '@/views/TripPlannerPage.vue';
 
 describe('TripPlannerPage', () => {
   beforeEach(() => {
+    setViewportWidth(1280);
     tripsStoreMock.error = '';
     tripsStoreMock.fetchTrips.mockClear();
     tripsStoreMock.buildItinerary.mockClear();
@@ -56,18 +68,22 @@ describe('TripPlannerPage', () => {
     toastStoreMock.showError.mockClear();
   });
 
+  afterAll(() => {
+    setViewportWidth(ORIGINAL_INNER_WIDTH);
+  });
+
   it('boots the planner workspace and forwards planner submissions to the store', async () => {
     const wrapper = mount(TripPlannerPage, {
       global: {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           TripPlanner: {
-            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting'],
-            emits: ['submit', 'update:title', 'update:stops'],
+            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting', 'mobileWizard', 'mobileActiveStep'],
+            emits: ['submit', 'update:title', 'update:stops', 'wizard-step-change'],
             template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
           },
           ItineraryView: {
-            props: ['itinerary', 'tripTitle', 'members', 'submitting'],
+            props: ['itinerary', 'tripTitle', 'members', 'submitting', 'mobileWizard', 'mobileActiveStep'],
             template: '<div data-test="itinerary-stub">{{ tripTitle }} · {{ itinerary.destination }}</div>',
           },
           TripCard: {
@@ -96,6 +112,61 @@ describe('TripPlannerPage', () => {
     });
   });
 
+  it('switches to the mobile step wizard and advances into the preview step after a successful submit', async () => {
+    setViewportWidth(390);
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: {
+            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting', 'mobileWizard', 'mobileActiveStep'],
+            emits: ['submit', 'update:title', 'update:stops', 'wizard-step-change'],
+            template: `
+              <div data-test="planner-stub">
+                <span data-test="planner-stub-layout">{{ mobileWizard }} / {{ mobileActiveStep }}</span>
+                <button data-test="planner-step-2-trigger" @click="$emit('wizard-step-change', 2)">Step 2</button>
+                <button data-test="planner-step-2-toggle">Step 2 toggle</button>
+                <button data-test="planner-step-4-toggle">Step 4 toggle</button>
+                <button data-test="planner-submit" @click="$emit('submit', initialValue)">Submit planner</button>
+              </div>
+            `,
+          },
+          ItineraryView: {
+            props: ['itinerary', 'tripTitle', 'members', 'submitting', 'mobileWizard', 'mobileActiveStep'],
+            template: '<div data-test="itinerary-stub">{{ mobileWizard }} / {{ mobileActiveStep }}</div>',
+          },
+          TripCard: {
+            props: ['trip'],
+            template: '<div class="trip-card-stub">{{ trip.title }}</div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.get('.planner-page').attributes('data-planner-layout')).toBe('mobile-wizard');
+    expect(wrapper.text()).toContain('Plan the trip in four focused steps');
+    expect(wrapper.get('[data-test="planner-stub-layout"]').text()).toBe('true / 1');
+    expect(wrapper.get('[data-test="itinerary-stub"]').text()).toBe('true / 1');
+
+    await wrapper.get('[data-test="planner-step-2-trigger"]').trigger('click');
+    await nextTick();
+
+    expect(wrapper.get('[data-test="itinerary-stub"]').text()).toBe('true / 2');
+
+    await wrapper.get('[data-test="planner-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="itinerary-stub"]').text()).toBe('true / 4');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Itinerary refreshed',
+      message: 'Atlas refreshed your itinerary preview.',
+    });
+  });
+
   it('surfaces itinerary generation failures inline and emits an error toast after submit', async () => {
     tripsStoreMock.error = 'Atlas could not generate an itinerary right now.';
     tripsStoreMock.buildItinerary.mockRejectedValue(new Error('Planner failed'));
@@ -105,7 +176,7 @@ describe('TripPlannerPage', () => {
         stubs: {
           AppShell: { template: '<div><slot /></div>' },
           TripPlanner: {
-            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting'],
+            props: ['initialValue', 'initialTitle', 'budgetRange', 'selectedStops', 'suggestedStops', 'submitting', 'mobileWizard', 'mobileActiveStep'],
             emits: ['submit'],
             template: '<button data-test="planner-submit" @click="$emit(\'submit\', initialValue)">Submit planner</button>',
           },

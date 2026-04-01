@@ -82,6 +82,37 @@ describe('ItineraryView', () => {
     expect(wrapper.find('[data-test="route-map"]').exists()).toBe(true);
   });
 
+  it('supports the mobile preview step shell and an edit action back to the planner', async () => {
+    const wrapper = mount(ItineraryView, {
+      props: {
+        itinerary,
+        tripTitle: 'Epic Patagonia Trek',
+        members,
+        mobileWizard: true,
+        mobileActiveStep: 4,
+      },
+      global: {
+        stubs: {
+          MapView: {
+            template: '<div data-test="route-map">Route map stub</div>',
+          },
+          LazyImage: {
+            props: ['src', 'alt'],
+            template: '<img :src="src" :alt="alt" />',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-test="planner-step-4-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('[data-test="planner-step-4-content"]').isVisible()).toBe(true);
+    expect(wrapper.text()).toContain('AI preview');
+
+    await wrapper.get('[data-test="planner-step-4-back"]').trigger('click');
+
+    expect(wrapper.emitted('wizard-step-change')?.[0]?.[0]).toBe(3);
+  });
+
   it('shows a premium empty state when no itinerary is available', () => {
     const wrapper = mount(ItineraryView, {
       props: {
@@ -91,7 +122,6 @@ describe('ItineraryView', () => {
         stubs: {
           MapView: true,
           LazyImage: true,
-          AtlasIcon: { template: '<span class="icon-stub" />' },
         },
       },
     });

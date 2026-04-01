@@ -123,4 +123,42 @@ describe('TripPlanner', () => {
     expect(latestStops).toHaveLength(2);
     expect(latestStops[1]?.title).toBe('Torres del Paine');
   });
+
+  it('renders a vertical mobile wizard with only the active step expanded', async () => {
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue,
+        initialTitle: 'Epic Patagonia Trek',
+        budgetRange: [1500, 3000],
+        selectedStops,
+        suggestedStops,
+        mobileWizard: true,
+        mobileActiveStep: 2,
+      },
+    });
+
+    expect(wrapper.get('[data-test="planner-step-1-toggle"]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('[data-test="planner-step-2-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('[data-test="planner-step-1-content"]').isVisible()).toBe(false);
+    expect(wrapper.get('[data-test="planner-step-2-content"]').isVisible()).toBe(true);
+    expect(wrapper.get('[data-test="planner-step-3-content"]').isVisible()).toBe(false);
+  });
+
+  it('emits wizard step changes from the mobile step actions', async () => {
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue,
+        initialTitle: 'Epic Patagonia Trek',
+        budgetRange: [1500, 3000],
+        selectedStops,
+        suggestedStops,
+        mobileWizard: true,
+        mobileActiveStep: 1,
+      },
+    });
+
+    await wrapper.get('[data-test="planner-step-1-continue"]').trigger('click');
+
+    expect(wrapper.emitted('wizard-step-change')?.[0]?.[0]).toBe(2);
+  });
 });
