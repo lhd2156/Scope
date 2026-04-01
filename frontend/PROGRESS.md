@@ -99,7 +99,7 @@
 ### Phase 17: Mobile Responsiveness & PWA 📱
 - [x] 17.1 - Audit every view for responsive breakpoints: mobile (<640px), tablet (640-1024px), desktop (>1024px)
 - [x] 17.2 - Mobile navbar: hamburger menu → slide-out drawer with backdrop blur
-- [ ] 17.3 - Map page mobile: full-screen map with bottom-sheet sidebar (swipe up to reveal)
+- [x] 17.3 - Map page mobile: full-screen map with bottom-sheet sidebar (swipe up to reveal)
 - [ ] 17.4 - Explore page mobile: single-column card layout
 - [ ] 17.5 - Profile page mobile: stacked layout, horizontal scroll for adventures
 - [ ] 17.6 - Trip planner mobile: step wizard (vertical steps instead of side-by-side panels)
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 17.3 - Map page mobile: full-screen map with bottom-sheet sidebar (swipe up to reveal)
-## Last Updated: 2026-04-01T00:41:56.4269860-05:00
+## Current Task: Phase 17.4 - Explore page mobile: single-column card layout
+## Last Updated: 2026-04-01T01:01:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -186,3 +186,4 @@
 - 2026-03-31T22:10:00-05:00: COMPLETED Phases 15.5-15.9 - populated `src/mock/feed.json` with 15 cross-linked activity items, populated `src/mock/notifications.json` with 10 seeded inbox states, added `src/mock/index.ts` plus a dedicated `VITE_DEMO_MODE` runtime path that short-circuits the API layer to curated local fixtures, introduced the shared demo credentials (`demo@atlas.travel` / `Atlas2024!`) in both auth services and the login screen, and documented local/Docker demo-mode setup in `atlas-frontend/README.md` and `.env.example`. Validation: `npm.cmd run test` (86 files / 213 tests), `npm.cmd run build`. Next up: Phase 17.1 responsive breakpoint audit.
 - 2026-04-01T00:12:07-05:00: COMPLETED Phase 17.1 - added shared tablet/mobile breakpoint guardrails in `src/assets/base.css`, tightened the responsive audit spec to recognize shell-level layout primitives, and hardened demo fixture normalization so pre-enriched feed JSON keeps demo mode/test imports stable while the audit suite runs. Validation: `npm.cmd run build`, `npm.cmd run test` (87 files / 215 tests). Next up: Phase 17.2 mobile navbar drawer.
 - 2026-04-01T00:41:56.4269860-05:00: COMPLETED Phase 17.2 - rebuilt the global navbar for compact screens with a glassmorphism hamburger trigger, a right-side slide-out drawer with blurred backdrop, mobile search/account/action surfaces, scroll locking plus Escape/route-dismiss behavior, and focused Vitest coverage for drawer open/close flows. Validation: `npm.cmd run build`, `npm.cmd run test -- tests/unit/navbar.spec.ts`, `npm.cmd run test` (87 files / 216 tests). Next up: Phase 17.3 mobile map bottom-sheet.
+- 2026-04-01T01:01:00-05:00: COMPLETED Phase 17.3 - converted the map page to a true mobile-only full-screen map layout at the shared `<=640px` breakpoint, promoted the sidebar into a swipeable glass bottom sheet with peek/mid/full states, tuned map control placement for the floating sheet, and extended `map-page.spec.ts` to lock the reveal flow from mobile map interactions. Validation: `npm.cmd run test -- tests/unit/map-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (87 files / 217 tests). Next up: Phase 17.4 explore page single-column mobile layout.

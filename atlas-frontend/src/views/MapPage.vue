@@ -1,175 +1,212 @@
 <template>
   <AppShell>
-    <div class="map-page">
+    <div class="map-page" :class="{ 'map-page--mobile': isMobileMapLayout }">
       <article v-if="workspaceError" class="glass-panel error-panel" role="alert">
         <p class="eyebrow">Temporary issue</p>
         <h2>Part of the map workspace could not be loaded</h2>
         <p class="section-copy">{{ workspaceError }}</p>
       </article>
 
-      <section class="map-workspace">
-        <aside class="map-sidebar stagger-in" aria-label="Map workspace sidebar">
-          <article class="glass-panel sidebar-panel filter-panel" style="--atlas-stagger-index: 0;" data-onboarding-target="map-filters">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Explore categories</p>
-                <h1>Curate the map by mood</h1>
-              </div>
-              <button type="button" class="text-link" @click="mapStore.resetCategories">Reset</button>
-            </div>
-
-            <p class="panel-copy">
-              Toggle the lanes you want Atlas to spotlight, then jump straight into the best route mix on the map.
-            </p>
-
-            <div class="filter-chip-row">
-              <button
-                v-for="category in categories"
-                :key="category"
-                type="button"
-                class="filter-chip"
-                :class="[
-                  `badge-${category}`,
-                  {
-                    'is-inactive': !mapStore.activeCategories.includes(category),
-                  },
-                ]"
-                @click="mapStore.toggleCategory(category)"
-              >
-                <AtlasIcon :name="categoryIconName(category)" :label="formatCategory(category)" />
-                <span>{{ formatCategory(category) }}</span>
-              </button>
-            </div>
-          </article>
-
-          <article class="glass-panel sidebar-panel route-card" :class="{ 'route-card--empty': !activeTrip }" style="--atlas-stagger-index: 1;">
-            <div class="panel-heading route-heading">
-              <div>
-                <p class="eyebrow">Featured route</p>
-                <h2>{{ routeTitle }}</h2>
-              </div>
-              <span class="route-destination-pill">{{ routeDestinationLabel }}</span>
-            </div>
-
-            <p class="panel-copy route-copy">{{ routeDescription }}</p>
-
-            <div v-if="routeStopsPreview.length" class="route-preview">
-              <div class="route-preview-media">
-                <LazyImage :src="routeHeroPhoto" :alt="routeTitle" class="route-hero-image" eager />
-                <div class="route-preview-sheen" />
-
-                <div class="route-preview-stops">
-                  <article v-for="(stop, index) in routeStopsPreview" :key="stop.id" class="route-preview-stop">
-                    <span class="route-preview-index">{{ index + 1 }}</span>
-                    <div class="route-preview-copy">
-                      <strong>{{ stop.title }}</strong>
-                      <small>
-                        Day {{ stop.dayNumber ?? index + 1 }}
-                        <span v-if="stop.timeSlot">· {{ stop.timeSlot }}</span>
-                      </small>
-                    </div>
-                  </article>
-                </div>
-              </div>
-
-              <div class="route-footer">
-                <div class="route-metrics">
-                  <span>
-                    <AtlasIcon name="route" label="Route stops" />
-                    {{ routePoints.length }} stop{{ routePoints.length === 1 ? '' : 's' }}
-                  </span>
-                  <span>
-                    <AtlasIcon name="friends" label="Travelers" />
-                    {{ activeTrip?.members.length ?? 0 }} traveler{{ (activeTrip?.members.length ?? 0) === 1 ? '' : 's' }}
-                  </span>
-                  <span>
-                    <AtlasIcon name="map" label="Destination" />
-                    {{ routeDestinationLabel }}
-                  </span>
-                </div>
-
-                <div v-if="routeMemberPreview.length" class="route-members">
-                  <div class="route-member-avatars" aria-hidden="true">
-                    <span v-for="member in routeMemberPreview" :key="member.id" class="route-member-avatar">{{ member.initials }}</span>
-                  </div>
-                  <span class="route-member-copy">Crew synced</span>
-                </div>
-              </div>
-            </div>
-
-            <div v-else class="route-empty-state">
-              <p>Pick a trip from the planner to preview its stop sequence and crew context here.</p>
-            </div>
-          </article>
-
-          <article
-            v-if="selectedSpot"
-            :key="selectedSpot.id"
-            class="glass-panel sidebar-panel selected-card"
-            style="--atlas-stagger-index: 2;"
-            data-test="map-selected-spot-card"
+      <section class="map-workspace" :class="{ 'map-workspace--mobile': isMobileMapLayout }">
+        <aside
+          class="map-sidebar"
+          :class="{
+            'map-sidebar--mobile': isMobileMapLayout,
+            'is-dragging': isDraggingMobileSheet,
+          }"
+          :style="mobileSheetStyle"
+          :data-sheet-state="isMobileMapLayout ? mobileSheetState : 'desktop'"
+          :aria-label="isMobileMapLayout ? 'Map workspace bottom sheet' : 'Map workspace sidebar'"
+          data-test="map-mobile-sheet"
+          @keydown="handleSidebarKeydown"
+        >
+          <button
+            v-if="isMobileMapLayout"
+            type="button"
+            class="mobile-sheet-toggle glass-panel"
+            data-test="map-mobile-sheet-toggle"
+            :aria-expanded="String(mobileSheetState !== 'peek')"
+            :aria-label="mobileSheetAriaLabel"
+            @click="handleMobileSheetToggle"
+            @pointerdown="startMobileSheetDrag"
           >
-            <div class="selected-media">
-              <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
-              <div class="selected-media-gradient" />
-
-              <div class="selected-media-topline">
-                <span class="selected-label">Featured spot</span>
-                <span class="selected-rating">★ {{ selectedSpot.rating.toFixed(1) }}</span>
+            <span class="mobile-sheet-grabber" aria-hidden="true" />
+            <div class="mobile-sheet-summary">
+              <p class="eyebrow">Map sidebar</p>
+              <div class="mobile-sheet-summary-row">
+                <h2>{{ mobileSheetHeadline }}</h2>
+                <span class="filter-count mobile-sheet-count">{{ activeFilterCountLabel }}</span>
               </div>
+              <p class="mobile-sheet-copy">{{ mobileSheetDescription }}</p>
             </div>
+          </button>
 
-            <div class="selected-copy">
-              <span class="badge" :class="`badge-${selectedSpot.category}`">{{ formatCategory(selectedSpot.category) }}</span>
-              <h2>{{ selectedSpot.title }}</h2>
-              <p>{{ selectedSpot.description }}</p>
-              <div class="selected-meta">
-                <span>{{ selectedSpotLocation }}</span>
-                <span v-if="selectedSpot.vibe">{{ selectedSpot.vibe }}</span>
-              </div>
-              <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
-                <span>Open detail</span>
-                <AtlasIcon name="navigation" label="Open selected spot detail" />
-              </RouterLink>
-            </div>
-          </article>
-
-          <article class="glass-panel sidebar-panel visible-card" style="--atlas-stagger-index: 3;">
-            <div class="panel-heading visible-heading">
-              <div>
-                <p class="eyebrow">Your adventure map</p>
-                <h2>{{ visibleTitle }}</h2>
-              </div>
-              <span class="filter-count">{{ activeFilterCountLabel }}</span>
-            </div>
-
-            <p v-if="workspaceLoading" class="sidebar-state">Loading map pins and route context…</p>
-            <div v-else-if="visibleSpots.length" class="visible-list">
-              <button
-                v-for="spot in visibleSpots.slice(0, 4)"
-                :key="spot.id"
-                class="visible-item"
-                type="button"
-                :class="{ 'is-selected': spot.id === mapStore.selectedSpotId }"
-                @click="focusSpot(spot.id)"
-              >
-                <LazyImage :src="getSpotPhotoUrl(spot.category, spot.photoUrl)" :alt="spot.title" class="visible-image" eager />
-                <div class="visible-copy">
-                  <strong>{{ spot.title }}</strong>
-                  <p>{{ [spot.city, spot.country].filter(Boolean).join(', ') }}</p>
+          <div class="map-sidebar-scroll stagger-in" :class="{ 'map-sidebar-scroll--mobile': isMobileMapLayout }">
+            <article class="glass-panel sidebar-panel filter-panel" style="--atlas-stagger-index: 0;" data-onboarding-target="map-filters">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Explore categories</p>
+                  <h1>Curate the map by mood</h1>
                 </div>
-                <span class="visible-rating">★ {{ spot.rating.toFixed(1) }}</span>
-              </button>
-            </div>
-            <div v-else class="sidebar-empty-state">
-              <p>No pins match the current category mix.</p>
-              <button type="button" class="button button-secondary" @click="mapStore.resetCategories">Show all categories</button>
-            </div>
-          </article>
+                <button type="button" class="text-link" @click="mapStore.resetCategories">Reset</button>
+              </div>
+
+              <p class="panel-copy">
+                Toggle the lanes you want Atlas to spotlight, then jump straight into the best route mix on the map.
+              </p>
+
+              <div class="filter-chip-row">
+                <button
+                  v-for="category in categories"
+                  :key="category"
+                  type="button"
+                  class="filter-chip"
+                  :class="[
+                    `badge-${category}`,
+                    {
+                      'is-inactive': !mapStore.activeCategories.includes(category),
+                    },
+                  ]"
+                  @click="mapStore.toggleCategory(category)"
+                >
+                  <AtlasIcon :name="categoryIconName(category)" :label="formatCategory(category)" />
+                  <span>{{ formatCategory(category) }}</span>
+                </button>
+              </div>
+            </article>
+
+            <article class="glass-panel sidebar-panel route-card" :class="{ 'route-card--empty': !activeTrip }" style="--atlas-stagger-index: 1;">
+              <div class="panel-heading route-heading">
+                <div>
+                  <p class="eyebrow">Featured route</p>
+                  <h2>{{ routeTitle }}</h2>
+                </div>
+                <span class="route-destination-pill">{{ routeDestinationLabel }}</span>
+              </div>
+
+              <p class="panel-copy route-copy">{{ routeDescription }}</p>
+
+              <div v-if="routeStopsPreview.length" class="route-preview">
+                <div class="route-preview-media">
+                  <LazyImage :src="routeHeroPhoto" :alt="routeTitle" class="route-hero-image" eager />
+                  <div class="route-preview-sheen" />
+
+                  <div class="route-preview-stops">
+                    <article v-for="(stop, index) in routeStopsPreview" :key="stop.id" class="route-preview-stop">
+                      <span class="route-preview-index">{{ index + 1 }}</span>
+                      <div class="route-preview-copy">
+                        <strong>{{ stop.title }}</strong>
+                        <small>
+                          Day {{ stop.dayNumber ?? index + 1 }}
+                          <span v-if="stop.timeSlot">· {{ stop.timeSlot }}</span>
+                        </small>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="route-footer">
+                  <div class="route-metrics">
+                    <span>
+                      <AtlasIcon name="route" label="Route stops" />
+                      {{ routePoints.length }} stop{{ routePoints.length === 1 ? '' : 's' }}
+                    </span>
+                    <span>
+                      <AtlasIcon name="friends" label="Travelers" />
+                      {{ activeTrip?.members.length ?? 0 }} traveler{{ (activeTrip?.members.length ?? 0) === 1 ? '' : 's' }}
+                    </span>
+                    <span>
+                      <AtlasIcon name="map" label="Destination" />
+                      {{ routeDestinationLabel }}
+                    </span>
+                  </div>
+
+                  <div v-if="routeMemberPreview.length" class="route-members">
+                    <div class="route-member-avatars" aria-hidden="true">
+                      <span v-for="member in routeMemberPreview" :key="member.id" class="route-member-avatar">{{ member.initials }}</span>
+                    </div>
+                    <span class="route-member-copy">Crew synced</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="route-empty-state">
+                <p>Pick a trip from the planner to preview its stop sequence and crew context here.</p>
+              </div>
+            </article>
+
+            <article
+              v-if="selectedSpot"
+              :key="selectedSpot.id"
+              class="glass-panel sidebar-panel selected-card"
+              style="--atlas-stagger-index: 2;"
+              data-test="map-selected-spot-card"
+            >
+              <div class="selected-media">
+                <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
+                <div class="selected-media-gradient" />
+
+                <div class="selected-media-topline">
+                  <span class="selected-label">Featured spot</span>
+                  <span class="selected-rating">★ {{ selectedSpot.rating.toFixed(1) }}</span>
+                </div>
+              </div>
+
+              <div class="selected-copy">
+                <span class="badge" :class="`badge-${selectedSpot.category}`">{{ formatCategory(selectedSpot.category) }}</span>
+                <h2>{{ selectedSpot.title }}</h2>
+                <p>{{ selectedSpot.description }}</p>
+                <div class="selected-meta">
+                  <span>{{ selectedSpotLocation }}</span>
+                  <span v-if="selectedSpot.vibe">{{ selectedSpot.vibe }}</span>
+                </div>
+                <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
+                  <span>Open detail</span>
+                  <AtlasIcon name="navigation" label="Open selected spot detail" />
+                </RouterLink>
+              </div>
+            </article>
+
+            <article class="glass-panel sidebar-panel visible-card" style="--atlas-stagger-index: 3;">
+              <div class="panel-heading visible-heading">
+                <div>
+                  <p class="eyebrow">Your adventure map</p>
+                  <h2>{{ visibleTitle }}</h2>
+                </div>
+                <span class="filter-count">{{ activeFilterCountLabel }}</span>
+              </div>
+
+              <p v-if="workspaceLoading" class="sidebar-state">Loading map pins and route context…</p>
+              <div v-else-if="visibleSpots.length" class="visible-list">
+                <button
+                  v-for="spot in visibleSpots.slice(0, 4)"
+                  :key="spot.id"
+                  class="visible-item"
+                  type="button"
+                  :class="{ 'is-selected': spot.id === mapStore.selectedSpotId }"
+                  @click="focusSpot(spot.id)"
+                >
+                  <LazyImage :src="getSpotPhotoUrl(spot.category, spot.photoUrl)" :alt="spot.title" class="visible-image" eager />
+                  <div class="visible-copy">
+                    <strong>{{ spot.title }}</strong>
+                    <p>{{ [spot.city, spot.country].filter(Boolean).join(', ') }}</p>
+                  </div>
+                  <span class="visible-rating">★ {{ spot.rating.toFixed(1) }}</span>
+                </button>
+              </div>
+              <div v-else class="sidebar-empty-state">
+                <p>No pins match the current category mix.</p>
+                <button type="button" class="button button-secondary" @click="mapStore.resetCategories">Show all categories</button>
+              </div>
+            </article>
+          </div>
         </aside>
 
-        <article class="map-stage glass-panel">
+        <article class="map-stage glass-panel" :class="{ 'map-stage--mobile': isMobileMapLayout }">
           <MapView
+            class="map-stage-view"
+            :class="{ 'map-view--mobile': isMobileMapLayout }"
+            :style="mapViewStyle"
             :spots="mapSpots"
             :route-points="routePoints"
             :selected-spot-id="mapStore.selectedSpotId"
@@ -182,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
@@ -204,11 +241,27 @@ interface RoutePreviewStop {
   photoUrl: string;
 }
 
+type MobileSheetState = 'peek' | 'mid' | 'full';
+
+const MOBILE_MAP_BREAKPOINT = 640;
+const MOBILE_SHEET_DRAG_LIMIT = 280;
+const MOBILE_SHEET_DRAG_THRESHOLD = 72;
+const MOBILE_SHEET_STATES: MobileSheetState[] = ['peek', 'mid', 'full'];
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 const mapStore = useMapStore();
 const spotsStore = useSpotsStore();
 const tripsStore = useTripsStore();
+const isMobileMapLayout = ref(false);
+const mobileSheetState = ref<MobileSheetState>('peek');
+const isDraggingMobileSheet = ref(false);
+const mobileSheetDragStartY = ref(0);
+const mobileSheetDragOffset = ref(0);
+const ignoreNextMobileSheetClick = ref(false);
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 function formatCategory(category: SpotCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -235,6 +288,106 @@ function getMemberInitials(displayName: string): string {
     .join('');
 }
 
+function resolveIsMobileMapLayout(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.innerWidth <= MOBILE_MAP_BREAKPOINT;
+}
+
+function syncMobileMapLayout() {
+  isMobileMapLayout.value = resolveIsMobileMapLayout();
+}
+
+function setMobileSheetState(nextState: MobileSheetState) {
+  mobileSheetState.value = nextState;
+}
+
+function getAdjacentMobileSheetState(direction: -1 | 1): MobileSheetState {
+  const currentIndex = MOBILE_SHEET_STATES.indexOf(mobileSheetState.value);
+  const nextIndex = clampNumber(currentIndex + direction, 0, MOBILE_SHEET_STATES.length - 1);
+  return MOBILE_SHEET_STATES[nextIndex];
+}
+
+function removeMobileSheetPointerListeners() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.removeEventListener('pointermove', handleMobileSheetDrag);
+  window.removeEventListener('pointerup', finishMobileSheetDrag);
+  window.removeEventListener('pointercancel', cancelMobileSheetDrag);
+}
+
+function cancelMobileSheetDrag() {
+  isDraggingMobileSheet.value = false;
+  mobileSheetDragOffset.value = 0;
+  removeMobileSheetPointerListeners();
+}
+
+function handleMobileSheetDrag(event: PointerEvent) {
+  if (!isDraggingMobileSheet.value) {
+    return;
+  }
+
+  mobileSheetDragOffset.value = clampNumber(
+    event.clientY - mobileSheetDragStartY.value,
+    -MOBILE_SHEET_DRAG_LIMIT,
+    MOBILE_SHEET_DRAG_LIMIT,
+  );
+}
+
+function finishMobileSheetDrag() {
+  if (!isDraggingMobileSheet.value) {
+    return;
+  }
+
+  const dragDelta = mobileSheetDragOffset.value;
+  const hasMeaningfulDrag = Math.abs(dragDelta) > 10;
+
+  cancelMobileSheetDrag();
+
+  if (hasMeaningfulDrag) {
+    ignoreNextMobileSheetClick.value = true;
+  }
+
+  if (dragDelta <= -MOBILE_SHEET_DRAG_THRESHOLD) {
+    setMobileSheetState(getAdjacentMobileSheetState(1));
+    return;
+  }
+
+  if (dragDelta >= MOBILE_SHEET_DRAG_THRESHOLD) {
+    setMobileSheetState(getAdjacentMobileSheetState(-1));
+  }
+}
+
+function startMobileSheetDrag(event: PointerEvent) {
+  if (!isMobileMapLayout.value) {
+    return;
+  }
+
+  const currentTarget = event.currentTarget;
+  if (currentTarget instanceof HTMLElement && typeof currentTarget.setPointerCapture === 'function') {
+    try {
+      currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is optional for the drag affordance.
+    }
+  }
+
+  mobileSheetDragStartY.value = event.clientY;
+  mobileSheetDragOffset.value = 0;
+  isDraggingMobileSheet.value = true;
+  ignoreNextMobileSheetClick.value = false;
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointermove', handleMobileSheetDrag);
+    window.addEventListener('pointerup', finishMobileSheetDrag);
+    window.addEventListener('pointercancel', cancelMobileSheetDrag);
+  }
+}
+
 const mapSpots = computed<MapPoint[]>(() => spotsStore.items.map((spot) => ({
   id: spot.id,
   title: spot.title,
@@ -256,7 +409,7 @@ const routePoints = computed<MapPoint[]>(() => (activeTrip.value?.spots ?? []).m
   latitude: spot.latitude,
   longitude: spot.longitude,
   category: spot.category,
-}))); 
+})));
 const routeTitle = computed(() => {
   if (activeTrip.value?.title) {
     return activeTrip.value.title;
@@ -331,9 +484,95 @@ const selectedSpotLocation = computed(() => {
 
   return [selectedSpot.value.city, selectedSpot.value.country].filter(Boolean).join(', ');
 });
+const nextMobileSheetState = computed<MobileSheetState>(() => {
+  switch (mobileSheetState.value) {
+    case 'peek':
+      return 'mid';
+    case 'mid':
+      return 'full';
+    default:
+      return 'peek';
+  }
+});
+const mobileSheetVisibleHeight = computed(() => {
+  switch (mobileSheetState.value) {
+    case 'peek':
+      return '8.75rem';
+    case 'mid':
+      return 'clamp(22rem, 52dvh, 30rem)';
+    default:
+      return '100%';
+  }
+});
+const mobileSheetHeadline = computed(() => selectedSpot.value?.title ?? routeTitle.value);
+const mobileSheetDescription = computed(() => {
+  if (selectedSpot.value) {
+    return `${selectedSpotLocation.value} · Swipe up for filters, route preview, and nearby pins.`;
+  }
+
+  return `${visibleTitle.value} · Swipe up for filters, route preview, and nearby pins.`;
+});
+const mobileSheetAriaLabel = computed(() => {
+  switch (nextMobileSheetState.value) {
+    case 'mid':
+      return 'Expand map sidebar';
+    case 'full':
+      return 'Open full map sidebar';
+    default:
+      return 'Collapse map sidebar';
+  }
+});
+const mobileSheetStyle = computed(() => {
+  if (!isMobileMapLayout.value) {
+    return undefined;
+  }
+
+  return {
+    '--atlas-mobile-sheet-visible': mobileSheetVisibleHeight.value,
+    '--atlas-mobile-sheet-drag-offset': `${mobileSheetDragOffset.value}px`,
+  };
+});
+const mapViewStyle = computed(() => {
+  if (!isMobileMapLayout.value) {
+    return undefined;
+  }
+
+  return {
+    '--atlas-map-controls-top': 'var(--space-3)',
+    '--atlas-map-controls-right': 'var(--space-3)',
+    '--atlas-map-controls-bottom': 'auto',
+    '--atlas-map-controls-left': 'auto',
+    '--atlas-map-controls-panel-top': 'var(--space-3)',
+    '--atlas-map-controls-panel-right': 'var(--space-3)',
+    '--atlas-map-controls-panel-bottom': 'auto',
+    '--atlas-map-controls-panel-left': 'auto',
+  };
+});
+
+function handleMobileSheetToggle() {
+  if (!isMobileMapLayout.value) {
+    return;
+  }
+
+  if (ignoreNextMobileSheetClick.value) {
+    ignoreNextMobileSheetClick.value = false;
+    return;
+  }
+
+  setMobileSheetState(nextMobileSheetState.value);
+}
+
+function revealMobileSheet() {
+  if (!isMobileMapLayout.value || mobileSheetState.value !== 'peek') {
+    return;
+  }
+
+  setMobileSheetState('mid');
+}
 
 function handleSpotSelect(spot: MapPoint) {
   mapStore.setSelectedSpotId(spot.id);
+  revealMobileSheet();
 }
 
 function focusSpot(spotId: string) {
@@ -345,14 +584,42 @@ function focusSpot(spotId: string) {
   mapStore.setSelectedSpotId(spot.id);
   mapStore.setCenter([spot.longitude, spot.latitude]);
   mapStore.setZoom(12);
+  revealMobileSheet();
 }
 
+function handleSidebarKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isMobileMapLayout.value && mobileSheetState.value !== 'peek') {
+    setMobileSheetState('peek');
+  }
+}
+
+watch(
+  isMobileMapLayout,
+  (isMobile) => {
+    if (!isMobile) {
+      cancelMobileSheetDrag();
+    }
+
+    ignoreNextMobileSheetClick.value = false;
+    mobileSheetState.value = 'peek';
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
+  syncMobileMapLayout();
+  window.addEventListener('resize', syncMobileMapLayout);
+
   await Promise.allSettled([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
 
   if (!mapStore.selectedSpotId && spotsStore.items[0]) {
     mapStore.setSelectedSpotId(spotsStore.items[0].id);
   }
+});
+
+onBeforeUnmount(() => {
+  cancelMobileSheetDrag();
+  window.removeEventListener('resize', syncMobileMapLayout);
 });
 </script>
 
@@ -376,6 +643,7 @@ onMounted(async () => {
 }
 
 .map-workspace {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(20rem, 21.5rem) minmax(0, 1fr);
   gap: var(--space-4);
@@ -384,11 +652,10 @@ onMounted(async () => {
 }
 
 .map-sidebar {
-  display: grid;
-  align-content: start;
-  gap: var(--space-4);
+  min-height: 0;
 }
 
+.map-sidebar-scroll,
 .sidebar-panel,
 .selected-copy,
 .sidebar-empty-state,
@@ -396,6 +663,14 @@ onMounted(async () => {
 .route-empty-state {
   display: grid;
   gap: var(--space-4);
+}
+
+.map-sidebar-scroll {
+  align-content: start;
+}
+
+.mobile-sheet-toggle {
+  display: none;
 }
 
 .sidebar-panel {
@@ -408,7 +683,8 @@ onMounted(async () => {
 
 .panel-heading,
 .visible-heading,
-.route-footer {
+.route-footer,
+.mobile-sheet-summary-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -419,7 +695,8 @@ onMounted(async () => {
 .panel-heading h2,
 .route-heading h2,
 .selected-copy h2,
-.error-panel h2 {
+.error-panel h2,
+.mobile-sheet-summary h2 {
   margin: 0;
 }
 
@@ -430,7 +707,8 @@ onMounted(async () => {
 }
 
 .panel-heading h2,
-.selected-copy h2 {
+.selected-copy h2,
+.mobile-sheet-summary h2 {
   font-size: var(--font-size-h2);
   line-height: var(--line-height-tight);
 }
@@ -456,7 +734,8 @@ onMounted(async () => {
 .route-member-copy,
 .selected-meta span,
 .route-preview-copy small,
-.route-metrics span {
+.route-metrics span,
+.mobile-sheet-copy {
   color: var(--text-secondary);
 }
 
@@ -466,7 +745,8 @@ onMounted(async () => {
 .route-empty-state p,
 .sidebar-empty-state p,
 .sidebar-state,
-.visible-copy p {
+.visible-copy p,
+.mobile-sheet-copy {
   margin: 0;
   line-height: var(--line-height-relaxed);
 }
@@ -521,7 +801,9 @@ onMounted(async () => {
 .detail-link:hover,
 .detail-link:focus-visible,
 .visible-item:hover,
-.visible-item:focus-visible {
+.visible-item:focus-visible,
+.mobile-sheet-toggle:hover,
+.mobile-sheet-toggle:focus-visible {
   transform: translateY(var(--motion-card-lift));
   outline: none;
 }
@@ -529,7 +811,8 @@ onMounted(async () => {
 .filter-chip:active,
 .text-link:active,
 .detail-link:active,
-.visible-item:active {
+.visible-item:active,
+.mobile-sheet-toggle:active {
   transform: translateY(0) scale(var(--motion-press-scale));
 }
 
@@ -676,7 +959,8 @@ onMounted(async () => {
 .route-preview-copy small,
 .route-member-copy,
 .visible-copy p,
-.visible-rating {
+.visible-rating,
+.mobile-sheet-copy {
   font-size: var(--font-size-small);
 }
 
@@ -859,6 +1143,10 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+.map-stage-view {
+  height: 100%;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .selected-card {
     animation: selected-spot-slide-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -890,6 +1178,14 @@ onMounted(async () => {
   .route-card:hover .route-hero-image {
     transform: none;
   }
+
+  .mobile-sheet-toggle,
+  .mobile-sheet-toggle:hover,
+  .mobile-sheet-toggle:focus-visible,
+  .mobile-sheet-toggle:active,
+  .map-sidebar--mobile {
+    transition: none;
+  }
 }
 
 @keyframes selected-spot-slide-in {
@@ -904,7 +1200,7 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1024px) {
   .map-workspace {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -920,7 +1216,145 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 640px) {
+  .map-page--mobile {
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    padding: calc(var(--shell-content-top) - var(--space-2)) 0 0;
+    gap: var(--space-4);
+  }
+
+  .map-page--mobile .error-panel {
+    margin: 0 var(--space-3);
+  }
+
+  .map-workspace--mobile {
+    grid-template-columns: 1fr;
+    gap: 0;
+    min-height: calc(100dvh - var(--shell-content-top) + var(--space-2));
+    height: calc(100dvh - var(--shell-content-top) + var(--space-2));
+  }
+
+  .map-stage--mobile {
+    min-height: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .map-stage--mobile :deep(.map-view) {
+    border-radius: 0;
+  }
+
+  .map-sidebar--mobile {
+    position: absolute;
+    inset: auto 0 0;
+    z-index: calc(var(--z-sidebar) + 1);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    height: calc(100% - var(--space-3));
+    padding: 0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    transform: translateY(calc(100% - var(--atlas-mobile-sheet-visible) + var(--atlas-mobile-sheet-drag-offset, 0px)));
+    transition: transform var(--transition-normal);
+    will-change: transform;
+  }
+
+  .map-sidebar--mobile.is-dragging {
+    transition: none;
+  }
+
+  .mobile-sheet-toggle {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    border: 1px solid var(--glass-border);
+    background: color-mix(in srgb, var(--glass-bg) 96%, transparent);
+    box-shadow: var(--shadow-lg);
+    cursor: grab;
+    text-align: left;
+    touch-action: none;
+  }
+
+  .mobile-sheet-grabber {
+    width: 3.5rem;
+    height: 0.35rem;
+    margin: 0 auto;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text-secondary) 60%, transparent);
+  }
+
+  .mobile-sheet-summary {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .mobile-sheet-summary h2 {
+    font-size: clamp(1.1rem, 4vw, 1.35rem);
+  }
+
+  .mobile-sheet-summary-row {
+    align-items: center;
+  }
+
+  .mobile-sheet-count {
+    white-space: nowrap;
+  }
+
+  .map-sidebar-scroll--mobile {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.15rem;
+    overscroll-behavior: contain;
+  }
+
+  .map-sidebar--mobile .selected-card {
+    order: 1;
+  }
+
+  .map-sidebar--mobile .filter-panel {
+    order: 2;
+  }
+
+  .map-sidebar--mobile .route-card {
+    order: 3;
+  }
+
+  .map-sidebar--mobile .visible-card {
+    order: 4;
+  }
+
+  .map-sidebar--mobile .sidebar-panel {
+    padding: var(--space-4);
+  }
+
+  .map-sidebar--mobile .panel-heading h1 {
+    font-size: clamp(1.5rem, 5vw, 1.95rem);
+  }
+
+  .map-sidebar--mobile .panel-heading,
+  .map-sidebar--mobile .visible-heading,
+  .map-sidebar--mobile .route-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .map-sidebar--mobile .visible-item {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .map-sidebar--mobile .visible-image {
+    width: 4rem;
+  }
+
+  .map-sidebar--mobile .visible-rating {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 640px) {
   .map-page {
     padding-top: var(--shell-content-top);
   }
