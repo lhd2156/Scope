@@ -243,7 +243,7 @@ async function handleGenerate(payload: TripPlannerInput) {
   syncPresetExperience(payload.destination, previousDestination, payload.destination !== previousDestination);
 
   try {
-    await tripsStore.buildItinerary(payload);
+    await tripsStore.buildItinerary(payload, { source: 'user' });
     toastStore.showSuccess({
       title: 'Itinerary refreshed',
       message: 'Atlas refreshed your itinerary preview.',
@@ -275,7 +275,7 @@ onMounted(async () => {
   }
 
   try {
-    await tripsStore.buildItinerary(plannerDraft.value);
+    await tripsStore.buildItinerary(plannerDraft.value, { source: 'auto' });
   } catch {
     // surfaced through tripsStore.error
   }

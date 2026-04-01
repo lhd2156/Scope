@@ -14,6 +14,7 @@ import {
   type ReorderTripSpotsInput,
   type TripMutationInput,
 } from '@/services/tripService';
+import { trackItineraryGenerate, trackTripCreate } from '@/services/analyticsService';
 import type { Itinerary, PaginationMeta, Trip, TripMember, TripPlannerInput, TripSpot } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
@@ -28,6 +29,10 @@ function upsertTrip(collection: Trip[], trip: Trip): Trip[] {
 
   nextCollection.splice(existingIndex, 1, trip);
   return nextCollection;
+}
+
+interface BuildItineraryOptions {
+  source?: 'auto' | 'user';
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -111,6 +116,15 @@ export const useTripsStore = defineStore('trips', () => {
     try {
       const response = await createTripRequest(input);
       syncSelectedTrip(response.data);
+      trackTripCreate({
+        tripId: response.data.id,
+        destination: response.data.destination,
+        stopCount: response.data.spots.length,
+        memberCount: response.data.members.length,
+        isPublic: response.data.isPublic,
+        budget: response.data.budget ?? input.budget,
+        routeName: 'trip-planner',
+      });
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not create that trip right now.');
@@ -204,13 +218,32 @@ export const useTripsStore = defineStore('trips', () => {
     }
   }
 
-  async function buildItinerary(input: TripPlannerInput) {
+  async function buildItinerary(input: TripPlannerInput, options: BuildItineraryOptions = {}) {
     planning.value = true;
     error.value = null;
 
     try {
       const response = await generateItinerary(input);
       previewItinerary.value = response.data;
+
+      if ((options.source ?? 'user') === 'user') {
+        const stopCount = response.data.days.reduce((totalStops, day) => totalStops + day.spots.length, 0);
+
+        trackItineraryGenerate({
+          itineraryId: response.data.id,
+          destination: response.data.destination,
+          dayCount: response.data.days.length,
+          stopCount,
+          totalEstimatedCost: response.data.totalEstimatedCost,
+          budget: input.budget,
+          groupSize: input.groupSize,
+          interestCount: input.interests.length,
+          pace: input.pace,
+          routeName: 'trip-planner',
+          source: 'user',
+        });
+      }
+
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not generate an itinerary right now.');

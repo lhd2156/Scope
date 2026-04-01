@@ -13,6 +13,7 @@ describe('spots store API contracts', () => {
   });
 
   afterEach(() => {
+    vi.doUnmock('@/services/analyticsService');
     vi.doUnmock('@/services/spotService');
   });
 
@@ -76,6 +77,85 @@ describe('spots store API contracts', () => {
 
     expect(store.saving).toBe(false);
     expect(store.error).toBe('Upload pipeline stalled');
+  });
+
+  it('tracks successful spot creation through the analytics abstraction', async () => {
+    const createdSpot = {
+      id: 'spot-77',
+      title: 'Sunset Rooftop Tacos',
+      description: 'Skyline tacos and late-night energy.',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      address: '123 Main St',
+      city: 'Fort Worth',
+      country: 'US',
+      category: 'food',
+      vibe: 'electric',
+      rating: 4.8,
+      photoUrl: 'https://example.com/spot.jpg',
+      createdAt: '2026-03-29T12:00:00Z',
+      liked: false,
+      likesCount: 0,
+      photos: [],
+      reviews: [],
+    };
+    const trackSpotCreate = vi.fn();
+
+    vi.doMock('@/services/analyticsService', () => ({
+      trackSpotCreate,
+    }));
+
+    vi.doMock('@/services/spotService', () => ({
+      listSpots: vi.fn(),
+      listTrendingSpots: vi.fn(),
+      listNearbySpots: vi.fn(),
+      getSpotDetail: vi.fn(),
+      createSpot: vi.fn().mockResolvedValue({ data: createdSpot }),
+      updateSpot: vi.fn(),
+      deleteSpot: vi.fn(),
+      likeSpot: vi.fn(),
+      unlikeSpot: vi.fn(),
+    }));
+
+    const store = await bootstrapSpotsStore();
+
+    await store.createSpot({
+      spot: {
+        title: 'Sunset Rooftop Tacos',
+        description: 'Skyline tacos and late-night energy.',
+        latitude: 32.7555,
+        longitude: -97.3308,
+        address: '123 Main St',
+        city: 'Fort Worth',
+        country: 'US',
+        category: 'food',
+        vibe: 'electric',
+        rating: 4.8,
+        visitedAt: '2026-03-29',
+        isPublic: true,
+      },
+      existingPhotos: [],
+      newPhotos: [
+        {
+          id: 'upload-1',
+          file: new File(['photo'], 'sunset.jpg', { type: 'image/jpeg' }),
+          previewUrl: 'blob:atlas-test',
+          caption: 'Skyline glow',
+          mimeType: 'image/jpeg',
+          sizeBytes: 2048,
+        },
+      ],
+    });
+
+    expect(store.selectedSpot?.id).toBe('spot-77');
+    expect(trackSpotCreate).toHaveBeenCalledWith(expect.objectContaining({
+      spotId: 'spot-77',
+      category: 'food',
+      city: 'Fort Worth',
+      photoCount: 1,
+      isPublic: true,
+      routeName: 'spot-create',
+    }));
   });
 
   it('tracks pagination, nearby results, and liked spots through the contract layer', async () => {

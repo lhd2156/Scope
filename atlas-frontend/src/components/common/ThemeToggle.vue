@@ -22,7 +22,7 @@ const iconName = computed(() => (theme.value === 'dark' ? 'sun' : 'moon'));
 const buttonLabel = computed(() => (theme.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'));
 
 function handleToggle() {
-  toggleTheme();
+  toggleTheme('navbar');
 }
 </script>
 

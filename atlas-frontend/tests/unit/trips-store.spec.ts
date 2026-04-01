@@ -13,6 +13,7 @@ describe('trips store API contracts', () => {
   });
 
   afterEach(() => {
+    vi.doUnmock('@/services/analyticsService');
     vi.doUnmock('@/services/tripService');
     vi.doUnmock('@/services/intelService');
   });
@@ -142,5 +143,155 @@ describe('trips store API contracts', () => {
     expect(store.items).toEqual([]);
     expect(store.selectedTrip).toBeNull();
     expect(store.saving).toBe(false);
+  });
+
+  it('tracks trip creation plus user-triggered itinerary generation through analytics helpers', async () => {
+    const trackTripCreate = vi.fn();
+    const trackItineraryGenerate = vi.fn();
+
+    vi.doMock('@/services/analyticsService', () => ({
+      trackTripCreate,
+      trackItineraryGenerate,
+    }));
+
+    vi.doMock('@/services/tripService', () => ({
+      listTrips: vi.fn(),
+      getTripDetail: vi.fn(),
+      getTripMembers: vi.fn(),
+      createTrip: vi.fn().mockResolvedValue({
+        data: {
+          id: 'trip-4',
+          title: 'Austin Sprint',
+          destination: 'Austin, TX',
+          description: 'Fast culture loop.',
+          isPublic: true,
+          startDate: '2026-05-01',
+          endDate: '2026-05-02',
+          budget: 640,
+          spots: [
+            {
+              spotId: 'spot-1',
+              title: 'Sunset Rooftop Tacos',
+              latitude: 32.7555,
+              longitude: -97.3308,
+              category: 'food',
+            },
+          ],
+          members: [
+            { id: 'user-1', displayName: 'Louis Do', status: 'owner' },
+            { id: 'user-2', displayName: 'Maya Chen', status: 'member' },
+          ],
+        },
+      }),
+      updateTrip: vi.fn(),
+      deleteTrip: vi.fn(),
+      addTripSpot: vi.fn(),
+      removeTripSpot: vi.fn(),
+      reorderTripSpots: vi.fn(),
+    }));
+
+    vi.doMock('@/services/intelService', () => ({
+      generateItinerary: vi.fn().mockResolvedValue({
+        data: {
+          id: 'itinerary-2',
+          destination: 'Austin, TX',
+          totalEstimatedCost: 420,
+          weatherForecast: 'Sunny',
+          days: [
+            {
+              dayNumber: 1,
+              date: '2026-05-01',
+              spots: [
+                {
+                  spotId: 'spot-1',
+                  title: 'Sunset Rooftop Tacos',
+                  latitude: 32.7555,
+                  longitude: -97.3308,
+                  category: 'food',
+                },
+                {
+                  spotId: 'spot-2',
+                  title: 'South Congress',
+                  latitude: 30.25,
+                  longitude: -97.75,
+                  category: 'culture',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    }));
+
+    const store = await bootstrapTripsStore();
+
+    await store.createTrip({
+      title: 'Austin Sprint',
+      destination: 'Austin, TX',
+      description: 'Fast culture loop.',
+      isPublic: true,
+      startDate: '2026-05-01',
+      endDate: '2026-05-02',
+      budget: 640,
+      spots: [
+        {
+          spotId: 'spot-1',
+          title: 'Sunset Rooftop Tacos',
+          latitude: 32.7555,
+          longitude: -97.3308,
+          category: 'food',
+        },
+      ],
+      members: [
+        { id: 'user-1', displayName: 'Louis Do', status: 'owner' },
+        { id: 'user-2', displayName: 'Maya Chen', status: 'member' },
+      ],
+    });
+
+    expect(trackTripCreate).toHaveBeenCalledWith(expect.objectContaining({
+      tripId: 'trip-4',
+      destination: 'Austin, TX',
+      stopCount: 1,
+      memberCount: 2,
+      isPublic: true,
+      budget: 640,
+      routeName: 'trip-planner',
+    }));
+
+    await store.buildItinerary({
+      destination: 'Austin, TX',
+      startDate: '2026-05-01',
+      endDate: '2026-05-02',
+      budget: 640,
+      interests: ['food', 'culture'],
+      pace: 'packed',
+      groupSize: 2,
+    }, { source: 'auto' });
+
+    expect(trackItineraryGenerate).not.toHaveBeenCalled();
+
+    await store.buildItinerary({
+      destination: 'Austin, TX',
+      startDate: '2026-05-01',
+      endDate: '2026-05-02',
+      budget: 640,
+      interests: ['food', 'culture'],
+      pace: 'packed',
+      groupSize: 2,
+    });
+
+    expect(trackItineraryGenerate).toHaveBeenCalledWith(expect.objectContaining({
+      itineraryId: 'itinerary-2',
+      destination: 'Austin, TX',
+      dayCount: 1,
+      stopCount: 2,
+      totalEstimatedCost: 420,
+      budget: 640,
+      groupSize: 2,
+      interestCount: 2,
+      pace: 'packed',
+      routeName: 'trip-planner',
+      source: 'user',
+    }));
   });
 });

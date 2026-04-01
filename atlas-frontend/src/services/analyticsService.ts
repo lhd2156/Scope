@@ -151,6 +151,58 @@ function resolveRouteSearch(route: RouteLocationNormalizedLoaded): string | unde
 }
 
 export type AnalyticsPageViewTracker = Pick<AnalyticsService, 'trackPageView'>;
+export type AnalyticsEventTracker = Pick<AnalyticsService, 'trackEvent'>;
+
+export interface AnalyticsUserActionContext {
+  path?: string;
+  title?: string;
+  routeName?: string;
+}
+
+export interface AnalyticsSpotCreatePayload extends AnalyticsUserActionContext {
+  spotId: string;
+  category: string;
+  city?: string;
+  photoCount: number;
+  isPublic: boolean;
+}
+
+export interface AnalyticsTripCreatePayload extends AnalyticsUserActionContext {
+  tripId: string;
+  destination: string;
+  stopCount: number;
+  memberCount: number;
+  isPublic: boolean;
+  budget?: number;
+}
+
+export type ItineraryGenerationSource = 'auto-preview' | 'user';
+
+export interface AnalyticsItineraryGeneratePayload extends AnalyticsUserActionContext {
+  itineraryId: string;
+  destination: string;
+  dayCount: number;
+  stopCount: number;
+  totalEstimatedCost: number;
+  budget?: number;
+  groupSize?: number;
+  interestCount: number;
+  pace?: string;
+  source?: ItineraryGenerationSource;
+}
+
+export interface AnalyticsFriendAddPayload extends AnalyticsUserActionContext {
+  userId: string;
+  mutualFriends: number;
+  requestId?: string;
+  source: 'profile' | 'request' | 'suggestion';
+}
+
+export interface AnalyticsThemeTogglePayload extends AnalyticsUserActionContext {
+  theme: string;
+  source: 'navbar' | 'settings';
+  previousTheme?: string;
+}
 
 export class AnalyticsService {
   private enabled: boolean;
@@ -322,6 +374,112 @@ export function trackRoutePageView(
       requiresAuth: Boolean(route.meta.requiresAuth),
       guestOnly: Boolean(route.meta.guestOnly),
       robots: resolveRouteMetaString(route, route.meta.robots),
+    },
+  });
+}
+
+function resolveEventTracker(tracker?: AnalyticsEventTracker): AnalyticsEventTracker {
+  return tracker ?? analyticsService;
+}
+
+export function trackSpotCreate(payload: AnalyticsSpotCreatePayload, tracker?: AnalyticsEventTracker): void {
+  resolveEventTracker(tracker).trackEvent({
+    name: 'spot_create',
+    category: 'content',
+    label: payload.category,
+    value: payload.photoCount,
+    path: payload.path,
+    title: payload.title,
+    routeName: payload.routeName,
+    metadata: {
+      spotId: payload.spotId,
+      category: payload.category,
+      city: payload.city,
+      photoCount: payload.photoCount,
+      isPublic: payload.isPublic,
+    },
+  });
+}
+
+export function trackTripCreate(payload: AnalyticsTripCreatePayload, tracker?: AnalyticsEventTracker): void {
+  resolveEventTracker(tracker).trackEvent({
+    name: 'trip_create',
+    category: 'planning',
+    label: payload.destination,
+    value: payload.stopCount,
+    path: payload.path,
+    title: payload.title,
+    routeName: payload.routeName,
+    metadata: {
+      tripId: payload.tripId,
+      destination: payload.destination,
+      stopCount: payload.stopCount,
+      memberCount: payload.memberCount,
+      isPublic: payload.isPublic,
+      budget: payload.budget,
+    },
+  });
+}
+
+export function trackItineraryGenerate(
+  payload: AnalyticsItineraryGeneratePayload,
+  tracker?: AnalyticsEventTracker,
+): void {
+  const source = payload.source ?? 'user';
+
+  resolveEventTracker(tracker).trackEvent({
+    name: 'ai_itinerary_generate',
+    category: 'planning',
+    label: payload.destination,
+    value: payload.stopCount,
+    path: payload.path,
+    title: payload.title,
+    routeName: payload.routeName,
+    metadata: {
+      itineraryId: payload.itineraryId,
+      destination: payload.destination,
+      dayCount: payload.dayCount,
+      stopCount: payload.stopCount,
+      totalEstimatedCost: payload.totalEstimatedCost,
+      budget: payload.budget,
+      groupSize: payload.groupSize,
+      interestCount: payload.interestCount,
+      pace: payload.pace,
+      source,
+    },
+  });
+}
+
+export function trackFriendAdd(payload: AnalyticsFriendAddPayload, tracker?: AnalyticsEventTracker): void {
+  resolveEventTracker(tracker).trackEvent({
+    name: 'friend_add',
+    category: 'social',
+    label: payload.source,
+    value: payload.mutualFriends,
+    path: payload.path,
+    title: payload.title,
+    routeName: payload.routeName,
+    metadata: {
+      userId: payload.userId,
+      mutualFriends: payload.mutualFriends,
+      requestId: payload.requestId,
+      source: payload.source,
+    },
+  });
+}
+
+export function trackThemeToggle(payload: AnalyticsThemeTogglePayload, tracker?: AnalyticsEventTracker): void {
+  resolveEventTracker(tracker).trackEvent({
+    name: 'theme_toggle',
+    category: 'preferences',
+    label: payload.source,
+    path: payload.path,
+    title: payload.title,
+    routeName: payload.routeName,
+    metadata: {
+      theme: payload.theme,
+      previousTheme: payload.previousTheme,
+      source: payload.source,
     },
   });
 }
