@@ -1,5 +1,10 @@
+const trackThemeToggleMock = vi.hoisted(() => vi.fn());
+
 async function loadThemeModule() {
   vi.resetModules();
+  vi.doMock('@/services/analyticsService', () => ({
+    trackThemeToggle: trackThemeToggleMock,
+  }));
   return import('@/utils/theme');
 }
 
@@ -8,6 +13,11 @@ describe('theme utility', () => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@/services/analyticsService');
+    trackThemeToggleMock.mockReset();
   });
 
   it('defaults to dark mode when no stored preference exists', async () => {
@@ -22,20 +32,35 @@ describe('theme utility', () => {
     expect(localStorage.getItem('atlas-theme')).toBe('dark');
   });
 
-  it('hydrates the stored theme and keeps shared state in sync when toggled', async () => {
+  it('hydrates the stored theme and tracks user-triggered theme changes', async () => {
     localStorage.setItem('atlas-theme', 'light');
 
-    const { initializeTheme, toggleTheme, useTheme } = await loadThemeModule();
+    const { applyTheme, initializeTheme, toggleTheme, useTheme } = await loadThemeModule();
 
     initializeTheme();
     expect(useTheme().value).toBe('light');
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(trackThemeToggleMock).not.toHaveBeenCalled();
 
-    toggleTheme();
+    toggleTheme('navbar');
 
     expect(useTheme().value).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('atlas-theme')).toBe('dark');
+    expect(trackThemeToggleMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      theme: 'dark',
+      previousTheme: 'light',
+      source: 'navbar',
+    }));
+
+    applyTheme('light', { track: true, source: 'settings' });
+
+    expect(trackThemeToggleMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      theme: 'light',
+      previousTheme: 'dark',
+      source: 'settings',
+      routeName: 'settings',
+    }));
   });
 });

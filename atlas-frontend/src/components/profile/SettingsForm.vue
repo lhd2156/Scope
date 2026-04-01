@@ -321,7 +321,7 @@ function focusAvatarField(): void {
 
 function selectTheme(themeMode: ThemeMode): void {
   form.themeMode = themeMode;
-  applyTheme(themeMode);
+  applyTheme(themeMode, { track: true, source: 'settings' });
 }
 
 function toggleCategory(category: SpotCategory): void {

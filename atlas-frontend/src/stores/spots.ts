@@ -12,6 +12,7 @@ import {
   updateSpot as updateSpotRequest,
   type NearbySpotFilters,
 } from '@/services/spotService';
+import { trackSpotCreate } from '@/services/analyticsService';
 import type { PaginationMeta, SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
@@ -204,6 +205,14 @@ export const useSpotsStore = defineStore('spots', () => {
     try {
       const response = await createSpotRequest(submission, currentUser);
       applySpotDetail(response.data);
+      trackSpotCreate({
+        spotId: response.data.id,
+        category: response.data.category,
+        city: response.data.city,
+        photoCount: submission.existingPhotos.length + submission.newPhotos.length,
+        isPublic: submission.spot.isPublic,
+        routeName: 'spot-create',
+      });
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not save that spot right now.');

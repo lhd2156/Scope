@@ -1,9 +1,15 @@
 import { readonly, ref } from 'vue';
+import { trackThemeToggle } from '@/services/analyticsService';
 import type { ThemeMode } from '@/types';
 import { syncThemeColorMeta } from '@/utils/seo';
 
 const STORAGE_KEY = 'atlas-theme';
 const activeTheme = ref<ThemeMode>('dark');
+
+export interface ApplyThemeOptions {
+  track?: boolean;
+  source?: 'navbar' | 'settings';
+}
 
 export function getStoredTheme(): ThemeMode {
   try {
@@ -13,7 +19,10 @@ export function getStoredTheme(): ThemeMode {
   }
 }
 
-export function applyTheme(theme: ThemeMode): void {
+export function applyTheme(theme: ThemeMode, options: ApplyThemeOptions = {}): void {
+  const previousTheme = activeTheme.value;
+  const themeChanged = previousTheme !== theme;
+
   activeTheme.value = theme;
 
   if (typeof document !== 'undefined') {
@@ -27,6 +36,15 @@ export function applyTheme(theme: ThemeMode): void {
   } catch {
     // Ignore storage write failures and keep the live document theme in sync.
   }
+
+  if (options.track && options.source && themeChanged) {
+    trackThemeToggle({
+      theme,
+      previousTheme,
+      source: options.source,
+      routeName: options.source === 'settings' ? 'settings' : undefined,
+    });
+  }
 }
 
 export function initializeTheme(): ThemeMode {
@@ -35,9 +53,9 @@ export function initializeTheme(): ThemeMode {
   return theme;
 }
 
-export function toggleTheme(): ThemeMode {
+export function toggleTheme(source: 'navbar' | 'settings' = 'navbar'): ThemeMode {
   const nextTheme: ThemeMode = activeTheme.value === 'dark' ? 'light' : 'dark';
-  applyTheme(nextTheme);
+  applyTheme(nextTheme, { track: true, source });
   return nextTheme;
 }
 

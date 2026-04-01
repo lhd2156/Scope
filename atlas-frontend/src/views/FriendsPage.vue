@@ -302,6 +302,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
+import { trackFriendAdd } from '@/services/analyticsService';
 import { mockFriendConnections, mockFriendRequests, mockPeopleYouMayKnow } from '@/services/mockData';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { FriendConnection, FriendPresence, FriendRequest, SpotCategory, UserProfile } from '@/types';
@@ -472,6 +473,14 @@ function acceptRequest(requestId: string): void {
     isRead: false,
     createdAt: new Date().toISOString(),
     type: 'friend.accepted',
+  });
+
+  trackFriendAdd({
+    routeName: 'friends',
+    source: 'request',
+    requestId: acceptedRequest.id,
+    userId: acceptedRequest.user.id,
+    mutualFriends: acceptedRequest.mutualFriends,
   });
 
   activeTab.value = 'all';

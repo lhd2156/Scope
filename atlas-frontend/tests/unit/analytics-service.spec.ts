@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AnalyticsRecord } from '@/services/analyticsService';
-import { createAnalyticsService, trackRoutePageView } from '@/services/analyticsService';
+import {
+  createAnalyticsService,
+  trackFriendAdd,
+  trackItineraryGenerate,
+  trackRoutePageView,
+  trackSpotCreate,
+  trackThemeToggle,
+  trackTripCreate,
+} from '@/services/analyticsService';
 
 describe('analyticsService', () => {
   it('queues page views until consent is granted and a provider is available', () => {
@@ -87,6 +95,113 @@ describe('analyticsService', () => {
       value: 75,
       path: '/friends',
       routeName: 'friends',
+    }));
+  });
+
+  it('maps key user-action helpers into canonical analytics events', () => {
+    const tracker = {
+      trackEvent: vi.fn(),
+    };
+
+    trackSpotCreate({
+      spotId: 'spot-9',
+      category: 'food',
+      city: 'Austin',
+      photoCount: 3,
+      isPublic: true,
+      routeName: 'spot-create',
+    }, tracker);
+
+    trackTripCreate({
+      tripId: 'trip-4',
+      destination: 'Austin, TX',
+      stopCount: 4,
+      memberCount: 3,
+      isPublic: true,
+      budget: 640,
+    }, tracker);
+
+    trackItineraryGenerate({
+      itineraryId: 'itinerary-2',
+      destination: 'Austin, TX',
+      dayCount: 2,
+      stopCount: 5,
+      totalEstimatedCost: 420,
+      budget: 640,
+      groupSize: 3,
+      interestCount: 4,
+      pace: 'moderate',
+      routeName: 'trip-planner',
+      source: 'user',
+    }, tracker);
+
+    trackFriendAdd({
+      userId: 'user-8',
+      mutualFriends: 12,
+      requestId: 'request-1',
+      source: 'request',
+      routeName: 'friends',
+    }, tracker);
+
+    trackThemeToggle({
+      theme: 'light',
+      previousTheme: 'dark',
+      source: 'settings',
+      routeName: 'settings',
+    }, tracker);
+
+    expect(tracker.trackEvent).toHaveBeenCalledTimes(5);
+    expect(tracker.trackEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      name: 'spot_create',
+      category: 'content',
+      label: 'food',
+      value: 3,
+      routeName: 'spot-create',
+      metadata: expect.objectContaining({
+        spotId: 'spot-9',
+        city: 'Austin',
+      }),
+    }));
+    expect(tracker.trackEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      name: 'trip_create',
+      category: 'planning',
+      label: 'Austin, TX',
+      value: 4,
+      metadata: expect.objectContaining({
+        memberCount: 3,
+        budget: 640,
+      }),
+    }));
+    expect(tracker.trackEvent).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      name: 'ai_itinerary_generate',
+      category: 'planning',
+      label: 'Austin, TX',
+      value: 5,
+      routeName: 'trip-planner',
+      metadata: expect.objectContaining({
+        itineraryId: 'itinerary-2',
+        source: 'user',
+      }),
+    }));
+    expect(tracker.trackEvent).toHaveBeenNthCalledWith(4, expect.objectContaining({
+      name: 'friend_add',
+      category: 'social',
+      label: 'request',
+      value: 12,
+      routeName: 'friends',
+      metadata: expect.objectContaining({
+        userId: 'user-8',
+      }),
+    }));
+    expect(tracker.trackEvent).toHaveBeenNthCalledWith(5, expect.objectContaining({
+      name: 'theme_toggle',
+      category: 'preferences',
+      label: 'settings',
+      routeName: 'settings',
+      metadata: expect.objectContaining({
+        theme: 'light',
+        previousTheme: 'dark',
+      }),
     }));
   });
 

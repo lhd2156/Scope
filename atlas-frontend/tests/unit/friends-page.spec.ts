@@ -1,6 +1,13 @@
 import { createPinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
+
+const trackFriendAddMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/services/analyticsService', () => ({
+  trackFriendAdd: trackFriendAddMock,
+}));
+
 import FriendsPage from '@/views/FriendsPage.vue';
 
 function createTestRouter() {
@@ -23,6 +30,7 @@ const globalStubs = {
 describe('FriendsPage', () => {
   afterEach(() => {
     vi.useRealTimers();
+    trackFriendAddMock.mockReset();
   });
 
   it('renders the premium friends workspace with friend cards and suggestions', async () => {
@@ -110,5 +118,12 @@ describe('FriendsPage', () => {
     expect(wrapper.get('[data-test="tab-all"]').attributes('aria-selected')).toBe('true');
     expect(wrapper.text()).toContain('Sofia Ramirez');
     expect(wrapper.findAll('[data-test="friend-card"]')).toHaveLength(7);
+    expect(trackFriendAddMock).toHaveBeenCalledWith(expect.objectContaining({
+      routeName: 'friends',
+      source: 'request',
+      requestId: 'request-1',
+      userId: 'user-4',
+      mutualFriends: 9,
+    }));
   });
 });
