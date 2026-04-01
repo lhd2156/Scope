@@ -91,6 +91,11 @@ const EMPTY_STATE_ARTWORKS = {
     secondaryIcons: ['route', 'sparkle'],
     pills: ['Crew', 'Intros', 'Shared routes'],
   },
+  map: {
+    primaryIcon: 'map',
+    secondaryIcons: ['route', 'pin'],
+    pills: ['Filters', 'Pins', 'Routes'],
+  },
   profile: {
     primaryIcon: 'user',
     secondaryIcons: ['map', 'route'],
@@ -218,6 +223,11 @@ const resolvedLeadIcon = computed(() => props.icon ?? artworkMeta.value.primaryI
 }
 
 .empty-state-panel--artwork-community {
+  --empty-state-accent: var(--accent-teal);
+  --empty-state-secondary: var(--info);
+}
+
+.empty-state-panel--artwork-map {
   --empty-state-accent: var(--accent-teal);
   --empty-state-secondary: var(--info);
 }

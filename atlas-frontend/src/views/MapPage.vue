@@ -130,9 +130,24 @@
                 </div>
               </div>
 
-              <div v-else class="route-empty-state">
-                <p>Pick a trip from the planner to preview its stop sequence and crew context here.</p>
-              </div>
+              <p v-else-if="workspaceLoading" class="sidebar-state">Syncing route preview and crew context…</p>
+              <EmptyStatePanel
+                v-else
+                class="route-empty-state"
+                compact
+                tone="surface"
+                alignment="center"
+                eyebrow="Featured route"
+                title="Planner previews land here"
+                description="Pick a trip from the planner to preview its stop sequence, crew context, and live route overlay here."
+                icon="route"
+                artwork="map"
+                heading-level="h3"
+              >
+                <RouterLink class="button button-secondary" to="/trips/new" data-test="map-empty-route-cta">
+                  Open planner
+                </RouterLink>
+              </EmptyStatePanel>
             </article>
 
             <article
@@ -194,10 +209,28 @@
                   <span class="visible-rating">★ {{ spot.rating.toFixed(1) }}</span>
                 </button>
               </div>
-              <div v-else class="sidebar-empty-state">
-                <p>No pins match the current category mix.</p>
-                <button type="button" class="button button-secondary" @click="handleResetCategories">Show all categories</button>
-              </div>
+              <EmptyStatePanel
+                v-else
+                class="sidebar-empty-state"
+                compact
+                tone="surface"
+                alignment="center"
+                eyebrow="Your adventure map"
+                title="No pins match this category mix"
+                description="Reset the category blend to bring every saved Atlas pin back onto the map and into this quick-access rail."
+                icon="map"
+                artwork="map"
+                heading-level="h3"
+              >
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  data-test="map-empty-reset-categories"
+                  @click="handleResetCategories"
+                >
+                  Show all categories
+                </button>
+              </EmptyStatePanel>
             </article>
           </div>
         </aside>
@@ -224,6 +257,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import MapView from '@/components/map/MapView.vue';
 import { analyticsPageEngagementTracker } from '@/services/analyticsService';
@@ -691,11 +725,15 @@ onBeforeUnmount(() => {
 .map-sidebar-scroll,
 .sidebar-panel,
 .selected-copy,
-.sidebar-empty-state,
-.route-preview,
-.route-empty-state {
+.route-preview {
   display: grid;
   gap: var(--space-4);
+}
+
+.route-empty-state,
+.sidebar-empty-state {
+  width: 100%;
+  justify-self: stretch;
 }
 
 .map-sidebar-scroll {
@@ -1179,12 +1217,13 @@ onBeforeUnmount(() => {
   font-weight: var(--font-weight-semibold);
 }
 
+.route-empty-state,
 .sidebar-empty-state {
-  justify-items: start;
+  align-self: stretch;
 }
 
-.sidebar-empty-state .button {
-  width: fit-content;
+.sidebar-empty-state {
+  min-block-size: 100%;
 }
 
 .map-stage {
