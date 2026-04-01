@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 import { resetAnalyticsConsent } from '@/utils/analyticsConsent';
 
-const { authStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
@@ -15,6 +15,11 @@ const { authStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
     },
+  },
+  onboardingStoreMock: {
+    hasCompleted: true,
+    totalSteps: 5,
+    restart: vi.fn().mockReturnValue(true),
   },
   toastStoreMock: {
     showSuccess: vi.fn(),
@@ -38,6 +43,10 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => onboardingStoreMock,
+}));
+
 vi.mock('@/stores/toasts', () => ({
   useToastStore: () => toastStoreMock,
 }));
@@ -52,6 +61,8 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     userStoreMock.error = null;
     userStoreMock.saveProfile.mockClear();
+    onboardingStoreMock.restart.mockClear();
+    onboardingStoreMock.restart.mockReturnValue(true);
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showError.mockClear();
     resetAnalyticsConsent();
@@ -143,6 +154,52 @@ describe('SettingsPage', () => {
     await nextTick();
 
     expect(localStorage.getItem('atlas-analytics-consent')).toBe('denied');
+    expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
+  });
+
+  it('restarts the guided walkthrough from settings without touching the profile save contract', async () => {
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Replay tutorial');
+    expect(wrapper.text()).toContain('5-step guide');
+
+    await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
+    await nextTick();
+
+    expect(onboardingStoreMock.restart).toHaveBeenCalledWith('home-hero');
+    expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
+    expect(toastStoreMock.showError).not.toHaveBeenCalled();
+  });
+
+  it('shows a toast when the guided walkthrough cannot be restarted from settings', async () => {
+    onboardingStoreMock.restart.mockReturnValueOnce(false);
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
+    await nextTick();
+
+    expect(onboardingStoreMock.restart).toHaveBeenCalledWith('home-hero');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Tutorial unavailable',
+      message: 'Atlas could not start the guided walkthrough right now.',
+    });
     expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
   });
 

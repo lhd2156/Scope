@@ -237,6 +237,37 @@
             </button>
           </div>
         </div>
+
+        <div class="settings-block">
+          <p class="block-label">Guided walkthrough</p>
+          <div class="tutorial-card" data-test="settings-tutorial-card">
+            <div class="tutorial-card__copy">
+              <span class="tutorial-card__icon" aria-hidden="true">
+                <AtlasIcon name="sparkle" />
+              </span>
+
+              <div class="tutorial-card__text">
+                <strong>Replay the premium Atlas tour</strong>
+                <p>{{ tutorialDescription }}</p>
+              </div>
+            </div>
+
+            <div class="tutorial-card__actions">
+              <span class="meta-pill tutorial-pill">{{ tutorialCompleted ? 'Completed' : 'Ready to start' }}</span>
+              <span class="tutorial-pill tutorial-pill--muted">{{ tutorialStepLabel }}</span>
+              <Button
+                data-test="settings-replay-tutorial"
+                type="button"
+                variant="secondary"
+                icon="sparkle"
+                icon-label="Replay tutorial"
+                @click="handleReplayTutorial"
+              >
+                Replay tutorial
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -289,17 +320,22 @@ const props = withDefaults(
     accountEmail?: string;
     syncModeLabel?: string;
     syncModeDescription?: string;
+    tutorialCompleted?: boolean;
+    tutorialStepCount?: number;
   }>(),
   {
     submitting: false,
     accountEmail: '',
     syncModeLabel: 'API-backed',
     syncModeDescription: 'Changes sync through the Atlas account API.',
+    tutorialCompleted: false,
+    tutorialStepCount: 0,
   },
 );
 
 const emit = defineEmits<{
   (event: 'submit', payload: SettingsFormValue): void;
+  (event: 'replay-tutorial'): void;
 }>();
 
 initializeTheme();
@@ -329,6 +365,20 @@ const analyticsConsentCopy = computed(() => {
     default:
       return 'Turn this on to allow optional analytics, or leave it off if you prefer to keep only necessary storage.';
   }
+});
+const tutorialStepLabel = computed(() => {
+  if (props.tutorialStepCount <= 0) {
+    return 'Guided tour ready';
+  }
+
+  return props.tutorialStepCount === 1 ? '1-step guide' : `${props.tutorialStepCount}-step guide`;
+});
+const tutorialDescription = computed(() => {
+  const walkthroughScope = props.tutorialStepCount > 0 ? tutorialStepLabel.value.toLowerCase() : 'guided walkthrough';
+
+  return props.tutorialCompleted
+    ? `Launch the ${walkthroughScope} again whenever you want a quick refresher on pin drops, live map controls, AI itineraries, and the social feed.`
+    : `Start the ${walkthroughScope} any time to learn where Atlas keeps pin drops, map filters, AI planning, and traveler momentum.`;
 });
 
 watch(
@@ -383,6 +433,11 @@ function toggleAnalyticsConsent(): void {
   setAnalyticsConsent(analyticsConsentEnabled.value ? 'denied' : 'granted');
 }
 
+function handleReplayTutorial(): void {
+  errorMessage.value = '';
+  emit('replay-tutorial');
+}
+
 function resetForm(): void {
   Object.assign(form, cloneSettingsFormValue(props.initialValue));
   applyTheme(props.initialValue.themeMode);
@@ -419,6 +474,9 @@ function submitForm(): void {
 .field-group,
 .settings-stack,
 .settings-block,
+.tutorial-card,
+.tutorial-card__copy,
+.tutorial-card__text,
 .form-actions {
   display: grid;
 }
@@ -461,6 +519,7 @@ function submitForm(): void {
 .option-grid,
 .pill-row,
 .theme-switch,
+.tutorial-card__actions,
 .form-actions {
   display: flex;
 }
@@ -469,6 +528,7 @@ function submitForm(): void {
 .account-grid,
 .option-grid,
 .pill-row,
+.tutorial-card__actions,
 .form-actions {
   gap: var(--space-3);
 }
@@ -489,6 +549,7 @@ function submitForm(): void {
 .account-label,
 .block-label,
 .field-group span,
+.tutorial-pill,
 .error-copy {
   font-size: var(--font-size-small);
 }
@@ -523,6 +584,8 @@ function submitForm(): void {
 .block-label,
 .toggle-row strong,
 .toggle-row p,
+.tutorial-card__text strong,
+.tutorial-card__text p,
 .error-copy {
   margin: 0;
 }
@@ -569,7 +632,8 @@ function submitForm(): void {
 .option-card span,
 .block-label,
 .toggle-row p,
-.profile-hero__copy p {
+.profile-hero__copy p,
+.tutorial-card__text p {
   color: var(--text-secondary);
   line-height: var(--line-height-relaxed);
 }
@@ -804,6 +868,93 @@ function submitForm(): void {
   gap: var(--space-3);
 }
 
+.tutorial-card {
+  gap: var(--space-4);
+  padding: clamp(var(--space-4), 2.6vw, var(--space-5));
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border) 76%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 16%, transparent), transparent 44%),
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-primary) 88%, transparent), color-mix(in srgb, var(--bg-secondary) 94%, transparent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
+    0 1rem 2.4rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.tutorial-card:hover,
+.tutorial-card:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent-teal) 34%, var(--glass-border) 66%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
+    var(--shadow-lg);
+}
+
+.tutorial-card__copy {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.tutorial-card__icon {
+  width: 3rem;
+  height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--accent-teal-light) 100%, transparent);
+  color: var(--accent-teal);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 24%, transparent),
+    0 0 1.3rem color-mix(in srgb, var(--accent-teal) 14%, transparent);
+}
+
+.tutorial-card__icon :deep(.atlas-icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.tutorial-card__text {
+  gap: var(--space-2);
+}
+
+.tutorial-card__text strong {
+  font-size: 1rem;
+  line-height: var(--line-height-tight);
+}
+
+.tutorial-card__actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tutorial-card__actions :deep(.atlas-button) {
+  margin-left: auto;
+  min-width: 11.5rem;
+}
+
+.tutorial-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal-light) 100%, transparent);
+  color: var(--accent-teal);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tutorial-pill--muted {
+  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 88%, transparent);
+}
+
 .toggle-row {
   width: 100%;
   display: flex;
@@ -944,17 +1095,24 @@ function submitForm(): void {
 @media (max-width: 720px) {
   .section-header,
   .toggle-row,
+  .tutorial-card__actions,
   .form-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .tutorial-card__copy {
+    grid-template-columns: 1fr;
   }
 
   .form-actions {
     grid-template-columns: 1fr;
   }
 
-  .form-actions :deep(.atlas-button) {
+  .form-actions :deep(.atlas-button),
+  .tutorial-card__actions :deep(.atlas-button) {
     width: 100%;
+    margin-left: 0;
   }
 
   .theme-option,
@@ -981,6 +1139,7 @@ function submitForm(): void {
   .option-pill,
   .preference-pill,
   .theme-option,
+  .tutorial-card,
   .toggle-row,
   .toggle-switch__thumb {
     transition-duration: 1ms;
@@ -1000,6 +1159,8 @@ function submitForm(): void {
   .theme-option:hover,
   .theme-option:focus-visible,
   .theme-option:active,
+  .tutorial-card:hover,
+  .tutorial-card:focus-within,
   .toggle-row:hover,
   .toggle-row:focus-visible,
   .toggle-row:active,

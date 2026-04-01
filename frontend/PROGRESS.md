@@ -124,7 +124,7 @@
 - [x] 19.5 - Step 4: Plan a Trip - highlight trip planner and AI itinerary feature
 - [x] 19.6 - Step 5: Connect with Travelers - highlight friends and feed features
 - [x] 19.7 - Add progress dots, skip button, persist completion in localStorage
-- [ ] 19.8 - Add "Replay Tutorial" option in Settings page
+- [x] 19.8 - Add "Replay Tutorial" option in Settings page
 - [ ] 19.9 - Create empty-state illustrations for pages with no user content yet
 
 ### Phase 20: Pre-Launch QA Blitz 🏁
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 19.8 - Add "Replay Tutorial" option in Settings page
-## Last Updated: 2026-04-01T13:54:49.0564055-05:00
+## Current Task: Phase 19.9 - Create empty-state illustrations for pages with no user content yet
+## Last Updated: 2026-04-01T14:16:34.3474941-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -207,3 +207,4 @@
 - 2026-04-01T13:19:20.9536465-05:00: COMPLETED Phase 19.5 - upgraded the final authenticated onboarding step to spotlight the trip-planner shell, accent the AI itinerary companion surfaces (submit CTA, preview panel, and mobile preview toggle), added richer premium trip-planning coaching copy/cards, and extended onboarding store/overlay coverage plus planner-adjacent regression checks before revalidating the full frontend with `npm.cmd run build` and `npm.cmd run test` (93 files / 255 tests). Next up: Phase 19.6 friends-and-feed guidance.
 - 2026-04-01T13:44:26.9960043-05:00: COMPLETED Phase 19.6 - added the premium authenticated social onboarding finale with a new home-page friends/feed callout, spotlight + accent targets for the Friends hub CTA and live activity stage, and updated the onboarding flow to map cleanly to the five canonical Phase 19 steps by routing from Create Spot straight into the map step. Validation: `npm run build`, `npm run test` (93 files / 257 tests). Next up: Phase 19.7 progress dots, skip, and persistence audit.
 - 2026-04-01T13:54:49.0564055-05:00: COMPLETED Phase 19.7 - revalidated the premium onboarding overlay against the existing progress-dot, skip-action, and localStorage persistence implementation, added a focused onboarding-store regression to prove completed tours hydrate from storage and stay auto-suppressed until replay, and reran the full frontend validation suite. Validation: `npm run test -- tests/unit/onboarding-store.spec.ts`, `npm run build`, `npm run test` (93 files / 258 tests). Next up: Phase 19.8 replay tutorial entry in Settings.
+- 2026-04-01T14:12:53.5330686-05:00: COMPLETED Phase 19.8 - added a premium replay-tutorial card to the Settings appearance workspace, threaded the action through the settings page into the onboarding store so completed tours can relaunch from step one without touching the profile-save contract, and covered the new walkthrough entry point with focused settings form/page regression tests including the failure-path toast while keeping the motion treatment reduced-motion-safe. Validation: `npm.cmd run test -- tests/unit/settings-form.spec.ts tests/unit/settings-page.spec.ts tests/unit/onboarding-store.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 261 tests). Next up: Phase 19.9 empty-state illustrations.

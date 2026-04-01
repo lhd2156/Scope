@@ -46,7 +46,10 @@
             :account-email="authStore.currentUser?.email ?? ''"
             :sync-mode-label="syncModeLabel"
             :sync-mode-description="syncModeDescription"
+            :tutorial-completed="onboardingStore.hasCompleted"
+            :tutorial-step-count="onboardingStore.totalSteps"
             @submit="handleSave"
+            @replay-tutorial="handleReplayTutorial"
           />
         </article>
       </section>
@@ -59,6 +62,7 @@ import { computed, ref, watch } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useOnboardingStore } from '@/stores/onboarding';
 import { useToastStore } from '@/stores/toasts';
 import { useUserStore } from '@/stores/user';
 import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
@@ -81,6 +85,7 @@ const settingsSections = [
 type SettingsSectionId = (typeof settingsSections)[number]['id'];
 
 const authStore = useAuthStore();
+const onboardingStore = useOnboardingStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
 const reducedMotion = useReducedMotion();
@@ -156,6 +161,19 @@ function goToSection(sectionId: SettingsSectionId): void {
   });
 
   targetSection.focus({ preventScroll: true });
+}
+
+function handleReplayTutorial(): void {
+  formError.value = '';
+
+  if (onboardingStore.restart('home-hero')) {
+    return;
+  }
+
+  toastStore.showError({
+    title: 'Tutorial unavailable',
+    message: 'Atlas could not start the guided walkthrough right now.',
+  });
 }
 
 async function handleSave(payload: SettingsFormValue) {

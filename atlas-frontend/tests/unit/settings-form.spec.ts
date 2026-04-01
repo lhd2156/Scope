@@ -97,6 +97,28 @@ describe('SettingsForm', () => {
     expect(wrapper.get('[data-test="analytics-consent-status"]').text()).toContain('Analytics opted out');
   });
 
+  it('emits a replay request from the guided walkthrough card', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+        tutorialCompleted: true,
+        tutorialStepCount: 5,
+      },
+      global: {
+        stubs: {
+          AtlasIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('5-step guide');
+
+    await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
+
+    expect(wrapper.emitted('replay-tutorial')).toHaveLength(1);
+  });
+
   it('requires a display name before submit', async () => {
     const wrapper = mount(SettingsForm, {
       props: {
