@@ -136,7 +136,7 @@
 - [2026-03-31] ⚠️ Atlas frontend home-page Playwright flows must pre-mark onboarding as completed (for example via the shared fixture’s `atlas-onboarding-completed-v1` localStorage key); otherwise the onboarding scrim intercepts feed interactions in Chromium, Firefox, and WebKit and turns honest social-flow coverage into 3-minute click timeouts.
 - [2026-04-01] ✅ For Atlas mobile map workspaces, keep the bottom sheet owned by the page shell and reposition shared `MapControls` through inherited CSS custom properties; it preserves scoped styles, keeps `MapView` reusable, and avoids forking the map interaction stack just for mobile.
 - [2026-04-01] ✅ For Atlas mobile explore layouts, keep the results grid as a true one-column stack and move filter pills into horizontal snap-scroll rails; wrapped multi-line chip walls make the page feel cramped long before the photo cards do.
-
+- [2026-04-01] ✅ For Atlas mobile profile work, drive the page with explicit layout data attributes and switch Recent Adventures to a snap-scroll rail at `<=640px`; that keeps the desktop three-card grid intact while making the mobile state easy to lock with Vitest.
 ## Git & Workflow
 
 - [2026-03-28] ⚠️ Always commit after EACH task, never batch multiple tasks
