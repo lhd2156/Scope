@@ -352,3 +352,5 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-03-31] ?? Responsive checkpoint audits are safest when they lock shared layout primitives in ase.css (mobile/tablet guardrails for page containers, grid shells, and glass panels) instead of auditing one page at a time; later mobile tasks can then layer on top of a stable breakpoint spine.
 
 
+- [2026-04-01] [LESSON] For Atlas frontend PWA polish on this workstation, generate installable PNG icons and iOS startup images with a small Playwright script in `atlas-frontend/scripts/`; it keeps the manifest/index asset set reproducible without introducing extra image-build dependencies.
+

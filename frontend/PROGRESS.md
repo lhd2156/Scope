@@ -103,7 +103,7 @@
 - [x] 17.4 - Explore page mobile: single-column card layout
 - [x] 17.5 - Profile page mobile: stacked layout, horizontal scroll for adventures
 - [x] 17.6 - Trip planner mobile: step wizard (vertical steps instead of side-by-side panels)
-- [ ] 17.7 - Enhanced PWA manifest: proper icons, splash screens, theme-color, start_url
+- [x] 17.7 - Enhanced PWA manifest: proper icons, splash screens, theme-color, start_url
 - [ ] 17.8 - Service worker for offline caching of static assets
 - [ ] 17.9 - iOS safe-area-inset-* handling and touch-action styling
 - [ ] 17.10 - Verify with Chrome DevTools device emulation: iPhone 14, iPad, Galaxy S24
@@ -136,8 +136,8 @@
 - [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 17.7 - Enhanced PWA manifest: proper icons, splash screens, theme-color, start_url
-## Last Updated: 2026-04-01T03:18:30.9569536-05:00
+## Current Task: Phase 17.8 - Service worker for offline caching of static assets
+## Last Updated: 2026-04-01T03:42:16.4129616-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -190,3 +190,4 @@
 - 2026-04-01T01:45:22.0174888-05:00: COMPLETED Phase 17.4 - reworked the explore experience for the shared `<=640px` mobile breakpoint with a true single-column discovery stack, horizontally scrollable glass filter rails, tuned full-width photo cards, stacked trending treatment, and breakpoint-aware layout state hooks/tests to keep the mobile shell deterministic. Validation: `npm.cmd run test -- tests/unit/explore-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (87 files / 218 tests). Next up: Phase 17.5 profile page mobile stacked layout.
 - 2026-04-01T02:53:47.7876314-05:00: COMPLETED Phase 17.5 - adapted the profile workspace to the shared `<=640px` mobile breakpoint with a breakpoint-aware stacked shell, a horizontally scrollable snap-aligned Recent Adventures rail, and deterministic layout data hooks/tests so the profile page stays premium and mobile-first without breaking the desktop grid. Validation: `npm.cmd run test -- tests/unit/profile-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (87 files / 219 tests). Next up: Phase 17.6 trip planner mobile step wizard.
 - 2026-04-01T03:18:30.9569536-05:00: COMPLETED Phase 17.6 - converted the trip planner into a mobile-first four-step wizard at the shared `<=640px` breakpoint by keeping the desktop split workspace intact, turning the planner + AI preview into vertical glass step shells, and adding breakpoint-aware page/component tests so the preview can jump straight to the live itinerary after regeneration. Validation: `npm.cmd run test -- tests/unit/trip-planner.spec.ts tests/unit/itinerary-view.spec.ts tests/unit/trip-planner-page.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (87 files / 223 tests). Next up: Phase 17.7 enhanced PWA manifest.
+- 2026-04-01T03:42:16.4129616-05:00: COMPLETED Phase 17.7 - upgraded the PWA shell with a map-first `start_url`, generated installable any/maskable app icons plus an Apple touch icon via a reproducible Playwright asset script, added iPhone/iPad startup splash screens and Safari pinned-tab metadata in `index.html`, and extended `pwa.spec.ts` to verify the manifest, startup-image links, theme-color, and asset dimensions. Validation: `node .\\scripts\\generate-pwa-assets.mjs`, `npm.cmd run build`, `npm.cmd run test` (87 files / 225 tests). Next up: Phase 17.8 service worker offline caching.
