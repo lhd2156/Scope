@@ -331,6 +331,7 @@
 - [2026-04-01] ⚠️ If `frontend/PROGRESS.md` and `polish/PROGRESS.md` disagree about a Phase 19 checkpoint, treat `frontend/PROGRESS.md` as the canonical heartbeat source for Prism relaunches; do not skip an unchecked Frontend onboarding task just because the Polish track already marked a similarly named item complete.
 
 - [2026-04-02] ⚠️ For heartbeat recovery, if both `subagents(action=list)` and a direct `Win32_Process` audit show no surviving Frontend worker while `frontend/PROGRESS.md` still has an unchecked task, relaunch exactly once from the canonical current task and immediately refresh the lead dashboard to that same checkpoint.
+- [2026-04-02] ⚠️ If `subagents(action=list)` shows multiple live Frontend children on the shared workspace for the same still-open canonical checkpoint and `sessions_history` is timing out, preserve the newest live child, kill the older duplicates immediately, and re-steer the survivor to the canonical task before posting heartbeat status.
 
 ## Common Mistakes to Avoid
 
