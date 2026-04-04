@@ -342,6 +342,7 @@
 - [2026-04-04] ⚠️ If the only surviving Prism child in `subagents(action=list)` still shows just older Lighthouse-tool edits in fresh `sessions_history` and the canonical Phase 20.1 checkbox has not advanced, treat it as stale shared-workspace risk: kill it and relaunch exactly once on the same canonical checkpoint.
 - [2026-04-04] ✅ If the same Prism Phase 20.1 browser-matrix run is still on a live `process` poll and later browsers keep advancing after one earlier browser surfaces a failure, preserve the worker; a mid-run Playwright failure is still active remediation progress, not proof the shared-workspace run should be respawned.
 - [2026-04-04] ✅ Even if that same live Prism browser matrix later surfaces multiple browser-specific failures in sequence (for example Firefox spot CRUD and WebKit auth) while the shared `process` poll remains active, preserve the worker; the matrix is still producing useful cross-browser signal and should finish before heartbeat considers a relaunch.
+- [2026-04-04] ✅ If WebKit protected-route or keyboard-focus failures surface mid-matrix but later WebKit edge-case checks keep passing on the same live `process` poll, preserve the same Prism worker; partial browser regressions inside the running matrix are still active QA progress, not heartbeat restart criteria.
 
 ## Common Mistakes to Avoid
 
