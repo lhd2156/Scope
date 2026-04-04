@@ -334,6 +334,7 @@
 - [2026-04-02] ⚠️ If `subagents(action=list)` shows multiple live Frontend children on the shared workspace for the same still-open canonical checkpoint and `sessions_history` is timing out, preserve the newest live child, kill the older duplicates immediately, and re-steer the survivor to the canonical task before posting heartbeat status.
 - [2026-04-03] ✅ When `subagents(action=list)` shows exactly one live Prism worker on the canonical checkpoint, a quick `sessions_history` spot-check is enough to confirm the worker is still actively editing the QA/Lighthouse pass; preserve it and avoid a duplicate relaunch into the shared frontend workspace.
 - [2026-04-04] ⚠️ If the lead dashboard and `subagents(action=list)` disagree on the surviving Prism session, trust the live subagent list plus a fresh `sessions_history` recency check; if the lone worker is still stuck on older Lighthouse `process` polls and the canonical Phase 20.1 checkbox has not advanced, kill it and relaunch exactly once on the same checkpoint.
+- [2026-04-04] ✅ During Prism Phase 20.1, Chrome/GCM `PHONE_REGISTRATION_ERROR`, `DEPRECATED_ENDPOINT`, or `wrong_secret` noise inside the Lighthouse run is not a blocker when the route headings keep advancing and the child remains on a live `process` poll; treat that as healthy audit progress and preserve the worker.
 
 ## Common Mistakes to Avoid
 
