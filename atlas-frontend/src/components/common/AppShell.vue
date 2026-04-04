@@ -9,13 +9,14 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
+import { isAtlasQaMode } from '@/utils/qaMode';
 
 const Navbar = defineAsyncComponent(() => import('./Navbar.vue'));
 const GuestNavbar = defineAsyncComponent(() => import('./GuestNavbar.vue'));
 
 const route = useRoute();
 const hasSessionHint = ref(hasStoredAuthSessionHint());
-const activeNavbar = computed(() => (route.meta.requiresAuth || hasSessionHint.value ? Navbar : GuestNavbar));
+const activeNavbar = computed(() => (isAtlasQaMode() || (!route.meta.requiresAuth && !hasSessionHint.value) ? GuestNavbar : Navbar));
 
 function syncSessionHint(): void {
   hasSessionHint.value = hasStoredAuthSessionHint();
