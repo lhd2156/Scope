@@ -357,6 +357,7 @@
 - [2026-04-04] ✅ If that live Phase 20.7 Prism worker is running the cross-browser confidence gate and one browser surfaces a new failure while later browser slices keep advancing on the same `process` poll, preserve the worker; an in-flight regression diagnosis is still healthy progress, not heartbeat restart criteria.
 - [2026-04-04] ✅ Even when the lead dashboard already carries the current heartbeat timestamp, re-audit the live Phase 20.7 Prism session id before trusting the row; if `subagents(action=list)` and `sessions_history` agree on one surviving worker, correct the row and preserve that worker instead of relaunching.
 - [2026-04-04] ✅ If consecutive heartbeats land on the same live Phase 20.7 confidence-gate run and the same Firefox regression is still being worked while later browser slices keep advancing on the same `process` poll, treat that as active remediation and preserve the worker.
+- [2026-04-04] ✅ During a Phase 20.7 full `qa:lighthouse` rerun, repeated live `process` polls that keep advancing through guest/authenticated route headings (for example `/spots/demo-spot-1`, `/login`, `/register`, `/trips/new`) with only Chrome GCM noise are healthy audit progress; preserve the worker unless the route sweep actually stalls.
 
 ## Common Mistakes to Avoid
 
