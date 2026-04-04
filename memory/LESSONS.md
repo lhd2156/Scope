@@ -350,6 +350,7 @@
 - [2026-04-04] ✅ If Prism finishes the WebKit slice, finishes a follow-on Edge navigation/Phase-20 pass, and immediately pivots into QA-report/progress-file prep in fresh `sessions_history`, preserve the same worker; that wrap-up handoff is healthy completion work, not a reason to respawn before the canonical tracker moves.
 - [2026-04-04] ✅ If a later heartbeat finds the lead dashboard pointing at an older dead Prism session but `subagents(action=list)` shows exactly one newer replacement worker and fresh `sessions_history` has that child actively rerunning `npm.cmd run qa:lighthouse`, trust the live subagent list, correct the dashboard, and preserve the replacement worker.
 - [2026-04-04] ✅ If Prism discovers the on-disk Lighthouse summary/report is stale after follow-on QA fixes and immediately relaunches `npm.cmd run qa:lighthouse` on a fresh live `process` poll, preserve that same worker; stale report artifacts during Phase 20 wrap-up are not evidence that the canonical run has stalled.
+- [2026-04-04] ✅ If `atlas-frontend/QA-REPORT.md` plus the newest frontend Phase 20 log entry prove 20.1-20.4 are done but the Phase 20 checklist/current-task fields still lag, reconcile `frontend/PROGRESS.md` and `memory/COMPLETED-TASKS.md` first, then relaunch only the next unchecked checkpoint.
 
 ## Common Mistakes to Avoid
 
