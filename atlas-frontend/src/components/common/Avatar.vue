@@ -1,7 +1,7 @@
 <template>
-  <div class="avatar" :style="avatarStyle" :aria-label="label ?? name">
-    <LazyImage v-if="!failed" :src="imageSource" :fallback-src="fallbackSource" :alt="label ?? name" @error="onImageError" />
-    <span v-else>{{ initials }}</span>
+  <div class="avatar" :style="avatarStyle" role="img" :aria-label="label ?? name">
+    <LazyImage v-if="!failed" :src="imageSource" :fallback-src="fallbackSource" alt="" aria-hidden="true" @error="onImageError" />
+    <span v-else aria-hidden="true">{{ initials }}</span>
   </div>
 </template>
 

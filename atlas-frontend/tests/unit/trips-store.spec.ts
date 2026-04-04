@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 async function bootstrapTripsStore() {
@@ -247,6 +248,7 @@ describe('trips store API contracts', () => {
         { id: 'user-2', displayName: 'Maya Chen', status: 'member' },
       ],
     });
+    await flushPromises();
 
     expect(trackTripCreate).toHaveBeenCalledWith(expect.objectContaining({
       tripId: 'trip-4',
@@ -267,6 +269,7 @@ describe('trips store API contracts', () => {
       pace: 'packed',
       groupSize: 2,
     }, { source: 'auto' });
+    await flushPromises();
 
     expect(trackItineraryGenerate).not.toHaveBeenCalled();
 
@@ -279,6 +282,7 @@ describe('trips store API contracts', () => {
       pace: 'packed',
       groupSize: 2,
     });
+    await flushPromises();
 
     expect(trackItineraryGenerate).toHaveBeenCalledWith(expect.objectContaining({
       itineraryId: 'itinerary-2',

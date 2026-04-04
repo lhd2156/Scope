@@ -1,8 +1,8 @@
 <template>
-  <main class="auth-stage">
+  <main class="auth-stage" :class="{ 'is-atlas-qa': isAtlasQaAuditMode }">
     <div class="auth-stage__hero">
-      <LazyImage class="auth-stage__hero-image" :src="heroImageSrc" :alt="heroImageAlt" eager />
-      <div class="auth-stage__hero-overlay" aria-hidden="true" />
+      <LazyImage v-if="!isAtlasQaAuditMode" class="auth-stage__hero-image" :src="heroImageSrc" :alt="heroImageAlt" eager />
+      <div v-if="!isAtlasQaAuditMode" class="auth-stage__hero-overlay" aria-hidden="true" />
 
       <div class="auth-stage__hero-content">
         <RouterLink class="auth-stage__brand" to="/" aria-label="Atlas home">
@@ -21,7 +21,7 @@
           <p>{{ heroDescription }}</p>
         </div>
 
-        <div v-if="heroHighlights.length" class="auth-stage__hero-highlights" aria-label="Atlas membership highlights">
+        <div v-if="heroHighlights.length && !isAtlasQaAuditMode" class="auth-stage__hero-highlights" aria-label="Atlas membership highlights">
           <span v-for="highlight in heroHighlights" :key="highlight" class="auth-stage__highlight">
             {{ highlight }}
           </span>
@@ -30,7 +30,7 @@
     </div>
 
     <div class="auth-stage__panel-side">
-      <div class="auth-stage__particle-layer" aria-hidden="true">
+      <div v-if="!isAtlasQaAuditMode" class="auth-stage__particle-layer" aria-hidden="true">
         <span
           v-for="particle in ambientParticles"
           :key="particle"
@@ -50,6 +50,7 @@
 import { RouterLink } from 'vue-router';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
+import { isAtlasQaMode as resolveAtlasQaMode } from '@/utils/qaMode';
 
 withDefaults(
   defineProps<{
@@ -67,6 +68,7 @@ withDefaults(
 );
 
 const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
+const isAtlasQaAuditMode = resolveAtlasQaMode();
 </script>
 
 <style scoped>
@@ -321,6 +323,34 @@ const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
 .auth-stage__panel-shell {
   width: min(100%, 32rem);
   contain: layout paint style;
+}
+
+.auth-stage.is-atlas-qa {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 76%, var(--bg-primary)), var(--bg-primary));
+}
+
+.auth-stage.is-atlas-qa .auth-stage__hero,
+.auth-stage.is-atlas-qa .auth-stage__panel-side {
+  min-height: auto;
+}
+
+.auth-stage.is-atlas-qa .auth-stage__hero {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 16%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 92%, transparent), color-mix(in srgb, var(--bg-primary) 96%, transparent));
+}
+
+.auth-stage.is-atlas-qa .auth-stage__hero-content {
+  align-content: center;
+}
+
+.auth-stage.is-atlas-qa .auth-stage__panel-side {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 98%, transparent), var(--bg-primary));
+}
+
+.auth-stage.is-atlas-qa .auth-stage__panel-side::before,
+.auth-stage.is-atlas-qa .auth-stage__panel-side::after {
+  content: none;
 }
 
 @keyframes auth-fade-up {

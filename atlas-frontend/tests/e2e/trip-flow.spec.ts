@@ -3,6 +3,9 @@ import { expect, test } from './fixtures/atlas-test';
 test.describe('Atlas trip planner flow', () => {
   test('creates a trip brief, adds destinations, generates an AI itinerary, and renders the packed timeline', async ({ page, atlasApi }) => {
     await atlasApi.seedSession(page, { email: 'louis@example.com' });
+    await page.addInitScript(() => {
+      window.localStorage.setItem('atlas-analytics-consent', 'denied');
+    });
 
     await page.goto('/trips/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Generate an itinerary from your travel constraints' })).toBeVisible();

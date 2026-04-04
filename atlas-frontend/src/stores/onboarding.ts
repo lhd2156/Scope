@@ -1,7 +1,7 @@
-import { computed, ref, watch } from 'vue';
+import { computed, onScopeDispose, ref, watch } from 'vue';
 import { defineStore } from 'pinia';
 import { resolveOnboardingSteps } from '@/config/onboarding';
-import { useAuthStore } from '@/stores/auth';
+import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
 
 export const ONBOARDING_COMPLETION_STORAGE_KEY = 'atlas-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
@@ -28,12 +28,12 @@ function writePersistedCompletion(isCompleted: boolean): void {
 }
 
 export const useOnboardingStore = defineStore('onboarding', () => {
-  const authStore = useAuthStore();
   const isActive = ref(false);
   const activeStepIndex = ref(0);
   const hasCompleted = ref(readPersistedCompletion());
   const hasStartedThisSession = ref(false);
-  const steps = computed(() => resolveOnboardingSteps(authStore.isAuthenticated));
+  const hasSessionHint = ref(hasStoredAuthSessionHint());
+  const steps = computed(() => resolveOnboardingSteps(hasSessionHint.value));
   const activeStep = computed(() => steps.value[activeStepIndex.value] ?? null);
   const totalSteps = computed(() => steps.value.length);
 
@@ -125,6 +125,20 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   function restart(stepId?: string): boolean {
     resetCompletion();
     return start(stepId);
+  }
+
+  function syncSessionHint(): void {
+    hasSessionHint.value = hasStoredAuthSessionHint();
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
+    window.addEventListener('storage', syncSessionHint);
+
+    onScopeDispose(() => {
+      window.removeEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
+      window.removeEventListener('storage', syncSessionHint);
+    });
   }
 
   watch(

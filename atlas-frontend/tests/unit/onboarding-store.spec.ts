@@ -1,22 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia';
-
-const { authStoreMock } = vi.hoisted(() => ({
-  authStoreMock: {
-    isAuthenticated: false,
-  },
-}));
-
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => authStoreMock,
-}));
-
 import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
+import { clearStoredAuthSessionHint, persistAuthSessionHint } from '@/utils/authSessionStorage';
 
 describe('useOnboardingStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    authStoreMock.isAuthenticated = false;
     localStorage.clear();
+    clearStoredAuthSessionHint();
   });
 
   it('returns the public walkthrough by default', () => {
@@ -42,7 +32,7 @@ describe('useOnboardingStore', () => {
   });
 
   it('adds the planner and social steps for authenticated travelers', () => {
-    authStoreMock.isAuthenticated = true;
+    persistAuthSessionHint();
     const onboardingStore = useOnboardingStore();
 
     expect(onboardingStore.steps.map((step) => step.id)).toEqual([
@@ -89,7 +79,7 @@ describe('useOnboardingStore', () => {
   });
 
   it('starts, advances, rewinds, and persists completion when the walkthrough finishes', () => {
-    authStoreMock.isAuthenticated = true;
+    persistAuthSessionHint();
     const onboardingStore = useOnboardingStore();
 
     expect(onboardingStore.startIfPending()).toBe(true);

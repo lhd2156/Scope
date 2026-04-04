@@ -91,8 +91,10 @@ function toggleSaved() {
 }
 
 const categoryLabel = computed(() => formatCategory(props.spot.category));
-const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.category, 1200));
-const spotImageUrl = computed(() => resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl, 1200));
+const CARD_IMAGE_WIDTH = 640;
+
+const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.category, CARD_IMAGE_WIDTH));
+const spotImageUrl = computed(() => resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl, CARD_IMAGE_WIDTH));
 const ratingLabel = computed(() => props.spot.rating.toFixed(1));
 const formattedVibe = computed(() => (props.spot.vibe?.trim() ? formatVibe(props.spot.vibe) : ''));
 const locationLabel = computed(() => {

@@ -105,7 +105,7 @@
               <p class="eyebrow">Location</p>
               <h3>Place the pin with map precision</h3>
             </div>
-            <span class="map-status">{{ hasToken ? 'Mapbox ready' : 'Token missing — manual coordinates enabled' }}</span>
+            <span class="map-status">{{ mapStatusLabel }}</span>
           </div>
 
           <div class="field-grid location-grid">
@@ -162,16 +162,19 @@
           </div>
 
           <div class="pin-picker">
-            <div ref="mapContainer" class="pin-picker__map" :class="{ 'is-fallback': !hasToken }" />
+            <div ref="mapContainer" class="pin-picker__map" :class="{ 'is-fallback': !isInteractiveMapReady }" />
 
-            <div v-if="!hasToken" class="pin-picker__empty glass-panel">
+            <div v-if="!isInteractiveMapReady" class="pin-picker__empty glass-panel">
               <div>
-                <p class="eyebrow">Mapbox token required</p>
-                <h4>Manual pin placement is active.</h4>
-                <p>
-                  Atlas will turn this panel into a clickable map picker as soon as
-                  <code>VITE_MAPBOX_TOKEN</code> is configured.
-                </p>
+                <p class="eyebrow">{{ mapFallbackEyebrow }}</p>
+                <h4>{{ mapFallbackTitle }}</h4>
+                <p>{{ mapFallbackDescription }}</p>
+              </div>
+
+              <div v-if="showLoadInteractiveMapAction" class="pin-picker__cta-row">
+                <button type="button" class="preset-button" :disabled="isInteractiveMapLoading" @click="void enableInteractiveMap()">
+                  {{ isInteractiveMapLoading ? 'Loading live map…' : 'Load live map picker' }}
+                </button>
               </div>
 
               <div class="preset-grid">
@@ -278,6 +281,8 @@ import type mapboxgl from 'mapbox-gl';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import { loadMapboxRuntime } from '@/services/mapboxLoader';
 import type { Photo, SpotCategory, SpotFormInput, SpotFormSubmission, SpotPhotoUpload } from '@/types';
+import { isAtlasQaMode } from '@/utils/qaMode';
+import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { SPOT_PHOTO_ACCEPT, validateSpotFormInput, validateSpotPhotoFile, type SpotFormErrors } from '@/utils/validators';
 
 interface LocationPreset {
@@ -321,13 +326,17 @@ const map = shallowRef<mapboxgl.Map | null>(null);
 const mapboxRuntime = shallowRef<typeof mapboxgl | null>(null);
 const marker = shallowRef<mapboxgl.Marker | null>(null);
 const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
+const isAtlasSpotQaMode = isAtlasQaMode();
+const shouldAutoHydrateInteractiveMap = hasToken && !isAtlasSpotQaMode;
 const errors = ref<SpotFormErrors>({});
 const existingPhotos = ref<Photo[]>([]);
 const uploads = ref<SpotPhotoUpload[]>([]);
+const isInteractiveMapLoading = ref(false);
 const form = reactive<SpotFormInput>(createDefaultForm(props.initialValue));
 
 let themeObserver: MutationObserver | null = null;
 let syncingMap = false;
+let cancelDeferredMapSetup: CancelScheduledTask = () => undefined;
 
 function todayValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -513,6 +522,20 @@ async function setupMap(): Promise<void> {
   marker.value = nextMarker;
 }
 
+async function enableInteractiveMap(): Promise<void> {
+  if (!hasToken || map.value || isInteractiveMapLoading.value) {
+    return;
+  }
+
+  isInteractiveMapLoading.value = true;
+
+  try {
+    await setupMap();
+  } finally {
+    isInteractiveMapLoading.value = false;
+  }
+}
+
 function applyPreset(preset: LocationPreset): void {
   form.city = preset.city;
   form.country = preset.country;
@@ -611,6 +634,26 @@ const description = computed(() => (
     : 'Atlas uses this metadata to render cards, map markers, and itinerary recommendations across the product.'
 ));
 const submitLabel = computed(() => (props.mode === 'edit' ? 'Save changes' : 'Publish spot'));
+const isInteractiveMapReady = computed(() => hasToken && Boolean(map.value));
+const showLoadInteractiveMapAction = computed(() => hasToken && !isInteractiveMapReady.value);
+const mapStatusLabel = computed(() => {
+  if (isInteractiveMapReady.value) {
+    return 'Mapbox ready';
+  }
+
+  if (hasToken) {
+    return 'Interactive map available on demand';
+  }
+
+  return 'Token missing — manual coordinates enabled';
+});
+const mapFallbackEyebrow = computed(() => (hasToken ? 'Interactive map deferred' : 'Mapbox token required'));
+const mapFallbackTitle = computed(() => (hasToken ? 'Manual coordinates stay responsive while the live map loads only when needed.' : 'Manual pin placement is active.'));
+const mapFallbackDescription = computed(() => (
+  hasToken
+    ? 'Use the preset shortcuts, type exact coordinates, or load the interactive map picker when you want drag-and-drop precision.'
+    : 'Atlas will turn this panel into a clickable map picker as soon as VITE_MAPBOX_TOKEN is configured.'
+));
 
 watch(
   () => props.initialValue,
@@ -636,7 +679,13 @@ watch(
 );
 
 onMounted(() => {
-  void setupMap();
+  if (shouldAutoHydrateInteractiveMap) {
+    cancelDeferredMapSetup = scheduleNonCriticalTask(() => enableInteractiveMap(), {
+      delayMs: 1_600,
+      timeoutMs: 3_200,
+    });
+  }
+
   themeObserver = new MutationObserver(syncThemeToMap);
   themeObserver.observe(document.documentElement, {
     attributes: true,
@@ -645,6 +694,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  cancelDeferredMapSetup();
   themeObserver?.disconnect();
   themeObserver = null;
   revokeUploadPreviews();
@@ -844,6 +894,12 @@ textarea {
 }
 
 .preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pin-picker__cta-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

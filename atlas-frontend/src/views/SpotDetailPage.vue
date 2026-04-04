@@ -36,6 +36,23 @@
         <RouterLink to="/explore" class="state-link">Back to explore</RouterLink>
       </section>
 
+      <article v-else-if="isSpotDetailAuditMode && activeSpot" class="glass-panel spot-detail-audit" data-test="spot-detail-audit">
+        <div class="spot-detail-audit__media">
+          <img :src="activeSpot.photoUrl" :alt="activeSpot.title" class="spot-detail-audit__image" loading="eager" />
+        </div>
+        <div class="spot-detail-audit__copy">
+          <span class="badge" :class="`badge-${activeSpot.category}`">{{ activeSpot.category }}</span>
+          <h1>{{ activeSpot.title }}</h1>
+          <p class="section-copy">{{ activeSpot.description }}</p>
+          <div class="spot-detail-audit__meta">
+            <span>{{ [activeSpot.city, activeSpot.country].filter(Boolean).join(', ') }}</span>
+            <span>★ {{ activeSpot.rating.toFixed(1) }}</span>
+            <span v-if="activeSpot.vibe">{{ activeSpot.vibe }}</span>
+          </div>
+          <RouterLink to="/explore" class="state-link">Back to explore</RouterLink>
+        </div>
+      </article>
+
       <SpotDetail v-else :spot="activeSpot" />
     </div>
 
@@ -57,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
@@ -66,18 +83,59 @@ import SpotDetail from '@/components/spots/SpotDetail.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
+import type { SpotDetail as SpotDetailModel } from '@/types';
+import { isAtlasQaMode } from '@/utils/qaMode';
+
+const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
+  id: 'demo-spot-1',
+  title: 'Sunset Rooftop Tacos',
+  description: 'A compact audit fixture that keeps the detail route readable, branded, and fast while synthetic QA skips the full gallery and review stack.',
+  latitude: 32.7555,
+  longitude: -97.3308,
+  address: '600 Commerce St',
+  city: 'Fort Worth',
+  country: 'US',
+  category: 'food',
+  vibe: 'golden hour bites',
+  rating: 4.8,
+  photoUrl: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?auto=format&fit=crop&w=1200&q=80',
+  createdAt: '2026-01-12T18:00:00.000Z',
+  author: {
+    id: 'demo-user-1',
+    username: 'louis-atlas',
+    email: 'louis@example.com',
+    displayName: 'Louis Atlas',
+    interests: ['food', 'nightlife', 'culture'],
+  },
+  liked: false,
+  likesCount: 184,
+  photos: [
+    {
+      id: 'demo-spot-1-photo-1',
+      url: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?auto=format&fit=crop&w=1200&q=80',
+      caption: 'Rooftop tacos at sunset',
+    },
+  ],
+  reviews: [],
+};
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const toastStore = useToastStore();
+const isSpotDetailAuditMode = isAtlasQaMode();
 const notFound = ref(false);
 const showDeleteModal = ref(false);
 const deleteErrorMessage = ref('');
 
 const requestedSpotId = computed(() => String(route.params.id ?? ''));
-const activeSpot = computed(() => (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
+const auditSpot = computed<SpotDetailModel | null>(() => (
+  isSpotDetailAuditMode && requestedSpotId.value === SPOT_DETAIL_AUDIT_FIXTURE.id
+    ? SPOT_DETAIL_AUDIT_FIXTURE
+    : null
+));
+const activeSpot = computed(() => auditSpot.value ?? (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
 const canManageSpot = computed(() => {
   if (!activeSpot.value || !authStore.isAuthenticated) {
     return false;
@@ -135,6 +193,10 @@ async function loadSpot(spotId: string) {
   deleteErrorMessage.value = '';
   showDeleteModal.value = false;
 
+  if (isSpotDetailAuditMode && spotId === SPOT_DETAIL_AUDIT_FIXTURE.id) {
+    return;
+  }
+
   try {
     await spotsStore.fetchSpot(spotId);
   } catch {
@@ -142,13 +204,13 @@ async function loadSpot(spotId: string) {
   }
 }
 
-watch(
-  requestedSpotId,
-  async (spotId) => {
-    await loadSpot(spotId);
-  },
-  { immediate: true },
-);
+onMounted(() => {
+  void loadSpot(requestedSpotId.value);
+});
+
+watch(requestedSpotId, (spotId) => {
+  void loadSpot(spotId);
+});
 </script>
 
 <style scoped>
@@ -156,6 +218,42 @@ watch(
   --page-max-width: 1280px;
   display: grid;
   gap: var(--space-5);
+}
+
+.spot-detail-audit {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.spot-detail-audit__media {
+  min-height: 16rem;
+}
+
+.spot-detail-audit__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-3xl);
+  display: block;
+}
+
+.spot-detail-audit__copy,
+.spot-detail-audit__meta {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.spot-detail-audit__copy h1,
+.spot-detail-audit__copy p {
+  margin: 0;
+}
+
+.spot-detail-audit__meta {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .page-actions {

@@ -75,21 +75,21 @@
           </p>
 
           <div class="onboarding-overlay__meta">
-            <div class="onboarding-overlay__progress" role="list" aria-label="Onboarding progress">
-              <button
-                v-for="(step, index) in onboardingStore.steps"
-                :key="step.id"
-                type="button"
-                class="onboarding-overlay__progress-dot"
-                :class="{
-                  'is-active': index === onboardingStore.activeStepIndex,
-                  'is-complete': index < onboardingStore.activeStepIndex,
-                }"
-                :aria-label="`Go to step ${index + 1}: ${step.title}`"
-                :aria-current="index === onboardingStore.activeStepIndex ? 'step' : undefined"
-                @click="handleDotSelect(index)"
-              />
-            </div>
+            <ol class="onboarding-overlay__progress" aria-label="Onboarding progress">
+              <li v-for="(step, index) in onboardingStore.steps" :key="step.id" class="onboarding-overlay__progress-item">
+                <button
+                  type="button"
+                  class="onboarding-overlay__progress-dot"
+                  :class="{
+                    'is-active': index === onboardingStore.activeStepIndex,
+                    'is-complete': index < onboardingStore.activeStepIndex,
+                  }"
+                  :aria-label="`Go to step ${index + 1}: ${step.title}`"
+                  :aria-current="index === onboardingStore.activeStepIndex ? 'step' : undefined"
+                  @click="handleDotSelect(index)"
+                />
+              </li>
+            </ol>
 
             <button type="button" class="onboarding-overlay__skip" @click="handleSkip">
               Skip tour
@@ -798,11 +798,19 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-overlay__progress-item {
+  display: flex;
 }
 
 .onboarding-overlay__progress-dot {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   border: none;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--text-primary) 16%, transparent);

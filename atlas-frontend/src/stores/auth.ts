@@ -1,14 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { clearApiSession, configureApiSessionHandlers, setAccessToken } from '@/services/api';
-import {
-  login as loginRequest,
-  loginWithCognito as loginWithCognitoRequest,
-  logout as logoutRequest,
-  refreshSession as refreshSessionRequest,
-  register as registerRequest,
-} from '@/services/authService';
-import { mockUsers } from '@/services/mockData';
 import type { AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
 import {
   clearStoredAuthSessionHint,
@@ -17,16 +9,17 @@ import {
   purgeLegacyAuthStorage,
 } from '@/utils/authSessionStorage';
 import { toAsyncErrorMessage } from '@/utils/errors';
+import { getAtlasQaSession } from '@/utils/qaMode';
 import { sanitizeAuthPayload, sanitizeUserProfile } from '@/utils/sanitizers';
 
-function resolveCurrentUser(payload: AuthPayload): UserProfile {
+async function resolveCurrentUser(payload: AuthPayload): Promise<UserProfile> {
   const sanitizedPayload = sanitizeAuthPayload(payload);
-  const matchingUser = mockUsers.find(
-    (user) =>
-      user.id === sanitizedPayload.id ||
-      user.email === sanitizedPayload.email ||
-      user.username === sanitizedPayload.username,
-  );
+  const { findAuthMockUser } = await import('@/services/mockAuthUsers');
+  const matchingUser = findAuthMockUser({
+    id: sanitizedPayload.id,
+    email: sanitizedPayload.email,
+    username: sanitizedPayload.username,
+  });
 
   if (matchingUser) {
     return sanitizeUserProfile({
@@ -46,12 +39,16 @@ function resolveCurrentUser(payload: AuthPayload): UserProfile {
   });
 }
 
+async function loadAuthService() {
+  return import('@/services/authService');
+}
+
 export const useAuthStore = defineStore('auth', () => {
   purgeLegacyAuthStorage();
 
   const token = ref('');
   const currentUser = ref<UserProfile | null>(null);
-  const hasSessionHint = ref(hasStoredAuthSessionHint());
+  const hasSessionHint = ref(hasStoredAuthSessionHint() || getAtlasQaSession() === 'authenticated');
   const isHydratingSession = ref(false);
   const hasHydratedSession = ref(false);
   const error = ref<string | null>(null);
@@ -59,10 +56,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
   let hydrationPromise: Promise<boolean> | null = null;
 
-  function applyAuthPayload(payload: AuthPayload) {
+  async function applyAuthPayload(payload: AuthPayload) {
     const sanitizedPayload = sanitizeAuthPayload(payload);
     token.value = sanitizedPayload.accessToken;
-    currentUser.value = resolveCurrentUser(sanitizedPayload);
+    currentUser.value = await resolveCurrentUser(sanitizedPayload);
     hasSessionHint.value = true;
     hasHydratedSession.value = true;
     error.value = null;
@@ -101,10 +98,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshSession(options: { allowMockFallback?: boolean; captureError?: boolean } = {}): Promise<string | null> {
     try {
+      const { refreshSession: refreshSessionRequest } = await loadAuthService();
       const payload = await refreshSessionRequest({
         allowMockFallback: options.allowMockFallback ?? Boolean(token.value),
       });
-      applyAuthPayload(payload);
+      await applyAuthPayload(payload);
       return payload.accessToken;
     } catch (nextError) {
       if (options.captureError ?? true) {
@@ -134,7 +132,10 @@ export const useAuthStore = defineStore('auth', () => {
       isHydratingSession.value = true;
 
       try {
-        const restoredAccessToken = await refreshSession({ allowMockFallback: false, captureError: false });
+        const restoredAccessToken = await refreshSession({
+          allowMockFallback: getAtlasQaSession() === 'authenticated',
+          captureError: false,
+        });
         return Boolean(restoredAccessToken);
       } finally {
         isHydratingSession.value = false;
@@ -157,7 +158,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessionExpiredMessage.value = null;
 
     try {
-      applyAuthPayload(await loginRequest(payload));
+      const { login: loginRequest } = await loadAuthService();
+      await applyAuthPayload(await loginRequest(payload));
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not sign you in right now.');
       throw nextError;
@@ -169,7 +171,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessionExpiredMessage.value = null;
 
     try {
-      applyAuthPayload(await registerRequest(payload));
+      const { register: registerRequest } = await loadAuthService();
+      await applyAuthPayload(await registerRequest(payload));
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not create your account right now.');
       throw nextError;
@@ -181,7 +184,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessionExpiredMessage.value = null;
 
     try {
-      applyAuthPayload(await loginWithCognitoRequest(idToken));
+      const { loginWithCognito: loginWithCognitoRequest } = await loadAuthService();
+      await applyAuthPayload(await loginWithCognitoRequest(idToken));
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not sign you in with Google right now.');
       throw nextError;
@@ -193,6 +197,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionExpiredMessage.value = null;
 
     try {
+      const { logout: logoutRequest } = await loadAuthService();
       await logoutRequest();
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Atlas could not reach logout services. You were signed out locally instead.');

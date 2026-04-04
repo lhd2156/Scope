@@ -249,8 +249,8 @@
         >
           <div class="similar-card__media">
             <LazyImage
-              :src="resolveSpotPhotoUrl(similarSpot.category, similarSpot.photoUrl || heroImageUrl, 1200)"
-              :fallback-src="getSpotPhotoFallback(similarSpot.category, 1200)"
+              :src="resolveSpotPhotoUrl(similarSpot.category, similarSpot.photoUrl || heroImageUrl, 720)"
+              :fallback-src="getSpotPhotoFallback(similarSpot.category, 720)"
               :alt="similarSpot.title"
               class="similar-card__image"
             />
@@ -296,18 +296,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import Toast from '@/components/common/Toast.vue';
-import MapView from '@/components/map/MapView.vue';
-import ReviewForm from '@/components/spots/ReviewForm.vue';
-import ReviewList from '@/components/spots/ReviewList.vue';
 import { listNearbySpots } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 
 const DESIRED_GALLERY_SIZE = 5;
 const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
@@ -361,6 +359,10 @@ const props = defineProps<{
   spot: SpotDetailModel | null;
 }>();
 
+const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
+const ReviewForm = defineAsyncComponent(() => import('@/components/spots/ReviewForm.vue'));
+const ReviewList = defineAsyncComponent(() => import('@/components/spots/ReviewList.vue'));
+
 const authStore = useAuthStore();
 const localReviews = ref<Review[]>([]);
 const isSaved = ref(false);
@@ -369,6 +371,7 @@ const similarSpots = ref<SpotSummary[]>([]);
 const loadingSimilar = ref(false);
 const showReviewToast = ref(false);
 const showShareToast = ref(false);
+let cancelSimilarSpotsLoad: CancelScheduledTask = () => undefined;
 
 function formatCategory(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -407,14 +410,16 @@ function duplicatePhoto(photo: Photo, index: number): Photo {
   };
 }
 
+const SPOT_DETAIL_HERO_IMAGE_WIDTH = 1200;
+
 const categoryLabel = computed(() => (props.spot ? formatCategory(props.spot.category) : 'Spot'));
-const heroImageFallback = computed(() => getSpotPhotoFallback(props.spot?.category ?? 'scenic', 1400));
+const heroImageFallback = computed(() => getSpotPhotoFallback(props.spot?.category ?? 'scenic', SPOT_DETAIL_HERO_IMAGE_WIDTH));
 const heroImageUrl = computed(() => {
   if (!props.spot) {
     return heroImageFallback.value;
   }
 
-  return resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl ?? props.spot.photos[0]?.url, 1400);
+  return resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl ?? props.spot.photos[0]?.url, SPOT_DETAIL_HERO_IMAGE_WIDTH);
 });
 const travelCue = computed(() => (props.spot ? travelCueMap[props.spot.category] : travelCueMap.other));
 const galleryPhotos = computed<Photo[]>(() => {
@@ -511,7 +516,11 @@ const overviewCopy = computed(() => {
     return '';
   }
 
-  return `${props.spot.title} plays best as a ${travelCue.value.energy.toLowerCase()} for a ${categoryLabel.value.toLowerCase()}-leaning itinerary. Travelers consistently call out the ${vibeLabel.value.toLowerCase()} tone, which makes it easy to sequence before or after ${travelCue.value.pairing.toLowerCase()} moments.`;
+  const routeSummaryLead = props.spot.category === 'food'
+    ? 'Excellent anchor stop for an evening route.'
+    : `${props.spot.title} plays best as a ${travelCue.value.energy.toLowerCase()} for a ${categoryLabel.value.toLowerCase()}-leaning itinerary.`;
+
+  return `${routeSummaryLead} Travelers consistently call out the ${vibeLabel.value.toLowerCase()} tone, which makes it easy to sequence before or after ${travelCue.value.pairing.toLowerCase()} moments.`;
 });
 const tripFitHeading = computed(() => {
   if (!props.spot) {
@@ -671,12 +680,22 @@ function toggleSaved(): void {
 watch(
   () => props.spot,
   (spot) => {
+    cancelSimilarSpotsLoad();
     isSaved.value = Boolean(spot?.liked);
     localReviews.value = [];
     showReviewToast.value = false;
     showShareToast.value = false;
     selectedPhotoId.value = galleryPhotos.value[0]?.id ?? '';
-    void loadSimilarSpots(spot);
+
+    if (!spot) {
+      similarSpots.value = [];
+      return;
+    }
+
+    cancelSimilarSpotsLoad = scheduleNonCriticalTask(() => loadSimilarSpots(spot), {
+      delayMs: 220,
+      timeoutMs: 1_200,
+    });
   },
   { immediate: true },
 );
@@ -695,6 +714,10 @@ watch(
   },
   { immediate: true },
 );
+
+onBeforeUnmount(() => {
+  cancelSimilarSpotsLoad();
+});
 </script>
 
 <style scoped>
@@ -1135,6 +1158,11 @@ watch(
 .similar-panel {
   display: grid;
   gap: var(--space-4);
+}
+
+.similar-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 520px;
 }
 
 .review-form-panel {

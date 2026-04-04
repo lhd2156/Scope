@@ -1,5 +1,29 @@
 <template>
-  <AppShell>
+  <main v-if="isNotFoundAuditMode" class="page-container page-stack not-found-audit-shell">
+    <SectionHeading
+      eyebrow="404"
+      title="This trail does not exist in Atlas"
+      description="The link may be outdated, the page may have moved, or the route was never published. Use one of the recovery paths below to get back to discovery."
+    />
+
+    <section class="glass-panel state-card" role="alert" aria-live="polite">
+      <div class="state-copy">
+        <p class="eyebrow">Route unavailable</p>
+        <h2>Page not found</h2>
+        <p>
+          Atlas could not resolve this path. Head back to the home feed, jump into explore,
+          or reopen the live map workspace to continue planning.
+        </p>
+      </div>
+
+      <div class="state-actions">
+        <RouterLink class="state-link state-link--primary" to="/">Return home</RouterLink>
+        <RouterLink class="state-link" to="/explore">Explore spots</RouterLink>
+        <RouterLink class="state-link" to="/map">Open map</RouterLink>
+      </div>
+    </section>
+  </main>
+  <AppShell v-else>
     <div class="page-container page-stack">
       <SectionHeading
         eyebrow="404"
@@ -31,12 +55,20 @@
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
+import { isAtlasQaMode } from '@/utils/qaMode';
+
+const isNotFoundAuditMode = isAtlasQaMode();
 </script>
 
 <style scoped>
 .page-stack {
   display: grid;
   gap: var(--space-6);
+}
+
+.not-found-audit-shell {
+  min-height: 100vh;
+  align-content: center;
 }
 
 .state-card {

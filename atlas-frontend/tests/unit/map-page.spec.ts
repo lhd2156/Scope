@@ -239,6 +239,7 @@ describe('MapPage', () => {
     await activeChip.trigger('click');
     await wrapper.get('button.visible-item').trigger('click');
     await wrapper.get('button.text-link').trigger('click');
+    await flushPromises();
 
     expect(mapStoreMock.toggleCategory).toHaveBeenCalledWith('food');
     expect(mapStoreMock.setSelectedSpotId).toHaveBeenCalledWith('spot-1');
@@ -268,6 +269,7 @@ describe('MapPage', () => {
     expect(wrapper.get('[data-test="map-empty-route-cta"]').attributes('href')).toContain('/trips/new');
 
     await wrapper.get('[data-test="map-empty-reset-categories"]').trigger('click');
+    await flushPromises();
 
     expect(mapStoreMock.resetCategories).toHaveBeenCalledTimes(1);
     expect(mapInteractionTrackMock).toHaveBeenCalledWith('category_reset');
@@ -307,6 +309,7 @@ describe('MapPage', () => {
     expect(wrapper.text()).toContain('Botanic River Walk');
 
     await wrapper.get('[data-test="map-view-mobile-interaction"]').trigger('click');
+    await flushPromises();
 
     expect(mapInteractionTrackMock).toHaveBeenLastCalledWith('fit_route');
 

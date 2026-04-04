@@ -9,6 +9,10 @@ const SPOT_PHOTO = {
 
 test.describe('Phase 20 QA coverage', () => {
   test('preserves logical keyboard focus order through the primary login actions', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('atlas-analytics-consent', 'denied');
+    });
+
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Sign in to Atlas' })).toBeVisible();
 

@@ -170,7 +170,7 @@ async function startPreviewServer() {
 }
 
 async function startChromium() {
-  chromeDebugPort = await findAvailablePort(requestedChromeDebugPort);
+  chromeDebugPort = await findAvailablePort(Math.max(requestedChromeDebugPort, chromeDebugPort + 1));
   const tempRoot = resolve(workspaceRoot, '.tmp');
   await mkdir(tempRoot, { recursive: true });
   userDataDir = await mkdtemp(join(tempRoot, `lighthouse-${auditPreset}-profile-`));
@@ -239,21 +239,20 @@ async function connectBrowser() {
 async function seedSessionState(context, session) {
   await context.clearCookies();
 
-  let prepPage = context.pages().find((page) => !page.isClosed()) ?? null;
-  if (!prepPage) {
-    await delay(250);
-    prepPage = context.pages().find((page) => !page.isClosed()) ?? null;
-  }
+  const openPages = context.pages().filter((page) => !page.isClosed());
+  await Promise.all(openPages.map((page) => page.close().catch(() => undefined)));
 
-  if (!prepPage && typeof context.newPage === 'function') {
-    prepPage = await context.newPage().catch(() => null);
-  }
+  const prepPage = typeof context.newPage === 'function'
+    ? await context.newPage().catch(() => null)
+    : null;
 
   if (!prepPage) {
     throw new Error('Could not acquire a preparation page for Lighthouse session seeding.');
   }
 
-  await prepPage.goto(`${baseUrl}${PREP_PATH}`, { waitUntil: 'domcontentloaded' });
+  const prepUrl = new URL(PREP_PATH, baseUrl);
+  prepUrl.searchParams.set('atlasQaSession', session);
+  await prepPage.goto(prepUrl.toString(), { waitUntil: 'domcontentloaded' });
   await prepPage.evaluate(
     ({
       analyticsConsentKey,
@@ -355,6 +354,27 @@ function buildFailedResult(route, error) {
     error: errorMessage,
     passed: false,
   };
+}
+
+async function primeRouteState(context, route) {
+  const prepPage = typeof context.newPage === 'function'
+    ? await context.newPage().catch(() => null)
+    : null;
+
+  if (!prepPage) {
+    return;
+  }
+
+  const expectedUrl = buildAuditUrl(route);
+
+  try {
+    await prepPage.goto(expectedUrl, { waitUntil: 'domcontentloaded' });
+    await delay(750);
+  } catch {
+    // The subsequent Lighthouse run captures route-level failures with fuller detail.
+  } finally {
+    await prepPage.close().catch(() => undefined);
+  }
 }
 
 async function runLighthouseAudit(route) {
@@ -500,6 +520,7 @@ async function main() {
         chromeProcess = await startChromium();
         browserConnection = await connectBrowser();
         await seedSessionState(browserConnection.context, route.session);
+        await primeRouteState(browserConnection.context, route);
         await delay(250);
         results.push(await runLighthouseAudit(route));
       } catch (error) {
@@ -508,6 +529,7 @@ async function main() {
       } finally {
         await browserConnection?.browser?.close().catch(() => undefined);
         await stopProcess(chromeProcess);
+        await delay(250);
         if (userDataDir) {
           await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
           userDataDir = '';

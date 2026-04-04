@@ -1,6 +1,6 @@
 import { generateItinerary } from '@/services/intelService';
 import api from '@/services/api';
-import { getTripById, mockTrips, mockUsers } from '@/services/mockData';
+import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type {
   ApiEnvelope,
@@ -24,6 +24,7 @@ import { addCalendarDays } from '@/utils/formatters';
 const TRIPS_BASE_PATH = '/api/content/trips';
 const DEFAULT_TRIP_CURRENCY = 'USD';
 const DEFAULT_TRIP_STATUS: TripStatus = 'planning';
+const DEFAULT_FALLBACK_TRIP_PAGE_SIZE = 12;
 
 export interface TripMutationInput {
   title: string;
@@ -124,7 +125,18 @@ function buildTripItinerary(tripId: string, destination: string, startDate: stri
   });
 }
 
-function upsertTrip(nextTrip: Trip): Trip {
+async function loadTripMocks() {
+  const { mockTrips, mockUsers } = await loadMockData();
+
+  return {
+    mockTrips,
+    mockUsers,
+    getTripById: (tripId: string) => mockTrips.find((trip) => trip.id === tripId),
+  };
+}
+
+async function upsertTrip(nextTrip: Trip): Promise<Trip> {
+  const { mockTrips } = await loadTripMocks();
   const sanitizedTrip = sanitizeTrip(nextTrip);
   const tripIndex = mockTrips.findIndex((trip) => trip.id === sanitizedTrip.id);
 
@@ -137,7 +149,8 @@ function upsertTrip(nextTrip: Trip): Trip {
   return sanitizedTrip;
 }
 
-function buildPersistedTrip(id: string, input: TripMutationInput, existingTrip?: Trip): Trip {
+async function buildPersistedTrip(id: string, input: TripMutationInput, existingTrip?: Trip): Promise<Trip> {
+  const { mockUsers } = await loadTripMocks();
   const sanitizedInput = sanitizeTripMutationInput(input);
   const owner = sanitizedInput.members?.[0] ?? existingTrip?.members[0] ?? {
     id: mockUsers[0]?.id ?? 'user-1',
@@ -164,25 +177,29 @@ function buildPersistedTrip(id: string, input: TripMutationInput, existingTrip?:
   });
 }
 
-export async function listTrips(page = 1, pageSize = mockTrips.length || 1): Promise<ApiEnvelope<Trip[]>> {
+export async function listTrips(page = 1, pageSize = DEFAULT_FALLBACK_TRIP_PAGE_SIZE): Promise<ApiEnvelope<Trip[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<Trip[]>>(TRIPS_BASE_PATH, { params: { page, pageSize } });
     return sanitizeTripListEnvelope(data);
   } catch {
-    return sanitizeTripListEnvelope(paginateItems(mockTrips, page, pageSize));
+    const { mockTrips } = await loadTripMocks();
+    const resolvedPageSize = pageSize || mockTrips.length || 1;
+    return sanitizeTripListEnvelope(paginateItems(mockTrips, page, resolvedPageSize));
   }
 }
 
-export async function listPublicTrips(page = 1, pageSize = mockTrips.length || 1): Promise<ApiEnvelope<Trip[]>> {
+export async function listPublicTrips(page = 1, pageSize = DEFAULT_FALLBACK_TRIP_PAGE_SIZE): Promise<ApiEnvelope<Trip[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<Trip[]>>(`${TRIPS_BASE_PATH}/public`, { params: { page, pageSize } });
     return sanitizeTripListEnvelope(data);
   } catch {
+    const { mockTrips } = await loadTripMocks();
+    const resolvedPageSize = pageSize || mockTrips.length || 1;
     return sanitizeTripListEnvelope(
       paginateItems(
         mockTrips.filter((trip) => trip.isPublic),
         page,
-        pageSize,
+        resolvedPageSize,
       ),
     );
   }
@@ -193,6 +210,7 @@ export async function getTripDetail(tripId: string): Promise<ApiEnvelope<Trip>> 
     const { data } = await api.get<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}`);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getTripById } = await loadTripMocks();
     const trip = getTripById(tripId);
     if (!trip) {
       throw new Error(`Trip ${tripId} not found`);
@@ -208,8 +226,8 @@ export async function createTrip(input: TripMutationInput): Promise<ApiEnvelope<
     const { data } = await api.post<ApiEnvelope<Trip> | Trip>(TRIPS_BASE_PATH, sanitizedInput);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
-    const trip = buildPersistedTrip(`trip-${Date.now()}`, sanitizedInput);
-    return sanitizeTripEnvelope({ data: upsertTrip(trip) });
+    const trip = await buildPersistedTrip(`trip-${Date.now()}`, sanitizedInput);
+    return sanitizeTripEnvelope({ data: await upsertTrip(trip) });
   }
 }
 
@@ -220,12 +238,14 @@ export async function updateTrip(tripId: string, input: TripMutationInput): Prom
     const { data } = await api.put<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}`, sanitizedInput);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getTripById } = await loadTripMocks();
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
       throw new Error(`Trip ${tripId} not found`);
     }
 
-    return sanitizeTripEnvelope({ data: upsertTrip(buildPersistedTrip(tripId, sanitizedInput, existingTrip)) });
+    const nextTrip = await buildPersistedTrip(tripId, sanitizedInput, existingTrip);
+    return sanitizeTripEnvelope({ data: await upsertTrip(nextTrip) });
   }
 }
 
@@ -233,6 +253,7 @@ export async function deleteTrip(tripId: string): Promise<void> {
   try {
     await api.delete(`${TRIPS_BASE_PATH}/${tripId}`);
   } catch {
+    const { mockTrips } = await loadTripMocks();
     const tripIndex = mockTrips.findIndex((trip) => trip.id === tripId);
     if (tripIndex >= 0) {
       mockTrips.splice(tripIndex, 1);
@@ -247,12 +268,13 @@ export async function addTripSpot(tripId: string, tripSpot: TripSpot): Promise<A
     const { data } = await api.post<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots`, sanitizedTripSpot);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getTripById } = await loadTripMocks();
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
       throw new Error(`Trip ${tripId} not found`);
     }
 
-    const nextTrip = buildPersistedTrip(
+    const nextTrip = await buildPersistedTrip(
       tripId,
       {
         title: existingTrip.title,
@@ -271,7 +293,7 @@ export async function addTripSpot(tripId: string, tripSpot: TripSpot): Promise<A
       existingTrip,
     );
 
-    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
+    return sanitizeTripEnvelope({ data: await upsertTrip(nextTrip) });
   }
 }
 
@@ -280,12 +302,13 @@ export async function removeTripSpot(tripId: string, spotId: string): Promise<Ap
     const { data } = await api.delete<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots/${spotId}`);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getTripById } = await loadTripMocks();
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
       throw new Error(`Trip ${tripId} not found`);
     }
 
-    const nextTrip = buildPersistedTrip(
+    const nextTrip = await buildPersistedTrip(
       tripId,
       {
         title: existingTrip.title,
@@ -304,7 +327,7 @@ export async function removeTripSpot(tripId: string, spotId: string): Promise<Ap
       existingTrip,
     );
 
-    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
+    return sanitizeTripEnvelope({ data: await upsertTrip(nextTrip) });
   }
 }
 
@@ -316,6 +339,7 @@ export async function reorderTripSpots(
     const { data } = await api.put<ApiEnvelope<Trip> | Trip>(`${TRIPS_BASE_PATH}/${tripId}/spots/reorder`, input);
     return sanitizeTripEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getTripById } = await loadTripMocks();
     const existingTrip = getTripById(tripId);
     if (!existingTrip) {
       throw new Error(`Trip ${tripId} not found`);
@@ -327,7 +351,7 @@ export async function reorderTripSpots(
       .filter((spot): spot is TripSpot => Boolean(spot));
 
     const unorderedSpots = existingTrip.spots.filter((spot) => !input.orderedSpotIds.includes(spot.spotId));
-    const nextTrip = buildPersistedTrip(
+    const nextTrip = await buildPersistedTrip(
       tripId,
       {
         title: existingTrip.title,
@@ -346,7 +370,7 @@ export async function reorderTripSpots(
       existingTrip,
     );
 
-    return sanitizeTripEnvelope({ data: upsertTrip(nextTrip) });
+    return sanitizeTripEnvelope({ data: await upsertTrip(nextTrip) });
   }
 }
 
@@ -355,6 +379,7 @@ export async function getTripMembers(tripId: string): Promise<ApiEnvelope<TripMe
     const { data } = await api.get<ApiEnvelope<TripMember[]>>(`${TRIPS_BASE_PATH}/${tripId}/members`);
     return sanitizeTripMemberEnvelope(data);
   } catch {
+    const { getTripById } = await loadTripMocks();
     const trip = getTripById(tripId);
     if (!trip) {
       throw new Error(`Trip ${tripId} not found`);

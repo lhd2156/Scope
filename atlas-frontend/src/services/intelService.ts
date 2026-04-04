@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { buildItineraryPreview, getSpotById, mockSpots, mockTrips } from '@/services/mockData';
+import { loadMockData } from '@/services/mockDataLoader';
 import { unwrapApiData } from '@/services/serviceUtils';
 import type {
   ApiEnvelope,
@@ -85,6 +85,7 @@ export async function generateItinerary(input: TripPlannerInput): Promise<ApiEnv
     const { data } = await api.post<ApiEnvelope<Itinerary> | Itinerary>(`${INTEL_BASE_PATH}/itinerary/generate`, sanitizedInput);
     return sanitizeItineraryEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { buildItineraryPreview } = await loadMockData();
     return sanitizeItineraryEnvelope({ data: buildItineraryPreview(sanitizedInput) });
   }
 }
@@ -94,6 +95,7 @@ export async function getCachedItinerary(itineraryId: string): Promise<ApiEnvelo
     const { data } = await api.get<ApiEnvelope<Itinerary> | Itinerary>(`${INTEL_BASE_PATH}/itinerary/${itineraryId}`);
     return sanitizeItineraryEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { mockTrips } = await loadMockData();
     const itinerary = mockTrips.find((trip) => trip.itinerary?.id === itineraryId)?.itinerary;
     if (!itinerary) {
       throw new Error(`Itinerary ${itineraryId} not found`);
@@ -113,6 +115,7 @@ export async function recommendSpots(input: SpotRecommendationInput): Promise<Ap
     const { data } = await api.post<ApiEnvelope<SpotSummary[]> | SpotSummary[]>(`${INTEL_BASE_PATH}/recommend/spots`, sanitizedInput);
     return sanitizeSpotEnvelope('data' in data ? data : { data });
   } catch {
+    const { mockSpots } = await loadMockData();
     const interests = new Set(sanitizedInput.interests ?? []);
     const limit = sanitizedInput.limit ?? 4;
     const destinationQuery = sanitizedInput.destination ?? '';
@@ -137,6 +140,7 @@ export async function recommendSimilarSpots(spotId: string, limit = 4): Promise<
     );
     return sanitizeSpotEnvelope('data' in data ? data : { data });
   } catch {
+    const { getSpotById, mockSpots } = await loadMockData();
     const sourceSpot = getSpotById(spotId);
     if (!sourceSpot) {
       throw new Error(`Spot ${spotId} not found`);
@@ -165,6 +169,7 @@ export async function vibeMatch(input: VibeMatchInput): Promise<ApiEnvelope<Spot
     const { data } = await api.post<ApiEnvelope<SpotSummary[]> | SpotSummary[]>(`${INTEL_BASE_PATH}/vibe-match`, sanitizedInput);
     return sanitizeSpotEnvelope('data' in data ? data : { data });
   } catch {
+    const { mockSpots } = await loadMockData();
     const normalizedVibe = sanitizedInput.vibe.toLowerCase();
     const matchedSpots = mockSpots
       .filter((spot) => {

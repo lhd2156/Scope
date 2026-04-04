@@ -141,8 +141,10 @@ const statusLabel = computed(() => {
   const status = props.trip?.status ?? 'planning';
   return status.charAt(0).toUpperCase() + status.slice(1);
 });
-const heroImageFallback = computed(() => (props.trip ? getTripCoverFallback(props.trip, 1400) : ''));
-const heroImageUrl = computed(() => (props.trip ? resolveTripCoverImageUrl(props.trip, 1400) : ''));
+const TRIP_DETAIL_HERO_IMAGE_WIDTH = 1200;
+
+const heroImageFallback = computed(() => (props.trip ? getTripCoverFallback(props.trip, TRIP_DETAIL_HERO_IMAGE_WIDTH) : ''));
+const heroImageUrl = computed(() => (props.trip ? resolveTripCoverImageUrl(props.trip, TRIP_DETAIL_HERO_IMAGE_WIDTH) : ''));
 
 const budgetLabel = computed(() => {
   if (!props.trip?.budget) {
@@ -219,6 +221,12 @@ const mapSpots = computed<MapPoint[]>(() =>
 .hero-copy,
 .panel-section {
   padding: var(--space-6);
+}
+
+.content-grid,
+.panel-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 960px;
 }
 
 .hero-topline,

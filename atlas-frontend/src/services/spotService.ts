@@ -1,13 +1,6 @@
 import api from '@/services/api';
 import { getTrendingSpots } from '@/services/feedService';
-import {
-  createMockSpot,
-  filterSpots,
-  getSpotById,
-  mockSpotDetails,
-  mockSpots,
-  updateMockSpot,
-} from '@/services/mockData';
+import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type {
   ApiEnvelope,
@@ -82,7 +75,8 @@ function distanceInKilometers(
   return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversineComponent));
 }
 
-function updateSpotCollections(updatedSpot: SpotDetail): SpotDetail {
+async function updateSpotCollections(updatedSpot: SpotDetail): Promise<SpotDetail> {
+  const { mockSpotDetails, mockSpots } = await loadMockData();
   const sanitizedSpot = sanitizeSpotDetail(updatedSpot);
   mockSpotDetails[sanitizedSpot.id] = sanitizedSpot;
   const summaryIndex = mockSpots.findIndex((spot) => spot.id === sanitizedSpot.id);
@@ -126,6 +120,7 @@ export async function listSpots(filters: SpotFilters = {}): Promise<ApiEnvelope<
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}`, { params: sanitizedFilters });
     return sanitizeSpotEnvelope(data);
   } catch {
+    const { filterSpots } = await loadMockData();
     const filteredSpots = filterSpots(sanitizedFilters);
     return sanitizeSpotEnvelope(
       paginateItems(filteredSpots, sanitizedFilters.page ?? 1, sanitizedFilters.pageSize ?? (filteredSpots.length || 1)),
@@ -148,6 +143,7 @@ export async function exploreSpots(filters: SpotFilters = {}): Promise<ApiEnvelo
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}/explore`, { params: sanitizedFilters });
     return sanitizeSpotEnvelope(data);
   } catch {
+    const { filterSpots } = await loadMockData();
     const filteredSpots = filterSpots(sanitizedFilters).sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0));
     return sanitizeSpotEnvelope(
       paginateItems(filteredSpots, sanitizedFilters.page ?? 1, sanitizedFilters.pageSize ?? (filteredSpots.length || 1)),
@@ -170,6 +166,7 @@ export async function listNearbySpots(filters: NearbySpotFilters): Promise<ApiEn
     });
     return sanitizeSpotEnvelope(data);
   } catch {
+    const { mockSpots } = await loadMockData();
     const nearbySpots = mockSpots.filter((spot) => {
       const distance = distanceInKilometers(filters.latitude, filters.longitude, spot.latitude, spot.longitude);
       return distance <= radiusKm;
@@ -179,15 +176,17 @@ export async function listNearbySpots(filters: NearbySpotFilters): Promise<ApiEn
   }
 }
 
-export async function listUserSpots(userId: string, page = 1, pageSize = mockSpots.length || 1): Promise<ApiEnvelope<SpotSummary[]>> {
+export async function listUserSpots(userId: string, page = 1, pageSize = 20): Promise<ApiEnvelope<SpotSummary[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}/user/${userId}`, {
       params: { page, pageSize },
     });
     return sanitizeSpotEnvelope(data);
   } catch {
+    const { mockSpots } = await loadMockData();
+    const resolvedPageSize = pageSize || mockSpots.length || 1;
     const userSpots = mockSpots.filter((spot) => spot.author?.id === userId);
-    return sanitizeSpotEnvelope(paginateItems(userSpots, page, pageSize));
+    return sanitizeSpotEnvelope(paginateItems(userSpots, page, resolvedPageSize));
   }
 }
 
@@ -196,6 +195,7 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
     const { data } = await api.get<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}`);
     return sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getSpotById } = await loadMockData();
     const detail = getSpotById(spotId);
     if (!detail) {
       throw new Error(`Spot ${spotId} not found`);
@@ -215,6 +215,7 @@ export async function createSpot(
     const { data } = await api.post<ApiEnvelope<SpotDetail> | SpotDetail>(SPOTS_BASE_PATH, sanitizedSubmission.spot);
     return sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { createMockSpot } = await loadMockData();
     return sanitizeSpotDetailEnvelope({ data: createMockSpot(sanitizedSubmission, sanitizedUser) });
   }
 }
@@ -231,6 +232,7 @@ export async function updateSpot(
     const { data } = await api.put<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}`, sanitizedSubmission.spot);
     return sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { updateMockSpot } = await loadMockData();
     return sanitizeSpotDetailEnvelope({ data: updateMockSpot(spotId, sanitizedSubmission, sanitizedUser) });
   }
 }
@@ -239,6 +241,7 @@ export async function deleteSpot(spotId: string): Promise<void> {
   try {
     await api.delete(`${SPOTS_BASE_PATH}/${spotId}`);
   } catch {
+    const { mockSpotDetails, mockSpots } = await loadMockData();
     const summaryIndex = mockSpots.findIndex((spot) => spot.id === spotId);
     if (summaryIndex >= 0) {
       mockSpots.splice(summaryIndex, 1);
@@ -253,6 +256,7 @@ export async function likeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail>>
     const { data } = await api.post<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}/like`, undefined);
     return sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getSpotById } = await loadMockData();
     const existingSpot = getSpotById(spotId);
     if (!existingSpot) {
       throw new Error(`Spot ${spotId} not found`);
@@ -260,7 +264,7 @@ export async function likeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail>>
 
     const likesCount = existingSpot.liked ? existingSpot.likesCount ?? 0 : (existingSpot.likesCount ?? 0) + 1;
     return sanitizeSpotDetailEnvelope({
-      data: updateSpotCollections({
+      data: await updateSpotCollections({
         ...existingSpot,
         liked: true,
         likesCount,
@@ -274,6 +278,7 @@ export async function unlikeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail
     const { data } = await api.delete<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}/like`);
     return sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
   } catch {
+    const { getSpotById } = await loadMockData();
     const existingSpot = getSpotById(spotId);
     if (!existingSpot) {
       throw new Error(`Spot ${spotId} not found`);
@@ -281,7 +286,7 @@ export async function unlikeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail
 
     const likesCount = existingSpot.liked ? Math.max(0, (existingSpot.likesCount ?? 1) - 1) : existingSpot.likesCount ?? 0;
     return sanitizeSpotDetailEnvelope({
-      data: updateSpotCollections({
+      data: await updateSpotCollections({
         ...existingSpot,
         liked: false,
         likesCount,
@@ -295,6 +300,7 @@ export async function listSpotPhotos(spotId: string): Promise<ApiEnvelope<Photo[
     const { data } = await api.get<ApiEnvelope<Photo[]>>(`${SPOTS_BASE_PATH}/${spotId}/photos`);
     return sanitizePhotoEnvelope(data);
   } catch {
+    const { getSpotById } = await loadMockData();
     const spot = getSpotById(spotId);
     if (!spot) {
       throw new Error(`Spot ${spotId} not found`);

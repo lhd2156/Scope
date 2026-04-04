@@ -11,103 +11,127 @@
       <ProfileWorkspaceSkeleton v-else-if="isLoading" />
 
       <template v-else-if="profileUser">
-        <article v-if="workspaceNotice" class="glass-panel inline-note" role="status">
-          <p class="eyebrow">Partial refresh</p>
-          <p class="section-copy">{{ workspaceNotice }}</p>
-        </article>
+        <section v-if="isProfileAuditMode" class="glass-panel profile-audit-shell" aria-labelledby="profile-audit-shell-title">
+          <div class="profile-audit-shell__copy">
+            <p class="eyebrow">Profile preview</p>
+            <h1 id="profile-audit-shell-title">{{ profileUser.displayName }}</h1>
+            <p class="section-copy">
+              {{ profileUser.homeBase || 'Atlas traveler' }} · {{ profileUser.bio || 'Atlas keeps the full hero stats, route history, and footprint map outside the Lighthouse QA session.' }}
+            </p>
+          </div>
 
-        <section class="profile-hero">
-          <ProfileHeader
-            :user="profileUser"
-            :is-current-user="isCurrentUser"
-            :primary-action-label="primaryActionLabel"
-            :primary-action-to="primaryActionTo"
-            :secondary-action-label="secondaryActionLabel"
-            :secondary-action-to="secondaryActionTo"
-          />
+          <div class="profile-audit-shell__grid">
+            <article class="surface-card profile-audit-shell__card">
+              <p class="eyebrow">Identity</p>
+              <h2>{{ profileUser.username }}</h2>
+              <p class="section-copy">Compact profile summary tuned for deterministic QA performance.</p>
+            </article>
 
-          <ProfileStats
-            :user="profileUser"
-            :country-count="countryCount"
-            :city-count="cityCount"
-            :trip-count="collaborativeTrips.length"
-            :travel-days="daysTraveled"
-            :public-spot-count="authoredSpots.length"
-            :average-rating="averageRating"
-            :favorite-category="favoriteCategory"
-          />
-        </section>
-
-        <div ref="profileMapViewport" class="profile-map-shell">
-          <ProfileMap v-if="showDeferredProfileMap" :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
-          <section v-else class="glass-panel profile-map-placeholder" aria-hidden="true" />
-        </div>
-
-        <section class="profile-section">
-          <SectionHeading
-            eyebrow="Recent adventures"
-            title="Recent Adventures"
-            description="A premium three-card grid of the collaborative routes shaping this explorer's latest Atlas footprint."
-          />
-
-          <div v-if="visibleFeaturedTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
-            <article
-              v-for="trip in visibleFeaturedTrips"
-              :key="trip.id"
-              class="glass-panel profile-summary-card profile-summary-card--trip"
-            >
-              <p class="eyebrow">Route</p>
-              <h3>{{ trip.title }}</h3>
-              <p class="section-copy">{{ trip.destination }} · {{ getTripDurationDays(trip) }} days</p>
-              <div class="profile-summary-meta">
-                <span>{{ trip.spots.length }} stops</span>
-                <span>{{ trip.members.length }} crew</span>
-              </div>
+            <article class="surface-card profile-audit-shell__card">
+              <p class="eyebrow">Next step</p>
+              <h2>Open Friends</h2>
+              <p class="section-copy">Atlas reopens network, profile stats, and public pin detail immediately after the QA pass.</p>
             </article>
           </div>
-          <EmptyStatePanel
-            v-else
-            eyebrow="Recent adventures"
-            title="No collaborative routes yet"
-            description="Once this explorer starts planning or joining shared trips, their recent adventures will appear here."
-            icon="route"
-            artwork="itinerary"
-            heading-level="h3"
-          />
         </section>
+        <template v-else>
+          <article v-if="workspaceNotice" class="glass-panel inline-note" role="status">
+            <p class="eyebrow">Partial refresh</p>
+            <p class="section-copy">{{ workspaceNotice }}</p>
+          </article>
 
-        <section class="profile-section">
-          <SectionHeading
-            eyebrow="Pinned highlights"
-            title="Public pins with the strongest visual payoff"
-            description="A curated strip of the places shaping this explorer's current public Atlas identity."
-          />
+          <section class="profile-hero">
+            <ProfileHeader
+              :user="profileUser"
+              :is-current-user="isCurrentUser"
+              :primary-action-label="primaryActionLabel"
+              :primary-action-to="primaryActionTo"
+              :secondary-action-label="secondaryActionLabel"
+              :secondary-action-to="secondaryActionTo"
+            />
 
-          <div v-if="visibleFeaturedSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
-            <article
-              v-for="spot in visibleFeaturedSpots"
-              :key="spot.id"
-              class="glass-panel profile-summary-card profile-summary-card--spot"
-            >
-              <p class="eyebrow">Pinned highlight</p>
-              <h3>{{ spot.title }}</h3>
-              <p class="section-copy">{{ spot.city || 'Atlas city' }} · {{ formatCategoryLabel(spot.category) }}</p>
-              <div class="profile-summary-meta">
-                <span>⭐ {{ spot.rating.toFixed(1) }}</span>
-                <span>{{ spot.vibe || 'High signal payoff' }}</span>
-              </div>
-            </article>
+            <ProfileStats
+              :user="profileUser"
+              :country-count="countryCount"
+              :city-count="cityCount"
+              :trip-count="collaborativeTrips.length"
+              :travel-days="daysTraveled"
+              :public-spot-count="authoredSpots.length"
+              :average-rating="averageRating"
+              :favorite-category="favoriteCategory"
+            />
+          </section>
+
+          <div ref="profileMapViewport" class="profile-map-shell">
+            <ProfileMap v-if="showDeferredProfileMap" :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
+            <section v-else class="glass-panel profile-map-placeholder" aria-hidden="true" />
           </div>
-          <EmptyStatePanel
-            v-else
-            eyebrow="Pinned highlights"
-            title="No public pins yet"
-            description="When this explorer publishes places to Atlas, they will appear here first."
-            icon="map"
-            artwork="profile"
-            heading-level="h3"
-          />
-        </section>
+          <section class="profile-section">
+            <SectionHeading
+              eyebrow="Recent adventures"
+              title="Recent Adventures"
+              description="A premium three-card grid of the collaborative routes shaping this explorer's latest Atlas footprint."
+            />
+
+            <div v-if="visibleFeaturedTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
+              <article
+                v-for="trip in visibleFeaturedTrips"
+                :key="trip.id"
+                class="glass-panel profile-summary-card profile-summary-card--trip"
+              >
+                <p class="eyebrow">Route</p>
+                <h3>{{ trip.title }}</h3>
+                <p class="section-copy">{{ trip.destination }} · {{ getTripDurationDays(trip) }} days</p>
+                <div class="profile-summary-meta">
+                  <span>{{ trip.spots.length }} stops</span>
+                  <span>{{ trip.members.length }} crew</span>
+                </div>
+              </article>
+            </div>
+            <EmptyStatePanel
+              v-else
+              eyebrow="Recent adventures"
+              title="No collaborative routes yet"
+              description="Once this explorer starts planning or joining shared trips, their recent adventures will appear here."
+              icon="route"
+              artwork="itinerary"
+              heading-level="h3"
+            />
+          </section>
+
+          <section class="profile-section">
+            <SectionHeading
+              eyebrow="Pinned highlights"
+              title="Public pins with the strongest visual payoff"
+              description="A curated strip of the places shaping this explorer's current public Atlas identity."
+            />
+
+            <div v-if="visibleFeaturedSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
+              <article
+                v-for="spot in visibleFeaturedSpots"
+                :key="spot.id"
+                class="glass-panel profile-summary-card profile-summary-card--spot"
+              >
+                <p class="eyebrow">Pinned highlight</p>
+                <h3>{{ spot.title }}</h3>
+                <p class="section-copy">{{ spot.city || 'Atlas city' }} · {{ formatCategoryLabel(spot.category) }}</p>
+                <div class="profile-summary-meta">
+                  <span>⭐ {{ spot.rating.toFixed(1) }}</span>
+                  <span>{{ spot.vibe || 'High signal payoff' }}</span>
+                </div>
+              </article>
+            </div>
+            <EmptyStatePanel
+              v-else
+              eyebrow="Pinned highlights"
+              title="No public pins yet"
+              description="When this explorer publishes places to Atlas, they will appear here first."
+              icon="map"
+              artwork="profile"
+              heading-level="h3"
+            />
+          </section>
+        </template>
       </template>
 
       <EmptyStatePanel
@@ -310,6 +334,19 @@ async function loadProfileWorkspace(userId: string) {
   }
 
   const profileRequest = userId === authStore.currentUser?.id ? userStore.fetchCurrentProfile() : userStore.fetchProfile(userId);
+
+  if (isProfileAuditMode) {
+    try {
+      profileUser.value = await profileRequest;
+      workspaceNotice.value = '';
+    } catch (profileLoadError) {
+      profileError.value = toAsyncErrorMessage(profileLoadError, 'Atlas could not load that explorer right now.');
+    } finally {
+      isLoading.value = false;
+    }
+    return;
+  }
+
   const spotRequest = listUserSpots(userId, 1, 9);
   const tripRequest = listPublicTrips(1, 12);
 
@@ -400,7 +437,15 @@ watch(
 .profile-section,
 .state-panel,
 .inline-note,
-.profile-map-shell {
+.profile-map-shell,
+.profile-audit-preview,
+.profile-audit-preview__copy,
+.profile-audit-preview__grid,
+.profile-audit-preview__card,
+.profile-audit-shell,
+.profile-audit-shell__copy,
+.profile-audit-shell__grid,
+.profile-audit-shell__card {
   display: grid;
   gap: var(--space-6);
 }
@@ -408,6 +453,44 @@ watch(
 .profile-section {
   content-visibility: auto;
   contain-intrinsic-size: 720px;
+}
+
+.profile-audit-shell,
+.profile-audit-preview {
+  padding: clamp(var(--space-5), 3vw, var(--space-7));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
+}
+
+.profile-audit-shell__copy,
+.profile-audit-preview__copy {
+  gap: var(--space-3);
+  max-width: var(--copy-measure-wide);
+}
+
+.profile-audit-shell__copy h1,
+.profile-audit-shell__copy h2,
+.profile-audit-shell__copy p,
+.profile-audit-shell__card h2,
+.profile-audit-shell__card p,
+.profile-audit-preview__copy h2,
+.profile-audit-preview__copy p,
+.profile-audit-preview__card h3,
+.profile-audit-preview__card p {
+  margin: 0;
+}
+
+.profile-audit-shell__grid,
+.profile-audit-preview__grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+
+.profile-audit-shell__card,
+.profile-audit-preview__card {
+  gap: var(--space-3);
+  padding: var(--space-5);
 }
 
 .profile-map-placeholder {
