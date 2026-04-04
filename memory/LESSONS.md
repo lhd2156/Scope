@@ -344,6 +344,7 @@
 - [2026-04-04] ✅ Even if that same live Prism browser matrix later surfaces multiple browser-specific failures in sequence (for example Firefox spot CRUD and WebKit auth) while the shared `process` poll remains active, preserve the worker; the matrix is still producing useful cross-browser signal and should finish before heartbeat considers a relaunch.
 - [2026-04-04] ✅ If WebKit protected-route or keyboard-focus failures surface mid-matrix but later WebKit edge-case checks keep passing on the same live `process` poll, preserve the same Prism worker; partial browser regressions inside the running matrix are still active QA progress, not heartbeat restart criteria.
 - [2026-04-04] ✅ If the Prism Phase 20.1 browser matrix has already been running for over an hour but `subagents(action=list)` still shows the same worker as running and fresh `sessions_history` keeps emitting new browser results, treat runtime length alone as non-blocking and preserve the worker.
+- [2026-04-04] ✅ If Prism patches a flaky WebKit focus assertion and immediately relaunches a fresh multi-browser regression matrix whose latest `sessions_history` tail ends on a new `process` poll with Chromium already green, preserve the worker; that handoff is healthy Phase 20.1 progress, not a stall.
 
 ## Common Mistakes to Avoid
 
