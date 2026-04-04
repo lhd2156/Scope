@@ -56,6 +56,30 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
   let hydrationPromise: Promise<boolean> | null = null;
 
+  function applyQaAuthenticatedSession(): string {
+    const nextToken = token.value || 'atlas-qa-access-token';
+
+    token.value = nextToken;
+    currentUser.value = sanitizeUserProfile({
+      id: currentUser.value?.id ?? 'user-1',
+      username: currentUser.value?.username ?? 'louisdo',
+      email: currentUser.value?.email ?? 'louis@example.com',
+      displayName: currentUser.value?.displayName ?? 'Louis Do',
+      avatarUrl: currentUser.value?.avatarUrl,
+      bio: currentUser.value?.bio,
+      homeBase: currentUser.value?.homeBase,
+      interests: currentUser.value?.interests ?? ['food', 'culture', 'nightlife'],
+      stats: currentUser.value?.stats ?? { spots: 42, trips: 8, friends: 126 },
+    });
+    hasSessionHint.value = true;
+    hasHydratedSession.value = true;
+    error.value = null;
+    sessionExpiredMessage.value = null;
+    persistAuthSessionHint();
+    setAccessToken(nextToken);
+    return nextToken;
+  }
+
   async function applyAuthPayload(payload: AuthPayload) {
     const sanitizedPayload = sanitizeAuthPayload(payload);
     token.value = sanitizedPayload.accessToken;
@@ -97,6 +121,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refreshSession(options: { allowMockFallback?: boolean; captureError?: boolean } = {}): Promise<string | null> {
+    if (getAtlasQaSession() === 'authenticated') {
+      return applyQaAuthenticatedSession();
+    }
+
     try {
       const { refreshSession: refreshSessionRequest } = await loadAuthService();
       const payload = await refreshSessionRequest({
@@ -148,6 +176,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function handleSessionExpired(message = 'Your session expired. Sign in again to keep planning in Atlas.') {
+    if (getAtlasQaSession() === 'authenticated') {
+      applyQaAuthenticatedSession();
+      return;
+    }
+
     clearSession();
     error.value = null;
     sessionExpiredMessage.value = message;

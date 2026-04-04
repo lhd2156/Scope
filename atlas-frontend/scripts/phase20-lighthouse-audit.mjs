@@ -44,6 +44,7 @@ let previewPort = requestedPreviewPort;
 let chromeDebugPort = requestedChromeDebugPort;
 let baseUrl = `http://127.0.0.1:${previewPort}`;
 let userDataDir = '';
+let previewProcess = null;
 
 function commandName(command) {
   return process.platform === 'win32' ? `${command}.cmd` : command;
@@ -523,12 +524,10 @@ async function runRouteAudit(route) {
   let lastResult = buildFailedResult(route, new Error(`No Lighthouse attempt completed for ${route.path}.`));
 
   for (let attempt = 1; attempt <= routeAttempts; attempt += 1) {
-    let previewProcess;
     let chromeProcess;
     let browserConnection;
 
     try {
-      previewProcess = await startPreviewServer();
       chromeProcess = await startChromium();
       browserConnection = await connectBrowser();
       await seedSessionState(browserConnection.context, route.session);
@@ -541,7 +540,6 @@ async function runRouteAudit(route) {
     } finally {
       await browserConnection?.browser?.close().catch(() => undefined);
       await stopProcess(chromeProcess);
-      await stopProcess(previewProcess);
       await delay(250);
       if (userDataDir) {
         await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
@@ -565,6 +563,7 @@ async function runRouteAudit(route) {
 async function main() {
   await mkdir(reportRoot, { recursive: true });
   await buildAuditBundle();
+  previewProcess = await startPreviewServer();
 
   const selectedRoutes = routeFilter
     ? routes.filter((route) => route.slug.includes(routeFilter) || route.path.toLowerCase().includes(routeFilter))
@@ -576,19 +575,25 @@ async function main() {
 
   const results = [];
 
-  for (const route of selectedRoutes) {
-    console.log(`\n=== Lighthouse: ${route.path} [${route.session}] ===`);
-    results.push(await runRouteAudit(route));
-  }
+  try {
+    for (const route of selectedRoutes) {
+      console.log(`\n=== Lighthouse: ${route.path} [${route.session}] ===`);
+      results.push(await runRouteAudit(route));
+    }
 
-  const markdownReport = buildMarkdownReport(results);
-  await writeFile(join(reportRoot, 'SUMMARY.md'), markdownReport, 'utf8');
-  await writeFile(join(reportRoot, 'summary.json'), JSON.stringify(results, null, 2), 'utf8');
-  console.log('\n' + markdownReport);
+    const markdownReport = buildMarkdownReport(results);
+    await writeFile(join(reportRoot, 'SUMMARY.md'), markdownReport, 'utf8');
+    await writeFile(join(reportRoot, 'summary.json'), JSON.stringify(results, null, 2), 'utf8');
+    console.log('\n' + markdownReport);
+    process.exitCode = results.some((result) => result.passed !== true) ? 1 : 0;
+  } finally {
+    await stopProcess(previewProcess);
+    previewProcess = null;
 
-  if (userDataDir) {
-    await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
-    userDataDir = '';
+    if (userDataDir) {
+      await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
+      userDataDir = '';
+    }
   }
 }
 
