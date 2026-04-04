@@ -501,6 +501,8 @@ function submitForm(): void {
   gap: var(--space-4);
   padding: var(--space-5);
   scroll-margin-top: calc(var(--shell-content-top) + var(--space-4));
+  content-visibility: auto;
+  contain-intrinsic-size: 560px;
   transition:
     transform var(--transition-fast),
     box-shadow var(--transition-fast),

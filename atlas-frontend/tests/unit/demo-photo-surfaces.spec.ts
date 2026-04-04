@@ -4,6 +4,7 @@ import ProfileHeader from '@/components/profile/ProfileHeader.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import TripCard from '@/components/trips/TripCard.vue';
 import type { FeedItem as FeedItemModel, SpotSummary, Trip, UserProfile } from '@/types';
+import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/demoPhotos';
 
 const lazyImageStub = {
   props: ['src', 'fallbackSrc', 'alt'],
@@ -35,7 +36,7 @@ describe('demo photo surfaces', () => {
       },
     });
 
-    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200');
+    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe(getSpotPhotoFallback('food', 640));
   });
 
   it('renders a real fallback image for TripCard when a cover image is missing', () => {
@@ -71,7 +72,7 @@ describe('demo photo surfaces', () => {
       },
     });
 
-    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200');
+    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe(getTripCoverFallback(trip, 720));
   });
 
   it('renders a real fallback image for FeedItem when attached media is missing', () => {
@@ -104,7 +105,7 @@ describe('demo photo surfaces', () => {
       },
     });
 
-    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=1200');
+    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe(getFeedPhotoFallback(item, 960));
   });
 
   it('renders a real pravatar fallback for ProfileHeader when an avatar is missing', () => {

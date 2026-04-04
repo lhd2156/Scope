@@ -4,6 +4,8 @@ const VISUAL_QA_FLAG = '__ATLAS_VISUAL_QA__';
 const DEFAULT_PASSWORD = 'SecurePass123!';
 const AUTH_SESSION_HINT_STORAGE_KEY = 'atlas-auth-session-hint';
 const AUTH_SESSION_HINT_VERSION = 1;
+const ANALYTICS_CONSENT_STORAGE_KEY = 'atlas-analytics-consent';
+const ANALYTICS_CONSENT_VALUE = 'denied';
 const ONBOARDING_COMPLETION_STORAGE_KEY = 'atlas-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
 const PLAYWRIGHT_SESSION_COOKIE_NAME = 'atlas-playwright-session';
@@ -825,6 +827,52 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     return state.trips.find((trip) => trip.id === tripId);
   }
 
+  function ensureKnownUser(userId: string): AtlasUserProfile | undefined {
+    const existingUser = findKnownUser({ id: userId });
+
+    if (existingUser) {
+      return existingUser;
+    }
+
+    if (state.currentSession?.id === userId) {
+      return upsertKnownUser({
+        id: state.currentSession.id,
+        username: state.currentSession.username,
+        email: state.currentSession.email,
+        displayName: state.currentSession.displayName,
+        avatarUrl: 'https://i.pravatar.cc/160?img=64',
+        bio: 'Playwright traveler synced into the Atlas mock workspace.',
+        homeBase: 'Fort Worth, TX',
+        interests: ['food', 'culture', 'nightlife'],
+        stats: {
+          spots: 0,
+          trips: 0,
+          friends: 0,
+        },
+      });
+    }
+
+    return undefined;
+  }
+
+  function ensureKnownTrip(tripId: string): AtlasTrip | undefined {
+    const existingTrip = findTrip(tripId);
+
+    if (existingTrip) {
+      return existingTrip;
+    }
+
+    const seedTrip = buildSeedTrips(registeredUsers).find((trip) => trip.id === tripId);
+
+    if (!seedTrip) {
+      return undefined;
+    }
+
+    const clonedTrip = cloneTrip(seedTrip);
+    state.trips.push(clonedTrip);
+    return clonedTrip;
+  }
+
   function findNotification(notificationId: string): AtlasNotificationItem | undefined {
     return state.notifications.find((notification) => notification.id === notificationId);
   }
@@ -840,6 +888,16 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     {
       storageKey: ONBOARDING_COMPLETION_STORAGE_KEY,
       storageValue: ONBOARDING_COMPLETION_VALUE,
+    },
+  );
+
+  await page.context().addInitScript(
+    ({ storageKey, storageValue }) => {
+      window.localStorage.setItem(storageKey, storageValue);
+    },
+    {
+      storageKey: ANALYTICS_CONSENT_STORAGE_KEY,
+      storageValue: ANALYTICS_CONSENT_VALUE,
     },
   );
 
@@ -1038,7 +1096,7 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     if (requestPath.startsWith('/api/core/users/') && requestMethod === 'GET') {
       const pathSegments = requestPath.split('/').filter(Boolean);
       const userId = pathSegments[3] ?? '';
-      const matchingKnownUser = findKnownUser({ id: userId });
+      const matchingKnownUser = ensureKnownUser(userId);
 
       if (!matchingKnownUser) {
         await fulfillJson(route, 404, JSON.stringify({
@@ -1168,7 +1226,7 @@ async function installAtlasApiMocks(page: Page): Promise<AtlasApiMock> {
     if (requestPath.startsWith('/api/content/trips/') && requestMethod === 'GET') {
       const pathSegments = requestPath.split('/').filter(Boolean);
       const tripId = pathSegments[3] ?? '';
-      const matchingTrip = findTrip(tripId);
+      const matchingTrip = ensureKnownTrip(tripId);
 
       if (!matchingTrip) {
         await fulfillJson(route, 404, JSON.stringify({

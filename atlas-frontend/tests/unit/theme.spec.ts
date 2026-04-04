@@ -1,3 +1,5 @@
+import { flushPromises } from '@vue/test-utils';
+
 const trackThemeToggleMock = vi.hoisted(() => vi.fn());
 
 async function loadThemeModule() {
@@ -43,6 +45,7 @@ describe('theme utility', () => {
     expect(trackThemeToggleMock).not.toHaveBeenCalled();
 
     toggleTheme('navbar');
+    await flushPromises();
 
     expect(useTheme().value).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
@@ -55,6 +58,7 @@ describe('theme utility', () => {
     }));
 
     applyTheme('light', { track: true, source: 'settings' });
+    await flushPromises();
 
     expect(trackThemeToggleMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       theme: 'light',

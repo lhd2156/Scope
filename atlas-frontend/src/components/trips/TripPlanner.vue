@@ -104,7 +104,7 @@
               <span class="meta-pill">{{ dailyBudgetLabel }}</span>
             </div>
 
-            <div class="budget-slider-shell" aria-hidden="true">
+            <div class="budget-slider-shell">
               <div class="budget-slider-track" />
               <input
                 class="budget-slider"

@@ -4,6 +4,38 @@ import { fileURLToPath } from 'node:url';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
+const projects = [
+  {
+    name: 'chromium',
+    use: {
+      ...devices['Desktop Chrome'],
+    },
+  },
+  {
+    name: 'firefox',
+    use: {
+      ...devices['Desktop Firefox'],
+    },
+  },
+  {
+    name: 'webkit',
+    use: {
+      ...devices['Desktop Safari'],
+    },
+  },
+  ...(process.env.PLAYWRIGHT_INCLUDE_EDGE === 'true'
+    ? [
+        {
+          name: 'msedge',
+          use: {
+            browserName: 'chromium' as const,
+            channel: 'msedge',
+            viewport: { width: 1440, height: 960 },
+          },
+        },
+      ]
+    : []),
+];
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -27,26 +59,7 @@ export default defineConfig({
     video: 'retain-on-failure',
     viewport: { width: 1440, height: 960 },
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-      },
-    },
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-      },
-    },
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-      },
-    },
-  ],
+  projects,
   webServer: {
     command: 'npm run serve:e2e',
     cwd: currentDirectory,

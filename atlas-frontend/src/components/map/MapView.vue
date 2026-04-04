@@ -2,7 +2,7 @@
   <section class="map-view">
     <div ref="mapContainer" class="map-canvas" :class="{ 'is-fallback': !hasToken }" />
 
-    <div v-if="!hasToken" class="map-fallback" data-test="map-fallback-stage" aria-hidden="true">
+    <div v-if="!hasToken" class="map-fallback" data-test="map-fallback-stage">
       <svg class="map-fallback__canvas" viewBox="0 0 1200 900" preserveAspectRatio="none">
         <g class="map-fallback__terrain">
           <path v-for="terrainShape in fallbackTerrainPaths" :key="terrainShape" :d="terrainShape" />

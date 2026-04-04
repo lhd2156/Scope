@@ -1,7 +1,7 @@
 <template>
   <article class="adventure-card glass-panel" data-test="profile-adventure-card">
     <div class="adventure-media">
-      <LazyImage :src="coverImageUrl" :fallback-src="coverImageFallback" :alt="trip.title" class="adventure-image" eager />
+      <LazyImage :src="coverImageUrl" :fallback-src="coverImageFallback" :alt="trip.title" class="adventure-image" />
 
       <div class="adventure-media-chrome">
         <span class="destination-pill">{{ trip.destination }}</span>
@@ -47,8 +47,10 @@ const props = defineProps<{
   trip: Trip;
 }>();
 
-const coverImageFallback = computed(() => getTripCoverFallback(props.trip, 1200));
-const coverImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, 1200));
+const PROFILE_ADVENTURE_IMAGE_WIDTH = 720;
+
+const coverImageFallback = computed(() => getTripCoverFallback(props.trip, PROFILE_ADVENTURE_IMAGE_WIDTH));
+const coverImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, PROFILE_ADVENTURE_IMAGE_WIDTH));
 
 const dateRangeLabel = computed(() => {
   const start = formatMonthDay(props.trip.startDate);

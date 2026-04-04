@@ -44,9 +44,9 @@
   --shadow-glow-gold: 0 0 20px rgba(245, 158, 11, 0.3);
 
   /* Glassmorphism */
-  --glass-bg: rgba(26, 26, 46, 0.7);
+  --glass-bg: rgba(26, 26, 46, 0.78);
   --glass-border: rgba(255,255,255,0.08);
-  --glass-blur: blur(12px);
+  --glass-blur: none;
 
   /* Map */
   --map-style: mapbox://styles/mapbox/dark-v11;
@@ -60,6 +60,24 @@
   --input-border: #2a2a45;
   --input-focus: #10b981;
   --input-placeholder: #6b6b80;
+
+  /* Category badges */
+  --badge-food-bg: #10392d;
+  --badge-food-fg: #7df0bd;
+  --badge-nature-bg: #163d1f;
+  --badge-nature-fg: #9ef59e;
+  --badge-nightlife-bg: #251942;
+  --badge-nightlife-fg: #d2bfff;
+  --badge-culture-bg: #122c57;
+  --badge-culture-fg: #9dc7ff;
+  --badge-adventure-bg: #4d2f08;
+  --badge-adventure-fg: #ffd491;
+  --badge-shopping-bg: #4b1635;
+  --badge-shopping-fg: #ffb2d9;
+  --badge-scenic-bg: #093a47;
+  --badge-scenic-fg: #84e8ff;
+  --badge-other-bg: #2a2f44;
+  --badge-other-fg: #ced4e6;
 }
 
 /* ---- Light Mode ---- */
@@ -87,9 +105,9 @@
   --shadow-glow-gold: 0 0 20px rgba(245, 158, 11, 0.2);
 
   /* Glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg: rgba(255, 255, 255, 0.82);
   --glass-border: rgba(0,0,0,0.06);
-  --glass-blur: blur(12px);
+  --glass-blur: none;
 
   /* Map */
   --map-style: mapbox://styles/mapbox/light-v11;
@@ -103,19 +121,37 @@
   --input-border: #e2e2ea;
   --input-focus: #10b981;
   --input-placeholder: #a0a0b8;
+
+  /* Category badges */
+  --badge-food-bg: #dcfce7;
+  --badge-food-fg: #166534;
+  --badge-nature-bg: #dcfce7;
+  --badge-nature-fg: #14532d;
+  --badge-nightlife-bg: #ede9fe;
+  --badge-nightlife-fg: #5b21b6;
+  --badge-culture-bg: #dbeafe;
+  --badge-culture-fg: #1d4ed8;
+  --badge-adventure-bg: #ffedd5;
+  --badge-adventure-fg: #c2410c;
+  --badge-shopping-bg: #fce7f3;
+  --badge-shopping-fg: #be185d;
+  --badge-scenic-bg: #cffafe;
+  --badge-scenic-fg: #0e7490;
+  --badge-other-bg: #e5e7eb;
+  --badge-other-fg: #4b5563;
 }
 
 /* ============================================
    Category Badge Colors
    ============================================ */
-.badge-food      { background: rgba(16,185,129,0.15); color: #10b981; }
-.badge-nature    { background: rgba(34,197,94,0.15);  color: #22c55e; }
-.badge-nightlife { background: rgba(139,92,246,0.15); color: #8b5cf6; }
-.badge-culture   { background: rgba(59,130,246,0.15); color: #3b82f6; }
-.badge-adventure { background: rgba(245,158,11,0.15); color: #f59e0b; }
-.badge-shopping  { background: rgba(236,72,153,0.15); color: #ec4899; }
-.badge-scenic    { background: rgba(6,182,212,0.15);  color: #06b6d4; }
-.badge-other     { background: rgba(107,107,128,0.15); color: #6b6b80; }
+.badge-food      { background: var(--badge-food-bg); color: var(--badge-food-fg); }
+.badge-nature    { background: var(--badge-nature-bg); color: var(--badge-nature-fg); }
+.badge-nightlife { background: var(--badge-nightlife-bg); color: var(--badge-nightlife-fg); }
+.badge-culture   { background: var(--badge-culture-bg); color: var(--badge-culture-fg); }
+.badge-adventure { background: var(--badge-adventure-bg); color: var(--badge-adventure-fg); }
+.badge-shopping  { background: var(--badge-shopping-bg); color: var(--badge-shopping-fg); }
+.badge-scenic    { background: var(--badge-scenic-bg); color: var(--badge-scenic-fg); }
+.badge-other     { background: var(--badge-other-bg); color: var(--badge-other-fg); }
 
 /* ============================================
    Typography

@@ -1,5 +1,5 @@
 <template>
-  <section class="auth-stage">
+  <main class="auth-stage">
     <div class="auth-stage__hero">
       <LazyImage class="auth-stage__hero-image" :src="heroImageSrc" :alt="heroImageAlt" eager />
       <div class="auth-stage__hero-overlay" aria-hidden="true" />
@@ -43,7 +43,7 @@
         <slot />
       </div>
     </div>
-  </section>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -83,6 +83,7 @@ const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
 .auth-stage__panel-side {
   position: relative;
   min-height: 100vh;
+  contain: layout paint;
 }
 
 .auth-stage__hero {
@@ -319,6 +320,7 @@ const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
 
 .auth-stage__panel-shell {
   width: min(100%, 32rem);
+  contain: layout paint style;
 }
 
 @keyframes auth-fade-up {
