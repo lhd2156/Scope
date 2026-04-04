@@ -337,6 +337,7 @@
 - [2026-04-04] ✅ During Prism Phase 20.1, Chrome/GCM `PHONE_REGISTRATION_ERROR`, `DEPRECATED_ENDPOINT`, or `wrong_secret` noise inside the Lighthouse run is not a blocker when the route headings keep advancing and the child remains on a live `process` poll; treat that as healthy audit progress and preserve the worker.
 - [2026-04-04] ✅ If a relaunched Prism Phase 20.1 worker is still under an hour old and fresh `sessions_history` shows active reads/execs around `phase20-lighthouse-audit.mjs`, preserve that live QA run instead of stacking another shared-workspace Frontend spawn.
 - [2026-04-04] ✅ If fresh `sessions_history` shows the same Prism Phase 20.1 worker already finished `npm run build` plus `npm run test` and is now advancing through `npm run qa:lighthouse` route headings on a live `process` poll, treat that sequence as healthy QA progression and preserve the worker instead of relaunching.
+- [2026-04-04] ✅ If that same Prism Phase 20.1 worker later rolls straight into live edits plus a focused `phase20-qa.spec.ts` smoke run after Lighthouse clears, preserve it; follow-on Playwright remediation is still healthy progress on the same open Phase 20 checkpoint, not a reason to respawn.
 
 ## Common Mistakes to Avoid
 
