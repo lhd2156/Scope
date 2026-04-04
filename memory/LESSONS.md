@@ -343,6 +343,7 @@
 - [2026-04-04] ✅ If the same Prism Phase 20.1 browser-matrix run is still on a live `process` poll and later browsers keep advancing after one earlier browser surfaces a failure, preserve the worker; a mid-run Playwright failure is still active remediation progress, not proof the shared-workspace run should be respawned.
 - [2026-04-04] ✅ Even if that same live Prism browser matrix later surfaces multiple browser-specific failures in sequence (for example Firefox spot CRUD and WebKit auth) while the shared `process` poll remains active, preserve the worker; the matrix is still producing useful cross-browser signal and should finish before heartbeat considers a relaunch.
 - [2026-04-04] ✅ If WebKit protected-route or keyboard-focus failures surface mid-matrix but later WebKit edge-case checks keep passing on the same live `process` poll, preserve the same Prism worker; partial browser regressions inside the running matrix are still active QA progress, not heartbeat restart criteria.
+- [2026-04-04] ✅ If the Prism Phase 20.1 browser matrix has already been running for over an hour but `subagents(action=list)` still shows the same worker as running and fresh `sessions_history` keeps emitting new browser results, treat runtime length alone as non-blocking and preserve the worker.
 
 ## Common Mistakes to Avoid
 
