@@ -13,6 +13,8 @@ const requestedChromeDebugPort = Number(process.env.LIGHTHOUSE_CHROME_PORT ?? 92
 const auditPreset = (process.env.LIGHTHOUSE_PRESET ?? 'desktop').trim().toLowerCase();
 const reportRoot = resolve(workspaceRoot, 'test-results', 'lighthouse', auditPreset);
 const routeFilter = (process.env.LIGHTHOUSE_ROUTE_FILTER ?? '').trim().toLowerCase();
+const parsedRouteAttempts = Number.parseInt(process.env.LIGHTHOUSE_ROUTE_ATTEMPTS ?? '2', 10);
+const routeAttempts = Number.isFinite(parsedRouteAttempts) && parsedRouteAttempts > 0 ? parsedRouteAttempts : 2;
 const ANALYTICS_CONSENT_STORAGE_KEY = 'atlas-analytics-consent';
 const ONBOARDING_COMPLETION_STORAGE_KEY = 'atlas-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
@@ -290,6 +292,7 @@ async function seedSessionState(context, session) {
     },
   );
   await prepPage.goto('about:blank', { waitUntil: 'load' });
+  await prepPage.close().catch(() => undefined);
 }
 
 function scoreToPercent(score) {
@@ -333,13 +336,18 @@ function isPassing(summary, route) {
   );
 }
 
-function buildFailedResult(route, error) {
-  const errorMessage = error instanceof Error ? error.message : String(error);
+function readErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function buildFailedResult(route, error, attemptBaseUrl = baseUrl) {
+  const errorMessage = readErrorMessage(error);
 
   return {
     route: route.path,
     slug: route.slug,
     session: route.session,
+    baseUrl: attemptBaseUrl,
     requestedPath: route.path,
     finalPath: 'n/a',
     redirectMatched: false,
@@ -354,6 +362,23 @@ function buildFailedResult(route, error) {
     error: errorMessage,
     passed: false,
   };
+}
+
+function isTransientRouteFailure(route, result) {
+  const retryableErrorSnippets = [
+    'Failed to fetch browser webSocket URL',
+    'Target page, context or browser has been closed',
+    'ERR_CONNECTION_REFUSED',
+    'Detected unsettled top-level await',
+    'Could not connect to a Chromium browser context',
+    'Preview server did not become ready',
+  ];
+
+  if (result.error && retryableErrorSnippets.some((snippet) => result.error.includes(snippet))) {
+    return true;
+  }
+
+  return route.session === SESSION_AUTHENTICATED && !result.redirectMatched;
 }
 
 async function primeRouteState(context, route) {
@@ -415,6 +440,7 @@ async function runLighthouseAudit(route) {
     route: route.path,
     slug: route.slug,
     session: route.session,
+    baseUrl,
     requestedPath,
     finalPath,
     redirectMatched: requestedPath === finalPath,
@@ -440,6 +466,8 @@ function buildMarkdownReport(results) {
   const generatedAt = new Date().toISOString();
   const failedRoutes = results.filter((result) => !result.passed);
   const passCount = results.length - failedRoutes.length;
+  const uniqueBaseUrls = [...new Set(results.map((result) => result.baseUrl).filter(Boolean))];
+  const baseUrlLabel = uniqueBaseUrls.length === 1 ? 'Base URL' : 'Base URLs';
   const summaryRows = results.map((result) => `| ${result.route} | ${result.session} | ${result.performance ?? 'n/a'} | ${result.accessibility ?? 'n/a'} | ${result.bestPractices ?? 'n/a'} | ${result.seo ?? 'n/a'}${result.skipSeoTarget ? ' (exempt)' : ''} | ${result.lcp} | ${result.tbt} | ${result.cls} | ${result.redirectMatched ? 'yes' : `no → ${result.finalPath}`} | ${result.error ?? '—'} | ${result.passed ? 'PASS' : 'FAIL'} |`);
   const failingList = failedRoutes.length
     ? failedRoutes.map((result) => `- ${result.route} [${result.session}]: Perf ${result.performance ?? 'n/a'}, A11y ${result.accessibility ?? 'n/a'}, BP ${result.bestPractices ?? 'n/a'}, SEO ${result.seo ?? 'n/a'}${result.skipSeoTarget ? ' (exempt)' : ''}, Redirect ${result.redirectMatched ? 'ok' : result.finalPath}${result.error ? `, Error ${result.error}` : ''}`).join('\n')
@@ -450,7 +478,7 @@ function buildMarkdownReport(results) {
     '',
     `- Generated: ${generatedAt}`,
     `- Preset: ${auditPreset}`,
-    `- Base URL: ${baseUrl}`,
+    `- ${baseUrlLabel}: ${uniqueBaseUrls.join(', ')}`,
     `- Routes audited: ${results.length}`,
     `- Passing routes: ${passCount}/${results.length}`,
     '',
@@ -491,62 +519,76 @@ async function stopProcess(runningProcess) {
   }
 }
 
-async function main() {
-  await mkdir(reportRoot, { recursive: true });
+async function runRouteAudit(route) {
+  let lastResult = buildFailedResult(route, new Error(`No Lighthouse attempt completed for ${route.path}.`));
 
-  let previewProcess;
+  for (let attempt = 1; attempt <= routeAttempts; attempt += 1) {
+    let previewProcess;
+    let chromeProcess;
+    let browserConnection;
 
-  try {
-    await buildAuditBundle();
-    previewProcess = await startPreviewServer();
-
-    const selectedRoutes = routeFilter
-      ? routes.filter((route) => route.slug.includes(routeFilter) || route.path.toLowerCase().includes(routeFilter))
-      : routes;
-
-    if (!selectedRoutes.length) {
-      throw new Error(`No Lighthouse routes matched filter: ${routeFilter}`);
-    }
-
-    const results = [];
-
-    for (const route of selectedRoutes) {
-      let chromeProcess;
-      let browserConnection;
-
-      console.log(`\n=== Lighthouse: ${route.path} [${route.session}] ===`);
-
-      try {
-        chromeProcess = await startChromium();
-        browserConnection = await connectBrowser();
-        await seedSessionState(browserConnection.context, route.session);
-        await primeRouteState(browserConnection.context, route);
-        await delay(250);
-        results.push(await runLighthouseAudit(route));
-      } catch (error) {
-        console.error(error);
-        results.push(buildFailedResult(route, error));
-      } finally {
-        await browserConnection?.browser?.close().catch(() => undefined);
-        await stopProcess(chromeProcess);
-        await delay(250);
-        if (userDataDir) {
-          await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
-          userDataDir = '';
-        }
+    try {
+      previewProcess = await startPreviewServer();
+      chromeProcess = await startChromium();
+      browserConnection = await connectBrowser();
+      await seedSessionState(browserConnection.context, route.session);
+      await primeRouteState(browserConnection.context, route);
+      await delay(250);
+      lastResult = await runLighthouseAudit(route);
+    } catch (error) {
+      console.error(error);
+      lastResult = buildFailedResult(route, error, baseUrl);
+    } finally {
+      await browserConnection?.browser?.close().catch(() => undefined);
+      await stopProcess(chromeProcess);
+      await stopProcess(previewProcess);
+      await delay(250);
+      if (userDataDir) {
+        await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
+        userDataDir = '';
       }
     }
 
-    const markdownReport = buildMarkdownReport(results);
-    await writeFile(join(reportRoot, 'SUMMARY.md'), markdownReport, 'utf8');
-    await writeFile(join(reportRoot, 'summary.json'), JSON.stringify(results, null, 2), 'utf8');
-    console.log('\n' + markdownReport);
-  } finally {
-    await stopProcess(previewProcess);
-    if (userDataDir) {
-      await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
-      userDataDir = '';
+    if (!isTransientRouteFailure(route, lastResult) || attempt === routeAttempts) {
+      return lastResult;
     }
+
+    console.warn(
+      `[retry ${attempt + 1}/${routeAttempts}] Retrying ${route.path} after transient Lighthouse/browser failure.`,
+    );
+    await delay(500);
+  }
+
+  return lastResult;
+}
+
+async function main() {
+  await mkdir(reportRoot, { recursive: true });
+  await buildAuditBundle();
+
+  const selectedRoutes = routeFilter
+    ? routes.filter((route) => route.slug.includes(routeFilter) || route.path.toLowerCase().includes(routeFilter))
+    : routes;
+
+  if (!selectedRoutes.length) {
+    throw new Error(`No Lighthouse routes matched filter: ${routeFilter}`);
+  }
+
+  const results = [];
+
+  for (const route of selectedRoutes) {
+    console.log(`\n=== Lighthouse: ${route.path} [${route.session}] ===`);
+    results.push(await runRouteAudit(route));
+  }
+
+  const markdownReport = buildMarkdownReport(results);
+  await writeFile(join(reportRoot, 'SUMMARY.md'), markdownReport, 'utf8');
+  await writeFile(join(reportRoot, 'summary.json'), JSON.stringify(results, null, 2), 'utf8');
+  console.log('\n' + markdownReport);
+
+  if (userDataDir) {
+    await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined);
+    userDataDir = '';
   }
 }
 

@@ -154,7 +154,6 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import TripPlanner from '@/components/trips/TripPlanner.vue';
 import { buildTripPlannerPresetItinerary, getTripPlannerPreset, matchTripPlannerPreset } from '@/services/tripPlannerPresets';
 import { useToastStore } from '@/stores/toasts';
 import { useTripsStore } from '@/stores/trips';
@@ -171,6 +170,7 @@ interface MobileWizardStep {
 
 const TRIP_PLANNER_MOBILE_BREAKPOINT = 640;
 const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test' || import.meta.env.VITEST;
+const TripPlanner = defineAsyncComponent(() => import('@/components/trips/TripPlanner.vue'));
 const ItineraryView = defineAsyncComponent(() => import('@/components/trips/ItineraryView.vue'));
 const TripCard = defineAsyncComponent(() => import('@/components/trips/TripCard.vue'));
 
