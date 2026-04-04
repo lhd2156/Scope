@@ -40,16 +40,7 @@
           </span>
         </RouterLink>
 
-        <NotificationDropdown
-          v-if="authStore.isAuthenticated"
-          :notifications="notificationsStore.items.slice(0, 4)"
-          :unread-count="notificationsStore.unreadCount"
-          :loading="notificationsStore.loading"
-          :connection-state="notificationsStore.connectionState"
-          :connection-error="notificationsStore.connectionError"
-          @mark-all-read="notificationsStore.markAllRead"
-          @read="notificationsStore.markRead"
-        />
+        <NotificationDropdown v-if="authStore.isAuthenticated" />
 
         <ThemeToggle />
 
@@ -236,15 +227,13 @@
 
 <script setup lang="ts">
 import { onClickOutside } from '@vueuse/core';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Avatar from '@/components/common/Avatar.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
-import NotificationDropdown from '@/components/social/NotificationDropdown.vue';
 import { useAuthStore } from '@/stores/auth';
-import { useNotificationsStore } from '@/stores/notifications';
 import { useToastStore } from '@/stores/toasts';
 import { focusFirstElement, focusLastElement, getFocusableElements, moveFocus } from '@/utils/a11y';
 
@@ -257,8 +246,9 @@ type MobileNavLink = {
   description: string;
 };
 
+const NotificationDropdown = defineAsyncComponent(() => import('@/components/social/NotificationDropdown.vue'));
+
 const authStore = useAuthStore();
-const notificationsStore = useNotificationsStore();
 const toastStore = useToastStore();
 const route = useRoute();
 const router = useRouter();
@@ -352,11 +342,8 @@ const mobileDrawerStatus = computed(() => {
     return 'Guest browsing';
   }
 
-  if (notificationsStore.unreadCount > 0) {
-    return `${notificationsStore.unreadCount} new ${notificationsStore.unreadCount === 1 ? 'update' : 'updates'}`;
-  }
-
-  return 'All caught up';
+  const plannedTrips = authStore.currentUser.stats?.trips ?? 0;
+  return plannedTrips > 0 ? `${plannedTrips} trip${plannedTrips === 1 ? '' : 's'} in motion` : 'Travel mode active';
 });
 
 function syncSearchFromRoute() {
@@ -763,8 +750,8 @@ onBeforeUnmount(() => {
       transparent 100%
     );
   opacity: var(--motion-navbar-opacity-rest);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition:
     opacity var(--transition-normal),
     background var(--transition-normal),
@@ -1390,8 +1377,8 @@ onBeforeUnmount(() => {
     max(var(--space-4), env(safe-area-inset-bottom, 0px))
     max(var(--space-4), env(safe-area-inset-left, 0px));
   background: color-mix(in srgb, var(--bg-primary) 42%, transparent);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .navbar__mobile-drawer {

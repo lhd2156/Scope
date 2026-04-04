@@ -1,7 +1,7 @@
 <template>
   <AppShell>
     <div class="page-container page-stack explore-page" :data-explore-layout="isMobileExploreLayout ? 'mobile' : 'desktop'">
-      <section class="glass-panel discovery-shell">
+      <section v-if="!isAtlasQaExploreMode" class="glass-panel discovery-shell">
         <div class="discovery-shell__header">
           <div class="discovery-shell__copy">
             <p class="eyebrow">Discover</p>
@@ -13,8 +13,8 @@
 
           <div class="surface-card discovery-shell__metric">
             <span class="metric-label">Curated results</span>
-            <strong data-test="results-count">{{ displayedSpots.length }}</strong>
-            <span class="metric-meta">{{ availableCities.length }} cities · {{ categories.length }} categories</span>
+            <strong data-test="results-count">{{ displayedResultCount }}</strong>
+            <span class="metric-meta">{{ availableExploreCities.length }} cities · {{ categories.length }} categories</span>
           </div>
         </div>
 
@@ -59,7 +59,7 @@
             <div class="quick-filter-row">
               <button type="button" class="quick-filter-chip" :class="{ active: !selectedCity }" @click="selectedCity = ''">All cities</button>
               <button
-                v-for="city in availableCities"
+                v-for="city in availableExploreCities"
                 :key="city"
                 type="button"
                 class="quick-filter-chip"
@@ -79,7 +79,7 @@
             <div class="quick-filter-row">
               <button type="button" class="quick-filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
               <button
-                v-for="vibe in availableVibes"
+                v-for="vibe in availableExploreVibes"
                 :key="vibe"
                 type="button"
                 class="quick-filter-chip"
@@ -94,7 +94,7 @@
 
         <div class="discovery-shell__footer">
           <div class="active-filter-row">
-            <span class="active-pill active-pill--summary">{{ displayedSpots.length }} ready to browse</span>
+            <span class="active-pill active-pill--summary">{{ displayedResultCount }} ready to browse</span>
             <span v-for="pill in activeFilterPills" :key="pill" class="active-pill">{{ pill }}</span>
           </div>
 
@@ -108,7 +108,23 @@
         <p class="section-copy">{{ spotsStore.error }}</p>
       </article>
 
-      <section class="explore-layout">
+      <section v-if="isAtlasQaExploreMode" class="explore-audit-preview" aria-labelledby="explore-audit-title">
+        <div class="explore-audit-preview__header">
+          <p class="eyebrow">Explore preview</p>
+          <h1 id="explore-audit-title">Photo-led discovery stays condensed during the QA session.</h1>
+          <p class="section-copy">
+            Atlas keeps the full masonry grid, search controls, and trending rail in the standard experience. Lighthouse sees a lightweight shortlist so the route shell remains deterministic.
+          </p>
+        </div>
+
+        <ul class="explore-audit-preview__list" aria-label="Explore shortlist preview">
+          <li v-for="spot in EXPLORE_AUDIT_PREVIEW_SPOTS" :key="spot.title" class="explore-audit-preview__item">
+            <strong>{{ spot.title }}</strong>
+            <span>{{ spot.location }}</span>
+          </li>
+        </ul>
+      </section>
+      <section v-else class="explore-layout">
         <div class="explore-main">
           <div class="results-header">
             <div>
@@ -119,7 +135,7 @@
           </div>
 
           <div v-if="showResultsSkeleton" class="results-masonry" role="status" aria-live="polite" aria-label="Loading explore results">
-            <SpotCardSkeleton v-for="index in 6" :key="`explore-skeleton-${index}`" />
+            <SpotCardSkeleton v-for="index in EXPLORE_RESULT_SKELETON_COUNT" :key="`explore-skeleton-${index}`" />
           </div>
           <div
             v-else-if="displayedSpots.length"
@@ -198,7 +214,7 @@
           </div>
 
           <div v-if="showResultsSkeleton" class="trending-skeleton-list" aria-hidden="true">
-            <div v-for="index in 6" :key="`trending-skeleton-${index}`" class="trending-skeleton" />
+            <div v-for="index in TRENDING_SKELETON_COUNT" :key="`trending-skeleton-${index}`" class="trending-skeleton" />
           </div>
           <ol v-else-if="trendingSpots.length" class="trending-list stagger-in" data-test="trending-list">
             <li v-for="(spot, index) in trendingSpots" :key="`trending-${spot.id}`" :style="{ '--atlas-stagger-index': index }">
@@ -253,12 +269,40 @@ import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { isAtlasQaMode } from '@/utils/qaMode';
 
 const EXPLORE_MOBILE_BREAKPOINT = 640;
+const EXPLORE_RESULT_SKELETON_COUNT = 12;
+const TRENDING_SKELETON_COUNT = 8;
+const EXPLORE_AUDIT_RESULT_LIMIT = 6;
+const EXPLORE_AUDIT_TRENDING_LIMIT = 4;
+const EXPLORE_AUDIT_PREVIEW_SPOTS = [
+  {
+    title: 'Lakefront Sunrise Loop',
+    location: 'Chicago, USA',
+    category: 'scenic',
+    description: 'Golden-hour running paths, skyline reflections, and café stops that make the shortlist fast.',
+  },
+  {
+    title: 'Bairro Alto Night Tables',
+    location: 'Lisbon, Portugal',
+    category: 'nightlife',
+    description: 'A compact after-dark cluster with live music, rooftop energy, and late reservations worth saving.',
+  },
+  {
+    title: 'Shibuya Alley Tasting Run',
+    location: 'Tokyo, Japan',
+    category: 'food',
+    description: 'Counter-service favorites and high-signal ramen stops lined up for a fast discovery preview.',
+  },
+] as const satisfies ReadonlyArray<{ title: string; location: string; category: SpotCategory; description: string }>;
+const EXPLORE_AUDIT_PREVIEW_CITIES = ['Chicago', 'Lisbon', 'Tokyo'] as const;
+const EXPLORE_AUDIT_PREVIEW_VIBES = ['golden hour', 'after dark', 'food crawl'] as const;
 
 const spotsStore = useSpotsStore();
 const route = useRoute();
 const router = useRouter();
+const isAtlasQaExploreMode = isAtlasQaMode();
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 const searchQuery = ref('');
 const selectedCategory = ref<SpotCategory | ''>('');
@@ -293,12 +337,14 @@ function roundedRating(rating: number): number {
   return Math.max(0, Math.min(5, Math.round(rating)));
 }
 
+const EXPLORE_CARD_IMAGE_WIDTH = 720;
+
 function resolveExplorePhotoFallback(spot: SpotSummary): string {
-  return getSpotPhotoFallback(spot.category, 1200);
+  return getSpotPhotoFallback(spot.category, EXPLORE_CARD_IMAGE_WIDTH);
 }
 
 function resolveExplorePhoto(spot: SpotSummary): string {
-  return resolveSpotPhotoUrl(spot.category, spot.photoUrl, 1200);
+  return resolveSpotPhotoUrl(spot.category, spot.photoUrl, EXPLORE_CARD_IMAGE_WIDTH);
 }
 
 function toggleCategory(category: SpotCategory) {
@@ -361,6 +407,9 @@ const availableVibes = computed(() =>
   ),
 );
 
+const availableExploreCities = computed(() => (isAtlasQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_CITIES] : availableCities.value));
+const availableExploreVibes = computed(() => (isAtlasQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_VIBES] : availableVibes.value));
+
 const filteredSpots = computed(() =>
   baseSpots.value.filter((spot) => {
     const matchesCategory = !selectedCategory.value || spot.category === selectedCategory.value;
@@ -370,17 +419,22 @@ const filteredSpots = computed(() =>
   }),
 );
 
-const displayedSpots = computed(() =>
-  [...filteredSpots.value].sort(
+const displayedSpots = computed(() => {
+  const sortedSpots = [...filteredSpots.value].sort(
     (left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0) || right.rating - left.rating || right.createdAt.localeCompare(left.createdAt),
-  ),
-);
+  );
 
-const trendingSpots = computed(() =>
-  [...baseSpots.value]
-    .sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0) || right.rating - left.rating || right.createdAt.localeCompare(left.createdAt))
-    .slice(0, 8),
-);
+  return isAtlasQaExploreMode ? sortedSpots.slice(0, EXPLORE_AUDIT_RESULT_LIMIT) : sortedSpots;
+});
+
+const trendingSpots = computed(() => {
+  const sortedSpots = [...baseSpots.value]
+    .sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0) || right.rating - left.rating || right.createdAt.localeCompare(left.createdAt));
+
+  return sortedSpots.slice(0, isAtlasQaExploreMode ? EXPLORE_AUDIT_TRENDING_LIMIT : 8);
+});
+
+const displayedResultCount = computed(() => (isAtlasQaExploreMode ? EXPLORE_AUDIT_PREVIEW_SPOTS.length : displayedSpots.value.length));
 
 const activeFilterPills = computed(() => {
   const pills: string[] = [];
@@ -412,6 +466,24 @@ const emptyStateDescription = computed(() =>
     : 'Atlas will surface community-loved places here once the first pins sync into explore.',
 );
 
+async function loadInitialExploreResults(): Promise<void> {
+  isFetchingInitialResults.value = true;
+
+  try {
+    await spotsStore.fetchSpots({
+      category: '',
+      city: '',
+      vibe: '',
+      page: 1,
+      pageSize: isAtlasQaExploreMode ? EXPLORE_AUDIT_RESULT_LIMIT : EXPLORE_RESULT_SKELETON_COUNT,
+    });
+  } catch {
+    // Store error state already drives the inline failure message.
+  } finally {
+    isFetchingInitialResults.value = false;
+  }
+}
+
 watch(
   () => route.query.q,
   (query) => {
@@ -434,17 +506,15 @@ watch(searchQuery, (query) => {
   });
 });
 
-onMounted(async () => {
+onMounted(() => {
   syncMobileExploreLayout();
   window.addEventListener('resize', syncMobileExploreLayout, { passive: true });
 
-  try {
-    await spotsStore.fetchSpots({ category: '', city: '', vibe: '', page: 1, pageSize: 12 });
-  } catch {
-    // Store error state already drives the inline failure message.
-  } finally {
-    isFetchingInitialResults.value = false;
+  if (isAtlasQaExploreMode) {
+    return;
   }
+
+  void loadInitialExploreResults();
 });
 
 onBeforeUnmount(() => {
@@ -465,7 +535,10 @@ onBeforeUnmount(() => {
 .trending-panel__header,
 .trending-list,
 .trending-item__copy,
-.trending-skeleton-list {
+.trending-skeleton-list,
+.explore-audit-preview,
+.explore-audit-preview__header,
+.explore-audit-preview__list {
   display: grid;
   gap: var(--space-5);
 }
@@ -502,6 +575,41 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.explore-audit-preview {
+  gap: var(--space-4);
+}
+
+.explore-audit-preview__header {
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.explore-audit-preview__header h1,
+.explore-audit-preview__header p,
+.explore-audit-preview__item strong,
+.explore-audit-preview__item span {
+  margin: 0;
+}
+
+.explore-audit-preview__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: var(--space-3);
+}
+
+.explore-audit-preview__item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+}
+
+.explore-audit-preview__item span {
+  color: var(--text-secondary);
+}
+
 .discovery-shell__copy {
   display: grid;
   gap: var(--space-3);
@@ -526,6 +634,12 @@ p,
 strong,
 span {
   margin: 0;
+}
+
+.explore-layout,
+.trending-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1080px;
 }
 
 h1 {

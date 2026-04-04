@@ -1,11 +1,12 @@
 import api from '@/services/api';
-import { mockFeed, mockNotifications, mockSpots } from '@/services/mockData';
+import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, sortByCreatedAtDescending } from '@/services/serviceUtils';
 import type { ApiEnvelope, FeedItem, NotificationItem, SpotSummary } from '@/types';
 import { sanitizeFeedItem, sanitizeNotificationItem, sanitizeSpotSummary } from '@/utils/sanitizers';
 
 const FEED_BASE_PATH = '/api/content/feed';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
+const DEFAULT_FALLBACK_PAGE_SIZE = 20;
 
 function sanitizeFeedEnvelope(response: ApiEnvelope<FeedItem[]>): ApiEnvelope<FeedItem[]> {
   return {
@@ -28,7 +29,8 @@ function sanitizeSpotEnvelope(response: ApiEnvelope<SpotSummary[]>): ApiEnvelope
   };
 }
 
-function updateMockNotification(notificationId: string, isRead: boolean): NotificationItem | undefined {
+async function updateMockNotification(notificationId: string, isRead: boolean): Promise<NotificationItem | undefined> {
+  const { mockNotifications } = await loadMockData();
   const notificationIndex = mockNotifications.findIndex((notification) => notification.id === notificationId);
 
   if (notificationIndex === -1) {
@@ -44,12 +46,14 @@ function updateMockNotification(notificationId: string, isRead: boolean): Notifi
   return updatedNotification;
 }
 
-export async function getFeed(page = 1, pageSize = mockFeed.length || 1): Promise<ApiEnvelope<FeedItem[]>> {
+export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): Promise<ApiEnvelope<FeedItem[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<FeedItem[]>>(FEED_BASE_PATH, { params: { page, pageSize } });
     return sanitizeFeedEnvelope(data);
   } catch {
-    return sanitizeFeedEnvelope(paginateItems(sortByCreatedAtDescending(mockFeed), page, pageSize));
+    const { mockFeed } = await loadMockData();
+    const resolvedPageSize = pageSize || mockFeed.length || 1;
+    return sanitizeFeedEnvelope(paginateItems(sortByCreatedAtDescending(mockFeed), page, resolvedPageSize));
   }
 }
 
@@ -58,6 +62,7 @@ export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSumma
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, { params: { limit } });
     return sanitizeSpotEnvelope(data);
   } catch {
+    const { mockSpots } = await loadMockData();
     const trendingSpots = [...mockSpots]
       .sort((left, right) => (right.likesCount ?? 0) - (left.likesCount ?? 0))
       .slice(0, limit);
@@ -74,14 +79,16 @@ export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSumma
   }
 }
 
-export async function getNotifications(page = 1, pageSize = mockNotifications.length || 1): Promise<ApiEnvelope<NotificationItem[]>> {
+export async function getNotifications(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): Promise<ApiEnvelope<NotificationItem[]>> {
   try {
     const { data } = await api.get<ApiEnvelope<NotificationItem[]>>(NOTIFICATIONS_BASE_PATH, {
       params: { page, pageSize },
     });
     return sanitizeNotificationEnvelope(data);
   } catch {
-    return sanitizeNotificationEnvelope(paginateItems(sortByCreatedAtDescending(mockNotifications), page, pageSize));
+    const { mockNotifications } = await loadMockData();
+    const resolvedPageSize = pageSize || mockNotifications.length || 1;
+    return sanitizeNotificationEnvelope(paginateItems(sortByCreatedAtDescending(mockNotifications), page, resolvedPageSize));
   }
 }
 
@@ -102,6 +109,7 @@ export async function markAllNotificationsRead(): Promise<void> {
   try {
     await api.put(`${NOTIFICATIONS_BASE_PATH}/read-all`, undefined);
   } catch {
+    const { mockNotifications } = await loadMockData();
     mockNotifications.splice(
       0,
       mockNotifications.length,

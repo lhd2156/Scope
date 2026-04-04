@@ -90,8 +90,10 @@ const dateRangeLabel = computed(() => {
 const tripLengthDays = computed(() => getInclusiveDaySpan(props.trip.startDate, props.trip.endDate));
 
 const tripStatus = computed<TripStatus>(() => props.trip.status ?? 'planning');
-const tripImageFallback = computed(() => getTripCoverFallback(props.trip, 1200));
-const tripImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, 1200));
+const TRIP_CARD_IMAGE_WIDTH = 720;
+
+const tripImageFallback = computed(() => getTripCoverFallback(props.trip, TRIP_CARD_IMAGE_WIDTH));
+const tripImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, TRIP_CARD_IMAGE_WIDTH));
 const statusLabel = computed(() => tripStatus.value.charAt(0).toUpperCase() + tripStatus.value.slice(1));
 const descriptionCopy = computed(() => props.trip.description?.trim() || 'A premium route board is waiting for the first itinerary notes.');
 const memberLabel = computed(() => `${props.trip.members.length} member${props.trip.members.length === 1 ? '' : 's'}`);

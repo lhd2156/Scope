@@ -14,7 +14,6 @@ import {
   type ReorderTripSpotsInput,
   type TripMutationInput,
 } from '@/services/tripService';
-import { trackItineraryGenerate, trackTripCreate } from '@/services/analyticsService';
 import type { Itinerary, PaginationMeta, Trip, TripMember, TripPlannerInput, TripSpot } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
@@ -33,6 +32,42 @@ function upsertTrip(collection: Trip[], trip: Trip): Trip[] {
 
 interface BuildItineraryOptions {
   source?: 'auto' | 'user';
+}
+
+function recordTripCreateAnalytics(payload: {
+  tripId: string;
+  destination: string;
+  stopCount: number;
+  memberCount: number;
+  isPublic: boolean;
+  budget?: number;
+  routeName: string;
+}): void {
+  void import('@/services/analyticsService')
+    .then(({ trackTripCreate }) => {
+      trackTripCreate(payload);
+    })
+    .catch(() => undefined);
+}
+
+function recordItineraryGenerateAnalytics(payload: {
+  itineraryId: string;
+  destination: string;
+  dayCount: number;
+  stopCount: number;
+  totalEstimatedCost: number;
+  budget?: number;
+  groupSize: number;
+  interestCount: number;
+  pace: TripPlannerInput['pace'];
+  routeName: string;
+  source: 'user';
+}): void {
+  void import('@/services/analyticsService')
+    .then(({ trackItineraryGenerate }) => {
+      trackItineraryGenerate(payload);
+    })
+    .catch(() => undefined);
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -116,7 +151,7 @@ export const useTripsStore = defineStore('trips', () => {
     try {
       const response = await createTripRequest(input);
       syncSelectedTrip(response.data);
-      trackTripCreate({
+      recordTripCreateAnalytics({
         tripId: response.data.id,
         destination: response.data.destination,
         stopCount: response.data.spots.length,
@@ -229,7 +264,7 @@ export const useTripsStore = defineStore('trips', () => {
       if ((options.source ?? 'user') === 'user') {
         const stopCount = response.data.days.reduce((totalStops, day) => totalStops + day.spots.length, 0);
 
-        trackItineraryGenerate({
+        recordItineraryGenerateAnalytics({
           itineraryId: response.data.id,
           destination: response.data.destination,
           dayCount: response.data.days.length,

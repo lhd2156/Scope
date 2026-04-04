@@ -3,18 +3,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { authStoreMock } = vi.hoisted(() => ({
-  authStoreMock: {
-    isAuthenticated: true,
-  },
-}));
-
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => authStoreMock,
-}));
-
 import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
 import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
+import { clearStoredAuthSessionHint, persistAuthSessionHint } from '@/utils/authSessionStorage';
 
 const spotlightRects: Record<string, { top: number; left: number; width: number; height: number }> = {
   'home-hero': { top: 120, left: 120, width: 520, height: 280 },
@@ -116,8 +107,9 @@ describe('OnboardingOverlay', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    authStoreMock.isAuthenticated = true;
     localStorage.clear();
+    clearStoredAuthSessionHint();
+    persistAuthSessionHint();
 
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect() {
       const targetKey = (this as HTMLElement).dataset.onboardingTarget;

@@ -1,6 +1,6 @@
 <template>
   <RouterView v-slot="{ Component, route: activeRoute }">
-    <Transition :name="routeTransitionName" mode="out-in" appear>
+    <Transition :name="routeTransitionName" mode="out-in">
       <div
         :key="resolveRouteStageKey(activeRoute)"
         class="route-stage"
@@ -14,60 +14,55 @@
     </Transition>
   </RouterView>
 
-  <OnboardingOverlay />
-  <CookieConsentBanner />
-  <ToastViewport />
+  <AuthSessionRuntime v-if="shouldBootAuthenticatedSession" />
+  <OnboardingOverlay v-if="shouldRenderOnboarding" />
+  <CookieConsentBanner v-if="shouldRenderCookieConsent" />
+  <ToastViewport v-if="toastStore.hasToasts" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue';
-import { RouterView, useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { RouterView, useRoute, type RouteLocationNormalizedLoaded } from 'vue-router';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary.vue';
-import CookieConsentBanner from '@/components/common/CookieConsentBanner.vue';
-import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
-import ToastViewport from '@/components/common/ToastViewport.vue';
-import { useAuthStore } from '@/stores/auth';
-import { useNotificationsStore } from '@/stores/notifications';
+import { useOnboardingStore } from '@/stores/onboarding';
 import { useToastStore } from '@/stores/toasts';
+import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
 import { useReducedMotion } from '@/utils/motion';
+import { isAtlasQaMode, syncAtlasQaDocumentState } from '@/utils/qaMode';
 
-const authStore = useAuthStore();
-const notificationsStore = useNotificationsStore();
-const toastStore = useToastStore();
-const reducedMotion = useReducedMotion();
-const route = useRoute();
-const router = useRouter();
+const ANALYTICS_CONSENT_STORAGE_KEY = 'atlas-analytics-consent';
 
-const routeTransitionName = computed(() => (reducedMotion.value ? 'route-fade-reduced' : 'route-fade'));
-let activeSessionExpiredToastId: string | null = null;
-let activeSessionExpiredMessage: string | null = null;
-
-void authStore.hydrateSession();
-
-async function syncRealtimeNotifications(isAuthenticated: boolean) {
-  if (!isAuthenticated) {
-    await notificationsStore.disconnect();
-    return;
+function hasAnalyticsConsentChoice(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
   }
 
   try {
-    await notificationsStore.fetchNotifications();
-    await notificationsStore.connect();
+    const storedValue = window.localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY);
+    return storedValue === 'granted' || storedValue === 'denied';
   } catch {
-    // Notification store state already captures the user-facing error surface.
+    return false;
   }
 }
 
-function dismissSessionExpiredToast(invokeOnClose = false): void {
-  if (!activeSessionExpiredToastId) {
-    activeSessionExpiredMessage = null;
-    return;
-  }
+const AuthSessionRuntime = defineAsyncComponent(() => import('@/components/common/AuthSessionRuntime.vue'));
+const CookieConsentBanner = defineAsyncComponent(() => import('@/components/common/CookieConsentBanner.vue'));
+const OnboardingOverlay = defineAsyncComponent(() => import('@/components/common/OnboardingOverlay.vue'));
+const ToastViewport = defineAsyncComponent(() => import('@/components/common/ToastViewport.vue'));
 
-  const toastId = activeSessionExpiredToastId;
-  activeSessionExpiredToastId = null;
-  activeSessionExpiredMessage = null;
-  toastStore.dismissToast(toastId, { invokeOnClose });
+const onboardingStore = useOnboardingStore();
+const toastStore = useToastStore();
+const reducedMotion = useReducedMotion();
+const route = useRoute();
+const hasSessionHint = ref(hasStoredAuthSessionHint());
+
+const routeTransitionName = computed(() => (reducedMotion.value ? 'route-fade-reduced' : 'route-fade'));
+const shouldBootAuthenticatedSession = computed(() => Boolean(route.meta.requiresAuth) || hasSessionHint.value);
+const shouldRenderOnboarding = computed(() => !isAtlasQaMode(route.fullPath) && onboardingStore.isActive);
+const shouldRenderCookieConsent = computed(() => !isAtlasQaMode(route.fullPath) && !hasAnalyticsConsentChoice());
+
+function syncSessionHint(): void {
+  hasSessionHint.value = hasStoredAuthSessionHint();
 }
 
 function resolveRouteStageKey(activeRoute: RouteLocationNormalizedLoaded): string {
@@ -83,60 +78,29 @@ function resolveRouteStageName(activeRoute: RouteLocationNormalizedLoaded): stri
 }
 
 watch(
-  () => authStore.isAuthenticated,
-  (isAuthenticated) => {
-    void syncRealtimeNotifications(isAuthenticated);
+  () => route.fullPath,
+  (nextRoute) => {
+    syncAtlasQaDocumentState(nextRoute);
   },
   { immediate: true },
 );
 
-watch(
-  () => authStore.sessionExpiredMessage,
-  (message) => {
-    if (!message) {
-      dismissSessionExpiredToast(false);
-      return;
-    }
+onMounted(() => {
+  if (typeof window === 'undefined') {
+    return;
+  }
 
-    if (message === activeSessionExpiredMessage) {
-      return;
-    }
-
-    dismissSessionExpiredToast(false);
-    activeSessionExpiredMessage = message;
-    activeSessionExpiredToastId = toastStore.showError({
-      title: 'Session expired',
-      message,
-      autoHideMs: 0,
-      onClose: () => {
-        activeSessionExpiredToastId = null;
-        activeSessionExpiredMessage = null;
-        authStore.clearSessionExpiredMessage();
-      },
-    });
-  },
-  { immediate: true },
-);
-
-watch(
-  () => authStore.sessionExpiredMessage,
-  (message) => {
-    if (!message || !route.meta.requiresAuth) {
-      return;
-    }
-
-    void router.replace({
-      name: 'login',
-      query: {
-        redirect: route.fullPath,
-        reason: 'expired',
-      },
-    });
-  },
-);
+  syncSessionHint();
+  window.addEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
+  window.addEventListener('storage', syncSessionHint);
+});
 
 onBeforeUnmount(() => {
-  dismissSessionExpiredToast(false);
-  void notificationsStore.disconnect();
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.removeEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
+  window.removeEventListener('storage', syncSessionHint);
 });
 </script>

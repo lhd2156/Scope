@@ -34,6 +34,7 @@
         <template v-if="itinerary">
           <div class="map-shell">
             <MapView
+              v-if="shouldRenderMap"
               :spots="mapSpots"
               :route-points="mapSpots"
               :show-location-tracker="false"
@@ -42,6 +43,7 @@
               marker-variant="sequence"
               route-variant="planner"
             />
+            <div v-else class="map-shell__placeholder" aria-hidden="true" />
             <div class="map-vignette" />
           </div>
 
@@ -143,14 +145,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
-import MapView from '@/components/map/MapView.vue';
 import { formatWeekdayMonthDay } from '@/utils/formatters';
 import type { Itinerary, ItineraryDay, MapPoint, TripMember } from '@/types';
 import { getSpotPhotoFallback, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
+import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 
 type PlannerWizardStep = 1 | 2 | 3 | 4;
 
@@ -175,6 +177,10 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'wizard-step-change', payload: PlannerWizardStep): void;
 }>();
+
+const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
+const shouldRenderMap = ref(false);
+let cancelMapRender: CancelScheduledTask = () => undefined;
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -237,8 +243,10 @@ function getDayCost(day: ItineraryDay): number {
   return day.spots.reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
 }
 
+const ITINERARY_DAY_IMAGE_WIDTH = 800;
+
 function resolveDayImageFallback(day: ItineraryDay): string {
-  return getSpotPhotoFallback(day.spots[0]?.category ?? 'scenic', 1200);
+  return getSpotPhotoFallback(day.spots[0]?.category ?? 'scenic', ITINERARY_DAY_IMAGE_WIDTH);
 }
 
 function resolveDayImage(day: ItineraryDay): string {
@@ -248,7 +256,7 @@ function resolveDayImage(day: ItineraryDay): string {
     return resolveDayImageFallback(day);
   }
 
-  return resolveTripStopPhotoUrl(leadSpot, 1200);
+  return resolveTripStopPhotoUrl(leadSpot, ITINERARY_DAY_IMAGE_WIDTH);
 }
 
 const displayedTitle = computed(() => props.tripTitle.trim() || props.itinerary?.destination || 'AI itinerary');
@@ -277,10 +285,31 @@ const mapSpots = computed<MapPoint[]>(() =>
       longitude: spot.longitude,
       category: spot.category,
       city: spot.city,
-      photoUrl: resolveTripStopPhotoUrl(spot, 1200),
+      photoUrl: resolveTripStopPhotoUrl(spot, ITINERARY_DAY_IMAGE_WIDTH),
     })),
   ) ?? [],
 );
+
+watch(
+  () => props.itinerary?.id,
+  (itineraryId) => {
+    cancelMapRender();
+    shouldRenderMap.value = false;
+
+    if (!itineraryId) {
+      return;
+    }
+
+    cancelMapRender = scheduleNonCriticalTask(() => {
+      shouldRenderMap.value = true;
+    }, { delayMs: 900, timeoutMs: 2_200 });
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  cancelMapRender();
+});
 </script>
 
 <style scoped>
@@ -329,13 +358,21 @@ const mapSpots = computed<MapPoint[]>(() =>
 }
 
 .map-shell,
-.map-shell :deep(.map-view) {
+.map-shell :deep(.map-view),
+.map-shell__placeholder {
   min-height: 48rem;
   height: 100%;
 }
 
-.map-shell :deep(.map-view) {
+.map-shell :deep(.map-view),
+.map-shell__placeholder {
   border-radius: var(--radius-2xl);
+}
+
+.map-shell__placeholder {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 20%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent));
 }
 
 .map-shell :deep(.spot-marker__label) {
@@ -707,7 +744,8 @@ const mapSpots = computed<MapPoint[]>(() =>
 @media (max-width: 720px) {
   .itinerary-stage,
   .map-shell,
-  .map-shell :deep(.map-view) {
+  .map-shell :deep(.map-view),
+  .map-shell__placeholder {
     min-height: 36rem;
   }
 
@@ -731,7 +769,8 @@ const mapSpots = computed<MapPoint[]>(() =>
   }
 
   .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell,
-  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell :deep(.map-view) {
+  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell :deep(.map-view),
+  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell__placeholder {
     min-height: 20rem;
   }
 

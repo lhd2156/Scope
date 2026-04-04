@@ -5,6 +5,7 @@ import { onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter, type RouteLocationNormalizedLoaded } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
+import { isAtlasQaMode } from '@/utils/qaMode';
 import { scheduleNonCriticalTask } from '@/utils/scheduleNonCriticalTask';
 
 interface NotificationRuntimeStore {
@@ -36,6 +37,16 @@ async function loadNotificationsStore(): Promise<NotificationRuntimeStore> {
 async function syncRealtimeNotifications(isAuthenticated: boolean): Promise<void> {
   cancelNotificationBoot?.();
   cancelNotificationBoot = null;
+
+  if (isAtlasQaMode()) {
+    if (!notificationsStorePromise) {
+      return;
+    }
+
+    const notificationsStore = await notificationsStorePromise;
+    await notificationsStore.disconnect();
+    return;
+  }
 
   if (!isAuthenticated) {
     if (!notificationsStorePromise) {

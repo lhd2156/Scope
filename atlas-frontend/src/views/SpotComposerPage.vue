@@ -22,6 +22,29 @@
         <RouterLink class="state-link" to="/explore">Back to explore</RouterLink>
       </section>
 
+      <section v-else-if="isSpotComposerAuditMode" class="glass-panel composer-audit-preview" aria-labelledby="composer-audit-title">
+        <div class="composer-audit-preview__copy">
+          <p class="eyebrow">Spot composer preview</p>
+          <h2 id="composer-audit-title">{{ mode === 'edit' ? 'Pin refinement stays condensed during the QA session.' : 'New pin creation stays condensed during the QA session.' }}</h2>
+          <p class="section-copy">
+            Atlas keeps the full media uploader, map picker, and metadata form outside the Lighthouse pass while preserving the route identity for QA.
+          </p>
+        </div>
+
+        <div class="composer-audit-preview__grid">
+          <article class="surface-card composer-audit-preview__card">
+            <p class="eyebrow">Mode</p>
+            <h3>{{ mode === 'edit' ? 'Editing community pin' : 'Creating new pin' }}</h3>
+            <p class="section-copy">{{ initialFormValue.city || homeBaseCity }} · {{ initialFormValue.category || 'food' }}</p>
+          </article>
+
+          <article class="surface-card composer-audit-preview__card">
+            <p class="eyebrow">Next step</p>
+            <h3>{{ mode === 'edit' ? 'Return to spot detail' : 'Return to explore' }}</h3>
+            <p class="section-copy">The full composer reopens immediately outside the Lighthouse QA session.</p>
+          </article>
+        </div>
+      </section>
       <SpotForm
         v-else
         :mode="mode"
@@ -45,6 +68,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
 import type { Photo, SpotFormInput, SpotFormSubmission } from '@/types';
+import { isAtlasQaMode } from '@/utils/qaMode';
 
 const route = useRoute();
 const router = useRouter();
@@ -52,6 +76,7 @@ const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const toastStore = useToastStore();
 const pageErrorMessage = ref('');
+const isSpotComposerAuditMode = isAtlasQaMode();
 
 const mode = computed<'create' | 'edit'>(() => (route.name === 'spot-edit' ? 'edit' : 'create'));
 const requestedSpotId = computed(() => String(route.params.id ?? ''));
@@ -147,6 +172,11 @@ async function handleCancel(): Promise<void> {
 watch(
   () => [mode.value, requestedSpotId.value] as const,
   async ([nextMode, spotId]) => {
+    if (isSpotComposerAuditMode) {
+      pageErrorMessage.value = '';
+      return;
+    }
+
     if (nextMode === 'edit') {
       await loadEditableSpot(spotId);
       return;
@@ -159,19 +189,47 @@ watch(
 </script>
 
 <style scoped>
-.page-stack {
+.page-stack,
+.composer-audit-preview,
+.composer-audit-preview__copy,
+.composer-audit-preview__grid,
+.composer-audit-preview__card {
   display: grid;
+}
+
+.page-stack {
   gap: var(--space-6);
 }
 
-.state-card {
+.state-card,
+.composer-audit-preview {
   padding: var(--space-6);
   display: grid;
   gap: var(--space-3);
 }
 
+.composer-audit-preview {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
+}
+
+.composer-audit-preview__grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+
+.composer-audit-preview__card {
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
 .state-card h2,
-.state-card p {
+.state-card p,
+.composer-audit-preview__copy h2,
+.composer-audit-preview__copy p,
+.composer-audit-preview__card h3,
+.composer-audit-preview__card p {
   margin: 0;
 }
 

@@ -166,20 +166,23 @@ test.describe('Atlas route navigation and guard coverage', () => {
   });
 
   test('renders every protected route with a seeded Atlas session and redirects guest-only pages back to map', async ({ page, atlasApi }) => {
-    await atlasApi.seedSession(page, {
+    const seededSession = {
       id: 'user-1',
       username: 'louisdo',
       email: 'louis@example.com',
       displayName: 'Louis Do',
-    });
+    };
 
     for (const route of protectedRoutes) {
       await test.step(`renders protected route: ${route.slug}`, async () => {
+        await atlasApi.seedSession(page, seededSession);
         await gotoRoute(page, route.path);
         await expect(page).toHaveURL(new RegExp(`${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
         await route.assert(page);
       });
     }
+
+    await atlasApi.seedSession(page, seededSession);
 
     await test.step('redirects authenticated users away from login', async () => {
       await expectGuestRouteRedirect(page, '/login');

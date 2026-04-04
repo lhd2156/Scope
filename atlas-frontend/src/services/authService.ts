@@ -6,9 +6,8 @@ import {
   DEMO_LOGIN_PASSWORD,
   DEMO_MODE_ENABLED,
 } from '@/services/demoMode';
-import { mockUsers } from '@/services/mockData';
 import { unwrapApiData } from '@/services/serviceUtils';
-import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm } from '@/types';
+import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
 import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/utils/sanitizers';
 
 const AUTH_BASE_PATH = '/api/core/auth';
@@ -25,13 +24,19 @@ export interface RefreshSessionOptions {
   allowMockFallback?: boolean;
 }
 
-function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPayload {
-  const matchingUser = mockUsers.find(
-    (user) =>
-      user.id === overrides.id ||
-      user.email === overrides.email ||
-      user.username === overrides.username,
-  );
+async function findMatchingMockUser(
+  criteria: Partial<Pick<UserProfile, 'id' | 'email' | 'username'>>,
+): Promise<UserProfile | undefined> {
+  const { findAuthMockUser } = await import('@/services/mockAuthUsers');
+  return findAuthMockUser(criteria);
+}
+
+async function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): Promise<AuthPayload> {
+  const matchingUser = await findMatchingMockUser({
+    id: overrides.id,
+    email: overrides.email,
+    username: overrides.username,
+  });
 
   return sanitizeAuthPayload({
     id: overrides.id ?? matchingUser?.id ?? FALLBACK_USER.id,
@@ -43,8 +48,8 @@ function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPay
   });
 }
 
-function buildDemoAuthPayload(overrides: Partial<AuthPayload> = {}): AuthPayload {
-  const demoUser = mockUsers.find((user) => user.email === DEMO_LOGIN_EMAIL) ?? mockUsers[0];
+async function buildDemoAuthPayload(overrides: Partial<AuthPayload> = {}): Promise<AuthPayload> {
+  const demoUser = await findMatchingMockUser({ email: DEMO_LOGIN_EMAIL });
 
   return buildFallbackAuthPayload({
     id: demoUser?.id,

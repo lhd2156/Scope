@@ -1,5 +1,6 @@
 const AUTH_SESSION_HINT_VERSION = 1;
 export const AUTH_SESSION_HINT_STORAGE_KEY = 'atlas-auth-session-hint';
+export const AUTH_SESSION_HINT_CHANGE_EVENT = 'atlas-auth-session-hint-change';
 
 const LEGACY_AUTH_TOKEN_STORAGE_KEYS = [
   'atlas-auth-access-token',
@@ -50,8 +51,17 @@ function removeStorageItem(storage: Storage | null, key: string): void {
   }
 }
 
+function dispatchAuthSessionHintChange(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_SESSION_HINT_CHANGE_EVENT));
+}
+
 export function clearStoredAuthSessionHint(): void {
   removeStorageItem(getBrowserStorage('local'), AUTH_SESSION_HINT_STORAGE_KEY);
+  dispatchAuthSessionHintChange();
 }
 
 export function hasStoredAuthSessionHint(): boolean {
@@ -98,6 +108,8 @@ export function persistAuthSessionHint(): void {
   } catch {
     // Ignore storage write failures and keep the session in-memory only.
   }
+
+  dispatchAuthSessionHintChange();
 }
 
 export function purgeLegacyAuthStorage(): void {

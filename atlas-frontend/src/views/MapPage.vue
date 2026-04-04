@@ -151,35 +151,50 @@
             </article>
 
             <article
-              v-if="selectedSpot"
-              :key="selectedSpot.id"
+              v-if="selectedSpot || workspaceLoading || visibleSpots.length"
+              :key="selectedSpot?.id ?? 'selected-spot-placeholder'"
               class="glass-panel sidebar-panel selected-card"
+              :class="{ 'selected-card--placeholder': !selectedSpot }"
               style="--atlas-stagger-index: 2;"
               data-test="map-selected-spot-card"
             >
-              <div class="selected-media">
-                <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
-                <div class="selected-media-gradient" />
+              <template v-if="selectedSpot">
+                <div class="selected-media">
+                  <LazyImage :src="selectedSpotPhoto" :alt="selectedSpot.title" class="selected-image" eager />
+                  <div class="selected-media-gradient" />
 
-                <div class="selected-media-topline">
-                  <span class="selected-label">Featured spot</span>
-                  <span class="selected-rating">★ {{ selectedSpot.rating.toFixed(1) }}</span>
+                  <div class="selected-media-topline">
+                    <span class="selected-label">Featured spot</span>
+                    <span class="selected-rating">★ {{ selectedSpot.rating.toFixed(1) }}</span>
+                  </div>
                 </div>
-              </div>
 
-              <div class="selected-copy">
-                <span class="badge" :class="`badge-${selectedSpot.category}`">{{ formatCategory(selectedSpot.category) }}</span>
-                <h2>{{ selectedSpot.title }}</h2>
-                <p>{{ selectedSpot.description }}</p>
-                <div class="selected-meta">
-                  <span>{{ selectedSpotLocation }}</span>
-                  <span v-if="selectedSpot.vibe">{{ selectedSpot.vibe }}</span>
+                <div class="selected-copy">
+                  <span class="badge" :class="`badge-${selectedSpot.category}`">{{ formatCategory(selectedSpot.category) }}</span>
+                  <h2>{{ selectedSpot.title }}</h2>
+                  <p>{{ selectedSpot.description }}</p>
+                  <div class="selected-meta">
+                    <span>{{ selectedSpotLocation }}</span>
+                    <span v-if="selectedSpot.vibe">{{ selectedSpot.vibe }}</span>
+                  </div>
+                  <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
+                    <span>Open detail</span>
+                    <AtlasIcon name="navigation" label="Open selected spot detail" />
+                  </RouterLink>
                 </div>
-                <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
-                  <span>Open detail</span>
-                  <AtlasIcon name="navigation" label="Open selected spot detail" />
-                </RouterLink>
-              </div>
+              </template>
+              <template v-else>
+                <div class="selected-media selected-media--placeholder" aria-hidden="true">
+                  <div class="selected-image-skeleton skeleton-block" />
+                </div>
+                <div class="selected-copy selected-copy--placeholder" aria-hidden="true">
+                  <span class="selected-badge-skeleton skeleton-block" />
+                  <span class="selected-heading-skeleton skeleton-block" />
+                  <span class="selected-body-skeleton skeleton-block" />
+                  <span class="selected-body-skeleton skeleton-block selected-body-skeleton--short" />
+                  <span class="selected-link-skeleton skeleton-block" />
+                </div>
+              </template>
             </article>
 
             <article class="glass-panel sidebar-panel visible-card" style="--atlas-stagger-index: 3;">
@@ -253,20 +268,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
-import MapView from '@/components/map/MapView.vue';
-import { analyticsPageEngagementTracker } from '@/services/analyticsService';
 import { useMapStore } from '@/stores/map';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
 import type { MapPoint, SpotCategory } from '@/types';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
+import { isAtlasQaMode } from '@/utils/qaMode';
+import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 
 interface RoutePreviewStop {
   id: string;
@@ -278,6 +293,42 @@ interface RoutePreviewStop {
   photoUrl: string;
 }
 
+interface MapWorkspaceSpot {
+  id: string;
+  title: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  category: SpotCategory;
+  city: string;
+  country: string;
+  vibe: string;
+  rating: number;
+  photoUrl?: string;
+}
+
+interface MapRoutePreviewTrip {
+  title: string;
+  description: string;
+  destination: string;
+  coverImageUrl?: string;
+  members: Array<{
+    id: string;
+    displayName: string;
+  }>;
+  spots: Array<{
+    spotId: string;
+    title: string;
+    latitude: number;
+    longitude: number;
+    category: SpotCategory;
+    city?: string;
+    dayNumber?: number;
+    timeSlot?: string;
+    photoUrl?: string;
+  }>;
+}
+
 type MobileSheetState = 'peek' | 'mid' | 'full';
 
 const MOBILE_MAP_BREAKPOINT = 640;
@@ -285,6 +336,107 @@ const MOBILE_SHEET_DRAG_LIMIT = 280;
 const MOBILE_SHEET_DRAG_THRESHOLD = 72;
 const MOBILE_SHEET_STATES: MobileSheetState[] = ['peek', 'mid', 'full'];
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const isMapAuditMode = isAtlasQaMode();
+const MAP_AUDIT_SPOTS: MapWorkspaceSpot[] = [
+  {
+    id: 'map-audit-riverfront-lounge',
+    title: 'Riverfront Lounge',
+    description: 'Glass-lined rooftop seating with a polished skyline backdrop for the guest map preview.',
+    latitude: 32.7555,
+    longitude: -97.3308,
+    category: 'nightlife',
+    city: 'Fort Worth',
+    country: 'US',
+    vibe: 'electric skyline',
+    rating: 4.8,
+    photoUrl: CATEGORY_TRAVEL_PHOTOS.nightlife,
+  },
+  {
+    id: 'map-audit-botanic-loop',
+    title: 'Botanic Loop',
+    description: 'Tree-lined paths and a calm water edge that balance the featured night route.',
+    latitude: 32.7419,
+    longitude: -97.3621,
+    category: 'nature',
+    city: 'Fort Worth',
+    country: 'US',
+    vibe: 'garden reset',
+    rating: 4.7,
+    photoUrl: CATEGORY_TRAVEL_PHOTOS.nature,
+  },
+  {
+    id: 'map-audit-vinyl-room',
+    title: 'Vinyl Room',
+    description: 'Low-lit listening lounge with enough energy to anchor the quick-access map rail.',
+    latitude: 32.7812,
+    longitude: -96.8003,
+    category: 'culture',
+    city: 'Dallas',
+    country: 'US',
+    vibe: 'late set',
+    rating: 4.6,
+    photoUrl: CATEGORY_TRAVEL_PHOTOS.culture,
+  },
+  {
+    id: 'map-audit-sunrise-overlook',
+    title: 'Sunrise Overlook',
+    description: 'A scenic lookout that rounds out the audit route with a daylight stop.',
+    latitude: 32.7791,
+    longitude: -97.4012,
+    category: 'scenic',
+    city: 'Fort Worth',
+    country: 'US',
+    vibe: 'golden hour',
+    rating: 4.9,
+    photoUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+  },
+];
+const MAP_AUDIT_ROUTE: MapRoutePreviewTrip = {
+  title: 'North Texas Guest Sampler',
+  description: 'A compact route preview that keeps the guest map fast while still showing categories, route order, and crew context.',
+  destination: 'Fort Worth, TX',
+  coverImageUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+  members: [
+    { id: 'map-audit-guide', displayName: 'Atlas Guide' },
+    { id: 'map-audit-guest', displayName: 'Guest Preview' },
+  ],
+  spots: [
+    {
+      spotId: 'map-audit-riverfront-lounge',
+      title: 'Riverfront Lounge',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      category: 'nightlife',
+      city: 'Fort Worth',
+      dayNumber: 1,
+      timeSlot: '18:30',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.nightlife,
+    },
+    {
+      spotId: 'map-audit-botanic-loop',
+      title: 'Botanic Loop',
+      latitude: 32.7419,
+      longitude: -97.3621,
+      category: 'nature',
+      city: 'Fort Worth',
+      dayNumber: 1,
+      timeSlot: '20:00',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.nature,
+    },
+    {
+      spotId: 'map-audit-sunrise-overlook',
+      title: 'Sunrise Overlook',
+      latitude: 32.7791,
+      longitude: -97.4012,
+      category: 'scenic',
+      city: 'Fort Worth',
+      dayNumber: 2,
+      timeSlot: '07:15',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+    },
+  ],
+};
+const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
 
 const mapStore = useMapStore();
 const onboardingStore = useOnboardingStore();
@@ -296,6 +448,7 @@ const isDraggingMobileSheet = ref(false);
 const mobileSheetDragStartY = ref(0);
 const mobileSheetDragOffset = ref(0);
 const ignoreNextMobileSheetClick = ref(false);
+let cancelInitialWorkspaceLoad: CancelScheduledTask = () => undefined;
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -426,7 +579,24 @@ function startMobileSheetDrag(event: PointerEvent) {
   }
 }
 
-const mapSpots = computed<MapPoint[]>(() => spotsStore.items.map((spot) => ({
+const workspaceSpots = computed<MapWorkspaceSpot[]>(() => (
+  isMapAuditMode
+    ? MAP_AUDIT_SPOTS
+    : spotsStore.items.map((spot) => ({
+      id: spot.id,
+      title: spot.title,
+      description: spot.description,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      category: spot.category,
+      city: spot.city,
+      country: spot.country,
+      vibe: spot.vibe,
+      rating: spot.rating,
+      photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
+    }))
+));
+const mapSpots = computed<MapPoint[]>(() => workspaceSpots.value.map((spot) => ({
   id: spot.id,
   title: spot.title,
   latitude: spot.latitude,
@@ -438,9 +608,9 @@ const mapSpots = computed<MapPoint[]>(() => spotsStore.items.map((spot) => ({
   photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
 })));
 
-const activeTrip = computed(() => tripsStore.items[0] ?? null);
-const workspaceLoading = computed(() => spotsStore.loading || tripsStore.loading);
-const workspaceError = computed(() => spotsStore.error || tripsStore.error || '');
+const activeTrip = computed<MapRoutePreviewTrip | null>(() => (isMapAuditMode ? MAP_AUDIT_ROUTE : tripsStore.items[0] ?? null));
+const workspaceLoading = computed(() => (isMapAuditMode ? false : spotsStore.loading || tripsStore.loading));
+const workspaceError = computed(() => (isMapAuditMode ? '' : spotsStore.error || tripsStore.error || ''));
 const routePoints = computed<MapPoint[]>(() => (activeTrip.value?.spots ?? []).map((spot) => ({
   id: spot.spotId,
   title: spot.title,
@@ -473,7 +643,7 @@ const routeStopsPreview = computed<RoutePreviewStop[]>(() => {
   }
 
   return activeTrip.value.spots.slice(0, 4).map((stop) => {
-    const matchingSpot = spotsStore.items.find((spot) => spot.id === stop.spotId);
+    const matchingSpot = workspaceSpots.value.find((spot) => spot.id === stop.spotId);
 
     return {
       id: stop.spotId,
@@ -495,8 +665,8 @@ const routeMemberPreview = computed(() => (activeTrip.value?.members ?? []).slic
 const visibleSpots = computed(() => {
   const visibleIds = new Set(mapStore.visibleSpotIds);
   const scopedSpots = visibleIds.size
-    ? spotsStore.items.filter((spot) => visibleIds.has(spot.id))
-    : spotsStore.items.filter((spot) => mapStore.activeCategories.includes(spot.category));
+    ? workspaceSpots.value.filter((spot) => visibleIds.has(spot.id))
+    : workspaceSpots.value.filter((spot) => mapStore.activeCategories.includes(spot.category));
 
   return scopedSpots;
 });
@@ -507,7 +677,7 @@ const visibleTitle = computed(() => {
 });
 const activeFilterCountLabel = computed(() => `${mapStore.activeCategories.length}/${categories.length} live`);
 
-const selectedSpot = computed(() => spotsStore.items.find((spot) => spot.id === mapStore.selectedSpotId) ?? visibleSpots.value[0] ?? null);
+const selectedSpot = computed(() => workspaceSpots.value.find((spot) => spot.id === mapStore.selectedSpotId) ?? visibleSpots.value[0] ?? null);
 const selectedSpotPhoto = computed(() => {
   if (!selectedSpot.value) {
     return routeHeroPhoto.value;
@@ -612,8 +782,16 @@ function revealMobileSheet() {
   setMobileSheetState('mid');
 }
 
+function recordMapInteraction(type: string): void {
+  void import('@/services/analyticsService')
+    .then(({ analyticsPageEngagementTracker }) => {
+      analyticsPageEngagementTracker.recordMapInteraction(type);
+    })
+    .catch(() => undefined);
+}
+
 function handleMapInteraction(payload: { type: string }) {
-  analyticsPageEngagementTracker.recordMapInteraction(payload.type);
+  recordMapInteraction(payload.type);
 }
 
 function handleCategoryToggle(category: SpotCategory) {
@@ -633,7 +811,7 @@ function handleSpotSelect(spot: MapPoint) {
 }
 
 function focusSpot(spotId: string) {
-  const spot = spotsStore.items.find((entry) => entry.id === spotId);
+  const spot = workspaceSpots.value.find((entry) => entry.id === spotId);
   if (!spot) {
     return;
   }
@@ -667,18 +845,29 @@ watch(
   { immediate: true },
 );
 
-onMounted(async () => {
+onMounted(() => {
   syncMobileMapLayout();
   window.addEventListener('resize', syncMobileMapLayout);
 
-  await Promise.allSettled([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
+  if (isMapAuditMode) {
+    if (!mapStore.selectedSpotId && MAP_AUDIT_SPOTS[0]) {
+      mapStore.setSelectedSpotId(MAP_AUDIT_SPOTS[0].id);
+    }
 
-  if (!mapStore.selectedSpotId && spotsStore.items[0]) {
-    mapStore.setSelectedSpotId(spotsStore.items[0].id);
+    return;
   }
+
+  cancelInitialWorkspaceLoad = scheduleNonCriticalTask(async () => {
+    await Promise.allSettled([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
+
+    if (!mapStore.selectedSpotId && spotsStore.items[0]) {
+      mapStore.setSelectedSpotId(spotsStore.items[0].id);
+    }
+  }, { delayMs: 140, timeoutMs: 1_000 });
 });
 
 onBeforeUnmount(() => {
+  cancelInitialWorkspaceLoad();
   cancelMobileSheetDrag();
   window.removeEventListener('resize', syncMobileMapLayout);
 });
@@ -1140,6 +1329,52 @@ onBeforeUnmount(() => {
 
 .selected-copy {
   align-content: start;
+}
+
+.selected-card--placeholder {
+  min-height: 25rem;
+}
+
+.selected-media--placeholder {
+  background: color-mix(in srgb, var(--bg-primary) 38%, transparent);
+}
+
+.selected-image-skeleton {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.selected-copy--placeholder {
+  gap: var(--space-3);
+}
+
+.selected-badge-skeleton {
+  width: 6rem;
+  height: 1.6rem;
+  border-radius: var(--radius-full);
+}
+
+.selected-heading-skeleton {
+  width: 72%;
+  height: 1.4rem;
+  border-radius: var(--radius-full);
+}
+
+.selected-body-skeleton {
+  width: 100%;
+  height: 1rem;
+  border-radius: var(--radius-full);
+}
+
+.selected-body-skeleton--short {
+  width: 68%;
+}
+
+.selected-link-skeleton {
+  width: 8.5rem;
+  height: 1rem;
+  border-radius: var(--radius-full);
 }
 
 .selected-copy .badge {

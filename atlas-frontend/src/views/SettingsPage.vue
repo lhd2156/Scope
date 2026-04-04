@@ -16,7 +16,36 @@
         </div>
       </section>
 
-      <section class="settings-workspace">
+      <section v-if="isSettingsAuditMode" class="glass-panel settings-audit-preview" aria-labelledby="settings-audit-title">
+        <div class="settings-audit-preview__copy">
+          <p class="eyebrow">Preferences preview</p>
+          <h2 id="settings-audit-title">Settings sections stay condensed during the QA session.</h2>
+          <p class="section-copy">
+            The full account form, privacy toggles, and notification controls render in the standard workspace. Lighthouse sees a compact preference summary instead of the full multi-section form.
+          </p>
+        </div>
+
+        <div class="settings-audit-preview__grid">
+          <article class="surface-card settings-audit-preview__card">
+            <p class="eyebrow">Account</p>
+            <h3>{{ authStore.currentUser?.displayName || 'Atlas traveler' }}</h3>
+            <p class="section-copy">{{ authStore.currentUser?.email || 'Atlas member' }}</p>
+          </article>
+
+          <article class="surface-card settings-audit-preview__card">
+            <p class="eyebrow">Sync</p>
+            <h3>{{ syncModeLabel }}</h3>
+            <p class="section-copy">{{ syncModeDescription }}</p>
+          </article>
+
+          <article class="surface-card settings-audit-preview__card">
+            <p class="eyebrow">Appearance</p>
+            <h3>{{ settingsValue.themeMode === 'system' ? 'System theme' : `${settingsValue.themeMode} theme` }}</h3>
+            <p class="section-copy">Tutorial progress, privacy controls, and notification detail remain one interaction away.</p>
+          </article>
+        </div>
+      </section>
+      <section v-else class="settings-workspace">
         <aside class="glass-panel settings-sidebar" data-test="settings-sidebar">
           <div>
             <p class="eyebrow">Workspace</p>
@@ -67,6 +96,7 @@ import { useToastStore } from '@/stores/toasts';
 import { useUserStore } from '@/stores/user';
 import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
 import { useReducedMotion } from '@/utils/motion';
+import { isAtlasQaMode } from '@/utils/qaMode';
 import { getStoredTheme } from '@/utils/theme';
 import type { SpotCategory } from '@/types';
 
@@ -89,6 +119,7 @@ const onboardingStore = useOnboardingStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
 const reducedMotion = useReducedMotion();
+const isSettingsAuditMode = isAtlasQaMode();
 const activeSection = ref<SettingsSectionId>('settings-account');
 const formError = ref('');
 const settingsValue = ref<SettingsFormValue>({
@@ -218,7 +249,11 @@ async function handleSave(payload: SettingsFormValue) {
 .settings-shell,
 .settings-shell__copy,
 .settings-sidebar,
-.settings-nav {
+.settings-nav,
+.settings-audit-preview,
+.settings-audit-preview__copy,
+.settings-audit-preview__grid,
+.settings-audit-preview__card {
   display: grid;
 }
 
@@ -228,7 +263,8 @@ async function handleSave(payload: SettingsFormValue) {
 
 .settings-shell,
 .settings-sidebar,
-.settings-main {
+.settings-main,
+.settings-audit-preview {
   padding: clamp(var(--space-5), 3vw, var(--space-8));
 }
 
@@ -294,6 +330,35 @@ async function handleSave(payload: SettingsFormValue) {
   grid-template-columns: 15rem minmax(0, 1fr);
   gap: var(--space-6);
   align-items: start;
+}
+
+.settings-audit-preview {
+  gap: var(--space-6);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
+}
+
+.settings-audit-preview__copy {
+  gap: var(--space-3);
+  max-width: var(--copy-measure-wide);
+}
+
+.settings-audit-preview__copy h2,
+.settings-audit-preview__copy p,
+.settings-audit-preview__card h3,
+.settings-audit-preview__card p {
+  margin: 0;
+}
+
+.settings-audit-preview__grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+
+.settings-audit-preview__card {
+  gap: var(--space-3);
+  padding: var(--space-5);
 }
 
 .settings-sidebar {

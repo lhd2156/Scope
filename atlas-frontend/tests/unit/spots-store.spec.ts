@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 async function bootstrapSpotsStore() {
@@ -146,6 +147,7 @@ describe('spots store API contracts', () => {
         },
       ],
     });
+    await flushPromises();
 
     expect(store.selectedSpot?.id).toBe('spot-77');
     expect(trackSpotCreate).toHaveBeenCalledWith(expect.objectContaining({

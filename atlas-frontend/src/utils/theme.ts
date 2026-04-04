@@ -1,5 +1,4 @@
 import { readonly, ref } from 'vue';
-import { trackThemeToggle } from '@/services/analyticsService';
 import type { ThemeMode } from '@/types';
 import { syncThemeColorMeta } from '@/utils/seo';
 
@@ -38,12 +37,16 @@ export function applyTheme(theme: ThemeMode, options: ApplyThemeOptions = {}): v
   }
 
   if (options.track && options.source && themeChanged) {
-    trackThemeToggle({
-      theme,
-      previousTheme,
-      source: options.source,
-      routeName: options.source === 'settings' ? 'settings' : undefined,
-    });
+    void import('@/services/analyticsService')
+      .then(({ trackThemeToggle }) => {
+        trackThemeToggle({
+          theme,
+          previousTheme,
+          source: options.source,
+          routeName: options.source === 'settings' ? 'settings' : undefined,
+        });
+      })
+      .catch(() => undefined);
   }
 }
 

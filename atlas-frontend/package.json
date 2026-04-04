@@ -13,6 +13,7 @@
     "test:e2e": "node ./scripts/run-playwright-with-report.mjs",
     "test:e2e:raw": "playwright test",
     "qa:visual:phase13": "node ./scripts/phase13-visual-qa.mjs",
+    "qa:lighthouse": "node ./scripts/phase20-lighthouse-audit.mjs",
     "lint": "eslint . --ext .vue,.ts"
   },
   "dependencies": {

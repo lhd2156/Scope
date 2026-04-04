@@ -12,7 +12,6 @@ import {
   updateSpot as updateSpotRequest,
   type NearbySpotFilters,
 } from '@/services/spotService';
-import { trackSpotCreate } from '@/services/analyticsService';
 import type { PaginationMeta, SpotDetail, SpotFilters, SpotFormSubmission, SpotSummary, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
@@ -52,6 +51,21 @@ function upsertCollection(collection: SpotSummary[], spot: SpotSummary): SpotSum
 
 function removeFromCollection(collection: SpotSummary[], spotId: string): SpotSummary[] {
   return collection.filter((entry) => entry.id !== spotId);
+}
+
+function recordSpotCreateAnalytics(payload: {
+  spotId: string;
+  category: SpotDetail['category'];
+  city?: string;
+  photoCount: number;
+  isPublic: boolean;
+  routeName: string;
+}): void {
+  void import('@/services/analyticsService')
+    .then(({ trackSpotCreate }) => {
+      trackSpotCreate(payload);
+    })
+    .catch(() => undefined);
 }
 
 export const useSpotsStore = defineStore('spots', () => {
@@ -205,7 +219,7 @@ export const useSpotsStore = defineStore('spots', () => {
     try {
       const response = await createSpotRequest(submission, currentUser);
       applySpotDetail(response.data);
-      trackSpotCreate({
+      recordSpotCreateAnalytics({
         spotId: response.data.id,
         category: response.data.category,
         city: response.data.city,

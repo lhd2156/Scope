@@ -1,12 +1,17 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { mockViewport } from '@/services/mockData';
 import type { MapViewport, SpotCategory } from '@/types';
+
+const DEFAULT_MAP_VIEWPORT: MapViewport = {
+  center: [-97.7431, 30.2672],
+  zoom: 5.6,
+  style: 'mapbox://styles/mapbox/dark-v11',
+};
 
 const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
 
 export const useMapStore = defineStore('map', () => {
-  const viewport = ref<MapViewport>({ ...mockViewport });
+  const viewport = ref<MapViewport>({ ...DEFAULT_MAP_VIEWPORT });
   const activeCategories = ref<SpotCategory[]>([...allCategories]);
   const visibleSpotIds = ref<string[]>([]);
   const selectedSpotId = ref<string | null>(null);

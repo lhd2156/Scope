@@ -240,7 +240,7 @@ describe('ExplorePage', () => {
       },
     });
 
-    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(6);
+    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(12);
     expect(wrapper.find('[data-test="trending-item"]').exists()).toBe(false);
   });
 });

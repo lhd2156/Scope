@@ -21,7 +21,7 @@
       <span class="time-pill">{{ relativeTime }}</span>
     </header>
 
-    <RouterLink class="feed-media" :to="destinationRoute" :aria-label="`Open ${item.title}`">
+    <RouterLink class="feed-media" :to="destinationRoute">
       <LazyImage :src="feedImageUrl" :fallback-src="feedImageFallback" :alt="item.title" class="feed-image" />
 
       <div class="feed-media-chrome">
@@ -45,15 +45,16 @@
           class="action-button"
           :class="{ 'action-button--active': isLiked }"
           :aria-pressed="isLiked"
-          :aria-label="isLiked ? `Unlike ${item.title}` : `Like ${item.title}`"
           @click="toggleLiked"
         >
-          <AtlasIcon :name="isLiked ? 'heart-filled' : 'heart'" />
+          <AtlasIcon :name="isLiked ? 'heart-filled' : 'heart'" aria-hidden="true" />
+          <span class="sr-only">{{ isLiked ? `Unlike ${item.title}` : `Like ${item.title}` }}</span>
           <span>{{ likeCount }}</span>
         </button>
 
-        <RouterLink class="action-button" :to="destinationRoute" :aria-label="`Comment on ${item.title}`">
-          <AtlasIcon name="message-circle" />
+        <RouterLink class="action-button" :to="destinationRoute">
+          <AtlasIcon name="message-circle" aria-hidden="true" />
+          <span class="sr-only">{{ `Comment on ${item.title}` }}</span>
           <span>{{ commentCount }}</span>
         </RouterLink>
 
@@ -63,10 +64,10 @@
           class="action-button"
           :class="{ 'action-button--active': isShared }"
           :aria-pressed="isShared"
-          :aria-label="isShared ? `Shared ${item.title}` : `Share ${item.title}`"
           @click="toggleShared"
         >
-          <AtlasIcon name="share" />
+          <AtlasIcon name="share" aria-hidden="true" />
+          <span class="sr-only">{{ isShared ? `Shared ${item.title}` : `Share ${item.title}` }}</span>
           <span>{{ shareCount }}</span>
         </button>
       </div>
@@ -152,8 +153,10 @@ const destinationLabel = computed(() => (props.item.type === 'trip' ? 'Open trip
 const typeIcon = computed(() => (props.item.type === 'trip' ? 'route' : 'pin'));
 const overlayTitle = computed(() => (props.item.type === 'trip' ? 'Route snapshot' : 'Pinned moment'));
 const locationCopy = computed(() => props.item.actor.homeBase?.trim() || 'Atlas community');
-const feedImageFallback = computed(() => getFeedPhotoFallback(props.item, 1200));
-const feedImageUrl = computed(() => resolveFeedImageUrl(props.item, 1200));
+const FEED_IMAGE_WIDTH = 960;
+
+const feedImageFallback = computed(() => getFeedPhotoFallback(props.item, FEED_IMAGE_WIDTH));
+const feedImageUrl = computed(() => resolveFeedImageUrl(props.item, FEED_IMAGE_WIDTH));
 
 const baseLikeCount = computed(() => {
   const friendSeed = props.item.actor.stats?.friends ?? 48;
@@ -175,6 +178,18 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 </script>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .feed-item {
   position: relative;
   overflow: hidden;

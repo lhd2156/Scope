@@ -2,64 +2,63 @@
 
 Every time you wake up, execute this loop:
 
-## Step 0: Load Lessons (MANDATORY — DO NOT SKIP)
-Run this command FIRST and read ALL output:
-```powershell
-powershell -File C:\Users\dongu\atlas\scripts\load-lessons.ps1 -Agent frontend
-```
-Also read `atlas_architecture.tex` and `atlas-assets/design-tokens.css` for specifications. You CANNOT proceed without doing this step.
+## Step 0: Load Context (MANDATORY)
+1. Run: `powershell -File C:\Users\dongu\atlas\scripts\load-lessons.ps1 -Agent frontend`
+2. Read `C:\Users\dongu\atlas\memory\COMPLETED-TASKS.md` — check what's already done
+3. Read `atlas-assets/DESIGN-SPEC.md` and `atlas-assets/design-tokens.css`
+4. Study ALL mockup images in `atlas-assets/mockups/` (00-08) — your pixel-perfect reference
 
 ## Step 1: Read Progress
-Read `frontend/PROGRESS.md` in C:\Users\dongu\atlas. Find your current status and the first unchecked task (`- [ ]`).
+Read `frontend/PROGRESS.md` in `C:\Users\dongu\atlas`. Find first unchecked task (`- [ ]`).
 
 ## Step 2: Check Prerequisites
-Core, Content, and Intel must ALL be `COMPLETE` before you start. Check their PROGRESS.md files. If any are not COMPLETE, reply `HEARTBEAT_OK — waiting for backends` and stop.
+Core, Content, and Intel must ALL be `COMPLETE`. If not: `HEARTBEAT_OK — waiting for backends`.
 
 ## Step 3: Execute Next Task
-Read `frontend/agents.md` for the detailed task instructions for that task number. Also read `atlas-assets/design-tokens.css` for the design system. Then DO the work. Actually create files, run commands, build things inside `atlas-frontend/`.
+Read `frontend/agents.md` for task instructions. DO the work — create files, run commands, build inside `atlas-frontend/`.
+
+**Phase 13 reminder**: Match the mockup images pixel-for-pixel. Use glassmorphism, design tokens, Unsplash photos.
 
 ## Step 4: Update Progress
-- Mark the completed task as `- [x]` in `frontend/PROGRESS.md`
-- Update `Current Task` to the next number
-- Update `Last Updated` with the current timestamp
-- Add a one-line summary to the `## Log` section
+- Mark task `- [x]` in `frontend/PROGRESS.md`
+- Update `Current Task` + `Last Updated`
+- Add one-line summary to `## Log`
 
-## Step 5: Complete Task (MANDATORY — replaces raw git)
-Do NOT run `git add` and `git commit` manually. Use the completion script:
+## Step 5: Complete Task (MANDATORY)
+Do NOT run raw `git add/commit`. Use:
 
-**If task succeeded:**
+**Success:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "feat(frontend): your description" -Result "success" -Lesson "what you learned, if anything" -Agent "frontend"
+powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "feat(frontend): desc" -Result "success" -Lesson "what you learned" -Agent "frontend"
 ```
 
-**If task failed:**
+**Failure:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "fix(frontend): attempted description" -Result "failure" -Lesson "what went wrong and why" -Agent "frontend"
+powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "fix(frontend): desc" -Result "failure" -Lesson "what went wrong" -Agent "frontend"
 ```
 
-The `-Lesson` parameter is REQUIRED on failure. On success, include it if you learned something new. The script handles git commit AND lesson logging automatically.
+The script handles git commit, LESSONS.md, AND COMPLETED-TASKS.md logging automatically.
 
 ## Step 6: Self-Check
-- Am I in scope? Only modify files inside `atlas-frontend/`. If editing anything else, STOP.
-- Am I following `atlas_architecture.tex`?
-- Did I run tests? (`npm run test`)
-- Does it build? (`npm run build`)
-- Is the UI premium? Dark mode by default, micro-animations, glassmorphism?
-- Did I use the completion script (not raw git)?
+- Scope: only `atlas-frontend/` (+ PROGRESS.md + LESSONS.md)
+- Following `atlas_architecture.tex`?
+- Tests pass? (`npm run test`)
+- Builds? (`npm run build`)
+- Premium UI? Dark mode, animations, glassmorphism?
+- Used completion script (not raw git)?
+- Matches mockup images?
 
 ## Step 7: Continue or Stop
-- If there are more unchecked tasks → go back to Step 1.
-- If ALL tasks are done → set `## Status` to `COMPLETE`, push branch: `git push origin feature/frontend`, then stop.
+- More unchecked tasks → back to Step 1
+- ALL done → `Status: COMPLETE`, push: `git push origin feature/frontend`
 
 ## If Blocked
-If a task fails or you cannot proceed:
-- Update `## Status` to `BLOCKED`
-- Add the error details to `## Log`
-- Run the completion script with `-Result "failure"` to log the lesson
-- Reply with the blocker details so the orchestrator can see it
+- Status → `BLOCKED`, log error, run completion script with `-Result "failure"`, reply with details
 
-## CRITICAL RULES
-1. You must actually DO the work. Read files, create files, run commands. Do NOT just report status.
-2. You MUST run `load-lessons.ps1` at the start of every heartbeat. No exceptions.
-3. You MUST use `complete-task.ps1` instead of raw `git add/commit`. No exceptions.
-4. On failure, the `-Lesson` parameter is MANDATORY.
+## Critical Rules
+1. Actually DO the work — create files, run commands
+2. Run `load-lessons.ps1` every heartbeat
+3. Use `complete-task.ps1` instead of raw git
+4. Check `COMPLETED-TASKS.md` to avoid redoing finished work
+5. On failure, `-Lesson` is MANDATORY
+6. Always study mockup images before visual changes

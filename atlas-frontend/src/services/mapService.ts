@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { mockSpots } from '@/services/mockData';
+import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope } from '@/types';
 import { sanitizeSingleLineText } from '@/utils/sanitizers';
@@ -49,6 +49,7 @@ export async function geocode(query: string, limit = 5): Promise<ApiEnvelope<Geo
     });
     return sanitizeGeocodeEnvelope(data);
   } catch {
+    const { mockSpots } = await loadMockData();
     const normalizedQuery = sanitizedQuery.toLowerCase();
     const matchedSpots = mockSpots
       .filter((spot) => [spot.title, spot.address, spot.city, spot.country].filter(Boolean).join(' ').toLowerCase().includes(normalizedQuery))
@@ -71,6 +72,7 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
     });
     return sanitizeGeocodeResult(unwrapApiData(data));
   } catch {
+    const { mockSpots } = await loadMockData();
     const nearestSpot = [...mockSpots].sort(
       (left, right) =>
         distanceScore(latitude, longitude, left.latitude, left.longitude) -

@@ -48,6 +48,9 @@ async function fillCreateSpotForm(page: Page): Promise<void> {
 test.describe('spot CRUD flow', () => {
   test('creates, edits, views, deletes, and verifies removal of a spot with deterministic mocks', async ({ page, atlasApi }) => {
     await atlasApi.seedSession(page, { email: 'louis@example.com' });
+    await page.addInitScript(() => {
+      window.localStorage.setItem('atlas-analytics-consent', 'denied');
+    });
 
     await page.goto('/spots/new');
     await expect(page.getByRole('heading', { name: 'Drop a new adventure pin' })).toBeVisible();
@@ -85,7 +88,7 @@ test.describe('spot CRUD flow', () => {
     await page.getByRole('button', { name: 'Delete spot' }).click();
 
     await expect(page).toHaveURL(/\/explore(?:\?.*)?$/);
-    await expect(page.getByRole('heading', { name: 'Explore standout places through photo-led discovery.' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Explore standout places through photo-led discovery/i })).toBeVisible();
 
     const searchInput = page.getByLabel('Search spots');
     await searchInput.fill(updatedSpot.title);

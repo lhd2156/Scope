@@ -1,6 +1,7 @@
 import api from '@/services/api';
-import { mockSpots, mockTrips, mockUsers } from '@/services/mockData';
 import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
+import { loadMockData } from '@/services/mockDataLoader';
+import { catalogMockUsers, getCatalogMockUserById } from '@/services/mockUserCatalog';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, UserProfile, UserStats } from '@/types';
 import {
@@ -72,11 +73,11 @@ function sanitizeStatsEnvelope(response: ApiEnvelope<UserStats>): ApiEnvelope<Us
 }
 
 function resolveUserIndex(userId: string): number {
-  return mockUsers.findIndex((user) => user.id === userId);
+  return catalogMockUsers.findIndex((user) => user.id === userId);
 }
 
 function getMockUserOrThrow(userId: string): UserProfile {
-  const user = mockUsers.find((entry) => entry.id === userId);
+  const user = getCatalogMockUserById(userId);
 
   if (!user) {
     throw new Error(`User ${userId} not found`);
@@ -85,8 +86,9 @@ function getMockUserOrThrow(userId: string): UserProfile {
   return sanitizeUserProfile(user);
 }
 
-function buildFallbackStats(userId: string): UserStats {
-  const user = mockUsers.find((entry) => entry.id === userId);
+async function buildFallbackStats(userId: string): Promise<UserStats> {
+  const user = getCatalogMockUserById(userId);
+  const { mockSpots, mockTrips } = await loadMockData();
 
   return {
     spots: mockSpots.filter((spot) => spot.author?.id === userId).length || user?.stats?.spots || 0,
@@ -115,11 +117,11 @@ function updateMockUser(userId: string, updates: UpdateUserProfileInput): UserPr
   }
 
   const nextUser = sanitizeUserProfile({
-    ...mockUsers[userIndex],
+    ...catalogMockUsers[userIndex],
     ...sanitizeUpdateInput(updates),
   });
 
-  mockUsers.splice(userIndex, 1, nextUser);
+  catalogMockUsers.splice(userIndex, 1, nextUser);
   return nextUser;
 }
 
@@ -132,7 +134,7 @@ export async function getCurrentUserProfile(fallbackUserId?: string): Promise<Ap
       throw error;
     }
 
-    const user = getMockUserOrThrow(fallbackUserId ?? mockUsers[0]?.id ?? 'user-1');
+    const user = getMockUserOrThrow(fallbackUserId ?? catalogMockUsers[0]?.id ?? 'user-1');
     return sanitizeUserEnvelope({ data: user });
   }
 }
@@ -176,7 +178,7 @@ export async function deactivateUserProfile(userId: string): Promise<void> {
     const userIndex = resolveUserIndex(userId);
 
     if (userIndex >= 0) {
-      mockUsers.splice(userIndex, 1);
+      catalogMockUsers.splice(userIndex, 1);
     }
   }
 }
@@ -199,7 +201,7 @@ export async function searchUsers(query: string, page = 1, pageSize = 10): Promi
     }
 
     const normalizedQuery = sanitizedQuery.toLowerCase();
-    const matchingUsers = mockUsers.filter((user) => {
+    const matchingUsers = catalogMockUsers.filter((user) => {
       const searchableContent = [user.username, user.displayName, user.email, user.homeBase].filter(Boolean).join(' ').toLowerCase();
       return searchableContent.includes(normalizedQuery);
     });
@@ -217,6 +219,6 @@ export async function getUserStats(userId: string): Promise<ApiEnvelope<UserStat
       throw error;
     }
 
-    return sanitizeStatsEnvelope({ data: buildFallbackStats(userId) });
+    return sanitizeStatsEnvelope({ data: await buildFallbackStats(userId) });
   }
 }

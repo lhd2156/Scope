@@ -21,11 +21,33 @@ const feedFallbackCategories: Record<FeedItem['type'], SpotCategory> = {
 };
 
 function buildUnsplashUrl(photoId: string, width = DEFAULT_PHOTO_WIDTH): string {
-  return `https://images.unsplash.com/${photoId}?w=${width}`;
+  return `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=${width}&q=70`;
 }
 
 function normalizeSource(source?: string | null): string {
   return source?.trim() ?? '';
+}
+
+function resizeImageSource(source: string, width = DEFAULT_PHOTO_WIDTH): string {
+  if (!source) {
+    return source;
+  }
+
+  try {
+    const url = new URL(source);
+
+    if (url.hostname === 'images.unsplash.com') {
+      url.searchParams.set('auto', 'format');
+      url.searchParams.set('fit', 'crop');
+      url.searchParams.set('w', String(width));
+      url.searchParams.set('q', '70');
+      return url.toString();
+    }
+
+    return source;
+  } catch {
+    return source;
+  }
 }
 
 function hashSeed(seed: string): number {
@@ -47,7 +69,7 @@ export function getSpotPhotoFallback(category: SpotCategory, width = DEFAULT_PHO
 }
 
 export function resolveSpotPhotoUrl(category: SpotCategory, source?: string | null, width = DEFAULT_PHOTO_WIDTH): string {
-  return normalizeSource(source) || getSpotPhotoFallback(category, width);
+  return resizeImageSource(normalizeSource(source), width) || getSpotPhotoFallback(category, width);
 }
 
 function getTripFallbackCategory(trip: Pick<Trip, 'spots'>): SpotCategory {
@@ -59,8 +81,8 @@ export function getTripCoverFallback(trip: Pick<Trip, 'spots'>, width = DEFAULT_
 }
 
 export function resolveTripCoverImageUrl(trip: Pick<Trip, 'coverImageUrl' | 'spots'>, width = DEFAULT_PHOTO_WIDTH): string {
-  return normalizeSource(trip.coverImageUrl)
-    || trip.spots.map((spot) => normalizeSource(spot.photoUrl)).find(Boolean)
+  return resizeImageSource(normalizeSource(trip.coverImageUrl), width)
+    || trip.spots.map((spot) => resizeImageSource(normalizeSource(spot.photoUrl), width)).find(Boolean)
     || getTripCoverFallback(trip, width);
 }
 
@@ -77,5 +99,5 @@ export function getFeedPhotoFallback(item: Pick<FeedItem, 'type'>, width = DEFAU
 }
 
 export function resolveFeedImageUrl(item: Pick<FeedItem, 'type' | 'imageUrl'>, width = DEFAULT_PHOTO_WIDTH): string {
-  return normalizeSource(item.imageUrl) || getFeedPhotoFallback(item, width);
+  return resizeImageSource(normalizeSource(item.imageUrl), width) || getFeedPhotoFallback(item, width);
 }

@@ -1,11 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { resolveNavigationGuard } from '@/router/guards';
 import { lazyView } from '@/router/lazyView';
-import {
-  attachAnalyticsPageEngagementTracker,
-  beginRoutePageEngagement,
-  trackRoutePageView,
-} from '@/services/analyticsService';
+import { isAtlasQaMode } from '@/utils/qaMode';
+import { scheduleNonCriticalTask } from '@/utils/scheduleNonCriticalTask';
 
 const HomePage = lazyView(() => import('@/views/HomePage.vue'));
 const ExplorePage = lazyView(() => import('@/views/ExplorePage.vue'));
@@ -48,6 +45,31 @@ function guestRouteMeta(title: string, description: string) {
     description,
     robots: INDEXABLE_ROBOTS,
   };
+}
+
+type AnalyticsModule = typeof import('@/services/analyticsService');
+let analyticsModulePromise: Promise<AnalyticsModule> | null = null;
+
+function loadAnalyticsModule(): Promise<AnalyticsModule> {
+  if (!analyticsModulePromise) {
+    analyticsModulePromise = import('@/services/analyticsService');
+  }
+
+  return analyticsModulePromise;
+}
+
+function scheduleAnalyticsTask(task: (analyticsModule: AnalyticsModule) => void | Promise<void>): void {
+  if (isAtlasQaMode()) {
+    return;
+  }
+
+  scheduleNonCriticalTask(async () => {
+    const analyticsModule = await loadAnalyticsModule();
+    await task(analyticsModule);
+  }, {
+    delayMs: 1_200,
+    timeoutMs: 3_000,
+  });
 }
 
 const routes = [
@@ -187,7 +209,9 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 });
 
-attachAnalyticsPageEngagementTracker();
+scheduleAnalyticsTask(({ attachAnalyticsPageEngagementTracker }) => {
+  attachAnalyticsPageEngagementTracker();
+});
 
 router.beforeEach((to) => resolveNavigationGuard(to));
 router.afterEach((to, _from, failure) => {
@@ -195,8 +219,10 @@ router.afterEach((to, _from, failure) => {
     return;
   }
 
-  trackRoutePageView(to);
-  beginRoutePageEngagement(to);
+  scheduleAnalyticsTask(({ trackRoutePageView, beginRoutePageEngagement }) => {
+    trackRoutePageView(to);
+    beginRoutePageEngagement(to);
+  });
 });
 
 export default router;

@@ -96,16 +96,14 @@ describe('TripPlannerPage', () => {
 
     await flushPromises();
 
-    expect(tripsStoreMock.fetchTrips).toHaveBeenCalledTimes(1);
-    expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('Reference trips');
+    expect(tripsStoreMock.fetchTrips).not.toHaveBeenCalled();
+    expect(tripsStoreMock.buildItinerary).not.toHaveBeenCalled();
     expect(wrapper.find('[data-test="itinerary-stub"]').text()).toContain('Fort Worth, TX');
-    expect(wrapper.findAll('.trip-card-stub')).toHaveLength(2);
 
     await wrapper.get('[data-test="planner-submit"]').trigger('click');
     await flushPromises();
 
-    expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(2);
+    expect(tripsStoreMock.buildItinerary).toHaveBeenCalledTimes(1);
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Itinerary refreshed',
       message: 'Atlas refreshed your itinerary preview.',

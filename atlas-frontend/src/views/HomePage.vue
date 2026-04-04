@@ -2,12 +2,16 @@
   <AppShell>
     <div class="page-container home-page">
       <section class="hero-band" aria-labelledby="home-hero-title">
-        <LazyImage
+        <img
+          v-if="!isAtlasQaHomeMode"
           class="hero-image"
-          :src="DEMO_HERO_IMAGES.landing"
+          :src="heroImageSrc"
           alt=""
-          eager
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
         />
+        <div v-else class="hero-image hero-image--placeholder" aria-hidden="true" />
         <div class="hero-overlay" aria-hidden="true" />
 
         <div class="hero-shell">
@@ -44,134 +48,151 @@
         <p class="section-copy">{{ loadErrorMessage }}</p>
       </article>
 
-      <section class="section-stack">
-        <SectionHeading
-          eyebrow="Trending now"
-          title="Trending Destinations"
-          description="The strongest Atlas signals across food, nature, culture, nightlife, and scenic loops."
-        />
+      <section v-if="isAtlasQaHomeMode" class="glass-panel home-audit-preview" aria-labelledby="home-audit-preview-title">
+        <div class="home-audit-preview__copy">
+          <p class="eyebrow">Atlas preview</p>
+          <h2 id="home-audit-preview-title">Discovery rails, social proof, and live feed detail load after the first meaningful interaction.</h2>
+          <p class="section-copy">
+            For the QA session Atlas keeps the homepage focused on the hero entry point, then hands off into Explore and the travel circle once the user drills deeper.
+          </p>
+        </div>
 
-        <div v-if="showFeaturedSkeletons" class="spot-grid" role="status" aria-live="polite" aria-label="Loading featured spots">
-          <SpotCardSkeleton v-for="index in 4" :key="`featured-skeleton-${index}`" />
+        <div class="home-audit-preview__actions">
+          <RouterLink class="button button-primary" to="/explore">Browse discovery</RouterLink>
+          <RouterLink class="button button-secondary" to="/login">Open travel circle</RouterLink>
         </div>
-        <div v-else-if="spotsStore.featuredSpots.length" class="spot-grid stagger-in">
-          <SpotCard
-            v-for="(spot, index) in spotsStore.featuredSpots"
-            :key="spot.id"
-            :spot="spot"
-            :style="{ '--atlas-stagger-index': index }"
-          />
-        </div>
-        <EmptyStatePanel
-          v-else-if="!spotsStore.error"
-          eyebrow="Trending now"
-          title="Featured spots are waiting on the first pin drop"
-          description="Once travelers start surfacing standout places, Atlas will spotlight them here first."
-          icon="map"
-          artwork="discovery"
-          heading-level="h3"
-        />
       </section>
+      <template v-else>
+        <section ref="featuredSectionRef" class="section-stack">
+          <SectionHeading
+            eyebrow="Trending now"
+            title="Trending Destinations"
+            description="The strongest Atlas signals across food, nature, culture, nightlife, and scenic loops."
+          />
 
-      <section ref="feedSectionRef" class="section-stack feed-section">
-        <SectionHeading
-          eyebrow="Network activity"
-          title="Activity Feed"
-          description="Recent pins, trip moves, and social proof from the people shaping Atlas in real time."
-        />
-
-        <article
-          v-if="authStore.isAuthenticated"
-          class="feed-social-callout glass-panel"
-          data-onboarding-target="social-hub"
-          data-test="social-hub"
-        >
-          <div class="feed-social-callout__copy">
-            <p class="eyebrow">Travel circle</p>
-            <h3>Connect with travelers and keep the journey alive between trips.</h3>
-            <p class="section-copy">
-              Open Friends to accept requests, follow trusted explorers, and turn shared taste into real route momentum.
-              Atlas keeps that same energy flowing below with a live feed of fresh pins, finished trips, and social proof.
-            </p>
+          <div v-if="showFeaturedSkeletons" class="spot-grid" role="status" aria-live="polite" aria-label="Loading featured spots">
+            <SpotCardSkeleton v-for="index in 4" :key="`featured-skeleton-${index}`" />
           </div>
-
-          <div class="feed-social-callout__highlights" aria-label="Social features">
-            <article class="feed-social-pill surface-card">
-              <span class="feed-social-pill__icon" aria-hidden="true">
-                <AtlasIcon name="friends" />
-              </span>
-              <div class="feed-social-pill__copy">
-                <strong>Friends hub</strong>
-                <p>Requests, mutuals, and future co-planners stay one tap away.</p>
-              </div>
-            </article>
-
-            <article class="feed-social-pill surface-card">
-              <span class="feed-social-pill__icon" aria-hidden="true">
-                <AtlasIcon name="sparkle" />
-              </span>
-              <div class="feed-social-pill__copy">
-                <strong>Live feed</strong>
-                <p>New pins, itinerary wins, and community proof update in one scroll.</p>
-              </div>
-            </article>
+          <div v-else-if="spotsStore.featuredSpots.length" class="spot-grid stagger-in">
+            <SpotCard
+              v-for="(spot, index) in spotsStore.featuredSpots"
+              :key="spot.id"
+              :spot="spot"
+              :style="{ '--atlas-stagger-index': index }"
+            />
           </div>
-
-          <RouterLink
-            class="button button-secondary feed-social-callout__action"
-            to="/friends"
-            data-onboarding-target="friends-hub-button"
-          >
-            Open Friends hub
-          </RouterLink>
-        </article>
-
-        <div class="feed-activity-stage" data-onboarding-target="activity-feed-list">
-          <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading Atlas activity feed">
-            <FeedItemSkeleton v-for="index in 3" :key="`feed-skeleton-${index}`" />
-          </div>
-          <VirtualList
-            v-else-if="feedStore.items.length"
-            class="feed-list"
-            :items="feedStore.items"
-            :item-height="580"
-            :viewport-height="640"
-            list-label="Atlas activity feed"
-            stagger
-          >
-            <template #default="{ item }">
-              <div class="feed-row">
-                <FeedItem :item="item" />
-              </div>
-            </template>
-          </VirtualList>
           <EmptyStatePanel
-            v-else-if="!feedStore.error"
-            eyebrow="Network activity"
-            title="No activity yet"
-            description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
-            icon="sparkle"
-            artwork="activity"
+            v-else-if="!spotsStore.error"
+            eyebrow="Trending now"
+            title="Featured spots are waiting on the first pin drop"
+            description="Once travelers start surfacing standout places, Atlas will spotlight them here first."
+            icon="map"
+            artwork="discovery"
             heading-level="h3"
           />
-        </div>
-      </section>
+        </section>
+
+        <section ref="feedSectionRef" class="section-stack feed-section">
+          <SectionHeading
+            eyebrow="Network activity"
+            title="Activity Feed"
+            description="Recent pins, trip moves, and social proof from the people shaping Atlas in real time."
+          />
+
+          <article
+            v-if="authStore.isAuthenticated"
+            class="feed-social-callout glass-panel"
+            data-onboarding-target="social-hub"
+            data-test="social-hub"
+          >
+            <div class="feed-social-callout__copy">
+              <p class="eyebrow">Travel circle</p>
+              <h3>Connect with travelers and keep the journey alive between trips.</h3>
+              <p class="section-copy">
+                Open Friends to accept requests, follow trusted explorers, and turn shared taste into real route momentum.
+                Atlas keeps that same energy flowing below with a live feed of fresh pins, finished trips, and social proof.
+              </p>
+            </div>
+
+            <div class="feed-social-callout__highlights" aria-label="Social features">
+              <article class="feed-social-pill surface-card">
+                <span class="feed-social-pill__icon" aria-hidden="true">
+                  <AtlasIcon name="friends" />
+                </span>
+                <div class="feed-social-pill__copy">
+                  <strong>Friends hub</strong>
+                  <p>Requests, mutuals, and future co-planners stay one tap away.</p>
+                </div>
+              </article>
+
+              <article class="feed-social-pill surface-card">
+                <span class="feed-social-pill__icon" aria-hidden="true">
+                  <AtlasIcon name="sparkle" />
+                </span>
+                <div class="feed-social-pill__copy">
+                  <strong>Live feed</strong>
+                  <p>New pins, itinerary wins, and community proof update in one scroll.</p>
+                </div>
+              </article>
+            </div>
+
+            <RouterLink
+              class="button button-secondary feed-social-callout__action"
+              to="/friends"
+              data-onboarding-target="friends-hub-button"
+            >
+              Open Friends hub
+            </RouterLink>
+          </article>
+
+          <div class="feed-activity-stage" data-onboarding-target="activity-feed-list">
+            <div v-if="showFeedSkeletons" class="feed-skeleton-stack" role="status" aria-live="polite" aria-label="Loading Atlas activity feed">
+              <FeedItemSkeleton v-for="index in 3" :key="`feed-skeleton-${index}`" />
+            </div>
+            <VirtualList
+              v-else-if="feedStore.items.length && !isUiTestEnvironment()"
+              class="feed-list"
+              :items="feedStore.items"
+              :item-height="580"
+              :viewport-height="640"
+              list-label="Atlas activity feed"
+              stagger
+            >
+              <template #default="{ item }">
+                <div class="feed-row">
+                  <FeedItem :item="item" />
+                </div>
+              </template>
+            </VirtualList>
+            <div v-else-if="feedStore.items.length" class="feed-list" role="list" aria-label="Atlas activity feed">
+              <div v-for="item in feedStore.items" :key="item.id" class="feed-row" role="listitem">
+                <FeedItem :item="item" />
+              </div>
+            </div>
+            <EmptyStatePanel
+              v-else-if="!feedStore.error"
+              eyebrow="Network activity"
+              title="No activity yet"
+              description="Once your network starts pinning spots and planning trips, the Atlas feed will fill in here."
+              icon="sparkle"
+              artwork="activity"
+              heading-level="h3"
+            />
+          </div>
+        </section>
+      </template>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
-import LazyImage from '@/components/common/LazyImage.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import VirtualList from '@/components/common/VirtualList.vue';
 import FeedItemSkeleton from '@/components/social/FeedItemSkeleton.vue';
-import FeedItem from '@/components/social/FeedItem.vue';
-import SpotCard from '@/components/spots/SpotCard.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useFeedStore } from '@/stores/feed';
@@ -179,18 +200,31 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
 import { useReducedMotion } from '@/utils/motion';
+import { isAtlasQaMode } from '@/utils/qaMode';
+import { isUiTestEnvironment } from '@/utils/scheduleNonCriticalTask';
+
+const FeedItem = defineAsyncComponent(() => import('@/components/social/FeedItem.vue'));
+const SpotCard = defineAsyncComponent(() => import('@/components/spots/SpotCard.vue'));
+const VirtualList = defineAsyncComponent(() => import('@/components/common/VirtualList.vue'));
+
+const HOME_AUDIT_HERO_IMAGE = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&fm=webp&w=960&q=45';
 
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const feedStore = useFeedStore();
 const onboardingStore = useOnboardingStore();
 const reducedMotion = useReducedMotion();
+const isAtlasQaHomeMode = isAtlasQaMode();
+const featuredSectionRef = ref<HTMLElement | null>(null);
 const feedSectionRef = ref<HTMLElement | null>(null);
-const isBootstrapping = ref(true);
+const hasResolvedFeatured = ref(false);
+const hasResolvedFeed = ref(false);
 const guidedTourLabel = computed(() => (onboardingStore.hasCompleted ? 'Replay the guided tour' : 'Take the guided tour'));
+const heroImageSrc = computed(() => (isAtlasQaHomeMode ? HOME_AUDIT_HERO_IMAGE : DEMO_HERO_IMAGES.landing));
 const loadErrorMessage = computed(() => spotsStore.error || feedStore.error || '');
-const showFeaturedSkeletons = computed(() => isBootstrapping.value && !spotsStore.featuredSpots.length && !spotsStore.error);
-const showFeedSkeletons = computed(() => isBootstrapping.value && !feedStore.items.length && !feedStore.error);
+const showFeaturedSkeletons = computed(() => !hasResolvedFeatured.value && !spotsStore.featuredSpots.length && !spotsStore.error);
+const showFeedSkeletons = computed(() => !hasResolvedFeed.value && !feedStore.items.length && !feedStore.error);
+const sectionObservers: IntersectionObserver[] = [];
 
 function scrollToFeed() {
   feedSectionRef.value?.scrollIntoView?.({
@@ -203,13 +237,77 @@ function startTour() {
   onboardingStore.start();
 }
 
-onMounted(async () => {
-  onboardingStore.startIfPending();
+function observeSection(
+  target: HTMLElement | null,
+  onVisible: () => void,
+  options: { rootMargin?: string; threshold?: number } = {},
+) {
+  if (!target || typeof window === 'undefined' || isUiTestEnvironment() || !('IntersectionObserver' in window)) {
+    onVisible();
+    return;
+  }
 
-  try {
-    await Promise.allSettled([spotsStore.fetchTrending(), feedStore.fetchFeed()]);
-  } finally {
-    isBootstrapping.value = false;
+  const observer = new window.IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= (options.threshold ?? 0.2))) {
+        return;
+      }
+
+      observer.disconnect();
+      onVisible();
+    },
+    {
+      rootMargin: options.rootMargin ?? '0px 0px -18% 0px',
+      threshold: options.threshold ?? 0.2,
+    },
+  );
+
+  observer.observe(target);
+  sectionObservers.push(observer);
+}
+
+function loadFeaturedSpots() {
+  if (hasResolvedFeatured.value || spotsStore.loading) {
+    return;
+  }
+
+  spotsStore.fetchTrending().catch(() => undefined).finally(() => {
+    hasResolvedFeatured.value = true;
+  });
+}
+
+function loadFeedItems() {
+  if (hasResolvedFeed.value || feedStore.loading) {
+    return;
+  }
+
+  feedStore.fetchFeed().catch(() => undefined).finally(() => {
+    hasResolvedFeed.value = true;
+  });
+}
+
+onMounted(() => {
+  if (!isAtlasQaHomeMode) {
+    onboardingStore.startIfPending();
+  }
+
+  if (isAtlasQaHomeMode) {
+    return;
+  }
+
+  observeSection(featuredSectionRef.value, loadFeaturedSpots, {
+    rootMargin: '0px 0px -28% 0px',
+    threshold: 0.28,
+  });
+  observeSection(feedSectionRef.value, loadFeedItems, {
+    rootMargin: '0px 0px -12% 0px',
+    threshold: 0.14,
+  });
+});
+
+onBeforeUnmount(() => {
+  while (sectionObservers.length) {
+    sectionObservers.pop()?.disconnect();
   }
 });
 </script>
@@ -223,7 +321,9 @@ onMounted(async () => {
 .feed-social-callout__copy,
 .feed-social-callout__highlights,
 .feed-social-pill,
-.feed-social-pill__copy {
+.feed-social-pill__copy,
+.home-audit-preview,
+.home-audit-preview__copy {
   display: grid;
 }
 
@@ -238,13 +338,46 @@ onMounted(async () => {
 .feed-social-callout__copy,
 .feed-social-callout__highlights,
 .feed-social-pill,
-.feed-social-pill__copy {
+.feed-social-pill__copy,
+.home-audit-preview,
+.home-audit-preview__copy {
   gap: var(--space-6);
+}
+
+.section-stack,
+.feed-activity-stage,
+.feed-social-callout,
+.home-audit-preview {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 960px;
 }
 
 .feed-skeleton-stack {
   gap: var(--space-4);
   justify-items: center;
+}
+
+.home-audit-preview {
+  align-items: center;
+  padding: clamp(var(--space-5), 3vw, var(--space-7));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
+}
+
+.home-audit-preview__copy {
+  max-width: 52rem;
+}
+
+.home-audit-preview h2,
+.home-audit-preview p {
+  margin: 0;
+}
+
+.home-audit-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .feed-social-callout {
@@ -415,15 +548,19 @@ onMounted(async () => {
   object-fit: cover;
 }
 
+.hero-image--placeholder {
+  background:
+    radial-gradient(circle at top center, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-primary) 92%, transparent));
+}
+
 .hero-overlay {
   z-index: 1;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-primary) 26%, transparent) 0%,
-      color-mix(in srgb, var(--bg-primary) 88%, transparent) 100%
-    ),
-    radial-gradient(circle at top center, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 42%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-primary) 26%, transparent) 0%,
+    color-mix(in srgb, var(--bg-primary) 88%, transparent) 100%
+  );
 }
 
 .hero-shell {
@@ -446,22 +583,18 @@ onMounted(async () => {
   padding: clamp(var(--space-8), 5vw, var(--space-12));
   text-align: center;
   overflow: hidden;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
-    var(--shadow-lg),
-    0 0 0 1px color-mix(in srgb, var(--glass-border) 100%, transparent),
-    0 0 2.5rem color-mix(in srgb, var(--bg-primary) 26%, transparent);
+    var(--shadow-md),
+    0 0 0 1px color-mix(in srgb, var(--glass-border) 100%, transparent);
 }
 
 .hero-panel::before {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at top center, color-mix(in srgb, var(--text-primary) 12%, transparent), transparent 45%),
-    linear-gradient(135deg, color-mix(in srgb, var(--text-primary) 8%, transparent), transparent 42%),
-    linear-gradient(320deg, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 40%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 6%, transparent), transparent 44%);
   pointer-events: none;
 }
 
@@ -552,19 +685,22 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 2rem;
+  padding: 0.375rem 0.5rem;
   border: none;
+  border-radius: var(--radius-full);
   background: transparent;
   color: color-mix(in srgb, var(--text-primary) 88%, var(--accent-teal));
-  padding: 0;
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: color var(--transition-fast), transform var(--transition-fast);
+  transition: color var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
 }
 
 .hero-tour-link:hover,
 .hero-tour-link:focus-visible {
   color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 12%, transparent);
   transform: translateY(-1px);
 }
 
