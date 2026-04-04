@@ -6,7 +6,7 @@
     :src="activeSrc"
     :alt="alt"
     :loading="eager ? 'eager' : 'lazy'"
-    :decoding="eager ? 'sync' : 'async'"
+    decoding="async"
     :fetchpriority="eager ? 'high' : 'auto'"
     :class="['lazy-image', { 'is-loaded': isLoaded }]"
     @load="handleLoad"

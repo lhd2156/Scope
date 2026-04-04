@@ -8,6 +8,7 @@ import {
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
 import type { FeedItem, SpotFormSubmission, SpotSummary, Trip, UserProfile } from '@/types';
+import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/demoPhotos';
 
 describe('sanitizers', () => {
   it('normalizes multiline user content and strips control characters', () => {
@@ -75,10 +76,10 @@ describe('sanitizers', () => {
     const sanitizedFeedItem = sanitizeFeedItem(feedItem);
 
     expect(sanitizedUser.avatarUrl).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
-    expect(sanitizedSpot.photoUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
-    expect(sanitizedTrip.coverImageUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
+    expect(sanitizedSpot.photoUrl).toBe(getSpotPhotoFallback('adventure'));
+    expect(sanitizedTrip.coverImageUrl).toBe(getTripCoverFallback(trip));
     expect(sanitizedTrip.members[0]?.avatarUrl).toMatch(/^https:\/\/i\.pravatar\.cc\/150\?img=\d+$/);
-    expect(sanitizedFeedItem.imageUrl).toBe('https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=800');
+    expect(sanitizedFeedItem.imageUrl).toBe(getFeedPhotoFallback(feedItem));
   });
 
   it('sanitizes spot submissions before they are persisted for display', () => {

@@ -26,7 +26,13 @@ const notificationsStoreMock = {
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
+const onboardingStoreMock = {
+  isActive: false,
+  hasCompleted: true,
+};
+
 const toastStoreMock = {
+  hasToasts: false,
   showError: vi.fn().mockReturnValue('toast-session-expired'),
   dismissToast: vi.fn(),
 };
@@ -43,7 +49,11 @@ vi.mock('@/stores/toasts', () => ({
   useToastStore: () => toastStoreMock,
 }));
 
-import App from '@/App.vue';
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => onboardingStoreMock,
+}));
+
+import AuthSessionRuntime from '@/components/common/AuthSessionRuntime.vue';
 
 describe('App session edge cases', () => {
   beforeEach(() => {
@@ -70,16 +80,13 @@ describe('App session edge cases', () => {
     await router.push('/friends');
     await router.isReady();
 
-    mount(App, {
+    mount(AuthSessionRuntime, {
       global: {
         plugins: [router],
-        stubs: {
-          CookieConsentBanner: { template: '<div data-test="cookie-consent-banner-stub" />' },
-          OnboardingOverlay: { template: '<div data-test="onboarding-overlay-stub" />' },
-          ToastViewport: { template: '<div data-test="toast-viewport-stub" />' },
-        },
       },
     });
+
+    await flushPromises();
 
     authState.sessionExpiredMessage = 'Your session expired. Sign in again to keep planning in Atlas.';
     await flushPromises();

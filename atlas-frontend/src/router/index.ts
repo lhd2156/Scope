@@ -37,7 +37,7 @@ function privateRouteMeta(title: string, description: string) {
     requiresAuth: true,
     title,
     description,
-    robots: PRIVATE_ROBOTS,
+    robots: INDEXABLE_ROBOTS,
   };
 }
 
@@ -46,7 +46,7 @@ function guestRouteMeta(title: string, description: string) {
     guestOnly: true,
     title,
     description,
-    robots: PRIVATE_ROBOTS,
+    robots: INDEXABLE_ROBOTS,
   };
 }
 

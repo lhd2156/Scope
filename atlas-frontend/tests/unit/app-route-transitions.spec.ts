@@ -26,7 +26,13 @@ const notificationsStoreMock = {
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
+const onboardingStoreMock = {
+  isActive: false,
+  hasCompleted: true,
+};
+
 const toastStoreMock = {
+  hasToasts: false,
   showError: vi.fn().mockReturnValue('toast-session-expired'),
   dismissToast: vi.fn(),
 };
@@ -41,6 +47,10 @@ vi.mock('@/stores/notifications', () => ({
 
 vi.mock('@/stores/toasts', () => ({
   useToastStore: () => toastStoreMock,
+}));
+
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => onboardingStoreMock,
 }));
 
 import App from '@/App.vue';
