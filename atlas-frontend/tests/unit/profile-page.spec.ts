@@ -144,8 +144,8 @@ describe('ProfilePage', () => {
     await flushPromises();
 
     expect(userStoreMock.fetchCurrentProfile).toHaveBeenCalledTimes(1);
-    expect(listUserSpotsMock).toHaveBeenCalledWith('user-1', 1, 12);
-    expect(listPublicTripsMock).toHaveBeenCalledWith(1, 24);
+    expect(listUserSpotsMock).toHaveBeenCalledWith('user-1', 1, 9);
+    expect(listPublicTripsMock).toHaveBeenCalledWith(1, 12);
     expect(wrapper.text()).toContain('Louis Do');
     expect(wrapper.text()).toContain('Global Footprint');
     expect(wrapper.text()).toContain('Recent Adventures');

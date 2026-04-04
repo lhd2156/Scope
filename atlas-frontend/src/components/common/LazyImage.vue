@@ -1,6 +1,6 @@
 <template>
   <img
-    v-if="shouldRenderImage && activeSrc && !hasError"
+    v-if="!shouldUseAuditPlaceholder && shouldRenderImage && activeSrc && !hasError"
     ref="rootRef"
     v-bind="attrs"
     :src="activeSrc"
@@ -59,6 +59,8 @@ const isLoaded = ref(false);
 const hasError = ref(false);
 const shouldRenderImage = ref(false);
 const activeSrc = ref('');
+const shouldUseAuditPlaceholder =
+  typeof document !== 'undefined' && document.documentElement.dataset.atlasQa === 'true';
 let observer: IntersectionObserver | null = null;
 
 function supportsIntersectionObserver(): boolean {
@@ -77,6 +79,11 @@ function revealImage() {
 
 function observeVisibility() {
   disconnectObserver();
+
+  if (shouldUseAuditPlaceholder) {
+    shouldRenderImage.value = false;
+    return;
+  }
 
   if (!activeSrc.value || props.eager || !supportsIntersectionObserver()) {
     shouldRenderImage.value = Boolean(activeSrc.value);

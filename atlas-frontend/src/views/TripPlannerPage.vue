@@ -67,7 +67,7 @@
         />
       </section>
 
-      <section class="glass-panel community-panel">
+      <section v-if="isCommunityPreviewReady" class="glass-panel community-panel">
         <div class="community-header">
           <div>
             <p class="eyebrow">Reference trips</p>
@@ -90,16 +90,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import ItineraryView from '@/components/trips/ItineraryView.vue';
-import TripCard from '@/components/trips/TripCard.vue';
 import TripPlanner from '@/components/trips/TripPlanner.vue';
 import { getTripPlannerPreset, matchTripPlannerPreset } from '@/services/tripPlannerPresets';
 import { useToastStore } from '@/stores/toasts';
 import { useTripsStore } from '@/stores/trips';
 import type { TripMember, TripPlannerInput, TripSpot } from '@/types';
+import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 
 type PlannerMobileStep = 1 | 2 | 3 | 4;
 
@@ -110,6 +109,9 @@ interface MobileWizardStep {
 }
 
 const TRIP_PLANNER_MOBILE_BREAKPOINT = 640;
+const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test';
+const ItineraryView = defineAsyncComponent(() => import('@/components/trips/ItineraryView.vue'));
+const TripCard = defineAsyncComponent(() => import('@/components/trips/TripCard.vue'));
 
 const mobileWizardSteps: MobileWizardStep[] = [
   { number: 1, label: 'Brief', description: 'Destination, dates, and budget range.' },
@@ -136,6 +138,9 @@ const plannerTitle = ref(defaultPreset.tripTitle);
 const plannerStops = ref<TripSpot[]>(cloneStops(defaultPreset.stops));
 const plannerSuggestedStops = ref<TripSpot[]>(cloneStops(defaultPreset.suggestedStops));
 const plannerCrew = ref<TripMember[]>(cloneMembers(defaultPreset.crew));
+const isCommunityPreviewReady = ref(shouldEagerlyRenderHeavyContent);
+let cancelInitialPlannerLoad: CancelScheduledTask = () => undefined;
+let cancelCommunityPreviewLoad: CancelScheduledTask = () => undefined;
 
 const featuredTrips = computed(() => tripsStore.items.slice(0, 3));
 
@@ -264,24 +269,32 @@ function handleStopsUpdate(stops: TripSpot[]) {
   plannerStops.value = cloneStops(stops);
 }
 
-onMounted(async () => {
+onMounted(() => {
   syncMobilePlannerLayout();
   window.addEventListener('resize', syncMobilePlannerLayout, { passive: true });
 
-  try {
-    await tripsStore.fetchTrips();
-  } catch {
-    // surfaced through tripsStore.error
-  }
+  cancelInitialPlannerLoad = scheduleNonCriticalTask(async () => {
+    try {
+      await tripsStore.buildItinerary(plannerDraft.value, { source: 'auto' });
+    } catch {
+      // surfaced through tripsStore.error
+    }
+  }, { delayMs: 1_900, timeoutMs: 3_400 });
 
-  try {
-    await tripsStore.buildItinerary(plannerDraft.value, { source: 'auto' });
-  } catch {
-    // surfaced through tripsStore.error
-  }
+  cancelCommunityPreviewLoad = scheduleNonCriticalTask(async () => {
+    isCommunityPreviewReady.value = true;
+
+    try {
+      await tripsStore.fetchTrips();
+    } catch {
+      // surfaced through tripsStore.error
+    }
+  }, { delayMs: 3_200, timeoutMs: 5_000 });
 });
 
 onBeforeUnmount(() => {
+  cancelInitialPlannerLoad();
+  cancelCommunityPreviewLoad();
   window.removeEventListener('resize', syncMobilePlannerLayout);
 });
 </script>
@@ -311,6 +324,11 @@ onBeforeUnmount(() => {
 .community-panel,
 .planner-mobile-brief {
   padding: var(--space-6);
+}
+
+.community-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: 840px;
 }
 
 .planner-alert h2,

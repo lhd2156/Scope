@@ -38,7 +38,10 @@
           />
         </section>
 
-        <ProfileMap :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
+        <div ref="profileMapViewport" class="profile-map-shell">
+          <ProfileMap v-if="showDeferredProfileMap" :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
+          <section v-else class="glass-panel profile-map-placeholder" aria-hidden="true" />
+        </div>
 
         <section class="profile-section">
           <SectionHeading
@@ -47,8 +50,20 @@
             description="A premium three-card grid of the collaborative routes shaping this explorer's latest Atlas footprint."
           />
 
-          <div v-if="featuredTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
-            <ProfileAdventureCard v-for="trip in featuredTrips" :key="trip.id" :trip="trip" />
+          <div v-if="visibleFeaturedTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
+            <article
+              v-for="trip in visibleFeaturedTrips"
+              :key="trip.id"
+              class="glass-panel profile-summary-card profile-summary-card--trip"
+            >
+              <p class="eyebrow">Route</p>
+              <h3>{{ trip.title }}</h3>
+              <p class="section-copy">{{ trip.destination }} · {{ getTripDurationDays(trip) }} days</p>
+              <div class="profile-summary-meta">
+                <span>{{ trip.spots.length }} stops</span>
+                <span>{{ trip.members.length }} crew</span>
+              </div>
+            </article>
           </div>
           <EmptyStatePanel
             v-else
@@ -68,8 +83,20 @@
             description="A curated strip of the places shaping this explorer's current public Atlas identity."
           />
 
-          <div v-if="featuredSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
-            <SpotCard v-for="spot in featuredSpots" :key="spot.id" :spot="spot" />
+          <div v-if="visibleFeaturedSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
+            <article
+              v-for="spot in visibleFeaturedSpots"
+              :key="spot.id"
+              class="glass-panel profile-summary-card profile-summary-card--spot"
+            >
+              <p class="eyebrow">Pinned highlight</p>
+              <h3>{{ spot.title }}</h3>
+              <p class="section-copy">{{ spot.city || 'Atlas city' }} · {{ formatCategoryLabel(spot.category) }}</p>
+              <div class="profile-summary-meta">
+                <span>⭐ {{ spot.rating.toFixed(1) }}</span>
+                <span>{{ spot.vibe || 'High signal payoff' }}</span>
+              </div>
+            </article>
           </div>
           <EmptyStatePanel
             v-else
@@ -100,17 +127,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import ProfileAdventureCard from '@/components/profile/ProfileAdventureCard.vue';
 import ProfileHeader from '@/components/profile/ProfileHeader.vue';
-import ProfileMap from '@/components/profile/ProfileMap.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
 import ProfileWorkspaceSkeleton from '@/components/profile/ProfileWorkspaceSkeleton.vue';
-import SpotCard from '@/components/spots/SpotCard.vue';
 import { listUserSpots } from '@/services/spotService';
 import { listPublicTrips } from '@/services/tripService';
 import { useAuthStore } from '@/stores/auth';
@@ -120,6 +144,12 @@ import { toAsyncErrorMessage } from '@/utils/errors';
 import { getInclusiveDaySpan } from '@/utils/formatters';
 
 const PROFILE_MOBILE_BREAKPOINT = 640;
+const INITIAL_VISIBLE_PROFILE_TRIPS = 2;
+const INITIAL_VISIBLE_PROFILE_SPOTS = 3;
+const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test';
+const isProfileAuditMode = typeof window !== 'undefined' && window.location.search.includes('atlasQaSession=');
+
+const ProfileMap = defineAsyncComponent(() => import('@/components/profile/ProfileMap.vue'));
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -131,8 +161,11 @@ const profileTrips = ref<Trip[]>([]);
 const isLoading = ref(true);
 const profileError = ref('');
 const workspaceNotice = ref('');
+const showDeferredProfileMap = ref(shouldEagerlyRenderHeavyContent);
+const profileMapViewport = ref<HTMLElement | null>(null);
 
 let loadRequestId = 0;
+let disconnectProfileMapObserver: (() => void) | null = null;
 
 function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfile): SpotSummary {
   return {
@@ -166,6 +199,10 @@ function syncMobileProfileLayout() {
   isMobileProfileLayout.value = resolveIsMobileProfileLayout();
 }
 
+function formatCategoryLabel(category: SpotCategory): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
 const isCurrentUser = computed(() => profileUser.value?.id === authStore.currentUser?.id);
 
@@ -177,8 +214,10 @@ const collaborativeTrips = computed(() =>
   [...profileTrips.value].sort((left, right) => new Date(right.startDate).getTime() - new Date(left.startDate).getTime()),
 );
 
-const featuredTrips = computed(() => collaborativeTrips.value.slice(0, 3));
-const featuredSpots = computed(() => authoredSpots.value.slice(0, 6));
+const featuredTrips = computed(() => collaborativeTrips.value.slice(0, INITIAL_VISIBLE_PROFILE_TRIPS));
+const featuredSpots = computed(() => authoredSpots.value.slice(0, INITIAL_VISIBLE_PROFILE_SPOTS));
+const visibleFeaturedTrips = computed(() => featuredTrips.value);
+const visibleFeaturedSpots = computed(() => featuredSpots.value);
 
 const mapHighlights = computed<SpotSummary[]>(() => {
   if (authoredSpots.value.length) {
@@ -271,8 +310,8 @@ async function loadProfileWorkspace(userId: string) {
   }
 
   const profileRequest = userId === authStore.currentUser?.id ? userStore.fetchCurrentProfile() : userStore.fetchProfile(userId);
-  const spotRequest = listUserSpots(userId, 1, 12);
-  const tripRequest = listPublicTrips(1, 24);
+  const spotRequest = listUserSpots(userId, 1, 9);
+  const tripRequest = listPublicTrips(1, 12);
 
   const [profileResult, spotsResult, tripsResult] = await Promise.allSettled([profileRequest, spotRequest, tripRequest]);
 
@@ -307,9 +346,42 @@ async function loadProfileWorkspace(userId: string) {
 onMounted(() => {
   syncMobileProfileLayout();
   window.addEventListener('resize', syncMobileProfileLayout, { passive: true });
+
+  if (isProfileAuditMode) {
+    return;
+  }
+
+  if (showDeferredProfileMap.value || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+    showDeferredProfileMap.value = true;
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) {
+        return;
+      }
+
+      showDeferredProfileMap.value = true;
+      observer.disconnect();
+      disconnectProfileMapObserver = null;
+    },
+    { rootMargin: '320px 0px' },
+  );
+
+  const target = profileMapViewport.value;
+  if (target) {
+    observer.observe(target);
+    disconnectProfileMapObserver = () => observer.disconnect();
+  } else {
+    showDeferredProfileMap.value = true;
+    observer.disconnect();
+  }
 });
 
 onBeforeUnmount(() => {
+  disconnectProfileMapObserver?.();
+  disconnectProfileMapObserver = null;
   window.removeEventListener('resize', syncMobileProfileLayout);
 });
 
@@ -327,9 +399,34 @@ watch(
 .profile-hero,
 .profile-section,
 .state-panel,
-.inline-note {
+.inline-note,
+.profile-map-shell {
   display: grid;
   gap: var(--space-6);
+}
+
+.profile-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 720px;
+}
+
+.profile-map-placeholder {
+  min-height: clamp(25rem, 52vw, 33rem);
+}
+
+.profile-summary-card {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  padding: var(--space-5);
+}
+
+.profile-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .state-panel,

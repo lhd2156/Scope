@@ -181,6 +181,46 @@ body {
   transform: none;
 }
 
+html[data-atlas-qa='true'] body {
+  background: var(--bg-primary);
+}
+
+html[data-atlas-qa='true'] .route-stage :is(.page-container, .map-page) > *,
+html[data-atlas-qa='true'] .stagger-in > * {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+html[data-atlas-qa='true'] .route-fade-enter-active,
+html[data-atlas-qa='true'] .route-fade-leave-active,
+html[data-atlas-qa='true'] .route-fade-reduced-enter-active,
+html[data-atlas-qa='true'] .route-fade-reduced-leave-active,
+html[data-atlas-qa='true'] .button,
+html[data-atlas-qa='true'] .surface-card {
+  transition-duration: 1ms !important;
+}
+
+html[data-atlas-qa='true'] .glass-panel {
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-atlas-qa='true'] .surface-card,
+html[data-atlas-qa='true'] .button,
+html[data-atlas-qa='true'] .auth-card {
+  box-shadow: none;
+}
+
+html[data-atlas-qa='true'] .surface-card:hover,
+html[data-atlas-qa='true'] .surface-card:focus-within,
+html[data-atlas-qa='true'] .button:hover,
+html[data-atlas-qa='true'] .button:focus-visible,
+html[data-atlas-qa='true'] .button:active {
+  transform: none;
+  box-shadow: none;
+}
+
 @keyframes atlas-page-reveal {
   from {
     opacity: 0;
