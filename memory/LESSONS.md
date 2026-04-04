@@ -338,6 +338,7 @@
 - [2026-04-04] ✅ If a relaunched Prism Phase 20.1 worker is still under an hour old and fresh `sessions_history` shows active reads/execs around `phase20-lighthouse-audit.mjs`, preserve that live QA run instead of stacking another shared-workspace Frontend spawn.
 - [2026-04-04] ✅ If fresh `sessions_history` shows the same Prism Phase 20.1 worker already finished `npm run build` plus `npm run test` and is now advancing through `npm run qa:lighthouse` route headings on a live `process` poll, treat that sequence as healthy QA progression and preserve the worker instead of relaunching.
 - [2026-04-04] ✅ If that same Prism Phase 20.1 worker later rolls straight into live edits plus a focused `phase20-qa.spec.ts` smoke run after Lighthouse clears, preserve it; follow-on Playwright remediation is still healthy progress on the same open Phase 20 checkpoint, not a reason to respawn.
+- [2026-04-04] ✅ If that focused `phase20-qa.spec.ts` remediation pass turns green and the same Prism worker immediately starts a wider Chromium/Firefox/WebKit route/auth/spot/trip regression matrix on a live `process` poll, preserve it; that browser-matrix follow-through is still the canonical Phase 20.1 run in flight.
 
 ## Common Mistakes to Avoid
 
