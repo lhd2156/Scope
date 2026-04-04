@@ -353,7 +353,9 @@
 - [2026-04-04] ✅ If `atlas-frontend/QA-REPORT.md` plus the newest frontend Phase 20 log entry prove 20.1-20.4 are done but the Phase 20 checklist/current-task fields still lag, reconcile `frontend/PROGRESS.md` and `memory/COMPLETED-TASKS.md` first, then relaunch only the next unchecked checkpoint.
 - [2026-04-04] ✅ When `frontend/PROGRESS.md` has already advanced to Phase 20.7 and `subagents(action=list)` shows no active Prism worker, treat the prior QA slice as a clean handoff: update the lead dashboard to 20.7 immediately and relaunch exactly one new Frontend child on that checkpoint.
 - [2026-04-04] ✅ If the lead dashboard later drifts to a nonexistent replacement session id but `subagents(action=list)` still shows exactly one live Phase 20.7 Prism worker and `sessions_history` has that child actively rerunning Lighthouse on live polls, trust the live subagent list, correct the dashboard, and preserve the worker.
+- [2026-04-04] ✅ During Phase 20.7, if fresh `sessions_history` tails on repeated long `process(action=poll)` calls for `npm.cmd run qa:lighthouse` and `subagents(action=list)` still shows the same single Prism child running, treat that as an active shared-run audit in flight and preserve the worker instead of relaunching a duplicate.
 - [2026-04-04] ✅ If that live Phase 20.7 Prism worker is running the cross-browser confidence gate and one browser surfaces a new failure while later browser slices keep advancing on the same `process` poll, preserve the worker; an in-flight regression diagnosis is still healthy progress, not heartbeat restart criteria.
+- [2026-04-04] ✅ Even when the lead dashboard already carries the current heartbeat timestamp, re-audit the live Phase 20.7 Prism session id before trusting the row; if `subagents(action=list)` and `sessions_history` agree on one surviving worker, correct the row and preserve that worker instead of relaunching.
 
 ## Common Mistakes to Avoid
 
