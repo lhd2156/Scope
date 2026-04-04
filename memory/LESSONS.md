@@ -347,6 +347,7 @@
 - [2026-04-04] ✅ If Prism patches a flaky WebKit focus assertion and immediately relaunches a fresh multi-browser regression matrix whose latest `sessions_history` tail ends on a new `process` poll with Chromium already green, preserve the worker; that handoff is healthy Phase 20.1 progress, not a stall.
 - [2026-04-04] ✅ If that relaunched matrix later shows Chromium fully green, Firefox fully green, and WebKit already entering its slice on the same live `process` poll, preserve the worker; cross-browser rollout progress is still active QA movement, not a relaunch signal.
 - [2026-04-04] ✅ If the next heartbeat still lands on that same live Phase 20.1 `process` poll after Chromium and Firefox are already green, treat the unchanged tail as normal long-poll behavior while WebKit continues; preserve the worker unless fresh history actually goes stale.
+- [2026-04-04] ✅ If Prism finishes the WebKit slice, finishes a follow-on Edge navigation/Phase-20 pass, and immediately pivots into QA-report/progress-file prep in fresh `sessions_history`, preserve the same worker; that wrap-up handoff is healthy completion work, not a reason to respawn before the canonical tracker moves.
 
 ## Common Mistakes to Avoid
 
