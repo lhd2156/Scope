@@ -336,6 +336,7 @@
 - [2026-04-04] ⚠️ If the lead dashboard and `subagents(action=list)` disagree on the surviving Prism session, trust the live subagent list plus a fresh `sessions_history` recency check; if the lone worker is still stuck on older Lighthouse `process` polls and the canonical Phase 20.1 checkbox has not advanced, kill it and relaunch exactly once on the same checkpoint.
 - [2026-04-04] ✅ During Prism Phase 20.1, Chrome/GCM `PHONE_REGISTRATION_ERROR`, `DEPRECATED_ENDPOINT`, or `wrong_secret` noise inside the Lighthouse run is not a blocker when the route headings keep advancing and the child remains on a live `process` poll; treat that as healthy audit progress and preserve the worker.
 - [2026-04-04] ✅ If a relaunched Prism Phase 20.1 worker is still under an hour old and fresh `sessions_history` shows active reads/execs around `phase20-lighthouse-audit.mjs`, preserve that live QA run instead of stacking another shared-workspace Frontend spawn.
+- [2026-04-04] ✅ If fresh `sessions_history` shows the same Prism Phase 20.1 worker already finished `npm run build` plus `npm run test` and is now advancing through `npm run qa:lighthouse` route headings on a live `process` poll, treat that sequence as healthy QA progression and preserve the worker instead of relaunching.
 
 ## Common Mistakes to Avoid
 
