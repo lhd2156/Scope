@@ -348,6 +348,8 @@
 - [2026-04-04] ✅ If that relaunched matrix later shows Chromium fully green, Firefox fully green, and WebKit already entering its slice on the same live `process` poll, preserve the worker; cross-browser rollout progress is still active QA movement, not a relaunch signal.
 - [2026-04-04] ✅ If the next heartbeat still lands on that same live Phase 20.1 `process` poll after Chromium and Firefox are already green, treat the unchanged tail as normal long-poll behavior while WebKit continues; preserve the worker unless fresh history actually goes stale.
 - [2026-04-04] ✅ If Prism finishes the WebKit slice, finishes a follow-on Edge navigation/Phase-20 pass, and immediately pivots into QA-report/progress-file prep in fresh `sessions_history`, preserve the same worker; that wrap-up handoff is healthy completion work, not a reason to respawn before the canonical tracker moves.
+- [2026-04-04] ✅ If a later heartbeat finds the lead dashboard pointing at an older dead Prism session but `subagents(action=list)` shows exactly one newer replacement worker and fresh `sessions_history` has that child actively rerunning `npm.cmd run qa:lighthouse`, trust the live subagent list, correct the dashboard, and preserve the replacement worker.
+- [2026-04-04] ✅ If Prism discovers the on-disk Lighthouse summary/report is stale after follow-on QA fixes and immediately relaunches `npm.cmd run qa:lighthouse` on a fresh live `process` poll, preserve that same worker; stale report artifacts during Phase 20 wrap-up are not evidence that the canonical run has stalled.
 
 ## Common Mistakes to Avoid
 
