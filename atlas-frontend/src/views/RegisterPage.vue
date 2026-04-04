@@ -170,6 +170,7 @@ async function registerWithGoogle() {
   display: grid;
   gap: var(--space-6);
   width: min(100%, 32rem);
+  contain: layout paint style;
   margin-inline: auto;
   padding: clamp(var(--space-6), 4vw, var(--space-8));
   border-radius: clamp(var(--radius-xl), 3vw, var(--radius-2xl));

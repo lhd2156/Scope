@@ -40,11 +40,44 @@
     <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-2388x1668.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://i.pravatar.cc" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Atlas — Discover spots, map stories, and plan smarter trips</title>
   </head>
   <body>
     <div id="app"></div>
+    <script type="module">
+      (() => {
+        if (import.meta.env.VITE_DEMO_MODE !== 'true') {
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const qaSession = params.get('atlasQaSession');
+
+        if (!qaSession) {
+          return;
+        }
+
+        document.documentElement.dataset.atlasQa = 'true';
+        window.localStorage.setItem('atlas-analytics-consent', 'denied');
+        window.localStorage.setItem('atlas-onboarding-completed-v1', 'completed');
+
+        if (qaSession === 'authenticated') {
+          window.localStorage.setItem(
+            'atlas-auth-session-hint',
+            JSON.stringify({
+              version: 1,
+              hasSessionCookie: true,
+              lastAuthenticatedAt: new Date().toISOString(),
+            }),
+          );
+        } else {
+          window.localStorage.removeItem('atlas-auth-session-hint');
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

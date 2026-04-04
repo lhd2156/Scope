@@ -132,12 +132,12 @@
 - [x] 20.2 - Test all form validation edge cases (empty, too long, special chars, XSS payloads)
 - [x] 20.3 - Verify keyboard navigation on every interactive element
 - [x] 20.4 - Cross-browser verification: Chrome, Firefox, Safari, Edge
-- [ ] 20.5 - Final npm run build and npm run test - fix ALL failures
-- [ ] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
+- [x] 20.5 - Final npm run build and npm run test - fix ALL failures
+- [x] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [ ] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 20.5 - Final npm run build and npm run test - fix ALL failures
-## Last Updated: 2026-04-04T01:43:07.8786880-05:00
+## Current Task: Phase 20.7 - Fix all Critical and High severity issues found
+## Last Updated: 2026-04-04T01:59:00-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -210,3 +210,4 @@
 - 2026-04-01T14:12:53.5330686-05:00: COMPLETED Phase 19.8 - added a premium replay-tutorial card to the Settings appearance workspace, threaded the action through the settings page into the onboarding store so completed tours can relaunch from step one without touching the profile-save contract, and covered the new walkthrough entry point with focused settings form/page regression tests including the failure-path toast while keeping the motion treatment reduced-motion-safe. Validation: `npm.cmd run test -- tests/unit/settings-form.spec.ts tests/unit/settings-page.spec.ts tests/unit/onboarding-store.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 261 tests). Next up: Phase 19.9 empty-state illustrations.
 - 2026-04-01T14:34:12.9464874-05:00: COMPLETED Phase 19.9 - extended the shared `EmptyStatePanel` illustration system with a dedicated map artwork variant, upgraded the remaining Map workspace no-content states into premium illustrated panels with planner/reset actions, gated the featured-route panel behind loading to avoid empty-state flashes, and added focused `map-page.spec.ts` coverage for the new illustrated states. Validation: `npm.cmd run test -- tests/unit/map-page.spec.ts tests/unit/empty-state-panel.spec.ts`, `npm.cmd run build`, `npm.cmd run test` (93 files / 262 tests). Next up: Phase 20.1 Lighthouse audit.
 - 2026-04-04T01:43:07.8786880-05:00: COMPLETED Phase 20.1-20.4 - executed the Phase 20 QA blitz with a dedicated Lighthouse harness/report, fixed the real session-expiry runtime regression, removed landmark / aria-hidden / contrast issues, reduced non-critical authenticated-shell work, tightened demo media payloads, added a dedicated `phase20-qa.spec.ts` suite for keyboard navigation + form edge cases + escaped HTML rendering, and revalidated the frontend with build, unit, Chromium/Firefox/WebKit browser coverage, plus an Edge smoke pass. Validation: `npm.cmd run build`, `npm.cmd run test` (93 files / 262 tests), `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit tests/e2e/phase20-qa.spec.ts tests/e2e/spot-crud-flow.spec.ts tests/e2e/trip-flow.spec.ts`, `$env:PLAYWRIGHT_INCLUDE_EDGE='true'; npm.cmd run test:e2e -- --project=msedge tests/e2e/phase20-qa.spec.ts tests/e2e/trip-flow.spec.ts`, `npm.cmd run qa:lighthouse` (see `atlas-frontend/QA-REPORT.md` for the final route matrix and known harness caveats). Next up: Phase 20.5 social engagement edge-case QA / cleanup of remaining Lighthouse session-isolation flakes.
+- 2026-04-04T01:59:00-05:00: COMPLETED Phase 20.5-20.6 - revalidated the frontend with `npm.cmd run build` and `npm.cmd run test` after the latest QA hardening, refreshed `atlas-frontend/QA-REPORT.md`, and pushed the Lighthouse harness/route optimizations far enough that `/trips/new`, `/profile/demo-user-1`, `/friends`, and isolated `/register` audits now pass. Remaining work is concentrated in Phase 20.7: the final shared Lighthouse matrix still flakes on `/explore`, `/map`, `/login`, and `/register`. Next up: finish the remaining shared-run Lighthouse stability fixes.

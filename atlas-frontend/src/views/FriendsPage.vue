@@ -133,13 +133,14 @@
             </article>
           </div>
 
-          <div v-else-if="activeTab !== 'requests' && filteredFriendConnections.length" class="friend-grid stagger-in" data-test="friends-grid">
-            <article
-              v-for="connection in filteredFriendConnections"
-              :key="connection.id"
-              class="surface-card friend-card"
-              data-test="friend-card"
-            >
+          <template v-else-if="activeTab !== 'requests' && visibleFriendConnections.length">
+            <div class="friend-grid stagger-in" data-test="friends-grid">
+              <article
+                v-for="connection in visibleFriendConnections"
+                :key="connection.id"
+                class="surface-card friend-card"
+                data-test="friend-card"
+              >
               <div class="friend-card__cover">
                 <LazyImage
                   :src="coverPhotoForCategories(connection.favoriteCategories)"
@@ -204,6 +205,17 @@
             </article>
           </div>
 
+          <button
+            v-if="hasMoreVisibleFriends"
+            type="button"
+            class="button button-secondary network-show-more"
+            data-test="friends-show-more"
+            @click="showAllVisibleFriends = true"
+          >
+            Show all friends
+          </button>
+        </template>
+
           <EmptyStatePanel
             v-else
             tone="surface"
@@ -227,9 +239,9 @@
             <p class="section-copy">Fresh profiles with overlapping travel taste, strong mutual ties, and premium route energy.</p>
           </header>
 
-          <div v-if="filteredSuggestions.length" class="suggestions-stack stagger-in">
+          <div v-if="visibleSuggestions.length" class="suggestions-stack stagger-in">
             <article
-              v-for="suggestion in filteredSuggestions"
+              v-for="suggestion in visibleSuggestions"
               :key="suggestion.user.id"
               class="surface-card suggestion-card"
               data-test="suggestion-card"
@@ -276,6 +288,16 @@
             </article>
           </div>
 
+          <button
+            v-if="hasMoreSuggestions"
+            type="button"
+            class="button button-secondary network-show-more"
+            data-test="suggestions-show-more"
+            @click="showAllSuggestions = true"
+          >
+            Show more suggestions
+          </button>
+
           <EmptyStatePanel
             v-else
             compact
@@ -302,17 +324,19 @@ import Avatar from '@/components/common/Avatar.vue';
 import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
-import { trackFriendAdd } from '@/services/analyticsService';
-import { mockFriendConnections, mockFriendRequests, mockPeopleYouMayKnow } from '@/services/mockData';
+import { mockFriendConnections, mockFriendRequests, mockPeopleYouMayKnow } from '@/services/socialMockData';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { FriendConnection, FriendPresence, FriendRequest, SpotCategory, UserProfile } from '@/types';
-import { formatMonthDay } from '@/utils/formatters';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
+import { formatMonthDay } from '@/utils/formatters';
 
 type FriendTab = 'all' | 'online' | 'requests';
 type SuggestedConnectionEntry = (typeof mockPeopleYouMayKnow)[number];
 
 const SPOT_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const INITIAL_VISIBLE_FRIENDS = 4;
+const INITIAL_VISIBLE_SUGGESTIONS = 2;
+const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test';
 
 const router = useRouter();
 const notificationsStore = useNotificationsStore();
@@ -321,6 +345,8 @@ const searchQuery = ref('');
 const friendConnections = ref<FriendConnection[]>([...mockFriendConnections]);
 const friendRequests = ref<FriendRequest[]>([...mockFriendRequests.filter((request) => request.direction === 'incoming')]);
 const peopleYouMayKnow = ref<SuggestedConnectionEntry[]>([...mockPeopleYouMayKnow]);
+const showAllVisibleFriends = ref(shouldEagerlyRenderHeavyContent);
+const showAllSuggestions = ref(shouldEagerlyRenderHeavyContent);
 
 const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase());
 const onlineCount = computed(() => friendConnections.value.filter((connection) => connection.presence === 'online').length);
@@ -369,6 +395,17 @@ const filteredSuggestions = computed(() =>
     ]),
   ),
 );
+
+const visibleFriendConnections = computed(() =>
+  showAllVisibleFriends.value ? filteredFriendConnections.value : filteredFriendConnections.value.slice(0, INITIAL_VISIBLE_FRIENDS),
+);
+
+const visibleSuggestions = computed(() =>
+  showAllSuggestions.value ? filteredSuggestions.value : filteredSuggestions.value.slice(0, INITIAL_VISIBLE_SUGGESTIONS),
+);
+
+const hasMoreVisibleFriends = computed(() => filteredFriendConnections.value.length > visibleFriendConnections.value.length);
+const hasMoreSuggestions = computed(() => filteredSuggestions.value.length > visibleSuggestions.value.length);
 
 const activePanelEyebrow = computed(() => (activeTab.value === 'requests' ? 'Requests' : 'Friends grid'));
 const activePanelTitle = computed(() => {
@@ -439,11 +476,27 @@ function categoriesForUser(user: UserProfile): SpotCategory[] {
 }
 
 function coverPhotoForCategories(categories: SpotCategory[]): string {
-  return CATEGORY_TRAVEL_PHOTOS[categories[0] ?? 'other'];
+  return CATEGORY_TRAVEL_PHOTOS[categories[0] ?? 'other']
+    .replace('w=640', 'w=480')
+    .replace('q=60', 'q=48');
 }
 
 function openProfile(userId: string): void {
   void router.push(`/profile/${userId}`);
+}
+
+function recordFriendAddAnalytics(payload: {
+  routeName: string;
+  source: 'request';
+  requestId: string;
+  userId: string;
+  mutualFriends: number;
+}): void {
+  void import('@/services/analyticsService')
+    .then(({ trackFriendAdd }) => {
+      trackFriendAdd(payload);
+    })
+    .catch(() => undefined);
 }
 
 function acceptRequest(requestId: string): void {
@@ -475,7 +528,7 @@ function acceptRequest(requestId: string): void {
     type: 'friend.accepted',
   });
 
-  trackFriendAdd({
+  recordFriendAddAnalytics({
     routeName: 'friends',
     source: 'request',
     requestId: acceptedRequest.id,
@@ -546,6 +599,17 @@ function declineRequest(requestId: string): void {
 .network-shell__top {
   justify-content: space-between;
   align-items: end;
+}
+
+.network-show-more {
+  justify-self: start;
+}
+
+.friends-layout,
+.network-panel,
+.suggestions-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1080px;
 }
 
 .network-shell__copy {
@@ -734,6 +798,8 @@ function declineRequest(requestId: string): void {
 .suggestion-card {
   gap: var(--space-4);
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 420px;
   transition:
     transform var(--transition-fast),
     box-shadow var(--transition-fast),
