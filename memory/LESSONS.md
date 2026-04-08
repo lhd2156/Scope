@@ -368,6 +368,7 @@
 - [2026-04-08] ✅ On repeated same-night heartbeats with all canonical trackers still COMPLETE, preserve the same no-worker state and just roll the lead timestamp/log forward; the concise heartbeat status should remain stable until a canonical tracker reopens.
 - [2026-04-08] ✅ If the lead tracker timestamp drifts slightly from the requested heartbeat minute while all canonical agent trackers are still COMPLETE, correct only the lead timestamp/log entry on the next cycle and keep the no-worker state unchanged.
 - [2026-04-08] ✅ For repeated all-complete heartbeats, treat the concise Telegram payload as stable operational status: only the heartbeat time and refreshed lead timestamp/log need to change unless a canonical tracker reopens.
+- [2026-04-08] ✅ Even when the lead tracker has minute-level drift from prior heartbeat writes, keep using the canonical agent trackers as source of truth and normalize only the lead heartbeat timestamp/log on the next pass while preserving the same no-worker state.
 
 ## Common Mistakes to Avoid
 
