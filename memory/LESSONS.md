@@ -374,6 +374,7 @@
 - [2026-04-08] ✅ If a lead heartbeat write lands a couple minutes off the requested cron time while every canonical agent tracker remains COMPLETE, correct it on the next cycle by rolling only the lead timestamp/log forward to the requested minute; do not reopen or respawn any agent from that drift alone.
 - [2026-04-08] ✅ When the lead tracker already shows all canonical agents COMPLETE and no workers running, a later heartbeat should simply advance the lead timestamp/log to the requested minute and preserve the same concise status payload unless a canonical agent file changes.
 - [2026-04-08] ✅ With all canonical agent trackers COMPLETE, duplicate nearby lead-heartbeat entries do not imply reopened work; keep the next pass simple—advance only the canonical lead timestamp/log to the requested cron minute, keep `Agents Running` empty, and preserve the stable heartbeat summary.
+- [2026-04-08] ✅ On repeated all-complete heartbeat cycles, the orchestration loop is still valid even when it results in no spawns: use the canonical service trackers as the source of truth, refresh the lead tracker to the exact requested minute, cap the lead log at 10 entries, and keep the external heartbeat payload unchanged apart from time.
 
 ## Common Mistakes to Avoid
 
