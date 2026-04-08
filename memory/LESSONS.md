@@ -420,6 +420,7 @@
 - [2026-04-08] ✅ If an all-complete heartbeat arrives off the usual cadence, still trust the requested heartbeat minute as the only lead change: advance just the lead timestamp/log, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
 - [2026-04-08] ⚠️ In PowerShell heartbeat file rewrites, `-replace`/`-ireplace` do not accept a replacement-count argument; use `[regex]::Replace(..., ..., 1)` when only the first lead timestamp line should change.
+- [2026-04-08] ✅ If the next all-complete heartbeat arrives only a minute after the prior lead refresh, keep the same no-worker orchestration posture and snap only the lead timestamp/log to the requested minute; do not respawn anything unless a canonical service tracker changes.
 
 ## Common Mistakes to Avoid
 
