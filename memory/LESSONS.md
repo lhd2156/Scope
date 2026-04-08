@@ -422,6 +422,7 @@
 - [2026-04-08] ⚠️ In PowerShell heartbeat file rewrites, `-replace`/`-ireplace` do not accept a replacement-count argument; use `[regex]::Replace(..., ..., 1)` when only the first lead timestamp line should change.
 - [2026-04-08] ✅ If the next all-complete heartbeat arrives only a minute after the prior lead refresh, keep the same no-worker orchestration posture and snap only the lead timestamp/log to the requested minute; do not respawn anything unless a canonical service tracker changes.
 - [2026-04-08] ✅ If the local status clock has already rolled into the next minute during an all-complete heartbeat, keep the lead timestamp/log pinned to the trigger's requested minute so the canonical heartbeat record matches the requested cron time.
+- [2026-04-08] ✅ For off-cadence all-complete heartbeats like 10:32Z, preserve the same no-worker orchestration state and advance only the lead timestamp/log to the exact requested minute instead of snapping back to the usual 5-minute cadence.
 
 ## Common Mistakes to Avoid
 
