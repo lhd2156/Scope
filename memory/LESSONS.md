@@ -389,6 +389,7 @@
 - [2026-04-08] ✅ When all six canonical agent trackers remain COMPLETE across another heartbeat, preserve the same lead-owned follow-on phase text and no-worker dashboard state; only the lead timestamp/log entry and heartbeat clock should advance to the requested cron minute.
 - [2026-04-08] ✅ With every canonical agent tracker COMPLETE, the heartbeat loop should continue to respect the canonical files literally: no spawns, no preserved workers, and no agent-dashboard rewrites beyond the lead timestamp/log refresh for the requested cron minute.
 - [2026-04-08] ✅ When a later all-complete heartbeat arrives exactly on the next hour mark, keep the orchestration response unchanged: refresh the lead timestamp/log to that requested minute, leave `Agents Running` empty, and preserve the same concise external heartbeat summary apart from time.
+- [2026-04-08] ✅ On repeated all-complete heartbeats, the canonical orchestration loop is still being followed exactly when it results in no spawns: the service trackers remain the spawn source of truth, `Agents Running` stays empty, and only the lead heartbeat record advances to the requested cron minute.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
