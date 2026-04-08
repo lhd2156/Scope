@@ -365,6 +365,7 @@
 - [2026-04-04] ✅ If a fresh heartbeat finds every canonical agent tracker already COMPLETE and the lead dashboard already reflects that state, do not invent new worker activity; keep `Agents Running` empty, preserve the lead-owned follow-on phases, and only send the concise heartbeat status update.
 - [2026-04-04] ✅ When all canonical agent tracks remain COMPLETE across another heartbeat, trim the lead progress log back to the 10-entry cap before appending the new heartbeat row; only the timestamp/status post should move.
 - [2026-04-08] ✅ When every canonical agent tracker is still COMPLETE on a later heartbeat, keep the orchestration loop in lead-owned follow-on mode: do not respawn workers, keep `Agents Running` empty, and only refresh the lead dashboard timestamp/log plus the concise heartbeat status.
+- [2026-04-08] ✅ On repeated same-night heartbeats with all canonical trackers still COMPLETE, preserve the same no-worker state and just roll the lead timestamp/log forward; the concise heartbeat status should remain stable until a canonical tracker reopens.
 
 ## Common Mistakes to Avoid
 
