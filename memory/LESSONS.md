@@ -370,6 +370,7 @@
 - [2026-04-08] ✅ For repeated all-complete heartbeats, treat the concise Telegram payload as stable operational status: only the heartbeat time and refreshed lead timestamp/log need to change unless a canonical tracker reopens.
 - [2026-04-08] ✅ Even when the lead tracker has minute-level drift from prior heartbeat writes, keep using the canonical agent trackers as source of truth and normalize only the lead heartbeat timestamp/log on the next pass while preserving the same no-worker state.
 - [2026-04-08] ✅ When all canonical trackers remain COMPLETE, the heartbeat loop still counts as work: refresh the lead tracker timestamp/log on the requested minute, keep the 10-entry cap, and leave worker state unchanged unless a canonical agent file reopens.
+- [2026-04-08] ✅ On repeated lead-owned follow-on heartbeats after all agents are complete, the only canonical changes should be the lead timestamp/log and optional log-format normalization; agent dashboards and worker state should stay untouched until a service tracker changes.
 
 ## Common Mistakes to Avoid
 
