@@ -398,6 +398,7 @@
 - [2026-04-08] ✅ During prolonged all-complete heartbeat periods, continue treating the six canonical agent progress files as the only spawn source of truth; if none reopen, preserve the no-worker state and refresh only the lead record plus heartbeat time at each requested cron minute.
 - [2026-04-08] ✅ The lead heartbeat dashboard may need minute-level normalization during long all-complete runs, but that does not alter orchestration state: if every canonical agent tracker remains COMPLETE, keep `Agents Running` empty and update only the lead timestamp/log plus the heartbeat clock line.
 - [2026-04-08] ✅ Long all-complete heartbeat streaks should stay boring by design: the canonical service trackers still govern spawn decisions, so when they all remain COMPLETE the exact orchestration behavior is to keep workers at none, refresh the lead timestamp/log to the requested minute, and reuse the same concise heartbeat summary with only the time changed.
+- [2026-04-08] ✅ If the lead dashboard timestamp slips by a minute during an all-complete run, correct it on the next heartbeat by normalizing only the lead tracker/log to the requested cron minute; do not infer reopened work or create duplicate workers from timestamp drift alone.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
