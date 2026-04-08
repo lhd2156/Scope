@@ -376,6 +376,7 @@
 - [2026-04-08] ✅ With all canonical agent trackers COMPLETE, duplicate nearby lead-heartbeat entries do not imply reopened work; keep the next pass simple—advance only the canonical lead timestamp/log to the requested cron minute, keep `Agents Running` empty, and preserve the stable heartbeat summary.
 - [2026-04-08] ✅ On repeated all-complete heartbeat cycles, the orchestration loop is still valid even when it results in no spawns: use the canonical service trackers as the source of truth, refresh the lead tracker to the exact requested minute, cap the lead log at 10 entries, and keep the external heartbeat payload unchanged apart from time.
 - [2026-04-08] ✅ If every canonical service tracker is still COMPLETE and the lead tracker already reflects lead-owned follow-on mode, heartbeat should make only two canonical writes: the new lead timestamp/log entry and an optional orchestration lesson; do not reopen worker sessions or rewrite agent dashboards.
+- [2026-04-08] ✅ When an all-complete heartbeat crosses into a new clock hour, that does not change orchestration state by itself; keep the canonical service dashboards untouched, roll only the lead heartbeat timestamp/log to the requested minute, and preserve the same no-worker summary unless a tracker reopens.
 
 ## Common Mistakes to Avoid
 
