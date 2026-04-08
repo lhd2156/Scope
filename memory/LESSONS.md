@@ -379,6 +379,7 @@
 - [2026-04-08] ✅ When an all-complete heartbeat crosses into a new clock hour, that does not change orchestration state by itself; keep the canonical service dashboards untouched, roll only the lead heartbeat timestamp/log to the requested minute, and preserve the same no-worker summary unless a tracker reopens.
 - [2026-04-08] ✅ For continued all-complete heartbeats after the hour rollover, keep the same lead-owned follow-on behavior: no spawns, no agent dashboard rewrites, just advance the lead timestamp/log to the requested cron minute and preserve the concise stable heartbeat summary.
 - [2026-04-08] ✅ If a later all-complete heartbeat lands one minute off the requested cron time, treat it as another lead-timestamp drift case: correct only the lead tracker to the requested minute on the next pass and keep all canonical agent dashboards and worker state unchanged.
+- [2026-04-08] ✅ Repeated all-complete lead-owned heartbeats can keep accumulating minor timestamp drift in the lead log; normalize the lead tracker to the requested cron minute each pass, but do not reinterpret that drift as reopened agent work when every canonical service tracker still says COMPLETE.
 
 ## Common Mistakes to Avoid
 
