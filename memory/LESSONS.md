@@ -401,6 +401,7 @@
 - [2026-04-08] ✅ If the lead dashboard timestamp slips by a minute during an all-complete run, correct it on the next heartbeat by normalizing only the lead tracker/log to the requested cron minute; do not infer reopened work or create duplicate workers from timestamp drift alone.
 - [2026-04-08] ✅ Even after many all-complete heartbeat cycles, keep the orchestration source of truth narrow: only a canonical agent `PROGRESS.md` moving off COMPLETE should trigger spawns; otherwise preserve the empty worker set and update only the lead heartbeat record to the requested minute.
 - [2026-04-08] ✅ Crossing another clock hour during an all-complete heartbeat streak still does not change orchestration state: unless a canonical agent tracker reopens, keep workers at none and only advance the lead heartbeat record to the requested cron minute.
+- [2026-04-08] ✅ During fully complete project state, the safest anti-duplication rule is to preserve `Agents Running: None` until a canonical agent tracker explicitly moves off COMPLETE; heartbeat work is then limited to re-reading the canonical files, refreshing the lead timestamp/log, and keeping the outbound status report stable except for time.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
