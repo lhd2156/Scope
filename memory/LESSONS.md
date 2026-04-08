@@ -372,6 +372,7 @@
 - [2026-04-08] ✅ When all canonical trackers remain COMPLETE, the heartbeat loop still counts as work: refresh the lead tracker timestamp/log on the requested minute, keep the 10-entry cap, and leave worker state unchanged unless a canonical agent file reopens.
 - [2026-04-08] ✅ On repeated lead-owned follow-on heartbeats after all agents are complete, the only canonical changes should be the lead timestamp/log and optional log-format normalization; agent dashboards and worker state should stay untouched until a service tracker changes.
 - [2026-04-08] ✅ If a lead heartbeat write lands a couple minutes off the requested cron time while every canonical agent tracker remains COMPLETE, correct it on the next cycle by rolling only the lead timestamp/log forward to the requested minute; do not reopen or respawn any agent from that drift alone.
+- [2026-04-08] ✅ When the lead tracker already shows all canonical agents COMPLETE and no workers running, a later heartbeat should simply advance the lead timestamp/log to the requested minute and preserve the same concise status payload unless a canonical agent file changes.
 
 ## Common Mistakes to Avoid
 
