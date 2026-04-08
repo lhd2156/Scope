@@ -425,6 +425,7 @@
 - [2026-04-08] ✅ For off-cadence all-complete heartbeats like 10:32Z, preserve the same no-worker orchestration state and advance only the lead timestamp/log to the exact requested minute instead of snapping back to the usual 5-minute cadence.
 - [2026-04-08] ✅ If another all-complete heartbeat lands between the usual 5-minute ticks (for example 11:22Z), keep the canonical orchestration posture unchanged: no spawns, `Agents Running: None`, and only a lead timestamp/log refresh to the exact requested minute.
 - [2026-04-08] ✅ On a normal-cadence all-complete heartbeat like 11:35Z, keep the steady-state loop boring on purpose: re-read the canonical trackers, preserve `Agents Running: None`, and only roll the lead timestamp/log plus status clock forward to the requested minute.
+- [2026-04-08] ✅ For another off-cadence all-complete heartbeat like 12:03Z, keep the same no-worker orchestration posture and align only the lead timestamp/log to the exact requested minute instead of rounding back to the 5-minute cadence.
 
 ## Common Mistakes to Avoid
 
