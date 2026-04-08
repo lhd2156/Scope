@@ -395,6 +395,7 @@
 - [2026-04-08] ✅ When the canonical agent files remain unchanged and COMPLETE over many consecutive heartbeats, avoid inventing work: preserve the same no-worker state, keep the lead log capped at 10 entries, and only roll the lead timestamp/log plus heartbeat clock forward to the requested cron minute.
 - [2026-04-08] ✅ For recurring heartbeats during the same all-complete project state, the canonical orchestration action is simply to preserve the empty worker set and refresh the lead record to the exact requested minute; this still counts as following HEARTBEAT.md exactly because the spawn condition is driven only by non-COMPLETE canonical agent files.
 - [2026-04-08] ✅ When the canonical agent trackers remain COMPLETE for another scheduled heartbeat, keep the orchestration loop deterministic: no duplicate workers, no new spawns, no agent-file rewrites, and only advance the lead tracker/log plus the concise heartbeat time to the requested cron minute.
+- [2026-04-08] ✅ During prolonged all-complete heartbeat periods, continue treating the six canonical agent progress files as the only spawn source of truth; if none reopen, preserve the no-worker state and refresh only the lead record plus heartbeat time at each requested cron minute.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
@@ -402,7 +403,7 @@
 
 - [2026-04-08] ✅ If an all-complete heartbeat arrives off the usual cadence, still trust the requested heartbeat minute as the only lead change: advance just the lead timestamp/log, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
-## Common Mistakes to Avoid
+\#\#\ Common\ Mistakes\ to\ Avoid
 
 - [2026-03-28] ❌ Do NOT just read files and report status — actually DO the work
 - [2026-03-28] ❌ Do NOT merge microservices — each service is independent
@@ -456,6 +457,7 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-04-01] [LESSON] For Atlas map-workspace empty states, extend the centralized `EmptyStatePanel` with a dedicated map artwork variant and reuse it inside the sidebar cards instead of bespoke placeholder divs; that keeps no-content states premium, reduced-motion-safe, and action-ready without forking the illustration system.
 
 - [2026-04-04] ?? Phase 20 Lighthouse is much more reliable when demo/auth state is seeded through the audited URL before app bootstrap (for example ?atlasQaSession=authenticated), but isolated-route passes can still diverge from the final all-routes matrix; do not mark the checkpoint complete until the shared matrix itself is green.
+
 
 
 
