@@ -391,8 +391,11 @@
 - [2026-04-08] ✅ When a later all-complete heartbeat arrives exactly on the next hour mark, keep the orchestration response unchanged: refresh the lead timestamp/log to that requested minute, leave `Agents Running` empty, and preserve the same concise external heartbeat summary apart from time.
 - [2026-04-08] ✅ On repeated all-complete heartbeats, the canonical orchestration loop is still being followed exactly when it results in no spawns: the service trackers remain the spawn source of truth, `Agents Running` stays empty, and only the lead heartbeat record advances to the requested cron minute.
 - [2026-04-08] ✅ As long as the canonical foundation/core/content/intel/frontend/polish trackers all remain COMPLETE, each heartbeat should preserve the same no-worker orchestration state and advance only the lead tracker timestamp/log to the requested cron minute; the concise Telegram payload stays stable aside from time.
+- [2026-04-08] ✅ The heartbeat loop can still be “exact” even when it performs no spawns: if every canonical agent tracker says COMPLETE, exact execution means preserving the no-worker state, refreshing only the lead timestamp/log to the requested cron minute, and leaving the concise external status text unchanged apart from time.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
+
+- [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep Agents Running empty, and preserve the stable status payload unless a canonical tracker reopens.
 
 ## Common Mistakes to Avoid
 
@@ -448,4 +451,5 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-04-01] [LESSON] For Atlas map-workspace empty states, extend the centralized `EmptyStatePanel` with a dedicated map artwork variant and reuse it inside the sidebar cards instead of bespoke placeholder divs; that keeps no-content states premium, reduced-motion-safe, and action-ready without forking the illustration system.
 
 - [2026-04-04] ?? Phase 20 Lighthouse is much more reliable when demo/auth state is seeded through the audited URL before app bootstrap (for example ?atlasQaSession=authenticated), but isolated-route passes can still diverge from the final all-routes matrix; do not mark the checkpoint complete until the shared matrix itself is green.
+
 
