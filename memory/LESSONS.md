@@ -382,6 +382,7 @@
 - [2026-04-08] ✅ Repeated all-complete lead-owned heartbeats can keep accumulating minor timestamp drift in the lead log; normalize the lead tracker to the requested cron minute each pass, but do not reinterpret that drift as reopened agent work when every canonical service tracker still says COMPLETE.
 - [2026-04-08] ✅ During extended all-complete heartbeat runs, treat the canonical agent progress files as the only spawn trigger; if every one still says COMPLETE, keep the Telegram heartbeat stable and limit repo writes to the lead timestamp/log refresh plus optional orchestration memory note.
 - [2026-04-08] ✅ For later same-state heartbeats, preserve the canonical lead-owned follow-on phase text verbatim unless a canonical agent tracker reopens; only the lead timestamp/log and the heartbeat clock line should advance.
+- [2026-04-08] ✅ On continued all-complete heartbeats, the canonical execution rule stays simple: because every service tracker still says COMPLETE, do not spawn anything; only advance the lead tracker to the requested cron minute, keep the 10-entry cap, and leave the concise Telegram status unchanged except for time.
 
 ## Common Mistakes to Avoid
 
