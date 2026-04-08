@@ -396,6 +396,7 @@
 - [2026-04-08] ✅ For recurring heartbeats during the same all-complete project state, the canonical orchestration action is simply to preserve the empty worker set and refresh the lead record to the exact requested minute; this still counts as following HEARTBEAT.md exactly because the spawn condition is driven only by non-COMPLETE canonical agent files.
 - [2026-04-08] ✅ When the canonical agent trackers remain COMPLETE for another scheduled heartbeat, keep the orchestration loop deterministic: no duplicate workers, no new spawns, no agent-file rewrites, and only advance the lead tracker/log plus the concise heartbeat time to the requested cron minute.
 - [2026-04-08] ✅ During prolonged all-complete heartbeat periods, continue treating the six canonical agent progress files as the only spawn source of truth; if none reopen, preserve the no-worker state and refresh only the lead record plus heartbeat time at each requested cron minute.
+- [2026-04-08] ✅ The lead heartbeat dashboard may need minute-level normalization during long all-complete runs, but that does not alter orchestration state: if every canonical agent tracker remains COMPLETE, keep `Agents Running` empty and update only the lead timestamp/log plus the heartbeat clock line.
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
 
