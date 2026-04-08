@@ -400,6 +400,8 @@
 
 - [2026-04-08] ? If an all-complete heartbeat arrives off the usual 5-minute cadence, still trust the requested heartbeat minute as the only lead change: update just the lead timestamp/log to that exact minute, keep Agents Running empty, and preserve the stable status payload unless a canonical tracker reopens.
 
+- [2026-04-08] ✅ If an all-complete heartbeat arrives off the usual cadence, still trust the requested heartbeat minute as the only lead change: advance just the lead timestamp/log, keep `Agents Running` empty, and preserve the stable status payload unless a canonical tracker reopens.
+
 ## Common Mistakes to Avoid
 
 - [2026-03-28] ❌ Do NOT just read files and report status — actually DO the work
@@ -454,5 +456,6 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-04-01] [LESSON] For Atlas map-workspace empty states, extend the centralized `EmptyStatePanel` with a dedicated map artwork variant and reuse it inside the sidebar cards instead of bespoke placeholder divs; that keeps no-content states premium, reduced-motion-safe, and action-ready without forking the illustration system.
 
 - [2026-04-04] ?? Phase 20 Lighthouse is much more reliable when demo/auth state is seeded through the audited URL before app bootstrap (for example ?atlasQaSession=authenticated), but isolated-route passes can still diverge from the final all-routes matrix; do not mark the checkpoint complete until the shared matrix itself is green.
+
 
 
