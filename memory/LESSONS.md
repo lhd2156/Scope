@@ -388,6 +388,7 @@
 - [2026-04-08] ✅ In extended no-worker heartbeat mode, keep treating the lead tracker as the only mutable orchestration record: if all six canonical agent trackers remain COMPLETE, update just the lead timestamp/log to the requested cron minute and preserve the same concise status payload for Telegram.
 - [2026-04-08] ✅ When all six canonical agent trackers remain COMPLETE across another heartbeat, preserve the same lead-owned follow-on phase text and no-worker dashboard state; only the lead timestamp/log entry and heartbeat clock should advance to the requested cron minute.
 - [2026-04-08] ✅ With every canonical agent tracker COMPLETE, the heartbeat loop should continue to respect the canonical files literally: no spawns, no preserved workers, and no agent-dashboard rewrites beyond the lead timestamp/log refresh for the requested cron minute.
+- [2026-04-08] ✅ When a later all-complete heartbeat arrives exactly on the next hour mark, keep the orchestration response unchanged: refresh the lead timestamp/log to that requested minute, leave `Agents Running` empty, and preserve the same concise external heartbeat summary apart from time.
 
 ## Common Mistakes to Avoid
 
