@@ -215,12 +215,13 @@
 
 ### Phase 23: WebAssembly Client Module (C++ -> WASM via Emscripten)
 - [x] 23.1 Scaffold atlas-frontend/wasm/ with CMakeLists.txt for Emscripten build
-- [ ] 23.2 Port viewport clustering algorithm to wasm/src/atlas_wasm.cpp
+- [x] 23.2 Port viewport clustering algorithm to wasm/src/atlas_wasm.cpp
 - [ ] 23.3 Add client-side haversine + convex hull for map UI labels
 - [ ] 23.4 Create src/services/wasmService.ts — async WASM loader + typed wrappers
 - [ ] 23.5 Wire into MapView.vue for marker clustering + distance labels
 
-## Current Task: Phase 23.2 — Port viewport clustering algorithm
-## Last Updated: 2026-04-19T05:17:56-05:00
+## Current Task: Phase 23.3 — Add haversine + convex hull for map UI labels
+## Last Updated: 2026-04-19T06:41:20.6062236-05:00
 
 - 2026-04-19T05:17:56-05:00: COMPLETED Phase 23.1 - installed the local `atlas-frontend/emsdk/` Emscripten SDK, scaffolded `atlas-frontend/wasm/` with an Emscripten-ready `CMakeLists.txt`, module stub, README, and build-artifact ignores, and validated the new WebAssembly scaffold with `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: this Windows host needed user-space `cmake` + `ninja` on PATH for `emcmake`, and validation used a temporary local `make` shim because GNU `make` is not installed globally. Next up: Phase 23.2 viewport clustering port.
+- 2026-04-19T06:41:20.6062236-05:00: COMPLETED Phase 23.2 - replaced the scaffold stub in `atlas-frontend/wasm/src/atlas_wasm.cpp` with an embind-exported viewport clustering engine that projects visible points into Web Mercator screen space, handles antimeridian-aware viewport normalization, clusters nearby markers with a spatial hash + union-find pass, and returns either cluster groups or singleton markers with stable ids, member ids, and screen-space bounds. Also refreshed the WASM README with the new `clusterViewportPoints(points, viewport, options)` API contract. Validation: `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: on this host `emcmake` still needs the user-space Python `cmake` + `ninja` paths available after `emsdk_env.ps1`, while `emmake make` continues to use the local make shim in `atlas-frontend/wasm/`. Next up: Phase 23.3 haversine + convex hull helpers.
