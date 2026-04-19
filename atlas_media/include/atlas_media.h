@@ -8,6 +8,16 @@
 extern "C" {
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+    #ifdef ATLAS_MEDIA_BUILD
+        #define ATLAS_MEDIA_API __declspec(dllexport)
+    #else
+        #define ATLAS_MEDIA_API __declspec(dllimport)
+    #endif
+#else
+    #define ATLAS_MEDIA_API
+#endif
+
 #define ATLAS_MEDIA_VERSION_MAJOR 0
 #define ATLAS_MEDIA_VERSION_MINOR 1
 #define ATLAS_MEDIA_VERSION_PATCH 0
@@ -49,24 +59,24 @@ typedef struct atlas_media_thumbnail_options {
     uint8_t channels;
 } atlas_media_thumbnail_options;
 
-const char *atlas_media_version(void);
-const char *atlas_media_status_name(atlas_media_status status);
-atlas_media_status atlas_media_detect_format(const uint8_t *data, size_t length, atlas_media_format *format);
-atlas_media_status atlas_media_strip_exif(const uint8_t *input, size_t input_length, atlas_media_buffer *output);
-atlas_media_status atlas_media_generate_thumbnail(
+ATLAS_MEDIA_API const char *atlas_media_version(void);
+ATLAS_MEDIA_API const char *atlas_media_status_name(atlas_media_status status);
+ATLAS_MEDIA_API atlas_media_status atlas_media_detect_format(const uint8_t *data, size_t length, atlas_media_format *format);
+ATLAS_MEDIA_API atlas_media_status atlas_media_strip_exif(const uint8_t *input, size_t input_length, atlas_media_buffer *output);
+ATLAS_MEDIA_API atlas_media_status atlas_media_generate_thumbnail(
     const atlas_media_image *input,
     const atlas_media_thumbnail_options *options,
     atlas_media_image *output
 );
-atlas_media_status atlas_media_encode_blurhash(
+ATLAS_MEDIA_API atlas_media_status atlas_media_encode_blurhash(
     const atlas_media_image *input,
     uint32_t components_x,
     uint32_t components_y,
     char *output,
     size_t output_length
 );
-void atlas_media_free_buffer(atlas_media_buffer *buffer);
-void atlas_media_free_image(atlas_media_image *image);
+ATLAS_MEDIA_API void atlas_media_free_buffer(atlas_media_buffer *buffer);
+ATLAS_MEDIA_API void atlas_media_free_image(atlas_media_image *image);
 
 #ifdef __cplusplus
 }
