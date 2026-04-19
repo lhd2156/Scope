@@ -106,11 +106,12 @@
 - [x] 22.2 Image format detection from magic bytes (src/detect.c)
 - [x] 22.3 EXIF metadata stripping (src/exif.c)
 - [x] 22.4 Thumbnail generation with bilinear interpolation (src/thumbnail.c)
-- [ ] 22.5 Blurhash encoding for progressive placeholders (src/blurhash.c)
+- [x] 22.5 Blurhash encoding for progressive placeholders (src/blurhash.c)
 - [ ] 22.6 Python ctypes integration tests + wire into photos/services.py
 - Added native JPEG/PNG/GIF/WEBP magic-byte detection in `atlas_media/src/detect.c`, introduced a shared `atlas_media/build.py` compiler helper plus DLL export macros for future ctypes loading, and added compiler-aware pytest coverage (`python -m pytest atlas_media/tests/` passed with `3 passed, 7 skipped`); this host still lacks both `make` and a C compiler in PATH, so native build execution remains environment-blocked for now
 - Added `atlas_media/src/exif.c` to strip JPEG APP1 `Exif\0\0` segments while preserving non-EXIF APP1 metadata and passing non-JPEG formats through unchanged; added compiler-aware ctypes coverage in `atlas_media/tests/test_exif.py` and re-ran `python -m pytest atlas_media/tests/` successfully (`3 passed, 15 skipped`). `make test` is still blocked on this host because `make` is not installed.
 - Added `atlas_media/src/thumbnail.c` with aspect-ratio-aware bilinear thumbnail generation for tightly packed 1-4 channel pixel buffers, no-upscale copy behavior, and explicit `NOT_IMPLEMENTED` handling for channel conversion requests; added compiler-aware ctypes coverage in `atlas_media/tests/test_thumbnail.py` and re-ran `python -m pytest atlas_media/tests/` successfully (`3 passed, 20 skipped`). `make test` remains blocked on this host because `make` is not installed and neither `cl` nor `gcc` is in PATH.
+- Added `atlas_media/src/blurhash.c` with base83 BlurHash encoding, DC/AC quantization, 1-4 channel pixel support (including alpha flattening to white for GA/RGBA inputs), and a small `-lm` linker fix in `atlas_media/build.py` for future gcc builds; added compiler-aware ctypes parity coverage in `atlas_media/tests/test_blurhash.py` against a pure-Python reference encoder and re-ran `make test ; python -m pytest atlas_media/tests/` with the expected environment result (`make` missing on this host, `python -m pytest atlas_media/tests/` passed with `3 passed, 26 skipped`).
 
-## Current Task: Phase 22.5 - Blurhash encoding for progressive placeholders
-## Last Updated: 2026-04-19T14:58:13Z
+## Current Task: Phase 22.6 - Python ctypes integration tests + wire into photos/services.py
+## Last Updated: 2026-04-19T16:26:42Z
