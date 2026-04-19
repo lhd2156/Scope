@@ -433,6 +433,8 @@
 - [2026-04-19] ⚠️ If `subagents(action=list)` shows only recent `done` rows but zero active workers and the canonical agent `PROGRESS.md` files are still open, treat those `done` rows as stale/non-authoritative and relaunch from the canonical checkpoint instead of trusting the subagent status alone.
 - [2026-04-19] ⚠️ If a queued `/heartbeat` arrives while Phases 21-26 are reopened, do not send `HEARTBEAT_OK` just because the older all-complete state was stable; re-read the canonical trackers first, retry each blocked non-COMPLETE track once, and if `sessions_spawn` still times out with zero surviving children, send an alert-style heartbeat that explicitly says the reopened fleet is blocked.
 - [2026-04-19] ⚠️ If a fresh heartbeat starts with zero active workers and only the first retried track is accepted while every sibling relaunch times out, rewrite the lead dashboard immediately to that one-worker mixed fleet instead of carrying the previous multi-worker state forward.
+- [2026-04-19] ⚠️ If the lead dashboard still names a previously accepted reopened child but a fresh `subagents(action=list)` audit is empty, trust the empty live-child audit over the stale row, clear `Agents Running`, and retry every still-open canonical track once before reporting the fleet blocked.
+- [2026-04-19] ⚠️ If a previously accepted reopened child later degrades into a recent `timeout` row and another service appears only as recent `done` while canonical trackers are still open, treat both rows as non-authoritative when `subagents(action=list)` is empty, then relaunch from the canonical checkpoints and refresh the dashboard immediately.
 
 ## Common Mistakes to Avoid
 
