@@ -95,6 +95,16 @@ jobs:
             context: ./atlas_intel
             file: ./atlas_intel/Dockerfile
             build_args: ''
+          - name: atlas-metrics
+            image: atlas-metrics
+            context: ./atlas-metrics
+            file: ./atlas-metrics/Dockerfile
+            build_args: ''
+          - name: atlas-cli
+            image: atlas-cli
+            context: ./atlas-cli
+            file: ./atlas-cli/Dockerfile
+            build_args: ''
           - name: frontend
             image: atlas-frontend
             context: ./atlas-frontend

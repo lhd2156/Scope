@@ -18,11 +18,11 @@
 - [x] 26.2 Add AWS provider config + S3 backend state + DynamoDB lock table
 - [x] 26.3 Add Prometheus + Grafana K8s manifests (k8s/08-monitoring.yaml) + scrape configs
 - [x] 26.4 Update GitHub Actions deploy workflow with OIDC auth + terraform plan/apply steps
-- [ ] 26.5 Wire atlas-metrics + atlas-cli into docker-compose.yml and k8s manifests
+- [x] 26.5 Wire atlas-metrics + atlas-cli into docker-compose.yml and k8s manifests
 - [ ] 26.6 Production smoke test script (scripts/smoke-test.ps1)
 
-## Current Task: Phase 26.5 — Wire atlas-metrics + atlas-cli into docker-compose.yml and k8s manifests
-## Last Updated: 2026-04-19T16:41:00Z
+## Current Task: Phase 26.6 — Production smoke test script (scripts/smoke-test.ps1)
+## Last Updated: 2026-04-19T20:57:24Z
 
 ## Log
 - All 8 milestone commits completed on feature/foundation branch
@@ -35,3 +35,5 @@
 - [2026-04-19] Dry-run `terraform plan` is now blocked until the remote-state bootstrap is applied, `terraform/backend.hcl` is populated, and AWS credentials are configured.
 - [2026-04-19] Phase 26.3 complete on feature/cloud-deploy: added `k8s/08-monitoring.yaml` with Prometheus + Grafana Deployments/Services, provisioned Grafana's Prometheus datasource, and added a Prometheus scrape target for the future `atlas-metrics` service.
 - [2026-04-19] Phase 26.4 complete on feature/cloud-deploy: updated `.github/workflows/deploy.yml` for GitHub OIDC-backed Terraform plan/apply runs, generated remote-backend config from GitHub vars, uploaded reusable plan artifacts, and documented the new workflow in the deployment/runbook references.
+- [2026-04-19] Phase 26.5 complete on feature/cloud-deploy: wired `atlas-metrics` into Docker Compose and `k8s/06-applications.yaml`, added a suspended `atlas-cli-health` CronJob template plus an `atlas-cli` Compose ops profile, expanded GHCR image publishing for both images, and updated deployment/release docs.
+- [2026-04-19] Validation for 26.5: `docker compose --env-file .env.example config` passed, `python -m py_compile atlas-metrics/app.py` passed, and `cargo metadata --no-deps --format-version 1` passed for `atlas-cli`; host `cargo test` is still blocked on this workstation because the MSVC linker (`link.exe`) is not installed.

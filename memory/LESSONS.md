@@ -12,6 +12,7 @@
 - [2026-03-28] ✅ Python 3.14.3 is at `C:\Users\dongu\AppData\Local\Python\bin\python.exe`
 - [2026-03-28] ✅ .NET SDK 8.0.419 is at `C:\Program Files\dotnet\dotnet.exe`
 - [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
+- [2026-04-19] ⚠️ Rust CLI host builds on this workstation currently fail because the MSVC linker `link.exe` is missing; use Dockerized builds or install Visual C++ Build Tools before relying on `cargo build` / `cargo test`.
 - [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
 
 ## Package Compatibility
