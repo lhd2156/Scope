@@ -435,6 +435,7 @@
 - [2026-04-19] ⚠️ If a fresh heartbeat starts with zero active workers and only the first retried track is accepted while every sibling relaunch times out, rewrite the lead dashboard immediately to that one-worker mixed fleet instead of carrying the previous multi-worker state forward.
 - [2026-04-19] ⚠️ If the lead dashboard still names a previously accepted reopened child but a fresh `subagents(action=list)` audit is empty, trust the empty live-child audit over the stale row, clear `Agents Running`, and retry every still-open canonical track once before reporting the fleet blocked.
 - [2026-04-19] ⚠️ If a previously accepted reopened child later degrades into a recent `timeout` row and another service appears only as recent `done` while canonical trackers are still open, treat both rows as non-authoritative when `subagents(action=list)` is empty, then relaunch from the canonical checkpoints and refresh the dashboard immediately.
+- [2026-04-19] ⚠️ If Foundation times out first but a later reopened sibling is accepted in the same retry wave, trust the accepted later-service child, rewrite the lead dashboard to that new single-worker mixed fleet immediately, and do not preserve a first-track bias from the spawn order.
 
 ## Common Mistakes to Avoid
 
