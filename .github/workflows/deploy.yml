@@ -14,16 +14,17 @@ on:
         options:
           - 'true'
           - 'false'
-      run_terraform_plan:
-        description: Run terraform plan against the configured AWS target
+      terraform_action:
+        description: Terraform workflow action
         required: true
-        default: 'false'
+        default: skip
         type: choice
         options:
-          - 'false'
-          - 'true'
+          - skip
+          - plan
+          - apply
       terraform_environment:
-        description: Terraform environment name passed into the plan
+        description: Terraform environment name passed into the workflow
         required: true
         default: staging
         type: choice
@@ -139,13 +140,17 @@ jobs:
           build-args: ${{ matrix.build_args }}
 
   terraform-plan:
-    name: Optional Terraform plan
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_terraform_plan == 'true'
+    name: Terraform plan (${{ github.event.inputs.terraform_environment }})
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.terraform_action == 'plan' || github.event.inputs.terraform_action == 'apply')
     runs-on: ubuntu-latest
     needs: preflight
+    environment: ${{ github.event.inputs.terraform_environment }}
     env:
       AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
+      TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
       TF_VAR_environment: ${{ github.event.inputs.terraform_environment }}
       TF_VAR_project_name: atlas
       TF_VAR_eks_cluster_name: atlas
@@ -156,16 +161,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate terraform plan configuration
+      - name: Validate Terraform workflow configuration
         shell: bash
         run: |
           missing=0
-          for variable in AWS_ROLE_TO_ASSUME TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix TF_VAR_sqlserver_master_password; do
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix TF_VAR_sqlserver_master_password; do
             if [ -z "${!variable}" ]; then
-              echo "::error::$variable is not configured for Terraform plan runs."
+              echo "::error::$variable is not configured for Terraform workflow runs."
               missing=1
             fi
           done
+
+          if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
+            echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
+          else
+            echo "TF_STATE_KEY=foundation/${TF_VAR_environment}/terraform.tfstate" >> "$GITHUB_ENV"
+          fi
+
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
@@ -179,11 +191,30 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.14.8
+
+      - name: Render Terraform backend config
+        shell: bash
+        run: |
+          cat > terraform/backend.hcl <<EOF
+          bucket         = "${TF_STATE_BUCKET}"
+          key            = "${TF_STATE_KEY}"
+          region         = "${AWS_REGION}"
+          dynamodb_table = "${TF_STATE_LOCK_TABLE}"
+          encrypt        = true
+          EOF
+
+      - name: Terraform fmt check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
 
       - name: Terraform init
         working-directory: terraform
-        run: terraform init
+        run: terraform init -input=false -reconfigure -backend-config=backend.hcl
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
 
       - name: Terraform plan
         working-directory: terraform
@@ -193,11 +224,92 @@ jobs:
         working-directory: terraform
         run: terraform show -no-color tfplan > tfplan.txt
 
+      - name: Prepare Terraform plan artifact
+        working-directory: terraform
+        run: |
+          mkdir -p ../.terraform-artifacts
+          cp tfplan ../.terraform-artifacts/
+          cp tfplan.txt ../.terraform-artifacts/
+
       - name: Upload Terraform plan artifact
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-terraform-plan
-          path: terraform/tfplan.txt
+          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          path: .terraform-artifacts
+          if-no-files-found: error
+
+  terraform-apply:
+    name: Terraform apply (${{ github.event.inputs.terraform_environment }})
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply'
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    environment: ${{ github.event.inputs.terraform_environment }}
+    env:
+      AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
+      TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Terraform apply configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is not configured for Terraform apply runs."
+              missing=1
+            fi
+          done
+
+          if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
+            echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
+          else
+            echo "TF_STATE_KEY=foundation/${{ github.event.inputs.terraform_environment }}/terraform.tfstate" >> "$GITHUB_ENV"
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          path: terraform
+
+      - name: Render Terraform backend config
+        shell: bash
+        run: |
+          cat > terraform/backend.hcl <<EOF
+          bucket         = "${TF_STATE_BUCKET}"
+          key            = "${TF_STATE_KEY}"
+          region         = "${AWS_REGION}"
+          dynamodb_table = "${TF_STATE_LOCK_TABLE}"
+          encrypt        = true
+          EOF
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false -reconfigure -backend-config=backend.hcl
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: terraform apply -input=false tfplan
 
   deployment-bundle:
     name: Publish deployment bundle artifact

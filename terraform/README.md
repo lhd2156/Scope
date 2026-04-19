@@ -66,14 +66,20 @@ terraform plan `
 
 What still remains unresolved is **runtime** validation against a real AWS account, including bootstrap apply, backend migration, credentials, networking, quotas, and globally unique naming constraints.
 
-## GitHub Actions plan path
+## GitHub Actions plan / apply path
 
-The repository deploy workflow now supports an optional manual Terraform plan job when these GitHub settings are configured:
+The repository deploy workflow now supports optional manual Terraform plan and apply jobs when these GitHub environment or repository settings are configured:
 
 - Variable: `AWS_ROLE_TO_ASSUME`
 - Variable: `TF_AWS_REGION` (optional)
+- Variable: `TF_STATE_BUCKET`
+- Variable: `TF_STATE_LOCK_TABLE`
+- Variable: `TF_STATE_KEY` (optional, defaults to `foundation/<environment>/terraform.tfstate`)
 - Variable: `TF_PHOTOS_BUCKET_NAME`
 - Variable: `TF_COGNITO_DOMAIN_PREFIX`
 - Secret: `TF_SQLSERVER_MASTER_PASSWORD`
 
-Run the `Atlas Deploy` workflow with `run_terraform_plan = true` to execute a real-account `terraform plan` and upload the generated text output as an artifact.
+Run the `Atlas Deploy` workflow with:
+
+- `terraform_action = plan` to execute a real-account `terraform plan` and upload `atlas-terraform-<environment>-plan`
+- `terraform_action = apply` to generate the plan artifact and then apply it after the selected GitHub environment allows the apply job to proceed
