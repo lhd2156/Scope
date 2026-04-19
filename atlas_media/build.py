@@ -63,6 +63,7 @@ def _build_with_gcc(sources: list[Path]) -> Path:
             '-o',
             str(output),
             *[str(path) for path in sources],
+            '-lm',
         ]
     else:
         output = BUILD_DIR / 'libatlas_media.so'
@@ -79,6 +80,7 @@ def _build_with_gcc(sources: list[Path]) -> Path:
             '-o',
             str(output),
             *[str(path) for path in sources],
+            '-lm',
         ]
     subprocess.run(command, cwd=ROOT, check=True)
     return output
