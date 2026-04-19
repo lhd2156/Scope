@@ -22,6 +22,8 @@ add_library(atlas_geo STATIC
     src/haversine.cpp
     src/rtree.cpp
     src/pathfinding.cpp
+    src/hull.cpp
+    src/cluster.cpp
 )
 add_library(atlas::geo ALIAS atlas_geo)
 
@@ -59,4 +61,4 @@ if(ATLAS_GEO_BUILD_TESTS)
     endif()
 endif()
 
-message(STATUS "atlas_geo configured with the scaffold, haversine primitive, packed R-tree spatial index, native pathfinding engine, and initial GoogleTest coverage. Future phases will expand the native engine and pybind11 module.")
+message(STATUS "atlas_geo configured with the scaffold, haversine primitive, packed R-tree spatial index, native pathfinding engine, convex hull utilities, viewport clustering, and initial GoogleTest coverage. Future phases will expand the native engine and pybind11 module.")
