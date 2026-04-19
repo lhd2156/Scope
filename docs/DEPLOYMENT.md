@@ -199,6 +199,35 @@ docker compose --profile ops run --rm atlas-cli health --verbose
 docker compose config
 ```
 
+### Edge + metrics smoke test
+
+Run the PowerShell smoke test against the deployment target after the stack is up.
+It verifies:
+
+- frontend root HTML
+- edge `/healthz`
+- `/api/core/health`
+- `/api/content/health`
+- `/api/intel/health`
+- Atlas Metrics `/healthz`
+- Atlas Metrics `/metrics`
+
+Local example:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1
+```
+
+Remote example:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -PublicBaseUrl "https://atlas.example.com" `
+  -MetricsBaseUrl "https://metrics.atlas.example.com"
+```
+
+The script exits non-zero if any check fails, so it is safe to use in deployment verification steps.
+
 ### Seed demo data
 
 The repository now includes idempotent SQL seed scripts under `scripts/sql/`.
@@ -397,6 +426,7 @@ Before calling a deployment candidate ready:
 - [ ] Intel test suite passes
 - [ ] Frontend build/test passes
 - [ ] Playwright critical-flow smoke passes
+- [ ] `scripts/smoke-test.ps1` passes against the deployed target
 - [ ] Atlas Metrics responds on `/healthz` and `/metrics`
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented

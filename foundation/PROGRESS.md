@@ -1,6 +1,6 @@
 # Foundation Progress
 
-## Status: IN_PROGRESS
+## Status: COMPLETE
 
 ## Tasks
 - [x] 1. Initialize monorepo folder structure
@@ -19,10 +19,10 @@
 - [x] 26.3 Add Prometheus + Grafana K8s manifests (k8s/08-monitoring.yaml) + scrape configs
 - [x] 26.4 Update GitHub Actions deploy workflow with OIDC auth + terraform plan/apply steps
 - [x] 26.5 Wire atlas-metrics + atlas-cli into docker-compose.yml and k8s manifests
-- [ ] 26.6 Production smoke test script (scripts/smoke-test.ps1)
+- [x] 26.6 Production smoke test script (scripts/smoke-test.ps1)
 
-## Current Task: Phase 26.6 — Production smoke test script (scripts/smoke-test.ps1)
-## Last Updated: 2026-04-19T20:57:24Z
+## Current Task: Phase 26 complete — repo scaffolding finished, awaiting real cloud runtime validation
+## Last Updated: 2026-04-19T23:05:00Z
 
 ## Log
 - All 8 milestone commits completed on feature/foundation branch
@@ -36,4 +36,6 @@
 - [2026-04-19] Phase 26.3 complete on feature/cloud-deploy: added `k8s/08-monitoring.yaml` with Prometheus + Grafana Deployments/Services, provisioned Grafana's Prometheus datasource, and added a Prometheus scrape target for the future `atlas-metrics` service.
 - [2026-04-19] Phase 26.4 complete on feature/cloud-deploy: updated `.github/workflows/deploy.yml` for GitHub OIDC-backed Terraform plan/apply runs, generated remote-backend config from GitHub vars, uploaded reusable plan artifacts, and documented the new workflow in the deployment/runbook references.
 - [2026-04-19] Phase 26.5 complete on feature/cloud-deploy: wired `atlas-metrics` into Docker Compose and `k8s/06-applications.yaml`, added a suspended `atlas-cli-health` CronJob template plus an `atlas-cli` Compose ops profile, expanded GHCR image publishing for both images, and updated deployment/release docs.
-- [2026-04-19] Validation for 26.5: `docker compose --env-file .env.example config` passed, `python -m py_compile atlas-metrics/app.py` passed, and `cargo metadata --no-deps --format-version 1` passed for `atlas-cli`; host `cargo test` is still blocked on this workstation because the MSVC linker (`link.exe`) is not installed.
+- [2026-04-19] Validation for 26.5: `docker compose --env-file .env.example config` passed, `C:\Users\dongu\AppData\Local\Python\bin\python.exe -m py_compile atlas-metrics/app.py` passed, and `cargo metadata --no-deps --format-version 1` passed for `atlas-cli`; host `cargo test` is still blocked on this workstation because the MSVC linker (`link.exe`) is not installed.
+- [2026-04-19] Phase 26.6 complete on feature/cloud-deploy: added `scripts/smoke-test.ps1` to verify the public edge route, Core/Content/Intel health endpoints, and Atlas Metrics `/healthz` plus `/metrics`, with overridable deployment URLs.
+- [2026-04-19] Validation for 26.6: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl http://127.0.0.1:18080 -MetricsBaseUrl http://127.0.0.1:19090` passed against a local mock edge + metrics deployment; `terraform init -backend=false -no-color`, `terraform validate -no-color`, and `terraform init -backend=false -reconfigure -no-color` still pass in both `terraform/` and `terraform/bootstrap/`, while a local dry-run `terraform plan -input=false -lock=false -no-color -var="sqlserver_master_password=ChangeMe123!" -var="photos_bucket_name=atlas-photos-staging-example" -var="cognito_domain_prefix=atlas-staging-example"` currently stops at backend reinitialization until the S3 backend is configured from a populated `backend.hcl`.
