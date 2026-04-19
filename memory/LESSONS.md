@@ -13,6 +13,7 @@
 - [2026-03-28] ✅ .NET SDK 8.0.419 is at `C:\Program Files\dotnet\dotnet.exe`
 - [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
 - [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
+- [2026-04-19] ⚠️ On this Windows OpenClaw host, `where.exe cl`, `where.exe gcc`, and `where.exe make` currently return no matches, so Atlas native-media phases can scaffold and run compiler-aware pytest skips but cannot execute real C builds until a toolchain and `make` are installed or added to PATH.
 
 ## Package Compatibility
 
