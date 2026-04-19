@@ -1,3 +1,3 @@
 # atlas_geo tests
 
-GoogleTest suites land here starting in Phase 21.2.
+GoogleTest suites live here. Phase 21.2 adds the first haversine distance coverage.

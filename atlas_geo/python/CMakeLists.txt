@@ -1,0 +1,6 @@
+if(ATLAS_GEO_FETCH_PYBIND11)
+    add_library(atlas_geo_pybind INTERFACE)
+    target_link_libraries(atlas_geo_pybind INTERFACE pybind11::headers atlas_geo)
+else()
+    message(STATUS "Skipping atlas_geo pybind11 placeholder target because ATLAS_GEO_FETCH_PYBIND11=OFF")
+endif()
