@@ -9,6 +9,8 @@ This directory contains the first real Terraform baseline for Atlas.
 - `outputs.tf` — cluster, DB, bucket, repo, and Cognito outputs
 - `vpc.tf` — VPC, subnets, NAT, and route tables
 - `iam.tf` — IAM roles/policy attachments for EKS control plane + node group
+- `backend.hcl.example` — template for the S3 backend configuration used after remote-state bootstrap
+- `bootstrap/` — Terraform state bootstrap stack that creates the S3 state bucket + DynamoDB lock table
 
 ## Required input variables
 
@@ -21,20 +23,37 @@ At minimum, set:
 Example:
 
 ```powershell
-terraform init
+terraform init -backend=false
 terraform plan `
   -var="sqlserver_master_password=change-me" `
   -var="photos_bucket_name=atlas-photos-staging-example" `
   -var="cognito_domain_prefix=atlas-staging-example"
 ```
 
+## Remote-state bootstrap
+
+The main stack now includes an S3 backend definition. Bootstrap the remote-state resources first:
+
+```powershell
+terraform -chdir=terraform/bootstrap init
+terraform -chdir=terraform/bootstrap apply
+```
+
+Then copy `terraform/backend.hcl.example` to `terraform/backend.hcl`, replace the placeholder values with the `backend_config` output from the bootstrap stack, and reinitialize the main stack:
+
+```powershell
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
 ## Current validation status
 
 Local validation was run on 2026-04-19 with Terraform v1.14.8 on this workstation:
 
-- `terraform init -backend=false` ✅
-- `terraform validate` ✅
-- `terraform plan ...` ⚠️ still requires real AWS credentials and currently fails locally with `No valid credential sources found`
+- `terraform init -backend=false` in `terraform/` ✅
+- `terraform validate` in `terraform/` ✅
+- `terraform init -backend=false` in `terraform/bootstrap/` ✅
+- `terraform validate` in `terraform/bootstrap/` ✅
+- `terraform plan ...` ⚠️ now requires the bootstrap state bucket + lock table to exist, a populated `terraform/backend.hcl`, and real AWS credentials before a dry-run can succeed locally
 
 Provide the required variables plus AWS credentials to run a real plan:
 
@@ -45,7 +64,7 @@ terraform plan `
   -var="cognito_domain_prefix=atlas-staging-example"
 ```
 
-What still remains unresolved is **runtime** validation against a real AWS account, including credentials, networking, quotas, and globally unique naming constraints.
+What still remains unresolved is **runtime** validation against a real AWS account, including bootstrap apply, backend migration, credentials, networking, quotas, and globally unique naming constraints.
 
 ## GitHub Actions plan path
 
