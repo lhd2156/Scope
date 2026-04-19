@@ -17,6 +17,8 @@ include(FetchContent)
 option(ATLAS_GEO_BUILD_TESTS "Build atlas_geo C++ unit tests" ON)
 option(ATLAS_GEO_FETCH_PYBIND11 "Fetch pybind11 during configure" ON)
 
+set(PYBIND11_FINDPYTHON ON)
+
 add_library(atlas_geo STATIC
     src/core.cpp
     src/haversine.cpp
@@ -61,4 +63,4 @@ if(ATLAS_GEO_BUILD_TESTS)
     endif()
 endif()
 
-message(STATUS "atlas_geo configured with the scaffold, haversine primitive, packed R-tree spatial index, native pathfinding engine, convex hull utilities, viewport clustering, and initial GoogleTest coverage. Future phases will expand the native engine and pybind11 module.")
+message(STATUS "atlas_geo configured with the scaffold, haversine primitive, packed R-tree spatial index, native pathfinding engine, convex hull utilities, viewport clustering, a pybind11 module, and mixed GoogleTest plus pytest integration coverage.")
