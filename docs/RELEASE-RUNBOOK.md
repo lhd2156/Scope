@@ -141,8 +141,21 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Content read paths work
 - [ ] Intel recommendation/health endpoints respond
 - [ ] Atlas Metrics `/healthz` and `/metrics` respond
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://atlas.example.com" -MetricsBaseUrl "https://metrics.atlas.example.com"` passes
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
 - [ ] logs show no immediate crash loops or startup failures
+
+### Recommended smoke command
+
+Use the repository smoke-test script as the fast post-deploy gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -PublicBaseUrl "https://atlas.example.com" `
+  -MetricsBaseUrl "https://metrics.atlas.example.com"
+```
+
+This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes, and Atlas Metrics `/healthz` + `/metrics`, and exits non-zero whenever any smoke check fails.
 
 ### Recommended spot checks
 
