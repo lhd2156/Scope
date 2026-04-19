@@ -12,6 +12,7 @@ dist
 .tmp/
 dist-ssr
 *.local
+emsdk/
 
 # Editor directories and files
 .vscode/*
