@@ -13,6 +13,7 @@
 - [2026-03-28] ✅ .NET SDK 8.0.419 is at `C:\Program Files\dotnet\dotnet.exe`
 - [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
 - [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
+- [2026-04-19] ⚠️ On this Windows workstation, Rust is installed (`cargo 1.95.0`, stable + nightly toolchains), but `cargo build` for `x86_64-pc-windows-msvc` still fails until MSVC C++ Build Tools / Windows SDK linker inputs are available (`link.exe`, `kernel32.lib`, `ntdll.lib`, `userenv.lib`, `ws2_32.lib`, `dbghelp.lib`); bundled `lld-link.exe` alone is not enough.
 
 ## Package Compatibility
 
