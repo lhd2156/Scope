@@ -1,6 +1,6 @@
 # Content Engine Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
 ## Tasks
 - [x] 1. Scaffold Django project and settings
@@ -16,20 +16,6 @@
 - [x] 11. Add Kafka producer and consumer
 - [x] 12. Enable Django admin panel
 - [x] 13. Install dependencies: `pip install -r atlas_content/requirements.txt` (create requirements.txt if missing)
-- [x] 14. Run and validate: `python atlas_content/manage.py check`
-- [x] 15. Generate migrations: `python atlas_content/manage.py makemigrations`
-- [x] 16. Run pytest: `pytest atlas_content/`
-- [x] 17. Fix any import errors, missing dependencies, or test failures
-- [x] 18. Add Dockerfile
-
-## Current Task: COMPLETE
-## Last Updated: 2026-03-29T17:31:00Z
-
-## Log
-- Full Django content engine scaffolded on feature/content-engine
-- faaecd9 feat(content): scaffold Django content engine
-- Previous blocker "no Python runtime" was WRONG — Python 3.14.3 IS installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe
-- pip 25.3 is available for installing packages
 - Agent MUST install dependencies and run Django checks before marking COMPLETE
 - Installed atlas_content requirements with Django 5.1.7-compatible pins; pip install completed successfully
 - `python atlas_content/manage.py check` passed with no issues
@@ -63,13 +49,16 @@
 - Verified all documented Kafka producers against the Section 10 contract: normalized the shared event envelope to `eventId/eventType/timestamp/source/data`, enriched `spot.created` with the architecture example payload fields, restored the missing `photo.uploaded` event, prevented `review.created` and `trip.member.added` from firing on update/idempotent paths, and added helper + HTTP-level producer tests before re-running `manage.py check` and the full Content suite successfully (`127 passed`)
 - Reconciled the stale Phase 12 Django Admin checkbox based on the already-committed admin configuration plus passing admin registration tests in `common/tests/test_admin_configuration.py`; the next real remaining task is cleanup of the leftover `bootstrap_content_append*.py` files
 - Removed the orphan `bootstrap_content_append*.py` scaffolding generators and their stale compiled artifacts after confirming no live Content code referenced them, added a regression check to the source-hygiene audit so they do not quietly return, and re-ran `manage.py check` plus the full Content suite successfully (`128 passed`); all remaining Content Phase 12 tasks are now complete
+- Verified the native-media toolchain precondition: `cl.exe`, `gcc.exe`, and `make` are not available on this workstation, so C compilation remains blocked until a compiler is installed and added to `PATH`
+- Scaffolded `atlas_media/` with a Makefile, public `include/atlas_media.h`, initial core memory helpers in `src/atlas_media.c`, and pytest scaffold coverage for the planned Phase 22 API surface
+- Ran `C:\Users\dongu\AppData\Local\Python\bin\python.exe -m pytest atlas_media/tests/`; the new native-media scaffold tests passed (`3 passed`)
 
 ## Environment Notes
-- Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe — USE IT
-- pip: 25.3 — USE IT to install packages
-- .NET SDK: 8.0.419 — available
-- Node.js: 24.14.0 — available
-- npm: 11.9.0 — available
+- Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe - USE IT
+- pip: 25.3 - USE IT to install packages
+- .NET SDK: 8.0.419 - available
+- Node.js: 24.14.0 - available
+- npm: 11.9.0 - available
 - ALL RUNTIMES ARE INSTALLED. Do NOT report "no runtime" as a blocker.
 
 ### Phase 5: Recheck & Audit
@@ -103,7 +92,7 @@
 
 ### Phase 12: Final Boss Recheck
 - [x] Re-verify every endpoint matches atlas_architecture.tex spec
-- [x] Run full build and all tests — fix any failures
+- [x] Run full build and all tests - fix any failures
 - [x] Verify API response formats match Appendix B exactly
 - [x] Check for hardcoded secrets, debug statements, TODO comments, dead code
 - [x] Verify all Kafka producers fire correct events
@@ -111,3 +100,14 @@
 - [x] Clean up bootstrap_content_append*.py files if not needed
 - Added hot-path indexes for spot/trip/photo/review query patterns, generated migrations, and added model-index assertions so the schema and source models stay aligned; Django checks and the full Content pytest suite passed after the index work
 - Configured Django Admin for Spots, Trips, Photos, Reviews, and Likes with searchable/filterable changelists plus TripSpot/TripMember inlines; added admin registration tests and verified the full Content suite still passes
+
+### Phase 22: Native Image Processing Pipeline (C via ctypes)
+- [x] 22.1 Scaffold atlas_media/ with Makefile + include/atlas_media.h
+- [ ] 22.2 Image format detection from magic bytes (src/detect.c)
+- [ ] 22.3 EXIF metadata stripping (src/exif.c)
+- [ ] 22.4 Thumbnail generation with bilinear interpolation (src/thumbnail.c)
+- [ ] 22.5 Blurhash encoding for progressive placeholders (src/blurhash.c)
+- [ ] 22.6 Python ctypes integration tests + wire into photos/services.py
+
+## Current Task: Phase 22.2 - Image format detection from magic bytes
+## Last Updated: 2026-04-19T09:20:00Z
