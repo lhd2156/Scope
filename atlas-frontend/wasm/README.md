@@ -28,6 +28,24 @@ Current embind exports:
 
 - `ping()`
 - `getModuleInfo()`
+- `calculateHaversineDistance(from, to)`
 - `clusterViewportPoints(points, viewport, options)`
+- `buildViewportConvexHull(points, viewport)`
 
-`clusterViewportPoints` accepts a plain JS array of point objects (`id`, `latitude`/`lat`, `longitude`/`lng`) plus a viewport object (`west`, `south`, `east`, `north`, `width`, `height`, `zoom`) and optional clustering options (`radiusPx`, `minPoints`, `includeSingles`). It returns plain JS objects representing either clustered marker groups or visible singleton points with screen-space coordinates and member ids.
+### `calculateHaversineDistance(from, to)`
+
+Accepts two plain JS coordinate objects (`id`, `latitude`/`lat`, `longitude`/`lng`) and returns `{ valid, fromId, toId, kilometers, miles, meters }` for map-side distance labels.
+
+### `clusterViewportPoints(points, viewport, options)`
+
+Accepts a plain JS array of point objects (`id`, `latitude`/`lat`, `longitude`/`lng`) plus a viewport object (`west`, `south`, `east`, `north`, `width`, `height`, `zoom`) and optional clustering options (`radiusPx`, `minPoints`, `includeSingles`). It returns plain JS objects representing either clustered marker groups or visible singleton points with screen-space coordinates and member ids.
+
+### `buildViewportConvexHull(points, viewport)`
+
+Accepts the same point array + viewport object as the clustering helper, projects only the visible points into screen space, and returns a hull summary with:
+
+- `valid`, `pointCount`, `hullPointCount`
+- centroid anchor fields (`latitude`, `longitude`, `screenX`, `screenY`)
+- visible bounds (`minScreenX`, `minScreenY`, `maxScreenX`, `maxScreenY`)
+- `areaSquarePx`, `perimeterPx`
+- `pointIds`, `hullPointIds`, and `hull` vertex objects for future map label surfaces
