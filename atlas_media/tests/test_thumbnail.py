@@ -83,11 +83,14 @@ def _call_thumbnail(
     status = library.atlas_media_generate_thumbnail(ctypes.byref(input_image), ctypes.byref(options), ctypes.byref(output_image))
 
     thumbnail_bytes = b''
+    output_width = output_image.width
+    output_height = output_image.height
+    output_channels = output_image.channels
     if bool(output_image.pixels):
         thumbnail_bytes = ctypes.string_at(output_image.pixels, output_image.length)
         library.atlas_media_free_image(ctypes.byref(output_image))
 
-    return status, output_image.width, output_image.height, output_image.channels, thumbnail_bytes
+    return status, output_width, output_height, output_channels, thumbnail_bytes
 
 
 def test_generate_thumbnail_preserves_aspect_ratio_without_upscaling(compiled_library: ctypes.CDLL) -> None:
