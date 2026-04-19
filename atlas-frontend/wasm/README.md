@@ -21,3 +21,13 @@ emmake make
 ```
 
 The build emits `dist/atlas_wasm.js` and `dist/atlas_wasm.wasm` for the upcoming typed loader in Phase 23.4.
+
+## Exported API
+
+Current embind exports:
+
+- `ping()`
+- `getModuleInfo()`
+- `clusterViewportPoints(points, viewport, options)`
+
+`clusterViewportPoints` accepts a plain JS array of point objects (`id`, `latitude`/`lat`, `longitude`/`lng`) plus a viewport object (`west`, `south`, `east`, `north`, `width`, `height`, `zoom`) and optional clustering options (`radiusPx`, `minPoints`, `includeSingles`). It returns plain JS objects representing either clustered marker groups or visible singleton points with screen-space coordinates and member ids.
