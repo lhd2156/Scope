@@ -137,7 +137,7 @@ impl Default for AtlasConfig {
                     health_url: "http://localhost:5003/api/intel/health".to_string(),
                 },
             ],
-            seed_directory: PathBuf::from("scripts/sql"),
+            seed_directory: PathBuf::from("seeds"),
             env_file: PathBuf::from(".env"),
             env_example_file: PathBuf::from(".env.example"),
         }
@@ -232,7 +232,7 @@ async fn run_seed(args: SeedArgs, context: &AppContext) -> CliResult {
     print_row("mode", if args.dry_run { "dry-run" } else { "execute" });
     print_row(
         "notes",
-        "Phase 24.3 will parse ordered SQL files from the Atlas seed directory.",
+        "Phase 24.3 will parse ordered SQL files from the Atlas seeds/ directory.",
     );
 
     Ok(())
@@ -350,3 +350,4 @@ mod tests {
         assert!(parse_method("NOT VALID").is_err());
     }
 }
+
