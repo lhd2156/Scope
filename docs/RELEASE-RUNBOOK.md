@@ -140,6 +140,7 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Core auth endpoints respond as expected
 - [ ] Content read paths work
 - [ ] Intel recommendation/health endpoints respond
+- [ ] Atlas Metrics `/healthz` and `/metrics` respond
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
 - [ ] logs show no immediate crash loops or startup failures
 
@@ -151,6 +152,7 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - plan a trip
 - check notifications/friends surfaces
 - verify Intel health route returns the expected bare health JSON shape
+- trigger `atlas-cli` inside Compose or Kubernetes and confirm the health-check scaffold resolves all four service endpoints
 
 ---
 
@@ -161,7 +163,7 @@ Use when automation is unavailable or when performing a controlled staging rollo
 If a deployment fails after new images are released:
 
 1. identify the last known-good image tags
-2. redeploy Core, Content, Intel, and/or Frontend to those tags
+2. redeploy Core, Content, Intel, Frontend, and/or Atlas Metrics / Atlas CLI to those tags
 3. re-run post-deploy verification
 
 ### Config rollback

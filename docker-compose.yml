@@ -147,6 +147,71 @@ services:
       - "5000"
     mem_limit: 512m
 
+  atlas-metrics:
+    build:
+      context: ./atlas-metrics
+    container_name: atlas-metrics
+    restart: unless-stopped
+    depends_on:
+      core:
+        condition: service_started
+      content:
+        condition: service_started
+      intel:
+        condition: service_started
+    environment:
+      ATLAS_CORE_HEALTH_URL: http://core:8080/api/core/health
+      ATLAS_CONTENT_HEALTH_URL: http://content:8000/api/content/health
+      ATLAS_INTEL_HEALTH_URL: http://intel:5000/api/intel/health
+      ATLAS_HEALTH_TIMEOUT_SECONDS: ${ATLAS_HEALTH_TIMEOUT_SECONDS:-5}
+      ATLAS_METRICS_PORT: ${ATLAS_METRICS_PORT:-9090}
+    ports:
+      - "${ATLAS_METRICS_PORT:-9090}:9090"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=5)",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    mem_limit: 128m
+
+  atlas-cli:
+    build:
+      context: ./atlas-cli
+    profiles:
+      - ops
+    restart: "no"
+    depends_on:
+      core:
+        condition: service_started
+      content:
+        condition: service_started
+      intel:
+        condition: service_started
+      atlas-metrics:
+        condition: service_started
+    working_dir: /workspace
+    environment:
+      ATLAS_CORE_HEALTH_URL: http://core:8080/api/core/health
+      ATLAS_CONTENT_HEALTH_URL: http://content:8000/api/content/health
+      ATLAS_INTEL_HEALTH_URL: http://intel:5000/api/intel/health
+      ATLAS_METRICS_HEALTH_URL: http://atlas-metrics:9090/healthz
+      ATLAS_ENV_FILE: /workspace/.env
+      ATLAS_ENV_EXAMPLE_FILE: /workspace/.env.example
+      ATLAS_SEED_DIRECTORY: /workspace/scripts/sql
+    volumes:
+      - ./:/workspace:ro
+    command:
+      - health
+      - --verbose
+    mem_limit: 96m
+
   frontend:
     build:
       context: ./atlas-frontend

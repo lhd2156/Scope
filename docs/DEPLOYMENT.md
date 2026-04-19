@@ -12,8 +12,11 @@ Atlas can currently be launched as a **single-machine Docker Compose stack** wit
 - Core API (`Atlas.Core`)
 - Content API (`atlas_content`)
 - Intel API (`atlas_intel`)
+- Metrics agent (`atlas-metrics`)
 - Frontend (`atlas-frontend`)
 - Nginx reverse proxy
+
+An **optional ops profile** is also wired for the Rust CLI toolkit (`atlas-cli`) so release and smoke flows can run from the same container network.
 
 GitHub Actions CI is also in place to validate the codebase on pushes and pull requests.
 
@@ -98,6 +101,7 @@ Minimum variables that should be reviewed before launch:
 - `SA_PASSWORD`
 - `KAFKA_BOOTSTRAP_SERVERS`
 - `NGINX_PORT`
+- `ATLAS_METRICS_PORT`
 
 > For local development, `.env.example` already contains safe-ish development defaults. These **must be replaced** for any shared or production-like environment.
 
@@ -165,6 +169,7 @@ Default public URL:
 - Core: `8080`
 - Content: `8000`
 - Intel: `5000`
+- Atlas Metrics: `9090`
 - Frontend: `80`
 - SQL Server: `1433`
 - Kafka: `9092`
@@ -173,6 +178,16 @@ Default public URL:
 ### Health endpoint available today
 
 - Nginx: `/healthz`
+- Atlas Metrics: `http://localhost:${ATLAS_METRICS_PORT}/healthz`
+- Atlas Metrics scrape: `http://localhost:${ATLAS_METRICS_PORT}/metrics`
+
+### Optional ops CLI
+
+Run the CLI toolkit inside the Compose network when you want a containerized health check:
+
+```powershell
+docker compose --profile ops run --rm atlas-cli health --verbose
+```
 
 ---
 
@@ -275,6 +290,7 @@ Notes:
 - Replace the placeholder image namespace `ghcr.io/replace-me/...` before applying.
 - Replace all secret values from `03-secret.example.yaml` before any shared deployment.
 - `07-edge.yaml` exposes Atlas at host `atlas.local` through an nginx ingress.
+- `06-applications.yaml` now includes the `atlas-metrics` Deployment/Service and a suspended `atlas-cli-health` CronJob template that can be launched manually with `kubectl create job --from=cronjob/atlas-cli-health atlas-cli-health-manual -n atlas`.
 
 ## 7. Terraform baseline
 
@@ -312,7 +328,7 @@ Current automation coverage:
 - Kubernetes YAML syntax checks in CI
 - Terraform `fmt` / `init -backend=false` / `validate` checks in CI
 - optional manual Terraform plan/apply via `.github/workflows/deploy.yml` when AWS OIDC + Terraform vars/secrets are configured
-- GHCR image publishing for Core, Content, Intel, and Frontend on `main` / manual deploy runs
+- GHCR image publishing for Core, Content, Intel, Frontend, Atlas Metrics, and Atlas CLI on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
 - Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` execution against an actual AWS target
@@ -381,6 +397,7 @@ Before calling a deployment candidate ready:
 - [ ] Intel test suite passes
 - [ ] Frontend build/test passes
 - [ ] Playwright critical-flow smoke passes
+- [ ] Atlas Metrics responds on `/healthz` and `/metrics`
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented
 - [x] deploy workflow is added and reviewed
