@@ -54,7 +54,8 @@
 - 2026-04-19: Created the isolated `feature/native-geo` worktree, scaffolded `atlas_geo/` with a CMake C++20 library target, public include/source layout, placeholder `tests/` and `python/` directories, and `FetchContent`-based `pybind11` bootstrap for upcoming native-geo phases. Validation remains partially blocked while the Windows native toolchain is still being installed in this runtime.
 - 2026-04-19: Added the first native geospatial primitive in `atlas_geo` via `src/haversine.cpp` and `include/atlas_geo/haversine.hpp`, wired GoogleTest through `tests/CMakeLists.txt`, added `tests/haversine_test.cpp` coverage for zero-distance, equatorial-degree, and Chicago-to-New-York reference distances, and numerically cross-checked the expected constants with Python while native build validation waits on toolchain availability.
 - 2026-04-19: Added a packed in-memory `RTreeIndex` in `atlas_geo` via `include/atlas_geo/rtree.hpp` and `src/rtree.cpp`, extended the CMake target plus README, and added `tests/rtree_test.cpp` coverage for empty indexes, single-nearest queries, k-nearest ordering across tree branches, and rebuild semantics.
-- 2026-04-19: Validation attempt `cmake --build build ; ctest --test-dir build ; C:\Users\dongu\AppData\Local\Python\bin\python.exe -m pytest atlas_geo/tests/` failed because both `cmake` and `ctest` are still unavailable on PATH and `winget` remains blocked by `Waiting for another install/uninstall to complete`; the Python pytest leg ran but collected `0` tests because pybind11 integration tests are scheduled for Phase 21.6.
+- 2026-04-19: Added `include/atlas_geo/pathfinding.hpp` plus `src/pathfinding.cpp` with a reusable weighted `PathGraph`, exact Dijkstra and A* shortest-path queries, validation for duplicate/unknown nodes and invalid edge weights, and `tests/pathfinding_test.cpp` coverage for optimal routing, disconnected graphs, rebuild semantics, and invalid graph definitions.
+- 2026-04-19: Validation attempt `cmake --build build ; ctest --test-dir build ; C:\Users\dongu\AppData\Local\Python\bin\python.exe -m pytest atlas_geo/tests/` still failed because both `cmake` and `ctest` are unavailable on PATH while `winget install Microsoft.VisualStudio.2022.BuildTools --force --override "--add Microsoft.VisualStudio.Workload.VCTools"` and `winget install Kitware.CMake --force` remain blocked by `Waiting for another install/uninstall to complete`; the Python pytest leg ran but collected `0` tests because pybind11 integration tests are scheduled for Phase 21.6.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe - USE IT
@@ -105,7 +106,7 @@
 - [x] 21.1 Scaffold atlas_geo/ with CMakeLists.txt + pybind11 fetch
 - [x] 21.2 Haversine distance (src/haversine.cpp + GoogleTest)
 - [x] 21.3 R-tree spatial index (src/rtree.cpp, nearest-neighbor spot queries)
-- [ ] 21.4 A*/Dijkstra pathfinding (src/pathfinding.cpp, route optimization)
+- [x] 21.4 A*/Dijkstra pathfinding (src/pathfinding.cpp, route optimization)
 - [ ] 21.5 Convex hull + viewport clustering (src/hull.cpp, src/cluster.cpp)
 - [ ] 21.6 pybind11 module (python/atlas_geo_bindings.cpp) + pytest integration tests
 - [ ] 21.7 Wire into Intel route_optimizer.py + recommendation_engine.py
@@ -117,5 +118,5 @@
 - [ ] 25.4 Prometheus /metrics endpoint + custom app gauges/counters
 - [ ] 25.5 Alert rule config (YAML) + webhook dispatcher
 
-## Current Task: Phase 21.4 - A*/Dijkstra pathfinding
-## Last Updated: 2026-04-19T10:45:00Z
+## Current Task: Phase 21.5 - Convex hull + viewport clustering
+## Last Updated: 2026-04-19T14:40:00Z
