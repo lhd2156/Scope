@@ -33,18 +33,20 @@
 ## Agent Status Dashboard
 | Agent | Status | Current Task | Last Updated |
 |-------|--------|--------------|--------------|
-| Foundation (Architect) | BLOCKED | Phase 26.1 relaunch blocked by local gateway timeout | 2026-04-19T08:54:00Z |
-| Core (Sentinel) | BLOCKED | Phase 24.1 relaunch failed, no live child remains | 2026-04-19T08:54:00Z |
-| Content (Cartographer) | BLOCKED | Phase 22.1 relaunch failed, no live child remains | 2026-04-19T08:54:00Z |
-| Intel (Oracle) | BLOCKED | Phase 21.1 relaunch blocked by local gateway timeout | 2026-04-19T08:54:00Z |
-| Frontend (Prism) | BLOCKED | Phase 23.1 relaunch blocked by local gateway timeout | 2026-04-19T08:54:00Z |
+| Foundation (Architect) | BLOCKED | Phase 26.1 relaunch timed out against the local gateway, with no confirmed live child | 2026-04-19T09:31:00Z |
+| Core (Sentinel) | RUNNING | Phase 24.1 scaffold plus validation and commit recovery in active child `agent:main:subagent:9590cc54-0280-40f0-a414-15491b0cc92a` | 2026-04-19T09:31:00Z |
+| Content (Cartographer) | BLOCKED | Phase 22.1 has no surviving worker, and the latest relaunch timed out after an earlier child failed | 2026-04-19T09:31:00Z |
+| Intel (Oracle) | BLOCKED | Phase 21.1 relaunch timed out against the local gateway, with no confirmed live child | 2026-04-19T09:31:00Z |
+| Frontend (Prism) | BLOCKED | Phase 23.1 relaunch timed out against the local gateway, with no confirmed live child | 2026-04-19T09:31:00Z |
 | Polish (Luster) | COMPLETE | Awaiting next assigned polish checkpoint | 2026-03-31T02:47:00Z |
 
-## Current Phase: Phases 21-26 are reopened, but this heartbeat is blocked at orchestration level. Fresh relaunches for Foundation, Core, Content, Intel, and Frontend all ended with local gateway timeout failures, and no live child sessions remain.
-## Agents Running: None
-## Last Updated: 2026-04-19T08:54:00Z
+## Current Phase: Phases 21-26 remain reopened. Core is actively running Phase 24.1 again, while Foundation, Content, Intel, and Frontend are still blocked by local gateway launch failures.
+## Agents Running: Core (Sentinel) — `agent:main:subagent:9590cc54-0280-40f0-a414-15491b0cc92a`
+## Last Updated: 2026-04-19T09:31:00Z
 
 ## Log
+- [2026-04-19T09:31:00Z] Re-read HEARTBEAT.md, memory/LESSONS.md, memory/COMPLETED-TASKS.md, all canonical agent trackers, and the lead tracker for the fresh 09:31 UTC heartbeat. `subagents(action=list)` showed one live Core child still running on Phase 24.1 and a recent failed Content child, so Core was preserved instead of duplicated. Foundation was retried first on Phase 26.1 and timed out again, then Content/Intel/Frontend were retried on Phase 22.1 / 21.1 / 23.1 and each relaunch also timed out against `ws://127.0.0.1:18789`, leaving a split fleet with Core running and the other reopened tracks blocked.
+- [2026-04-19T08:59:00Z] Re-read HEARTBEAT.md, memory/LESSONS.md, memory/COMPLETED-TASKS.md, all canonical agent trackers, and the lead tracker again for the queued heartbeat poll. `subagents(action=list)` started empty, Foundation was retried first on Phase 26.1, then Core/Content/Intel/Frontend were retried on Phase 24.1 / 22.1 / 21.1 / 23.1. Every `sessions_spawn` call again failed with the same local gateway timeout against `ws://127.0.0.1:18789`, and a fresh child-state audit still showed zero active subagents, so all reopened tracks remain blocked for the next retry cycle.
 - [2026-04-19T08:54:00Z] Fresh heartbeat audit re-read HEARTBEAT.md, memory/LESSONS.md, memory/COMPLETED-TASKS.md, all canonical agent trackers, and the lead tracker. `subagents(action=list)` confirmed the earlier Core/Content runs had already failed and no live workers remained. Retried Foundation first, then Core/Content/Intel/Frontend from their current Phase 26.1 / 24.1 / 22.1 / 21.1 / 23.1 checkpoints. Every new `sessions_spawn` attempt timed out against the local gateway, and a follow-up child-state check still showed zero active subagents, so all reopened tracks are now blocked for retry on the next heartbeat.
 - [2026-04-19T08:54:00Z] Re-read HEARTBEAT.md, memory/LESSONS.md, memory/COMPLETED-TASKS.md, and all canonical progress files. Foundation/Core/Content/Intel/Frontend are reopened by the new Phase 21-26 heartbeat. No active subagents were present. Spawned Core and Content successfully on their first unchecked Phase 24.1 / 22.1 tasks. Foundation spawn timed out with no surviving child, and Intel/Frontend spawn attempts hit local gateway timeout handshakes, so those three tracks remain blocked for retry on the next heartbeat.
 - [2026-04-19T05:10:00Z] Phases 21-26 added by lead. C++ Geospatial Engine, C Image Processing, WASM Client Module, Rust CLI, Go Metrics Agent, Terraform Deploy. All agents reopened for new work. Awaiting toolchain installs + first spawn.
