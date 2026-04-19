@@ -30,13 +30,22 @@ terraform plan `
 
 ## Current validation status
 
-The Terraform binary is not installed on the current heartbeat host, so this baseline was authored and reviewed as static IaC on this machine. The repository CI now performs:
+Local validation was run on 2026-04-19 with Terraform v1.14.8 on this workstation:
 
-- `terraform fmt -check -recursive`
-- `terraform init -backend=false`
-- `terraform validate`
+- `terraform init -backend=false` ✅
+- `terraform validate` ✅
+- `terraform plan ...` ⚠️ still requires real AWS credentials and currently fails locally with `No valid credential sources found`
 
-What still remains unresolved is **runtime** validation against a real AWS account (`terraform plan` / apply-time verification with real credentials, networking, quotas, and naming constraints).
+Provide the required variables plus AWS credentials to run a real plan:
+
+```powershell
+terraform plan `
+  -var="sqlserver_master_password=change-me" `
+  -var="photos_bucket_name=atlas-photos-staging-example" `
+  -var="cognito_domain_prefix=atlas-staging-example"
+```
+
+What still remains unresolved is **runtime** validation against a real AWS account, including credentials, networking, quotas, and globally unique naming constraints.
 
 ## GitHub Actions plan path
 
