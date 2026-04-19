@@ -491,6 +491,7 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 
 - [2026-04-04] ?? Phase 20 Lighthouse is much more reliable when demo/auth state is seeded through the audited URL before app bootstrap (for example ?atlasQaSession=authenticated), but isolated-route passes can still diverge from the final all-routes matrix; do not mark the checkpoint complete until the shared matrix itself is green.
 - [2026-04-19] ⚠️ This Windows workstation currently has no `cl.exe`, `gcc.exe`, `clang.exe`, or `make` available in `PATH` (or under the standard Visual Studio install roots), so Atlas Phase 22 native-media work can scaffold files and run Python-side tests but cannot compile the C library until a toolchain is installed.
+- [2026-04-19] ✅ For `atlas_media` EXIF stripping, remove only JPEG APP1 segments whose payload starts with `Exif\0\0`, leave XMP/ICC and other APP markers intact, and treat non-JPEG inputs as pass-through copies; that keeps upload sanitization safe across mixed image formats.
 
 
 

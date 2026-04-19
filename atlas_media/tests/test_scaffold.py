@@ -11,8 +11,10 @@ def test_expected_scaffold_files_exist() -> None:
         ATLAS_MEDIA_ROOT / 'include' / 'atlas_media.h',
         ATLAS_MEDIA_ROOT / 'src' / 'atlas_media.c',
         ATLAS_MEDIA_ROOT / 'src' / 'detect.c',
+        ATLAS_MEDIA_ROOT / 'src' / 'exif.c',
         ATLAS_MEDIA_ROOT / 'tests' / 'test_scaffold.py',
         ATLAS_MEDIA_ROOT / 'tests' / 'test_detect.py',
+        ATLAS_MEDIA_ROOT / 'tests' / 'test_exif.py',
     ]
     for path in expected:
         assert path.exists(), f'Missing scaffold file: {path}'
