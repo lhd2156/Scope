@@ -104,11 +104,12 @@
 ### Phase 22: Native Image Processing Pipeline (C via ctypes)
 - [x] 22.1 Scaffold atlas_media/ with Makefile + include/atlas_media.h
 - [x] 22.2 Image format detection from magic bytes (src/detect.c)
-- [ ] 22.3 EXIF metadata stripping (src/exif.c)
+- [x] 22.3 EXIF metadata stripping (src/exif.c)
 - [ ] 22.4 Thumbnail generation with bilinear interpolation (src/thumbnail.c)
 - [ ] 22.5 Blurhash encoding for progressive placeholders (src/blurhash.c)
 - [ ] 22.6 Python ctypes integration tests + wire into photos/services.py
 - Added native JPEG/PNG/GIF/WEBP magic-byte detection in `atlas_media/src/detect.c`, introduced a shared `atlas_media/build.py` compiler helper plus DLL export macros for future ctypes loading, and added compiler-aware pytest coverage (`python -m pytest atlas_media/tests/` passed with `3 passed, 7 skipped`); this host still lacks both `make` and a C compiler in PATH, so native build execution remains environment-blocked for now
+- Added `atlas_media/src/exif.c` to strip JPEG APP1 `Exif\0\0` segments while preserving non-EXIF APP1 metadata and passing non-JPEG formats through unchanged; added compiler-aware ctypes coverage in `atlas_media/tests/test_exif.py` and re-ran `python -m pytest atlas_media/tests/` successfully (`3 passed, 15 skipped`). `make test` is still blocked on this host because `make` is not installed.
 
-## Current Task: Phase 22.3 - EXIF metadata stripping
-## Last Updated: 2026-04-19T09:42:00Z
+## Current Task: Phase 22.4 - Thumbnail generation with bilinear interpolation
+## Last Updated: 2026-04-19T11:39:50Z
