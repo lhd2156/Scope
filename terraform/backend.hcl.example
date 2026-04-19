@@ -1,0 +1,8 @@
+# Copy this file to backend.hcl and replace the placeholder values with the
+# outputs from terraform/bootstrap after the bootstrap apply completes.
+
+bucket         = "atlas-staging-123456789012-tfstate"
+key            = "foundation/staging/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "atlas-staging-terraform-locks"
+encrypt        = true
