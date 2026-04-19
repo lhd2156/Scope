@@ -432,6 +432,7 @@
 - [2026-04-19] ⚠️ If a later heartbeat finds that previously live child already failed and a different subset of fresh relaunches is accepted, rewrite the lead dashboard to the new mixed fleet immediately instead of carrying the old surviving-child story forward.
 - [2026-04-19] ⚠️ If `subagents(action=list)` shows only recent `done` rows but zero active workers and the canonical agent `PROGRESS.md` files are still open, treat those `done` rows as stale/non-authoritative and relaunch from the canonical checkpoint instead of trusting the subagent status alone.
 - [2026-04-19] ⚠️ If a queued `/heartbeat` arrives while Phases 21-26 are reopened, do not send `HEARTBEAT_OK` just because the older all-complete state was stable; re-read the canonical trackers first, retry each blocked non-COMPLETE track once, and if `sessions_spawn` still times out with zero surviving children, send an alert-style heartbeat that explicitly says the reopened fleet is blocked.
+- [2026-04-19] ⚠️ If a fresh heartbeat starts with zero active workers and only the first retried track is accepted while every sibling relaunch times out, rewrite the lead dashboard immediately to that one-worker mixed fleet instead of carrying the previous multi-worker state forward.
 
 ## Common Mistakes to Avoid
 
