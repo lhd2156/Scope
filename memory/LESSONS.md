@@ -14,6 +14,7 @@
 - [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
 - [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
 - [2026-04-19] ⚠️ On this Windows workstation, Rust is installed (`cargo 1.95.0`, stable + nightly toolchains), but `cargo build` for `x86_64-pc-windows-msvc` still fails until MSVC C++ Build Tools / Windows SDK linker inputs are available (`link.exe`, `kernel32.lib`, `ntdll.lib`, `userenv.lib`, `ws2_32.lib`, `dbghelp.lib`); bundled `lld-link.exe` alone is not enough.
+- [2026-04-19] ✅ Atlas Rust CLI validation succeeds on this workstation by installing the `stable-x86_64-pc-windows-gnullvm` rustup toolchain and prepending LLVM MinGW UCRT's `bin` directory to `PATH` before running `cargo build` / `cargo test`.
 
 ## Package Compatibility
 
@@ -484,6 +485,7 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 - [2026-04-01] [LESSON] For Atlas map-workspace empty states, extend the centralized `EmptyStatePanel` with a dedicated map artwork variant and reuse it inside the sidebar cards instead of bespoke placeholder divs; that keeps no-content states premium, reduced-motion-safe, and action-ready without forking the illustration system.
 
 - [2026-04-04] ?? Phase 20 Lighthouse is much more reliable when demo/auth state is seeded through the audited URL before app bootstrap (for example ?atlasQaSession=authenticated), but isolated-route passes can still diverge from the final all-routes matrix; do not mark the checkpoint complete until the shared matrix itself is green.
+
 
 
 

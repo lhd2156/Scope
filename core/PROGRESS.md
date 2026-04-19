@@ -103,6 +103,8 @@
 - 2026-04-19T09:02:00Z validation is currently blocked in this subagent because the local exec gateway closed before shell commands could start, so Rust installation, `cargo build`, `cargo test`, branch checkout, and git commit still need to be run before 24.1 can be marked complete
 - 2026-04-19T10:20:25Z created an isolated `feature/rust-cli` worktree, copied the `atlas-cli/` scaffold into that branch, and confirmed the Phase 24.1 code is separated from unrelated `feature/frontend` workspace changes
 - 2026-04-19T10:20:25Z `cargo build`, `cargo check`, and a nightly plus bundled `lld-link` fallback all fail on this host because the MSVC / Windows SDK linker inputs are missing (`link.exe`, `kernel32.lib`, `ntdll.lib`, `userenv.lib`, `ws2_32.lib`, `dbghelp.lib`), so 24.1 remains blocked pending Visual C++ Build Tools / Windows SDK installation
+- 2026-04-19T12:22:14Z finished the Phase 24.1 scaffold by aligning the seed command with the planned `seeds/` directory and confirming the `atlas` CLI scaffold, dependencies, placeholder subcommands, defaults, and unit tests all match the Rust toolkit brief
+- 2026-04-19T12:22:14Z installed Rust via `rustup-init`, added the `stable-x86_64-pc-windows-gnullvm` toolchain plus LLVM MinGW on PATH to work around the missing MSVC linker, and passed `cargo build` plus `cargo test` in `atlas-cli/` on `feature/rust-cli`
 
 ## Environment Notes
 - .NET SDK: 8.0.419 at C:\Program Files\dotnet\dotnet.exe â€” USE IT
@@ -151,12 +153,13 @@
 
 
 ### Phase 24: CLI Toolkit (Rust)
-- [ ] 24.1 Scaffold atlas-cli/ with Cargo.toml (clap, reqwest, tokio, serde, colored)
+- [x] 24.1 Scaffold atlas-cli/ with Cargo.toml (clap, reqwest, tokio, serde, colored)
 - [ ] 24.2 atlas health — parallel async health checks across all services
 - [ ] 24.3 atlas seed — parse and execute SQL seed files
 - [ ] 24.4 atlas deploy validate — pre-deployment checklist runner
 - [ ] 24.5 atlas benchmark — HTTP load testing with configurable concurrency
 - [ ] 24.6 atlas env check — validate .env against .env.example
 
-## Current Task: Phase 24.1 — Scaffold atlas-cli/
-## Last Updated: 2026-04-19T10:20:25Z
+## Current Task: Phase 24.2 — atlas health
+## Last Updated: 2026-04-19T12:22:14Z
+
