@@ -426,6 +426,8 @@
 - [2026-04-08] ✅ If another all-complete heartbeat lands between the usual 5-minute ticks (for example 11:22Z), keep the canonical orchestration posture unchanged: no spawns, `Agents Running: None`, and only a lead timestamp/log refresh to the exact requested minute.
 - [2026-04-08] ✅ On a normal-cadence all-complete heartbeat like 11:35Z, keep the steady-state loop boring on purpose: re-read the canonical trackers, preserve `Agents Running: None`, and only roll the lead timestamp/log plus status clock forward to the requested minute.
 - [2026-04-08] ✅ For another off-cadence all-complete heartbeat like 12:03Z, keep the same no-worker orchestration posture and align only the lead timestamp/log to the exact requested minute instead of rounding back to the 5-minute cadence.
+- [2026-04-19] ⚠️ When newly reopened heartbeat phases require multiple `sessions_spawn` launches, a local gateway timeout can still leave some tracks accepted and others blocked in the same cycle; preserve the accepted child session keys immediately, treat timeout launches with no confirmed child as blocked for retry, and reflect the split state explicitly in lead progress and heartbeat status.
+- [2026-04-19] ⚠️ A later heartbeat can find those previously accepted children already failed with zero active workers; in that case, re-audit with `subagents(action=list)`, relaunch each still-open canonical track exactly once, and if every relaunch also times out with zero surviving children, mark the whole reopened fleet blocked instead of carrying stale "running" rows forward.
 
 ## Common Mistakes to Avoid
 
