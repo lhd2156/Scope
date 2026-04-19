@@ -20,6 +20,7 @@ option(ATLAS_GEO_FETCH_PYBIND11 "Fetch pybind11 during configure" ON)
 add_library(atlas_geo STATIC
     src/core.cpp
     src/haversine.cpp
+    src/rtree.cpp
 )
 add_library(atlas::geo ALIAS atlas_geo)
 
@@ -57,4 +58,4 @@ if(ATLAS_GEO_BUILD_TESTS)
     endif()
 endif()
 
-message(STATUS "atlas_geo configured with the scaffold, haversine primitive, and initial GoogleTest coverage. Future phases will expand the native engine and pybind11 module.")
+message(STATUS "atlas_geo configured with the scaffold, haversine primitive, packed R-tree spatial index, and initial GoogleTest coverage. Future phases will expand the native engine and pybind11 module.")

@@ -13,6 +13,8 @@
 - [2026-03-28] ✅ .NET SDK 8.0.419 is at `C:\Program Files\dotnet\dotnet.exe`
 - [2026-03-28] ✅ Node.js 24.14.0 is at `C:\Program Files\nodejs\node.exe`
 - [2026-03-28] ⚠️ Never report "no runtime" — all runtimes are installed. See paths above.
+- [2026-04-19] ⚠️ `winget` can report `Microsoft.VisualStudio.2022.BuildTools` as found while `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC` and `VsDevCmd.bat` are still missing; for native Atlas work, verify the actual VC toolchain paths before assuming `cl.exe` is usable.
+- [2026-04-19] ⚠️ On this workstation, `winget install Microsoft.VisualStudio.2022.BuildTools --force --override "--add Microsoft.VisualStudio.Workload.VCTools"` and `winget install Kitware.CMake` can block indefinitely on `Waiting for another install/uninstall to complete`; native CMake validation stays blocked until that global installer lock clears and `cmake.exe` actually appears.
 
 ## Package Compatibility
 

@@ -10,14 +10,15 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-add_executable(atlas_geo_haversine_tests
+add_executable(atlas_geo_unit_tests
     haversine_test.cpp
+    rtree_test.cpp
 )
 
-target_link_libraries(atlas_geo_haversine_tests
+target_link_libraries(atlas_geo_unit_tests
     PRIVATE
         atlas_geo
         GTest::gtest_main
 )
 
-gtest_discover_tests(atlas_geo_haversine_tests)
+gtest_discover_tests(atlas_geo_unit_tests)
