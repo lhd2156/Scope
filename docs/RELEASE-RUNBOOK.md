@@ -113,12 +113,13 @@ git push origin v1.0.0
 ### Option A — current repository automation path
 
 1. merge the release candidate to `main`
-2. allow `.github/workflows/deploy.yml` to run
+2. allow `.github/workflows/deploy.yml` to run on `main`
 3. verify that:
    - preflight passes
    - GHCR images publish successfully
    - deployment bundle artifact uploads successfully
-4. promote/deploy from the generated image set and bundle
+4. when infrastructure changes are included, dispatch `Atlas Deploy` manually with `terraform_action = plan`, review the uploaded plan artifact, then rerun with `terraform_action = apply` after approval
+5. promote/deploy from the generated image set and bundle
 
 ### Option B — manual deployment path
 
@@ -211,7 +212,7 @@ These are the major remaining runtime gaps for Atlas:
 
 ## 8. Recommended next steps
 
-1. run the optional real-account Terraform plan path on a machine with Terraform installed
-2. verify deploy workflow secrets/vars for the target GitHub environment
+1. run the deploy workflow's Terraform plan/apply path against a real AWS account using the target GitHub environment vars/secrets
+2. verify deploy workflow secrets/vars and environment approvals for the target GitHub environment
 3. perform a real staging deployment using the published GHCR images and deployment bundle
 4. tag the first release candidate only after that staging verification succeeds
