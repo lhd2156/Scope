@@ -26,6 +26,7 @@
 ## Build & Test Results
 
 - [2026-03-28] ✅ `dotnet build` + `dotnet test` pass on Atlas.Core (commit 59b78dc)
+- [2026-04-19] ⚠️ On this Windows native-geo setup, `ctest` can look like it is hanging on the first GoogleTest case if the `llvm-mingw` `bin` directory is missing from `PATH`; prepend `C:\Users\dongu\llvm-mingw-20260407-ucrt-x86_64\bin` before both `ctest` and Python test runs so the unit-test executable and `_atlas_geo` extension can resolve the runtime DLLs.
 - [2026-03-28] ✅ Django `manage.py check` passes for Content Engine (commit 26e53ad)
 - [2026-03-28] ⚠️ Always run `pip install -r requirements.txt` before pytest
 - [2026-03-29] ⚠️ The local Python environment can drift from Atlas pins (`pytest`, `PyJWT`); rerun `pip install -r atlas_content/requirements.txt` before Django validation so checks/tests use the expected versions.
@@ -436,6 +437,7 @@
 - [2026-04-19] ⚠️ If the lead dashboard still names a previously accepted reopened child but a fresh `subagents(action=list)` audit is empty, trust the empty live-child audit over the stale row, clear `Agents Running`, and retry every still-open canonical track once before reporting the fleet blocked.
 - [2026-04-19] ⚠️ If a previously accepted reopened child later degrades into a recent `timeout` row and another service appears only as recent `done` while canonical trackers are still open, treat both rows as non-authoritative when `subagents(action=list)` is empty, then relaunch from the canonical checkpoints and refresh the dashboard immediately.
 - [2026-04-19] ⚠️ If Foundation times out first but a later reopened sibling is accepted in the same retry wave, trust the accepted later-service child, rewrite the lead dashboard to that new single-worker mixed fleet immediately, and do not preserve a first-track bias from the spawn order.
+- [2026-04-19] ⚠️ If a heartbeat write leaves `PROGRESS.md` at 0 bytes after disk pressure from generated frontend test artifacts, clear the untracked `atlas-frontend/test-results` payloads first, then rebuild the lead tracker from the canonical agent `PROGRESS.md` files and the current spawn results instead of guessing from older dashboard text.
 
 ## Common Mistakes to Avoid
 
@@ -496,3 +498,4 @@ eview.created / 	rip.member.added should only fire on true create paths, not upd
 
 
 
+- [2026-04-19] ⚠️ A retry wave can recover into a mixed reopened fleet after an earlier all-timeout state; trust the newest accepted child session keys immediately, rewrite the lead dashboard to that mixed state, and do not carry the prior fully blocked snapshot forward.
