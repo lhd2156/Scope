@@ -59,6 +59,7 @@
 
 - 2026-04-19: Added `include/atlas_geo/hull.hpp` + `src/hull.cpp` with deterministic monotonic-chain convex hull generation over latitude/longitude coordinates, added `include/atlas_geo/cluster.hpp` + `src/cluster.cpp` with viewport-bucket clustering for visible spot aggregation, extended the CMake/test targets and README, and added GoogleTest coverage for duplicate/interior-point hull pruning, collinear endpoints, viewport bucket grouping, inclusive max-edge handling, and invalid input rejection. Validation remains partially blocked because `cmake`/`ctest` are still unavailable on PATH while both winget install attempts continue to report `Waiting for another install/uninstall to complete`; `C:\Users\dongu\AppData\Local\Python\bin\python.exe -m pytest atlas_geo/tests/ -q` still reports `no tests ran`, which is expected until Phase 21.6 adds pybind11 integration tests.
 - 2026-04-19: Completed Phase 21.6 by turning `atlas_geo/python/CMakeLists.txt` into a real `pybind11_add_module(_atlas_geo ...)` build target, adding `atlas_geo/python/atlas_geo_bindings.cpp`, `atlas_geo/tests/test_bindings.py`, and the repo-root `atlas_geo/__init__.py` loader package, then hardening that loader to search both `atlas_geo/build` and repo-root `build` outputs plus register Windows DLL search directories before importing `_atlas_geo`. Since elevated installs are unavailable in this runtime and the installed Visual Studio Build Tools lack the VC tools workload, validation used user-space `cmake`/`ctest` from `C:\Users\dongu\AppData\Roaming\Python\Python314\Scripts\` with the local `llvm-mingw` toolchain: configure succeeded, `cmake --build atlas_geo\build --parallel` passed once the compiler bin directory was added to `PATH`, `ctest` passed `22/22`, and `C:\Users\dongu\AppData\Local\Python\bin\python.exe -m pytest atlas_geo\tests -q` passed `5/5`.
+- 2026-04-19: Wired the native `atlas_geo` package into `atlas_intel` via a cached `native_geo` loader, taught `RouteOptimizer` to use the native `RTreeIndex` nearest-neighbor path when the module is present while preserving the pure-Python fallback, added native distance/proximity scoring in `RecommendationEngine`, and added focused `atlas_intel/tests/test_native_geo_integration.py` coverage for route ordering, liked-spot proximity bonuses, and geographic tiebreaks. Validation passed with `cmake --build build --target atlas_geo_unit_tests --parallel 1`, `ctest --test-dir build --output-on-failure -j1`, `python -m pytest atlas_geo/tests -q`, and `python -m pytest tests/test_native_geo_integration.py -q` from inside `atlas_intel/`; on Windows both `ctest` and pytest need the `llvm-mingw` `bin` directory on `PATH` so the native test executable and `_atlas_geo` module can resolve runtime DLLs.
 
 ## Environment Notes
 - Python: 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe - USE IT
@@ -112,7 +113,7 @@
 - [x] 21.4 A*/Dijkstra pathfinding (src/pathfinding.cpp, route optimization)
 - [x] 21.5 Convex hull + viewport clustering (src/hull.cpp, src/cluster.cpp)
 - [x] 21.6 pybind11 module (python/atlas_geo_bindings.cpp) + pytest integration tests
-- [ ] 21.7 Wire into Intel route_optimizer.py + recommendation_engine.py
+- [x] 21.7 Wire into Intel route_optimizer.py + recommendation_engine.py
 
 ### Phase 25: Metrics Agent (Go)
 - [ ] 25.1 Scaffold atlas-metrics/ with go.mod (prometheus/client_golang, gorilla/mux)
@@ -121,5 +122,5 @@
 - [ ] 25.4 Prometheus /metrics endpoint + custom app gauges/counters
 - [ ] 25.5 Alert rule config (YAML) + webhook dispatcher
 
-## Current Task: Phase 21.7 - wire atlas_geo into route optimizer + recommendation engine
-## Last Updated: 2026-04-19T21:31:00Z
+## Current Task: Phase 25.1 - scaffold atlas-metrics/
+## Last Updated: 2026-04-19T23:57:00Z
