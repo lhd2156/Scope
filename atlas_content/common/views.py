@@ -6,11 +6,12 @@ from datetime import datetime, timezone
 from django.conf import settings
 from django.db import connection
 from django.http import HttpResponse
+from prometheus_client import CONTENT_TYPE_LATEST
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from photos.services.s3_service import S3StorageService
-from common.telemetry import CONTENT_TYPE_LATEST, record_service_health, render_metrics
+from common.telemetry import record_service_health, render_metrics
 
 logger = logging.getLogger(__name__)
 

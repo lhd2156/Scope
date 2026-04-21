@@ -32,7 +32,7 @@ services:
     ports:
       - "${ZOOKEEPER_PORT:-2181}:2181"
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok || exit 1"]
+      test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -q Mode || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -215,7 +215,8 @@ services:
 
   frontend:
     build:
-      context: ./atlas-frontend
+      context: .
+      dockerfile: ./atlas-frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/}
         VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}

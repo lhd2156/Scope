@@ -282,7 +282,7 @@ import AtlasIcon from '@/components/common/AtlasIcon.vue';
 import { loadMapboxRuntime } from '@/services/mapboxLoader';
 import type { Photo, SpotCategory, SpotFormInput, SpotFormSubmission, SpotPhotoUpload } from '@/types';
 import { isAtlasQaMode } from '@/utils/qaMode';
-import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
+import { isUiTestEnvironment, scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { SPOT_PHOTO_ACCEPT, validateSpotFormInput, validateSpotPhotoFile, type SpotFormErrors } from '@/utils/validators';
 
 interface LocationPreset {
@@ -327,7 +327,8 @@ const mapboxRuntime = shallowRef<typeof mapboxgl | null>(null);
 const marker = shallowRef<mapboxgl.Marker | null>(null);
 const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
 const isAtlasSpotQaMode = isAtlasQaMode();
-const shouldAutoHydrateInteractiveMap = hasToken && !isAtlasSpotQaMode;
+const interactiveMapAvailable = hasToken && !isUiTestEnvironment();
+const shouldAutoHydrateInteractiveMap = interactiveMapAvailable && !isAtlasSpotQaMode;
 const errors = ref<SpotFormErrors>({});
 const existingPhotos = ref<Photo[]>([]);
 const uploads = ref<SpotPhotoUpload[]>([]);
@@ -461,7 +462,7 @@ function setCoordinates(latitude: number, longitude: number, recenterMap = true)
 }
 
 function syncMarkerWithForm(recenterMap = false): void {
-  if (!map.value || !marker.value || !hasToken) {
+  if (!map.value || !marker.value || !interactiveMapAvailable) {
     return;
   }
 
@@ -474,7 +475,7 @@ function syncMarkerWithForm(recenterMap = false): void {
 }
 
 function syncThemeToMap(): void {
-  if (!map.value || !hasToken) {
+  if (!map.value || !interactiveMapAvailable) {
     return;
   }
 
@@ -482,7 +483,7 @@ function syncThemeToMap(): void {
 }
 
 async function setupMap(): Promise<void> {
-  if (!mapContainer.value || !hasToken || map.value) {
+  if (!mapContainer.value || !interactiveMapAvailable || map.value) {
     return;
   }
 
@@ -523,7 +524,7 @@ async function setupMap(): Promise<void> {
 }
 
 async function enableInteractiveMap(): Promise<void> {
-  if (!hasToken || map.value || isInteractiveMapLoading.value) {
+  if (!interactiveMapAvailable || map.value || isInteractiveMapLoading.value) {
     return;
   }
 
@@ -634,23 +635,23 @@ const description = computed(() => (
     : 'Atlas uses this metadata to render cards, map markers, and itinerary recommendations across the product.'
 ));
 const submitLabel = computed(() => (props.mode === 'edit' ? 'Save changes' : 'Publish spot'));
-const isInteractiveMapReady = computed(() => hasToken && Boolean(map.value));
-const showLoadInteractiveMapAction = computed(() => hasToken && !isInteractiveMapReady.value);
+const isInteractiveMapReady = computed(() => interactiveMapAvailable && Boolean(map.value));
+const showLoadInteractiveMapAction = computed(() => interactiveMapAvailable && !isInteractiveMapReady.value);
 const mapStatusLabel = computed(() => {
   if (isInteractiveMapReady.value) {
     return 'Mapbox ready';
   }
 
-  if (hasToken) {
+  if (interactiveMapAvailable) {
     return 'Interactive map available on demand';
   }
 
   return 'Token missing — manual coordinates enabled';
 });
-const mapFallbackEyebrow = computed(() => (hasToken ? 'Interactive map deferred' : 'Mapbox token required'));
-const mapFallbackTitle = computed(() => (hasToken ? 'Manual coordinates stay responsive while the live map loads only when needed.' : 'Manual pin placement is active.'));
+const mapFallbackEyebrow = computed(() => (interactiveMapAvailable ? 'Interactive map deferred' : 'Mapbox token required'));
+const mapFallbackTitle = computed(() => (interactiveMapAvailable ? 'Manual coordinates stay responsive while the live map loads only when needed.' : 'Manual pin placement is active.'));
 const mapFallbackDescription = computed(() => (
-  hasToken
+  interactiveMapAvailable
     ? 'Use the preset shortcuts, type exact coordinates, or load the interactive map picker when you want drag-and-drop precision.'
     : 'Atlas will turn this panel into a clickable map picker as soon as VITE_MAPBOX_TOKEN is configured.'
 ));

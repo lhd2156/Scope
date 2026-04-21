@@ -1,8 +1,8 @@
 <template>
   <section class="map-view">
-    <div ref="mapContainer" class="map-canvas" :class="{ 'is-fallback': !hasToken }" />
+    <div ref="mapContainer" class="map-canvas" :class="{ 'is-fallback': !interactiveMapEnabled }" />
 
-    <div v-if="!hasToken" class="map-fallback" data-test="map-fallback-stage">
+    <div v-if="!interactiveMapEnabled" class="map-fallback" data-test="map-fallback-stage">
       <svg class="map-fallback__canvas" viewBox="0 0 1200 900" preserveAspectRatio="none">
         <g class="map-fallback__terrain">
           <path v-for="terrainShape in fallbackTerrainPaths" :key="terrainShape" :d="terrainShape" />
@@ -76,7 +76,7 @@
       :active-categories="mapStore.activeCategories"
       :route-ready="hasRoute"
       :tracking-state="trackingState"
-      :interactive="hasToken"
+      :interactive="interactiveMapEnabled"
       :show-filter-panel="showFilterPanel"
       @zoom-in="handleZoom(1)"
       @zoom-out="handleZoom(-1)"
@@ -86,7 +86,7 @@
       @toggle-category="mapStore.toggleCategory"
     />
 
-    <section v-if="!hasToken" class="empty-state glass-panel">
+    <section v-if="!interactiveMapEnabled" class="empty-state glass-panel">
       <div>
         <p class="eyebrow">Mapbox token required</p>
         <h2>Drop your public token into <code>VITE_MAPBOX_TOKEN</code>.</h2>
@@ -124,6 +124,7 @@ import {
 } from '@/services/wasmService';
 import { useMapStore } from '@/stores/map';
 import type { MapPoint, SpotCategory, UserLocation } from '@/types';
+import { isUiTestEnvironment } from '@/utils/scheduleNonCriticalTask';
 
 type TrackingState = 'idle' | 'locating' | 'tracking' | 'denied' | 'unsupported' | 'error';
 
@@ -271,6 +272,7 @@ const hasInitialFit = ref(false);
 const shouldCenterOnNextFix = ref(false);
 const trackingState = ref<TrackingState>('idle');
 const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
+const interactiveMapEnabled = hasToken && !isUiTestEnvironment();
 const mapStyle = ref(mapStore.viewport.style);
 
 let themeObserver: MutationObserver | null = null;
@@ -654,7 +656,7 @@ async function buildViewportMarkerModels(instance: mapboxgl.Map): Promise<{
 
 function updateVisibleSpotIds() {
   const instance = map.value;
-  if (!instance || !hasToken) {
+  if (!instance || !interactiveMapEnabled) {
     setVisibleSpotIds(filteredSpots.value.map((spot) => spot.id));
     return;
   }
@@ -700,7 +702,7 @@ async function renderSpotMarkers() {
   cachedVisibleSpotIds = [];
   const instance = map.value;
   const runtime = mapboxRuntime.value;
-  if (!instance || !runtime || !hasToken) {
+  if (!instance || !runtime || !interactiveMapEnabled) {
     clearSpotMarkers();
     updateVisibleSpotIds();
     return;
@@ -764,7 +766,7 @@ async function renderSpotMarkers() {
 function fitToPoints(points: MapPoint[]) {
   const instance = map.value;
   const runtime = mapboxRuntime.value;
-  if (!instance || !runtime || !points.length || !hasToken) {
+  if (!instance || !runtime || !points.length || !interactiveMapEnabled) {
     return;
   }
 
@@ -793,7 +795,7 @@ function fitToRoute() {
 
 function handleZoom(delta: number) {
   const instance = map.value;
-  if (!instance || !hasToken) {
+  if (!instance || !interactiveMapEnabled) {
     return;
   }
 
@@ -806,7 +808,7 @@ function handleZoom(delta: number) {
 
 function centerOnLocation(location: UserLocation) {
   const instance = map.value;
-  if (!instance || !hasToken) {
+  if (!instance || !interactiveMapEnabled) {
     return;
   }
 
@@ -835,7 +837,7 @@ function handleLocationUpdate(location: UserLocation) {
   mapStore.setUserLocation([location.longitude, location.latitude]);
   emit('location-update', location);
 
-  if (instance && runtime && hasToken) {
+  if (instance && runtime && interactiveMapEnabled) {
     if (!userMarker.value) {
       userMarker.value = new runtime.Marker({
         element: buildUserMarkerElement(),
@@ -858,13 +860,13 @@ function syncThemeToMap() {
   mapStyle.value = resolveMapStyle();
   mapStore.setStyle(mapStyle.value);
 
-  if (map.value && hasToken && map.value.getStyle().sprite !== undefined) {
+  if (map.value && interactiveMapEnabled && map.value.getStyle().sprite !== undefined) {
     map.value.setStyle(mapStyle.value);
   }
 }
 
 async function setupMap() {
-  if (!mapContainer.value || !hasToken || map.value) {
+  if (!mapContainer.value || !interactiveMapEnabled || map.value) {
     updateVisibleSpotIds();
     return;
   }
@@ -945,7 +947,7 @@ watch(
 
     if (nextSelectedSpotId !== previousSelectedSpotId) {
       const selectedSpot = props.spots.find((spot) => spot.id === nextSelectedSpotId);
-      if (selectedSpot && map.value && hasToken) {
+      if (selectedSpot && map.value && interactiveMapEnabled) {
         map.value.easeTo({
           center: [selectedSpot.longitude, selectedSpot.latitude],
           duration: 500,
@@ -961,7 +963,7 @@ watch(
   () => [mapStore.viewport.center[0], mapStore.viewport.center[1], mapStore.viewport.zoom] as const,
   ([longitude, latitude, zoom]) => {
     const instance = map.value;
-    if (!instance || syncingViewport || !hasToken) {
+    if (!instance || syncingViewport || !interactiveMapEnabled) {
       return;
     }
 
@@ -983,7 +985,7 @@ watch(
 watch(
   () => [map.value, props.routePoints.length, props.spots.length] as const,
   () => {
-    if (hasInitialFit.value || !map.value || !hasToken) {
+    if (hasInitialFit.value || !map.value || !interactiveMapEnabled) {
       return;
     }
 
@@ -999,7 +1001,7 @@ watch(
 );
 
 onMounted(() => {
-  if (hasToken) {
+  if (interactiveMapEnabled) {
     void preloadAtlasWasmRuntime();
   }
   void setupMap();
