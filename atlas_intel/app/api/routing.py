@@ -1,5 +1,6 @@
 from flask import Blueprint, request
 from app.auth import require_auth
+from app.rate_limit import rate_limited
 from app.responses import success_response
 from app.schemas import RouteOptimizeRequestSchema
 from app.services.route_optimizer import RouteOptimizer
@@ -9,6 +10,7 @@ optimizer = RouteOptimizer()
 schema = RouteOptimizeRequestSchema()
 
 @routing_bp.post("/route/optimize")
+@rate_limited
 @require_auth
 def optimize_route():
     payload = schema.load(request.get_json() or {})
