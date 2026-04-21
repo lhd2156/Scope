@@ -439,6 +439,7 @@
 - [2026-04-19] ⚠️ If Foundation times out first but a later reopened sibling is accepted in the same retry wave, trust the accepted later-service child, rewrite the lead dashboard to that new single-worker mixed fleet immediately, and do not preserve a first-track bias from the spawn order.
 - [2026-04-19] ⚠️ If a heartbeat write leaves `PROGRESS.md` at 0 bytes after disk pressure from generated frontend test artifacts, clear the untracked `atlas-frontend/test-results` payloads first, then rebuild the lead tracker from the canonical agent `PROGRESS.md` files and the current spawn results instead of guessing from older dashboard text.
 - [2026-04-20] ⚠️ If a heartbeat retry wave leaves `subagents(action=list)` empty and the only accepted child already shows `failed`, clear `Agents Running`, mark every reopened track blocked for that heartbeat, and report the fleet as fully blocked instead of preserving transient timeout child ids.
+- [2026-04-21] ⚠️ If a later retry wave starts from zero active children and returns several explicit `accepted` child session keys while one sibling still times out, rewrite the lead dashboard immediately to that mixed fleet, mark only the timed-out sibling blocked, and let the next heartbeat re-audit actual survivors.
 
 ## Common Mistakes to Avoid
 
