@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "skills": {
+    "filesystem": {
+      "version": "1.0.0",
+      "installedAt": 1774672891719
+    },
+    "agent-toolkit": {
+      "version": "2.0.2",
+      "installedAt": 1774673014017
+    }
+  }
+}

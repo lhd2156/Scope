@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "sZSD+8kywp3mt9KbsJ1alNGomFPqyPC86/5MN1Hzr5A=",
+  "Source": "Atlas.Core.API",
+  "BasePath": "_content/Atlas.Core.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

@@ -1,1 +1,6 @@
-from django.apps import AppConfig\n\nclass PhotosConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'photos'\n
+from django.apps import AppConfig
+
+
+class PhotosConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'photos'

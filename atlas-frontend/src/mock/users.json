@@ -1,0 +1,263 @@
+[
+  {
+    "id": "demo-user-1",
+    "username": "atlasdemo",
+    "email": "demo@atlas.travel",
+    "displayName": "Louis Do",
+    "avatarUrl": "https://i.pravatar.cc/300?img=12",
+    "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+    "homeBase": "Fort Worth, TX",
+    "interests": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "stats": {
+      "spots": 42,
+      "trips": 8,
+      "friends": 126
+    },
+    "joinedAt": "2024-08-15T15:30:00Z",
+    "isDemoAccount": true,
+    "activityHistory": [
+      {
+        "id": "demo-activity-1",
+        "type": "trip-completed",
+        "title": "Completed North Texas Night + Food Loop",
+        "targetType": "trip",
+        "targetId": "demo-trip-1",
+        "summary": "Wrapped a two-night itinerary across rooftop tacos, design hotels, and live-music stops.",
+        "location": "Fort Worth, TX",
+        "occurredAt": "2026-03-28T22:10:00Z"
+      },
+      {
+        "id": "demo-activity-2",
+        "type": "spot-created",
+        "title": "Published Sunset Rooftop Tacos",
+        "targetType": "spot",
+        "targetId": "demo-spot-3",
+        "summary": "Added late-night taco intel with skyline photography and quick tips for first-timers.",
+        "location": "Fort Worth, TX",
+        "occurredAt": "2026-03-27T19:45:00Z"
+      },
+      {
+        "id": "demo-activity-3",
+        "type": "review-posted",
+        "title": "Reviewed Bishop Arts Vinyl Bar",
+        "targetType": "spot",
+        "targetId": "demo-spot-11",
+        "summary": "Left a five-star note about the lighting, soundtrack, and after-dinner energy.",
+        "location": "Dallas, TX",
+        "occurredAt": "2026-03-25T02:05:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-2",
+    "username": "maya.chen",
+    "email": "maya@atlas.travel",
+    "displayName": "Maya Chen",
+    "avatarUrl": "https://i.pravatar.cc/300?img=32",
+    "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+    "homeBase": "Dallas, TX",
+    "interests": [
+      "scenic",
+      "culture",
+      "shopping"
+    ],
+    "stats": {
+      "spots": 28,
+      "trips": 6,
+      "friends": 84
+    },
+    "joinedAt": "2024-10-04T09:00:00Z",
+    "activityHistory": [
+      {
+        "id": "demo-activity-4",
+        "type": "trip-planned",
+        "title": "Planned River Walk Aperitivo Evening",
+        "targetType": "trip",
+        "targetId": "demo-trip-2",
+        "summary": "Drafted a polished San Antonio weekend with courtyard breakfast, Pearl gallery time, canal cocktails, and a Southtown art walk.",
+        "location": "San Antonio, TX",
+        "occurredAt": "2026-03-28T16:20:00Z"
+      },
+      {
+        "id": "demo-activity-5",
+        "type": "spot-created",
+        "title": "Dropped a pin for Klyde Warren Garden Brunch",
+        "targetType": "spot",
+        "targetId": "demo-spot-6",
+        "summary": "Added a polished café-and-park stop with stroller-friendly paths and strong morning light.",
+        "location": "Dallas, TX",
+        "occurredAt": "2026-03-27T14:10:00Z"
+      },
+      {
+        "id": "demo-activity-6",
+        "type": "photo-uploaded",
+        "title": "Uploaded gallery shots for Dallas Contemporary Atrium",
+        "targetType": "spot",
+        "targetId": "demo-spot-14",
+        "summary": "Shared vertical photos highlighting the glass roof, negative space, and lobby staging.",
+        "location": "Dallas, TX",
+        "occurredAt": "2026-03-24T18:40:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-3",
+    "username": "elijah.brooks",
+    "email": "elijah@atlas.travel",
+    "displayName": "Elijah Brooks",
+    "avatarUrl": "https://i.pravatar.cc/300?img=45",
+    "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+    "homeBase": "Austin, TX",
+    "interests": [
+      "adventure",
+      "food",
+      "nature"
+    ],
+    "stats": {
+      "spots": 36,
+      "trips": 11,
+      "friends": 64
+    },
+    "joinedAt": "2024-07-02T12:15:00Z",
+    "activityHistory": [
+      {
+        "id": "demo-activity-7",
+        "type": "trip-completed",
+        "title": "Finished Hill Country Sunrise Sprint",
+        "targetType": "trip",
+        "targetId": "demo-trip-3",
+        "summary": "Closed out a two-day route with canyon overlooks, coffee bars, and spring-fed swim stops.",
+        "location": "Austin, TX",
+        "occurredAt": "2026-03-29T12:05:00Z"
+      },
+      {
+        "id": "demo-activity-8",
+        "type": "spot-created",
+        "title": "Published Greenbelt Creek Overlook",
+        "targetType": "spot",
+        "targetId": "demo-spot-9",
+        "summary": "Logged the best morning approach, parking notes, and a post-hike taco recommendation.",
+        "location": "Austin, TX",
+        "occurredAt": "2026-03-26T13:50:00Z"
+      },
+      {
+        "id": "demo-activity-9",
+        "type": "review-posted",
+        "title": "Reviewed East Austin Espresso Lab",
+        "targetType": "spot",
+        "targetId": "demo-spot-10",
+        "summary": "Called out the quiet upstairs workspace, cortado quality, and photo-friendly afternoon light.",
+        "location": "Austin, TX",
+        "occurredAt": "2026-03-22T20:15:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-4",
+    "username": "sofia.ramirez",
+    "email": "sofia@atlas.travel",
+    "displayName": "Sofia Ramirez",
+    "avatarUrl": "https://i.pravatar.cc/300?img=23",
+    "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+    "homeBase": "San Antonio, TX",
+    "interests": [
+      "food",
+      "culture",
+      "shopping"
+    ],
+    "stats": {
+      "spots": 19,
+      "trips": 4,
+      "friends": 42
+    },
+    "joinedAt": "2025-01-11T08:45:00Z",
+    "activityHistory": [
+      {
+        "id": "demo-activity-10",
+        "type": "trip-planned",
+        "title": "Planned River Walk Aperitivo Evening",
+        "targetType": "trip",
+        "targetId": "demo-trip-2",
+        "summary": "Drafted a social evening with canal-side dining, boutique shopping, and a final rooftop toast.",
+        "location": "San Antonio, TX",
+        "occurredAt": "2026-03-27T21:00:00Z"
+      },
+      {
+        "id": "demo-activity-11",
+        "type": "spot-created",
+        "title": "Added Mercado Courtyard Breakfast",
+        "targetType": "spot",
+        "targetId": "demo-spot-15",
+        "summary": "Shared the best opening-hour tables, pan dulce picks, and courtyard photo angles.",
+        "location": "San Antonio, TX",
+        "occurredAt": "2026-03-26T15:35:00Z"
+      },
+      {
+        "id": "demo-activity-12",
+        "type": "review-posted",
+        "title": "Reviewed Blue Hour Gallery Walk",
+        "targetType": "spot",
+        "targetId": "demo-spot-18",
+        "summary": "Recommended an after-sunset route through the district with two easy wine-bar detours.",
+        "location": "San Antonio, TX",
+        "occurredAt": "2026-03-23T00:20:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-5",
+    "username": "jordan.reed",
+    "email": "jordan@atlas.travel",
+    "displayName": "Jordan Reed",
+    "avatarUrl": "https://i.pravatar.cc/300?img=52",
+    "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+    "homeBase": "Houston, TX",
+    "interests": [
+      "scenic",
+      "nature",
+      "adventure"
+    ],
+    "stats": {
+      "spots": 24,
+      "trips": 5,
+      "friends": 38
+    },
+    "joinedAt": "2024-11-20T17:25:00Z",
+    "activityHistory": [
+      {
+        "id": "demo-activity-13",
+        "type": "spot-created",
+        "title": "Pinned Buffalo Bayou Skyline Run",
+        "targetType": "spot",
+        "targetId": "demo-spot-20",
+        "summary": "Documented the smoothest sunset route, parking lot timing, and post-run taco stop.",
+        "location": "Houston, TX",
+        "occurredAt": "2026-03-28T01:25:00Z"
+      },
+      {
+        "id": "demo-activity-14",
+        "type": "trip-completed",
+        "title": "Completed North Texas Night + Food Loop",
+        "targetType": "trip",
+        "targetId": "demo-trip-1",
+        "summary": "Wrapped a two-day city route with Stockyards shopping, skyline tacos, contemporary art, and a vinyl-bar finish.",
+        "location": "Fort Worth & Dallas, TX",
+        "occurredAt": "2026-03-24T23:40:00Z"
+      },
+      {
+        "id": "demo-activity-15",
+        "type": "photo-uploaded",
+        "title": "Uploaded marsh-boardwalk shots",
+        "targetType": "spot",
+        "targetId": "demo-spot-17",
+        "summary": "Added three golden-hour photos highlighting reeds, cloud reflections, and the low-tide boardwalk.",
+        "location": "Galveston, TX",
+        "occurredAt": "2026-03-21T13:05:00Z"
+      }
+    ]
+  }
+]

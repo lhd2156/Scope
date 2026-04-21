@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="vue-logo-title">
+  <title id="vue-logo-title">Atlas neutral glyph</title>
+  <path d="M10 16h44L32 52 10 16Z" fill="currentColor" opacity="0.92" />
+  <path d="M20 16h24L32 34 20 16Z" fill="currentColor" opacity="0.55" />
+</svg>
