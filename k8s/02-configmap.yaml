@@ -19,6 +19,7 @@ data:
   CONTENT_SERVICE_URL: http://content:8000/api/content
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   KAFKA_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
   AWS_REGION: us-east-1
   AWS_S3_BUCKET: atlas-photos
   VITE_API_BASE_URL: /

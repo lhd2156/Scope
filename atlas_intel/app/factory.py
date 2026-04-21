@@ -5,6 +5,7 @@ from app.errors import register_error_handlers
 from app.extensions import db
 from app.logging_config import configure_logging
 from app.middleware import register_middleware
+from app.telemetry import initialize_telemetry, register_metrics_endpoint
 from config import settings
 
 
@@ -45,10 +46,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         raise RuntimeError(f"Missing required Intel configuration: {joined}")
 
     configure_logging(app)
+    initialize_telemetry()
     db.init_app(app)
     register_middleware(app)
     register_error_handlers(app)
     register_blueprints(app)
+    register_metrics_endpoint(app)
     configure_cors(app)
 
     with app.app_context():

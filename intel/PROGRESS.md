@@ -1,6 +1,6 @@
 # Intelligence API Progress
 
-## Status: IN_PROGRESS
+## Status: COMPLETE
 
 ## Tasks
 - [x] 1. Scaffold Flask app with factory pattern
@@ -121,8 +121,8 @@
 - [x] 25.4 Prometheus /metrics endpoint + custom app gauges/counters
 - [x] 25.5 Alert rule config (YAML) + webhook dispatcher
 
-## Current Task: Phase 25 complete - monitoring track ready for the next platform milestone
-## Last Updated: 2026-04-21T04:39:43Z
+## Current Task: COMPLETE
+## Last Updated: 2026-04-20
 
 - 2026-04-20T23:08:35Z: COMPLETED Phase 25.1 - converted `atlas-metrics/` from the earlier Python placeholder into the requested Go scaffold with `go.mod`, Gorilla Mux routing, Prometheus registry wiring, typed env config, unit tests for `/`, `/healthz`, and `/metrics`, and a multi-stage Go Dockerfile. Updated `docker-compose.yml` so the metrics container healthcheck no longer depends on Python inside the image. Validation: `go mod tidy`, `gofmt -w ...`, `go test ./...`, and `go build ./cmd/atlas-metrics`. `docker build -t atlas-metrics:test .` could not be completed on this workstation because Docker Desktop is not running (`//./pipe/dockerDesktopLinuxEngine` unavailable). Next up: Phase 25.2 system metrics collector.
 - 2026-04-20T23:18:00Z: COMPLETED Phases 25.2-25.4 - extended the Go metrics agent with live CPU/memory/disk collection via `gopsutil`, live HTTP dependency probes against configured Core/Content/Intel health endpoints, refresh-state JSON payloads on `/` and `/healthz`, and Prometheus gauges/counters for system usage, service availability, response latency, request totals, and refresh results. Re-ran `gofmt -w ...`, `go mod tidy`, `go test ./...`, `go build ./cmd/atlas-metrics`, and `docker compose config --services` successfully after the collector/probe work. Next up: Phase 25.5 alert rules and webhook dispatch.
