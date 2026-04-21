@@ -165,7 +165,7 @@ This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes
 - plan a trip
 - check notifications/friends surfaces
 - verify Intel health route returns the expected bare health JSON shape
-- trigger `atlas-cli` inside Compose or Kubernetes and confirm the health-check scaffold resolves all four service endpoints
+- trigger `atlas-cli` inside Compose or Kubernetes and confirm the health-check command resolves all four service endpoints
 
 ---
 

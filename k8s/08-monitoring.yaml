@@ -24,6 +24,27 @@ data:
         static_configs:
           - targets:
               - atlas-metrics.atlas.svc.cluster.local:9090
+
+      - job_name: core
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - core.atlas.svc.cluster.local:8080
+
+      - job_name: content
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - content.atlas.svc.cluster.local:8000
+
+      - job_name: intel
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - intel.atlas.svc.cluster.local:5000
 ---
 apiVersion: v1
 kind: Service

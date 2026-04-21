@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Atlas.Core.API.Contracts.Requests;
+using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Entities;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Domain.Models;
@@ -138,6 +139,7 @@ public sealed class HealthController(CoreDbContext dbContext, IConfiguration con
     {
         var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
         var bootstrap = configuration["KAFKA_BOOTSTRAP_SERVERS"];
+        AtlasObservability.SetServiceHealth("core", canConnect);
         return Ok(new { status = canConnect ? "healthy" : "degraded", version = "1.0.0", uptime = Environment.TickCount64, checks = new { database = canConnect, kafka = !string.IsNullOrWhiteSpace(bootstrap) } });
     }
 }

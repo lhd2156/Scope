@@ -178,6 +178,9 @@ Default public URL:
 ### Health endpoint available today
 
 - Nginx: `/healthz`
+- Core metrics: `http://core:8080/metrics` (in-container / in-cluster scrape target)
+- Content metrics: `http://content:8000/metrics` (in-container / in-cluster scrape target)
+- Intel metrics: `http://intel:5000/metrics` (in-container / in-cluster scrape target)
 - Atlas Metrics: `http://localhost:${ATLAS_METRICS_PORT}/healthz`
 - Atlas Metrics scrape: `http://localhost:${ATLAS_METRICS_PORT}/metrics`
 
@@ -211,6 +214,7 @@ It verifies:
 - `/api/intel/health`
 - Atlas Metrics `/healthz`
 - Atlas Metrics `/metrics`
+- Core / Content / Intel `/metrics` when those internal endpoints are reachable from the validation network
 
 Local example:
 
@@ -361,6 +365,7 @@ Current automation coverage:
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
 - Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` execution against an actual AWS target
+- Prometheus scrape config for Atlas Metrics plus the Core, Content, and Intel `/metrics` endpoints in Kubernetes
 
 Dependabot is also configured for:
 

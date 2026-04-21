@@ -207,6 +207,26 @@ function Assert-JsonStatus {
     return "$PropertyPath=$current"
 }
 
+function Assert-JsonStatusAnyPath {
+    param(
+        [Parameter(Mandatory = $true)]$Json,
+        [Parameter(Mandatory = $true)][string]$ExpectedStatus,
+        [Parameter(Mandatory = $true)][string[]]$PropertyPaths
+    )
+
+    $errors = @()
+    foreach ($propertyPath in $PropertyPaths) {
+        try {
+            return Assert-JsonStatus -Json $Json -ExpectedStatus $ExpectedStatus -PropertyPath $propertyPath
+        }
+        catch {
+            $errors += $_.Exception.Message
+        }
+    }
+
+    throw ($errors -join ' | ')
+}
+
 function Assert-FrontendHtml {
     param([Parameter(Mandatory = $true)]$Response)
 
@@ -333,7 +353,7 @@ $checks = @(
         Validate = {
             param($response)
             $json = ConvertFrom-JsonSafe -Content $response.Content
-            return Assert-JsonStatus -Json $json -ExpectedStatus 'healthy' -PropertyPath 'data.status'
+            return Assert-JsonStatusAnyPath -Json $json -ExpectedStatus 'healthy' -PropertyPaths @('status', 'data.status')
         }
     }
     [pscustomobject]@{

@@ -25,13 +25,15 @@ This repository now includes:
 
 ## Architecture
 
-Atlas is a polyglot microservice system with four app surfaces:
+Atlas is a polyglot microservice system with six app surfaces:
 
 | Service | Stack | Directory | Responsibility |
 |---|---|---|---|
 | Core API | ASP.NET Core 8 / C# | `Atlas.Core/` | auth, users, friendships, notifications, live sessions |
 | Content API | Django 5 / Python | `atlas_content/` | spots, trips, photos, reviews, social feed |
 | Intel API | Flask 3 / Python | `atlas_intel/` | itinerary generation, recommendations, vibe matching |
+| Metrics Agent | Go | `atlas-metrics/` | Prometheus exporter, dependency probes, alert rules |
+| CLI Toolkit | Rust | `atlas-cli/` | health checks, seeding, deploy validation, benchmarking |
 | Frontend | Vue 3 / TypeScript | `atlas-frontend/` | map UX, social/product UI, trip planning flows |
 
 Supporting infrastructure in-repo:
@@ -48,6 +50,8 @@ Supporting infrastructure in-repo:
 Atlas.Core/          Core backend (.NET)
 atlas_content/       Content backend (Django)
 atlas_intel/         Intelligence backend (Flask)
+atlas-metrics/       Metrics exporter + alerting (Go)
+atlas-cli/           Ops toolkit (Rust)
 atlas-frontend/      Frontend (Vue + Vite)
 atlas-assets/        Design tokens, icons, mockups
 scripts/sql/         SQL schema + seed scripts
@@ -119,6 +123,21 @@ python -m pytest
 ```powershell
 cd atlas_intel
 python -m pytest tests
+```
+
+#### Metrics Agent
+
+```powershell
+cd atlas-metrics
+go test ./...
+go build ./cmd/atlas-metrics
+```
+
+#### CLI Toolkit
+
+```powershell
+cd atlas-cli
+cargo test
 ```
 
 #### Frontend

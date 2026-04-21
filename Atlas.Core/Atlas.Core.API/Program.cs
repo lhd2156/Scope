@@ -7,12 +7,28 @@ using Atlas.Core.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Prometheus;
 using Serilog;
 using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 Log.Logger = new LoggerConfiguration().WriteTo.Console(new RenderedCompactJsonFormatter()).CreateLogger();
 builder.Host.UseSerilog();
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("atlas-core"))
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource(AtlasObservability.ActivitySourceName);
+
+        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter(options => options.Endpoint = BuildOtlpTracesEndpoint(otlpEndpoint));
+        }
+    });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -62,9 +78,21 @@ app.UseCors("default");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapMetrics("/metrics");
 app.MapHub<Atlas.Core.API.Hubs.TripHub>("/api/core/hubs/trips");
 app.MapHub<Atlas.Core.API.Hubs.LocationHub>("/api/core/hubs/location");
 app.MapHub<Atlas.Core.API.Hubs.NotificationHub>("/api/core/hubs/notifications");
 app.Run();
+
+static Uri BuildOtlpTracesEndpoint(string endpoint)
+{
+    var normalized = endpoint.Trim().TrimEnd('/');
+    if (!normalized.EndsWith("/v1/traces", StringComparison.OrdinalIgnoreCase))
+    {
+        normalized = $"{normalized}/v1/traces";
+    }
+
+    return new Uri(normalized, UriKind.Absolute);
+}
 
 public partial class Program { }
