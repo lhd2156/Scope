@@ -1,9 +1,28 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import path from 'node:path';
+import fs from 'node:fs';
+import { cp, mkdir } from 'node:fs/promises';
+
+function copyOptionalWasmArtifacts() {
+  return {
+    name: 'atlas-copy-optional-wasm-artifacts',
+    apply: 'build' as const,
+    async closeBundle() {
+      const sourceDirectory = path.resolve(__dirname, 'wasm/dist');
+      if (!fs.existsSync(sourceDirectory)) {
+        return;
+      }
+
+      const targetDirectory = path.resolve(__dirname, 'dist/wasm/dist');
+      await mkdir(targetDirectory, { recursive: true });
+      await cp(sourceDirectory, targetDirectory, { recursive: true });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), copyOptionalWasmArtifacts()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

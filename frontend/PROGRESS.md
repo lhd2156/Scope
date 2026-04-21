@@ -136,8 +136,8 @@
 - [x] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [x] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 20 complete - Frontend QA blitz closed
-## Last Updated: 2026-04-04T05:20:39-05:00
+## Current Task: Phase 23 complete — ready for the next platform milestone
+## Last Updated: 2026-04-20T22:53:15.8308284-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -217,12 +217,18 @@
 - [x] 23.1 Scaffold atlas-frontend/wasm/ with CMakeLists.txt for Emscripten build
 - [x] 23.2 Port viewport clustering algorithm to wasm/src/atlas_wasm.cpp
 - [x] 23.3 Add client-side haversine + convex hull for map UI labels
-- [ ] 23.4 Create src/services/wasmService.ts — async WASM loader + typed wrappers
-- [ ] 23.5 Wire into MapView.vue for marker clustering + distance labels
+- [x] 23.4 Create src/services/wasmService.ts — async WASM loader + typed wrappers
+- [x] 23.5 Wire into MapView.vue for marker clustering + distance labels
 
-## Current Task: Phase 23.4 — Create src/services/wasmService.ts
-## Last Updated: 2026-04-19T13:17:55.4250519-05:00
+## Current Task: Phase 23 complete — ready for the next platform milestone
+## Last Updated: 2026-04-20T22:53:15.8308284-05:00
 
+- 2026-04-20T22:53:15.8308284-05:00: COMPLETED Phase 23.4 - added atlas-frontend/src/services/wasmService.ts as the typed Atlas WebAssembly loader with runtime-mode reporting, URL-based asset resolution, embind wrapper sanitization, and a JavaScript spatial fallback for haversine distance, viewport clustering, and convex hull helpers when compiled artifacts are not yet present. Also added atlas-frontend/tests/unit/wasm-service.spec.ts to lock down the fallback path and geometry wrappers. Validation: npm run test (94 files / 265 tests) and npm run build.
+- 2026-04-20T22:53:15.8308284-05:00: COMPLETED Phase 23.5 - wired the new WASM service into atlas-frontend/src/components/map/MapView.vue so live Mapbox sessions render viewport-aware clustered markers, show distance labels on singleton spot markers, and gracefully fall back to non-clustered markers if runtime generation fails. Added atlas-frontend/src/components/map/ClusterMarker.vue, extended SpotMarker.vue with an optional distance label, updated atlas-frontend/vite.config.ts to copy optional wasm/dist artifacts into build output, installed local cmake + ninja, installed atlas-frontend/emsdk/, and compiled atlas-frontend/wasm/dist/atlas_wasm.js plus atlas_wasm.wasm. Validation: emcmake cmake -G Ninja -S . -B build, cmake --build build, npm run test (94 files / 265 tests), and npm run build with copied runtime artifacts in atlas-frontend/dist/wasm/dist/.
 - 2026-04-19T05:17:56-05:00: COMPLETED Phase 23.1 - installed the local `atlas-frontend/emsdk/` Emscripten SDK, scaffolded `atlas-frontend/wasm/` with an Emscripten-ready `CMakeLists.txt`, module stub, README, and build-artifact ignores, and validated the new WebAssembly scaffold with `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: this Windows host needed user-space `cmake` + `ninja` on PATH for `emcmake`, and validation used a temporary local `make` shim because GNU `make` is not installed globally. Next up: Phase 23.2 viewport clustering port.
 - 2026-04-19T06:41:20.6062236-05:00: COMPLETED Phase 23.2 - replaced the scaffold stub in `atlas-frontend/wasm/src/atlas_wasm.cpp` with an embind-exported viewport clustering engine that projects visible points into Web Mercator screen space, handles antimeridian-aware viewport normalization, clusters nearby markers with a spatial hash + union-find pass, and returns either cluster groups or singleton markers with stable ids, member ids, and screen-space bounds. Also refreshed the WASM README with the new `clusterViewportPoints(points, viewport, options)` API contract. Validation: `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: on this host `emcmake` still needs the user-space Python `cmake` + `ninja` paths available after `emsdk_env.ps1`, while `emmake make` continues to use the local make shim in `atlas-frontend/wasm/`. Next up: Phase 23.3 haversine + convex hull helpers.
 - 2026-04-19T13:17:55.4250519-05:00: COMPLETED Phase 23.3 - expanded `atlas-frontend/wasm/src/atlas_wasm.cpp` with shared geographic parsing/projection helpers, an embind-exported `calculateHaversineDistance(from, to)` distance helper, and a `buildViewportConvexHull(points, viewport)` pipeline that projects visible markers, computes a monotonic-chain convex hull, and returns centroid/bounds/area/perimeter metadata for future map labels. Also refreshed `atlas-frontend/wasm/README.md` with the new API contract. Validation: `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: on this host `emcmake` still needs the user-space Python `cmake` + `ninja` paths available after `emsdk_env.ps1`, while `emmake make` continues to use the local make shim in `atlas-frontend/wasm/`. Next up: Phase 23.4 typed WASM loader service.
+
+
+
+
