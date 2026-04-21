@@ -1,10 +1,14 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"atlas-metrics/internal/config"
 )
@@ -12,15 +16,10 @@ import (
 func TestIndexRouteReturnsConfiguredTargets(t *testing.T) {
 	t.Parallel()
 
-	app := New(config.Config{
-		Port:     "9090",
-		Version:  "0.1.0-test",
-		DiskPath: ".",
-		Targets: []config.Target{
-			{Name: "core", URL: "http://core:8080/api/core/health"},
-			{Name: "content", URL: "http://content:8000/api/content/health"},
-		},
-	})
+	app := New(newTestConfig(t, []config.Target{
+		{Name: "core", URL: "http://core:8080/api/core/health"},
+		{Name: "content", URL: "http://content:8000/api/content/health"},
+	}))
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	recorder := httptest.NewRecorder()
@@ -35,10 +34,11 @@ func TestIndexRouteReturnsConfiguredTargets(t *testing.T) {
 	for _, expected := range []string{
 		"atlas-metrics",
 		"0.1.0-test",
-		"25.4",
+		"25.5",
 		"http://core:8080/api/core/health",
 		"http://content:8000/api/content/health",
 		"lastRefreshSuccess",
+		"ruleCount",
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("expected response body to contain %q, got %s", expected, body)
@@ -49,11 +49,7 @@ func TestIndexRouteReturnsConfiguredTargets(t *testing.T) {
 func TestHealthRouteReturnsOk(t *testing.T) {
 	t.Parallel()
 
-	app := New(config.Config{
-		Port:     "9090",
-		Version:  "0.1.0-test",
-		DiskPath: ".",
-	})
+	app := New(newTestConfig(t, nil))
 
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	recorder := httptest.NewRecorder()
@@ -72,11 +68,7 @@ func TestHealthRouteReturnsOk(t *testing.T) {
 func TestMetricsRouteExposesBuildInfoMetric(t *testing.T) {
 	t.Parallel()
 
-	app := New(config.Config{
-		Port:     "9090",
-		Version:  "0.1.0-test",
-		DiskPath: ".",
-	})
+	app := New(newTestConfig(t, nil))
 
 	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	recorder := httptest.NewRecorder()
@@ -93,6 +85,8 @@ func TestMetricsRouteExposesBuildInfoMetric(t *testing.T) {
 		"atlas_metrics_start_time_seconds",
 		"atlas_system_cpu_percent",
 		"atlas_metrics_http_requests_total",
+		"atlas_alert_rules_loaded",
+		"atlas_alert_dispatch_total",
 		"0.1.0-test",
 	} {
 		if !strings.Contains(body, expected) {
@@ -110,14 +104,9 @@ func TestIndexRouteReportsHealthyProbeTargets(t *testing.T) {
 	}))
 	defer targetServer.Close()
 
-	app := New(config.Config{
-		Port:     "9090",
-		Version:  "0.1.0-test",
-		DiskPath: ".",
-		Targets: []config.Target{
-			{Name: "intel", URL: targetServer.URL},
-		},
-	})
+	app := New(newTestConfig(t, []config.Target{
+		{Name: "intel", URL: targetServer.URL},
+	}))
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	recorder := httptest.NewRecorder()
@@ -137,5 +126,164 @@ func TestIndexRouteReportsHealthyProbeTargets(t *testing.T) {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("expected response body to contain %q, got %s", expected, body)
 		}
+	}
+}
+
+func TestAlertDispatchEndpointReportsDisabledWebhook(t *testing.T) {
+	t.Parallel()
+
+	app := New(newTestConfig(t, nil))
+	request := httptest.NewRequest(http.MethodPost, "/alerts/dispatch", nil)
+	recorder := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	body := recorder.Body.String()
+	for _, expected := range []string{
+		"dispatch",
+		"\"enabled\": false",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected response body to contain %q, got %s", expected, body)
+		}
+	}
+}
+
+func TestAlertRulesEndpointHandlesLoadErrors(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig(t, nil)
+	cfg.AlertRulesPath = filepath.Join(t.TempDir(), "missing-alert-rules.yaml")
+
+	app := New(cfg)
+	request := httptest.NewRequest(http.MethodGet, "/alerts/rules", nil)
+	recorder := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	body := recorder.Body.String()
+	for _, expected := range []string{
+		"\"rulesLoaded\": false",
+		"missing-alert-rules.yaml",
+		"loadError",
+		"\"config\": null",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected response body to contain %q, got %s", expected, body)
+		}
+	}
+}
+
+func TestAlertDispatchEndpointOnlyDispatchesOncePerRequest(t *testing.T) {
+	t.Parallel()
+
+	requestBodies := make(chan string, 4)
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("read webhook body: %v", err)
+		}
+
+		requestBodies <- string(body)
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer webhookServer.Close()
+
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{
+		{Name: "core", URL: targetServer.URL},
+	})
+	cfg.AlertWebhookURL = webhookServer.URL
+
+	app := New(cfg)
+	request := httptest.NewRequest(http.MethodPost, "/alerts/dispatch", nil)
+	recorder := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	receivedBodies := make([]string, 0, 2)
+	timeout := time.After(250 * time.Millisecond)
+collectBodies:
+	for {
+		select {
+		case body := <-requestBodies:
+			receivedBodies = append(receivedBodies, body)
+		case <-timeout:
+			break collectBodies
+		}
+	}
+
+	if len(receivedBodies) != 1 {
+		t.Fatalf("expected exactly 1 webhook request, got %d", len(receivedBodies))
+	}
+
+	for _, expected := range []string{
+		"core-service-down",
+		"refresh-failed",
+		"\"status\":\"firing\"",
+	} {
+		if !strings.Contains(receivedBodies[0], expected) {
+			t.Fatalf("expected webhook payload to contain %q, got %s", expected, receivedBodies[0])
+		}
+	}
+}
+
+func newTestConfig(t *testing.T, targets []config.Target) config.Config {
+	t.Helper()
+
+	tempDirectory := t.TempDir()
+	rulesPath := filepath.Join(tempDirectory, "alert-rules.yaml")
+	if err := os.WriteFile(rulesPath, []byte(`
+version: 1
+defaults:
+  severity: warning
+  cooldown: 5m
+rules:
+  - id: core-service-down
+    summary: Core service health check is failing
+    severity: critical
+    condition:
+      kind: service_down
+      service: core
+  - id: high-cpu
+    summary: Host CPU usage is elevated
+    condition:
+      kind: system_above
+      metric: cpu_percent
+      threshold: 85
+  - id: refresh-failed
+    summary: Refresh failed
+    severity: critical
+    condition:
+      kind: refresh_failed
+`), 0o600); err != nil {
+		t.Fatalf("write test alert rules: %v", err)
+	}
+
+	return config.Config{
+		Port:                "9090",
+		Version:             "0.1.0-test",
+		HealthTimeout:       time.Second,
+		AlertRulesPath:      rulesPath,
+		AlertWebhookTimeout: time.Second,
+		AlertSource:         "atlas-metrics-test",
+		DiskPath:            ".",
+		Targets:             targets,
 	}
 }
