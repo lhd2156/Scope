@@ -4,7 +4,7 @@ import os
 from contextlib import AbstractContextManager
 from typing import Final
 
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -106,4 +106,3 @@ def normalize_route(route: str | None) -> str:
     if not route:
         return '/'
     return route if route.startswith('/') else f'/{route}'
-

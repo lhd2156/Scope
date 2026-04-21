@@ -1,5 +1,13 @@
+from pathlib import Path
+import sys
+
 import jwt
 import pytest
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVICE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVICE_ROOT))
+
 from app import create_app
 from app.rate_limit import reset_rate_limit_state
 

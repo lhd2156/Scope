@@ -107,7 +107,7 @@ jobs:
             build_args: ''
           - name: frontend
             image: atlas-frontend
-            context: ./atlas-frontend
+            context: .
             file: ./atlas-frontend/Dockerfile
             build_args: |
               VITE_API_BASE_URL=/
