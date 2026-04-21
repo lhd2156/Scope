@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-19T18:17:14.358Z",
+  "entries": {
+    "memory:memory/2026-04-19.md:29:32": {
+      "key": "memory:memory/2026-04-19.md:29:32",
+      "path": "memory/2026-04-19.md",
+      "startLine": 29,
+      "endLine": 32,
+      "source": "memory",
+      "snippet": "- Reopened heartbeat orchestration on this host was dominated by local gateway instability at `ws://127.0.0.1:18789`: relaunches frequently partially succeeded, so the fleet often sat in a mixed running/blocked state and stale lead-dashboard `RUNNING` rows could not be trusted without a fresh live-worker audit. - Final known reopened-state snapshot before this flush: Content had advanced furthest and was the only track with a confirmed live child on Phase `22.2`; Foundation, Core, Intel, and Frontend were all blocked by gateway timeouts at their current reopened checkpoints; Polish was still complete. - On this Windows host, bare `python` can resolve to the Microsoft Store execution alias an",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "totalScore": 0.7749082179365617,
+      "maxScore": 0.7749082179365617,
+      "firstRecalledAt": "2026-04-19T18:17:14.358Z",
+      "lastRecalledAt": "2026-04-19T18:17:14.358Z",
+      "queryHashes": [
+        "9d594670e0b8"
+      ],
+      "recallDays": [
+        "2026-04-19"
+      ],
+      "conceptTags": [
+        "gateway",
+        "127.0.0.1",
+        "running/blocked",
+        "lead-dashboard",
+        "live-worker",
+        "reopened-state",
+        "22.2",
+        "reopened"
+      ]
+    },
+    "memory:memory/2026-04-19.md:25:30": {
+      "key": "memory:memory/2026-04-19.md:25:30",
+      "path": "memory/2026-04-19.md",
+      "startLine": 25,
+      "endLine": 30,
+      "source": "memory",
+      "snippet": "- After Phase 20 closure, heartbeat orchestration entered steady-state mode: no agent respawns, `Agents Running` stays empty, and heartbeats should just refresh the lead dashboard unless a canonical tracker becomes non-COMPLETE again. - Lead-owned follow-on work was still noted outside the canonical agent tracks: remaining Phase 4 integration follow-through plus Phases 11 and 16 external/runtime validation. - Superseding the earlier all-complete note: later on 2026-04-19, the canonical trackers reopened the native/tooling phases. The reopened map became: Foundation `26.1`, Core `24.1`, Content `22.x` (later observed at `22.2`), Intel `21.1`, Frontend `23.x` (later observed at `23.2`), and P",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "totalScore": 0.7723264267797253,
+      "maxScore": 0.7723264267797253,
+      "firstRecalledAt": "2026-04-19T18:17:14.358Z",
+      "lastRecalledAt": "2026-04-19T18:17:14.358Z",
+      "queryHashes": [
+        "9d594670e0b8"
+      ],
+      "recallDays": [
+        "2026-04-19"
+      ],
+      "conceptTags": [
+        "steady-state",
+        "non-complete",
+        "lead-owned",
+        "follow-on",
+        "follow-through",
+        "external/runtime",
+        "all-complete",
+        "native/tooling"
+      ]
+    }
+  }
+}

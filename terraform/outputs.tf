@@ -35,7 +35,7 @@ output "photos_bucket_name" {
 
 output "ecr_repository_urls" {
   description = "Published ECR repository URLs keyed by Atlas service name."
-  value       = {
+  value = {
     for name, repo in aws_ecr_repository.service : name => repo.repository_url
   }
 }

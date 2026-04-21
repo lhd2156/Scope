@@ -1,6 +1,6 @@
 # Frontend Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
 ## Tasks (Phase 3 - Original Build)
 - [x] 1. Scaffold Vite + Vue 3 + TypeScript
@@ -54,7 +54,7 @@
 - [x] Verify dark/light theme works on all pages
 - [x] Check for console.log statements, dead code, unused imports
 
-### Phase 13: Frontend Design Overhaul 🎨
+### Phase 13: Frontend Design Overhaul ðŸŽ¨
 - [x] 13.1 - READ `atlas-assets/DESIGN-SPEC.md` and ALL mockup images in `atlas-assets/mockups/` before touching any code. Study every pixel.
 - [x] 13.2 - Hero Section Rework: Landing page hero with full-bleed Unsplash background photo, dark gradient overlay, glassmorphism content panel, animated heading "Your Adventures, Mapped.", dual CTA buttons (teal primary + outline secondary) with glow effects. Must span full viewport width.
 - [x] 13.3 - Card System Overhaul: Rework SpotCard for all pages - rich photo with aspect-ratio 4/3, gradient overlay on bottom for text, category badge pill in top-left, heart/save icon in top-right, hover zoom on photo (scale 1.05 with overflow hidden), translateY(-2px) card lift, shadow elevation on hover. Apply to SpotCard, TripCard, FeedItem.
@@ -74,18 +74,18 @@
 - [x] 13.17 - Demo Photo Integration: Replace all placeholder/empty images with Unsplash travel photos. Add realistic demo data in mock services with proper photo URLs, user avatars from pravatar.cc, realistic spot names/descriptions/reviews.
 - [x] 13.18 - Final Visual QA: Run npm run build, npm run test. Screenshot every page in dark mode and light mode. Verify against mockup images. Fix any visual regressions.
 
-### Phase 14: Comprehensive E2E Testing 🧪
+### Phase 14: Comprehensive E2E Testing ðŸ§ª
 - [x] 14.1 - Set up Playwright with Chromium, Firefox, and WebKit browser projects
-- [x] 14.2 - Auth flow tests: register with validation → login → session persist → logout
-- [x] 14.3 - Map interaction tests: load map → click marker → sidebar detail → navigate to spot
-- [x] 14.4 - Spot CRUD tests: create spot with photo → edit → view → delete → verify removal
-- [x] 14.5 - Trip flow tests: create trip → add destinations → generate AI itinerary → view timeline
-- [x] 14.6 - Social tests: view feed → like item → add friend → view notifications
+- [x] 14.2 - Auth flow tests: register with validation â†’ login â†’ session persist â†’ logout
+- [x] 14.3 - Map interaction tests: load map â†’ click marker â†’ sidebar detail â†’ navigate to spot
+- [x] 14.4 - Spot CRUD tests: create spot with photo â†’ edit â†’ view â†’ delete â†’ verify removal
+- [x] 14.5 - Trip flow tests: create trip â†’ add destinations â†’ generate AI itinerary â†’ view timeline
+- [x] 14.6 - Social tests: view feed â†’ like item â†’ add friend â†’ view notifications
 - [x] 14.7 - Navigation tests: every route renders, auth guards redirect, 404 page works
 - [x] 14.8 - Theme toggle test: switch dark/light, verify persistence across page reload
 - [x] 14.9 - Generate HTML test report at atlas-frontend/test-results/report.html
 
-### Phase 15: Data Seeding & Demo Mode 🌱
+### Phase 15: Data Seeding & Demo Mode ðŸŒ±
 - [x] 15.1 - Create atlas-frontend/src/mock/ directory with JSON fixture files
 - [x] 15.2 - Build demo user profiles: 5 users with pravatar.cc avatars, realistic stats, activity history
 - [x] 15.3 - Build demo spots: 20 spots across all 8 categories with Unsplash photos, real coordinates, reviews
@@ -96,9 +96,9 @@
 - [x] 15.8 - Create demo login credentials (demo@atlas.travel / Atlas2024!)
 - [x] 15.9 - Update README.md with demo mode instructions
 
-### Phase 17: Mobile Responsiveness & PWA 📱
+### Phase 17: Mobile Responsiveness & PWA ðŸ“±
 - [x] 17.1 - Audit every view for responsive breakpoints: mobile (<640px), tablet (640-1024px), desktop (>1024px)
-- [x] 17.2 - Mobile navbar: hamburger menu → slide-out drawer with backdrop blur
+- [x] 17.2 - Mobile navbar: hamburger menu â†’ slide-out drawer with backdrop blur
 - [x] 17.3 - Map page mobile: full-screen map with bottom-sheet sidebar (swipe up to reveal)
 - [x] 17.4 - Explore page mobile: single-column card layout
 - [x] 17.5 - Profile page mobile: stacked layout, horizontal scroll for adventures
@@ -108,7 +108,7 @@
 - [x] 17.9 - iOS safe-area-inset-* handling and touch-action styling
 - [x] 17.10 - Verify with Chrome DevTools device emulation: iPhone 14, iPad, Galaxy S24
 
-### Phase 18: Analytics & User Telemetry 📈
+### Phase 18: Analytics & User Telemetry ðŸ“ˆ
 - [x] 18.1 - Create analytics service abstraction (src/services/analyticsService.ts)
 - [x] 18.2 - Track page views on every route change via router afterEach
 - [x] 18.3 - Track key user actions: spot create, trip create, AI itinerary generate, friend add, theme toggle
@@ -116,7 +116,7 @@
 - [x] 18.5 - Add privacy-compliant cookie consent banner component
 - [x] 18.6 - Add opt-out toggle in Settings page
 
-### Phase 19: Onboarding & Tutorial Flow 🎓
+### Phase 19: Onboarding & Tutorial Flow ðŸŽ“
 - [x] 19.1 - Create OnboardingOverlay.vue with spotlight step-by-step tutorial
 - [x] 19.2 - Step 1: Welcome to Atlas - animated intro with feature highlights
 - [x] 19.3 - Step 2: Drop Your First Pin - highlight Create Spot button with guided prompt
@@ -127,7 +127,7 @@
 - [x] 19.8 - Add "Replay Tutorial" option in Settings page
 - [x] 19.9 - Create empty-state illustrations for pages with no user content yet
 
-### Phase 20: Pre-Launch QA Blitz 🏁
+### Phase 20: Pre-Launch QA Blitz ðŸ
 - [x] 20.1 - Run Lighthouse audit on every page: target Performance >90, Accessibility >95, Best Practices >95, SEO >90
 - [x] 20.2 - Test all form validation edge cases (empty, too long, special chars, XSS payloads)
 - [x] 20.3 - Verify keyboard navigation on every interactive element
@@ -136,8 +136,6 @@
 - [x] 20.6 - Create QA-REPORT.md with pass/fail matrix for every test
 - [x] 20.7 - Fix all Critical and High severity issues found
 
-## Current Task: Phase 20 complete - Frontend QA blitz closed
-## Last Updated: 2026-04-04T05:20:39-05:00
 
 ## Environment Notes
 - Node.js: 24.14.0 at C:\Program Files\nodejs\ - USE IT
@@ -212,3 +210,15 @@
 - 2026-04-04T01:43:07.8786880-05:00: COMPLETED Phase 20.1-20.4 - executed the Phase 20 QA blitz with a dedicated Lighthouse harness/report, fixed the real session-expiry runtime regression, removed landmark / aria-hidden / contrast issues, reduced non-critical authenticated-shell work, tightened demo media payloads, added a dedicated `phase20-qa.spec.ts` suite for keyboard navigation + form edge cases + escaped HTML rendering, and revalidated the frontend with build, unit, Chromium/Firefox/WebKit browser coverage, plus an Edge smoke pass. Validation: `npm.cmd run build`, `npm.cmd run test` (93 files / 262 tests), `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit tests/e2e/phase20-qa.spec.ts tests/e2e/spot-crud-flow.spec.ts tests/e2e/trip-flow.spec.ts`, `$env:PLAYWRIGHT_INCLUDE_EDGE='true'; npm.cmd run test:e2e -- --project=msedge tests/e2e/phase20-qa.spec.ts tests/e2e/trip-flow.spec.ts`, `npm.cmd run qa:lighthouse` (see `atlas-frontend/QA-REPORT.md` for the final route matrix and known harness caveats). Next up: Phase 20.5 social engagement edge-case QA / cleanup of remaining Lighthouse session-isolation flakes.
 - 2026-04-04T01:59:00-05:00: COMPLETED Phase 20.5-20.6 - revalidated the frontend with `npm.cmd run build` and `npm.cmd run test` after the latest QA hardening, refreshed `atlas-frontend/QA-REPORT.md`, and pushed the Lighthouse harness/route optimizations far enough that `/trips/new`, `/profile/demo-user-1`, `/friends`, and isolated `/register` audits now pass. Remaining work is concentrated in Phase 20.7: the final shared Lighthouse matrix still flakes on `/explore`, `/map`, `/login`, and `/register`. Next up: finish the remaining shared-run Lighthouse stability fixes.
 - 2026-04-04T05:20:39-05:00: COMPLETED Phase 20.7 - closed the remaining Critical/High QA issues by hardening the Lighthouse runner to reuse one stable preview server across the full matrix, close session-seeding pages cleanly for SPA 404 audits, return non-zero status on failed sweeps, and keep Atlas QA-auth routes pinned to deterministic mock sessions instead of drifting to `/login` mid-run. Also switched QA-mode audits onto the lightweight guest navbar shell and lazy-loaded the trip planner workspace chunk so the final desktop sweep cleared every route threshold. Validation: `npm.cmd run build`, `npm.cmd run test` (93 files / 262 tests), `npm.cmd run qa:lighthouse` (14/14 routes passing in a single sweep), `npm.cmd run test:e2e -- --project=chromium --project=firefox --project=webkit tests/e2e/phase20-qa.spec.ts` (9 passed / 3.4m), and `$env:PLAYWRIGHT_INCLUDE_EDGE='true'; npm.cmd run test:e2e -- --project=msedge tests/e2e/phase20-qa.spec.ts` (3 passed / 1.3m). See `atlas-frontend/QA-REPORT.md` for the final matrix. Frontend Phase 20 is complete.
+
+### Phase 23: WebAssembly Client Module (C++ -> WASM via Emscripten)
+- [x] 23.1 Scaffold atlas-frontend/wasm/ with CMakeLists.txt for Emscripten build
+- [ ] 23.2 Port viewport clustering algorithm to wasm/src/atlas_wasm.cpp
+- [ ] 23.3 Add client-side haversine + convex hull for map UI labels
+- [ ] 23.4 Create src/services/wasmService.ts — async WASM loader + typed wrappers
+- [ ] 23.5 Wire into MapView.vue for marker clustering + distance labels
+
+## Current Task: Phase 23.2 — Port viewport clustering algorithm
+## Last Updated: 2026-04-19T05:17:56-05:00
+
+- 2026-04-19T05:17:56-05:00: COMPLETED Phase 23.1 - installed the local `atlas-frontend/emsdk/` Emscripten SDK, scaffolded `atlas-frontend/wasm/` with an Emscripten-ready `CMakeLists.txt`, module stub, README, and build-artifact ignores, and validated the new WebAssembly scaffold with `emcmake cmake .`, `emmake make`, `npm.cmd run build`, and `npm.cmd run test` (93 files / 262 tests). Notes: this Windows host needed user-space `cmake` + `ninja` on PATH for `emcmake`, and validation used a temporary local `make` shim because GNU `make` is not installed globally. Next up: Phase 23.2 viewport clustering port.
