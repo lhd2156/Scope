@@ -8,4 +8,6 @@ def test_vibe_matching(client, auth_header):
 def test_health_route(client):
     response = client.get("/api/intel/health")
     assert response.status_code == 200
-    assert response.get_json()["data"]["status"] == "healthy"
+    payload = response.get_json()
+    assert payload["status"] == "healthy"
+    assert set(payload.keys()) == {"status", "version", "uptime"}
