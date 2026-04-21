@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlas-shared-config
+  namespace: atlas
+  labels:
+    app.kubernetes.io/name: atlas
+    app.kubernetes.io/part-of: atlas-platform
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  FLASK_ENV: production
+  DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: atlas.local,localhost,127.0.0.1,nginx
+  ALLOWED_HOSTS: atlas.local,localhost,127.0.0.1,nginx
+  FRONTEND_ORIGIN: https://atlas.local
+  CORE_FRONTEND_ORIGIN: https://atlas.local
+  CORE_JWT_ISSUER: atlas-core
+  CORE_JWT_AUDIENCE: atlas-frontend
+  CONTENT_SERVICE_URL: http://content:8000/api/content
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_ENABLED: "true"
+  AWS_REGION: us-east-1
+  AWS_S3_BUCKET: atlas-photos
+  VITE_API_BASE_URL: /
+  VITE_CSRF_ENDPOINT: ""
+  VITE_ENABLE_AUTH_MOCK_FALLBACK: "false"

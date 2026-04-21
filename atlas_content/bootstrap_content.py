@@ -263,16 +263,23 @@ class AtlasKafkaConsumer:
         return records
 ''')
 w('common/views.py', '''from datetime import datetime, timezone
+import logging
 from django.conf import settings
 from django.db import connection
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from photos.services.s3_service import S3StorageService
+logger = logging.getLogger(__name__)
+def _health_payload(status: str):
+    uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
+    return {'status': status, 'version': settings.SERVICE_VERSION, 'uptime': uptime}
 @api_view(['GET'])
 def health_view(request):
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT 1')
-        cursor.fetchone()
-    uptime = int((datetime.now(timezone.utc) - settings.SERVICE_STARTED_AT).total_seconds())
-    return Response({'status': 'healthy', 'version': '1.0.0', 'uptime': uptime, 'checks': {'database': 'ok', 'storage': S3StorageService().health_status()}})
+    try:
+        connection.ensure_connection()
+        S3StorageService().health_status()
+    except Exception:
+        logger.exception('health_check_failed', extra={'correlation_id': getattr(request, 'correlation_id', None), 'method': request.method, 'path': request.path, 'status_code': 503})
+        return Response(_health_payload('unhealthy'), status=503)
+    return Response(_health_payload('healthy'))
 ''')

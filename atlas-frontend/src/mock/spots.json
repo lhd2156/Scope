@@ -1,0 +1,2102 @@
+[
+  {
+    "id": "demo-spot-1",
+    "title": "Mule Alley Mercantile Row",
+    "description": "A polished shopping strip in the Stockyards with denim boutiques, leather-goods pop-ups, and easy golden-hour storefront shots.",
+    "latitude": 32.7899,
+    "longitude": -97.3484,
+    "address": "128 E Exchange Ave",
+    "city": "Fort Worth",
+    "country": "US",
+    "category": "shopping",
+    "vibe": "heritage retail energy",
+    "rating": 4.6,
+    "photoUrl": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-18T16:20:00Z",
+    "authorId": "demo-user-1",
+    "author": {
+      "id": "demo-user-1",
+      "username": "atlasdemo",
+      "email": "demo@atlas.travel",
+      "displayName": "Louis Do",
+      "avatarUrl": "https://i.pravatar.cc/300?img=12",
+      "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+      "homeBase": "Fort Worth, TX",
+      "interests": [
+        "food",
+        "culture",
+        "nightlife"
+      ],
+      "stats": {
+        "spots": 42,
+        "trips": 8,
+        "friends": 126
+      }
+    },
+    "liked": true,
+    "likesCount": 84,
+    "photos": [
+      {
+        "id": "demo-spot-1-photo-1",
+        "url": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Storefront rhythm and polished evening light along Mule Alley."
+      },
+      {
+        "id": "demo-spot-1-photo-2",
+        "url": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Editorial retail styling with texture-forward product displays."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-1-review-1",
+        "spotId": "demo-spot-1",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "Perfect stop for picking up a polished gift before dinner. The storefront lighting makes quick photo breaks effortless.",
+        "createdAt": "2026-03-24T19:10:00Z"
+      },
+      {
+        "id": "demo-spot-1-review-2",
+        "spotId": "demo-spot-1",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 4,
+        "comment": "Loved the mix of local labels and easy walkability. Best experienced right before sunset when the brick facades warm up.",
+        "createdAt": "2026-03-22T17:05:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-2",
+    "title": "River Walk Blue Hour Patio",
+    "description": "Canal-side cocktails and luminous reflections with just enough distance from the heaviest tourist traffic to feel intimate.",
+    "latitude": 29.4241,
+    "longitude": -98.4892,
+    "address": "111 W Crockett St",
+    "city": "San Antonio",
+    "country": "US",
+    "category": "nightlife",
+    "vibe": "blue-hour aperitivo",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-17T23:10:00Z",
+    "authorId": "demo-user-4",
+    "author": {
+      "id": "demo-user-4",
+      "username": "sofia.ramirez",
+      "email": "sofia@atlas.travel",
+      "displayName": "Sofia Ramirez",
+      "avatarUrl": "https://i.pravatar.cc/300?img=23",
+      "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+      "homeBase": "San Antonio, TX",
+      "interests": [
+        "food",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 19,
+        "trips": 4,
+        "friends": 42
+      }
+    },
+    "liked": false,
+    "likesCount": 91,
+    "photos": [
+      {
+        "id": "demo-spot-2-photo-1",
+        "url": "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Patio glow reflecting off the River Walk at dusk."
+      },
+      {
+        "id": "demo-spot-2-photo-2",
+        "url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Moody lighting and glassware detail for a premium evening stop."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-2-review-1",
+        "spotId": "demo-spot-2",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "Exactly the kind of cinematic night stop Atlas demo mode needs. Easy to dress up, easy to photograph, and the service pace feels premium.",
+        "createdAt": "2026-03-26T02:40:00Z"
+      },
+      {
+        "id": "demo-spot-2-review-2",
+        "spotId": "demo-spot-2",
+        "userId": "demo-user-5",
+        "user": {
+          "id": "demo-user-5",
+          "username": "jordan.reed",
+          "email": "jordan@atlas.travel",
+          "displayName": "Jordan Reed",
+          "avatarUrl": "https://i.pravatar.cc/300?img=52",
+          "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+          "homeBase": "Houston, TX",
+          "interests": [
+            "scenic",
+            "nature",
+            "adventure"
+          ],
+          "stats": {
+            "spots": 24,
+            "trips": 5,
+            "friends": 38
+          }
+        },
+        "rating": 4,
+        "comment": "Best if you arrive 20 minutes before sunset. The canal reflections are the real draw and seating fills quickly.",
+        "createdAt": "2026-03-19T01:15:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-3",
+    "title": "Sunset Rooftop Tacos",
+    "description": "An elevated taco-and-cocktail rooftop with skyline lines, warm lanterns, and the exact kind of golden-hour energy featured in the landing mockup.",
+    "latitude": 32.7498,
+    "longitude": -97.3521,
+    "address": "835 Foch St",
+    "city": "Fort Worth",
+    "country": "US",
+    "category": "food",
+    "vibe": "golden-hour rooftop",
+    "rating": 4.8,
+    "photoUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-27T19:45:00Z",
+    "authorId": "demo-user-1",
+    "author": {
+      "id": "demo-user-1",
+      "username": "atlasdemo",
+      "email": "demo@atlas.travel",
+      "displayName": "Louis Do",
+      "avatarUrl": "https://i.pravatar.cc/300?img=12",
+      "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+      "homeBase": "Fort Worth, TX",
+      "interests": [
+        "food",
+        "culture",
+        "nightlife"
+      ],
+      "stats": {
+        "spots": 42,
+        "trips": 8,
+        "friends": 126
+      }
+    },
+    "liked": true,
+    "likesCount": 119,
+    "photos": [
+      {
+        "id": "demo-spot-3-photo-1",
+        "url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Hero taco spread with skyline tones and editorial plating."
+      },
+      {
+        "id": "demo-spot-3-photo-2",
+        "url": "https://images.unsplash.com/photo-1499028344343-cd173ffc68a9?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Close-up detail of shareable plates and warm rooftop tables."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-3-review-1",
+        "spotId": "demo-spot-3",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "The skyline framing is incredible and the menu feels made for sharing. Great first stop when demoing social itineraries.",
+        "createdAt": "2026-03-28T00:10:00Z"
+      },
+      {
+        "id": "demo-spot-3-review-2",
+        "spotId": "demo-spot-3",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 4,
+        "comment": "Go for sunset and stay through blue hour. The lighting shift is dramatic, and the cocktail pairings are genuinely worth it.",
+        "createdAt": "2026-03-27T22:25:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-4",
+    "title": "Pearl District Gallery Hall",
+    "description": "A calm art-and-design corridor inside the Pearl where ceramics, letterpress work, and rotating installations give culture-focused itineraries a polished anchor.",
+    "latitude": 29.4424,
+    "longitude": -98.4797,
+    "address": "303 Pearl Pkwy",
+    "city": "San Antonio",
+    "country": "US",
+    "category": "culture",
+    "vibe": "editorial gallery calm",
+    "rating": 4.5,
+    "photoUrl": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-16T18:30:00Z",
+    "authorId": "demo-user-4",
+    "author": {
+      "id": "demo-user-4",
+      "username": "sofia.ramirez",
+      "email": "sofia@atlas.travel",
+      "displayName": "Sofia Ramirez",
+      "avatarUrl": "https://i.pravatar.cc/300?img=23",
+      "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+      "homeBase": "San Antonio, TX",
+      "interests": [
+        "food",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 19,
+        "trips": 4,
+        "friends": 42
+      }
+    },
+    "liked": false,
+    "likesCount": 62,
+    "photos": [
+      {
+        "id": "demo-spot-4-photo-1",
+        "url": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Minimal gallery hall with warm concrete and premium curation cues."
+      },
+      {
+        "id": "demo-spot-4-photo-2",
+        "url": "https://images.unsplash.com/photo-1529429611270-49cf07caf2c4?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Installation detail with soft shadow play and restrained styling."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-4-review-1",
+        "spotId": "demo-spot-4",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "Great palate cleanser between meals. Quiet, photogenic, and easy to pair with coffee or shopping nearby.",
+        "createdAt": "2026-03-21T19:15:00Z"
+      },
+      {
+        "id": "demo-spot-4-review-2",
+        "spotId": "demo-spot-4",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Small but beautifully edited. Works best as a culture stop inside a bigger evening route.",
+        "createdAt": "2026-03-18T16:55:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-5",
+    "title": "Lady Bird Skyline Boardwalk",
+    "description": "A smooth waterfront run and photo corridor with downtown Austin reflected across the lake—ideal for scenic openers and post-work golden hour.",
+    "latitude": 30.2523,
+    "longitude": -97.7416,
+    "address": "Lady Bird Lake Boardwalk",
+    "city": "Austin",
+    "country": "US",
+    "category": "scenic",
+    "vibe": "waterfront skyline glide",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-20T12:30:00Z",
+    "authorId": "demo-user-3",
+    "author": {
+      "id": "demo-user-3",
+      "username": "elijah.brooks",
+      "email": "elijah@atlas.travel",
+      "displayName": "Elijah Brooks",
+      "avatarUrl": "https://i.pravatar.cc/300?img=45",
+      "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+      "homeBase": "Austin, TX",
+      "interests": [
+        "adventure",
+        "food",
+        "nature"
+      ],
+      "stats": {
+        "spots": 36,
+        "trips": 11,
+        "friends": 64
+      }
+    },
+    "liked": true,
+    "likesCount": 103,
+    "photos": [
+      {
+        "id": "demo-spot-5-photo-1",
+        "url": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Wide skyline frame and boardwalk leading lines."
+      },
+      {
+        "id": "demo-spot-5-photo-2",
+        "url": "https://images.unsplash.com/photo-1470770903676-69b98201ea1c?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Reflections and layered clouds over a waterfront path."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-5-review-1",
+        "spotId": "demo-spot-5",
+        "userId": "demo-user-5",
+        "user": {
+          "id": "demo-user-5",
+          "username": "jordan.reed",
+          "email": "jordan@atlas.travel",
+          "displayName": "Jordan Reed",
+          "avatarUrl": "https://i.pravatar.cc/300?img=52",
+          "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+          "homeBase": "Houston, TX",
+          "interests": [
+            "scenic",
+            "nature",
+            "adventure"
+          ],
+          "stats": {
+            "spots": 24,
+            "trips": 5,
+            "friends": 38
+          }
+        },
+        "rating": 5,
+        "comment": "One of the cleanest skyline walks in the state. Easy to build around sunrise runs or sunset date routes.",
+        "createdAt": "2026-03-25T13:45:00Z"
+      },
+      {
+        "id": "demo-spot-5-review-2",
+        "spotId": "demo-spot-5",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Bring a light jacket if you stay past sunset. The views are strong enough that every out-of-town guest asks to come here.",
+        "createdAt": "2026-03-23T00:35:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-6",
+    "title": "Klyde Warren Garden Brunch",
+    "description": "A polished brunch stop at the edge of the park with shaded seating, clean plating, and easy transitions into museum or retail time.",
+    "latitude": 32.7898,
+    "longitude": -96.8003,
+    "address": "2012 Woodall Rodgers Fwy",
+    "city": "Dallas",
+    "country": "US",
+    "category": "food",
+    "vibe": "garden brunch ease",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-27T14:10:00Z",
+    "authorId": "demo-user-2",
+    "author": {
+      "id": "demo-user-2",
+      "username": "maya.chen",
+      "email": "maya@atlas.travel",
+      "displayName": "Maya Chen",
+      "avatarUrl": "https://i.pravatar.cc/300?img=32",
+      "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+      "homeBase": "Dallas, TX",
+      "interests": [
+        "scenic",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 28,
+        "trips": 6,
+        "friends": 84
+      }
+    },
+    "liked": true,
+    "likesCount": 97,
+    "photos": [
+      {
+        "id": "demo-spot-6-photo-1",
+        "url": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Brunch table styling with airy park-side light."
+      },
+      {
+        "id": "demo-spot-6-photo-2",
+        "url": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Outdoor dining setup ideal for polished Dallas weekend plans."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-6-review-1",
+        "spotId": "demo-spot-6",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "A great reset stop between architecture walks and shopping. Reliable service and the tables photograph beautifully.",
+        "createdAt": "2026-03-27T16:20:00Z"
+      },
+      {
+        "id": "demo-spot-6-review-2",
+        "spotId": "demo-spot-6",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 4,
+        "comment": "Best when you can linger. The park adjacency makes it feel bigger than a typical brunch reservation.",
+        "createdAt": "2026-03-24T18:05:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-7",
+    "title": "Post Oak Design Arcade",
+    "description": "An upscale shopping corridor where interiors, lighting, and floor-to-ceiling window displays make every storefront feel editorial.",
+    "latitude": 29.7396,
+    "longitude": -95.4613,
+    "address": "5085 Westheimer Rd",
+    "city": "Houston",
+    "country": "US",
+    "category": "shopping",
+    "vibe": "luxury retail polish",
+    "rating": 4.6,
+    "photoUrl": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-19T17:40:00Z",
+    "authorId": "demo-user-5",
+    "author": {
+      "id": "demo-user-5",
+      "username": "jordan.reed",
+      "email": "jordan@atlas.travel",
+      "displayName": "Jordan Reed",
+      "avatarUrl": "https://i.pravatar.cc/300?img=52",
+      "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+      "homeBase": "Houston, TX",
+      "interests": [
+        "scenic",
+        "nature",
+        "adventure"
+      ],
+      "stats": {
+        "spots": 24,
+        "trips": 5,
+        "friends": 38
+      }
+    },
+    "liked": false,
+    "likesCount": 73,
+    "photos": [
+      {
+        "id": "demo-spot-7-photo-1",
+        "url": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Bright retail corridor with premium merchandising cues."
+      },
+      {
+        "id": "demo-spot-7-photo-2",
+        "url": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Fashion-forward display wall with warm neutral styling."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-7-review-1",
+        "spotId": "demo-spot-7",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Feels especially premium when paired with a rooftop drink after. Easy place to spend an hour without overplanning.",
+        "createdAt": "2026-03-22T21:40:00Z"
+      },
+      {
+        "id": "demo-spot-7-review-2",
+        "spotId": "demo-spot-7",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 5,
+        "comment": "Great pacing, beautiful window light, and enough seating pockets to keep it comfortable between shops.",
+        "createdAt": "2026-03-20T18:55:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-8",
+    "title": "Museum District Rooftop Lounge",
+    "description": "A moody cocktail terrace above the museum corridor with skyline slivers, velvet seating, and a soundtrack that suits late-night itineraries.",
+    "latitude": 29.7251,
+    "longitude": -95.3905,
+    "address": "5101 Montrose Blvd",
+    "city": "Houston",
+    "country": "US",
+    "category": "nightlife",
+    "vibe": "velvet rooftop after-hours",
+    "rating": 4.5,
+    "photoUrl": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-20T02:20:00Z",
+    "authorId": "demo-user-5",
+    "author": {
+      "id": "demo-user-5",
+      "username": "jordan.reed",
+      "email": "jordan@atlas.travel",
+      "displayName": "Jordan Reed",
+      "avatarUrl": "https://i.pravatar.cc/300?img=52",
+      "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+      "homeBase": "Houston, TX",
+      "interests": [
+        "scenic",
+        "nature",
+        "adventure"
+      ],
+      "stats": {
+        "spots": 24,
+        "trips": 5,
+        "friends": 38
+      }
+    },
+    "liked": true,
+    "likesCount": 66,
+    "photos": [
+      {
+        "id": "demo-spot-8-photo-1",
+        "url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Blue-violet cocktail lighting across a rooftop lounge."
+      },
+      {
+        "id": "demo-spot-8-photo-2",
+        "url": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Crowd energy and backlit glasses in a curated nightlife space."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-8-review-1",
+        "spotId": "demo-spot-8",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Great closer for a museum-heavy day. The drink menu is strong and the roofline view lands better after dark.",
+        "createdAt": "2026-03-24T03:05:00Z"
+      },
+      {
+        "id": "demo-spot-8-review-2",
+        "spotId": "demo-spot-8",
+        "userId": "demo-user-3",
+        "user": {
+          "id": "demo-user-3",
+          "username": "elijah.brooks",
+          "email": "elijah@atlas.travel",
+          "displayName": "Elijah Brooks",
+          "avatarUrl": "https://i.pravatar.cc/300?img=45",
+          "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+          "homeBase": "Austin, TX",
+          "interests": [
+            "adventure",
+            "food",
+            "nature"
+          ],
+          "stats": {
+            "spots": 36,
+            "trips": 11,
+            "friends": 64
+          }
+        },
+        "rating": 5,
+        "comment": "Feels cinematic without being chaotic. Perfect for demoing nightlife waypoints on multi-stop social routes.",
+        "createdAt": "2026-03-21T04:10:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-9",
+    "title": "Greenbelt Creek Overlook",
+    "description": "A limestone ledge and creek view with easy trail access, shaded rest points, and a fast payoff for demo-mode nature itineraries.",
+    "latitude": 30.2666,
+    "longitude": -97.7934,
+    "address": "3755-B Capital of Texas Hwy S",
+    "city": "Austin",
+    "country": "US",
+    "category": "nature",
+    "vibe": "limestone creek reset",
+    "rating": 4.9,
+    "photoUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-26T13:50:00Z",
+    "authorId": "demo-user-3",
+    "author": {
+      "id": "demo-user-3",
+      "username": "elijah.brooks",
+      "email": "elijah@atlas.travel",
+      "displayName": "Elijah Brooks",
+      "avatarUrl": "https://i.pravatar.cc/300?img=45",
+      "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+      "homeBase": "Austin, TX",
+      "interests": [
+        "adventure",
+        "food",
+        "nature"
+      ],
+      "stats": {
+        "spots": 36,
+        "trips": 11,
+        "friends": 64
+      }
+    },
+    "liked": true,
+    "likesCount": 132,
+    "photos": [
+      {
+        "id": "demo-spot-9-photo-1",
+        "url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Creek overlook and tree cover catching the late-morning sun."
+      },
+      {
+        "id": "demo-spot-9-photo-2",
+        "url": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Trail-edge framing through layered green canopy."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-9-review-1",
+        "spotId": "demo-spot-9",
+        "userId": "demo-user-5",
+        "user": {
+          "id": "demo-user-5",
+          "username": "jordan.reed",
+          "email": "jordan@atlas.travel",
+          "displayName": "Jordan Reed",
+          "avatarUrl": "https://i.pravatar.cc/300?img=52",
+          "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+          "homeBase": "Houston, TX",
+          "interests": [
+            "scenic",
+            "nature",
+            "adventure"
+          ],
+          "stats": {
+            "spots": 24,
+            "trips": 5,
+            "friends": 38
+          }
+        },
+        "rating": 5,
+        "comment": "Short approach, high reward. The overlook sells itself in both map and gallery views.",
+        "createdAt": "2026-03-27T15:05:00Z"
+      },
+      {
+        "id": "demo-spot-9-review-2",
+        "spotId": "demo-spot-9",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "Beautiful texture and shade. Easy to mix with coffee and shopping if you want a softer Austin day.",
+        "createdAt": "2026-03-26T17:20:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-10",
+    "title": "East Austin Espresso Lab",
+    "description": "An industrial-chic coffee bar with quiet upstairs seating, precise espresso, and the kind of creative-energy mood that reads well in the feed.",
+    "latitude": 30.261,
+    "longitude": -97.7255,
+    "address": "1209 E 6th St",
+    "city": "Austin",
+    "country": "US",
+    "category": "food",
+    "vibe": "creative coffee focus",
+    "rating": 4.8,
+    "photoUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-22T20:15:00Z",
+    "authorId": "demo-user-3",
+    "author": {
+      "id": "demo-user-3",
+      "username": "elijah.brooks",
+      "email": "elijah@atlas.travel",
+      "displayName": "Elijah Brooks",
+      "avatarUrl": "https://i.pravatar.cc/300?img=45",
+      "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+      "homeBase": "Austin, TX",
+      "interests": [
+        "adventure",
+        "food",
+        "nature"
+      ],
+      "stats": {
+        "spots": 36,
+        "trips": 11,
+        "friends": 64
+      }
+    },
+    "liked": false,
+    "likesCount": 88,
+    "photos": [
+      {
+        "id": "demo-spot-10-photo-1",
+        "url": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Espresso bar detail with warm industrial styling."
+      },
+      {
+        "id": "demo-spot-10-photo-2",
+        "url": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Coffee-and-notebook setup in a bright upstairs corner."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-10-review-1",
+        "spotId": "demo-spot-10",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "Excellent stop for a quieter chapter in the itinerary. Great coffee, better light, and enough room to reset.",
+        "createdAt": "2026-03-22T21:30:00Z"
+      },
+      {
+        "id": "demo-spot-10-review-2",
+        "spotId": "demo-spot-10",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Ideal for planning the rest of the day. Strong cortado, clean styling, and a great balance of energy and calm.",
+        "createdAt": "2026-03-20T17:45:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-11",
+    "title": "Bishop Arts Vinyl Bar",
+    "description": "A dimly lit listening-room bar with vinyl shelves, warm amber light, and exactly the kind of nightlife-culture overlap that plays well in Atlas.",
+    "latitude": 32.7492,
+    "longitude": -96.8278,
+    "address": "408 N Bishop Ave",
+    "city": "Dallas",
+    "country": "US",
+    "category": "nightlife",
+    "vibe": "vinyl lounge energy",
+    "rating": 4.8,
+    "photoUrl": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-25T02:05:00Z",
+    "authorId": "demo-user-1",
+    "author": {
+      "id": "demo-user-1",
+      "username": "atlasdemo",
+      "email": "demo@atlas.travel",
+      "displayName": "Louis Do",
+      "avatarUrl": "https://i.pravatar.cc/300?img=12",
+      "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+      "homeBase": "Fort Worth, TX",
+      "interests": [
+        "food",
+        "culture",
+        "nightlife"
+      ],
+      "stats": {
+        "spots": 42,
+        "trips": 8,
+        "friends": 126
+      }
+    },
+    "liked": true,
+    "likesCount": 110,
+    "photos": [
+      {
+        "id": "demo-spot-11-photo-1",
+        "url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Vinyl-lined bar backdrop with intimate booth lighting."
+      },
+      {
+        "id": "demo-spot-11-photo-2",
+        "url": "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Turntable and amber cocktail detail for the gallery view."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-11-review-1",
+        "spotId": "demo-spot-11",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "The soundtrack is curated, the light is perfect, and it feels distinct from generic nightlife stops.",
+        "createdAt": "2026-03-25T03:00:00Z"
+      },
+      {
+        "id": "demo-spot-11-review-2",
+        "spotId": "demo-spot-11",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 5,
+        "comment": "One of the strongest atmosphere picks in the demo roster. Great second stop after dinner in Bishop Arts.",
+        "createdAt": "2026-03-24T04:35:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-12",
+    "title": "Big Bend Window Trail",
+    "description": "A classic desert hike with wide-open ridgelines and a fast visual payoff that makes adventure itineraries feel undeniably real.",
+    "latitude": 29.2497,
+    "longitude": -103.3009,
+    "address": "Window Trailhead",
+    "city": "Big Bend National Park",
+    "country": "US",
+    "category": "adventure",
+    "vibe": "desert trail payoff",
+    "rating": 4.9,
+    "photoUrl": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-19T13:25:00Z",
+    "authorId": "demo-user-3",
+    "author": {
+      "id": "demo-user-3",
+      "username": "elijah.brooks",
+      "email": "elijah@atlas.travel",
+      "displayName": "Elijah Brooks",
+      "avatarUrl": "https://i.pravatar.cc/300?img=45",
+      "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+      "homeBase": "Austin, TX",
+      "interests": [
+        "adventure",
+        "food",
+        "nature"
+      ],
+      "stats": {
+        "spots": 36,
+        "trips": 11,
+        "friends": 64
+      }
+    },
+    "liked": true,
+    "likesCount": 144,
+    "photos": [
+      {
+        "id": "demo-spot-12-photo-1",
+        "url": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Trail switchbacks and expansive canyon scale."
+      },
+      {
+        "id": "demo-spot-12-photo-2",
+        "url": "https://images.unsplash.com/photo-1517821365201-7734f463f9f0?auto=format&fit=crop&w=1200&q=80",
+        "caption": "High-desert ridge lines under clean morning light."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-12-review-1",
+        "spotId": "demo-spot-12",
+        "userId": "demo-user-5",
+        "user": {
+          "id": "demo-user-5",
+          "username": "jordan.reed",
+          "email": "jordan@atlas.travel",
+          "displayName": "Jordan Reed",
+          "avatarUrl": "https://i.pravatar.cc/300?img=52",
+          "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+          "homeBase": "Houston, TX",
+          "interests": [
+            "scenic",
+            "nature",
+            "adventure"
+          ],
+          "stats": {
+            "spots": 24,
+            "trips": 5,
+            "friends": 38
+          }
+        },
+        "rating": 5,
+        "comment": "Worth the drive every time. If Atlas needs one unmistakably real adventure pin, it is this trail.",
+        "createdAt": "2026-03-23T15:40:00Z"
+      },
+      {
+        "id": "demo-spot-12-review-2",
+        "spotId": "demo-spot-12",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Start early, bring water, and save room in the itinerary for the scenic pull-offs on the way back.",
+        "createdAt": "2026-03-21T18:15:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-13",
+    "title": "Marfa Neon Courtyard",
+    "description": "A minimalist art courtyard where colored light, gravel textures, and quiet space make every photo feel cinematic and deliberate.",
+    "latitude": 30.3077,
+    "longitude": -104.0193,
+    "address": "113 S Highland Ave",
+    "city": "Marfa",
+    "country": "US",
+    "category": "culture",
+    "vibe": "desert art minimalism",
+    "rating": 4.6,
+    "photoUrl": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-18T01:20:00Z",
+    "authorId": "demo-user-4",
+    "author": {
+      "id": "demo-user-4",
+      "username": "sofia.ramirez",
+      "email": "sofia@atlas.travel",
+      "displayName": "Sofia Ramirez",
+      "avatarUrl": "https://i.pravatar.cc/300?img=23",
+      "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+      "homeBase": "San Antonio, TX",
+      "interests": [
+        "food",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 19,
+        "trips": 4,
+        "friends": 42
+      }
+    },
+    "liked": false,
+    "likesCount": 59,
+    "photos": [
+      {
+        "id": "demo-spot-13-photo-1",
+        "url": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Minimal courtyard geometry with neon accent lighting."
+      },
+      {
+        "id": "demo-spot-13-photo-2",
+        "url": "https://images.unsplash.com/photo-1529429611270-49cf07caf2c4?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Art-forward textures and controlled shadow play."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-13-review-1",
+        "spotId": "demo-spot-13",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "A little niche in the best way. Very easy to style into a culture-heavy West Texas route.",
+        "createdAt": "2026-03-20T02:05:00Z"
+      },
+      {
+        "id": "demo-spot-13-review-2",
+        "spotId": "demo-spot-13",
+        "userId": "demo-user-3",
+        "user": {
+          "id": "demo-user-3",
+          "username": "elijah.brooks",
+          "email": "elijah@atlas.travel",
+          "displayName": "Elijah Brooks",
+          "avatarUrl": "https://i.pravatar.cc/300?img=45",
+          "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+          "homeBase": "Austin, TX",
+          "interests": [
+            "adventure",
+            "food",
+            "nature"
+          ],
+          "stats": {
+            "spots": 36,
+            "trips": 11,
+            "friends": 64
+          }
+        },
+        "rating": 5,
+        "comment": "The restraint is the point. It photographs beautifully without needing crowds or spectacle.",
+        "createdAt": "2026-03-19T22:10:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-14",
+    "title": "Dallas Contemporary Atrium",
+    "description": "A high-ceilinged gallery atrium with dramatic natural light and negative space that gives culture itineraries a premium, editorial feel.",
+    "latitude": 32.7995,
+    "longitude": -96.8172,
+    "address": "161 Glass St",
+    "city": "Dallas",
+    "country": "US",
+    "category": "culture",
+    "vibe": "large-scale gallery light",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-24T18:40:00Z",
+    "authorId": "demo-user-2",
+    "author": {
+      "id": "demo-user-2",
+      "username": "maya.chen",
+      "email": "maya@atlas.travel",
+      "displayName": "Maya Chen",
+      "avatarUrl": "https://i.pravatar.cc/300?img=32",
+      "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+      "homeBase": "Dallas, TX",
+      "interests": [
+        "scenic",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 28,
+        "trips": 6,
+        "friends": 84
+      }
+    },
+    "liked": true,
+    "likesCount": 101,
+    "photos": [
+      {
+        "id": "demo-spot-14-photo-1",
+        "url": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Atrium-scale installation space with soft skylight."
+      },
+      {
+        "id": "demo-spot-14-photo-2",
+        "url": "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Quiet modern interior detail that reads premium in cards and feeds."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-14-review-1",
+        "spotId": "demo-spot-14",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "One of the strongest interior spaces in the demo dataset. It instantly makes Dallas feel creative and contemporary.",
+        "createdAt": "2026-03-24T20:10:00Z"
+      },
+      {
+        "id": "demo-spot-14-review-2",
+        "spotId": "demo-spot-14",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 4,
+        "comment": "Great pacing after brunch or before shopping. The light stays good even when the weather shifts.",
+        "createdAt": "2026-03-23T17:35:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-15",
+    "title": "Mercado Courtyard Breakfast",
+    "description": "A colorful courtyard breakfast stop with pan dulce, tiled tabletops, and lively market access just steps away.",
+    "latitude": 29.4248,
+    "longitude": -98.4945,
+    "address": "514 W Commerce St",
+    "city": "San Antonio",
+    "country": "US",
+    "category": "food",
+    "vibe": "courtyard morning glow",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-26T15:35:00Z",
+    "authorId": "demo-user-4",
+    "author": {
+      "id": "demo-user-4",
+      "username": "sofia.ramirez",
+      "email": "sofia@atlas.travel",
+      "displayName": "Sofia Ramirez",
+      "avatarUrl": "https://i.pravatar.cc/300?img=23",
+      "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+      "homeBase": "San Antonio, TX",
+      "interests": [
+        "food",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 19,
+        "trips": 4,
+        "friends": 42
+      }
+    },
+    "liked": false,
+    "likesCount": 78,
+    "photos": [
+      {
+        "id": "demo-spot-15-photo-1",
+        "url": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Open-air breakfast table with courtyard color and texture."
+      },
+      {
+        "id": "demo-spot-15-photo-2",
+        "url": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Café detail featuring pastries, tile, and a bright market-adjacent mood."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-15-review-1",
+        "spotId": "demo-spot-15",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 5,
+        "comment": "Perfect San Antonio morning stop. Photogenic without feeling staged and easy to build into a food-first day.",
+        "createdAt": "2026-03-27T16:30:00Z"
+      },
+      {
+        "id": "demo-spot-15-review-2",
+        "spotId": "demo-spot-15",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Come hungry and sit outside if possible. The courtyard is what makes this one memorable in the gallery.",
+        "createdAt": "2026-03-26T18:45:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-16",
+    "title": "Guadalupe River Kayak Launch",
+    "description": "A calm launch point with easy water access, rental pickups nearby, and enough scenic movement to make adventure routes feel active.",
+    "latitude": 29.8662,
+    "longitude": -98.1746,
+    "address": "1628 New Braunfels St",
+    "city": "New Braunfels",
+    "country": "US",
+    "category": "adventure",
+    "vibe": "river adventure reset",
+    "rating": 4.6,
+    "photoUrl": "https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-17T15:50:00Z",
+    "authorId": "demo-user-5",
+    "author": {
+      "id": "demo-user-5",
+      "username": "jordan.reed",
+      "email": "jordan@atlas.travel",
+      "displayName": "Jordan Reed",
+      "avatarUrl": "https://i.pravatar.cc/300?img=52",
+      "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+      "homeBase": "Houston, TX",
+      "interests": [
+        "scenic",
+        "nature",
+        "adventure"
+      ],
+      "stats": {
+        "spots": 24,
+        "trips": 5,
+        "friends": 38
+      }
+    },
+    "liked": true,
+    "likesCount": 68,
+    "photos": [
+      {
+        "id": "demo-spot-16-photo-1",
+        "url": "https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Kayaks and riverbank texture under clear afternoon light."
+      },
+      {
+        "id": "demo-spot-16-photo-2",
+        "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Water movement and bright sky for an active-outdoors card."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-16-review-1",
+        "spotId": "demo-spot-16",
+        "userId": "demo-user-3",
+        "user": {
+          "id": "demo-user-3",
+          "username": "elijah.brooks",
+          "email": "elijah@atlas.travel",
+          "displayName": "Elijah Brooks",
+          "avatarUrl": "https://i.pravatar.cc/300?img=45",
+          "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+          "homeBase": "Austin, TX",
+          "interests": [
+            "adventure",
+            "food",
+            "nature"
+          ],
+          "stats": {
+            "spots": 36,
+            "trips": 11,
+            "friends": 64
+          }
+        },
+        "rating": 5,
+        "comment": "Easy logistics and a fast visual payoff. Great for demo itineraries that need motion without hard-core complexity.",
+        "createdAt": "2026-03-22T16:20:00Z"
+      },
+      {
+        "id": "demo-spot-16-review-2",
+        "spotId": "demo-spot-16",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Best with a morning launch before the crowds. Pairs nicely with a casual lunch stop downstream.",
+        "createdAt": "2026-03-20T19:40:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-17",
+    "title": "Gulf Marsh Boardwalk Reserve",
+    "description": "A protected marsh boardwalk outside Galveston with quiet birding pockets, long horizon lines, and cinematic golden-hour reeds.",
+    "latitude": 29.2926,
+    "longitude": -94.7721,
+    "address": "East End Lagoon Nature Preserve",
+    "city": "Galveston",
+    "country": "US",
+    "category": "nature",
+    "vibe": "coastal marsh calm",
+    "rating": 4.7,
+    "photoUrl": "https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-21T13:05:00Z",
+    "authorId": "demo-user-5",
+    "author": {
+      "id": "demo-user-5",
+      "username": "jordan.reed",
+      "email": "jordan@atlas.travel",
+      "displayName": "Jordan Reed",
+      "avatarUrl": "https://i.pravatar.cc/300?img=52",
+      "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+      "homeBase": "Houston, TX",
+      "interests": [
+        "scenic",
+        "nature",
+        "adventure"
+      ],
+      "stats": {
+        "spots": 24,
+        "trips": 5,
+        "friends": 38
+      }
+    },
+    "liked": false,
+    "likesCount": 58,
+    "photos": [
+      {
+        "id": "demo-spot-17-photo-1",
+        "url": "https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Boardwalk path through reeds and wide-open marsh light."
+      },
+      {
+        "id": "demo-spot-17-photo-2",
+        "url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Coastal green textures with soft wind-driven movement."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-17-review-1",
+        "spotId": "demo-spot-17",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Quiet, photogenic, and a strong contrast to the busier Gulf stops. The boardwalk photos really sell it.",
+        "createdAt": "2026-03-22T14:15:00Z"
+      },
+      {
+        "id": "demo-spot-17-review-2",
+        "spotId": "demo-spot-17",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "A hidden-gem type of stop that gives the Galveston route real texture. Best in the last hour before sunset.",
+        "createdAt": "2026-03-21T19:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-18",
+    "title": "Blue Hour Gallery Walk",
+    "description": "A Southtown art district route built for sunset-to-night transitions, with murals, gallery windows, and easy wine-bar detours.",
+    "latitude": 29.4127,
+    "longitude": -98.4956,
+    "address": "1414 S Alamo St",
+    "city": "San Antonio",
+    "country": "US",
+    "category": "culture",
+    "vibe": "district stroll after dark",
+    "rating": 4.8,
+    "photoUrl": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-23T00:20:00Z",
+    "authorId": "demo-user-4",
+    "author": {
+      "id": "demo-user-4",
+      "username": "sofia.ramirez",
+      "email": "sofia@atlas.travel",
+      "displayName": "Sofia Ramirez",
+      "avatarUrl": "https://i.pravatar.cc/300?img=23",
+      "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+      "homeBase": "San Antonio, TX",
+      "interests": [
+        "food",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 19,
+        "trips": 4,
+        "friends": 42
+      }
+    },
+    "liked": true,
+    "likesCount": 96,
+    "photos": [
+      {
+        "id": "demo-spot-18-photo-1",
+        "url": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Evening gallery frontage and neon-accented art walk energy."
+      },
+      {
+        "id": "demo-spot-18-photo-2",
+        "url": "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Architectural detail that bridges culture and nightlife moods."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-18-review-1",
+        "spotId": "demo-spot-18",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 5,
+        "comment": "This one makes an itinerary feel intentional. Great pacing, lots of visual variety, and very easy to extend into dinner.",
+        "createdAt": "2026-03-24T01:10:00Z"
+      },
+      {
+        "id": "demo-spot-18-review-2",
+        "spotId": "demo-spot-18",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Best when you move slowly and let the light shift. The whole district feels more cinematic after sunset.",
+        "createdAt": "2026-03-23T02:25:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-19",
+    "title": "Driftwood Bathhouse Retreat",
+    "description": "A design-forward wellness stop with cedar scents, quiet water, and enough texture to broaden the demo beyond just food and nightlife.",
+    "latitude": 30.1109,
+    "longitude": -98.0437,
+    "address": "101 Bluebonnet Ln",
+    "city": "Driftwood",
+    "country": "US",
+    "category": "other",
+    "vibe": "wellness reset luxury",
+    "rating": 4.6,
+    "photoUrl": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-18T20:30:00Z",
+    "authorId": "demo-user-2",
+    "author": {
+      "id": "demo-user-2",
+      "username": "maya.chen",
+      "email": "maya@atlas.travel",
+      "displayName": "Maya Chen",
+      "avatarUrl": "https://i.pravatar.cc/300?img=32",
+      "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+      "homeBase": "Dallas, TX",
+      "interests": [
+        "scenic",
+        "culture",
+        "shopping"
+      ],
+      "stats": {
+        "spots": 28,
+        "trips": 6,
+        "friends": 84
+      }
+    },
+    "liked": false,
+    "likesCount": 54,
+    "photos": [
+      {
+        "id": "demo-spot-19-photo-1",
+        "url": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Serene retreat framing with warm natural materials."
+      },
+      {
+        "id": "demo-spot-19-photo-2",
+        "url": "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Spa-like stillness and layered natural texture for the detail view."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-19-review-1",
+        "spotId": "demo-spot-19",
+        "userId": "demo-user-4",
+        "user": {
+          "id": "demo-user-4",
+          "username": "sofia.ramirez",
+          "email": "sofia@atlas.travel",
+          "displayName": "Sofia Ramirez",
+          "avatarUrl": "https://i.pravatar.cc/300?img=23",
+          "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+          "homeBase": "San Antonio, TX",
+          "interests": [
+            "food",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 19,
+            "trips": 4,
+            "friends": 42
+          }
+        },
+        "rating": 5,
+        "comment": "A smart wildcard for the demo catalog. It broadens the platform beyond nightlife and still feels premium.",
+        "createdAt": "2026-03-21T21:45:00Z"
+      },
+      {
+        "id": "demo-spot-19-review-2",
+        "spotId": "demo-spot-19",
+        "userId": "demo-user-1",
+        "user": {
+          "id": "demo-user-1",
+          "username": "atlasdemo",
+          "email": "demo@atlas.travel",
+          "displayName": "Louis Do",
+          "avatarUrl": "https://i.pravatar.cc/300?img=12",
+          "bio": "Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas for Atlas demo mode.",
+          "homeBase": "Fort Worth, TX",
+          "interests": [
+            "food",
+            "culture",
+            "nightlife"
+          ],
+          "stats": {
+            "spots": 42,
+            "trips": 8,
+            "friends": 126
+          }
+        },
+        "rating": 4,
+        "comment": "Slow, quiet, and very photogenic. Best as the decompression chapter in a bigger Hill Country route.",
+        "createdAt": "2026-03-19T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-spot-20",
+    "title": "Buffalo Bayou Skyline Run",
+    "description": "A clean sunset running route with downtown Houston framed above the trail and enough open space for movement-first content.",
+    "latitude": 29.7618,
+    "longitude": -95.383,
+    "address": "Buffalo Bayou Park Trail",
+    "city": "Houston",
+    "country": "US",
+    "category": "scenic",
+    "vibe": "sunset run energy",
+    "rating": 4.8,
+    "photoUrl": "https://images.unsplash.com/photo-1470770903676-69b98201ea1c?auto=format&fit=crop&w=1600&q=80",
+    "createdAt": "2026-03-28T01:25:00Z",
+    "authorId": "demo-user-5",
+    "author": {
+      "id": "demo-user-5",
+      "username": "jordan.reed",
+      "email": "jordan@atlas.travel",
+      "displayName": "Jordan Reed",
+      "avatarUrl": "https://i.pravatar.cc/300?img=52",
+      "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
+      "homeBase": "Houston, TX",
+      "interests": [
+        "scenic",
+        "nature",
+        "adventure"
+      ],
+      "stats": {
+        "spots": 24,
+        "trips": 5,
+        "friends": 38
+      }
+    },
+    "liked": true,
+    "likesCount": 112,
+    "photos": [
+      {
+        "id": "demo-spot-20-photo-1",
+        "url": "https://images.unsplash.com/photo-1470770903676-69b98201ea1c?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Skyline run route with layered clouds and strong path lines."
+      },
+      {
+        "id": "demo-spot-20-photo-2",
+        "url": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+        "caption": "Wide Houston skyline framing for the hero gallery view."
+      }
+    ],
+    "reviews": [
+      {
+        "id": "demo-spot-20-review-1",
+        "spotId": "demo-spot-20",
+        "userId": "demo-user-3",
+        "user": {
+          "id": "demo-user-3",
+          "username": "elijah.brooks",
+          "email": "elijah@atlas.travel",
+          "displayName": "Elijah Brooks",
+          "avatarUrl": "https://i.pravatar.cc/300?img=45",
+          "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+          "homeBase": "Austin, TX",
+          "interests": [
+            "adventure",
+            "food",
+            "nature"
+          ],
+          "stats": {
+            "spots": 36,
+            "trips": 11,
+            "friends": 64
+          }
+        },
+        "rating": 5,
+        "comment": "Fast way to make Houston feel cinematic. The route is simple and the skyline payoff is huge.",
+        "createdAt": "2026-03-28T03:05:00Z"
+      },
+      {
+        "id": "demo-spot-20-review-2",
+        "spotId": "demo-spot-20",
+        "userId": "demo-user-2",
+        "user": {
+          "id": "demo-user-2",
+          "username": "maya.chen",
+          "email": "maya@atlas.travel",
+          "displayName": "Maya Chen",
+          "avatarUrl": "https://i.pravatar.cc/300?img=32",
+          "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+          "homeBase": "Dallas, TX",
+          "interests": [
+            "scenic",
+            "culture",
+            "shopping"
+          ],
+          "stats": {
+            "spots": 28,
+            "trips": 6,
+            "friends": 84
+          }
+        },
+        "rating": 4,
+        "comment": "Great golden-hour textures and very easy to recommend to first-time visitors who want a no-fuss scenic stop.",
+        "createdAt": "2026-03-27T23:50:00Z"
+      }
+    ]
+  }
+]

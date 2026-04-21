@@ -1,0 +1,349 @@
+name: Atlas Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: Push built images to GHCR
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      terraform_action:
+        description: Terraform workflow action
+        required: true
+        default: skip
+        type: choice
+        options:
+          - skip
+          - plan
+          - apply
+      terraform_environment:
+        description: Terraform environment name passed into the workflow
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: atlas-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  preflight:
+    name: Deployment preflight
+    runs-on: ubuntu-latest
+    env:
+      ACCEPT_EULA: Y
+      SA_PASSWORD: Atlas_Dev_2026!
+      CORE_JWT_SECRET: deploy-core-jwt-secret-please-change
+      CORE_JWT_ISSUER: atlas-core
+      CORE_JWT_AUDIENCE: atlas-frontend
+      DJANGO_SECRET_KEY: deploy-django-secret-key
+      DJANGO_DEBUG: 'false'
+      FLASK_SECRET_KEY: deploy-flask-secret-key
+      FLASK_ENV: production
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AWS_REGION: us-east-1
+      AWS_S3_BUCKET: atlas-photos-deploy
+      VITE_MAPBOX_TOKEN: pk.deploy-token
+      VITE_API_BASE_URL: /
+      VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose bundle
+        run: docker compose config > /tmp/atlas-deploy-compose.yaml
+
+  publish-images:
+    name: Publish ${{ matrix.name }} image
+    runs-on: ubuntu-latest
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            image: atlas-core
+            context: ./Atlas.Core
+            file: ./Atlas.Core/Dockerfile
+            build_args: ''
+          - name: content
+            image: atlas-content
+            context: ./atlas_content
+            file: ./atlas_content/Dockerfile
+            build_args: ''
+          - name: intel
+            image: atlas-intel
+            context: ./atlas_intel
+            file: ./atlas_intel/Dockerfile
+            build_args: ''
+          - name: atlas-metrics
+            image: atlas-metrics
+            context: ./atlas-metrics
+            file: ./atlas-metrics/Dockerfile
+            build_args: ''
+          - name: atlas-cli
+            image: atlas-cli
+            context: ./atlas-cli
+            file: ./atlas-cli/Dockerfile
+            build_args: ''
+          - name: frontend
+            image: atlas-frontend
+            context: ./atlas-frontend
+            file: ./atlas-frontend/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=/
+              VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
+              VITE_CSRF_ENDPOINT=${{ vars.VITE_CSRF_ENDPOINT }}
+              VITE_ENABLE_AUTH_MOCK_FALLBACK=false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' || github.event.inputs.publish_images == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and optionally publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: ${{ github.event_name == 'push' || github.event.inputs.publish_images == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build_args }}
+
+  terraform-plan:
+    name: Terraform plan (${{ github.event.inputs.terraform_environment }})
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.terraform_action == 'plan' || github.event.inputs.terraform_action == 'apply')
+    runs-on: ubuntu-latest
+    needs: preflight
+    environment: ${{ github.event.inputs.terraform_environment }}
+    env:
+      AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
+      TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
+      TF_VAR_environment: ${{ github.event.inputs.terraform_environment }}
+      TF_VAR_project_name: atlas
+      TF_VAR_eks_cluster_name: atlas
+      TF_VAR_photos_bucket_name: ${{ vars.TF_PHOTOS_BUCKET_NAME }}
+      TF_VAR_cognito_domain_prefix: ${{ vars.TF_COGNITO_DOMAIN_PREFIX }}
+      TF_VAR_sqlserver_master_password: ${{ secrets.TF_SQLSERVER_MASTER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Terraform workflow configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix TF_VAR_sqlserver_master_password; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is not configured for Terraform workflow runs."
+              missing=1
+            fi
+          done
+
+          if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
+            echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
+          else
+            echo "TF_STATE_KEY=foundation/${TF_VAR_environment}/terraform.tfstate" >> "$GITHUB_ENV"
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Render Terraform backend config
+        shell: bash
+        run: |
+          cat > terraform/backend.hcl <<EOF
+          bucket         = "${TF_STATE_BUCKET}"
+          key            = "${TF_STATE_KEY}"
+          region         = "${AWS_REGION}"
+          dynamodb_table = "${TF_STATE_LOCK_TABLE}"
+          encrypt        = true
+          EOF
+
+      - name: Terraform fmt check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false -reconfigure -backend-config=backend.hcl
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: terraform
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Export Terraform plan text
+        working-directory: terraform
+        run: terraform show -no-color tfplan > tfplan.txt
+
+      - name: Prepare Terraform plan artifact
+        working-directory: terraform
+        run: |
+          mkdir -p ../.terraform-artifacts
+          cp tfplan ../.terraform-artifacts/
+          cp tfplan.txt ../.terraform-artifacts/
+
+      - name: Upload Terraform plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          path: .terraform-artifacts
+          if-no-files-found: error
+
+  terraform-apply:
+    name: Terraform apply (${{ github.event.inputs.terraform_environment }})
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply'
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    environment: ${{ github.event.inputs.terraform_environment }}
+    env:
+      AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
+      TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Terraform apply configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is not configured for Terraform apply runs."
+              missing=1
+            fi
+          done
+
+          if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
+            echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
+          else
+            echo "TF_STATE_KEY=foundation/${{ github.event.inputs.terraform_environment }}/terraform.tfstate" >> "$GITHUB_ENV"
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          path: terraform
+
+      - name: Render Terraform backend config
+        shell: bash
+        run: |
+          cat > terraform/backend.hcl <<EOF
+          bucket         = "${TF_STATE_BUCKET}"
+          key            = "${TF_STATE_KEY}"
+          region         = "${AWS_REGION}"
+          dynamodb_table = "${TF_STATE_LOCK_TABLE}"
+          encrypt        = true
+          EOF
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false -reconfigure -backend-config=backend.hcl
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: terraform apply -input=false tfplan
+
+  deployment-bundle:
+    name: Publish deployment bundle artifact
+    runs-on: ubuntu-latest
+    needs: preflight
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build deployment bundle
+        run: |
+          mkdir -p deploy-bundle
+          cp docker-compose.yml deploy-bundle/
+          cp .env.example deploy-bundle/
+          cp -r nginx deploy-bundle/nginx
+          cp -r k8s deploy-bundle/k8s
+          cp -r terraform deploy-bundle/terraform
+          cp -r docs deploy-bundle/docs
+          cp -r scripts/sql deploy-bundle/sql
+          cp .github/workflows/ci.yml deploy-bundle/ci.yml
+          cp .github/workflows/deploy.yml deploy-bundle/deploy.yml
+
+      - name: Upload deployment bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-deployment-bundle
+          path: deploy-bundle

@@ -1,0 +1,12 @@
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\bin\Debug\net8.0\Atlas.Core.Domain.deps.json
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\bin\Debug\net8.0\Atlas.Core.Domain.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\bin\Debug\net8.0\Atlas.Core.Domain.pdb
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.AssemblyInfoInputs.cache
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.AssemblyInfo.cs
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.csproj.CoreCompileInputs.cache
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.sourcelink.json
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\refint\Atlas.Core.Domain.dll
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\Atlas.Core.Domain.pdb
+C:\Users\dongu\atlas\Atlas.Core\Atlas.Core.Domain\obj\Debug\net8.0\ref\Atlas.Core.Domain.dll
