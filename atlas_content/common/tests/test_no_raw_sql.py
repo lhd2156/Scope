@@ -11,7 +11,7 @@ RAW_SQL_PATTERNS = {
     r'\.executemany\(': 'direct executemany() usage',
     r'\bRawSQL\(': 'RawSQL expression',
 }
-EXCLUDED_PARTS = {'tests', 'migrations', '__pycache__'}
+EXCLUDED_PARTS = {'tests', 'migrations', '__pycache__', '.venv', 'venv', 'env', 'site-packages'}
 
 
 def _source_files() -> list[Path]:
