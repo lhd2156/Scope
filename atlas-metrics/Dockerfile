@@ -1,9 +1,15 @@
-FROM python:3.14-slim
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/atlas-metrics ./cmd/atlas-metrics
+
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates && addgroup -S atlas && adduser -S atlas -G atlas
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py ./
+COPY --from=build /out/atlas-metrics ./atlas-metrics
 EXPOSE 9090
-CMD ["python", "app.py"]
+USER atlas
+ENTRYPOINT ["./atlas-metrics"]

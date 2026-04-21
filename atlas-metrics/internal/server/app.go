@@ -1,0 +1,443 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"runtime"
+	"sync"
+	"time"
+
+	"atlas-metrics/internal/config"
+
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/mem"
+)
+
+type App struct {
+	config       config.Config
+	httpClient   *http.Client
+	registry     *prometheus.Registry
+	startedAtUTC time.Time
+	metrics      metricsSet
+
+	refreshMu sync.Mutex
+	snapshot  refreshSnapshot
+}
+
+type featureFlags struct {
+	SystemMetrics bool `json:"systemMetrics"`
+	AppProbes     bool `json:"appProbes"`
+	Alerting      bool `json:"alerting"`
+}
+
+type probeResult struct {
+	Name           string  `json:"name"`
+	URL            string  `json:"url"`
+	Up             bool    `json:"up"`
+	StatusCode     int     `json:"statusCode"`
+	LatencySeconds float64 `json:"latencySeconds"`
+	Error          string  `json:"error,omitempty"`
+	LastCheckedUTC string  `json:"lastCheckedUtc"`
+}
+
+type systemSnapshot struct {
+	CPUPercent        float64 `json:"cpuPercent"`
+	MemoryUsedBytes   uint64  `json:"memoryUsedBytes"`
+	MemoryTotalBytes  uint64  `json:"memoryTotalBytes"`
+	MemoryUsedPercent float64 `json:"memoryUsedPercent"`
+	DiskPath          string  `json:"diskPath"`
+	DiskUsedBytes     uint64  `json:"diskUsedBytes"`
+	DiskTotalBytes    uint64  `json:"diskTotalBytes"`
+	DiskUsedPercent   float64 `json:"diskUsedPercent"`
+}
+
+type refreshSnapshot struct {
+	LastRefreshSuccess  bool           `json:"lastRefreshSuccess"`
+	LastRefreshedUTC    string         `json:"lastRefreshedUtc"`
+	RefreshDurationSecs float64        `json:"refreshDurationSeconds"`
+	System              systemSnapshot `json:"system"`
+	Probes              []probeResult  `json:"probes"`
+	Errors              []string       `json:"errors,omitempty"`
+}
+
+type indexResponse struct {
+	Service        string          `json:"service"`
+	Status         string          `json:"status"`
+	Version        string          `json:"version"`
+	Runtime        string          `json:"runtime"`
+	StartedAtUTC   string          `json:"startedAtUtc"`
+	HealthTimeout  string          `json:"healthTimeout"`
+	Targets        []config.Target `json:"targets"`
+	CompletedPhase string          `json:"completedPhase"`
+	NextPhase      string          `json:"nextPhase"`
+	Features       featureFlags    `json:"features"`
+	Refresh        refreshSnapshot `json:"refresh"`
+}
+
+type healthResponse struct {
+	Status         string          `json:"status"`
+	Service        string          `json:"service"`
+	Version        string          `json:"version"`
+	CompletedPhase string          `json:"completedPhase"`
+	NextPhase      string          `json:"nextPhase"`
+	Refresh        refreshSnapshot `json:"refresh"`
+}
+
+type metricsSet struct {
+	buildInfo           *prometheus.GaugeVec
+	startTime           prometheus.Gauge
+	serviceUp           *prometheus.GaugeVec
+	serviceResponseSecs *prometheus.GaugeVec
+	serviceStatusCode   *prometheus.GaugeVec
+	lastRefreshSuccess  prometheus.Gauge
+	lastRefreshTime     prometheus.Gauge
+	lastRefreshDuration prometheus.Gauge
+	systemCPUPercent    prometheus.Gauge
+	systemMemoryUsed    prometheus.Gauge
+	systemMemoryTotal   prometheus.Gauge
+	systemMemoryPercent prometheus.Gauge
+	systemDiskUsed      *prometheus.GaugeVec
+	systemDiskTotal     *prometheus.GaugeVec
+	systemDiskPercent   *prometheus.GaugeVec
+	refreshTotal        *prometheus.CounterVec
+	httpRequestsTotal   *prometheus.CounterVec
+}
+
+func New(cfg config.Config) *App {
+	registry := prometheus.NewRegistry()
+
+	metrics := metricsSet{
+		buildInfo: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_metrics_build_info",
+				Help: "Static build metadata for the Atlas metrics service.",
+			},
+			[]string{"version", "runtime"},
+		),
+		startTime: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_metrics_start_time_seconds",
+				Help: "Unix start time for the Atlas metrics service.",
+			},
+		),
+		serviceUp: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_service_up",
+				Help: "Whether an Atlas dependency health check responded successfully.",
+			},
+			[]string{"service", "url"},
+		),
+		serviceResponseSecs: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_service_response_seconds",
+				Help: "Response latency for Atlas dependency health checks.",
+			},
+			[]string{"service", "url"},
+		),
+		serviceStatusCode: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_service_status_code",
+				Help: "Latest HTTP status code observed for an Atlas dependency health check.",
+			},
+			[]string{"service", "url"},
+		),
+		lastRefreshSuccess: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_metrics_last_refresh_success",
+				Help: "Whether the most recent dependency and system-metric refresh completed successfully.",
+			},
+		),
+		lastRefreshTime: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_metrics_last_refresh_timestamp_seconds",
+				Help: "Unix timestamp of the most recent atlas-metrics refresh.",
+			},
+		),
+		lastRefreshDuration: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_metrics_last_refresh_duration_seconds",
+				Help: "Duration of the most recent atlas-metrics refresh.",
+			},
+		),
+		systemCPUPercent: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_cpu_percent",
+				Help: "Host CPU utilization percentage observed by atlas-metrics.",
+			},
+		),
+		systemMemoryUsed: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_memory_used_bytes",
+				Help: "Host memory currently in use.",
+			},
+		),
+		systemMemoryTotal: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_memory_total_bytes",
+				Help: "Host memory available to the system.",
+			},
+		),
+		systemMemoryPercent: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_memory_used_percent",
+				Help: "Host memory utilization percentage.",
+			},
+		),
+		systemDiskUsed: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_disk_used_bytes",
+				Help: "Disk usage for the configured atlas-metrics disk path.",
+			},
+			[]string{"path"},
+		),
+		systemDiskTotal: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_disk_total_bytes",
+				Help: "Total disk capacity for the configured atlas-metrics disk path.",
+			},
+			[]string{"path"},
+		),
+		systemDiskPercent: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_system_disk_used_percent",
+				Help: "Disk utilization percentage for the configured atlas-metrics disk path.",
+			},
+			[]string{"path"},
+		),
+		refreshTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "atlas_metrics_refresh_total",
+				Help: "Total number of atlas-metrics refresh attempts by result.",
+			},
+			[]string{"result"},
+		),
+		httpRequestsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "atlas_metrics_http_requests_total",
+				Help: "Total number of atlas-metrics HTTP requests by route and method.",
+			},
+			[]string{"route", "method"},
+		),
+	}
+
+	registry.MustRegister(
+		metrics.buildInfo,
+		metrics.startTime,
+		metrics.serviceUp,
+		metrics.serviceResponseSecs,
+		metrics.serviceStatusCode,
+		metrics.lastRefreshSuccess,
+		metrics.lastRefreshTime,
+		metrics.lastRefreshDuration,
+		metrics.systemCPUPercent,
+		metrics.systemMemoryUsed,
+		metrics.systemMemoryTotal,
+		metrics.systemMemoryPercent,
+		metrics.systemDiskUsed,
+		metrics.systemDiskTotal,
+		metrics.systemDiskPercent,
+		metrics.refreshTotal,
+		metrics.httpRequestsTotal,
+	)
+	metrics.buildInfo.WithLabelValues(cfg.Version, runtime.Version()).Set(1)
+
+	startedAtUTC := time.Now().UTC()
+	metrics.startTime.Set(float64(startedAtUTC.Unix()))
+
+	return &App{
+		config:       cfg,
+		httpClient:   &http.Client{Timeout: cfg.HealthTimeout},
+		registry:     registry,
+		startedAtUTC: startedAtUTC,
+		metrics:      metrics,
+	}
+}
+
+func (a *App) Handler() http.Handler {
+	router := mux.NewRouter()
+	router.Handle("/", a.instrument("index", http.HandlerFunc(a.handleIndex))).Methods(http.MethodGet)
+	router.Handle("/healthz", a.instrument("healthz", http.HandlerFunc(a.handleHealth))).Methods(http.MethodGet)
+	router.Handle("/metrics", a.instrument("metrics", http.HandlerFunc(a.handleMetrics))).Methods(http.MethodGet)
+	return router
+}
+
+func (a *App) handleIndex(writer http.ResponseWriter, request *http.Request) {
+	snapshot := a.refresh(request.Context())
+
+	writeJSON(writer, http.StatusOK, indexResponse{
+		Service:        "atlas-metrics",
+		Status:         "ok",
+		Version:        a.config.Version,
+		Runtime:        runtime.Version(),
+		StartedAtUTC:   a.startedAtUTC.Format(time.RFC3339),
+		HealthTimeout:  a.config.HealthTimeout.String(),
+		Targets:        a.config.Targets,
+		CompletedPhase: "25.4",
+		NextPhase:      "25.5 alert rules + webhook dispatcher",
+		Features: featureFlags{
+			SystemMetrics: true,
+			AppProbes:     true,
+			Alerting:      false,
+		},
+		Refresh: snapshot,
+	})
+}
+
+func (a *App) handleHealth(writer http.ResponseWriter, request *http.Request) {
+	snapshot := a.refresh(request.Context())
+
+	writeJSON(writer, http.StatusOK, healthResponse{
+		Status:         "ok",
+		Service:        "atlas-metrics",
+		Version:        a.config.Version,
+		CompletedPhase: "25.4",
+		NextPhase:      "25.5 alert rules + webhook dispatcher",
+		Refresh:        snapshot,
+	})
+}
+
+func (a *App) handleMetrics(writer http.ResponseWriter, request *http.Request) {
+	a.refresh(request.Context())
+	promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}).ServeHTTP(writer, request)
+}
+
+func (a *App) refresh(ctx context.Context) refreshSnapshot {
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+
+	startedAt := time.Now()
+	snapshot := refreshSnapshot{
+		Probes: make([]probeResult, 0, len(a.config.Targets)),
+		System: systemSnapshot{
+			DiskPath: a.config.DiskPath,
+		},
+	}
+	refreshSucceeded := true
+
+	cpuPercent, err := cpu.PercentWithContext(ctx, 0, false)
+	if err != nil {
+		snapshot.Errors = append(snapshot.Errors, "cpu: "+err.Error())
+		refreshSucceeded = false
+	} else if len(cpuPercent) > 0 {
+		snapshot.System.CPUPercent = cpuPercent[0]
+		a.metrics.systemCPUPercent.Set(cpuPercent[0])
+	}
+
+	virtualMemory, err := mem.VirtualMemoryWithContext(ctx)
+	if err != nil {
+		snapshot.Errors = append(snapshot.Errors, "memory: "+err.Error())
+		refreshSucceeded = false
+	} else {
+		snapshot.System.MemoryUsedBytes = virtualMemory.Used
+		snapshot.System.MemoryTotalBytes = virtualMemory.Total
+		snapshot.System.MemoryUsedPercent = virtualMemory.UsedPercent
+		a.metrics.systemMemoryUsed.Set(float64(virtualMemory.Used))
+		a.metrics.systemMemoryTotal.Set(float64(virtualMemory.Total))
+		a.metrics.systemMemoryPercent.Set(virtualMemory.UsedPercent)
+	}
+
+	diskUsage, err := disk.UsageWithContext(ctx, a.config.DiskPath)
+	if err != nil {
+		snapshot.Errors = append(snapshot.Errors, "disk: "+err.Error())
+		refreshSucceeded = false
+	} else {
+		snapshot.System.DiskUsedBytes = diskUsage.Used
+		snapshot.System.DiskTotalBytes = diskUsage.Total
+		snapshot.System.DiskUsedPercent = diskUsage.UsedPercent
+		a.metrics.systemDiskUsed.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Used))
+		a.metrics.systemDiskTotal.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Total))
+		a.metrics.systemDiskPercent.WithLabelValues(a.config.DiskPath).Set(diskUsage.UsedPercent)
+	}
+
+	for _, target := range a.config.Targets {
+		result := a.probeTarget(ctx, target)
+		snapshot.Probes = append(snapshot.Probes, result)
+		if !result.Up {
+			refreshSucceeded = false
+		}
+	}
+
+	snapshot.LastRefreshSuccess = refreshSucceeded
+	snapshot.LastRefreshedUTC = time.Now().UTC().Format(time.RFC3339)
+	snapshot.RefreshDurationSecs = time.Since(startedAt).Seconds()
+
+	if refreshSucceeded {
+		a.metrics.refreshTotal.WithLabelValues("success").Inc()
+		a.metrics.lastRefreshSuccess.Set(1)
+	} else {
+		a.metrics.refreshTotal.WithLabelValues("failure").Inc()
+		a.metrics.lastRefreshSuccess.Set(0)
+	}
+	a.metrics.lastRefreshTime.Set(float64(time.Now().UTC().Unix()))
+	a.metrics.lastRefreshDuration.Set(snapshot.RefreshDurationSecs)
+
+	a.snapshot = snapshot
+	return snapshot
+}
+
+func (a *App) probeTarget(ctx context.Context, target config.Target) probeResult {
+	startedAt := time.Now()
+	result := probeResult{
+		Name: target.Name,
+		URL:  target.URL,
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
+	if err != nil {
+		result.Error = err.Error()
+		result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
+		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
+		a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(0)
+		a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(0)
+		return result
+	}
+
+	response, err := a.httpClient.Do(request)
+	if err != nil {
+		result.Error = err.Error()
+		result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
+		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
+		a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(0)
+		a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(0)
+		return result
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, response.Body)
+
+	result.StatusCode = response.StatusCode
+	result.LatencySeconds = time.Since(startedAt).Seconds()
+	result.Up = response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+	result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
+
+	a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(result.LatencySeconds)
+	a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(float64(response.StatusCode))
+	if result.Up {
+		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(1)
+	} else {
+		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
+	}
+
+	return result
+}
+
+func (a *App) instrument(route string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		a.metrics.httpRequestsTotal.WithLabelValues(route, request.Method).Inc()
+		next.ServeHTTP(writer, request)
+	})
+}
+
+func writeJSON(writer http.ResponseWriter, statusCode int, payload any) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(statusCode)
+
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "  ")
+	_ = encoder.Encode(payload)
+}
