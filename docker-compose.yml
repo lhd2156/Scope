@@ -170,10 +170,8 @@ services:
     healthcheck:
       test:
         [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=5)",
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:9090/healthz || exit 1",
         ]
       interval: 20s
       timeout: 10s
