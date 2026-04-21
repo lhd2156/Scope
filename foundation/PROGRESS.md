@@ -1,6 +1,6 @@
 # Foundation Progress
 
-## Status: COMPLETE
+## Status: IN_PROGRESS
 
 ## Tasks
 - [x] 1. Initialize monorepo folder structure
@@ -13,18 +13,20 @@
 - [x] 8. Create Nginx config
 - [x] 9. Create wait-for-services script
 
-## Current Task: DONE
-## Last Updated: 2026-03-28T00:00:00Z
+### Phase 26: Cloud Deployment & Infrastructure ☁️
+- [ ] 26.1 terraform init + terraform validate on existing terraform/ — fix any issues
+- [ ] 26.2 Add AWS provider config + S3 backend state + DynamoDB lock table
+- [ ] 26.3 Add Prometheus + Grafana K8s manifests (k8s/08-monitoring.yaml) + scrape configs
+- [ ] 26.4 Update GitHub Actions deploy workflow with OIDC auth + terraform plan/apply steps
+- [ ] 26.5 Wire atlas-metrics + atlas-cli into docker-compose.yml and k8s manifests
+- [ ] 26.6 Production smoke test script (scripts/smoke-test.ps1)
+
+## Current Task: Phase 26.1 — terraform init + validate
+## Last Updated: 2026-04-19T05:10:00Z
 
 ## Log
 - All 8 milestone commits completed on feature/foundation branch
-- d598d83 chore: initialize monorepo folder structure
-- 65ec49a chore: add .gitignore and .env.example
-- 9bea0db chore: add docker-compose with sqlserver and kafka
-- 297d6fd feat(db): create core schema and tables
-- 6d058c0 feat(db): create content schema and tables
-- 2fdb60a feat(db): create intel schema and tables
-- 7b33c7c chore: add nginx config
-- 05c32ed chore: add kafka topic creation script
 - Docker daemon was not running during validation - needs manual start
 - bash/WSL unavailable for script validation
+- [2026-04-19] Phases 21-26 added. Foundation reopened for Phase 26 (Cloud Deployment & Infrastructure).
+

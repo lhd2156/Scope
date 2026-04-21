@@ -31,13 +31,15 @@ param(
     [string]$Lesson = "",
 
     [Parameter(Mandatory=$true)]
-    [ValidateSet("foundation", "core", "content", "intel", "frontend", "orchestrator")]
+    [ValidateSet("foundation", "core", "content", "intel", "frontend", "polish", "orchestrator")]
     [string]$Agent
 )
 
 $ErrorActionPreference = "Continue"
 $lessonsFile = "C:\Users\dongu\atlas\memory\LESSONS.md"
+$completedFile = "C:\Users\dongu\atlas\memory\COMPLETED-TASKS.md"
 $date = Get-Date -Format "yyyy-MM-dd"
+$ts = Get-Date -Format "yyyy-MM-ddTHH:mmZ"
 
 # Step 1: Git add and commit
 Write-Host ">>> Committing: $Message" -ForegroundColor Cyan
@@ -48,6 +50,18 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host ">>> Git commit failed!" -ForegroundColor Red
     $Lesson = "Git commit failed for agent $Agent with message: $Message. Error code: $LASTEXITCODE"
     $Result = "failure"
+}
+
+# Step 1.5: Append to COMPLETED-TASKS.md (lightweight done ledger)
+if ($Result -eq "success") {
+    $taskEntry = "- [$ts] $Agent $Message ✅"
+    if (Test-Path $completedFile) {
+        Add-Content -Path $completedFile -Value $taskEntry
+    } else {
+        New-Item -Path $completedFile -ItemType File -Force | Out-Null
+        Set-Content -Path $completedFile -Value "# Completed Tasks Ledger`n`n$taskEntry"
+    }
+    Write-Host ">>> Logged to COMPLETED-TASKS.md" -ForegroundColor Green
 }
 
 # Step 2: Force-log lesson if provided or if failure

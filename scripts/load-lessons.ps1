@@ -12,7 +12,7 @@
 
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("foundation", "core", "content", "intel", "frontend", "orchestrator")]
+    [ValidateSet("foundation", "core", "content", "intel", "frontend", "polish", "orchestrator")]
     [string]$Agent
 )
 

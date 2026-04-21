@@ -1,0 +1,1 @@
+Add Django cache framework for spots and feed responses

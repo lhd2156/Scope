@@ -14,7 +14,7 @@ provider "aws" {
 }
 
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  name_prefix  = "${var.project_name}-${var.environment}"
   cluster_name = "${var.eks_cluster_name}-${var.environment}"
   service_images = toset([
     "atlas-core",
@@ -65,26 +65,26 @@ resource "aws_db_subnet_group" "sqlserver" {
 }
 
 resource "aws_db_instance" "sqlserver" {
-  identifier                   = "${local.name_prefix}-sqlserver"
-  engine                       = "sqlserver-ex"
-  instance_class               = var.sqlserver_instance_class
-  allocated_storage            = var.sqlserver_allocated_storage
-  storage_type                 = "gp3"
-  db_subnet_group_name         = aws_db_subnet_group.sqlserver.name
-  vpc_security_group_ids       = [aws_security_group.sqlserver.id]
-  username                     = var.sqlserver_master_username
-  password                     = var.sqlserver_master_password
-  port                         = 1433
-  backup_retention_period      = var.sqlserver_backup_retention_days
-  delete_automated_backups     = true
-  skip_final_snapshot          = true
-  deletion_protection          = false
-  publicly_accessible          = false
-  multi_az                     = false
-  auto_minor_version_upgrade   = true
-  apply_immediately            = true
-  storage_encrypted            = true
-  license_model                = "license-included"
+  identifier                 = "${local.name_prefix}-sqlserver"
+  engine                     = "sqlserver-ex"
+  instance_class             = var.sqlserver_instance_class
+  allocated_storage          = var.sqlserver_allocated_storage
+  storage_type               = "gp3"
+  db_subnet_group_name       = aws_db_subnet_group.sqlserver.name
+  vpc_security_group_ids     = [aws_security_group.sqlserver.id]
+  username                   = var.sqlserver_master_username
+  password                   = var.sqlserver_master_password
+  port                       = 1433
+  backup_retention_period    = var.sqlserver_backup_retention_days
+  delete_automated_backups   = true
+  skip_final_snapshot        = true
+  deletion_protection        = false
+  publicly_accessible        = false
+  multi_az                   = false
+  auto_minor_version_upgrade = true
+  apply_immediately          = true
+  storage_encrypted          = true
+  license_model              = "license-included"
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-sqlserver"

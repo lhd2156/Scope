@@ -1,0 +1,409 @@
+# Heartbeat
+
+Every time you wake up, execute this orchestration loop:
+
+## CRITICAL: Read Lessons First
+Before doing ANYTHING, read `C:\Users\dongu\atlas\memory\LESSONS.md`. This contains institutional knowledge from all agents — past failures, compatibility issues, workarounds. Internalize it.
+
+## CRITICAL: Path Rules
+- ALL progress files are at `C:\Users\dongu\atlas\{agent}\PROGRESS.md`
+- The workspace for ALL agents is `C:\Users\dongu\atlas`
+- Do NOT look in `.worktrees/`, `atlas-intel-wt/`, or any other worktree directory
+- The canonical paths are:
+  - `C:\Users\dongu\atlas\foundation\PROGRESS.md`
+  - `C:\Users\dongu\atlas\core\PROGRESS.md`
+  - `C:\Users\dongu\atlas\content\PROGRESS.md`
+  - `C:\Users\dongu\atlas\intel\PROGRESS.md`
+  - `C:\Users\dongu\atlas\frontend\PROGRESS.md`
+  - `C:\Users\dongu\atlas\PROGRESS.md` (your own progress)
+
+## CRITICAL: Runtime Environment
+ALL runtimes are installed. Do NOT accept "no runtime" as a blocker from any agent:
+- .NET SDK 8.0.419: `C:\Program Files\dotnet\dotnet.exe`
+- Python 3.14.3: `C:\Users\dongu\AppData\Local\Python\bin\python.exe`
+- pip 25.3: installed
+- Node.js 24.14.0: `C:\Program Files\nodejs\node.exe`
+- npm 11.9.0: installed
+If a sub-agent reports "no runtime", respawn it with explicit instructions to use the paths above.
+
+## CRITICAL: File Editing
+When editing PROGRESS.md, ALWAYS read the file FIRST to get the current contents, then edit.
+Never cache old file contents across heartbeats. Always re-read before editing.
+
+## Step 1: Check Agent Progress
+Read PROGRESS.md for each agent at the CANONICAL paths listed above:
+1. `C:\Users\dongu\atlas\foundation\PROGRESS.md`
+2. `C:\Users\dongu\atlas\core\PROGRESS.md`
+3. `C:\Users\dongu\atlas\content\PROGRESS.md`
+4. `C:\Users\dongu\atlas\intel\PROGRESS.md`
+5. `C:\Users\dongu\atlas\frontend\PROGRESS.md`
+
+## Step 2: Spawn Agents That Need Work
+For each agent whose status is `NOT_STARTED` or `IN_PROGRESS`, you MUST spawn them using `run_subagent`. DO NOT just read files and report — that is NOT your job. Your job is to SPAWN agents.
+
+### Spawn Order Rules:
+- **Foundation** → Spawn FIRST. Nothing else starts until Foundation is `COMPLETE`.
+- **Core, Content, Intel** → Spawn ALL THREE in parallel ONCE Foundation is `COMPLETE`.
+- **Frontend** → Can be spawned in parallel with backends IF it has remaining tasks (it already has tasks 1-4 done). DO NOT wait for all backends to be COMPLETE — Frontend can build domain components independently.
+
+### How to Spawn Each Agent:
+Use the `run_subagent` tool with these exact parameters:
+
+**IMPORTANT: This is a Windows machine running PowerShell. PowerShell does NOT support `&&`. Always use semicolons (`;`) to chain commands. Example: `git add . ; git commit -m "message"` NOT `git add . && git commit`.**
+
+**Foundation** (if status != COMPLETE):
+```
+label: "foundation"
+task: "You are the Foundation agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. Then read C:\Users\dongu\atlas\foundation\agents.md for your full task instructions and C:\Users\dongu\atlas\foundation\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Read atlas_architecture.tex for specifications. After completing each task, mark it [x] in C:\Users\dongu\atlas\foundation\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new (failure, workaround, compatibility issue), append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/foundation. If ALL tasks are done, set Status to COMPLETE."
+```
+
+**Core** (if status != COMPLETE):
+```
+label: "core"
+task: "You are the Core Platform agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. .NET SDK 8.0.419 is installed at C:\Program Files\dotnet\dotnet.exe — use it. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. Then read C:\Users\dongu\atlas\core\agents.md for your full task instructions and C:\Users\dongu\atlas\core\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Work ONLY inside Atlas.Core/. Read atlas_architecture.tex for specifications. After completing each task, mark it [x] in C:\Users\dongu\atlas\core\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new (failure, workaround, compatibility issue), append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/core-platform. If ALL tasks are done, set Status to COMPLETE."
+```
+
+**Content** (if status != COMPLETE):
+```
+label: "content"
+task: "You are the Content Engine agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe and pip 25.3 is available — use them. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. Then read C:\Users\dongu\atlas\content\agents.md for your full task instructions and C:\Users\dongu\atlas\content\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Work ONLY inside atlas_content/. Read atlas_architecture.tex for specifications. After completing each task, mark it [x] in C:\Users\dongu\atlas\content\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new (failure, workaround, compatibility issue), append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/content-engine. If ALL tasks are done, set Status to COMPLETE."
+```
+
+**Intel** (if status != COMPLETE):
+```
+label: "intel"
+task: "You are the Intelligence API agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe and pip 25.3 is available — use them. Requirements.txt has been fixed for Python 3.14 compatibility. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. Then read C:\Users\dongu\atlas\intel\agents.md for your full task instructions and C:\Users\dongu\atlas\intel\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Work ONLY inside atlas_intel/. Read atlas_architecture.tex for specifications. After completing each task, mark it [x] in C:\Users\dongu\atlas\intel\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new (failure, workaround, compatibility issue), append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/intel-api. If ALL tasks are done, set Status to COMPLETE."
+```
+
+**Frontend** (if status != COMPLETE):
+```
+label: "frontend"
+task: "You are the Frontend agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed — use them. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. Then read C:\Users\dongu\atlas\frontend\agents.md for your full task instructions and C:\Users\dongu\atlas\frontend\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Work ONLY inside atlas-frontend/. Read atlas_architecture.tex and atlas-assets/design-tokens.css for specifications. After completing each task, mark it [x] in C:\Users\dongu\atlas\frontend\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new (failure, workaround, compatibility issue), append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/frontend. If ALL tasks are done, set Status to COMPLETE."
+```
+
+## Step 3: Update Your Own Progress
+After spawning agents, re-read `C:\Users\dongu\atlas\PROGRESS.md` to get current contents, then update with:
+- Current phase
+- Which agents are running
+- Timestamp
+- Any issues detected
+
+## Step 4: Log Orchestrator Lessons
+If you noticed any patterns (agents getting stuck, repeated failures, spawn issues), append a lesson to `C:\Users\dongu\atlas\memory\LESSONS.md` under an "## Orchestration" section.
+
+## Step 5: Report to Telegram (MANDATORY)
+You MUST send a status update to the user on Telegram EVERY heartbeat. This is NOT optional.
+
+**IMPORTANT: When sending Telegram messages, use `target: "8744371466"` (the owner's numeric chat ID). Do NOT use pairing codes, random text, or usernames as targets. The ONLY valid target is `8744371466`.**
+
+**CRITICAL: `@BenDaDonBot` is YOUR OWN bot username — you ARE BenDaDonBot. A bot CANNOT send messages to itself. If the user says "send to @BenDaDonBot", they mean send it to THEIR chat (8744371466), not to the bot's own username. NEVER use `@BenDaDonBot`, `@bendadonbot`, `BenDaDonBot`, or any bot username as a message target. ALWAYS use `8744371466`.**
+
+Use a concise format like:
+
+```
+🔄 Heartbeat [TIME]
+━━━━━━━━━━━━━━━━━
+Foundation: [STATUS] - [current task or "COMPLETE"]
+Core: [STATUS] - [current task or "COMPLETE"]  
+Content: [STATUS] - [current task or "COMPLETE"]
+Intel: [STATUS] - [current task or "COMPLETE"]
+Frontend: [STATUS] - [current task or "COMPLETE"]
+━━━━━━━━━━━━━━━━━
+Actions: [what you spawned/did]
+Next heartbeat in ~5 min
+```
+
+- If agents were spawned: include what you kicked off
+- If everything is COMPLETE: begin Phase 4 (Integration) yourself
+- If something is stuck: flag it with details AND attempt to fix it
+- **NEVER skip the Telegram report. The user MUST see a message every 5 minutes.**
+
+## Self-Checks
+- Am I following the build order? (Foundation → Core/Content/Intel/Frontend → Integration)
+- Did I actually SPAWN sub-agents, or did I just read files and do nothing?
+- Are service boundaries respected?
+- Did I read files from the CANONICAL paths (C:\Users\dongu\atlas\{agent}\PROGRESS.md)?
+- Am I re-reading files before editing them?
+- Did I tell agents to read LESSONS.md?
+
+## CRITICAL RULES
+1. **DO NOT just read files and report.** You MUST spawn sub-agents to do the actual work.
+2. **If an agent's status is not `COMPLETE`, spawn it.** That is your primary job.
+3. **Each sub-agent reads its own `agents.md`** for detailed task instructions. Do NOT paste the full instructions — just tell them to read their own files.
+4. **Always update PROGRESS.md timestamps** so you can detect stalls on next heartbeat.
+5. **NEVER look in .worktrees/ or atlas-intel-wt/ for progress files.** All files are in the main repo.
+6. **ALWAYS re-read a file before editing it.** Never rely on cached/stale content.
+7. **Include runtime paths in every spawn command** so agents never falsely report "no runtime".
+8. **Frontend can proceed in parallel with backends** — it does NOT need to wait for all backends to be COMPLETE.
+9. **Every spawn command must include LESSONS.md** — agents must read past lessons before working and write new ones after failures/successes.
+
+## Phase Progression (After Phase 3 Frontend completes)
+
+### Phase 4: Integration (you do this yourself)
+- Wire cross-service communication: Nginx routing, Kafka event flow, shared JWT validation
+- Create seed data scripts (SQL scripts to populate test data for all schemas)
+- Set up GitHub Actions CI/CD pipeline (build + test all services)
+- Verify docker-compose brings up all services together
+- Write Playwright E2E tests for critical flows: register → login → create spot → view map → plan trip
+- After EVERY task, commit with `git add . ; git commit -m "message"`
+
+### Phase 5: Full Recheck & Audit (spawn ALL agents for this)
+Spawn each agent with instructions to:
+- Re-read their `agents.md` and `PROGRESS.md`
+- Run `dotnet build` / `pip install` / `npm install` and verify everything still compiles
+- Run ALL tests and fix any failures
+- Check for broken imports, missing files, TODO comments, hardcoded values
+- Verify every API endpoint listed in `atlas_architecture.tex` has an implementation
+- Verify every model/entity matches the database schemas in the architecture doc
+- Fix anything that's wrong and commit fixes
+- Mark Phase 5 tasks complete in their PROGRESS.md
+
+### Phase 6: Security Hardening (spawn ALL agents for this)
+Spawn each agent with instructions to:
+- Add rate limiting middleware to ALL API endpoints (Core: ASP.NET middleware, Content: Django middleware, Intel: Flask decorator)
+- Add input validation on ALL request bodies (max lengths, type checking, sanitization)
+- Verify JWT authentication is enforced on all protected endpoints
+- Add CORS configuration (only allow frontend origin)
+- Add SQL injection prevention (parameterized queries, ORM-only)
+- Add XSS protection headers (Content-Security-Policy, X-XSS-Protection)
+- Frontend: add CSRF tokens, sanitize user inputs before display, secure localStorage usage
+- Commit after each security fix
+
+### Phase 7: Test Coverage & Quality (spawn ALL agents for this)
+Spawn each agent with instructions to:
+- Add unit tests until coverage exceeds 80% for their service
+- Write integration tests for EVERY API endpoint (happy path + error cases)
+- Core: xUnit tests for all controllers, services, and hubs
+- Content: pytest tests for all views, serializers, and models
+- Intel: pytest tests for all routes and ML services
+- Frontend: Vitest component tests for all views and components
+- Add proper error handling everywhere (try/catch, error responses, logging)
+- Handle edge cases: empty inputs, unauthorized access, not found, duplicate entries
+- Commit after each test suite
+
+### Phase 8: Documentation & Deployment Prep (you do this yourself)
+- Write comprehensive README.md with: project overview, architecture diagram, setup instructions, environment variables, API reference, deployment guide
+- Generate API documentation (Swagger/OpenAPI for each service)
+- Verify `docker-compose up` brings up ALL services and they can talk to each other
+- Create `.env.example` with all required environment variables documented
+- Create deployment scripts for AWS (Terraform plans, ECS task definitions)
+- Final smoke test: hit every API endpoint, verify responses
+- Write CONTRIBUTING.md with development workflow
+- Commit everything and create a release tag
+
+### Phase 9: Performance & Observability (spawn ALL agents for this)
+Spawn each agent with instructions to add performance and logging improvements.
+
+**Core** (if Phase 9 active):
+```
+label: "core"
+task: "You are the Core Platform agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. .NET SDK 8.0.419 is installed at C:\Program Files\dotnet\dotnet.exe — use it. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. PHASE 9 TASKS — Performance & Observability: 1) Add Serilog with JSON output and correlation ID enrichment to Atlas.Core.API. 2) Implement GET /api/core/health endpoint that checks DB + Kafka connectivity. 3) Add response caching middleware for read endpoints (ETag support). 4) Add request/response logging middleware with duration tracking. 5) Add .AsNoTracking() to all read-only EF Core queries. 6) Configure connection pooling. 7) Implement gzip/brotli response compression. After EACH task, mark it complete in C:\Users\dongu\atlas\core\PROGRESS.md under a new '### Phase 9' section, then run: git add . ; git commit -m 'your message'. Work on branch feature/core-platform."
+```
+
+**Content** (if Phase 9 active):
+```
+label: "content"
+task: "You are the Content Engine agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. PHASE 9 TASKS — Performance & Observability: 1) Add python-json-logger structured logging with correlation ID in atlas_content/. 2) Implement GET /api/content/health endpoint that checks DB + S3. 3) Add select_related()/prefetch_related() to prevent N+1 queries on all views. 4) Add Django cache framework for spots and feed responses. 5) Add ETag support for spot detail and trip detail endpoints. 6) Add cursor-based pagination for feed endpoint. After EACH task, mark it complete in C:\Users\dongu\atlas\content\PROGRESS.md under a new '### Phase 9' section, then run: git add . ; git commit -m 'your message'. Work on branch feature/content-engine."
+```
+
+**Intel** (if Phase 9 active):
+```
+label: "intel"
+task: "You are the Intelligence API agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. PHASE 9 TASKS — Performance & Observability: 1) Add python-json-logger structured logging with correlation ID in atlas_intel/. 2) Implement GET /api/intel/health endpoint that checks DB + ML model loaded. 3) Add itinerary result caching in intel.ItineraryCache table. 4) Add request timeout configuration for ML computations. 5) Add cache headers for weather and geocoding responses. After EACH task, mark it complete in C:\Users\dongu\atlas\intel\PROGRESS.md under a new '### Phase 9' section, then run: git add . ; git commit -m 'your message'. Work on branch feature/intel-api."
+```
+
+**Frontend** (if Phase 9 active):
+```
+label: "frontend"
+task: "You are the Frontend agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. PHASE 9 TASKS — Performance & Observability: 1) Implement lazy-loading for all route views via defineAsyncComponent in router. 2) Add image lazy-loading with Intersection Observer for all photo grids. 3) Add debouncing on all search inputs (300ms minimum). 4) Add virtual scroll for long lists (feed, spot lists). 5) Run npm run build and verify bundle analysis, tree-shake unused imports. After EACH task, mark it complete in C:\Users\dongu\atlas\frontend\PROGRESS.md under a new '### Phase 9' section, then run: git add . ; git commit -m 'your message'. Work on branch feature/frontend."
+```
+
+### Phase 10: UX Polish & Accessibility (spawn polish agent)
+Spawn the **polish** agent to handle all UX work.
+
+**Polish** (this is a new agent — codename Luster):
+```
+label: "polish"
+task: "You are the Polish agent (Luster) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. Then read C:\Users\dongu\atlas\polish\agents.md for your full task instructions and C:\Users\dongu\atlas\polish\PROGRESS.md for your current status. Find the FIRST unchecked task (- [ ]) and execute it. Work ONLY inside atlas-frontend/. Read atlas-assets/design-tokens.css for the design system. After completing each task, mark it [x] in C:\Users\dongu\atlas\polish\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new, append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/frontend. If ALL tasks are done, set Status to COMPLETE."
+```
+
+### Phase 11: Infrastructure Hardening (you do this yourself)
+- Write ALL Kubernetes manifests in `k8s/`:
+  - `k8s/core-deployment.yaml` — Deployment + Service + ConfigMap for Core
+  - `k8s/content-deployment.yaml` — Deployment + Service + ConfigMap for Content
+  - `k8s/intel-deployment.yaml` — Deployment + Service + ConfigMap for Intel
+  - `k8s/frontend-deployment.yaml` — Deployment + Service for Frontend
+  - `k8s/nginx-ingress.yaml` — Ingress controller with rate limiting annotations
+  - `k8s/sqlserver-deployment.yaml` — StatefulSet with PVC for SQL Server
+  - `k8s/kafka-deployment.yaml` — StatefulSet for Kafka + Zookeeper
+- Write ALL Terraform configs in `terraform/`:
+  - `terraform/main.tf` — AWS EKS cluster, RDS SQL Server, S3, Cognito
+  - `terraform/variables.tf` — All configurable variables with defaults
+  - `terraform/outputs.tf` — Cluster endpoint, DB endpoint, bucket name
+  - `terraform/vpc.tf` — VPC, subnets, security groups
+  - `terraform/iam.tf` — IAM roles for EKS, S3, Cognito
+- Update `docker-compose.yml` to include all 4 application services (core, content, intel, frontend) not just infra
+- Fix all Dockerfiles to use multi-stage builds (no build tools in final image)
+- Write `.github/workflows/ci.yml` — Build + test all services on PR
+- Write `.github/workflows/deploy.yml` — Deploy to AWS on main merge
+- Add Dependabot configuration
+- After EVERY file, commit with `git add . ; git commit -m "message"`
+
+### Phase 12: Final Boss Recheck 🏁 (spawn ALL agents one final time)
+Spawn each agent with final verification instructions.
+
+**All agents get this task prefix:**
+"FINAL RECHECK — Phase 12. Your workspace is C:\Users\dongu\atlas. This is Windows with PowerShell — use semicolons (;) not &&. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. Then: 1) Re-read atlas_architecture.tex and verify EVERY endpoint in your service matches the spec exactly. 2) Run full build and ALL tests — fix any failures. 3) Verify API response formats match Appendix B. 4) Check for: hardcoded secrets, console.log/print debug statements, TODO comments, dead code, unused imports. 5) Verify error response format matches Section 17 standard format. 6) Clean up any duplicate/temp files. 7) Commit all fixes. Mark Phase 12 tasks complete in your PROGRESS.md."
+
+**Core** (Phase 12):
+```
+label: "core"
+task: "FINAL RECHECK — Phase 12. [prefix above] Additionally for Core: verify all Kafka event schemas match Section 10. Verify SignalR hubs accept connections. Run dotnet build ; dotnet test. Work on branch feature/core-platform."
+```
+
+**Content** (Phase 12):
+```
+label: "content"
+task: "FINAL RECHECK — Phase 12. [prefix above] Additionally for Content: verify all Kafka producers fire the correct events. Verify Django Admin is properly configured. Clean up bootstrap_content_append*.py files if they're not needed. Run pip install -r requirements.txt ; python manage.py check ; pytest. Work on branch feature/content-engine."
+```
+
+**Intel** (Phase 12):
+```
+label: "intel"
+task: "FINAL RECHECK — Phase 12. [prefix above] Additionally for Intel: verify ML model loading works. Verify itinerary caching logic. Run pip install -r requirements.txt ; pytest. Work on branch feature/intel-api."
+```
+
+**Frontend** (Phase 12):
+```
+label: "frontend"
+task: "FINAL RECHECK — Phase 12. [prefix above] Additionally for Frontend: verify all Pinia stores match the API contracts. Verify all routes work and auth guards redirect properly. Verify dark/light theme works on all pages. Run npm run build ; npm run test. Work on branch feature/frontend."
+```
+
+**Polish** (Phase 12):
+```
+label: "polish"
+task: "FINAL RECHECK — Phase 12. [prefix above] Additionally for Polish: verify all animations respect prefers-reduced-motion. Verify all interactive elements are keyboard accessible. Run npm run build ; npm run test. Verify Lighthouse accessibility score. Work on branch feature/frontend."
+```
+
+After ALL agents complete Phase 12, the orchestrator does the final wrap-up:
+- Write comprehensive `README.md`
+- Write `CONTRIBUTING.md`
+- Merge all feature branches into `main`
+- Create git tag `v1.0.0`
+- Final `docker-compose up` smoke test
+
+### Phase 13: Frontend Design Overhaul 🎨 (HIGHEST PRIORITY — spawn Frontend then Polish)
+
+This phase completely re-skins the frontend to match premium mockup images. The current frontend is architecturally sound but visually basic — it needs to look like Nike, Instagram, TripAdvisor, and Airbnb.
+
+**CRITICAL READING ORDER FOR ALL PHASE 13 AGENTS:**
+1. `C:\Users\dongu\atlas\atlas-assets\DESIGN-SPEC.md` — the authoritative visual design specification
+2. All mockup images in `C:\Users\dongu\atlas\atlas-assets\mockups\` (01-07)
+3. `C:\Users\dongu\atlas\atlas-assets\design-tokens.css` — CSS custom properties
+
+**Frontend** (Phase 13 — tasks 13.1 through 13.13):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed — use them. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons from all agents — avoid repeating known mistakes. PHASE 13 — FRONTEND DESIGN OVERHAUL: This is the most important phase. The current frontend looks like a developer prototype. Your job is to make it look like a premium travel platform rivaling Nike.com, Instagram, TripAdvisor, and Airbnb. MANDATORY FIRST STEP: Read C:\Users\dongu\atlas\atlas-assets\DESIGN-SPEC.md from start to finish — it contains per-page layout specs, CSS formulas for glassmorphism/cards/buttons/inputs, animation guidelines, photo standards, and explicit anti-patterns. Then study ALL mockup images in C:\Users\dongu\atlas\atlas-assets\mockups\ (files 01 through 07). These mockups are your pixel-perfect reference. Then read C:\Users\dongu\atlas\frontend\PROGRESS.md for your current status. Find the FIRST unchecked Phase 13 task (- [ ] 13.X) and execute it. Key rules: (1) NEVER hardcode hex colors — always use CSS custom properties from design-tokens.css. (2) Use glassmorphism (backdrop-filter blur + semi-transparent bg + subtle border) on all major panels. (3) Every card must have hover effects (translateY + shadow elevation + photo zoom). (4) Use high-quality Unsplash photos for demo content — URLs are specified in DESIGN-SPEC.md. (5) Respect prefers-reduced-motion for all animations. (6) All styling in scoped style blocks, no inline styles. After completing each task, mark it [x] in C:\Users\dongu\atlas\frontend\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. If you learned something new, append it to C:\Users\dongu\atlas\memory\LESSONS.md. Work on branch feature/frontend. If ALL Phase 13 tasks are done, set Status to COMPLETE."
+```
+
+**Polish** (Phase 13 — tasks 13.14 through 13.18, run AFTER Frontend completes 13.1-13.13):
+```
+label: "polish"
+task: "You are the Polish agent (Luster) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed — use them. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md for past lessons. PHASE 13 — FRONTEND DESIGN OVERHAUL (Polish Track): Read C:\Users\dongu\atlas\atlas-assets\DESIGN-SPEC.md carefully — it is the authoritative visual spec. Study the mockup images in C:\Users\dongu\atlas\atlas-assets\mockups\. Then read C:\Users\dongu\atlas\polish\PROGRESS.md for your current status. Find the FIRST unchecked Phase 13 task (- [ ] 13.X) and execute it. Your Phase 13 tasks are: 13.14 Micro-Animations Pass, 13.15 Typography & Spacing Audit, 13.16 Dark Mode Color Audit, 13.17 Demo Photo Integration, 13.18 Final Visual QA. Key rules: (1) Use design tokens not ad-hoc values. (2) Respect prefers-reduced-motion. (3) Validate with npm run build ; npm run test after each task. After completing each task, mark it [x] in C:\Users\dongu\atlas\polish\PROGRESS.md, update Last Updated, add a log entry, then run: git add . ; git commit -m 'your message'. Work on branch feature/frontend."
+```
+
+### Phase 14: Comprehensive E2E Testing 🧪 (spawn Frontend)
+
+**Frontend** (Phase 14):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 14 — COMPREHENSIVE E2E TESTING: Set up Playwright with 3 browser projects (Chromium, Firefox, WebKit). Write real end-to-end tests that validate critical user flows by mocking /api/* routes for deterministic test data. Tests to write: auth flow (register→login→session→logout), map interactions (load→click marker→sidebar detail→navigate), spot CRUD (create→edit→view→delete), trip flow (create→add destinations→AI itinerary→timeline), social (feed→like→friend→notifications), navigation (every route renders, auth guards redirect, 404 works), theme toggle (switch dark/light, persist across reload). Generate HTML test report. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for your current status. Find the FIRST unchecked Phase 14 task and execute it. After each task, mark it [x] in PROGRESS.md, commit. Work on branch feature/frontend."
+```
+
+### Phase 15: Data Seeding & Demo Mode 🌱 (spawn Frontend)
+
+**Frontend** (Phase 15):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 15 — DATA SEEDING & DEMO MODE: Create a complete demo mode so the app runs standalone without any backend. Create atlas-frontend/src/mock/ directory with JSON fixtures for: 5 demo user profiles (use pravatar.cc avatars), 20 demo spots across all 8 categories (use Unsplash photos from DESIGN-SPEC.md, real coordinates for real cities), 3 multi-day demo trips with itineraries, 15 demo feed activity items, 10 demo notifications. Add VITE_DEMO_MODE=true env toggle that routes all API services to mock data providers. Create demo login credentials (demo@atlas.travel / Atlas2024!). Update README.md with demo mode instructions. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for your current status. Find the FIRST unchecked Phase 15 task and execute it. After each task, mark it [x] in PROGRESS.md, commit. Work on branch feature/frontend."
+```
+
+### Phase 16: Monitoring, Logging & Alerting 📊 (spawn Core, Content, Intel)
+
+**Core** (Phase 16):
+```
+label: "core"
+task: "You are the Core Platform agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. .NET SDK 8.0.419 is installed at C:\Program Files\dotnet\dotnet.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 16 — MONITORING & ALERTING: Add OpenTelemetry SDK with custom metrics (request count, latency histogram, error rate). Add correlation ID propagation via HTTP headers across service boundaries. Add structured error logging with stack traces, request context, user ID. After EACH task, mark it complete in C:\Users\dongu\atlas\core\PROGRESS.md under a new Phase 16 section, then run: git add . ; git commit -m 'your message'. Work on branch feature/core-platform."
+```
+
+**Content** (Phase 16):
+```
+label: "content"
+task: "You are the Content Engine agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 16 — MONITORING & ALERTING: Add django-prometheus middleware with custom gauges (active users, spots created per hour, upload queue depth). Add correlation ID propagation via HTTP headers. Add structured error logging. After EACH task, mark it complete in C:\Users\dongu\atlas\content\PROGRESS.md under a new Phase 16 section, then run: git add . ; git commit -m 'your message'. Work on branch feature/content-engine."
+```
+
+**Intel** (Phase 16):
+```
+label: "intel"
+task: "You are the Intelligence API agent for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Python 3.14.3 is installed at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 16 — MONITORING & ALERTING: Add prometheus-flask-instrumentator with ML-specific metrics (recommendation latency, cache hit rate, model inference time). Add correlation ID propagation via HTTP headers. Add structured error logging. After EACH task, mark it complete in C:\Users\dongu\atlas\intel\PROGRESS.md under a new Phase 16 section, then run: git add . ; git commit -m 'your message'. Work on branch feature/intel-api."
+```
+
+### Phase 17: Mobile Responsiveness & PWA 📱 (spawn Frontend)
+
+**Frontend** (Phase 17):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 17 — MOBILE RESPONSIVENESS & PWA: Audit every view for responsive breakpoints (mobile <640px, tablet 640-1024px, desktop >1024px). Implement: mobile hamburger navbar with slide-out drawer, map page bottom-sheet sidebar, single-column explore layout on mobile, stacked profile page, step-wizard trip planner on mobile. Enhance PWA manifest with proper icons/splash/theme-color. Add service worker for offline caching. Handle iOS safe-area-inset and touch-action styling. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for your current status. Find the FIRST unchecked Phase 17 task and execute it. After each task, mark it [x] in PROGRESS.md, commit. Work on branch feature/frontend."
+```
+
+### Phase 18: Analytics & User Telemetry 📈 (spawn Frontend)
+
+**Frontend** (Phase 18):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 18 — ANALYTICS & TELEMETRY: Create an analytics service abstraction at src/services/analyticsService.ts. Track page views on every route change via router afterEach. Track key user actions (spot create, trip create, AI itinerary, friend add, theme toggle). Track engagement metrics (time on page, scroll depth). Add privacy-compliant cookie consent banner. Add opt-out toggle in Settings page. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for FIRST unchecked Phase 18 task, execute, mark [x], commit. Work on branch feature/frontend."
+```
+
+### Phase 19: Onboarding & Tutorial Flow 🎓 (spawn Frontend then Polish)
+
+**Frontend** (Phase 19):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 19 — ONBOARDING & TUTORIAL: Create OnboardingOverlay.vue with a step-by-step spotlight tutorial. Steps: Welcome to Atlas, Drop Your First Pin, Explore the Map, Plan a Trip, Connect with Travelers. Add progress dots and skip button. Persist completion in localStorage. Add Replay Tutorial in Settings. Use atlas-assets/DESIGN-SPEC.md for styling. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for FIRST unchecked Phase 19 task, execute, mark [x], commit. Work on branch feature/frontend."
+```
+
+### Phase 20: Pre-Launch QA Blitz 🏁 (spawn ALL agents for final cross-cutting validation)
+
+**Frontend** (Phase 20):
+```
+label: "frontend"
+task: "You are the Frontend agent (Prism) for Atlas. Your workspace is C:\Users\dongu\atlas. IMPORTANT: This is Windows with PowerShell — do NOT use && to chain commands, use semicolons (;) instead. Node.js 24.14.0 and npm 11.9.0 are installed. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 20 — PRE-LAUNCH QA BLITZ: Run Lighthouse audit on every page — target scores: Performance >90, Accessibility >95, Best Practices >95, SEO >90. Test all form validation edge cases. Verify keyboard navigation on every interactive element. Cross-browser test in Chrome, Firefox, Edge. Run final npm run build ; npm run test and fix ALL failures. Create QA-REPORT.md with pass/fail matrix. Fix all Critical and High severity issues. Read C:\Users\dongu\atlas\frontend\PROGRESS.md for FIRST unchecked Phase 20 task, execute, mark [x], commit. Work on branch feature/frontend."
+```
+
+**Core** (Phase 20):
+```
+label: "core"
+task: "You are the Core Platform agent. Your workspace is C:\Users\dongu\atlas. IMPORTANT: Windows PowerShell — use semicolons (;) not &&. .NET SDK 8.0.419 is at C:\Program Files\dotnet\dotnet.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 20 — PRE-LAUNCH QA: Run dotnet build ; dotnet test and fix ALL failures. Verify CORS headers work for frontend origin. Final code hygiene audit. Commit fixes. Mark Phase 20 tasks [x] in C:\Users\dongu\atlas\core\PROGRESS.md. Work on branch feature/core-platform."
+```
+
+**Content** (Phase 20):
+```
+label: "content"
+task: "You are the Content Engine agent. Your workspace is C:\Users\dongu\atlas. IMPORTANT: Windows PowerShell — use semicolons (;) not &&. Python 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 20 — PRE-LAUNCH QA: Verify photo upload handles edge cases (0 bytes, >10MB, wrong format, corrupt). Run pip install -r requirements.txt ; pytest and fix ALL failures. Final code hygiene audit. Commit fixes. Mark Phase 20 tasks [x] in C:\Users\dongu\atlas\content\PROGRESS.md. Work on branch feature/content-engine."
+```
+
+**Intel** (Phase 20):
+```
+label: "intel"
+task: "You are the Intelligence API agent. Your workspace is C:\Users\dongu\atlas. IMPORTANT: Windows PowerShell — use semicolons (;) not &&. Python 3.14.3 at C:\Users\dongu\AppData\Local\Python\bin\python.exe. FIRST read C:\Users\dongu\atlas\memory\LESSONS.md. PHASE 20 — PRE-LAUNCH QA: Verify AI itinerary handles edge cases (0 spots, 1 spot, 50 spots, invalid coords). Run pip install -r requirements.txt ; pytest and fix ALL failures. Final code hygiene audit. Commit fixes. Mark Phase 20 tasks [x] in C:\Users\dongu\atlas\intel\PROGRESS.md. Work on branch feature/intel-api."
+```
+
+After ALL agents complete Phase 20, the orchestrator does the final release:
+- Final `docker-compose up` smoke test with ALL services
+- Create QA-REPORT.md aggregated from all agents
+- Fix any remaining Critical/High issues
+- Merge all feature branches into `main`
+- Create git tag `v1.0.0-rc1`
+- Create GitHub Release draft
+
