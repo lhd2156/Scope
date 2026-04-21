@@ -4,7 +4,7 @@ COPY . .
 RUN dotnet restore Atlas.Core.sln || true
 RUN dotnet publish Atlas.Core.API/Atlas.Core.API.csproj -c Release -o /app/publish || true
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 EXPOSE 8080
