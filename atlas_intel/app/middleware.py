@@ -1,11 +1,6 @@
 import time
-from collections import defaultdict, deque
-from datetime import datetime, timezone
 from flask import Flask, g, request
 from app.config import settings
-from app.responses import error_response
-
-_request_windows: dict[str, deque[float]] = defaultdict(deque)
 
 
 def register_middleware(app: Flask) -> None:
@@ -13,14 +8,6 @@ def register_middleware(app: Flask) -> None:
     def before_request():
         g.started_at = time.perf_counter()
         g.trace_id = request.headers.get("X-Correlation-Id", f"trace-{int(time.time() * 1000)}")
-        client_key = request.headers.get("Authorization", request.remote_addr or "anonymous")
-        now = datetime.now(tz=timezone.utc).timestamp()
-        window = _request_windows[client_key]
-        while window and now - window[0] > 60:
-            window.popleft()
-        if len(window) >= settings.rate_limit_per_minute and request.endpoint != "health.health":
-            return error_response(429, "RATE_LIMITED", "Too many requests", trace_id=g.trace_id)
-        window.append(now)
 
     @app.after_request
     def after_request(response):
