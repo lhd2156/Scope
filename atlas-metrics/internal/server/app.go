@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"atlas-metrics/internal/alerts"
 	"atlas-metrics/internal/config"
 
 	"github.com/gorilla/mux"
@@ -20,14 +21,19 @@ import (
 )
 
 type App struct {
-	config       config.Config
-	httpClient   *http.Client
-	registry     *prometheus.Registry
-	startedAtUTC time.Time
-	metrics      metricsSet
+	config         config.Config
+	httpClient     *http.Client
+	registry       *prometheus.Registry
+	startedAtUTC   time.Time
+	metrics        metricsSet
+	ruleSet        *alerts.RuleSet
+	dispatcher     *alerts.Dispatcher
+	rulesLoadError string
 
-	refreshMu sync.Mutex
-	snapshot  refreshSnapshot
+	refreshMu    sync.Mutex
+	snapshot     refreshSnapshot
+	activeAlerts []alerts.EvaluatedAlert
+	lastDispatch alerts.DispatchResult
 }
 
 type featureFlags struct {
@@ -67,26 +73,40 @@ type refreshSnapshot struct {
 }
 
 type indexResponse struct {
-	Service        string          `json:"service"`
-	Status         string          `json:"status"`
-	Version        string          `json:"version"`
-	Runtime        string          `json:"runtime"`
-	StartedAtUTC   string          `json:"startedAtUtc"`
-	HealthTimeout  string          `json:"healthTimeout"`
-	Targets        []config.Target `json:"targets"`
-	CompletedPhase string          `json:"completedPhase"`
-	NextPhase      string          `json:"nextPhase"`
-	Features       featureFlags    `json:"features"`
-	Refresh        refreshSnapshot `json:"refresh"`
+	Service        string           `json:"service"`
+	Status         string           `json:"status"`
+	Version        string           `json:"version"`
+	Runtime        string           `json:"runtime"`
+	StartedAtUTC   string           `json:"startedAtUtc"`
+	HealthTimeout  string           `json:"healthTimeout"`
+	Targets        []config.Target  `json:"targets"`
+	CompletedPhase string           `json:"completedPhase"`
+	NextPhase      string           `json:"nextPhase"`
+	Features       featureFlags     `json:"features"`
+	Refresh        refreshSnapshot  `json:"refresh"`
+	Alerting       alertingResponse `json:"alerting"`
 }
 
 type healthResponse struct {
-	Status         string          `json:"status"`
-	Service        string          `json:"service"`
-	Version        string          `json:"version"`
-	CompletedPhase string          `json:"completedPhase"`
-	NextPhase      string          `json:"nextPhase"`
-	Refresh        refreshSnapshot `json:"refresh"`
+	Status         string           `json:"status"`
+	Service        string           `json:"service"`
+	Version        string           `json:"version"`
+	CompletedPhase string           `json:"completedPhase"`
+	NextPhase      string           `json:"nextPhase"`
+	Refresh        refreshSnapshot  `json:"refresh"`
+	Alerting       alertingResponse `json:"alerting"`
+}
+
+type alertingResponse struct {
+	RulesPath      string                  `json:"rulesPath"`
+	RulesVersion   int                     `json:"rulesVersion"`
+	RulesLoaded    bool                    `json:"rulesLoaded"`
+	RuleCount      int                     `json:"ruleCount"`
+	WebhookEnabled bool                    `json:"webhookEnabled"`
+	WebhookURL     string                  `json:"webhookUrl,omitempty"`
+	LoadError      string                  `json:"loadError,omitempty"`
+	ActiveAlerts   []alerts.EvaluatedAlert `json:"activeAlerts"`
+	LastDispatch   alerts.DispatchResult   `json:"lastDispatch"`
 }
 
 type metricsSet struct {
@@ -107,10 +127,15 @@ type metricsSet struct {
 	systemDiskPercent   *prometheus.GaugeVec
 	refreshTotal        *prometheus.CounterVec
 	httpRequestsTotal   *prometheus.CounterVec
+	alertRulesLoaded    prometheus.Gauge
+	alertRuleActive     *prometheus.GaugeVec
+	alertDispatchTotal  *prometheus.CounterVec
+	alertDispatchStatus *prometheus.GaugeVec
 }
 
 func New(cfg config.Config) *App {
 	registry := prometheus.NewRegistry()
+	ruleSet, rulesLoadError := alerts.LoadRuleSet(cfg.AlertRulesPath)
 
 	metrics := metricsSet{
 		buildInfo: prometheus.NewGaugeVec(
@@ -224,6 +249,33 @@ func New(cfg config.Config) *App {
 			},
 			[]string{"route", "method"},
 		),
+		alertRulesLoaded: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "atlas_alert_rules_loaded",
+				Help: "Whether atlas-metrics loaded its alert-rule configuration successfully.",
+			},
+		),
+		alertRuleActive: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_alert_rule_active",
+				Help: "Whether an atlas alert rule is currently firing.",
+			},
+			[]string{"rule_id", "severity"},
+		),
+		alertDispatchTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "atlas_alert_dispatch_total",
+				Help: "Total number of webhook dispatch attempts by result.",
+			},
+			[]string{"result"},
+		),
+		alertDispatchStatus: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "atlas_alert_dispatch_status",
+				Help: "Latest webhook dispatch outcome for atlas-metrics.",
+			},
+			[]string{"webhook"},
+		),
 	}
 
 	registry.MustRegister(
@@ -244,18 +296,46 @@ func New(cfg config.Config) *App {
 		metrics.systemDiskPercent,
 		metrics.refreshTotal,
 		metrics.httpRequestsTotal,
+		metrics.alertRulesLoaded,
+		metrics.alertRuleActive,
+		metrics.alertDispatchTotal,
+		metrics.alertDispatchStatus,
 	)
 	metrics.buildInfo.WithLabelValues(cfg.Version, runtime.Version()).Set(1)
+	metrics.alertDispatchTotal.WithLabelValues("success")
+	metrics.alertDispatchTotal.WithLabelValues("failure")
+	if rulesLoadError == nil {
+		metrics.alertRulesLoaded.Set(1)
+	} else {
+		metrics.alertRulesLoaded.Set(0)
+	}
 
 	startedAtUTC := time.Now().UTC()
 	metrics.startTime.Set(float64(startedAtUTC.Unix()))
 
+	dispatcher := alerts.NewDispatcher(
+		alerts.DispatcherConfig{
+			WebhookURL:  cfg.AlertWebhookURL,
+			BearerToken: cfg.AlertWebhookToken,
+			Source:      cfg.AlertSource,
+		},
+		cfg.AlertWebhookTimeout,
+	)
+
+	loadError := ""
+	if rulesLoadError != nil {
+		loadError = rulesLoadError.Error()
+	}
+
 	return &App{
-		config:       cfg,
-		httpClient:   &http.Client{Timeout: cfg.HealthTimeout},
-		registry:     registry,
-		startedAtUTC: startedAtUTC,
-		metrics:      metrics,
+		config:         cfg,
+		httpClient:     &http.Client{Timeout: cfg.HealthTimeout},
+		registry:       registry,
+		startedAtUTC:   startedAtUTC,
+		metrics:        metrics,
+		ruleSet:        ruleSet,
+		dispatcher:     dispatcher,
+		rulesLoadError: loadError,
 	}
 }
 
@@ -264,6 +344,9 @@ func (a *App) Handler() http.Handler {
 	router.Handle("/", a.instrument("index", http.HandlerFunc(a.handleIndex))).Methods(http.MethodGet)
 	router.Handle("/healthz", a.instrument("healthz", http.HandlerFunc(a.handleHealth))).Methods(http.MethodGet)
 	router.Handle("/metrics", a.instrument("metrics", http.HandlerFunc(a.handleMetrics))).Methods(http.MethodGet)
+	router.Handle("/alerts/rules", a.instrument("alerts_rules", http.HandlerFunc(a.handleAlertRules))).Methods(http.MethodGet)
+	router.Handle("/alerts/active", a.instrument("alerts_active", http.HandlerFunc(a.handleActiveAlerts))).Methods(http.MethodGet)
+	router.Handle("/alerts/dispatch", a.instrument("alerts_dispatch", http.HandlerFunc(a.handleDispatchAlerts))).Methods(http.MethodPost)
 	return router
 }
 
@@ -278,14 +361,15 @@ func (a *App) handleIndex(writer http.ResponseWriter, request *http.Request) {
 		StartedAtUTC:   a.startedAtUTC.Format(time.RFC3339),
 		HealthTimeout:  a.config.HealthTimeout.String(),
 		Targets:        a.config.Targets,
-		CompletedPhase: "25.4",
-		NextPhase:      "25.5 alert rules + webhook dispatcher",
+		CompletedPhase: "25.5",
+		NextPhase:      "Phase 25 complete - ready for the next platform milestone",
 		Features: featureFlags{
 			SystemMetrics: true,
 			AppProbes:     true,
-			Alerting:      false,
+			Alerting:      true,
 		},
-		Refresh: snapshot,
+		Refresh:  snapshot,
+		Alerting: a.buildAlertingResponse(),
 	})
 }
 
@@ -296,9 +380,10 @@ func (a *App) handleHealth(writer http.ResponseWriter, request *http.Request) {
 		Status:         "ok",
 		Service:        "atlas-metrics",
 		Version:        a.config.Version,
-		CompletedPhase: "25.4",
-		NextPhase:      "25.5 alert rules + webhook dispatcher",
+		CompletedPhase: "25.5",
+		NextPhase:      "Phase 25 complete - ready for the next platform milestone",
 		Refresh:        snapshot,
+		Alerting:       a.buildAlertingResponse(),
 	})
 }
 
@@ -307,7 +392,48 @@ func (a *App) handleMetrics(writer http.ResponseWriter, request *http.Request) {
 	promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}).ServeHTTP(writer, request)
 }
 
+func (a *App) handleAlertRules(writer http.ResponseWriter, _ *http.Request) {
+	var ruleConfig any
+	if a.ruleSet != nil {
+		ruleConfig = a.ruleSet.Config
+	}
+
+	writeJSON(writer, http.StatusOK, map[string]any{
+		"rulesPath":   a.config.AlertRulesPath,
+		"rulesLoaded": a.ruleSet != nil && a.rulesLoadError == "",
+		"loadError":   a.rulesLoadError,
+		"config":      ruleConfig,
+	})
+}
+
+func (a *App) handleActiveAlerts(writer http.ResponseWriter, request *http.Request) {
+	a.refresh(request.Context())
+	writeJSON(writer, http.StatusOK, a.buildAlertingResponse())
+}
+
+func (a *App) handleDispatchAlerts(writer http.ResponseWriter, request *http.Request) {
+	snapshot := a.refreshWithoutDispatch(request.Context())
+	activeAlerts := a.copyActiveAlerts()
+	dispatchResult := a.dispatcher.Process(request.Context(), activeAlerts, true)
+	a.recordDispatchMetrics(dispatchResult)
+	a.setLastDispatch(dispatchResult)
+
+	writeJSON(writer, http.StatusOK, map[string]any{
+		"refresh":      snapshot,
+		"activeAlerts": activeAlerts,
+		"dispatch":     dispatchResult,
+	})
+}
+
 func (a *App) refresh(ctx context.Context) refreshSnapshot {
+	return a.refreshWithDispatch(ctx, true)
+}
+
+func (a *App) refreshWithoutDispatch(ctx context.Context) refreshSnapshot {
+	return a.refreshWithDispatch(ctx, false)
+}
+
+func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSnapshot {
 	a.refreshMu.Lock()
 	defer a.refreshMu.Unlock()
 
@@ -378,6 +504,7 @@ func (a *App) refresh(ctx context.Context) refreshSnapshot {
 	a.metrics.lastRefreshDuration.Set(snapshot.RefreshDurationSecs)
 
 	a.snapshot = snapshot
+	a.evaluateAlerts(snapshot, dispatch)
 	return snapshot
 }
 
@@ -431,6 +558,131 @@ func (a *App) instrument(route string, next http.Handler) http.Handler {
 		a.metrics.httpRequestsTotal.WithLabelValues(route, request.Method).Inc()
 		next.ServeHTTP(writer, request)
 	})
+}
+
+func (a *App) evaluateAlerts(snapshot refreshSnapshot, dispatch bool) {
+	if a.ruleSet == nil {
+		a.activeAlerts = nil
+		return
+	}
+
+	evaluatedAlerts := a.ruleSet.Evaluate(alerts.Snapshot{
+		LastRefreshSuccess: snapshot.LastRefreshSuccess,
+		LastRefreshedUTC:   snapshot.LastRefreshedUTC,
+		System: alerts.SystemSnapshot{
+			CPUPercent:        snapshot.System.CPUPercent,
+			MemoryUsedBytes:   snapshot.System.MemoryUsedBytes,
+			MemoryTotalBytes:  snapshot.System.MemoryTotalBytes,
+			MemoryUsedPercent: snapshot.System.MemoryUsedPercent,
+			DiskPath:          snapshot.System.DiskPath,
+			DiskUsedBytes:     snapshot.System.DiskUsedBytes,
+			DiskTotalBytes:    snapshot.System.DiskTotalBytes,
+			DiskUsedPercent:   snapshot.System.DiskUsedPercent,
+		},
+		Probes: convertProbes(snapshot.Probes),
+		Errors: snapshot.Errors,
+	}, time.Now().UTC())
+
+	for _, rule := range a.ruleSet.Rules {
+		a.metrics.alertRuleActive.WithLabelValues(rule.ID, rule.Severity).Set(0)
+	}
+
+	for _, activeAlert := range evaluatedAlerts {
+		a.metrics.alertRuleActive.WithLabelValues(activeAlert.ID, activeAlert.Severity).Set(1)
+	}
+
+	a.activeAlerts = evaluatedAlerts
+	if !dispatch {
+		return
+	}
+
+	dispatchResult := a.dispatcher.Process(context.Background(), evaluatedAlerts, false)
+	a.recordDispatchMetrics(dispatchResult)
+	a.lastDispatch = dispatchResult
+}
+
+func (a *App) recordDispatchMetrics(dispatchResult alerts.DispatchResult) {
+	webhook := dispatchResult.WebhookURL
+	if webhook == "" {
+		webhook = "disabled"
+	}
+
+	if !dispatchResult.Attempted {
+		a.metrics.alertDispatchStatus.WithLabelValues(webhook).Set(0)
+		return
+	}
+
+	if dispatchResult.Delivered {
+		a.metrics.alertDispatchTotal.WithLabelValues("success").Inc()
+		a.metrics.alertDispatchStatus.WithLabelValues(webhook).Set(1)
+		return
+	}
+
+	a.metrics.alertDispatchTotal.WithLabelValues("failure").Inc()
+	a.metrics.alertDispatchStatus.WithLabelValues(webhook).Set(0)
+}
+
+func (a *App) buildAlertingResponse() alertingResponse {
+	rulesVersion := 0
+	ruleCount := 0
+	activeAlerts := a.copyActiveAlerts()
+	lastDispatch := a.copyLastDispatch()
+	if a.ruleSet != nil {
+		rulesVersion = a.ruleSet.Config.Version
+		ruleCount = len(a.ruleSet.Rules)
+	}
+
+	return alertingResponse{
+		RulesPath:      a.config.AlertRulesPath,
+		RulesVersion:   rulesVersion,
+		RulesLoaded:    a.ruleSet != nil && a.rulesLoadError == "",
+		RuleCount:      ruleCount,
+		WebhookEnabled: a.dispatcher.Enabled(),
+		WebhookURL:     a.config.AlertWebhookURL,
+		LoadError:      a.rulesLoadError,
+		ActiveAlerts:   activeAlerts,
+		LastDispatch:   lastDispatch,
+	}
+}
+
+func convertProbes(probes []probeResult) []alerts.ProbeSnapshot {
+	converted := make([]alerts.ProbeSnapshot, 0, len(probes))
+	for _, probe := range probes {
+		converted = append(converted, alerts.ProbeSnapshot{
+			Name:           probe.Name,
+			URL:            probe.URL,
+			Up:             probe.Up,
+			StatusCode:     probe.StatusCode,
+			LatencySeconds: probe.LatencySeconds,
+			Error:          probe.Error,
+			LastCheckedUTC: probe.LastCheckedUTC,
+		})
+	}
+
+	return converted
+}
+
+func (a *App) copyActiveAlerts() []alerts.EvaluatedAlert {
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+
+	return append([]alerts.EvaluatedAlert(nil), a.activeAlerts...)
+}
+
+func (a *App) copyLastDispatch() alerts.DispatchResult {
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+
+	dispatchResult := a.lastDispatch
+	dispatchResult.Alerts = append([]alerts.WebhookAlert(nil), a.lastDispatch.Alerts...)
+	return dispatchResult
+}
+
+func (a *App) setLastDispatch(dispatchResult alerts.DispatchResult) {
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+
+	a.lastDispatch = dispatchResult
 }
 
 func writeJSON(writer http.ResponseWriter, statusCode int, payload any) {

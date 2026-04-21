@@ -1,0 +1,90 @@
+version: 1
+defaults:
+  severity: warning
+  cooldown: 10m
+rules:
+  - id: core-service-down
+    summary: Core service health check is failing
+    description: The Core platform health endpoint is unavailable or returning a failing status.
+    severity: critical
+    cooldown: 2m
+    labels:
+      service: core
+      scope: dependency
+    condition:
+      kind: service_down
+      service: core
+
+  - id: content-service-down
+    summary: Content service health check is failing
+    description: The Content engine health endpoint is unavailable or returning a failing status.
+    severity: critical
+    cooldown: 2m
+    labels:
+      service: content
+      scope: dependency
+    condition:
+      kind: service_down
+      service: content
+
+  - id: intel-service-down
+    summary: Intel service health check is failing
+    description: The Intelligence API health endpoint is unavailable or returning a failing status.
+    severity: critical
+    cooldown: 2m
+    labels:
+      service: intel
+      scope: dependency
+    condition:
+      kind: service_down
+      service: intel
+
+  - id: high-cpu
+    summary: Host CPU usage is elevated
+    description: atlas-metrics observed sustained CPU usage above the warning threshold.
+    severity: warning
+    cooldown: 10m
+    labels:
+      metric: cpu
+      scope: system
+    condition:
+      kind: system_above
+      metric: cpu_percent
+      threshold: 85
+
+  - id: high-memory
+    summary: Host memory usage is elevated
+    description: atlas-metrics observed memory pressure above the warning threshold.
+    severity: warning
+    cooldown: 10m
+    labels:
+      metric: memory
+      scope: system
+    condition:
+      kind: system_above
+      metric: memory_used_percent
+      threshold: 85
+
+  - id: high-disk
+    summary: Host disk usage is elevated
+    description: atlas-metrics observed disk pressure above the warning threshold.
+    severity: warning
+    cooldown: 15m
+    labels:
+      metric: disk
+      scope: system
+    condition:
+      kind: system_above
+      metric: disk_used_percent
+      threshold: 90
+
+  - id: refresh-failed
+    summary: atlas-metrics refresh failed
+    description: The latest metrics refresh could not fully collect system data or dependency status.
+    severity: critical
+    cooldown: 5m
+    labels:
+      metric: refresh
+      scope: service
+    condition:
+      kind: refresh_failed
