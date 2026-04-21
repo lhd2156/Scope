@@ -21,6 +21,7 @@
         {{ spot.city ?? 'Atlas spot' }}
         <span v-if="spot.rating">· ★ {{ spot.rating.toFixed(1) }}</span>
       </small>
+      <small v-if="distanceLabel" class="spot-marker__distance">{{ distanceLabel }}</small>
     </span>
   </button>
 </template>
@@ -36,11 +37,13 @@ const props = withDefaults(
     active?: boolean;
     variant?: 'default' | 'sequence';
     sequence?: number | null;
+    distanceLabel?: string | null;
   }>(),
   {
     active: false,
     variant: 'default',
     sequence: null,
+    distanceLabel: null,
   },
 );
 
@@ -118,6 +121,11 @@ const iconName = computed(() => (props.spot.category === 'other' ? 'pin' : props
 .spot-marker__label small {
   margin-top: var(--space-1);
   color: var(--text-secondary);
+}
+
+.spot-marker__distance {
+  color: var(--accent-teal);
+  font-weight: var(--font-weight-semibold);
 }
 
 .spot-marker__sequence {

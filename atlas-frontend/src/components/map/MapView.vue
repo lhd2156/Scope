@@ -110,11 +110,18 @@
 import { createApp, computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { App as VueApp, ComponentPublicInstance } from 'vue';
 import type mapboxgl from 'mapbox-gl';
+import ClusterMarker from '@/components/map/ClusterMarker.vue';
 import MapControls from '@/components/map/MapControls.vue';
 import LocationTracker from '@/components/map/LocationTracker.vue';
 import RouteLayer from '@/components/map/RouteLayer.vue';
 import SpotMarker from '@/components/map/SpotMarker.vue';
 import { loadMapboxRuntime } from '@/services/mapboxLoader';
+import {
+  calculateHaversineDistance,
+  clusterViewportPoints,
+  preloadAtlasWasmRuntime,
+  type AtlasWasmViewport,
+} from '@/services/wasmService';
 import { useMapStore } from '@/stores/map';
 import type { MapPoint, SpotCategory, UserLocation } from '@/types';
 
@@ -129,6 +136,31 @@ interface MarkerController {
   app: VueApp<Element>;
   marker: mapboxgl.Marker;
 }
+
+interface DistanceOrigin {
+  id: string;
+  latitude: number;
+  longitude: number;
+  mode: 'selected' | 'user';
+}
+
+interface SpotMarkerModel {
+  kind: 'spot';
+  id: string;
+  spot: MapPoint;
+  distanceLabel: string | null;
+}
+
+interface ClusterMarkerModel {
+  kind: 'cluster';
+  id: string;
+  latitude: number;
+  longitude: number;
+  pointCount: number;
+  pointIds: string[];
+}
+
+type ViewportMarkerModel = SpotMarkerModel | ClusterMarkerModel;
 
 interface FallbackMarker {
   id: string;
@@ -151,6 +183,8 @@ const FALLBACK_VIEWPORT = {
   width: 1200,
   height: 900,
 };
+const LIVE_CLUSTER_RADIUS_PX = 72;
+const LIVE_CLUSTER_MIN_POINTS = 2;
 
 const fallbackTerrainPaths = [
   'M 54 142 C 148 74 298 56 422 118 C 534 176 586 292 560 384 C 526 510 380 562 268 618 C 198 652 146 734 88 712 C 30 690 38 590 26 484 C 16 390 -18 198 54 142 Z',
@@ -241,10 +275,12 @@ const mapStyle = ref(mapStore.viewport.style);
 
 let themeObserver: MutationObserver | null = null;
 let syncingViewport = false;
+let markerRenderVersion = 0;
+let cachedVisibleSpotIds: string[] = [];
 
 function handleWindowResize() {
   map.value?.resize();
-  updateVisibleSpotIds();
+  void renderSpotMarkers();
 }
 
 const selectedSpotId = computed(() => props.selectedSpotId ?? mapStore.selectedSpotId);
@@ -435,19 +471,200 @@ function syncViewportFromMap() {
   syncingViewport = false;
 }
 
-function updateVisibleSpotIds() {
-  const instance = map.value;
-  if (!instance || !hasToken) {
-    mapStore.setVisibleSpotIds(filteredSpots.value.map((spot) => spot.id));
-    return;
+function setVisibleSpotIds(spotIds: string[]) {
+  cachedVisibleSpotIds = [...new Set(spotIds)];
+  mapStore.setVisibleSpotIds(cachedVisibleSpotIds);
+}
+
+function getVisibleSpotsFromBounds(instance: mapboxgl.Map): MapPoint[] {
+  const bounds = instance.getBounds();
+  return filteredSpots.value.filter((spot) => bounds.contains([spot.longitude, spot.latitude]));
+}
+
+function buildViewport(instance: mapboxgl.Map): AtlasWasmViewport | null {
+  const container = mapContainer.value ?? instance.getContainer();
+  const width = container?.clientWidth ?? 0;
+  const height = container?.clientHeight ?? 0;
+  if (width <= 0 || height <= 0) {
+    return null;
   }
 
   const bounds = instance.getBounds();
-  const visibleIds = filteredSpots.value
-    .filter((spot) => bounds.contains([spot.longitude, spot.latitude]))
-    .map((spot) => spot.id);
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+    width,
+    height,
+    zoom: Number(instance.getZoom().toFixed(2)),
+  };
+}
 
-  mapStore.setVisibleSpotIds(visibleIds);
+function getDistanceOrigin(): DistanceOrigin | null {
+  if (mapStore.userLocation) {
+    return {
+      id: 'user-location',
+      latitude: mapStore.userLocation[1],
+      longitude: mapStore.userLocation[0],
+      mode: 'user',
+    };
+  }
+
+  const activeSpot = selectedSpotId.value
+    ? props.spots.find((spot) => spot.id === selectedSpotId.value) ?? null
+    : null;
+
+  if (!activeSpot) {
+    return null;
+  }
+
+  return {
+    id: activeSpot.id,
+    latitude: activeSpot.latitude,
+    longitude: activeSpot.longitude,
+    mode: 'selected',
+  };
+}
+
+function formatDistanceLabel(
+  miles: number,
+  meters: number,
+  originMode: DistanceOrigin['mode'],
+): string | null {
+  if (miles <= 0.01) {
+    return null;
+  }
+
+  if (miles >= 0.15) {
+    const milesValue = miles >= 10 ? Math.round(miles).toString() : miles.toFixed(1).replace(/\.0$/, '');
+    return originMode === 'user' ? `${milesValue} mi away` : `${milesValue} mi from selected`;
+  }
+
+  const roundedMeters = Math.max(25, Math.round(meters / 25) * 25);
+  return originMode === 'user' ? `${roundedMeters} m away` : `${roundedMeters} m from selected`;
+}
+
+async function resolveDistanceLabels(spots: MapPoint[]): Promise<Map<string, string>> {
+  const origin = getDistanceOrigin();
+  if (!origin) {
+    return new Map();
+  }
+
+  const distanceEntries = await Promise.all(spots.map(async (spot) => {
+    if (spot.id === origin.id) {
+      return null;
+    }
+
+    const distance = await calculateHaversineDistance(origin, spot);
+    if (!distance.valid) {
+      return null;
+    }
+
+    const label = formatDistanceLabel(distance.miles, distance.meters, origin.mode);
+    return label ? [spot.id, label] as const : null;
+  }));
+
+  return new Map(
+    distanceEntries.filter((entry): entry is readonly [string, string] => Boolean(entry)),
+  );
+}
+
+function buildSpotMarkerModels(spots: MapPoint[], distanceLabels: Map<string, string>): SpotMarkerModel[] {
+  return spots.map((spot) => ({
+    kind: 'spot',
+    id: spot.id,
+    spot,
+    distanceLabel: distanceLabels.get(spot.id) ?? null,
+  }));
+}
+
+async function buildViewportMarkerModels(instance: mapboxgl.Map): Promise<{
+  markers: ViewportMarkerModel[];
+  visibleSpotIds: string[];
+}> {
+  const visibleSpots = getVisibleSpotsFromBounds(instance);
+  const fallbackVisibleIds = visibleSpots.map((spot) => spot.id);
+
+  if (!visibleSpots.length) {
+    return {
+      markers: [],
+      visibleSpotIds: [],
+    };
+  }
+
+  if (props.markerVariant === 'sequence') {
+    const distanceLabels = await resolveDistanceLabels(visibleSpots);
+    return {
+      markers: buildSpotMarkerModels(visibleSpots, distanceLabels),
+      visibleSpotIds: fallbackVisibleIds,
+    };
+  }
+
+  const viewport = buildViewport(instance);
+  if (!viewport) {
+    const distanceLabels = await resolveDistanceLabels(visibleSpots);
+    return {
+      markers: buildSpotMarkerModels(visibleSpots, distanceLabels),
+      visibleSpotIds: fallbackVisibleIds,
+    };
+  }
+
+  const clusteredEntries = await clusterViewportPoints(filteredSpots.value, viewport, {
+    radiusPx: LIVE_CLUSTER_RADIUS_PX,
+    minPoints: LIVE_CLUSTER_MIN_POINTS,
+    includeSingles: true,
+  });
+
+  const spotLookup = new Map(filteredSpots.value.map((spot) => [spot.id, spot]));
+  const singletonSpots = clusteredEntries
+    .filter((entry) => !entry.clustered)
+    .map((entry) => spotLookup.get(entry.pointIds[0]) ?? null)
+    .filter((spot): spot is MapPoint => Boolean(spot));
+  const distanceLabels = await resolveDistanceLabels(singletonSpots);
+
+  return {
+    markers: clusteredEntries.flatMap<ViewportMarkerModel>((entry) => {
+      if (!entry.clustered) {
+        const spot = spotLookup.get(entry.pointIds[0]);
+        if (!spot) {
+          return [];
+        }
+
+        return [{
+          kind: 'spot',
+          id: spot.id,
+          spot,
+          distanceLabel: distanceLabels.get(spot.id) ?? null,
+        }];
+      }
+
+      return [{
+        kind: 'cluster',
+        id: entry.id,
+        latitude: entry.latitude,
+        longitude: entry.longitude,
+        pointCount: entry.pointCount,
+        pointIds: [...entry.pointIds],
+      }];
+    }),
+    visibleSpotIds: clusteredEntries.flatMap((entry) => entry.pointIds),
+  };
+}
+
+function updateVisibleSpotIds() {
+  const instance = map.value;
+  if (!instance || !hasToken) {
+    setVisibleSpotIds(filteredSpots.value.map((spot) => spot.id));
+    return;
+  }
+
+  if (cachedVisibleSpotIds.length || !filteredSpots.value.length) {
+    mapStore.setVisibleSpotIds(cachedVisibleSpotIds);
+    return;
+  }
+
+  setVisibleSpotIds(getVisibleSpotsFromBounds(instance).map((spot) => spot.id));
 }
 
 function clearSpotMarkers() {
@@ -472,39 +689,76 @@ function handleFallbackMarkerSelect(markerId: string) {
   handleSpotSelect(fallbackSpot);
 }
 
-function renderSpotMarkers() {
-  clearSpotMarkers();
+function handleClusterSelect(pointIds: string[]) {
+  emit('interaction', { type: 'cluster_focus' });
+  const pointIdsSet = new Set(pointIds);
+  fitToPoints(filteredSpots.value.filter((spot) => pointIdsSet.has(spot.id)));
+}
 
+async function renderSpotMarkers() {
+  const renderVersion = ++markerRenderVersion;
+  cachedVisibleSpotIds = [];
   const instance = map.value;
   const runtime = mapboxRuntime.value;
   if (!instance || !runtime || !hasToken) {
+    clearSpotMarkers();
     updateVisibleSpotIds();
     return;
   }
 
-  filteredSpots.value.forEach((spot) => {
+  let nextMarkers: ViewportMarkerModel[] = [];
+  let nextVisibleSpotIds: string[] = [];
+
+  try {
+    const markerState = await buildViewportMarkerModels(instance);
+    nextMarkers = markerState.markers;
+    nextVisibleSpotIds = markerState.visibleSpotIds;
+  } catch {
+    const fallbackVisibleSpots = getVisibleSpotsFromBounds(instance);
+    const distanceLabels = await resolveDistanceLabels(fallbackVisibleSpots);
+    nextMarkers = buildSpotMarkerModels(fallbackVisibleSpots, distanceLabels);
+    nextVisibleSpotIds = fallbackVisibleSpots.map((spot) => spot.id);
+  }
+
+  if (renderVersion !== markerRenderVersion) {
+    return;
+  }
+
+  clearSpotMarkers();
+  setVisibleSpotIds(nextVisibleSpotIds);
+
+  nextMarkers.forEach((markerModel) => {
     const mountTarget = document.createElement('div');
-    const app = createApp(SpotMarker, {
-      spot,
-      active: selectedSpotId.value === spot.id,
-      variant: props.markerVariant,
-      sequence: routeOrderLookup.value.get(spot.id) ?? null,
-      onSelect: () => handleSpotSelect(spot),
-    });
+    const app = markerModel.kind === 'spot'
+      ? createApp(SpotMarker, {
+        spot: markerModel.spot,
+        active: selectedSpotId.value === markerModel.id,
+        variant: props.markerVariant,
+        sequence: routeOrderLookup.value.get(markerModel.id) ?? null,
+        distanceLabel: markerModel.distanceLabel,
+        onSelect: () => handleSpotSelect(markerModel.spot),
+      })
+      : createApp(ClusterMarker, {
+        pointCount: markerModel.pointCount,
+        dataTestId: `map-cluster-marker-${markerModel.id}`,
+        onSelect: () => handleClusterSelect(markerModel.pointIds),
+      });
 
     app.mount(mountTarget);
 
     const marker = new runtime.Marker({
       element: mountTarget,
-      anchor: 'bottom',
+      anchor: markerModel.kind === 'spot' ? 'bottom' : 'center',
     })
-      .setLngLat([spot.longitude, spot.latitude])
+      .setLngLat(
+        markerModel.kind === 'spot'
+          ? [markerModel.spot.longitude, markerModel.spot.latitude]
+          : [markerModel.longitude, markerModel.latitude],
+      )
       .addTo(instance);
 
-    markerControllers.set(spot.id, { id: spot.id, app, marker });
+    markerControllers.set(markerModel.id, { id: markerModel.id, app, marker });
   });
-
-  updateVisibleSpotIds();
 }
 
 function fitToPoints(points: MapPoint[]) {
@@ -596,6 +850,8 @@ function handleLocationUpdate(location: UserLocation) {
     centerOnLocation(location);
     shouldCenterOnNextFix.value = false;
   }
+
+  void renderSpotMarkers();
 }
 
 function syncThemeToMap() {
@@ -644,12 +900,11 @@ async function setupMap() {
   });
 
   instance.on('load', () => {
-    renderSpotMarkers();
-    updateVisibleSpotIds();
+    void renderSpotMarkers();
   });
   instance.on('moveend', () => {
     syncViewportFromMap();
-    updateVisibleSpotIds();
+    void renderSpotMarkers();
   });
   instance.on('idle', updateVisibleSpotIds);
 
@@ -667,14 +922,14 @@ watch(
 );
 
 watch(
-  () => filteredSpots.value.map((spot) => spot.id),
+  () => filteredSpots.value.map((spot) => `${spot.id}:${spot.latitude}:${spot.longitude}`),
   () => {
     if (!filteredSpots.value.some((spot) => spot.id === selectedSpotId.value)) {
       mapStore.setSelectedSpotId(filteredSpots.value[0]?.id ?? null);
     }
 
     nextTick(() => {
-      renderSpotMarkers();
+      void renderSpotMarkers();
     });
   },
   { immediate: true },
@@ -684,7 +939,7 @@ watch(
   () => selectedSpotId.value,
   (nextSelectedSpotId, previousSelectedSpotId) => {
     if (!nextSelectedSpotId) {
-      renderSpotMarkers();
+      void renderSpotMarkers();
       return;
     }
 
@@ -698,7 +953,7 @@ watch(
       }
     }
 
-    renderSpotMarkers();
+    void renderSpotMarkers();
   },
 );
 
@@ -744,6 +999,9 @@ watch(
 );
 
 onMounted(() => {
+  if (hasToken) {
+    void preloadAtlasWasmRuntime();
+  }
   void setupMap();
   themeObserver = new MutationObserver(syncThemeToMap);
   themeObserver.observe(document.documentElement, {
@@ -754,6 +1012,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  markerRenderVersion += 1;
+  cachedVisibleSpotIds = [];
   themeObserver?.disconnect();
   themeObserver = null;
   window.removeEventListener('resize', handleWindowResize);
