@@ -24,6 +24,9 @@ from trips.serializers import (
 producer = AtlasKafkaProducer()
 
 
+def load_trip_with_relations(trip_id):
+    return with_trip_relations(Trip.objects.filter(pk=trip_id)).get()
+
 
 def can_manage_trip(user, trip):
     if not getattr(user, 'is_authenticated', False):
@@ -106,7 +109,7 @@ def add_trip_spot(request, pk):
         },
     )
     invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
-    return data_response(TripSerializer(trip).data, status_code=201 if created else 200)
+    return data_response(TripSerializer(load_trip_with_relations(trip.id)).data, status_code=201 if created else 200)
 
 
 @api_view(['DELETE'])
@@ -128,13 +131,28 @@ def reorder_trip_spots(request, pk):
         raise PermissionDenied
     serializer = TripReorderSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    for index, spot_data in enumerate(serializer.validated_data['spots']):
-        TripSpot.objects.filter(trip=trip, spot_id=spot_data['spotId']).update(
-            sort_order=spot_data.get('sortOrder', index),
-            day_number=spot_data.get('dayNumber'),
+    requested_spot_ids = [spot_data['spotId'] for spot_data in serializer.validated_data['spots']]
+    trip_spots_by_spot_id = {
+        trip_spot.spot_id: trip_spot
+        for trip_spot in TripSpot.objects.filter(trip=trip, spot_id__in=requested_spot_ids).only(
+            'id',
+            'spot_id',
+            'day_number',
+            'sort_order',
         )
+    }
+    trip_spots_to_update = []
+    for index, spot_data in enumerate(serializer.validated_data['spots']):
+        trip_spot = trip_spots_by_spot_id.get(spot_data['spotId'])
+        if trip_spot is None:
+            continue
+        trip_spot.sort_order = spot_data.get('sortOrder', index)
+        trip_spot.day_number = spot_data.get('dayNumber')
+        trip_spots_to_update.append(trip_spot)
+    if trip_spots_to_update:
+        TripSpot.objects.bulk_update(trip_spots_to_update, ['sort_order', 'day_number'])
     invalidate_cache_namespaces(FEED_CACHE_NAMESPACE)
-    return data_response(TripSerializer(trip).data)
+    return data_response(TripSerializer(load_trip_with_relations(trip.id)).data)
 
 
 @api_view(['GET', 'POST'])

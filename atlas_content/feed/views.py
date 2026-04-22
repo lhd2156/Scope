@@ -27,7 +27,7 @@ def social_feed(request):
     def build_response():
         items = FeedAggregator().social_feed_queryset(getattr(getattr(request, 'user', None), 'id', None))
         normalized: list[FeedEntry] = []
-        for item in sorted(items, key=lambda current: current.created_at, reverse=True):
+        for item in items:
             if item.__class__.__name__ == 'Spot':
                 normalized.append(FeedEntry(type='spot', created_at=item.created_at, item=item))
             else:
