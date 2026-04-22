@@ -41,7 +41,7 @@ builder.Services.AddDbContext<CoreDbContext>(options =>
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-builder.Services.AddScoped<IKafkaProducerService, KafkaProducerService>();
+builder.Services.AddSingleton<IKafkaProducerService, KafkaProducerService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 var secret = builder.Configuration["CORE_JWT_SECRET"] ?? "development-secret-development-secret";

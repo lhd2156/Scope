@@ -55,21 +55,49 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
     }
 }
 
-public sealed class KafkaProducerService(IConfiguration configuration, ILogger<KafkaProducerService> logger) : IKafkaProducerService
+public sealed class KafkaProducerService : IKafkaProducerService, IDisposable
 {
+    private readonly string? bootstrapServers;
+    private readonly ILogger<KafkaProducerService> logger;
+    private readonly Lazy<IProducer<string, string>?> producer;
+
+    public KafkaProducerService(IConfiguration configuration, ILogger<KafkaProducerService> logger)
+    {
+        this.logger = logger;
+        bootstrapServers = configuration["KAFKA_BOOTSTRAP_SERVERS"];
+        producer = new Lazy<IProducer<string, string>?>(BuildProducer, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
     public async Task PublishAsync(string topic, object payload, CancellationToken cancellationToken = default)
     {
-        var bootstrap = configuration["KAFKA_BOOTSTRAP_SERVERS"];
-        if (string.IsNullOrWhiteSpace(bootstrap))
+        var activeProducer = producer.Value;
+        if (activeProducer is null)
         {
             logger.LogInformation("Kafka bootstrap not configured; skipped topic {Topic}", topic);
             return;
         }
 
-        using var producer = new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = bootstrap }).Build();
         var body = JsonSerializer.Serialize(payload);
-        await producer.ProduceAsync(topic, new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = body }, cancellationToken);
+        await activeProducer.ProduceAsync(topic, new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = body }, cancellationToken);
         logger.LogInformation("Produced Kafka event to {Topic}", topic);
+    }
+
+    public void Dispose()
+    {
+        if (producer.IsValueCreated)
+        {
+            producer.Value?.Dispose();
+        }
+    }
+
+    private IProducer<string, string>? BuildProducer()
+    {
+        if (string.IsNullOrWhiteSpace(bootstrapServers))
+        {
+            return null;
+        }
+
+        return new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = bootstrapServers }).Build();
     }
 }
 

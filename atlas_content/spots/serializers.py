@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
-
 from rest_framework import serializers
 
 from spots.models import Spot
@@ -194,14 +193,64 @@ class NearbyQuerySerializer(serializers.Serializer):
         radius = self.validated_data['radius']
         ids = []
 
-        for spot in queryset:
-            distance = 6371 * 2 * asin(
-                sqrt(
-                    sin(radians(spot.latitude - lat) / 2) ** 2
-                    + cos(radians(lat)) * cos(radians(spot.latitude)) * sin(radians(spot.longitude - lng) / 2) ** 2
-                )
-            )
+        candidate_queryset = self._apply_bounding_box(queryset, lat, lng, radius)
+
+        for spot in candidate_queryset.only('id', 'latitude', 'longitude'):
+            distance = self._distance_km(lat, lng, spot.latitude, spot.longitude)
             if distance <= radius:
                 ids.append(spot.id)
 
+        if not ids:
+            return queryset.none()
+
         return queryset.filter(id__in=ids)
+
+    @staticmethod
+    def _distance_km(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
+        return 6371 * 2 * asin(
+            sqrt(
+                sin(radians(lat_b - lat_a) / 2) ** 2
+                + cos(radians(lat_a)) * cos(radians(lat_b)) * sin(radians(lng_b - lng_a) / 2) ** 2
+            )
+        )
+
+    def _apply_bounding_box(self, queryset, lat: float, lng: float, radius: float):
+        latitude_delta = self._latitude_delta(radius)
+        bounded_queryset = queryset.filter(
+            latitude__gte=max(-90, lat - latitude_delta),
+            latitude__lte=min(90, lat + latitude_delta),
+        )
+
+        longitude_bounds = self._longitude_bounds(lat, lng, radius)
+        if longitude_bounds is None:
+            return bounded_queryset
+
+        min_lng, max_lng = longitude_bounds
+        if min_lng <= max_lng:
+            return bounded_queryset.filter(longitude__gte=min_lng, longitude__lte=max_lng)
+
+        return bounded_queryset.filter(longitude__gte=min_lng) | bounded_queryset.filter(longitude__lte=max_lng)
+
+    @staticmethod
+    def _latitude_delta(radius_km: float) -> float:
+        return radius_km / 111.0
+
+    @staticmethod
+    def _longitude_bounds(lat: float, lng: float, radius_km: float) -> tuple[float, float] | None:
+        cosine_latitude = cos(radians(lat))
+        if abs(cosine_latitude) < 1e-12:
+            return None
+
+        longitude_delta = radius_km / (111.320 * cosine_latitude)
+        if longitude_delta >= 180:
+            return None
+
+        min_lng = lng - longitude_delta
+        max_lng = lng + longitude_delta
+
+        if min_lng < -180:
+            min_lng += 360
+        if max_lng > 180:
+            max_lng -= 360
+
+        return min_lng, max_lng
