@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from app.ml.model_loader import MlModelLoader, ml_model_loader
@@ -16,6 +17,15 @@ GEO_PROXIMITY_DISTANCE_CAP_KM = 25.0
 NATIVE_R_TREE_NODE_CAPACITY = 8
 
 
+@dataclass(slots=True)
+class SpotSimilarityIndex:
+    signature: tuple[Spot, ...]
+    spots: list[Spot]
+    model: Any
+    matrix: Any
+    spot_index_by_id: dict[str, int]
+
+
 class RecommendationEngine:
     def __init__(
         self,
@@ -26,18 +36,17 @@ class RecommendationEngine:
         self.content_client = content_client
         self.model_loader = model_loader
         self.native_geo = native_geo_module if native_geo_module is not None else get_native_geo()
+        self._spot_similarity_index: SpotSimilarityIndex | None = None
 
     def recommend_spots(self, user_id: str, liked_spot_ids: list[str], interests: list[str], limit: int) -> list[dict]:
-        spots = self.content_client.get_all_spots()
-        documents = [f"{spot.description} {spot.category} {spot.vibe}" for spot in spots]
-        model = self.model_loader.build_text_similarity_model()
-        matrix = model.fit_transform(documents)
+        similarity_index = self._get_spot_similarity_index()
+        spots = similarity_index.spots
         liked_spots = [spot for spot in spots if spot.spot_id in liked_spot_ids]
         liked_spot_likers = self._likers_for_spots(spots, liked_spot_ids)
         location_bonus_by_spot_id = self._location_bonus_by_spot_id(spots, liked_spots)
         user_profile = " ".join(interests + [spot.vibe for spot in liked_spots]) or "adventure culture food"
-        user_vector = model.transform([user_profile])
-        similarities = model.cosine_similarity(user_vector, matrix)[0]
+        user_vector = similarity_index.model.transform([user_profile])
+        similarities = similarity_index.model.cosine_similarity(user_vector, similarity_index.matrix)[0]
         recommendations = []
 
         for index, spot in enumerate(spots):
@@ -71,15 +80,17 @@ class RecommendationEngine:
         return sorted(filtered, key=lambda item: item["score"], reverse=True)[:limit]
 
     def similar_spots(self, spot_id: str, limit: int = 5) -> list[dict]:
-        spots = self.content_client.get_all_spots()
-        source = self.content_client.get_spot(spot_id)
-        if source is None:
+        similarity_index = self._get_spot_similarity_index()
+        spots = similarity_index.spots
+        source_index = similarity_index.spot_index_by_id.get(spot_id)
+        if source_index is None:
             return []
 
-        model = self.model_loader.build_text_similarity_model()
-        matrix = model.fit_transform([f"{spot.description} {spot.category} {spot.vibe}" for spot in spots])
-        source_index = next(index for index, spot in enumerate(spots) if spot.spot_id == spot_id)
-        similarities = model.cosine_similarity(matrix[source_index], matrix)[0]
+        source = spots[source_index]
+        similarities = similarity_index.model.cosine_similarity(
+            similarity_index.matrix[source_index],
+            similarity_index.matrix,
+        )[0]
         similar = []
 
         for index, candidate in enumerate(spots):
@@ -103,6 +114,23 @@ class RecommendationEngine:
             )
 
         return sorted(similar, key=lambda item: item["score"], reverse=True)[:limit]
+
+    def _get_spot_similarity_index(self) -> SpotSimilarityIndex:
+        spots = self.content_client.get_all_spots()
+        signature = tuple(spots)
+        if self._spot_similarity_index is not None and self._spot_similarity_index.signature == signature:
+            return self._spot_similarity_index
+
+        model = self.model_loader.build_text_similarity_model()
+        matrix = model.fit_transform([f"{spot.description} {spot.category} {spot.vibe}" for spot in spots])
+        self._spot_similarity_index = SpotSimilarityIndex(
+            signature=signature,
+            spots=spots,
+            model=model,
+            matrix=matrix,
+            spot_index_by_id={spot.spot_id: index for index, spot in enumerate(spots)},
+        )
+        return self._spot_similarity_index
 
     def _location_bonus_by_spot_id(self, spots: list[Spot], reference_spots: list[Spot]) -> dict[str, float]:
         if self.native_geo is None or not reference_spots:

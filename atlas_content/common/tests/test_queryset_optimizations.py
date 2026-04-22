@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
+from feed.services.feed_aggregator import FeedAggregator, FeedReference
 from photos.models import Photo
 from reviews.models import Review
 from spots.models import Spot
@@ -54,7 +55,7 @@ def test_explore_spots_prefetches_photo_urls_without_n_plus_one(api_client):
     assert response.status_code == 200
     assert response.json()['meta']['total'] == 4
     assert len(response.json()['data']) == 4
-    assert len(queries) <= 4
+    assert len(queries) <= 3
 
 
 
@@ -160,6 +161,43 @@ def test_social_feed_prefetches_related_spot_and_trip_data(authenticated_client,
     assert len(response.json()['data']) == 7
     assert {item['type'] for item in response.json()['data']} == {'spot', 'trip'}
     assert len(queries) <= 6
+
+
+def test_feed_aggregator_hydrates_only_the_current_page(monkeypatch):
+    aggregator = FeedAggregator()
+    now = datetime(2026, 4, 22, 12, 0, tzinfo=timezone.utc)
+    spot_references = [
+        FeedReference(type='spot', item_id=f'spot-{index}', created_at=now - timedelta(minutes=index * 2))
+        for index in range(15)
+    ]
+    trip_references = [
+        FeedReference(type='trip', item_id=f'trip-{index}', created_at=now - timedelta(minutes=index * 2 + 1))
+        for index in range(15)
+    ]
+    hydrated_spot_ids = []
+    hydrated_trip_ids = []
+
+    monkeypatch.setattr(aggregator, '_load_spot_references', lambda cursor, limit: spot_references[:limit])
+    monkeypatch.setattr(aggregator, '_load_trip_references', lambda cursor, limit: trip_references[:limit])
+
+    def fake_hydrate_spots(spot_ids):
+        hydrated_spot_ids.extend(spot_ids)
+        return {spot_id: {'kind': 'spot', 'id': spot_id} for spot_id in spot_ids}
+
+    def fake_hydrate_trips(trip_ids):
+        hydrated_trip_ids.extend(trip_ids)
+        return {trip_id: {'kind': 'trip', 'id': trip_id} for trip_id in trip_ids}
+
+    monkeypatch.setattr(aggregator, '_hydrate_spots', fake_hydrate_spots)
+    monkeypatch.setattr(aggregator, '_hydrate_trips', fake_hydrate_trips)
+
+    page = aggregator.social_feed_page(page_size=20)
+
+    assert len(page.entries) == 20
+    assert page.has_more is True
+    assert len(hydrated_spot_ids) == 10
+    assert len(hydrated_trip_ids) == 10
+    assert [entry.type for entry in page.entries[:4]] == ['spot', 'trip', 'spot', 'trip']
 
 
 def test_spot_photos_endpoint_reads_only_the_list_payload_fields(api_client, spot):

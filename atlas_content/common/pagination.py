@@ -33,8 +33,7 @@ class FeedCursorPagination:
         self.next_cursor: str | None = None
         self.previous_cursor: str | None = None
 
-    def paginate_queryset(self, items, request):
-        ordered_items = sorted(list(items), key=lambda item: item.created_at, reverse=True)
+    def parse_cursor(self, request):
         cursor = request.query_params.get(self.cursor_query_param)
 
         if cursor:
@@ -42,13 +41,23 @@ class FeedCursorPagination:
                 cursor_position = datetime.fromisoformat(cursor)
             except ValueError as exc:
                 raise ValidationError({'cursor': 'Cursor must be a valid ISO-8601 timestamp'}) from exc
-            ordered_items = [item for item in ordered_items if item.created_at < cursor_position]
             self.previous_cursor = cursor
-        else:
-            self.previous_cursor = None
+            return cursor_position
+
+        self.previous_cursor = None
+        return None
+
+    def set_page_state(self, page, has_more: bool):
+        self.next_cursor = page[-1].created_at.isoformat() if has_more and page else None
+
+    def paginate_queryset(self, items, request):
+        ordered_items = sorted(list(items), key=lambda item: item.created_at, reverse=True)
+        cursor_position = self.parse_cursor(request)
+        if cursor_position is not None:
+            ordered_items = [item for item in ordered_items if item.created_at < cursor_position]
 
         page = ordered_items[: self.page_size]
-        self.next_cursor = page[-1].created_at.isoformat() if len(ordered_items) > self.page_size and page else None
+        self.set_page_state(page, len(ordered_items) > self.page_size)
         return page
 
     def get_paginated_response(self, data):
