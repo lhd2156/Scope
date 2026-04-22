@@ -15,6 +15,7 @@ type Config struct {
 	Port                string
 	Version             string
 	HealthTimeout       time.Duration
+	RefreshInterval     time.Duration
 	AlertRulesPath      string
 	AlertWebhookURL     string
 	AlertWebhookToken   string
@@ -25,24 +26,15 @@ type Config struct {
 }
 
 func Load() Config {
-	timeoutSeconds, err := strconv.ParseFloat(getEnv("ATLAS_HEALTH_TIMEOUT_SECONDS", "5"), 64)
-	if err != nil || timeoutSeconds <= 0 {
-		timeoutSeconds = 5
-	}
-
-	webhookTimeoutSeconds, err := strconv.ParseFloat(getEnv("ATLAS_ALERT_WEBHOOK_TIMEOUT_SECONDS", "5"), 64)
-	if err != nil || webhookTimeoutSeconds <= 0 {
-		webhookTimeoutSeconds = 5
-	}
-
 	return Config{
 		Port:                getEnv("ATLAS_METRICS_PORT", "9090"),
 		Version:             getEnv("ATLAS_METRICS_VERSION", "0.1.0"),
-		HealthTimeout:       time.Duration(timeoutSeconds * float64(time.Second)),
+		HealthTimeout:       loadPositiveDuration("ATLAS_HEALTH_TIMEOUT_SECONDS", 5),
+		RefreshInterval:     loadPositiveDuration("ATLAS_REFRESH_INTERVAL_SECONDS", 5),
 		AlertRulesPath:      getEnv("ATLAS_ALERT_RULES_FILE", "config/alert-rules.yaml"),
 		AlertWebhookURL:     getEnv("ATLAS_ALERT_WEBHOOK_URL", ""),
 		AlertWebhookToken:   getEnv("ATLAS_ALERT_WEBHOOK_BEARER_TOKEN", ""),
-		AlertWebhookTimeout: time.Duration(webhookTimeoutSeconds * float64(time.Second)),
+		AlertWebhookTimeout: loadPositiveDuration("ATLAS_ALERT_WEBHOOK_TIMEOUT_SECONDS", 5),
 		AlertSource:         getEnv("ATLAS_ALERT_SOURCE", "atlas-metrics"),
 		DiskPath:            getEnv("ATLAS_METRICS_DISK_PATH", "."),
 		Targets: []Target{
@@ -73,4 +65,13 @@ func getEnv(key string, fallback string) string {
 	}
 
 	return value
+}
+
+func loadPositiveDuration(key string, fallbackSeconds float64) time.Duration {
+	seconds, err := strconv.ParseFloat(getEnv(key, strconv.FormatFloat(fallbackSeconds, 'f', -1, 64)), 64)
+	if err != nil || seconds <= 0 {
+		seconds = fallbackSeconds
+	}
+
+	return time.Duration(seconds * float64(time.Second))
 }
