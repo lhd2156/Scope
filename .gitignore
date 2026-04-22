@@ -52,6 +52,7 @@ Thumbs.db
 .mssql/
 .kafka/
 .zookeeper/
+atlas_intel/instance/
 
 # Python virtual environments
 .venv/

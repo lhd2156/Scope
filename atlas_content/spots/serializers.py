@@ -6,12 +6,21 @@ from rest_framework import serializers
 
 from spots.models import Spot
 
+ANNOTATED_PHOTO_FIELDS = ('list_photo_storage_url', 'list_photo_thumbnail_url')
+ANNOTATED_FIELDS_MISSING = object()
+
 
 def _ordered_prefetched_related(obj, relation_name: str, ordering: tuple[str, ...]):
     prefetched = getattr(obj, '_prefetched_objects_cache', {}).get(relation_name)
     if prefetched is not None:
         return list(prefetched)
     return list(getattr(obj, relation_name).order_by(*ordering))
+
+
+def _annotated_photo_urls(obj):
+    if not any(hasattr(obj, field_name) for field_name in ANNOTATED_PHOTO_FIELDS):
+        return ANNOTATED_FIELDS_MISSING
+    return getattr(obj, 'list_photo_storage_url', None), getattr(obj, 'list_photo_thumbnail_url', None)
 
 
 class SpotSerializer(serializers.ModelSerializer):
@@ -105,6 +114,10 @@ class SpotSerializer(serializers.ModelSerializer):
         return value
 
     def get_photo_url(self, obj):
+        annotated_photo_urls = _annotated_photo_urls(obj)
+        if annotated_photo_urls is not ANNOTATED_FIELDS_MISSING:
+            storage_url, _ = annotated_photo_urls
+            return storage_url
         photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         first = photos[0] if photos else None
         return first.storage_url if first else None
@@ -160,6 +173,10 @@ class AppendixBSpotListItemSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_photoUrl(obj) -> str | None:
+        annotated_photo_urls = _annotated_photo_urls(obj)
+        if annotated_photo_urls is not ANNOTATED_FIELDS_MISSING:
+            storage_url, thumbnail_url = annotated_photo_urls
+            return thumbnail_url or storage_url
         photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         first = photos[0] if photos else None
         if first is None:

@@ -82,6 +82,18 @@ def test_recommendation_engine_uses_model_loader_for_similarity_model():
     assert recommendations[0]["spotId"] == "spot-1"
 
 
+def test_recommendation_engine_reuses_cached_similarity_index_across_calls():
+    loader = FakeLoader()
+    engine = RecommendationEngine(FakeContentClient(), loader)
+
+    recommendations = engine.recommend_spots("user-1", ["spot-2"], ["outdoors"], 1)
+    similar = engine.similar_spots("spot-1", 1)
+
+    assert loader.build_calls == 1
+    assert recommendations[0]["spotId"] == "spot-1"
+    assert similar[0]["spotId"] == "spot-2"
+
+
 def test_vibe_matcher_uses_model_loader_for_similarity_model():
     loader = FakeLoader()
     matcher = VibeMatcher(FakeContentClient(), loader)
