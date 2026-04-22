@@ -160,3 +160,60 @@ def test_social_feed_prefetches_related_spot_and_trip_data(authenticated_client,
     assert len(response.json()['data']) == 7
     assert {item['type'] for item in response.json()['data']} == {'spot', 'trip'}
     assert len(queries) <= 6
+
+
+def test_spot_photos_endpoint_reads_only_the_list_payload_fields(api_client, spot):
+    for index in range(3):
+        Photo.objects.create(
+            spot=spot,
+            user_id=spot.user_id,
+            storage_key=f'photos/list-{index}.png',
+            storage_url=f'https://example.com/photos/list-{index}.png',
+            thumbnail_url=f'https://example.com/photos/list-{index}_thumb.png',
+            caption=f'List {index}',
+            sort_order=index,
+        )
+
+    with CaptureQueriesContext(connection) as queries:
+        response = api_client.get(f'/api/content/spots/{spot.id}/photos')
+
+    assert response.status_code == 200
+    assert [item['caption'] for item in response.json()['data']] == ['List 0', 'List 1', 'List 2']
+    assert len(queries) <= 1
+
+
+def test_reorder_trip_spots_updates_in_bulk_and_serializes_prefetched_relations(authenticated_client, auth_header, trip):
+    _, owner_user_id = auth_header
+    spots = [
+        Spot.objects.create(
+            user_id=owner_user_id,
+            title=f'Reorder Spot {index}',
+            latitude=32.8 + index * 0.01,
+            longitude=-97.3 - index * 0.01,
+            category='food',
+        )
+        for index in range(3)
+    ]
+    for index, spot in enumerate(spots):
+        TripSpot.objects.create(trip=trip, spot=spot, day_number=1, sort_order=index)
+
+    with CaptureQueriesContext(connection) as queries:
+        response = authenticated_client.put(
+            f'/api/content/trips/{trip.id}/spots/reorder',
+            {
+                'spots': [
+                    {'spotId': str(spots[0].id), 'sortOrder': 2, 'dayNumber': 2},
+                    {'spotId': str(spots[1].id), 'sortOrder': 1, 'dayNumber': 2},
+                    {'spotId': str(spots[2].id), 'sortOrder': 0, 'dayNumber': 2},
+                ]
+            },
+            format='json',
+        )
+
+    assert response.status_code == 200
+    assert [item['spot_title'] for item in response.json()['data']['spots']] == [
+        'Reorder Spot 2',
+        'Reorder Spot 1',
+        'Reorder Spot 0',
+    ]
+    assert len(queries) <= 8

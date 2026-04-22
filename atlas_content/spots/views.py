@@ -189,8 +189,14 @@ def like_spot(request, pk):
 @api_view(['GET'])
 def spot_photos(request, pk):
     def build_response():
-        photos = Photo.objects.filter(spot_id=pk).order_by('sort_order', 'created_at')
-        return data_response([{'id': str(photo.id), 'storageUrl': photo.storage_url, 'caption': photo.caption} for photo in photos])
+        photos = (
+            Photo.objects.filter(spot_id=pk)
+            .order_by('sort_order', 'created_at')
+            .values('id', 'storage_url', 'caption')
+        )
+        return data_response(
+            [{'id': str(photo['id']), 'storageUrl': photo['storage_url'], 'caption': photo['caption']} for photo in photos]
+        )
 
     return cached_api_response(
         request,
