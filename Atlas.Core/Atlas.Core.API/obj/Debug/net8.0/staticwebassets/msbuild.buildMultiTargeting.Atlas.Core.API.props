@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\Atlas.Core.API.props" />
-</Project>

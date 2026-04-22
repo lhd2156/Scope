@@ -11,6 +11,10 @@ node_modules/
 dist/
 build/
 out/
+bin/
+obj/
+**/bin/
+**/obj/
 coverage/
 artifacts/
 TestResults/
