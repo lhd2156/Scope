@@ -36,6 +36,9 @@ type App struct {
 	snapshotCapturedAt time.Time
 	activeAlerts       []alerts.EvaluatedAlert
 	lastDispatch       alerts.DispatchResult
+	refreshInFlight    bool
+	refreshWait        chan struct{}
+	refreshDispatch    bool
 }
 
 type featureFlags struct {
@@ -72,6 +75,11 @@ type refreshSnapshot struct {
 	System              systemSnapshot `json:"system"`
 	Probes              []probeResult  `json:"probes"`
 	Errors              []string       `json:"errors,omitempty"`
+}
+
+type refreshResult struct {
+	snapshot    refreshSnapshot
+	completedAt time.Time
 }
 
 type indexResponse struct {
@@ -440,12 +448,62 @@ func (a *App) refreshWithoutDispatch(ctx context.Context) refreshSnapshot {
 
 func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSnapshot {
 	a.refreshMu.Lock()
-	defer a.refreshMu.Unlock()
 
 	if a.shouldReuseSnapshot(time.Now().UTC()) {
-		return cloneRefreshSnapshot(a.snapshot)
+		snapshot := cloneRefreshSnapshot(a.snapshot)
+		a.refreshMu.Unlock()
+		return snapshot
 	}
 
+	if a.refreshInFlight {
+		if dispatch {
+			a.refreshDispatch = true
+		}
+		wait := a.refreshWait
+		a.refreshMu.Unlock()
+		if wait != nil {
+			select {
+			case <-wait:
+			case <-ctx.Done():
+			}
+		}
+		a.refreshMu.Lock()
+		snapshot := cloneRefreshSnapshot(a.snapshot)
+		a.refreshMu.Unlock()
+		return snapshot
+	}
+
+	a.refreshInFlight = true
+	a.refreshDispatch = dispatch
+	a.refreshWait = make(chan struct{})
+	wait := a.refreshWait
+	a.refreshMu.Unlock()
+
+	result := a.collectRefreshSnapshot(ctx)
+
+	a.refreshMu.Lock()
+	snapshot := result.snapshot
+	a.snapshot = snapshot
+	a.snapshotCapturedAt = result.completedAt
+	a.evaluateAlerts(snapshot, a.refreshDispatch)
+	a.refreshInFlight = false
+	a.refreshDispatch = false
+	a.refreshWait = nil
+	close(wait)
+	a.refreshMu.Unlock()
+
+	return cloneRefreshSnapshot(snapshot)
+}
+
+func (a *App) shouldReuseSnapshot(now time.Time) bool {
+	if a.snapshotCapturedAt.IsZero() {
+		return false
+	}
+
+	return now.Sub(a.snapshotCapturedAt) < a.config.RefreshInterval
+}
+
+func (a *App) collectRefreshSnapshot(ctx context.Context) refreshResult {
 	startedAt := time.Now()
 	snapshot := refreshSnapshot{
 		Probes: make([]probeResult, 0, len(a.config.Targets)),
@@ -512,18 +570,10 @@ func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSna
 	a.metrics.lastRefreshTime.Set(float64(completedAt.Unix()))
 	a.metrics.lastRefreshDuration.Set(snapshot.RefreshDurationSecs)
 
-	a.snapshot = snapshot
-	a.snapshotCapturedAt = completedAt
-	a.evaluateAlerts(snapshot, dispatch)
-	return cloneRefreshSnapshot(snapshot)
-}
-
-func (a *App) shouldReuseSnapshot(now time.Time) bool {
-	if a.snapshotCapturedAt.IsZero() {
-		return false
+	return refreshResult{
+		snapshot:    snapshot,
+		completedAt: completedAt,
 	}
-
-	return now.Sub(a.snapshotCapturedAt) < a.config.RefreshInterval
 }
 
 func (a *App) probeTargets(ctx context.Context) []probeResult {

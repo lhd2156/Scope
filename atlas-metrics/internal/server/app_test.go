@@ -1,12 +1,14 @@
 package server
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -313,6 +315,125 @@ func TestHealthRouteRefreshesAgainAfterRefreshIntervalExpires(t *testing.T) {
 
 	if hitCount.Load() < 2 {
 		t.Fatalf("expected refresh to run again after interval expiry, got %d probe hits", hitCount.Load())
+	}
+}
+
+func TestConcurrentHealthRequestsShareSingleRefresh(t *testing.T) {
+	t.Parallel()
+
+	var hitCount atomic.Int32
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hitCount.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		writer.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{
+		{Name: "core", URL: targetServer.URL},
+	})
+	cfg.RefreshInterval = 0
+
+	app := New(cfg)
+	handler := app.Handler()
+	start := make(chan struct{})
+	errCh := make(chan error, 3)
+	var waitGroup sync.WaitGroup
+
+	for index := 0; index < 3; index++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+
+			request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				errCh <- context.Canceled
+			}
+		}()
+	}
+
+	close(start)
+	waitGroup.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("expected concurrent request to return 200, got %v", err)
+		}
+	}
+
+	if hitCount.Load() != 1 {
+		t.Fatalf("expected concurrent refreshes to share a single probe cycle, got %d hits", hitCount.Load())
+	}
+}
+
+func TestWaitingRefreshCanPromoteDispatch(t *testing.T) {
+	t.Parallel()
+
+	var webhookCount atomic.Int32
+	requestBodies := make(chan string, 2)
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		webhookCount.Add(1)
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("read webhook body: %v", err)
+		}
+
+		requestBodies <- string(body)
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer webhookServer.Close()
+
+	probeStarted := make(chan struct{})
+	var probeSignal atomic.Bool
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		if probeSignal.CompareAndSwap(false, true) {
+			close(probeStarted)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+		writer.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{
+		{Name: "core", URL: targetServer.URL},
+	})
+	cfg.AlertWebhookURL = webhookServer.URL
+	cfg.RefreshInterval = time.Hour
+
+	app := New(cfg)
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		_ = app.refreshWithoutDispatch(context.Background())
+	}()
+
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for refresh probe to start")
+	}
+
+	_ = app.refresh(context.Background())
+	<-firstDone
+
+	if webhookCount.Load() != 1 {
+		t.Fatalf("expected waiting refresh to trigger exactly one dispatch, got %d", webhookCount.Load())
+	}
+
+	select {
+	case body := <-requestBodies:
+		for _, expected := range []string{"core-service-down", "\"status\":\"firing\""} {
+			if !strings.Contains(body, expected) {
+				t.Fatalf("expected webhook payload to contain %q, got %s", expected, body)
+			}
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for promoted dispatch payload")
 	}
 }
 
