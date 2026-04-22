@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -244,6 +245,77 @@ collectBodies:
 	}
 }
 
+func TestHealthRouteReusesCachedRefreshWithinRefreshInterval(t *testing.T) {
+	t.Parallel()
+
+	var hitCount atomic.Int32
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hitCount.Add(1)
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{
+		{Name: "core", URL: targetServer.URL},
+	})
+	cfg.RefreshInterval = time.Hour
+
+	app := New(cfg)
+	handler := app.Handler()
+
+	for index := 0; index < 2; index++ {
+		request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", recorder.Code)
+		}
+	}
+
+	if hitCount.Load() != 1 {
+		t.Fatalf("expected probe target to be hit exactly once within refresh interval, got %d", hitCount.Load())
+	}
+}
+
+func TestHealthRouteRefreshesAgainAfterRefreshIntervalExpires(t *testing.T) {
+	t.Parallel()
+
+	var hitCount atomic.Int32
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hitCount.Add(1)
+		writer.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{
+		{Name: "core", URL: targetServer.URL},
+	})
+	cfg.RefreshInterval = 20 * time.Millisecond
+
+	app := New(cfg)
+	handler := app.Handler()
+
+	firstRequest := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	firstRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(firstRecorder, firstRequest)
+
+	time.Sleep(40 * time.Millisecond)
+
+	secondRequest := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	secondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(secondRecorder, secondRequest)
+
+	if firstRecorder.Code != http.StatusOK || secondRecorder.Code != http.StatusOK {
+		t.Fatalf("expected both requests to return 200, got %d and %d", firstRecorder.Code, secondRecorder.Code)
+	}
+
+	if hitCount.Load() < 2 {
+		t.Fatalf("expected refresh to run again after interval expiry, got %d probe hits", hitCount.Load())
+	}
+}
+
 func newTestConfig(t *testing.T, targets []config.Target) config.Config {
 	t.Helper()
 
@@ -280,6 +352,7 @@ rules:
 		Port:                "9090",
 		Version:             "0.1.0-test",
 		HealthTimeout:       time.Second,
+		RefreshInterval:     5 * time.Second,
 		AlertRulesPath:      rulesPath,
 		AlertWebhookTimeout: time.Second,
 		AlertSource:         "atlas-metrics-test",

@@ -24,16 +24,18 @@ type App struct {
 	config         config.Config
 	httpClient     *http.Client
 	registry       *prometheus.Registry
+	metricsHandler http.Handler
 	startedAtUTC   time.Time
 	metrics        metricsSet
 	ruleSet        *alerts.RuleSet
 	dispatcher     *alerts.Dispatcher
 	rulesLoadError string
 
-	refreshMu    sync.Mutex
-	snapshot     refreshSnapshot
-	activeAlerts []alerts.EvaluatedAlert
-	lastDispatch alerts.DispatchResult
+	refreshMu          sync.Mutex
+	snapshot           refreshSnapshot
+	snapshotCapturedAt time.Time
+	activeAlerts       []alerts.EvaluatedAlert
+	lastDispatch       alerts.DispatchResult
 }
 
 type featureFlags struct {
@@ -327,16 +329,19 @@ func New(cfg config.Config) *App {
 		loadError = rulesLoadError.Error()
 	}
 
-	return &App{
+	app := &App{
 		config:         cfg,
 		httpClient:     &http.Client{Timeout: cfg.HealthTimeout},
 		registry:       registry,
+		metricsHandler: promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
 		startedAtUTC:   startedAtUTC,
 		metrics:        metrics,
 		ruleSet:        ruleSet,
 		dispatcher:     dispatcher,
 		rulesLoadError: loadError,
 	}
+
+	return app
 }
 
 func (a *App) Handler() http.Handler {
@@ -389,7 +394,7 @@ func (a *App) handleHealth(writer http.ResponseWriter, request *http.Request) {
 
 func (a *App) handleMetrics(writer http.ResponseWriter, request *http.Request) {
 	a.refresh(request.Context())
-	promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}).ServeHTTP(writer, request)
+	a.metricsHandler.ServeHTTP(writer, request)
 }
 
 func (a *App) handleAlertRules(writer http.ResponseWriter, _ *http.Request) {
@@ -437,6 +442,10 @@ func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSna
 	a.refreshMu.Lock()
 	defer a.refreshMu.Unlock()
 
+	if a.shouldReuseSnapshot(time.Now().UTC()) {
+		return cloneRefreshSnapshot(a.snapshot)
+	}
+
 	startedAt := time.Now()
 	snapshot := refreshSnapshot{
 		Probes: make([]probeResult, 0, len(a.config.Targets)),
@@ -481,16 +490,16 @@ func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSna
 		a.metrics.systemDiskPercent.WithLabelValues(a.config.DiskPath).Set(diskUsage.UsedPercent)
 	}
 
-	for _, target := range a.config.Targets {
-		result := a.probeTarget(ctx, target)
+	for _, result := range a.probeTargets(ctx) {
 		snapshot.Probes = append(snapshot.Probes, result)
 		if !result.Up {
 			refreshSucceeded = false
 		}
 	}
 
+	completedAt := time.Now().UTC()
 	snapshot.LastRefreshSuccess = refreshSucceeded
-	snapshot.LastRefreshedUTC = time.Now().UTC().Format(time.RFC3339)
+	snapshot.LastRefreshedUTC = completedAt.Format(time.RFC3339)
 	snapshot.RefreshDurationSecs = time.Since(startedAt).Seconds()
 
 	if refreshSucceeded {
@@ -500,12 +509,38 @@ func (a *App) refreshWithDispatch(ctx context.Context, dispatch bool) refreshSna
 		a.metrics.refreshTotal.WithLabelValues("failure").Inc()
 		a.metrics.lastRefreshSuccess.Set(0)
 	}
-	a.metrics.lastRefreshTime.Set(float64(time.Now().UTC().Unix()))
+	a.metrics.lastRefreshTime.Set(float64(completedAt.Unix()))
 	a.metrics.lastRefreshDuration.Set(snapshot.RefreshDurationSecs)
 
 	a.snapshot = snapshot
+	a.snapshotCapturedAt = completedAt
 	a.evaluateAlerts(snapshot, dispatch)
-	return snapshot
+	return cloneRefreshSnapshot(snapshot)
+}
+
+func (a *App) shouldReuseSnapshot(now time.Time) bool {
+	if a.snapshotCapturedAt.IsZero() {
+		return false
+	}
+
+	return now.Sub(a.snapshotCapturedAt) < a.config.RefreshInterval
+}
+
+func (a *App) probeTargets(ctx context.Context) []probeResult {
+	results := make([]probeResult, len(a.config.Targets))
+	var waitGroup sync.WaitGroup
+
+	for index, target := range a.config.Targets {
+		waitGroup.Add(1)
+
+		go func(index int, target config.Target) {
+			defer waitGroup.Done()
+			results[index] = a.probeTarget(ctx, target)
+		}(index, target)
+	}
+
+	waitGroup.Wait()
+	return results
 }
 
 func (a *App) probeTarget(ctx context.Context, target config.Target) probeResult {
@@ -660,6 +695,13 @@ func convertProbes(probes []probeResult) []alerts.ProbeSnapshot {
 	}
 
 	return converted
+}
+
+func cloneRefreshSnapshot(snapshot refreshSnapshot) refreshSnapshot {
+	cloned := snapshot
+	cloned.Probes = append([]probeResult(nil), snapshot.Probes...)
+	cloned.Errors = append([]string(nil), snapshot.Errors...)
+	return cloned
 }
 
 func (a *App) copyActiveAlerts() []alerts.EvaluatedAlert {
