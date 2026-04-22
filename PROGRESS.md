@@ -34,7 +34,7 @@
 All repository phases are complete.
 
 ## Last Updated
-2026-04-20
+2026-04-22
 
 ## Validation Snapshot
 - Core observability: `dotnet test Atlas.Core.sln`
@@ -47,3 +47,4 @@ All repository phases are complete.
 ## Notes
 - The codebase is complete at the repository phase level.
 - Real cloud deployment still requires an AWS account, credentials, remote-state bootstrap, and environment-specific secrets outside this workspace.
+- Local compose runtime validation and GitHub Actions CI/deploy validation were re-verified on 2026-04-21 after the latest platform fix pass.
