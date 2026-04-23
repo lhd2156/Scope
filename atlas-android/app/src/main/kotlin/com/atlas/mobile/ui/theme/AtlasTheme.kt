@@ -1,6 +1,5 @@
 package com.atlas.mobile.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -113,7 +112,7 @@ private val AtlasShapes = Shapes(
 
 @Composable
 fun AtlasTheme(
-    darkTheme: Boolean = isSystemInDarkTheme() || true, // Atlas ships dark-first.
+    darkTheme: Boolean = true, // Atlas ships dark-first; pass `isSystemInDarkTheme()` if you want system-aware theming.
     content: @Composable () -> Unit
 ) {
     MaterialTheme(

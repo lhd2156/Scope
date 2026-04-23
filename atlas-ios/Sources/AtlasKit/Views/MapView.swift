@@ -3,8 +3,9 @@ import SwiftUI
 import MapKit
 
 /// Map entry point. Uses MapKit as a dependency-free default so the package
-/// builds without Mapbox credentials; swap in MapLibre Native (or Mapbox iOS
-/// SDK when you have a token) by wrapping their `UIViewRepresentable` here.
+/// builds without Mapbox credentials; swap in MapLibre Native (or the Mapbox
+/// iOS SDK when you have a token) by wrapping their `UIViewRepresentable` or
+/// `NSViewRepresentable` here.
 public struct MapHomeView: View {
     @Environment(AtlasSession.self) private var session
     @State private var vm = SpotsViewModel()
@@ -18,10 +19,13 @@ public struct MapHomeView: View {
             ZStack(alignment: .top) {
                 Map(position: $camera, selection: $selected) {
                     ForEach(vm.spots) { spot in
-                        Marker(spot.title, systemImage: markerIcon(for: spot.category),
-                               coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude))
-                            .tint(Color(AtlasColor.badge(for: spot.category).foreground))
-                            .tag(spot)
+                        Marker(
+                            spot.title,
+                            systemImage: markerIcon(for: spot.category),
+                            coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude)
+                        )
+                        .tint(AtlasColor.badge(for: spot.category).foreground)
+                        .tag(spot)
                     }
                 }
                 .mapStyle(.standard(elevation: .realistic))
@@ -33,11 +37,15 @@ public struct MapHomeView: View {
             }
             .sheet(item: $selected) { spot in
                 NavigationStack { SpotDetailView(spot: spot) }
+                #if os(iOS)
                     .presentationDetents([.fraction(0.55), .large])
                     .presentationDragIndicator(.visible)
+                #endif
             }
             .navigationTitle("Map")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .task { await vm.load(using: session) }
         }
     }

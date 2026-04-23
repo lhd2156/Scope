@@ -203,6 +203,6 @@ public struct AtlasMeta: Decodable, Sendable {
     public let totalPages: Int?
 }
 
-public struct Empty: Decodable, Sendable {
+public struct Empty: Codable, Sendable {
     public init() {}
 }

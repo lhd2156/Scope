@@ -89,7 +89,7 @@ final class APIClientTests: XCTestCase {
 }
 
 final class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }

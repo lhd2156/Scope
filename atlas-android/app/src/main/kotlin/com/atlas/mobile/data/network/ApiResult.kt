@@ -1,7 +1,7 @@
 package com.atlas.mobile.data.network
 
-import okio.IOException
 import retrofit2.HttpException
+import java.io.IOException
 
 sealed class AtlasError : Throwable() {
     data class Transport(override val message: String) : AtlasError()
