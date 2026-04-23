@@ -47,6 +47,7 @@ fun MapScreen(
     val onOpen = rememberUpdatedState(onOpenSpot)
 
     DisposableEffect(mapView) {
+        mapView.onCreate(null)
         mapView.onStart()
         mapView.onResume()
         onDispose {

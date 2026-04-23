@@ -92,11 +92,13 @@ object NetworkModule {
     @Provides @Singleton
     fun provideTokenRefresher(lazyCore: Lazy<CoreApi>, store: TokenStore): TokenRefresher =
         TokenRefresher { refreshToken ->
-            runCatching {
+            try {
                 val payload = lazyCore.get().refresh(com.atlas.mobile.data.model.RefreshRequest(refreshToken))
                 store.save(payload.accessToken, payload.refreshToken)
                 com.atlas.mobile.data.network.AtlasTokens(payload.accessToken, payload.refreshToken)
-            }.getOrNull()
+            } catch (_: Throwable) {
+                null
+            }
         }
 
     @Provides @Singleton @Named("mapStyle")

@@ -148,7 +148,7 @@ fun SpotCard(spot: Spot, onClick: () -> Unit, compact: Boolean = false) {
                 color = AtlasTokens.TextMuted
             )
             spot.likeCount?.let {
-                Text("$it ❤", style = MaterialTheme.typography.labelSmall, color = AtlasTokens.TextMuted)
+                Text("$it likes", style = MaterialTheme.typography.labelSmall, color = AtlasTokens.TextMuted)
             }
         }
     }
