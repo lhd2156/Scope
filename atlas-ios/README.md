@@ -56,17 +56,26 @@ swift test
 
 ### In Xcode (running on simulator/device)
 
-1. Create a new Xcode project → iOS App → "Atlas" → SwiftUI interface.
-2. Delete the generated `ContentView.swift` and `AtlasApp.swift`.
-3. Add this package locally: **File → Add Packages → Add Local...** and pick
-   `atlas-ios/`.
-4. Drop `App/AtlasApp.swift` into the Xcode target.
-5. Set Info.plist keys:
-   - `ATLAS_CORE_BASE_URL` → e.g. `http://localhost:5080`
-   - `ATLAS_CONTENT_BASE_URL` → e.g. `http://localhost:8000`
-   - `ATLAS_INTEL_BASE_URL` → e.g. `http://localhost:5000`
-   - `NSAppTransportSecurity.NSAllowsLocalNetworking` → `YES` (for dev)
-6. Run.
+The Xcode project is generated from `project.yml` via
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) so it doesn't rot in git:
+
+```bash
+brew install xcodegen            # one-time
+cd atlas-ios
+xcodegen generate
+open Atlas.xcodeproj
+```
+
+This creates `Atlas.xcodeproj` (git-ignored) wired up with:
+
+- `App/AtlasApp.swift` as the `@main` entry point
+- `App/Info.plist` (ATS local-networking exception, location/camera/photo usage
+  descriptions, and the `ATLAS_*` runtime config keys)
+- A local SwiftPM dependency on `AtlasKit` (this folder)
+
+Pick the `Atlas` scheme, pick an iOS 17 simulator, hit ⌘R. The defaults in
+`Info.plist` expect Core on `:5080`, Content on `:8000`, and Intel on `:5000`;
+override by editing the plist or layering an `.xcconfig`.
 
 ## Environment
 
