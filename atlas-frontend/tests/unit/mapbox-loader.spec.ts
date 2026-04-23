@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_MAP_STYLE,
   getMapboxToken,
@@ -7,6 +7,16 @@ import {
 } from '@/services/mapboxLoader';
 
 describe('mapboxLoader helpers', () => {
+  beforeEach(() => {
+    // Isolate from any ambient VITE_MAPBOX_TOKEN (e.g. injected by the CI build env)
+    // so default-parameter fallbacks exercise the "no token configured" path.
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('normalizes configured token values', () => {
     expect(getMapboxToken('  pk.test-token  ')).toBe('pk.test-token');
     expect(getMapboxToken(undefined)).toBe('');
