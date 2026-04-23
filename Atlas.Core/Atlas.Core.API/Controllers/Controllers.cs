@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Atlas.Core.API.Contracts.Requests;
 using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Entities;
+using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
@@ -10,6 +11,20 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Atlas.Core.API.Controllers;
+
+internal static class ControllerUserContext
+{
+    public static Guid GetRequiredUserId(this ClaimsPrincipal user)
+    {
+        var rawUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
+        if (Guid.TryParse(rawUserId, out var userId))
+        {
+            return userId;
+        }
+
+        throw new UnauthorizedException("Missing user identity");
+    }
+}
 
 [ApiController]
 [Route("api/core/auth")]
@@ -42,7 +57,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
-        => Ok(new ApiResponse<object>(await authService.GetCurrentUserAsync(Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!), cancellationToken)));
+        => Ok(new ApiResponse<object>(await authService.GetCurrentUserAsync(User.GetRequiredUserId(), cancellationToken)));
 }
 
 [ApiController]
@@ -67,7 +82,7 @@ public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerSer
     [HttpPost("request/{userId:guid}")]
     public async Task<IActionResult> Request(Guid userId, CancellationToken cancellationToken)
     {
-        var requesterId = Guid.Parse(User.FindFirstValue("sub")!);
+        var requesterId = User.GetRequiredUserId();
         var friendship = new Friendship { Id = Guid.NewGuid(), RequesterId = requesterId, AddresseeId = userId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow };
         dbContext.Friendships.Add(friendship);
         dbContext.Notifications.Add(new Notification { Id = Guid.NewGuid(), UserId = userId, Type = "friend.request", Title = "New friend request", ReferenceId = friendship.Id.ToString(), CreatedAt = DateTimeOffset.UtcNow });
@@ -94,7 +109,7 @@ public sealed class NotificationsController(CoreDbContext dbContext) : Controlle
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
     {
-        var userId = Guid.Parse(User.FindFirstValue("sub")!);
+        var userId = User.GetRequiredUserId();
         var query = dbContext.Notifications.AsNoTracking().Where(x => x.UserId == userId).OrderByDescending(x => x.CreatedAt);
         var total = await query.CountAsync(cancellationToken);
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
@@ -110,7 +125,7 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
     [HttpPost("start/{tripId:guid}")]
     public async Task<IActionResult> Start(Guid tripId, CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(User.FindFirstValue("sub")!);
+        var userId = User.GetRequiredUserId();
         var session = new LiveSession { Id = Guid.NewGuid(), TripId = tripId, UserId = userId, Latitude = 0, Longitude = 0, IsActive = true, LastPingAt = DateTimeOffset.UtcNow };
         dbContext.LiveSessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -120,7 +135,7 @@ public sealed class LiveSessionController(CoreDbContext dbContext, IKafkaProduce
     [HttpPut("ping")]
     public async Task<IActionResult> Ping([FromBody] PingLocationRequest request, CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(User.FindFirstValue("sub")!);
+        var userId = User.GetRequiredUserId();
         var session = await dbContext.LiveSessions.FirstAsync(x => x.TripId == request.TripId && x.UserId == userId && x.IsActive, cancellationToken);
         session.Latitude = request.Latitude; session.Longitude = request.Longitude; session.LastPingAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
