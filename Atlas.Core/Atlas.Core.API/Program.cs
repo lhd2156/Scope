@@ -69,6 +69,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+    if (app.Environment.IsDevelopment())
+    {
+        dbContext.Database.EnsureCreated();
+    }
+}
+
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();

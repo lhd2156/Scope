@@ -25,13 +25,17 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         => Ok(new ApiResponse<object>(await authService.LoginAsync(request.Email, request.Password, cancellationToken)));
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, CancellationToken cancellationToken)
-        => Ok(new ApiResponse<object>(await authService.RefreshAsync(request.RefreshToken, cancellationToken)));
+    public async Task<IActionResult> Refresh([FromBody] RefreshRequest? request, CancellationToken cancellationToken)
+        => Ok(new ApiResponse<object>(await authService.RefreshAsync(request?.RefreshToken ?? string.Empty, cancellationToken)));
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest? request, CancellationToken cancellationToken)
     {
-        await authService.LogoutAsync(request.RefreshToken, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request?.RefreshToken))
+        {
+            await authService.LogoutAsync(request.RefreshToken, cancellationToken);
+        }
+
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
