@@ -115,7 +115,11 @@ import MapControls from '@/components/map/MapControls.vue';
 import LocationTracker from '@/components/map/LocationTracker.vue';
 import RouteLayer from '@/components/map/RouteLayer.vue';
 import SpotMarker from '@/components/map/SpotMarker.vue';
-import { loadMapboxRuntime } from '@/services/mapboxLoader';
+import {
+  hasMapboxToken,
+  loadConfiguredMapboxRuntime,
+  resolveMapboxStyle,
+} from '@/services/mapboxLoader';
 import {
   calculateHaversineDistance,
   clusterViewportPoints,
@@ -271,7 +275,7 @@ const userMarker = shallowRef<mapboxgl.Marker | null>(null);
 const hasInitialFit = ref(false);
 const shouldCenterOnNextFix = ref(false);
 const trackingState = ref<TrackingState>('idle');
-const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
+const hasToken = hasMapboxToken();
 const interactiveMapEnabled = hasToken && !isUiTestEnvironment();
 const mapStyle = ref(mapStore.viewport.style);
 
@@ -427,25 +431,8 @@ function resolveFallbackProjection(baseProjection: FallbackProjection, placedPro
   };
 }
 
-function resolveMapStyle(): string {
-  if (typeof window === 'undefined') {
-    return mapStore.viewport.style;
-  }
-
-  const tokenValue = getComputedStyle(document.documentElement).getPropertyValue('--map-style').trim();
-  return tokenValue || mapStore.viewport.style;
-}
-
 function handleTrackingState(nextState: TrackingState) {
   trackingState.value = nextState;
-}
-
-async function getMapboxRuntime() {
-  if (!mapboxRuntime.value) {
-    mapboxRuntime.value = await loadMapboxRuntime();
-  }
-
-  return mapboxRuntime.value;
 }
 
 function buildUserMarkerElement(): HTMLDivElement {
@@ -857,7 +844,7 @@ function handleLocationUpdate(location: UserLocation) {
 }
 
 function syncThemeToMap() {
-  mapStyle.value = resolveMapStyle();
+  mapStyle.value = resolveMapboxStyle(mapStore.viewport.style);
   mapStore.setStyle(mapStyle.value);
 
   if (map.value && interactiveMapEnabled && map.value.getStyle().sprite !== undefined) {
@@ -871,14 +858,14 @@ async function setupMap() {
     return;
   }
 
-  const runtime = await getMapboxRuntime();
+  const runtime = await loadConfiguredMapboxRuntime();
+  mapboxRuntime.value = runtime;
   if (!mapContainer.value || map.value) {
     updateVisibleSpotIds();
     return;
   }
 
-  runtime.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
-  mapStyle.value = resolveMapStyle();
+  mapStyle.value = resolveMapboxStyle(mapStore.viewport.style);
   mapStore.setStyle(mapStyle.value);
 
   const instance = new runtime.Map({

@@ -1,8 +1,7 @@
-using System.Security.Claims;
 using Atlas.Core.API.Contracts.Requests;
+using Atlas.Core.API.Infrastructure;
 using Atlas.Core.API.Middleware;
 using Atlas.Core.Domain.Entities;
-using Atlas.Core.Domain.Exceptions;
 using Atlas.Core.Domain.Interfaces;
 using Atlas.Core.Domain.Models;
 using Atlas.Core.Infrastructure.Data;
@@ -11,20 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Atlas.Core.API.Controllers;
-
-internal static class ControllerUserContext
-{
-    public static Guid GetRequiredUserId(this ClaimsPrincipal user)
-    {
-        var rawUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
-        if (Guid.TryParse(rawUserId, out var userId))
-        {
-            return userId;
-        }
-
-        throw new UnauthorizedException("Missing user identity");
-    }
-}
 
 [ApiController]
 [Route("api/core/auth")]
@@ -63,7 +48,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
 [ApiController]
 [Authorize]
 [Route("api/core/users")]
-public sealed class UsersController(CoreDbContext dbContext, IKafkaProducerService kafkaProducerService) : ControllerBase
+public sealed class UsersController(CoreDbContext dbContext) : ControllerBase
 {
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
@@ -80,7 +65,7 @@ public sealed class UsersController(CoreDbContext dbContext, IKafkaProducerServi
 public sealed class FriendsController(CoreDbContext dbContext, IKafkaProducerService kafkaProducerService) : ControllerBase
 {
     [HttpPost("request/{userId:guid}")]
-    public async Task<IActionResult> Request(Guid userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateRequest(Guid userId, CancellationToken cancellationToken)
     {
         var requesterId = User.GetRequiredUserId();
         var friendship = new Friendship { Id = Guid.NewGuid(), RequesterId = requesterId, AddresseeId = userId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow };

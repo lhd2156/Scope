@@ -3,6 +3,7 @@ import rawNotifications from '@/mock/notifications.json';
 import rawSpots from '@/mock/spots.json';
 import rawTrips from '@/mock/trips.json';
 import rawUsers from '@/mock/users.json';
+import { DEFAULT_MAP_STYLE } from '@/services/mapboxLoader';
 import type {
   FeedItem,
   Itinerary,
@@ -74,11 +75,10 @@ interface DemoFeedSeed extends Omit<FeedItem, 'actor' | 'imageUrl'> {
   photoUrl?: string | null;
 }
 
-const DEMO_MAP_STYLE = 'mapbox://styles/mapbox/dark-v11';
 const FALLBACK_DEMO_VIEWPORT: MapViewport = {
   center: [-97.7431, 30.2672],
   zoom: 5.6,
-  style: DEMO_MAP_STYLE,
+  style: DEFAULT_MAP_STYLE,
 };
 
 const seededUsers = (rawUsers as DemoUserFixture[]).map((user) => sanitizeUserProfile({ ...user }) as DemoUserFixture);

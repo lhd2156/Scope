@@ -1,3 +1,4 @@
+using Atlas.Core.API.Infrastructure;
 using Atlas.Core.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -20,7 +21,7 @@ public sealed class LocationHub(CoreDbContext dbContext) : Hub
 {
     public async Task ShareLocation(Guid tripId, double lat, double lng)
     {
-        var userId = Guid.Parse(Context.UserIdentifier ?? Context.User?.FindFirst("sub")?.Value!);
+        var userId = Context.GetRequiredUserId();
         var session = await dbContext.LiveSessions.FirstOrDefaultAsync(x => x.TripId == tripId && x.UserId == userId && x.IsActive);
         if (session is null) return;
         session.Latitude = lat;
@@ -30,7 +31,7 @@ public sealed class LocationHub(CoreDbContext dbContext) : Hub
         await Clients.Group($"trip:{tripId}").SendAsync("LocationShared", new { tripId, userId, lat, lng });
     }
 
-    public Task StopSharing(Guid tripId) => Clients.Group($"trip:{tripId}").SendAsync("LocationStopped", new { tripId, userId = Context.UserIdentifier });
+    public Task StopSharing(Guid tripId) => Clients.Group($"trip:{tripId}").SendAsync("LocationStopped", new { tripId, userId = Context.GetUserIdString() });
 }
 
 [Authorize]
@@ -38,7 +39,7 @@ public sealed class NotificationHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.UserIdentifier ?? Context.User?.FindFirst("sub")?.Value;
+        var userId = Context.GetUserIdString();
         if (!string.IsNullOrWhiteSpace(userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user:{userId}");

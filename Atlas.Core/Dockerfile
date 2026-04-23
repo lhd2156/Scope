@@ -1,8 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY . .
-RUN dotnet restore Atlas.Core.sln || true
-RUN dotnet publish Atlas.Core.API/Atlas.Core.API.csproj -c Release -o /app/publish || true
+RUN dotnet restore Atlas.Core.sln
+RUN dotnet publish Atlas.Core.API/Atlas.Core.API.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
