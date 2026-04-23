@@ -25,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.atlas.mobile.data.model.AtlasUser
 import com.atlas.mobile.ui.auth.AuthLandingScreen
 import com.atlas.mobile.ui.explore.ExploreScreen
 import com.atlas.mobile.ui.home.HomeScreen
@@ -51,12 +52,12 @@ fun AtlasRoot(sessionViewModel: SessionViewModel = hiltViewModel()) {
             CircularProgressIndicator()
         }
         !state.isAuthenticated -> AuthLandingScreen(onSignIn = sessionViewModel::signIn, onRegister = sessionViewModel::register, state = state)
-        else -> MainShell(onSignOut = sessionViewModel::signOut)
+        else -> MainShell(user = state.user, onSignOut = sessionViewModel::signOut)
     }
 }
 
 @Composable
-private fun MainShell(onSignOut: () -> Unit) {
+private fun MainShell(user: AtlasUser?, onSignOut: () -> Unit) {
     val controller = rememberNavController()
     val backStack by controller.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
@@ -104,7 +105,7 @@ private fun MainShell(onSignOut: () -> Unit) {
                 MapScreen(onOpenSpot = { controller.navigate(Routes.spotDetail(it)) })
             }
             composable(Routes.PROFILE) {
-                ProfileScreen(onSignOut = onSignOut)
+                ProfileScreen(user = user, onSignOut = onSignOut)
             }
             composable(Routes.SPOT_DETAIL) { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id") ?: return@composable

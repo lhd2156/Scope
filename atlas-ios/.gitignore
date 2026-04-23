@@ -7,6 +7,9 @@ DerivedData/
 .swiftpm/
 Package.resolved
 
+## XcodeGen-generated project — the source of truth is project.yml.
+Atlas.xcodeproj/
+
 ## macOS
 .DS_Store
 

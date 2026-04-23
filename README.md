@@ -25,7 +25,7 @@ This repository now includes:
 
 ## Architecture
 
-Atlas is a polyglot microservice system with six app surfaces:
+Atlas is a polyglot microservice system with eight app surfaces:
 
 | Service | Stack | Directory | Responsibility |
 |---|---|---|---|
@@ -35,6 +35,8 @@ Atlas is a polyglot microservice system with six app surfaces:
 | Metrics Agent | Go | `atlas-metrics/` | Prometheus exporter, dependency probes, alert rules |
 | CLI Toolkit | Rust | `atlas-cli/` | health checks, seeding, deploy validation, benchmarking |
 | Frontend | Vue 3 / TypeScript | `atlas-frontend/` | map UX, social/product UI, trip planning flows |
+| iOS Client | Swift 5.9 / SwiftUI + Observation | `atlas-ios/` | native iPhone / iPad app, MapKit, Keychain JWTs |
+| Android Client | Kotlin 2.0 / Jetpack Compose + Hilt | `atlas-android/` | native Android app, MapLibre, EncryptedSharedPreferences JWTs |
 
 Supporting infrastructure in-repo:
 
@@ -53,6 +55,8 @@ atlas_intel/         Intelligence backend (Flask)
 atlas-metrics/       Metrics exporter + alerting (Go)
 atlas-cli/           Ops toolkit (Rust)
 atlas-frontend/      Frontend (Vue + Vite)
+atlas-ios/           iOS client (Swift + SwiftUI + SwiftPM)
+atlas-android/       Android client (Kotlin + Jetpack Compose + Gradle)
 atlas-assets/        Design tokens, icons, mockups
 scripts/sql/         SQL schema + seed scripts
 docs/                Deployment/integration documentation
