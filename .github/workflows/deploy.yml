@@ -237,15 +237,15 @@ jobs:
       - name: Prepare Terraform plan artifact
         working-directory: terraform
         run: |
-          mkdir -p ../.terraform-artifacts
-          cp tfplan ../.terraform-artifacts/
-          cp tfplan.txt ../.terraform-artifacts/
+          mkdir -p ../terraform-artifacts
+          cp tfplan ../terraform-artifacts/
+          cp tfplan.txt ../terraform-artifacts/
 
       - name: Upload Terraform plan artifact
         uses: actions/upload-artifact@v4
         with:
           name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
-          path: .terraform-artifacts
+          path: terraform-artifacts
           if-no-files-found: error
 
   terraform-apply:
