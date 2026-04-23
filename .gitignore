@@ -53,6 +53,7 @@ Thumbs.db
 .kafka/
 .zookeeper/
 atlas_intel/instance/
+atlas_content/db.sqlite3
 
 # Python virtual environments
 .venv/
