@@ -279,7 +279,12 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 import type mapboxgl from 'mapbox-gl';
 import AtlasIcon from '@/components/common/AtlasIcon.vue';
-import { loadMapboxRuntime } from '@/services/mapboxLoader';
+import {
+  DEFAULT_MAP_STYLE,
+  hasMapboxToken,
+  loadConfiguredMapboxRuntime,
+  resolveMapboxStyle,
+} from '@/services/mapboxLoader';
 import type { Photo, SpotCategory, SpotFormInput, SpotFormSubmission, SpotPhotoUpload } from '@/types';
 import { isAtlasQaMode } from '@/utils/qaMode';
 import { isUiTestEnvironment, scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
@@ -323,9 +328,8 @@ const locationPresets: LocationPreset[] = [
 
 const mapContainer = ref<HTMLDivElement | null>(null);
 const map = shallowRef<mapboxgl.Map | null>(null);
-const mapboxRuntime = shallowRef<typeof mapboxgl | null>(null);
 const marker = shallowRef<mapboxgl.Marker | null>(null);
-const hasToken = Boolean((import.meta.env.VITE_MAPBOX_TOKEN ?? '').trim());
+const hasToken = hasMapboxToken();
 const isAtlasSpotQaMode = isAtlasQaMode();
 const interactiveMapAvailable = hasToken && !isUiTestEnvironment();
 const shouldAutoHydrateInteractiveMap = interactiveMapAvailable && !isAtlasSpotQaMode;
@@ -422,14 +426,6 @@ function resetFromProps(): void {
   syncMarkerWithForm(true);
 }
 
-async function getMapboxRuntime() {
-  if (!mapboxRuntime.value) {
-    mapboxRuntime.value = await loadMapboxRuntime();
-  }
-
-  return mapboxRuntime.value;
-}
-
 function buildMarkerElement(): HTMLDivElement {
   const element = document.createElement('div');
   element.setAttribute('aria-hidden', 'true');
@@ -440,14 +436,6 @@ function buildMarkerElement(): HTMLDivElement {
   element.style.background = 'var(--accent-teal)';
   element.style.boxShadow = '0 0 0 0.4rem var(--accent-teal-light)';
   return element;
-}
-
-function resolveMapStyle(): string {
-  if (typeof window === 'undefined') {
-    return 'mapbox://styles/mapbox/dark-v11';
-  }
-
-  return getComputedStyle(document.documentElement).getPropertyValue('--map-style').trim() || 'mapbox://styles/mapbox/dark-v11';
 }
 
 function setCoordinates(latitude: number, longitude: number, recenterMap = true): void {
@@ -479,7 +467,7 @@ function syncThemeToMap(): void {
     return;
   }
 
-  map.value.setStyle(resolveMapStyle());
+  map.value.setStyle(resolveMapboxStyle(DEFAULT_MAP_STYLE));
 }
 
 async function setupMap(): Promise<void> {
@@ -487,15 +475,14 @@ async function setupMap(): Promise<void> {
     return;
   }
 
-  const runtime = await getMapboxRuntime();
+  const runtime = await loadConfiguredMapboxRuntime();
   if (!mapContainer.value || map.value) {
     return;
   }
 
-  runtime.accessToken = String(import.meta.env.VITE_MAPBOX_TOKEN);
   const instance = new runtime.Map({
     container: mapContainer.value,
-    style: resolveMapStyle(),
+    style: resolveMapboxStyle(DEFAULT_MAP_STYLE),
     center: [form.longitude, form.latitude],
     zoom: 12,
     attributionControl: false,

@@ -1,11 +1,12 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
+import { DEFAULT_MAP_STYLE } from '@/services/mapboxLoader';
 import type { MapViewport, SpotCategory } from '@/types';
 
 const DEFAULT_MAP_VIEWPORT: MapViewport = {
   center: [-97.7431, 30.2672],
   zoom: 5.6,
-  style: 'mapbox://styles/mapbox/dark-v11',
+  style: DEFAULT_MAP_STYLE,
 };
 
 const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];

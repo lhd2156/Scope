@@ -17,6 +17,7 @@ import type {
   TripSpot,
   UserProfile,
 } from '@/types';
+import { DEFAULT_MAP_STYLE } from '@/services/mapboxLoader';
 import {
   sanitizeFeedItem,
   sanitizeItinerary,
@@ -1065,7 +1066,7 @@ const feed: FeedItem[] = [
 const defaultViewport: MapViewport = {
   center: [-97.0, 32.9],
   zoom: 7,
-  style: 'mapbox://styles/mapbox/dark-v11',
+  style: DEFAULT_MAP_STYLE,
 };
 
 const defaultMockUsers = allUsers.map((user) => sanitizeUserProfile(user));
