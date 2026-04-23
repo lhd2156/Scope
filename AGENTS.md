@@ -6,14 +6,16 @@ Atlas is a real-world adventure platform where users document, discover, and pla
 **Elevator Pitch:** "Pokémon Go meets Instagram — real places, real photos, real adventures on a map."
 
 ## Architecture Overview
-Polyglot microservices with 3 backends + 1 frontend:
+Polyglot microservices with 3 backends + 3 clients:
 
 | Service | Framework | Directory | Responsibility |
 |---------|-----------|-----------|---------------|
 | Core Platform | C# / ASP.NET Core 8 | `Atlas.Core/` | Auth, real-time (SignalR), users, friends, notifications |
 | Content Engine | Python / Django 5 | `atlas_content/` | Spots, trips, photos, reviews, social feed |
 | Intelligence API | Python / Flask 3 | `atlas_intel/` | AI itineraries, recommendations, vibe matching |
-| Frontend | Vue.js 3 / TypeScript | `atlas-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
+| Web Frontend | Vue.js 3 / TypeScript | `atlas-frontend/` | Responsive UI, Mapbox maps, Pinia state, dark/light mode |
+| iOS Client | Swift 5.9 / SwiftUI | `atlas-ios/` | Native iPhone/iPad — Observation, MapKit/MapLibre, Keychain JWT |
+| Android Client | Kotlin 2.0 / Jetpack Compose | `atlas-android/` | Native Android — Hilt, Retrofit, MapLibre, Encrypted JWT |
 
 ## Your Role as Lead
 You are the orchestrator. You:
@@ -43,6 +45,20 @@ Phase 4: Integration (you do this) → E2E tests, CI/CD, seed data, README
 5. **Commit after EVERY milestone** — conventional commits, never batch
 6. **Never hardcode secrets** — use `.env`
 7. **Service boundaries are sacred** — never cross them
+
+## Mobile Clients
+Both mobile apps reuse the same REST + JWT contracts as the web frontend.
+
+- `atlas-ios/` — Swift Package + SwiftUI. Build with `swift build` or open in
+  Xcode. Networking is actor-based (`APIClient`), tokens live in Keychain,
+  design tokens mirror `atlas-assets/design-tokens.css`.
+- `atlas-android/` — Gradle KTS + Jetpack Compose. Run
+  `gradle wrapper --gradle-version=8.9` once to bootstrap the wrapper, then
+  `./gradlew assembleDebug testDebugUnitTest`. Tokens live in
+  `EncryptedSharedPreferences`.
+
+CI: `.github/workflows/mobile.yml` runs `swift test` on macOS 14 and
+`./gradlew assembleDebug testDebugUnitTest` on Ubuntu.
 
 ## Database
 Single SQL Server with logical schema separation:

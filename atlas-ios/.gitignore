@@ -1,0 +1,15 @@
+## Swift
+.build/
+Packages/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+.swiftpm/
+Package.resolved
+
+## macOS
+.DS_Store
+
+## Secrets
+*.env
+*.xcconfig.local
