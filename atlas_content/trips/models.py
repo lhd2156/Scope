@@ -1,6 +1,10 @@
 import uuid
+
 from django.db import models
+
 from spots.models import Spot
+
+
 class Trip(models.Model):
     STATUS_CHOICES = [('planning','planning'),('active','active'),('completed','completed'),('cancelled','cancelled')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -17,6 +21,13 @@ class Trip(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            # Public trips feed (ORDER BY created_at DESC WHERE is_public).
+            models.Index(fields=['is_public', '-created_at'], name='trip_ispub_created_idx'),
+            # Creator lookups; complements the FK-implied index on TripMember.user_id
+            # for the "trips I own or am a member of" union query.
+            models.Index(fields=['creator_id', '-created_at'], name='trip_creator_created_idx'),
+        ]
 class TripSpot(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trip = models.ForeignKey(Trip, related_name='trip_spots', on_delete=models.CASCADE)

@@ -14,3 +14,9 @@ requests>=2.32.3
 scikit-learn>=1.8.0
 numpy>=2.4.3
 pytest>=8.3.3
+gunicorn>=23.0.0
+# Response compression (Brotli + Gzip). Used by app.factory when
+# INTEL_COMPRESSION_ENABLED is set; the factory degrades gracefully when
+# this package is missing so tests without it still import cleanly.
+Flask-Compress>=1.15
+brotli>=1.1.0
