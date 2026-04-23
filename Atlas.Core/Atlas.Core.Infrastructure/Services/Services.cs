@@ -78,8 +78,23 @@ public sealed class KafkaProducerService : IKafkaProducerService, IDisposable
         }
 
         var body = JsonSerializer.Serialize(payload);
-        await activeProducer.ProduceAsync(topic, new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = body }, cancellationToken);
-        logger.LogInformation("Produced Kafka event to {Topic}", topic);
+        try
+        {
+            await activeProducer.ProduceAsync(topic, new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = body }, cancellationToken);
+            logger.LogInformation("Produced Kafka event to {Topic}", topic);
+        }
+        catch (ProduceException<string, string> ex)
+        {
+            logger.LogWarning(ex, "Failed to produce Kafka event to {Topic}", topic);
+        }
+        catch (KafkaException ex)
+        {
+            logger.LogWarning(ex, "Kafka transport failed for topic {Topic}", topic);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Kafka publish timed out for topic {Topic}", topic);
+        }
     }
 
     public void Dispose()
@@ -97,7 +112,12 @@ public sealed class KafkaProducerService : IKafkaProducerService, IDisposable
             return null;
         }
 
-        return new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = bootstrapServers }).Build();
+        return new ProducerBuilder<string, string>(new ProducerConfig
+        {
+            BootstrapServers = bootstrapServers,
+            MessageTimeoutMs = 5000,
+            SocketTimeoutMs = 5000
+        }).Build();
     }
 }
 

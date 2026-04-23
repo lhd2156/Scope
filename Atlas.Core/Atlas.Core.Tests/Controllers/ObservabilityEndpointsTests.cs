@@ -8,6 +8,8 @@ namespace Atlas.Core.Tests.Controllers;
 public sealed class ObservabilityEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private static readonly string SqlHost = Environment.GetEnvironmentVariable("CORE_TEST_SQL_SERVER_HOST") ?? "sqlserver";
+    private static readonly string SqlPassword = Environment.GetEnvironmentVariable("SQL_SA_PASSWORD") ?? "Atlas_Dev_2026!";
 
     public ObservabilityEndpointsTests(WebApplicationFactory<Program> factory)
     {
@@ -15,6 +17,7 @@ public sealed class ObservabilityEndpointsTests : IClassFixture<WebApplicationFa
         {
             builder.UseSetting("CORE_JWT_SECRET", "test-secret-test-secret-test-secret-test");
             builder.UseSetting("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
+            builder.UseSetting("ConnectionStrings:CoreDatabase", $"Server={SqlHost},1433;Database=AtlasDb;User Id=sa;Password={SqlPassword};TrustServerCertificate=True");
         });
     }
 
