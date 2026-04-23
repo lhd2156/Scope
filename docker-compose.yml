@@ -71,48 +71,141 @@ services:
       start_period: 45s
     mem_limit: 512m
 
+  # Shared cache + SignalR backplane.
+  # Required for horizontal scaling of `core` (SignalR hubs) and `content`
+  # (Django cache). Services degrade gracefully to local memory when REDIS_URL
+  # is empty, but any replica count > 1 MUST have Redis configured.
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    mem_limit: 320m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
   core:
     build:
       context: ./Atlas.Core
-    container_name: atlas-core
+    # container_name intentionally omitted so `docker compose up --scale core=N`
+    # works. Do not re-introduce it for horizontally scalable services.
     restart: unless-stopped
     depends_on:
       sqlserver:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Compose healthcheck mirrors the Dockerfile HEALTHCHECK so other services
+    # can depend_on condition: service_healthy. Without this at the compose
+    # level, dependents race against a still-warming .NET host and spew
+    # connection-refused on boot.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/core/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      SQL_SA_PASSWORD: ${SA_PASSWORD}
-      CORE_DB_CONNECTION: Server=sqlserver,1433;Database=AtlasDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;
-      ConnectionStrings__CoreDatabase: Server=sqlserver,1433;Database=AtlasDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;
-      CORE_JWT_SECRET: ${CORE_JWT_SECRET}
-      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER}
-      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # TrustServerCertificate=True is only acceptable against the local container.
+      # In staging/prod, supply a real CA-signed cert and set Encrypt=True without trust bypass.
+      CORE_DB_CONNECTION: ${CORE_DB_CONNECTION:-Server=sqlserver,1433;Database=AtlasDb;User Id=${DB_USER:-atlas_app};Password=${DB_PASSWORD:-${SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True;}
+      ConnectionStrings__CoreDatabase: ${CORE_DB_CONNECTION:-Server=sqlserver,1433;Database=AtlasDb;User Id=${DB_USER:-atlas_app};Password=${DB_PASSWORD:-${SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True;}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-atlas-core}
+      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-atlas-frontend}
+      CORE_ALLOWED_ORIGINS: ${CORE_ALLOWED_ORIGINS:-http://localhost:${NGINX_PORT:-80},http://localhost:5173}
       CORE_FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
+      CONTENT_SERVICE_URL: http://content:8000/api/content
+      METRICS_ALLOWED_CIDRS: ${METRICS_ALLOWED_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # SignalR backplane — set to enable multi-replica hub fan-out.
+      REDIS_URL: ${REDIS_URL:-redis:6379}
     expose:
       - "8080"
     mem_limit: 768m
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    cap_drop:
+      - ALL
+
+  # One-shot migration runner. Runs to completion then exits. Replicas of the
+  # `content` service start with RUN_MIGRATIONS_ON_STARTUP=false in production,
+  # relying on this service to hold the schema lock exactly once instead of
+  # racing N ways. Trigger with `docker compose --profile migrate run --rm
+  # content-migrate`, or wire it into CI/CD as a one-off job.
+  content-migrate:
+    build:
+      context: ./atlas_content
+    profiles:
+      - migrate
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DEBUG: ${DJANGO_DEBUG:-false}
+      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,content,nginx}
+      FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
+      CORE_FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
+      # Skip the entrypoint's own migration gate so we don't double-run. The
+      # compose `command:` below is what actually applies migrations.
+      RUN_MIGRATIONS_ON_STARTUP: "false"
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    restart: "no"
+    mem_limit: 384m
 
   content:
     build:
       context: ./atlas_content
-    container_name: atlas-content
+    # container_name intentionally omitted to allow `--scale content=N`.
     restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/content/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DEBUG: ${DJANGO_DEBUG:-false}
       ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,content,nginx}
       FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
       CORE_FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
-      CORE_JWT_SECRET: ${CORE_JWT_SECRET}
-      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER}
-      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-atlas-core}
+      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-atlas-frontend}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_ENABLED: "true"
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -120,28 +213,94 @@ services:
       AWS_REGION: ${AWS_REGION}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # Switch Django cache to shared Redis so cache state survives across replicas.
+      DJANGO_CACHE_BACKEND: django.core.cache.backends.redis.RedisCache
+      DJANGO_CACHE_LOCATION: ${DJANGO_CACHE_LOCATION:-redis://redis:6379/1}
+      # Pointed at SQL Server in production. Falls back to SQLite only in dev.
+      DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
+      # Default true for single-node dev. In k8s / scaled compose deployments,
+      # set to "false" and run `content-migrate` as a pre-deploy Job so only
+      # one process applies schema changes.
+      RUN_MIGRATIONS_ON_STARTUP: ${RUN_MIGRATIONS_ON_STARTUP:-true}
+      # Off by default so existing deployments keep the legacy sync thumbnail
+      # flow. Flip to "true" once content-worker is running to offload Pillow
+      # + second S3 PUT from the request critical section.
+      PHOTO_UPLOAD_ASYNC_THUMBNAILS: ${PHOTO_UPLOAD_ASYNC_THUMBNAILS:-false}
     expose:
       - "8000"
     mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # Background worker that consumes `photo.thumbnail.requested` events and
+  # generates thumbnails asynchronously. Runs from the same image as `content`
+  # — no separate build — and scales independently of the web tier. Starts
+  # even when PHOTO_UPLOAD_ASYNC_THUMBNAILS=false so ops can flip the flag
+  # without a second deploy, but will sit idle until events flow.
+  content-worker:
+    build:
+      context: ./atlas_content
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DEBUG: ${DJANGO_DEBUG:-false}
+      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,content,nginx}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-atlas-core}
+      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-atlas-frontend}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_ENABLED: "true"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      DJANGO_CACHE_BACKEND: django.core.cache.backends.redis.RedisCache
+      DJANGO_CACHE_LOCATION: ${DJANGO_CACHE_LOCATION:-redis://redis:6379/1}
+      DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
+      # Workers must not re-run migrations — the web replicas or the
+      # content-migrate Job own that responsibility.
+      RUN_MIGRATIONS_ON_STARTUP: "false"
+    command: ["python", "manage.py", "atlas_thumbnail_worker"]
+    mem_limit: 384m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   intel:
     build:
       context: ./atlas_intel
-    container_name: atlas-intel
+    # container_name intentionally omitted to allow `--scale intel=N`.
     restart: unless-stopped
     depends_on:
       content:
         condition: service_started
       kafka:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/api/intel/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Longer start_period accommodates the optional TF-IDF warmup
+      # (INTEL_WARMUP_RECOMMENDATIONS=true) which runs during create_app.
+      start_period: 45s
     environment:
       FLASK_ENV: ${FLASK_ENV:-development}
-      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}
       FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
       CORE_FRONTEND_ORIGIN: http://localhost:${NGINX_PORT:-80}
-      CORE_JWT_SECRET: ${CORE_JWT_SECRET}
-      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER}
-      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-atlas-core}
+      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-atlas-frontend}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       CONTENT_SERVICE_URL: http://content:8000/api/content
       AWS_REGION: ${AWS_REGION}
@@ -149,6 +308,10 @@ services:
     expose:
       - "5000"
     mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   atlas-metrics:
     build:
@@ -222,7 +385,7 @@ services:
         VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
         VITE_CSRF_ENDPOINT: ${VITE_CSRF_ENDPOINT:-}
         VITE_ENABLE_AUTH_MOCK_FALLBACK: ${VITE_ENABLE_AUTH_MOCK_FALLBACK:-false}
-    container_name: atlas-frontend
+    # container_name intentionally omitted to allow `--scale frontend=N`.
     restart: unless-stopped
     depends_on:
       core:
@@ -232,20 +395,28 @@ services:
       intel:
         condition: service_started
     expose:
-      - "80"
+      - "8080"
     mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   nginx:
+    # Pin both the major/minor and the image digest in production deploys.
     image: nginx:1.27-alpine
     container_name: atlas-nginx
     restart: unless-stopped
+    # Wait for upstreams to report healthy before starting to serve. Avoids
+    # the 30–60s window of 502 responses that otherwise happens on cold boot
+    # while the .NET + Django apps warm up.
     depends_on:
       core:
-        condition: service_started
+        condition: service_healthy
       content:
-        condition: service_started
+        condition: service_healthy
       intel:
-        condition: service_started
+        condition: service_healthy
       frontend:
         condition: service_started
     ports:

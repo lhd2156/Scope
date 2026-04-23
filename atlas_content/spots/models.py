@@ -1,6 +1,9 @@
 import uuid
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+
 class Spot(models.Model):
     CATEGORY_CHOICES = [('food','food'),('nature','nature'),('nightlife','nightlife'),('culture','culture'),('adventure','adventure'),('shopping','shopping'),('scenic','scenic'),('other','other')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -21,4 +24,17 @@ class Spot(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         ordering = ['-created_at']
-        indexes = [models.Index(fields=['latitude', 'longitude']), models.Index(fields=['category'])]
+        indexes = [
+            models.Index(fields=['latitude', 'longitude']),
+            models.Index(fields=['category']),
+            # Covers the public-feed listing and explore pages (ORDER BY
+            # created_at DESC WHERE is_public). Without this, every public
+            # listing triggers a table scan + top-N sort.
+            models.Index(fields=['is_public', '-created_at'], name='spot_ispub_created_idx'),
+            # Profile page: "my spots" ordered by recency.
+            models.Index(fields=['user_id', '-created_at'], name='spot_user_created_idx'),
+            # City filter hit by search. Case-insensitive filters still benefit
+            # from the leading-column index because MSSQL / Postgres plan these
+            # as range scans when collation is case-insensitive.
+            models.Index(fields=['city'], name='spot_city_idx'),
+        ]
