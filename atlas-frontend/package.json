@@ -30,7 +30,7 @@
     "@types/jsdom": "^21.1.7",
     "@types/mapbox-gl": "^3.4.1",
     "@vitejs/plugin-vue": "^5.2.1",
-    "@vue/test-utils": "^2.4.6",
+    "@vue/test-utils": "^2.4.9",
     "eslint": "^9.23.0",
     "eslint-plugin-vue": "^9.33.0",
     "jsdom": "^25.0.1",
