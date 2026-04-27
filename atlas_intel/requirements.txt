@@ -13,4 +13,4 @@ confluent-kafka>=2.13.2
 requests>=2.32.3
 scikit-learn>=1.8.0
 numpy>=2.4.3
-pytest>=8.3.3
+pytest>=9.0.3
