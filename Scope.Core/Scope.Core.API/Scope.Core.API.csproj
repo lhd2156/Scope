@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Scope.Core.API</AssemblyName>
+    <RootNamespace>Scope.Core.API</RootNamespace>
+    <!--
+      Runtime tuning for a long-running service:
+        * ServerGarbageCollection=true — use the multi-threaded server GC that
+          parallelises collection across logical cores. Lowers GC latency p95
+          dramatically for request workloads vs the workstation GC default.
+        * ConcurrentGarbageCollection=true — marks concurrently with user code
+          so most GC work doesn't stop the world.
+        * TieredCompilation + TieredPGO — tracks hot paths and recompiles them
+          with PGO-informed optimizations at runtime, typically a 5–15% speedup
+          on steady-state request processing.
+      These properties feed through to runtimeconfig.template.json so they apply
+      even when another tool (dotnet publish, docker) rebuilds the assembly.
+    -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Scope.Core.Domain\Scope.Core.Domain.csproj" />
+    <ProjectReference Include="..\Scope.Core.Infrastructure\Scope.Core.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.8" />
+    <!--
+      IDistributedCache backed by Redis. Used for cross-replica caching of hot
+      read paths (e.g. membership lookups, user profile reads). The package
+      uses the same StackExchange.Redis multiplexer instance we register in
+      Program.cs so there is no second connection pool.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.8" />
+    <!--
+      Redis backplane for SignalR is required whenever Core is run with more than
+      one replica; without it, clients connected to different instances cannot
+      receive each other's hub messages. The dependency itself is harmless when
+      REDIS_URL is unset (the backplane is only wired conditionally).
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.8" />
+    <!--
+      Standard resilience handler (Polly v8) wraps every named HttpClient with a
+      retry pipeline + circuit breaker + per-attempt timeout. Without this, a
+      slow Content service can exhaust Core's ASP.NET thread pool during a
+      single spike. The handler is opt-in per-client (AddStandardResilienceHandler
+      in Program.cs) so it only wraps the clients we configure it for.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.10.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.67.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.72.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.47.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" Version="1.48.0-alpha" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+    <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+    <PackageReference Include="Sentry.AspNetCore" Version="5.6.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="2.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="..\..\scope-proto\proto\scope\v1\*.proto" GrpcServices="Client" ProtoRoot="..\..\scope-proto\proto" CompileOutputs="false" />
+  </ItemGroup>
+</Project>

@@ -16,7 +16,7 @@ param(
     [string]$Agent
 )
 
-$lessonsFile = "C:\Users\dongu\atlas\memory\LESSONS.md"
+$lessonsFile = "C:\Users\dongu\scope\memory\LESSONS.md"
 
 Write-Host "=== Loading Lessons for Agent: $Agent ===" -ForegroundColor Cyan
 Write-Host ""

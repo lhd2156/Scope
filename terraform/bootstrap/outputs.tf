@@ -1,5 +1,5 @@
 output "terraform_state_bucket_name" {
-  description = "S3 bucket name that stores the Atlas Terraform state."
+  description = "S3 bucket name that stores the Scope Terraform state."
   value       = aws_s3_bucket.terraform_state.bucket
 }
 
@@ -9,7 +9,7 @@ output "terraform_lock_table_name" {
 }
 
 output "terraform_state_key" {
-  description = "Suggested S3 object key for the main Atlas Terraform state file."
+  description = "Suggested S3 object key for the main Scope Terraform state file."
   value       = local.state_key
 }
 

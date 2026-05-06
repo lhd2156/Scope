@@ -1,18 +1,18 @@
-name: Atlas Mobile CI
+name: Scope Mobile CI
 
 on:
   push:
     paths:
-      - 'atlas-ios/**'
-      - 'atlas-android/**'
-      - 'atlas-assets/**'
+      - 'scope-ios/**'
+      - 'scope-android/**'
+      - 'scope-assets/**'
       - '.github/workflows/mobile.yml'
     branches: [main]
   pull_request:
     paths:
-      - 'atlas-ios/**'
-      - 'atlas-android/**'
-      - 'atlas-assets/**'
+      - 'scope-ios/**'
+      - 'scope-android/**'
+      - 'scope-assets/**'
       - '.github/workflows/mobile.yml'
   workflow_dispatch:
 
@@ -21,13 +21,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # -------- iOS / AtlasKit (Swift Package) ---------------------------------
+  # -------- iOS / ScopeKit (Swift Package) ---------------------------------
   ios:
     name: iOS — swift build + test
     runs-on: macos-14
     defaults:
       run:
-        working-directory: atlas-ios
+        working-directory: scope-ios
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: atlas-android
+        working-directory: scope-android
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('atlas-android/**/*.gradle*', 'atlas-android/gradle/wrapper/gradle-wrapper.properties', 'atlas-android/gradle/libs.versions.toml') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('scope-android/**/*.gradle*', 'scope-android/gradle/wrapper/gradle-wrapper.properties', 'scope-android/gradle/libs.versions.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Set up Gradle
@@ -89,6 +89,6 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-android-debug
-          path: atlas-android/app/build/outputs/apk/debug/*.apk
+          name: scope-android-debug
+          path: scope-android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn

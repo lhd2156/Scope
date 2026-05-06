@@ -1,9 +1,9 @@
-DECLARE @AtlasAdminId UNIQUEIDENTIFIER = '11111111-1111-1111-1111-111111111111';
+DECLARE @ScopeAdminId UNIQUEIDENTIFIER = '11111111-1111-1111-1111-111111111111';
 DECLARE @TripCreatorId UNIQUEIDENTIFIER = '22222222-2222-2222-2222-222222222222';
 DECLARE @ExplorerId UNIQUEIDENTIFIER = '33333333-3333-3333-3333-333333333333';
 DECLARE @Now DATETIME2 = GETUTCDATE();
 
-IF NOT EXISTS (SELECT 1 FROM core.Users WHERE Id = @AtlasAdminId)
+IF NOT EXISTS (SELECT 1 FROM core.Users WHERE Id = @ScopeAdminId)
 BEGIN
     INSERT INTO core.Users (
         Id,
@@ -19,13 +19,13 @@ BEGIN
         LastLoginAt
     )
     VALUES (
-        @AtlasAdminId,
-        N'atlasadmin',
-        N'admin@atlas.local',
+        @ScopeAdminId,
+        N'scopeadmin',
+        N'admin@scope.local',
         N'seeded-password-hash',
-        N'Atlas Admin',
-        N'https://images.atlas.local/avatars/admin.png',
-        N'Atlas demo admin account for local integration and smoke tests.',
+        N'Scope Admin',
+        N'https://images.scope.local/avatars/admin.png',
+        N'Scope demo admin account for local integration and smoke tests.',
         @Now,
         @Now,
         1,
@@ -51,10 +51,10 @@ BEGIN
     VALUES (
         @TripCreatorId,
         N'roadcaptain',
-        N'captain@atlas.local',
+        N'captain@scope.local',
         N'seeded-password-hash',
         N'Road Captain',
-        N'https://images.atlas.local/avatars/captain.png',
+        N'https://images.scope.local/avatars/captain.png',
         N'Curates shareable city adventures and weekend itineraries.',
         DATEADD(DAY, -14, @Now),
         @Now,
@@ -81,10 +81,10 @@ BEGIN
     VALUES (
         @ExplorerId,
         N'cityscout',
-        N'scout@atlas.local',
+        N'scout@scope.local',
         N'seeded-password-hash',
         N'City Scout',
-        N'https://images.atlas.local/avatars/scout.png',
+        N'https://images.scope.local/avatars/scout.png',
         N'Always looking for golden-hour food spots and walkable trip plans.',
         DATEADD(DAY, -10, @Now),
         @Now,
@@ -113,7 +113,7 @@ BEGIN
         @ExplorerId,
         N'friend_request_accepted',
         N'Road Captain accepted your friend request',
-        N'You can now collaborate on Atlas trip plans together.',
+        N'You can now collaborate on Scope trip plans together.',
         CONVERT(NVARCHAR(100), @TripCreatorId),
         0,
         DATEADD(HOUR, -6, @Now)

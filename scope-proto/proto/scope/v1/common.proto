@@ -1,0 +1,39 @@
+syntax = "proto3";
+package scope.v1;
+
+option csharp_namespace = "Scope.Proto.V1";
+option go_package = "scope-proto/gen/go/scope/v1;scopev1";
+
+import "google/protobuf/timestamp.proto";
+
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PaginatedMeta {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_pages = 4;
+}
+
+message GeoPoint {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  enum Status {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  Status status = 1;
+  string version = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}

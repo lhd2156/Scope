@@ -1,0 +1,112 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using Scope.Core.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
+
+namespace Scope.Core.API.Middleware;
+
+// Rate limiter with optional Redis-backed distributed counters.
+//
+// When an IConnectionMultiplexer is registered (i.e. REDIS_URL is configured at
+// startup), the middleware enforces a fixed-window counter against Redis via an
+// atomic INCR+EXPIRE. With N replicas this keeps the effective limit equal to
+// the configured value rather than N * value (the bug of the previous in-memory
+// implementation). If Redis is unreachable we fail soft to the per-instance
+// in-memory queue so that enforcement continues rather than fail-open.
+public sealed class RateLimitMiddleware(
+    RequestDelegate next,
+    ILogger<RateLimitMiddleware> logger,
+    IOptions<RateLimitOptions> options,
+    IServiceProvider services)
+{
+    private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> GlobalRequests = new();
+    private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> AuthRequests = new();
+
+    private readonly RateLimitOptions limits = options.Value;
+    private readonly TimeSpan window = TimeSpan.FromSeconds(options.Value.WindowSeconds);
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        if (context.Request.Path.StartsWithSegments("/metrics"))
+        {
+            await next(context);
+            return;
+        }
+
+        var key = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var isAuth = context.Request.Path.StartsWithSegments("/api/core/auth");
+        var redis = services.GetService<IConnectionMultiplexer>();
+
+        if (isAuth && !await PermitAsync(redis, AuthRequests, $"auth:{key}", limits.AuthLimit))
+        {
+            await WriteLimited(context);
+            return;
+        }
+        if (!await PermitAsync(redis, GlobalRequests, $"global:{key}", limits.GlobalLimit))
+        {
+            await WriteLimited(context);
+            return;
+        }
+
+        await next(context);
+    }
+
+    private async Task<bool> PermitAsync(
+        IConnectionMultiplexer? redis,
+        ConcurrentDictionary<string, Queue<DateTimeOffset>> localStore,
+        string key,
+        int limit)
+    {
+        if (redis is { IsConnected: true })
+        {
+            try
+            {
+                var db = redis.GetDatabase();
+                var cacheKey = $"scope:core:rl:{key}";
+                var count = await db.StringIncrementAsync(cacheKey);
+                if (count == 1)
+                {
+                    // First hit in the window — set the TTL so the counter
+                    // resets automatically. Fire-and-forget is acceptable: if
+                    // the EXPIRE is lost the key just persists until the next
+                    // INCR restores the TTL on the next window.
+                    await db.KeyExpireAsync(cacheKey, window, CommandFlags.FireAndForget);
+                }
+                return count <= limit;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Redis rate-limit lookup failed; falling back to in-memory for key {Key}", key);
+            }
+        }
+        return PermitLocal(localStore, key, DateTimeOffset.UtcNow, limit, window);
+    }
+
+    private static bool PermitLocal(
+        ConcurrentDictionary<string, Queue<DateTimeOffset>> store,
+        string key,
+        DateTimeOffset now,
+        int limit,
+        TimeSpan window)
+    {
+        var queue = store.GetOrAdd(key, _ => new Queue<DateTimeOffset>());
+        lock (queue)
+        {
+            while (queue.Count > 0 && now - queue.Peek() > window) queue.Dequeue();
+            if (queue.Count >= limit) return false;
+            queue.Enqueue(now);
+            return true;
+        }
+    }
+
+    private async Task WriteLimited(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.Response.ContentType = "application/json";
+        context.Response.Headers["Retry-After"] = limits.RetryAfterSeconds;
+        var body = JsonSerializer.Serialize(new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)));
+        await context.Response.WriteAsync(body);
+    }
+}

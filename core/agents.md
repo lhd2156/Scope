@@ -1,7 +1,7 @@
-# Atlas â€” AI Agent Instructions
+# Scope â€” AI Agent Instructions
 
-## What is Atlas?
-Atlas is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
+## What is Scope?
+Scope is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
 
 **Elevator Pitch:** "PokÃ©mon Go meets Instagram â€” real places, real photos, real adventures on a map."
 
@@ -10,10 +10,10 @@ Polyglot microservices with 3 backends + 1 frontend:
 
 | Service | Framework | Directory | Responsibility |
 |---------|-----------|-----------|---------------|
-| Core Platform | C# / ASP.NET Core 8 | `Atlas.Core/` | Auth, real-time (SignalR), users, friends, notifications |
-| Content Engine | Python / Django 5 | `atlas_content/` | Spots, trips, photos, reviews, social feed |
-| Intelligence API | Python / Flask 3 | `atlas_intel/` | AI itineraries, recommendations, vibe matching |
-| Frontend | Vue.js 3 / TypeScript | `atlas-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
+| Core Platform | C# / ASP.NET Core 8 | `Scope.Core/` | Auth, real-time (SignalR), users, friends, notifications |
+| Content Engine | Python / Django 5 | `scope_content/` | Spots, trips, photos, reviews, social feed |
+| Intelligence API | Python / Flask 3 | `scope_intel/` | AI itineraries, recommendations, vibe matching |
+| Frontend | Vue.js 3 / TypeScript | `scope-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
 
 **Communication:**
 - Frontend â†’ Nginx â†’ Services (REST)
@@ -21,7 +21,7 @@ Polyglot microservices with 3 backends + 1 frontend:
 - Core â†’ Frontend (SignalR WebSocket for real-time)
 
 ## Critical Rules for Agents
-1. **Read `atlas_architecture.tex` FIRST** â€” it is the single source of truth (~2600 lines)
+1. **Read `scope_architecture.tex` FIRST** â€” it is the single source of truth (~2600 lines)
 2. **Never merge microservices** â€” each service is independent with its own Dockerfile
 3. **Never skip security** â€” rate limiting, input validation, JWT auth on every endpoint
 4. **Write tests for everything** â€” xUnit (C#), Pytest (Python), Vitest (Vue)
@@ -39,9 +39,9 @@ Single SQL Server instance with logical schema separation:
 - `intel.*` â€” ItineraryCache, UserPreferences, SpotFeatures
 
 ## Key Files
-- `atlas_architecture.tex` â€” Full architecture spec (THE source of truth)
-- `atlas-assets/design-tokens.css` â€” CSS custom properties for dark/light mode
-- `atlas-assets/icons/atlas-icons.svg` â€” 38 SVG icons
+- `scope_architecture.tex` â€” Full architecture spec (THE source of truth)
+- `scope-assets/design-tokens.css` â€” CSS custom properties for dark/light mode
+- `scope-assets/icons/scope-icons.svg` â€” 38 SVG icons
 - `.env.example` â€” All environment variables (agent creates from template)
 
 ## Design System
@@ -67,16 +67,16 @@ Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `style`, `ci`
 You are the **Core Platform Agent** (codename: **Sentinel**). You build the C# / ASP.NET Core 8 service that handles authentication, user management, real-time features (SignalR), friends system, and notifications.
 
 ## Your Directory Scope
-You own: `Atlas.Core/` (and ALL subdirectories)
-- `Atlas.Core.API/`
-- `Atlas.Core.Domain/`
-- `Atlas.Core.Infrastructure/`
-- `Atlas.Core.Tests/`
+You own: `Scope.Core/` (and ALL subdirectories)
+- `Scope.Core.API/`
+- `Scope.Core.Domain/`
+- `Scope.Core.Infrastructure/`
+- `Scope.Core.Tests/`
 
-**Do NOT create or modify** anything outside `Atlas.Core/`.
+**Do NOT create or modify** anything outside `Scope.Core/`.
 
 ## Reference
-Read `atlas_architecture.tex` â€” Sections 4.2, 5, 8, 9, 10, 18, and 19.
+Read `scope_architecture.tex` â€” Sections 4.2, 5, 8, 9, 10, 18, and 19.
 
 ## Prerequisites
 Agent 0 (Foundation) must be complete. SQL Server and Kafka must be running.
@@ -84,11 +84,11 @@ Agent 0 (Foundation) must be complete. SQL Server and Kafka must be running.
 ## Tasks (in order)
 
 ### 1. Scaffold Project
-Create `Atlas.Core.sln` with 4 projects:
-- `Atlas.Core.API` (ASP.NET Core Web API)
-- `Atlas.Core.Domain` (Class Library â€” entities, interfaces, enums)
-- `Atlas.Core.Infrastructure` (Class Library â€” EF Core, repos, services)
-- `Atlas.Core.Tests` (xUnit test project)
+Create `Scope.Core.sln` with 4 projects:
+- `Scope.Core.API` (ASP.NET Core Web API)
+- `Scope.Core.Domain` (Class Library â€” entities, interfaces, enums)
+- `Scope.Core.Infrastructure` (Class Library â€” EF Core, repos, services)
+- `Scope.Core.Tests` (xUnit test project)
 
 ### 2. Domain Layer
 Create entities: `User`, `Friendship`, `Notification`, `LiveSession`

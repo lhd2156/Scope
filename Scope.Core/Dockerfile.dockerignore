@@ -1,0 +1,17 @@
+# This Dockerfile builds from the repository root so Core can consume
+# scope-proto. Keep the context to Core source plus protobuf contracts.
+*
+
+!Scope.Core/
+!Scope.Core/**
+!scope-proto/
+!scope-proto/proto/
+!scope-proto/proto/**
+
+Scope.Core/**/bin
+Scope.Core/**/obj
+Scope.Core/**/TestResults
+Scope.Core/**/.vs
+Scope.Core/**/*.user
+scope-proto/.tools
+scope-proto/gen

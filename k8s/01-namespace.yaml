@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: atlas
+  name: scope
   labels:
-    app.kubernetes.io/name: atlas
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/name: scope
+    app.kubernetes.io/part-of: scope-platform

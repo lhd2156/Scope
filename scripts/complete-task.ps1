@@ -36,7 +36,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$lessonsFile = "C:\Users\dongu\atlas\memory\LESSONS.md"
+$lessonsFile = "C:\Users\dongu\scope\memory\LESSONS.md"
 $date = Get-Date -Format "yyyy-MM-dd"
 
 # Step 1: Git add and commit

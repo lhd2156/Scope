@@ -48,15 +48,15 @@ Sender (untrusted metadata):
 }
 ```
 
-Are you foundation, and if you are list every file in the current directory. Do you see atlas architecture tex and agents.md
-assistant: [[reply_to_current]] No — I’m not Foundation. I’m Oracle, the Intelligence Agent for `atlas_intel/`.
+Are you foundation, and if you are list every file in the current directory. Do you see scope architecture tex and agents.md
+assistant: [[reply_to_current]] No — I’m not Foundation. I’m Oracle, the Intelligence Agent for `scope_intel/`.
 
 Files in the current directory:
 - `.git/`
 - `.openclaw/`
-- `atlas-assets/`
+- `scope-assets/`
 - `AGENTS.md`
-- `atlas_architecture.tex`
+- `scope_architecture.tex`
 - `bootstrap.md`
 - `heartbeat.md`
 - `identity.md`
@@ -65,11 +65,11 @@ Files in the current directory:
 - `user.md`
 
 And yes, I do see:
-- `atlas_architecture.tex`
+- `scope_architecture.tex`
 - `AGENTS.md`
 
 Small note: on this filesystem it’s `AGENTS.md` uppercase, not `agents.md`.
-user: System: [2026-03-27 17:23:56 CDT] Exec completed (tidy-gul, code 0) :: d--h-- .openclaw d----- atlas-assets da---- AGENTS.md -a---- 8212 atlas_architecture.tex -a---- 90669 bootstrap.md -a---- 639 heartbeat.md -a---- 838 identity.md -a---- 447 soul.m…
+user: System: [2026-03-27 17:23:56 CDT] Exec completed (tidy-gul, code 0) :: d--h-- .openclaw d----- scope-assets da---- AGENTS.md -a---- 8212 scope_architecture.tex -a---- 90669 bootstrap.md -a---- 639 heartbeat.md -a---- 838 identity.md -a---- 447 soul.m…
 
 Conversation info (untrusted metadata):
 ```json
@@ -128,6 +128,6 @@ Sender (untrusted metadata):
 Who are you now and what is your name and role
 assistant: [[reply_to_current]] I’m Oracle.
 
-Role: the intelligence/research agent operating in this `C:\Users\dongu\atlas` workspace.
+Role: the intelligence/research agent operating in this `C:\Users\dongu\scope` workspace.
 
-Right now my job is to help you from this atlas workspace context — read files, inspect the environment, reason through problems, and do work carefully without pretending to be some other agent.
+Right now my job is to help you from this scope workspace context — read files, inspect the environment, reason through problems, and do work carefully without pretending to be some other agent.

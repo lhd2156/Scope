@@ -1,4 +1,4 @@
-DECLARE @AtlasAdminId UNIQUEIDENTIFIER = '11111111-1111-1111-1111-111111111111';
+DECLARE @ScopeAdminId UNIQUEIDENTIFIER = '11111111-1111-1111-1111-111111111111';
 DECLARE @TripCreatorId UNIQUEIDENTIFIER = '22222222-2222-2222-2222-222222222222';
 DECLARE @ExplorerId UNIQUEIDENTIFIER = '33333333-3333-3333-3333-333333333333';
 DECLARE @TacoSpotId UNIQUEIDENTIFIER = '88888888-8888-8888-8888-888888888881';
@@ -104,8 +104,8 @@ BEGIN
         @TacoSpotId,
         @TripCreatorId,
         N'spots/sunset-tacos/hero.jpg',
-        N'https://cdn.atlas.local/spots/sunset-tacos/hero.jpg',
-        N'https://cdn.atlas.local/spots/sunset-tacos/hero-thumb.jpg',
+        N'https://cdn.scope.local/spots/sunset-tacos/hero.jpg',
+        N'https://cdn.scope.local/spots/sunset-tacos/hero-thumb.jpg',
         N'Rooftop taco spread at golden hour.',
         0,
         DATEADD(DAY, -4, @Now)
@@ -139,7 +139,7 @@ BEGIN
         N'USD',
         N'planning',
         1,
-        N'https://cdn.atlas.local/trips/austin-food-river-cover.jpg',
+        N'https://cdn.scope.local/trips/austin-food-river-cover.jpg',
         DATEADD(DAY, -2, @Now)
     );
 END;

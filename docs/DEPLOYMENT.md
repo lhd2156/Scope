@@ -1,22 +1,22 @@
-# Atlas Deployment Runbook
+# Scope Deployment Runbook
 
-This document captures the **current deployable shape** of Atlas after the Phase 4 integration milestones that are already in the repository.
+This document captures the **current deployable shape** of Scope after the Phase 4 integration milestones that are already in the repository.
 
 ## What is deployable today
 
-Atlas can currently be launched as a **single-machine Docker Compose stack** with:
+Scope can currently be launched as a **single-machine Docker Compose stack** with:
 
 - SQL Server
 - Zookeeper
 - Kafka
-- Core API (`Atlas.Core`)
-- Content API (`atlas_content`)
-- Intel API (`atlas_intel`)
-- Metrics agent (`atlas-metrics`)
-- Frontend (`atlas-frontend`)
+- Core API (`Scope.Core`)
+- Content API (`scope_content`)
+- Intel API (`scope_intel`)
+- Metrics agent (`scope-metrics`)
+- Frontend (`scope-frontend`)
 - Nginx reverse proxy
 
-An **optional ops profile** is also wired for the Rust CLI toolkit (`atlas-cli`) so release and smoke flows can run from the same container network.
+An **optional ops profile** is also wired for the Rust CLI toolkit (`scope-cli`) so release and smoke flows can run from the same container network.
 
 GitHub Actions CI is also in place to validate the codebase on pushes and pull requests.
 
@@ -52,8 +52,8 @@ Install:
 - `k8s/01-namespace.yaml` through `k8s/08-monitoring.yaml`
 - `terraform/main.tf`, `variables.tf`, `outputs.tf`, `vpc.tf`, `iam.tf`
 - GitHub environment or repository Terraform variables/secrets (for optional real-account plan/apply runs via GitHub OIDC)
-- `atlas-frontend/playwright.config.ts`
-- `atlas-frontend/tests/e2e/critical-flows.spec.ts`
+- `scope-frontend/playwright.config.ts`
+- `scope-frontend/tests/e2e/critical-flows.spec.ts`
 
 ---
 
@@ -101,7 +101,7 @@ Minimum variables that should be reviewed before launch:
 - `SA_PASSWORD`
 - `KAFKA_BOOTSTRAP_SERVERS`
 - `NGINX_PORT`
-- `ATLAS_METRICS_PORT`
+- `SCOPE_METRICS_PORT`
 
 > For local development, `.env.example` already contains safe-ish development defaults. These **must be replaced** for any shared or production-like environment.
 
@@ -159,6 +159,8 @@ Default public URL:
 
 ### Reverse-proxied API routes
 
+When the Content service is running without S3 credentials, nginx also proxies `/media/*` back to Django so locally persisted uploads remain reachable.
+
 - `/api/core` → Core API
 - `/api/content` → Content API
 - `/api/intel` → Intel API
@@ -169,7 +171,7 @@ Default public URL:
 - Core: `8080`
 - Content: `8000`
 - Intel: `5000`
-- Atlas Metrics: `9090`
+- Scope Metrics: `9090`
 - Frontend: `80`
 - SQL Server: `1433`
 - Kafka: `9092`
@@ -181,15 +183,15 @@ Default public URL:
 - Core metrics: `http://core:8080/metrics` (in-container / in-cluster scrape target)
 - Content metrics: `http://content:8000/metrics` (in-container / in-cluster scrape target)
 - Intel metrics: `http://intel:5000/metrics` (in-container / in-cluster scrape target)
-- Atlas Metrics: `http://localhost:${ATLAS_METRICS_PORT}/healthz`
-- Atlas Metrics scrape: `http://localhost:${ATLAS_METRICS_PORT}/metrics`
+- Scope Metrics: `http://localhost:${SCOPE_METRICS_PORT}/healthz`
+- Scope Metrics scrape: `http://localhost:${SCOPE_METRICS_PORT}/metrics`
 
 ### Optional ops CLI
 
 Run the CLI toolkit inside the Compose network when you want a containerized health check:
 
 ```powershell
-docker compose --profile ops run --rm atlas-cli health --verbose
+docker compose --profile ops run --rm scope-cli health --verbose
 ```
 
 ---
@@ -212,8 +214,8 @@ It verifies:
 - `/api/core/health`
 - `/api/content/health`
 - `/api/intel/health`
-- Atlas Metrics `/healthz`
-- Atlas Metrics `/metrics`
+- Scope Metrics `/healthz`
+- Scope Metrics `/metrics`
 - Core / Content / Intel `/metrics` when those internal endpoints are reachable from the validation network
 
 Local example:
@@ -226,8 +228,8 @@ Remote example:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
-  -PublicBaseUrl "https://atlas.example.com" `
-  -MetricsBaseUrl "https://metrics.atlas.example.com"
+  -PublicBaseUrl "https://scope.example.com" `
+  -MetricsBaseUrl "https://metrics.scope.example.com"
 ```
 
 The script exits non-zero if any check fails, so it is safe to use in deployment verification steps.
@@ -242,7 +244,7 @@ Execution order and an example `sqlcmd` invocation are documented in:
 
 ### Frontend critical browser smoke
 
-From `atlas-frontend/`:
+From `scope-frontend/`:
 
 ```powershell
 npm run test:e2e -- --project=chromium
@@ -261,15 +263,15 @@ This currently validates the critical flow:
 #### Core
 
 ```powershell
-cd Atlas.Core
-dotnet build Atlas.Core.sln
-dotnet test Atlas.Core.sln
+cd Scope.Core
+dotnet build Scope.Core.sln
+dotnet test Scope.Core.sln
 ```
 
 #### Content
 
 ```powershell
-cd atlas_content
+cd scope_content
 python manage.py check
 python -m pytest
 ```
@@ -277,14 +279,14 @@ python -m pytest
 #### Intel
 
 ```powershell
-cd atlas_intel
+cd scope_intel
 python -m pytest tests
 ```
 
 #### Frontend
 
 ```powershell
-cd atlas-frontend
+cd scope-frontend
 npm run build
 npm run test
 ```
@@ -322,20 +324,36 @@ Notes:
 - The manifests assume images are published to GHCR using the deploy workflow.
 - Replace the placeholder image namespace `ghcr.io/replace-me/...` before applying.
 - Replace all secret values from `03-secret.example.yaml` before any shared deployment.
-- `07-edge.yaml` exposes Atlas at host `atlas.local` through an nginx ingress.
-- `06-applications.yaml` now includes the `atlas-metrics` Deployment/Service and a suspended `atlas-cli-health` CronJob template that can be launched manually with `kubectl create job --from=cronjob/atlas-cli-health atlas-cli-health-manual -n atlas`.
+- `07-edge.yaml` exposes Scope at host `scope.local` through an nginx ingress.
+- `06-applications.yaml` now includes the `scope-metrics` Deployment/Service and a suspended `scope-cli-health` CronJob template that can be launched manually with `kubectl create job --from=cronjob/scope-cli-health scope-cli-health-manual -n scope`.
 
 ## 7. Terraform baseline
 
-The repository now includes a first-pass Terraform baseline under `terraform/` for:
+The repository now includes a profile-driven Terraform baseline under `terraform/`.
 
-- VPC + public/private subnets + NAT
+Default `credit-saver` profile:
+
+- VPC + public/private subnets
+- internet gateway
+- S3 photo bucket
+- Cognito user pool/client/domain
+
+Optional `lightsail` profile:
+
+- everything from `credit-saver`
+- 1 Lightsail instance using the configured bundle/blueprint
+- 1 static public IP
+- automatic daily snapshots
+- public port rules for SSH/HTTP/HTTPS
+- bootstrap user data that installs Docker + Compose on the host
+
+Optional `full` profile:
+
+- NAT gateway
 - IAM roles for EKS
 - EKS cluster + default node group
 - RDS SQL Server
-- S3 photo bucket
-- Cognito user pool/client/domain
-- ECR repositories for Core, Content, Intel, and Frontend
+- optional ECR repositories when `container_registry=ecr`
 
 Reference files:
 
@@ -343,7 +361,7 @@ Reference files:
 - `docs/PRODUCTION-HARDENING.md`
 - `docs/RELEASE-RUNBOOK.md`
 
-> Terraform v1.14.8 is installed on this workstation. `terraform init -backend=false` and `terraform validate` have been run locally for both `terraform/` and `terraform/bootstrap/`, while real `terraform plan` / `terraform apply` still require the remote-state bootstrap resources, a populated backend config, and AWS credentials.
+> CI continues to enforce Terraform `fmt`, `init -backend=false`, and `validate`. On this workstation, `terraform fmt` was rerun for the updated config, while provider-level local `terraform validate` still depends on successful AWS provider installation plus real backend and credential wiring.
 
 ## 8. CI / deployment automation
 
@@ -361,11 +379,12 @@ Current automation coverage:
 - Kubernetes YAML syntax checks in CI
 - Terraform `fmt` / `init -backend=false` / `validate` checks in CI
 - optional manual Terraform plan/apply via `.github/workflows/deploy.yml` when AWS OIDC + Terraform vars/secrets are configured
-- GHCR image publishing for Core, Content, Intel, Frontend, Atlas Metrics, and Atlas CLI on `main` / manual deploy runs
-- deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts)
+- optional manual Lightsail runtime deployment after `terraform_profile=lightsail` + `terraform_action=apply`
+- GHCR image publishing for Core, Content, Intel, Frontend, Scope Metrics, and Scope CLI on `main` / manual deploy runs
+- deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts, Lightsail helper scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
 - Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` execution against an actual AWS target
-- Prometheus scrape config for Atlas Metrics plus the Core, Content, and Intel `/metrics` endpoints in Kubernetes
+- Prometheus scrape config for Scope Metrics plus the Core, Content, and Intel `/metrics` endpoints in Kubernetes
 
 Dependabot is also configured for:
 
@@ -390,15 +409,26 @@ Required GitHub configuration (repository-level or environment-level for `stagin
 - Variable: `TF_STATE_KEY` (optional, defaults to `foundation/<environment>/terraform.tfstate`)
 - Variable: `TF_PHOTOS_BUCKET_NAME`
 - Variable: `TF_COGNITO_DOMAIN_PREFIX`
-- Secret: `TF_SQLSERVER_MASTER_PASSWORD`
+- Secret: `TF_SQLSERVER_MASTER_PASSWORD` only when `terraform_profile = full`
+- Secret: `LIGHTSAIL_SSH_PRIVATE_KEY` when `deploy_lightsail_app = true`
+- Secret: `SCOPE_SA_PASSWORD` when `deploy_lightsail_app = true`
+- Secret: `SCOPE_CORE_JWT_SECRET` when `deploy_lightsail_app = true`
+- Secret: `SCOPE_DJANGO_SECRET_KEY` when `deploy_lightsail_app = true`
+- Secret: `SCOPE_FLASK_SECRET_KEY` when `deploy_lightsail_app = true`
+- Variable: `VITE_MAPBOX_TOKEN` when `deploy_lightsail_app = true`
+- Variable: `SCOPE_PUBLIC_BASE_URL` (optional)
+- Variable: `SCOPE_TLS_HOSTNAME` (optional)
 
-Then run the `Atlas Deploy` workflow manually with:
+Then run the `Scope Deploy` workflow manually with:
 
 - `publish_images = false` or `true` as needed
 - `terraform_action = plan` to generate and upload a reviewed plan artifact, or `terraform_action = apply` to plan and then apply
 - `terraform_environment = staging` or `production`
+- `terraform_profile = credit-saver` for the low-cost default, `lightsail` for the always-on single-box runtime, or `full` for the original EKS/RDS stack
+- `terraform_registry = ghcr` to skip ECR, or `ecr` if AWS-hosted repositories are required
+- `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied Lightsail host
 
-The workflow renders `terraform/backend.hcl` from the configured state variables, uploads `atlas-terraform-<environment>-plan`, and can use GitHub environment approvals to gate the apply job.
+The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to Lightsail with `scripts/lightsail/deploy-remote.sh`.
 
 ## 9. Operational notes
 
@@ -432,7 +462,7 @@ Before calling a deployment candidate ready:
 - [ ] Frontend build/test passes
 - [ ] Playwright critical-flow smoke passes
 - [ ] `scripts/smoke-test.ps1` passes against the deployed target
-- [ ] Atlas Metrics responds on `/healthz` and `/metrics`
+- [ ] Scope Metrics responds on `/healthz` and `/metrics`
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented
 - [x] deploy workflow is added and reviewed
@@ -446,5 +476,5 @@ Before calling a deployment candidate ready:
 The next lead-owned milestones after this runbook are:
 
 1. Execute the Terraform plan workflow against a real AWS target account and tune any failing resources/quotas
-2. production deploy workflow expansion beyond artifact/image publication and optional planning
+2. broader production deploy workflow expansion beyond the current Lightsail + bundle rollout path
 3. broader deployment documentation and release automation

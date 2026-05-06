@@ -1,6 +1,6 @@
-# Atlas SQL bootstrap and seed scripts
+# Scope SQL bootstrap and seed scripts
 
-This directory contains SQL Server scripts for creating and seeding the logical Atlas schemas.
+This directory contains SQL Server scripts for creating and seeding the logical Scope schemas.
 
 ## Order of execution
 
@@ -36,7 +36,7 @@ All `002_*_seed_data.sql` scripts are idempotent and use fixed GUIDs with `IF NO
 ## Example invocation with sqlcmd
 
 ```powershell
-sqlcmd -S localhost,1433 -U sa -P "$env:SA_PASSWORD" -d Atlas \
+sqlcmd -S localhost,1433 -U sa -P "$env:SA_PASSWORD" -d Scope \
   -i scripts/sql/core/001_core_schema.sql \
   -i scripts/sql/content/001_content_schema.sql \
   -i scripts/sql/intel/001_intel_schema.sql \

@@ -1,0 +1,35 @@
+# CODEOWNERS — required reviewers for security-sensitive paths.
+# Syntax: pattern owner(s). Last matching rule wins.
+# Replace the @scope-security placeholder with your real GitHub team handle
+# (e.g. @your-org/security) before enabling branch protection.
+
+# Default: everyone on the platform team reviews app changes.
+*                                                    @scope-security
+
+# Security policy and disclosure workflow.
+/SECURITY.md                                         @scope-security
+/.github/                                            @scope-security
+/.github/workflows/                                  @scope-security
+/.github/dependabot.yml                              @scope-security
+/.github/gitleaks.toml                               @scope-security
+/.pre-commit-config.yaml                             @scope-security
+
+# Infrastructure / edge.
+/docker-compose.yml                                  @scope-security
+/nginx/                                              @scope-security
+/**/Dockerfile                                       @scope-security
+
+# Auth, secrets, crypto.
+/Scope.Core/Scope.Core.API/Program.cs                @scope-security
+/Scope.Core/Scope.Core.API/Middleware/               @scope-security
+/Scope.Core/Scope.Core.API/Hubs/                     @scope-security
+/Scope.Core/Scope.Core.Infrastructure/Services/      @scope-security
+/scope_content/scope_content/settings.py             @scope-security
+/scope_content/common/auth.py                        @scope-security
+/scope_intel/app/telemetry.py                        @scope-security
+/scope-frontend/src/stores/auth.ts                   @scope-security
+/scope-frontend/src/services/authService.ts          @scope-security
+/scope-frontend/src/utils/qaMode.ts                  @scope-security
+
+# Never let random PRs land env examples unreviewed.
+/.env.example                                        @scope-security

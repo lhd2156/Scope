@@ -1,6 +1,6 @@
-# Atlas Release & Rollback Runbook
+# Scope Release & Rollback Runbook
 
-This runbook describes how to prepare, deploy, verify, and roll back an Atlas release.
+This runbook describes how to prepare, deploy, verify, and roll back an Scope release.
 
 Use it alongside:
 
@@ -43,15 +43,15 @@ Before a release candidate is approved:
 #### Core
 
 ```powershell
-cd Atlas.Core
-dotnet build Atlas.Core.sln
-dotnet test Atlas.Core.sln
+cd Scope.Core
+dotnet build Scope.Core.sln
+dotnet test Scope.Core.sln
 ```
 
 #### Content
 
 ```powershell
-cd atlas_content
+cd scope_content
 python manage.py check
 python -m pytest
 ```
@@ -59,14 +59,14 @@ python -m pytest
 #### Intel
 
 ```powershell
-cd atlas_intel
+cd scope_intel
 python -m pytest tests
 ```
 
 #### Frontend
 
 ```powershell
-cd atlas-frontend
+cd scope-frontend
 npm run build
 npm run test
 npm run test:e2e -- --project=chromium
@@ -102,7 +102,7 @@ git push origin v1.0.0
 If you prefer annotated tags:
 
 ```powershell
-git tag -a v1.0.0 -m "Atlas v1.0.0"
+git tag -a v1.0.0 -m "Scope v1.0.0"
 git push origin v1.0.0
 ```
 
@@ -118,8 +118,9 @@ git push origin v1.0.0
    - preflight passes
    - GHCR images publish successfully
    - deployment bundle artifact uploads successfully
-4. when infrastructure changes are included, dispatch `Atlas Deploy` manually with `terraform_action = plan`, review the uploaded plan artifact, then rerun with `terraform_action = apply` after approval
-5. promote/deploy from the generated image set and bundle
+4. when infrastructure changes are included, dispatch `Scope Deploy` manually with `terraform_action = plan`, review the uploaded plan artifact, then rerun with `terraform_action = apply` after approval
+5. for the single-box AWS path, use `terraform_profile = lightsail` plus `deploy_lightsail_app = true` so the workflow uploads the runtime bundle and starts Scope on the Lightsail host after apply
+6. promote/deploy from the generated image set and bundle
 
 ### Option B — manual deployment path
 
@@ -140,8 +141,8 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Core auth endpoints respond as expected
 - [ ] Content read paths work
 - [ ] Intel recommendation/health endpoints respond
-- [ ] Atlas Metrics `/healthz` and `/metrics` respond
-- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://atlas.example.com" -MetricsBaseUrl "https://metrics.atlas.example.com"` passes
+- [ ] Scope Metrics `/healthz` and `/metrics` respond
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
 - [ ] logs show no immediate crash loops or startup failures
 
@@ -151,11 +152,11 @@ Use the repository smoke-test script as the fast post-deploy gate:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
-  -PublicBaseUrl "https://atlas.example.com" `
-  -MetricsBaseUrl "https://metrics.atlas.example.com"
+  -PublicBaseUrl "https://scope.example.com" `
+  -MetricsBaseUrl "https://metrics.scope.example.com"
 ```
 
-This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes, and Atlas Metrics `/healthz` + `/metrics`, and exits non-zero whenever any smoke check fails.
+This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes, and Scope Metrics `/healthz` + `/metrics`, and exits non-zero whenever any smoke check fails.
 
 ### Recommended spot checks
 
@@ -165,7 +166,7 @@ This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes
 - plan a trip
 - check notifications/friends surfaces
 - verify Intel health route returns the expected bare health JSON shape
-- trigger `atlas-cli` inside Compose or Kubernetes and confirm the health-check command resolves all four service endpoints
+- trigger `scope-cli` inside Compose or Kubernetes and confirm the health-check command resolves all four service endpoints
 
 ---
 
@@ -176,7 +177,7 @@ This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes
 If a deployment fails after new images are released:
 
 1. identify the last known-good image tags
-2. redeploy Core, Content, Intel, Frontend, and/or Atlas Metrics / Atlas CLI to those tags
+2. redeploy Core, Content, Intel, Frontend, and/or Scope Metrics / Scope CLI to those tags
 3. re-run post-deploy verification
 
 ### Config rollback
@@ -216,7 +217,7 @@ If production breaks immediately after release:
 
 ## 7. Current release blockers still outside this runbook
 
-These are the major remaining runtime gaps for Atlas:
+These are the major remaining runtime gaps for Scope:
 
 1. execute the Terraform workflow against a real AWS account
 2. validate the Kubernetes/Terraform stack in a live cloud target
@@ -229,5 +230,5 @@ These are the major remaining runtime gaps for Atlas:
 
 1. run the deploy workflow's Terraform plan/apply path against a real AWS account using the target GitHub environment vars/secrets
 2. verify deploy workflow secrets/vars and environment approvals for the target GitHub environment
-3. perform a real staging deployment using the published GHCR images and deployment bundle
+3. perform a real staging deployment using either the Lightsail workflow path or the published images plus deployment bundle
 4. tag the first release candidate only after that staging verification succeeds

@@ -6,7 +6,7 @@
 - [x] Phase 1: Foundation - monorepo scaffolding, Docker Compose, SQL Server, Kafka, and nginx are complete
 - [x] Phase 2: Backends - Core, Content, and Intel implementations are complete
 - [x] Phase 3: Frontend - Vue application, state, routing, auth guards, and premium UI work are complete
-- [x] Phase 4: Integration - compose wiring, CI, E2E coverage, deployment docs, SQL seed assets, atlas-cli, atlas-metrics, Kubernetes manifests, and Terraform baselines are complete in-repo
+- [x] Phase 4: Integration - compose wiring, CI, E2E coverage, deployment docs, SQL seed assets, scope-cli, scope-metrics, Kubernetes manifests, and Terraform baselines are complete in-repo
 - [x] Phase 5: Full Recheck & Audit - complete across Core, Content, Intel, and Frontend
 - [x] Phase 6: Security Hardening - complete across Core, Content, Intel, and Frontend
 - [x] Phase 7: Test Coverage & Quality - complete across Core, Content, Intel, and Frontend
@@ -18,7 +18,7 @@
 - [x] Phase 13: Frontend Design Overhaul - complete
 - [x] Phase 14: Comprehensive E2E Testing - complete
 - [x] Phase 15: Data Seeding & Demo Mode - complete
-- [x] Phase 16: Monitoring, Logging & Alerting - structured logging, Prometheus `/metrics` on Core/Content/Intel, OTLP-ready tracing hooks, atlas-metrics exporter coverage, and alert rules are complete
+- [x] Phase 16: Monitoring, Logging & Alerting - structured logging, Prometheus `/metrics` on Core/Content/Intel, OTLP-ready tracing hooks, scope-metrics exporter coverage, and alert rules are complete
 - [x] Phase 17: Mobile Responsiveness & PWA - complete
 - [x] Phase 18: Analytics & User Telemetry - complete
 - [x] Phase 19: Onboarding & Tutorial Flow - complete
@@ -37,11 +37,11 @@ All repository phases are complete.
 2026-04-22
 
 ## Validation Snapshot
-- Core observability: `dotnet test Atlas.Core.sln`
-- Content observability: `python -m pytest atlas_content/common/tests/test_health_endpoint.py atlas_content/common/tests/test_metrics_endpoint.py`
+- Core observability: `dotnet test Scope.Core.sln`
+- Content observability: `python -m pytest scope_content/common/tests/test_health_endpoint.py scope_content/common/tests/test_metrics_endpoint.py`
 - Intel observability: `python -m pytest tests/test_health.py tests/test_metrics.py`
-- CLI toolkit: `cargo test` via Docker, `docker build -t atlas-cli:test .`, `atlas seed --dry-run`, `atlas env check`
-- Metrics agent: `go test ./...`, `go build ./cmd/atlas-metrics`, `docker build -t atlas-metrics:test .`
+- CLI toolkit: `cargo test` via Docker, `docker build -t scope-cli:test .`, `scope seed --dry-run`, `scope env check`
+- Metrics agent: `go test ./...`, `go build ./cmd/scope-metrics`, `docker build -t scope-metrics:test .`
 - Infrastructure assets: `docker compose config --services`, `terraform init -backend=false`, `terraform validate`
 
 ## Notes

@@ -1,0 +1,26 @@
+# Scope gitleaks configuration
+# Scans the working tree + history for common secret patterns.
+
+title = "Scope Gitleaks"
+
+[extend]
+# Inherit the default ruleset shipped with gitleaks.
+useDefault = true
+
+[allowlist]
+description = "Allowlisted paths and placeholder values"
+paths = [
+    '''(^|/)\.env\.example$''',
+    '''(^|/)docs/''',
+    '''(^|/)scope_architecture\.tex$''',
+]
+regexes = [
+    # Obvious placeholder values that repeatedly appear in docs/examples.
+    '''CHANGE_ME[_A-Z0-9]*''',
+    '''change-?me-?in-?prod''',
+    '''your-[a-z-]+-here''',
+    '''pk\.test-ci-token''',
+    '''pk\.deploy-token''',
+    '''pk\.your-mapbox-token-here''',
+    '''scope-[a-z]+-build-[a-z-]*placeholder''',
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "demo-notification-1",
+    "title": "New friend request",
+    "body": "Sofia Ramirez wants to swap food-first Texas routes with you.",
+    "isRead": false,
+    "createdAt": "2026-03-31T02:10:00Z",
+    "type": "friend.request.received"
+  },
+  {
+    "id": "demo-notification-2",
+    "title": "Trip collaborator joined",
+    "body": "Maya joined North Texas Night + Food Loop and synced the Dallas brunch shortlist.",
+    "isRead": false,
+    "createdAt": "2026-03-31T00:55:00Z",
+    "type": "trip.member.added"
+  },
+  {
+    "id": "demo-notification-3",
+    "title": "Spot liked",
+    "body": "Jordan liked Sunset Rooftop Tacos and saved it for a future skyline-heavy route.",
+    "isRead": true,
+    "createdAt": "2026-03-30T22:05:00Z",
+    "type": "spot.liked"
+  },
+  {
+    "id": "demo-notification-4",
+    "title": "New review posted",
+    "body": "Elijah left fresh notes on East Austin Espresso Lab about the upstairs planning nook.",
+    "isRead": false,
+    "createdAt": "2026-03-30T20:45:00Z",
+    "type": "spot.reviewed"
+  },
+  {
+    "id": "demo-notification-5",
+    "title": "Trip ready to share",
+    "body": "Dallas Design Weekend now has a complete day-by-day itinerary and cover image.",
+    "isRead": true,
+    "createdAt": "2026-03-30T18:40:00Z",
+    "type": "trip.ready"
+  },
+  {
+    "id": "demo-notification-6",
+    "title": "Profile milestone",
+    "body": "Your demo profile just crossed 120 total social saves across spots and trips.",
+    "isRead": true,
+    "createdAt": "2026-03-30T16:20:00Z",
+    "type": "profile.milestone"
+  },
+  {
+    "id": "demo-notification-7",
+    "title": "Route suggestion unlocked",
+    "body": "Scope generated a tighter morning pace for Hill Country Sunrise Sprint based on your saved categories.",
+    "isRead": false,
+    "createdAt": "2026-03-30T14:00:00Z",
+    "type": "intel.route.updated"
+  },
+  {
+    "id": "demo-notification-8",
+    "title": "Saved spot is trending",
+    "body": "Blue Hour Gallery Walk is trending this week with new culture-nightlife crossover saves.",
+    "isRead": true,
+    "createdAt": "2026-03-30T11:35:00Z",
+    "type": "spot.trending"
+  },
+  {
+    "id": "demo-notification-9",
+    "title": "Weather window looks strong",
+    "body": "Tomorrow's forecast favors sunset timing on Buffalo Bayou Skyline Run with mild wind and clear skies.",
+    "isRead": false,
+    "createdAt": "2026-03-30T09:25:00Z",
+    "type": "intel.weather.ready"
+  },
+  {
+    "id": "demo-notification-10",
+    "title": "Demo mode enabled",
+    "body": "You're exploring Scope with local fixture data, seeded trips, and the shared demo account.",
+    "isRead": false,
+    "createdAt": "2026-03-30T08:00:00Z",
+    "type": "system.demo_mode"
+  }
+]

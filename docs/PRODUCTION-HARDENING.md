@@ -1,4 +1,4 @@
-# Atlas Production Hardening Guide
+# Scope Production Hardening Guide
 
 This guide documents the production-facing hardening work that still sits beyond the local/staging deployment runbook.
 
@@ -268,7 +268,7 @@ Run at least:
 
 ## 10. Release checklist
 
-Before calling Atlas production-ready, verify:
+Before calling Scope production-ready, verify:
 
 - [ ] CI is green
 - [ ] deploy workflow is green

@@ -2,10 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 data:
   prometheus.yml: |
     global:
@@ -18,42 +18,42 @@ data:
           - targets:
               - localhost:9090
 
-      - job_name: atlas-metrics
+      - job_name: scope-metrics
         scrape_interval: 15s
         metrics_path: /metrics
         static_configs:
           - targets:
-              - atlas-metrics.atlas.svc.cluster.local:9090
+              - scope-metrics.scope.svc.cluster.local:9090
 
       - job_name: core
         scrape_interval: 15s
         metrics_path: /metrics
         static_configs:
           - targets:
-              - core.atlas.svc.cluster.local:8080
+              - core.scope.svc.cluster.local:8080
 
       - job_name: content
         scrape_interval: 15s
         metrics_path: /metrics
         static_configs:
           - targets:
-              - content.atlas.svc.cluster.local:8000
+              - content.scope.svc.cluster.local:8000
 
       - job_name: intel
         scrape_interval: 15s
         metrics_path: /metrics
         static_configs:
           - targets:
-              - intel.atlas.svc.cluster.local:5000
+              - intel.scope.svc.cluster.local:5000
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   selector:
     app.kubernetes.io/name: prometheus
@@ -66,10 +66,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   replicas: 1
   selector:
@@ -79,7 +79,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: prometheus
-        app.kubernetes.io/part-of: atlas-platform
+        app.kubernetes.io/part-of: scope-platform
     spec:
       containers:
         - name: prometheus
@@ -128,19 +128,19 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-datasources
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: Atlas Prometheus
-        uid: atlas-prometheus
+      - name: Scope Prometheus
+        uid: scope-prometheus
         type: prometheus
         access: proxy
-        url: http://prometheus.atlas.svc.cluster.local:9090
+        url: http://prometheus.scope.svc.cluster.local:9090
         isDefault: true
         editable: false
 ---
@@ -148,10 +148,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: grafana
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   selector:
     app.kubernetes.io/name: grafana
@@ -164,10 +164,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   replicas: 1
   selector:
@@ -177,7 +177,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: grafana
-        app.kubernetes.io/part-of: atlas-platform
+        app.kubernetes.io/part-of: scope-platform
     spec:
       containers:
         - name: grafana
@@ -189,12 +189,12 @@ spec:
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
                 secretKeyRef:
-                  name: atlas-secrets
+                  name: scope-secrets
                   key: GRAFANA_ADMIN_USER
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: atlas-secrets
+                  name: scope-secrets
                   key: GRAFANA_ADMIN_PASSWORD
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "false"

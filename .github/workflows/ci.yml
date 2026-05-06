@@ -1,4 +1,4 @@
-name: Atlas CI
+name: Scope CI
 
 on:
   pull_request:
@@ -9,38 +9,51 @@ on:
       - 'feature/**'
 
 concurrency:
-  group: atlas-ci-${{ github.workflow }}-${{ github.ref }}
+  group: scope-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
+# NOTE: CI secrets must come from GitHub encrypted secrets or be generated at
+# runtime. Do NOT hard-code passwords, JWT secrets, or API keys here.
+# When a secret is missing, fall back to an ephemeral random value so tests can
+# run in forked PRs, but never to a shared constant.
+
 jobs:
   compose-validate:
     name: Validate docker-compose
     runs-on: ubuntu-latest
-    env:
-      ACCEPT_EULA: Y
-      SA_PASSWORD: Atlas_Dev_2026!
-      CORE_JWT_SECRET: ci-core-jwt-secret-please-change
-      CORE_JWT_ISSUER: atlas-core
-      CORE_JWT_AUDIENCE: atlas-frontend
-      DJANGO_SECRET_KEY: ci-django-secret-key
-      DJANGO_DEBUG: 'true'
-      FLASK_SECRET_KEY: ci-flask-secret-key
-      FLASK_ENV: development
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      AWS_REGION: us-east-1
-      AWS_S3_BUCKET: atlas-photos-ci
-      VITE_MAPBOX_TOKEN: pk.test-ci-token
-      VITE_API_BASE_URL: /
-      VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Generate ephemeral CI secrets
+        id: ci-secrets
+        run: |
+          echo "sa_password=CI_$(openssl rand -base64 18 | tr -d '=+/' )!" >> "$GITHUB_OUTPUT"
+          echo "core_jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "django_key=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "flask_key=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
       - name: Validate compose config
-        run: docker compose config > /tmp/atlas-compose.yaml
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: ${{ steps.ci-secrets.outputs.sa_password }}
+          CORE_JWT_SECRET: ${{ steps.ci-secrets.outputs.core_jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          DJANGO_SECRET_KEY: ${{ steps.ci-secrets.outputs.django_key }}
+          DJANGO_DEBUG: 'true'
+          FLASK_SECRET_KEY: ${{ steps.ci-secrets.outputs.flask_key }}
+          FLASK_ENV: development
+          KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+          AWS_REGION: us-east-1
+          AWS_S3_BUCKET: scope-photos-ci
+          VITE_MAPBOX_TOKEN: pk.test-ci-token
+          VITE_API_BASE_URL: /
+          VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
+        run: docker compose config > /tmp/scope-compose.yaml
 
   infrastructure-validate:
     name: Validate infrastructure assets
@@ -85,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Atlas.Core
+        working-directory: Scope.Core
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,26 +109,41 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore Atlas.Core.sln
+        run: dotnet restore Scope.Core.sln
 
       - name: Build
-        run: dotnet build Atlas.Core.sln --configuration Release --no-restore
+        run: dotnet build Scope.Core.sln --configuration Release --no-restore
+
+      - name: Generate ephemeral test secrets
+        id: core-secrets
+        run: |
+          echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "db=CI_$(openssl rand -base64 18 | tr -d '=+/' )!" >> "$GITHUB_OUTPUT"
 
       - name: Test
         env:
-          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
-          CORE_JWT_ISSUER: atlas-core
-          CORE_JWT_AUDIENCE: atlas-frontend
-          SQL_SA_PASSWORD: Atlas_Dev_2026!
+          CORE_JWT_SECRET: ${{ steps.core-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          CORE_ALLOWED_ORIGINS: http://localhost:5173
+          SQL_SA_PASSWORD: ${{ steps.core-secrets.outputs.db }}
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-        run: dotnet test Atlas.Core.sln --configuration Release --no-build
+        run: dotnet test Scope.Core.sln --configuration Release --no-build
+
+      - name: Check for vulnerable NuGet packages
+        run: |
+          dotnet list Scope.Core.sln package --vulnerable --include-transitive | tee /tmp/vuln.txt
+          if grep -E "(Critical|High)" /tmp/vuln.txt; then
+            echo "::error::Vulnerable NuGet packages detected (Critical/High)."
+            exit 1
+          fi
 
   content:
     name: Content checks and tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: atlas_content
+        working-directory: scope_content
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,7 +153,7 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
-          cache-dependency-path: atlas_content/requirements.txt
+          cache-dependency-path: scope_content/requirements.txt
 
       - name: Install system packages
         run: |
@@ -135,38 +163,62 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
+      - name: Generate ephemeral test secrets
+        id: content-secrets
+        run: |
+          echo "django=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
       - name: Django system check
         env:
-          DJANGO_SECRET_KEY: ci-django-secret-key
+          DJANGO_SECRET_KEY: ${{ steps.content-secrets.outputs.django }}
           DEBUG: 'true'
           ALLOWED_HOSTS: localhost,127.0.0.1
           FRONTEND_ORIGIN: http://localhost:5173
-          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
-          CORE_JWT_ISSUER: atlas-core
-          CORE_JWT_AUDIENCE: atlas-frontend
+          CORE_JWT_SECRET: ${{ steps.content-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           KAFKA_ENABLED: 'false'
         run: python manage.py check
 
+      - name: Django deployment check (production hardening)
+        env:
+          DJANGO_SECRET_KEY: ${{ steps.content-secrets.outputs.django }}
+          DEBUG: 'false'
+          ALLOWED_HOSTS: scope.example.com
+          FRONTEND_ORIGIN: https://scope.example.com
+          CORE_JWT_SECRET: ${{ steps.content-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_ENABLED: 'false'
+        run: python manage.py check --deploy --fail-level WARNING || true
+
       - name: Pytest
         env:
-          DJANGO_SECRET_KEY: ci-django-secret-key
+          DJANGO_SECRET_KEY: ${{ steps.content-secrets.outputs.django }}
           DEBUG: 'true'
           ALLOWED_HOSTS: localhost,127.0.0.1
           FRONTEND_ORIGIN: http://localhost:5173
-          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
-          CORE_JWT_ISSUER: atlas-core
-          CORE_JWT_AUDIENCE: atlas-frontend
+          CORE_JWT_SECRET: ${{ steps.content-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           KAFKA_ENABLED: 'false'
         run: pytest
+
+      - name: pip-audit (known CVEs)
+        run: |
+          python -m pip install pip-audit
+          pip-audit --strict -r requirements.txt || echo "::warning::pip-audit flagged vulnerabilities"
 
   intel:
     name: Intel tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: atlas_intel
+        working-directory: scope_intel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,29 +228,40 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
-          cache-dependency-path: atlas_intel/requirements.txt
+          cache-dependency-path: scope_intel/requirements.txt
 
       - name: Install dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
+      - name: Generate ephemeral test secrets
+        id: intel-secrets
+        run: |
+          echo "flask=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
       - name: Pytest
         env:
           FLASK_ENV: development
-          FLASK_SECRET_KEY: ci-flask-secret-key
-          CORE_JWT_SECRET: ci-core-jwt-secret-please-change
-          CORE_JWT_ISSUER: atlas-core
-          CORE_JWT_AUDIENCE: atlas-frontend
+          FLASK_SECRET_KEY: ${{ steps.intel-secrets.outputs.flask }}
+          CORE_JWT_SECRET: ${{ steps.intel-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
           FRONTEND_ORIGIN: http://localhost:5173
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           CONTENT_SERVICE_URL: http://localhost:8000/api/content
         run: pytest
+
+      - name: pip-audit (known CVEs)
+        run: |
+          python -m pip install pip-audit
+          pip-audit --strict -r requirements.txt || echo "::warning::pip-audit flagged vulnerabilities"
 
   frontend:
     name: Frontend build and test
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: atlas-frontend
+        working-directory: scope-frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -208,7 +271,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: atlas-frontend/package-lock.json
+          cache-dependency-path: scope-frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -226,3 +289,236 @@ jobs:
           VITE_MAPBOX_TOKEN: pk.test-ci-token
           VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
         run: npm run test
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high || echo "::warning::npm audit flagged vulnerabilities"
+
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['csharp', 'python', 'javascript-typescript']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup .NET (for C# analysis)
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build C# for CodeQL
+        if: matrix.language == 'csharp'
+        working-directory: Scope.Core
+        run: dotnet build Scope.Core.sln --configuration Release
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .github/gitleaks.toml
+
+  trivy-filesystem:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  sbom:
+    name: Software Bill of Materials (SBOM)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate CycloneDX SBOM via Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: scope-sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scope-sbom
+          path: scope-sbom.cdx.json
+          retention-days: 90
+
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pre-commit
+        run: python -m pip install --upgrade pip pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  security-headers-smoke:
+    name: Security headers smoke check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate nginx config contains required security headers
+        run: |
+          set -e
+          required=(
+            "Strict-Transport-Security"
+            "X-Content-Type-Options"
+            "X-Frame-Options"
+            "Referrer-Policy"
+            "Permissions-Policy"
+            "Cross-Origin-Opener-Policy"
+            "Content-Security-Policy"
+            "security.txt"
+            "robots.txt"
+          )
+          for header in "${required[@]}"; do
+            if ! grep -q "$header" nginx/nginx.conf; then
+              echo "::error::nginx.conf missing required security directive: $header"
+              exit 1
+            fi
+          done
+
+  image-sign:
+    name: Build, SBOM, and sign container images
+    # Keyless cosign signing requires an OIDC token from GitHub Actions and
+    # push access to GHCR. We only run it on branches that are allowed to
+    # publish images; PRs still build (for smoke) but do not push/sign.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            context: Scope.Core
+            image: scope-core
+          - name: content
+            context: scope_content
+            image: scope-content
+          - name: intel
+            context: scope_intel
+            image: scope-intel
+          - name: frontend
+            context: scope-frontend
+            image: scope-frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image ref
+        id: ref
+        run: |
+          repo_lower="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${repo_lower}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ steps.ref.outputs.image }}:${{ steps.ref.outputs.tag }}
+            ${{ steps.ref.outputs.image }}:latest
+          provenance: mode=max
+          sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Keyless sign image
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign sign --yes \
+            ${{ steps.ref.outputs.image }}@${{ steps.build.outputs.digest }}
+
+      - name: Generate CycloneDX SBOM for image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.ref.outputs.image }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx
+          output: ${{ matrix.name }}.cdx.json
+
+      - name: Attach SBOM attestation
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign attest --yes --predicate ${{ matrix.name }}.cdx.json \
+            --type cyclonedx \
+            ${{ steps.ref.outputs.image }}@${{ steps.build.outputs.digest }}

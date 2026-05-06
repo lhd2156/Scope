@@ -1,0 +1,475 @@
+:root {
+  color-scheme: dark;
+  font-family: var(--font-family);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  --page-max-width: 92rem;
+  --shell-side-padding: 1rem;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --shell-content-top-base: 5.5rem;
+  --shell-content-top: calc(var(--shell-content-top-base) + var(--safe-area-top));
+  --shell-content-bottom-base: 3rem;
+  --shell-content-bottom: calc(var(--shell-content-bottom-base) + var(--safe-area-bottom));
+  --shell-max-width-with-safe-area: calc(var(--page-max-width) + (var(--shell-side-padding) * 2) + var(--safe-area-left) + var(--safe-area-right));
+  --section-gap: var(--section-gap-page);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  /* Full-bleed blocks use width:100vw; that can exceed the layout width when a vertical scrollbar is present. */
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  background: var(--bg-primary);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--shell-content-top) + var(--space-4));
+  scrollbar-color:
+    color-mix(in srgb, var(--scrollbar-thumb) 64%, var(--accent-teal))
+    color-mix(in srgb, var(--scrollbar-track) 72%, transparent);
+  scrollbar-width: thin;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.route-stage {
+  min-height: 100vh;
+}
+
+.route-stage .layout-shell {
+  min-height: 100vh;
+}
+
+.route-stage,
+.route-stage .layout-shell,
+.layout-shell,
+.layout-shell main {
+  min-height: 100dvh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(
+      .explore-page .filter-chip.active,
+      .explore-page .quick-filter-chip.active,
+      .map-page .filter-chip:not(.is-inactive),
+      .map-controls .filter-chip:not(.is-muted),
+      .trip-planner .interest-chip.active
+    ) {
+    animation: scope-chip-bounce var(--motion-duration-bounce) cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .surface-card {
+    transition-duration: 1ms;
+  }
+
+  .button:hover,
+  .button:focus-visible,
+  .button:active,
+  .surface-card:hover,
+  .surface-card:focus-within {
+    transform: none;
+  }
+}
+
+.route-stage :is(.page-container, .map-page) > *,
+.stagger-in > *,
+.feed-grid .feed-grid__cell,
+.virtual-list__item-content,
+.auth-stage__brand,
+.auth-stage__hero-copy,
+.auth-stage__hero-highlights,
+.auth-stage__panel-shell {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+html[data-scope-qa='true'] body {
+  background: var(--bg-primary);
+}
+
+html[data-scope-qa='true'] *,
+html[data-scope-qa='true'] *::before,
+html[data-scope-qa='true'] *::after {
+  animation: none !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-scope-qa='true'] .route-stage :is(.page-container, .map-page) > *,
+html[data-scope-qa='true'] .stagger-in > * {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+html[data-scope-qa='true'] .button,
+html[data-scope-qa='true'] .surface-card {
+  transition-duration: 1ms !important;
+}
+
+html[data-scope-qa='true'] .glass-panel {
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-scope-qa='true'] .surface-card,
+html[data-scope-qa='true'] .button,
+html[data-scope-qa='true'] .auth-card {
+  box-shadow: none;
+}
+
+html[data-scope-qa='true'] .surface-card:hover,
+html[data-scope-qa='true'] .surface-card:focus-within,
+html[data-scope-qa='true'] .button:hover,
+html[data-scope-qa='true'] .button:focus-visible,
+html[data-scope-qa='true'] .button:active {
+  transform: none;
+  box-shadow: none;
+}
+
+html[data-scope-qa='true'] body,
+html[data-scope-qa='true'] button,
+html[data-scope-qa='true'] input,
+html[data-scope-qa='true'] textarea,
+html[data-scope-qa='true'] select {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html[data-scope-qa='true'] .auth-stage__particle-layer,
+html[data-scope-qa='true'] .auth-stage__hero-highlights,
+html[data-scope-qa='true'] .auth-stage__panel-side::before,
+html[data-scope-qa='true'] .auth-stage__panel-side::after {
+  display: none !important;
+}
+
+html[data-scope-qa='true'] .auth-stage__hero-overlay,
+html[data-scope-qa='true'] .auth-stage__panel-side,
+html[data-scope-qa='true'] .auth-stage__hero {
+  background: none !important;
+}
+
+html[data-scope-qa='true'] .auth-stage__brand,
+html[data-scope-qa='true'] .navbar,
+html[data-scope-qa='true'] .navbar-search,
+html[data-scope-qa='true'] .profile-chip,
+html[data-scope-qa='true'] .create-spot-link,
+html[data-scope-qa='true'] .notification-toggle {
+  box-shadow: none !important;
+}
+
+@keyframes scope-chip-bounce {
+  0% {
+    transform: translateY(0) scale(0.96);
+  }
+
+  55% {
+    transform: translateY(var(--motion-chip-bounce-lift)) scale(1.03);
+  }
+
+  100% {
+    transform: translateY(var(--motion-chip-active-lift)) scale(1);
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/*
+ * Neutralise Chromium/Safari autofill's hard-coded yellow/blue/purple
+ * background on dark-themed inputs.
+ *
+ * The `background-clip: text` trick is the reliable fix: the browser
+ * still paints its autofill colour as the input's background, but we
+ * clip that background to the glyph shapes only, so the actual input
+ * background stays transparent. `-webkit-text-fill-color` then paints
+ * the visible text in our own colour on top. The long transition is
+ * a belt-and-braces guard for older Chromium builds that ignore the
+ * clip rule.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--text-primary);
+  transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
+}
+
+input:autofill,
+textarea:autofill,
+select:autofill {
+  background-clip: text;
+  color: var(--text-primary);
+}
+
+button,
+a,
+[role='button'],
+summary {
+  touch-action: manipulation;
+}
+
+input[type='range'] {
+  touch-action: pan-x;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::-webkit-scrollbar {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--scrollbar-track) 72%, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 0.22rem solid transparent;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--scrollbar-thumb) 64%, var(--accent-teal));
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent-teal) 48%, var(--scrollbar-thumb));
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.layout-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-shell main {
+  min-height: 100vh;
+  flex: 1 0 auto;
+}
+
+.page-container {
+  width: 100%;
+  max-width: var(--shell-max-width-with-safe-area);
+  margin: 0 auto;
+  padding:
+    var(--section-gap-compact)
+    calc(var(--shell-side-padding) + var(--safe-area-right))
+    var(--shell-content-bottom)
+    calc(var(--shell-side-padding) + var(--safe-area-left));
+}
+
+.layout-shell .page-container {
+  padding-top: var(--shell-content-top);
+}
+
+.page-stack {
+  display: grid;
+  gap: var(--section-gap);
+}
+
+.card-grid,
+.grid-auto {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-2xl);
+}
+
+.surface-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.surface-card:hover,
+.surface-card:focus-within {
+  transform: translateY(var(--motion-card-lift));
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-secondary));
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.section-title {
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-display);
+  margin: 0 0 var(--space-4);
+}
+
+.section-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-weight: var(--font-weight-semibold);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.button:hover,
+.button:focus-visible {
+  transform: translateY(var(--motion-button-lift));
+  outline: none;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0) scale(var(--motion-press-scale));
+  transition-duration: var(--motion-press-duration);
+}
+
+.button-primary {
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+}
+
+.button-primary:hover,
+.button-primary:focus-visible {
+  background: var(--accent-teal-hover);
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.button-secondary:hover,
+.button-secondary:focus-visible {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-color: var(--border-hover);
+}
+
+@media (max-width: 1120px) {
+  :root {
+    --shell-side-padding: 0.875rem;
+    --shell-content-top-base: 5.5rem;
+    --section-gap: var(--section-gap-compact);
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1440px) {
+  :root {
+    --shell-content-top-base: 8.25rem;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --shell-side-padding: 0.75rem;
+    --shell-content-top-base: 5rem;
+    --shell-content-bottom-base: 2.5rem;
+    --section-gap: var(--section-gap-compact);
+  }
+}
+
+/* Phase 17.1 - shared responsive breakpoint audit guardrails */
+@media (max-width: 1024px) {
+  :where(.page-container) {
+    max-width: 100%;
+  }
+
+  :where(.page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.glass-panel) {
+    padding: var(--space-6);
+  }
+}
+
+@media (max-width: 640px) {
+  :where(.page-container) {
+    max-width: 100%;
+  }
+
+  :where(.page-stack, .page-grid, .content-grid, .map-layout, .profile-grid, .friends-grid, .settings-layout, .trip-layout, .trip-planner-layout, .detail-layout) {
+    gap: var(--space-4);
+  }
+
+  :where(.glass-panel) {
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+}

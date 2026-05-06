@@ -1,10 +1,10 @@
-# Atlas API Reference
+# Scope API Reference
 
 This document is a practical route reference for the API surface currently present in the repository.
 
 It is intended as a developer-facing quick map, not a replacement for:
 
-- `atlas_architecture.tex` (architecture source of truth)
+- `scope_architecture.tex` (architecture source of truth)
 - service-level tests
 - serializer / schema definitions
 
@@ -12,7 +12,7 @@ It is intended as a developer-facing quick map, not a replacement for:
 
 ### Response envelopes
 
-Atlas APIs use service-specific response conventions that were aligned during the audit passes:
+Scope APIs use service-specific response conventions that were aligned during the audit passes:
 
 - **Core** commonly returns `ApiResponse<object>` envelopes for business endpoints
 - **Content** commonly returns `{ data: ... }` envelopes for detail/mutation responses, with paginated list responses using DRF pagination structures
@@ -29,7 +29,7 @@ Atlas APIs use service-specific response conventions that were aligned during th
 
 ## Core API (`/api/core`)
 
-Source: `Atlas.Core/Atlas.Core.API/Controllers/Controllers.cs`
+Source: `Scope.Core/Scope.Core.API/Controllers/Controllers.cs`
 
 ### Auth
 
@@ -81,8 +81,8 @@ Source: `Atlas.Core/Atlas.Core.API/Controllers/Controllers.cs`
 
 Source:
 
-- `atlas_content/atlas_content/urls.py`
-- `atlas_content/*/urls.py`
+- `scope_content/scope_content/urls.py`
+- `scope_content/*/urls.py`
 - service views under `spots/`, `trips/`, `photos/`, `reviews/`, `feed/`
 
 ### Health
@@ -153,7 +153,7 @@ Source:
 
 ## Intel API (`/api/intel`)
 
-Source: `atlas_intel/app/api/*.py`
+Source: `scope_intel/app/api/*.py`
 
 ### Itineraries
 
@@ -173,7 +173,7 @@ Source: `atlas_intel/app/api/*.py`
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/intel/vibe-match` | match a freeform description to Atlas vibes/spots |
+| POST | `/api/intel/vibe-match` | match a freeform description to Scope vibes/spots |
 
 ### Route optimization
 
@@ -217,4 +217,4 @@ Current reverse-proxy wiring is documented in `docs/DEPLOYMENT.md`.
 - `README.md`
 - `docs/DEPLOYMENT.md`
 - `docs/PRODUCTION-HARDENING.md`
-- `atlas_architecture.tex`
+- `scope_architecture.tex`
