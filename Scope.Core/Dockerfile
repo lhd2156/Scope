@@ -18,7 +18,7 @@ RUN dotnet publish Scope.Core/Scope.Core.API/Scope.Core.API.csproj \
         /p:TieredCompilation=true \
         /p:PublishTrimmed=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
