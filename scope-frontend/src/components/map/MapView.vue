@@ -162,7 +162,8 @@ import { getMapPointsInsideViewport } from '@/components/map/mapViewportVisibili
 import {
   hasMapboxToken,
   loadConfiguredMapboxRuntime,
-  resolveMapboxStyle,
+  resolveConfiguredMapStyle,
+  resolveConfiguredMapStyleKey,
 } from '@/services/mapboxLoader';
 import {
   resolveRoadRoute,
@@ -330,8 +331,21 @@ const liveRouteOverlaySize = ref({ width: 1, height: 1 });
 const measuredVisiblePinCount = ref<number | null>(null);
 const autoRoadRoute = ref<{ signature: string; summary: RoadRouteSummary } | null>(null);
 const hasToken = hasMapboxToken();
-const interactiveMapEnabled = ref(hasToken && !isUiTestEnvironment());
-const mapStyle = ref(mapStore.viewport.style);
+const interactiveMapEnabled = ref(!isUiTestEnvironment());
+const mapStyle = ref(resolveConfiguredMapStyleKey());
+
+function resolveLiveMapStyle(fallback = mapStore.viewport.style) {
+  return resolveConfiguredMapStyle(undefined, fallback);
+}
+
+function resolveLiveMapStyleKey(fallback = mapStore.viewport.style): string {
+  return resolveConfiguredMapStyleKey(undefined, fallback);
+}
+
+function syncStoredMapStyle(nextStyle = mapStore.viewport.style): void {
+  mapStyle.value = hasToken ? nextStyle : resolveLiveMapStyleKey(nextStyle);
+  mapStore.setStyle(mapStyle.value);
+}
 
 function markMapRuntimeFailed(): void {
   cancelScheduledMarkerRender();
@@ -762,8 +776,7 @@ function applyBaseViewport(options: { animate?: boolean } = {}): void {
   const targetViewport = resolveBaseViewport();
   mapStore.setCenter(targetViewport.center);
   mapStore.setZoom(targetViewport.zoom);
-  mapStore.setStyle(targetViewport.style);
-  mapStyle.value = targetViewport.style;
+  syncStoredMapStyle(targetViewport.style);
 
   const instance = map.value;
   if (!instance || !interactiveMapEnabled.value || options.animate !== true) {
@@ -1600,8 +1613,7 @@ function resetMapViewport() {
   const targetViewport = resolveBaseViewport();
   mapStore.setCenter(targetViewport.center);
   mapStore.setZoom(targetViewport.zoom);
-  mapStore.setStyle(targetViewport.style);
-  mapStyle.value = targetViewport.style;
+  syncStoredMapStyle(targetViewport.style);
 
   if (!instance || !interactiveMapEnabled.value) {
     return;
@@ -1663,11 +1675,11 @@ function handleLocationUpdate(location: UserLocation) {
 }
 
 function syncThemeToMap() {
-  mapStyle.value = resolveMapboxStyle(mapStore.viewport.style);
+  mapStyle.value = resolveLiveMapStyleKey(mapStore.viewport.style);
   mapStore.setStyle(mapStyle.value);
 
-  if (map.value && interactiveMapEnabled.value && map.value.getStyle().sprite !== undefined) {
-    map.value.setStyle(mapStyle.value);
+  if (map.value && interactiveMapEnabled.value) {
+    map.value.setStyle(resolveLiveMapStyle(mapStore.viewport.style));
     map.value.once('style.load', applyPlaceLabelVisibility);
   }
 }
@@ -1724,14 +1736,14 @@ async function setupMap() {
     return;
   }
 
-  mapStyle.value = resolveMapboxStyle(mapStore.viewport.style);
+  mapStyle.value = resolveLiveMapStyleKey(mapStore.viewport.style);
   mapStore.setStyle(mapStyle.value);
 
   let instance;
   try {
     instance = new runtime.Map({
       container: mapContainer.value,
-      style: mapStyle.value,
+      style: resolveLiveMapStyle(mapStore.viewport.style),
       center: mapStore.viewport.center,
       zoom: mapStore.viewport.zoom,
       attributionControl: false,
@@ -1747,7 +1759,7 @@ async function setupMap() {
     const status = event?.error?.status;
     const message = event?.error?.message ?? '';
     const isAuthError = status === 401 || status === 403 || /access token|unauthor/i.test(message);
-    if (isAuthError) {
+    if (isAuthError && hasToken) {
       console.warn('[scope-map] Mapbox auth/tile error; falling back to static view.', event?.error);
       try {
         instance?.remove();
