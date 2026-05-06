@@ -44,5 +44,5 @@ langchain>=0.3.0
 langchain-ollama>=0.3.0
 langgraph>=0.4.0
 Flask-Limiter>=3.12.0
-sentry-sdk[flask]>=2.22.0
+sentry-sdk[flask]>=2.59.0
 redis>=5.2.1
