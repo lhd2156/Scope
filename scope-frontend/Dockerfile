@@ -1,6 +1,6 @@
 # Pin node to 20-alpine; in release builds, append @sha256:<digest> so a
 # compromised alpine tag cannot swap the build toolchain silently.
-FROM node:20-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /workspace/scope-frontend
 
 ARG VITE_API_BASE_URL=/
