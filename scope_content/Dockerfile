@@ -1,6 +1,6 @@
 # Pin to the -slim Debian variant; for release builds, append @sha256:<digest>
 # (Dependabot's docker ecosystem keeps these current).
-FROM python:3.12-slim
+FROM python:3.14-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
