@@ -29,7 +29,7 @@ celery[rabbitmq]>=5.5.0
 torch==2.11.0+cpu
 torchvision==0.26.0+cpu
 transformers>=4.50.0
-tokenizers>=0.21.0
+tokenizers>=0.23.1
 faiss-cpu>=1.11.0
 xgboost-cpu>=3.0.0,<4.0.0
 pandas>=2.2.0
