@@ -22,7 +22,7 @@ COPY scope-assets ../scope-assets
 RUN npm run build
 
 # Nginx pinned to 1.27-alpine; append @sha256:<digest> in release builds.
-FROM nginx:1.27-alpine
+FROM nginx:1.29-alpine
 # Install curl for healthcheck and drop setuid bits that are unnecessary for a static SPA.
 RUN apk add --no-cache curl \
     && find / -xdev \( -perm -4000 -o -perm -2000 \) -exec chmod ug-s {} + 2>/dev/null || true
