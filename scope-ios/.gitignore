@@ -1,0 +1,18 @@
+## Swift
+.build/
+Packages/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+.swiftpm/
+Package.resolved
+
+## XcodeGen-generated project — the source of truth is project.yml.
+Scope.xcodeproj/
+
+## macOS
+.DS_Store
+
+## Secrets
+*.env
+*.xcconfig.local

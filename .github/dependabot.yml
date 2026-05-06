@@ -14,9 +14,14 @@ updates:
     labels:
       - dependencies
       - github-actions
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: nuget
-    directory: /Atlas.Core
+    directory: /Scope.Core
     schedule:
       interval: weekly
       day: monday
@@ -29,9 +34,14 @@ updates:
     labels:
       - dependencies
       - dotnet
+    groups:
+      dotnet-minor-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: pip
-    directory: /atlas_content
+    directory: /scope_content
     schedule:
       interval: weekly
       day: monday
@@ -44,9 +54,14 @@ updates:
     labels:
       - dependencies
       - python
+    groups:
+      content-minor-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: pip
-    directory: /atlas_intel
+    directory: /scope_intel
     schedule:
       interval: weekly
       day: monday
@@ -59,9 +74,14 @@ updates:
     labels:
       - dependencies
       - python
+    groups:
+      intel-minor-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
-    directory: /atlas-frontend
+    directory: /scope-frontend
     schedule:
       interval: weekly
       day: monday
@@ -74,9 +94,25 @@ updates:
     labels:
       - dependencies
       - frontend
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - minor
+          - patch
+      # Keep lockstep tooling consistent
+      vitest:
+        patterns:
+          - '@vitest/*'
+          - 'vitest'
+      vue-core:
+        patterns:
+          - 'vue'
+          - '@vue/*'
+          - 'vue-router'
+          - 'pinia'
 
   - package-ecosystem: docker
-    directory: /Atlas.Core
+    directory: /Scope.Core
     schedule:
       interval: weekly
       day: monday
@@ -91,7 +127,7 @@ updates:
       - docker
 
   - package-ecosystem: docker
-    directory: /atlas_content
+    directory: /scope_content
     schedule:
       interval: weekly
       day: monday
@@ -106,7 +142,7 @@ updates:
       - docker
 
   - package-ecosystem: docker
-    directory: /atlas_intel
+    directory: /scope_intel
     schedule:
       interval: weekly
       day: monday
@@ -121,11 +157,26 @@ updates:
       - docker
 
   - package-ecosystem: docker
-    directory: /atlas-frontend
+    directory: /scope-frontend
     schedule:
       interval: weekly
       day: monday
       time: '10:20'
+      timezone: America/Chicago
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /nginx
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:30'
       timezone: America/Chicago
     open-pull-requests-limit: 10
     commit-message:

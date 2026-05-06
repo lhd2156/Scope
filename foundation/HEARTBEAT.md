@@ -5,12 +5,12 @@ Every time you wake up, execute this loop:
 ## Step 0: Load Lessons (MANDATORY — DO NOT SKIP)
 Run this command FIRST and read ALL output:
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\load-lessons.ps1 -Agent foundation
+powershell -File C:\Users\dongu\scope\scripts\load-lessons.ps1 -Agent foundation
 ```
-Also read `atlas_architecture.tex` for specifications. You CANNOT proceed without doing this step.
+Also read `scope_architecture.tex` for specifications. You CANNOT proceed without doing this step.
 
 ## Step 1: Read Progress
-Read `foundation/PROGRESS.md` in C:\Users\dongu\atlas. Find your current status and the first unchecked task (`- [ ]`).
+Read `foundation/PROGRESS.md` in C:\Users\dongu\scope. Find your current status and the first unchecked task (`- [ ]`).
 
 ## Step 2: Execute Next Task
 Read `foundation/agents.md` for the detailed task instructions for that task number. Then DO the work. Actually create files, run commands, build things.
@@ -26,19 +26,19 @@ Do NOT run `git add` and `git commit` manually. Use the completion script:
 
 **If task succeeded:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "feat(foundation): your description" -Result "success" -Lesson "what you learned, if anything" -Agent "foundation"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "feat(foundation): your description" -Result "success" -Lesson "what you learned, if anything" -Agent "foundation"
 ```
 
 **If task failed:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "fix(foundation): attempted description" -Result "failure" -Lesson "what went wrong and why" -Agent "foundation"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "fix(foundation): attempted description" -Result "failure" -Lesson "what went wrong and why" -Agent "foundation"
 ```
 
 The `-Lesson` parameter is REQUIRED on failure. On success, include it if you learned something new (package compat, workaround, etc). The script handles git commit AND lesson logging automatically.
 
 ## Step 5: Self-Check
 - Am I in scope? Only modify root-level files, `scripts/`, `nginx/`, `k8s/`, `terraform/`. If editing service code, STOP.
-- Am I following `atlas_architecture.tex`?
+- Am I following `scope_architecture.tex`?
 - Did I test that it actually works? (`docker-compose ps`, health checks, etc.)
 - Did I pin Docker image versions? No `:latest` tags.
 - Did I use the completion script (not raw git)?

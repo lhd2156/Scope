@@ -25,7 +25,7 @@ locals {
     Project     = var.project_name
     Environment = var.environment
     ManagedBy   = "terraform"
-    Repository  = "lhd2156/atlas"
+    Repository  = "lhd2156/scope"
     Purpose     = "terraform-bootstrap"
   }, var.tags)
   state_bucket_name = lower("${local.name_prefix}-${data.aws_caller_identity.current.account_id}-tfstate")

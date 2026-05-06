@@ -5,18 +5,18 @@ Every time you wake up, execute this loop:
 ## Step 0: Load Lessons (MANDATORY — DO NOT SKIP)
 Run this command FIRST and read ALL output:
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\load-lessons.ps1 -Agent content
+powershell -File C:\Users\dongu\scope\scripts\load-lessons.ps1 -Agent content
 ```
-Also read `atlas_architecture.tex` for specifications. You CANNOT proceed without doing this step.
+Also read `scope_architecture.tex` for specifications. You CANNOT proceed without doing this step.
 
 ## Step 1: Read Progress
-Read `content/PROGRESS.md` in C:\Users\dongu\atlas. Find your current status and the first unchecked task (`- [ ]`).
+Read `content/PROGRESS.md` in C:\Users\dongu\scope. Find your current status and the first unchecked task (`- [ ]`).
 
 ## Step 2: Check Prerequisites
 Foundation must be `COMPLETE` before you start. Check `foundation/PROGRESS.md`. If not COMPLETE, reply `HEARTBEAT_OK — waiting for Foundation` and stop.
 
 ## Step 3: Execute Next Task
-Read `content/agents.md` for the detailed task instructions for that task number. Then DO the work. Actually create files, run commands, build things inside `atlas_content/`.
+Read `content/agents.md` for the detailed task instructions for that task number. Then DO the work. Actually create files, run commands, build things inside `scope_content/`.
 
 ## Step 4: Update Progress
 - Mark the completed task as `- [x]` in `content/PROGRESS.md`
@@ -29,19 +29,19 @@ Do NOT run `git add` and `git commit` manually. Use the completion script:
 
 **If task succeeded:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "feat(content): your description" -Result "success" -Lesson "what you learned, if anything" -Agent "content"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "feat(content): your description" -Result "success" -Lesson "what you learned, if anything" -Agent "content"
 ```
 
 **If task failed:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "fix(content): attempted description" -Result "failure" -Lesson "what went wrong and why" -Agent "content"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "fix(content): attempted description" -Result "failure" -Lesson "what went wrong and why" -Agent "content"
 ```
 
 The `-Lesson` parameter is REQUIRED on failure. On success, include it if you learned something new. The script handles git commit AND lesson logging automatically.
 
 ## Step 6: Self-Check
-- Am I in scope? Only modify files inside `atlas_content/`. If editing anything else, STOP.
-- Am I following `atlas_architecture.tex`?
+- Am I in scope? Only modify files inside `scope_content/`. If editing anything else, STOP.
+- Am I following `scope_architecture.tex`?
 - Did I run tests? (`pytest`)
 - Is security in place? (JWT auth, rate limiting, input validation)
 - Did I use the completion script (not raw git)?

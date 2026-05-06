@@ -1,0 +1,129 @@
+# Root .dockerignore — applies to any build with context=. (currently: scope-frontend).
+# Per-service .dockerignore files cover builds whose context is their own directory.
+
+# VCS / IDE / OS
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs
+
+# Docs and agent artifacts that are not needed in any image
+**/*.md
+!README.md
+!scope-frontend/README.md
+agent-transcripts
+memory
+output
+foundation
+polish
+content
+core
+intel
+frontend
+skills
+docs
+HEARTBEAT.md
+SOUL.md
+IDENTITY.md
+USER.md
+PROGRESS.md
+PHASE_TRACKING.md
+CONTRIBUTING.md
+BOOTSTRAP.md
+
+# Node
+node_modules
+**/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm-cache
+
+# Python
+.venv
+venv
+env
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+.python-version
+
+# .NET
+**/bin
+**/obj
+**/TestResults
+.dotnet-home
+.dotnet-sdk
+
+# Front-end build artifacts (source of truth is rebuilt in the image)
+scope-frontend/dist
+scope-frontend/playwright-report
+scope-frontend/test-results
+scope-frontend/coverage
+scope-frontend/.vite
+scope-frontend/emsdk
+scope-frontend/wasm/build
+scope-admin/dist
+scope-admin/playwright-report
+scope-admin/test-results
+scope-admin/coverage
+scope-site/.next
+scope-site/out
+scope-site/playwright-report
+scope-site/test-results
+scope-site/coverage
+
+# Backends we don't need when building the frontend container
+scope_content
+scope_intel
+scope_geo
+scope_media
+scope-metrics
+scope-cli
+
+# Proto generation outputs/tools are not needed by Docker builds; Core consumes
+# the source .proto files directly via Grpc.Tools.
+scope-proto/.tools
+scope-proto/gen
+
+# Local tool caches
+.docker-config
+.docker-tmp
+.gocache
+.gomodcache
+.tooling
+.playwright-mcp
+
+# Infra we don't need when building the frontend container
+terraform
+k8s
+nginx
+scripts
+.clawhub
+.openclaw
+.github
+
+# Large text spec not needed in images
+scope_architecture.tex
+auth-profiles.json

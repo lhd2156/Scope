@@ -1,0 +1,2610 @@
+\documentclass[12pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+\definecolor{codeblue}{RGB}{0,102,204}
+\definecolor{codegray}{RGB}{128,128,128}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{backcolor}{RGB}{245,245,245}
+
+\lstdefinestyle{code}{
+  backgroundcolor=\color{backcolor},
+  commentstyle=\color{codegreen},
+  keywordstyle=\color{codeblue},
+  numberstyle=\tiny\color{codegray},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Scope --- Comprehensive Architecture Document}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{\Huge\textbf{Scope}\\[10pt]\Large Comprehensive Architecture \& Implementation Guide\\[5pt]\normalsize Real-World Adventure Platform --- Polyglot Microservices}
+\author{Louis Do}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ===========================================================================
+\section{Introduction \& Vision}
+% ===========================================================================
+
+\subsection{What is Scope?}
+Scope is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins at locations they visit, upload photos, write stories, tag the vibe, and share adventures with friends. Over time, each user builds a personal map of every place they have explored. Other users discover these spots, and an AI engine plans optimized itineraries from community data.
+
+\subsection{Elevator Pitch}
+``Pok\'emon Go meets Instagram --- real places, real photos, real adventures on a map.''
+
+\subsection{Target Audience}
+\begin{itemize}
+  \item College students exploring their city or traveling on breaks
+  \item Friend groups coordinating weekend plans or road trips
+  \item Solo travelers looking for authentic local recommendations
+  \item Content creators documenting adventures visually
+\end{itemize}
+
+\subsection{Core Value Propositions}
+\begin{enumerate}
+  \item \textbf{Personal Adventure Map} --- Every pin is a memory; your map grows with you
+  \item \textbf{Community Discovery} --- Find hidden gems other travelers have mapped
+  \item \textbf{AI Trip Planning} --- Intelligent itineraries based on budget, time, weather, and taste
+  \item \textbf{Real-Time Group Coordination} --- Live location sharing and collaborative trip planning
+  \item \textbf{Social Vibes} --- Rate, review, and share spots with friends
+\end{enumerate}
+
+\subsection{Agent Instructions}
+\textbf{IMPORTANT:} This document is designed for AI coding agents (Codex, OpenClaw, etc.) to build the entire application autonomously. Each section contains enough detail to implement without additional human prompting. Agents should:
+\begin{itemize}
+  \item Read the full document before starting any implementation
+  \item Follow the service boundaries strictly --- do not merge microservices
+  \item Implement security measures as described --- never skip rate limiting or input validation
+  \item Write tests for every endpoint and component
+  \item Use the exact tech stack specified --- no substitutions without explicit approval
+  \item Reason through edge cases independently; the user will provide minimal guidance
+  \item Follow SOLID principles and clean architecture throughout
+  \item Commit frequently with descriptive messages following Conventional Commits
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{System Architecture}
+% ===========================================================================
+
+\subsection{High-Level Overview}
+Scope follows a polyglot microservices architecture with three backend services, each written in a different framework chosen for its strengths:
+
+\begin{center}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Service} & \textbf{Framework} & \textbf{Responsibility} \\
+\hline
+Core Platform & C\# / ASP.NET Core & Auth, real-time, user mgmt, notifications \\
+Content Engine & Python / Django & Trips, photos, reviews, social feed \\
+Intelligence API & Python / Flask & AI itineraries, vibe matching, routing \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Communication Patterns}
+\begin{itemize}
+  \item \textbf{Synchronous (REST):} Frontend $\rightarrow$ Nginx $\rightarrow$ Individual services via REST APIs
+  \item \textbf{Asynchronous (Kafka):} Service-to-service events via Kafka topics
+  \item \textbf{Real-Time (SignalR):} Core Platform $\rightarrow$ Frontend via WebSocket (SignalR hubs)
+\end{itemize}
+
+\subsection{Request Flow}
+\begin{enumerate}
+  \item User interacts with Vue.js frontend
+  \item Request hits Nginx reverse proxy
+  \item Nginx routes to the appropriate service based on URL prefix:
+    \begin{itemize}
+      \item \texttt{/api/core/*} $\rightarrow$ Core Platform (C\#)
+      \item \texttt{/api/content/*} $\rightarrow$ Content Engine (Django)
+      \item \texttt{/api/intel/*} $\rightarrow$ Intelligence API (Flask)
+    \end{itemize}
+  \item Service processes request, interacts with SQL Server / S3
+  \item If cross-service communication needed, publishes event to Kafka
+  \item Other services consume the event and update their state
+  \item Real-time updates pushed to frontend via SignalR
+\end{enumerate}
+
+\subsection{Service Boundaries}
+Each service owns its own database schema (logical separation within SQL Server). Services NEVER directly access another service's tables. All cross-service data flows through Kafka events or REST API calls.
+
+\newpage
+
+% ===========================================================================
+\section{Complete Tech Stack}
+% ===========================================================================
+
+\subsection{Languages}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Language} & \textbf{Version} & \textbf{Where Used} \\
+\hline
+C\# & .NET 8 & Core Platform service \\
+Python & 3.12+ & Django + Flask services \\
+TypeScript & 5.x & Vue.js frontend \\
+Bash & --- & Docker scripts, CI automation \\
+SQL & T-SQL & Database queries, migrations \\
+\hline
+\end{tabular}
+
+\subsection{Frameworks \& Libraries}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Technology} & \textbf{Role} & \textbf{Service} \\
+\hline
+ASP.NET Core 8 & Web API + SignalR & Core Platform \\
+ASP.NET Core Identity & Auth, user management & Core Platform \\
+SignalR & Real-time WebSocket & Core Platform \\
+Entity Framework Core & ORM for SQL Server & Core Platform \\
+Django 5.x & Web framework + ORM + Admin & Content Engine \\
+Django REST Framework & REST API serializers & Content Engine \\
+Pillow & Image processing & Content Engine \\
+Flask 3.x & Lightweight API & Intelligence API \\
+scikit-learn & ML recommendations & Intelligence API \\
+Vue.js 3 & Frontend framework & Frontend \\
+Pinia & State management & Frontend \\
+Vue Router & Client-side routing & Frontend \\
+Mapbox GL JS & Interactive maps & Frontend \\
+Axios & HTTP client & Frontend \\
+\hline
+\end{tabular}
+
+\subsection{Infrastructure \& DevOps}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Technology} & \textbf{Role} \\
+\hline
+Docker & Container runtime for all services \\
+Kubernetes & Container orchestration \\
+Nginx & API gateway / reverse proxy \\
+AWS (ECS/EC2) & Cloud hosting \\
+AWS S3 & Photo \& media storage \\
+AWS Cognito & OAuth / social login \\
+Terraform & Infrastructure as code \\
+GitHub Actions & CI/CD pipeline \\
+Kafka & Async event streaming between services \\
+SQL Server Express & Relational database \\
+\hline
+\end{tabular}
+
+\subsection{Testing}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Framework} & \textbf{Type} & \textbf{Service} \\
+\hline
+xUnit + Moq & Unit / Integration & Core Platform (C\#) \\
+Pytest + Factory Boy & Unit / Integration & Django + Flask \\
+Playwright & E2E browser tests & Frontend \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ===========================================================================
+\section{Database Design (SQL Server)}
+% ===========================================================================
+
+\subsection{Schema Strategy}
+Logical schema separation within a single SQL Server instance. Each service owns its schema prefix:
+\begin{itemize}
+  \item \texttt{core.*} --- Core Platform tables
+  \item \texttt{content.*} --- Content Engine tables
+  \item \texttt{intel.*} --- Intelligence API tables (cached results, ML models)
+\end{itemize}
+
+\subsection{Core Schema (\texttt{core})}
+
+\subsubsection{Users}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE core.Users (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    Username        NVARCHAR(50) NOT NULL UNIQUE,
+    Email           NVARCHAR(255) NOT NULL UNIQUE,
+    PasswordHash    NVARCHAR(MAX) NOT NULL,
+    DisplayName     NVARCHAR(100),
+    AvatarUrl       NVARCHAR(500),
+    Bio             NVARCHAR(500),
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    IsActive        BIT DEFAULT 1,
+    LastLoginAt     DATETIME2
+);
+\end{lstlisting}
+
+\subsubsection{Friendships}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE core.Friendships (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    RequesterId     UNIQUEIDENTIFIER REFERENCES core.Users(Id),
+    AddresseeId     UNIQUEIDENTIFIER REFERENCES core.Users(Id),
+    Status          NVARCHAR(20) CHECK (Status IN
+                    ('pending','accepted','declined','blocked')),
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    UNIQUE(RequesterId, AddresseeId)
+);
+\end{lstlisting}
+
+\subsubsection{Notifications}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE core.Notifications (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId          UNIQUEIDENTIFIER REFERENCES core.Users(Id),
+    Type            NVARCHAR(50) NOT NULL,
+    Title           NVARCHAR(200) NOT NULL,
+    Body            NVARCHAR(1000),
+    ReferenceId     NVARCHAR(100),
+    IsRead          BIT DEFAULT 0,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\subsubsection{LiveSessions (Real-Time Location Sharing)}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE core.LiveSessions (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TripId          UNIQUEIDENTIFIER NOT NULL,
+    UserId          UNIQUEIDENTIFIER REFERENCES core.Users(Id),
+    Latitude        FLOAT NOT NULL,
+    Longitude       FLOAT NOT NULL,
+    IsActive        BIT DEFAULT 1,
+    LastPingAt      DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\subsection{Content Schema (\texttt{content})}
+
+\subsubsection{Spots}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.Spots (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    Title           NVARCHAR(200) NOT NULL,
+    Description     NVARCHAR(2000),
+    Latitude        FLOAT NOT NULL,
+    Longitude       FLOAT NOT NULL,
+    Address         NVARCHAR(500),
+    City            NVARCHAR(100),
+    Country         NVARCHAR(100),
+    Category        NVARCHAR(50) CHECK (Category IN
+                    ('food','nature','nightlife','culture',
+                     'adventure','shopping','scenic','other')),
+    Vibe            NVARCHAR(50),
+    Rating          DECIMAL(2,1) CHECK (Rating BETWEEN 1.0 AND 5.0),
+    VisitedAt       DATE,
+    IsPublic        BIT DEFAULT 1,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+CREATE INDEX IX_Spots_Location ON content.Spots(Latitude, Longitude);
+CREATE INDEX IX_Spots_UserId ON content.Spots(UserId);
+CREATE INDEX IX_Spots_Category ON content.Spots(Category);
+\end{lstlisting}
+
+\subsubsection{Photos}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.Photos (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SpotId          UNIQUEIDENTIFIER REFERENCES content.Spots(Id)
+                    ON DELETE CASCADE,
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    S3Key           NVARCHAR(500) NOT NULL,
+    S3Url           NVARCHAR(1000) NOT NULL,
+    ThumbnailUrl    NVARCHAR(1000),
+    Caption         NVARCHAR(500),
+    SortOrder       INT DEFAULT 0,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\subsubsection{Trips}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.Trips (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    CreatorId       UNIQUEIDENTIFIER NOT NULL,
+    Title           NVARCHAR(200) NOT NULL,
+    Description     NVARCHAR(2000),
+    StartDate       DATE,
+    EndDate         DATE,
+    Budget          DECIMAL(10,2),
+    Currency        NVARCHAR(3) DEFAULT 'USD',
+    Status          NVARCHAR(20) CHECK (Status IN
+                    ('planning','active','completed','cancelled')),
+    IsPublic        BIT DEFAULT 1,
+    CoverPhotoUrl   NVARCHAR(1000),
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\subsubsection{TripSpots (Many-to-Many)}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.TripSpots (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TripId          UNIQUEIDENTIFIER REFERENCES content.Trips(Id)
+                    ON DELETE CASCADE,
+    SpotId          UNIQUEIDENTIFIER REFERENCES content.Spots(Id),
+    DayNumber       INT,
+    SortOrder       INT DEFAULT 0,
+    Notes           NVARCHAR(500)
+);
+\end{lstlisting}
+
+\subsubsection{TripMembers}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.TripMembers (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TripId          UNIQUEIDENTIFIER REFERENCES content.Trips(Id)
+                    ON DELETE CASCADE,
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    Role            NVARCHAR(20) CHECK (Role IN
+                    ('owner','editor','viewer')),
+    JoinedAt        DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\subsubsection{Reviews}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.Reviews (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SpotId          UNIQUEIDENTIFIER REFERENCES content.Spots(Id)
+                    ON DELETE CASCADE,
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    Rating          DECIMAL(2,1) CHECK (Rating BETWEEN 1.0 AND 5.0),
+    Comment         NVARCHAR(1000),
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    UNIQUE(SpotId, UserId)
+);
+\end{lstlisting}
+
+\subsubsection{Likes}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE content.Likes (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SpotId          UNIQUEIDENTIFIER REFERENCES content.Spots(Id)
+                    ON DELETE CASCADE,
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE(),
+    UNIQUE(SpotId, UserId)
+);
+\end{lstlisting}
+
+\subsection{Intelligence Schema (\texttt{intel})}
+\begin{lstlisting}[style=code,language=SQL]
+CREATE TABLE intel.ItineraryCache (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId          UNIQUEIDENTIFIER NOT NULL,
+    RequestHash     NVARCHAR(64) NOT NULL,
+    ResultJson      NVARCHAR(MAX) NOT NULL,
+    ExpiresAt       DATETIME2 NOT NULL,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+
+CREATE TABLE intel.UserPreferences (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId          UNIQUEIDENTIFIER NOT NULL UNIQUE,
+    PreferredCategories NVARCHAR(500),
+    BudgetLevel     NVARCHAR(20),
+    PacePreference  NVARCHAR(20),
+    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+
+CREATE TABLE intel.SpotFeatures (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SpotId          UNIQUEIDENTIFIER NOT NULL UNIQUE,
+    FeatureVector   NVARCHAR(MAX) NOT NULL,
+    PopularityScore FLOAT DEFAULT 0,
+    SentimentScore  FLOAT DEFAULT 0,
+    UpdatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Service 1: Core Platform (C\# / ASP.NET Core)}
+% ===========================================================================
+
+This is the primary service and the heart of Scope. It handles authentication, user management, real-time features, friend system, and notifications.
+
+\subsection{Project Structure}
+\begin{lstlisting}[style=code]
+Scope.Core/
+  Scope.Core.API/
+    Controllers/
+      AuthController.cs
+      UsersController.cs
+      FriendsController.cs
+      NotificationsController.cs
+      LiveSessionController.cs
+    Hubs/
+      TripHub.cs
+      LocationHub.cs
+      NotificationHub.cs
+    Middleware/
+      RateLimitMiddleware.cs
+      ExceptionHandlingMiddleware.cs
+      RequestLoggingMiddleware.cs
+    Program.cs
+    appsettings.json
+  Scope.Core.Domain/
+    Entities/
+    Interfaces/
+    Enums/
+  Scope.Core.Infrastructure/
+    Data/
+      CoreDbContext.cs
+      Migrations/
+    Repositories/
+    Services/
+      KafkaProducerService.cs
+      KafkaConsumerService.cs
+      S3Service.cs
+      CognitoService.cs
+  Scope.Core.Tests/
+    Controllers/
+    Services/
+    Hubs/
+\end{lstlisting}
+
+\subsection{API Endpoints}
+
+\subsubsection{Authentication (\texttt{/api/core/auth})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST & /register & Register new user \\
+POST & /login & Login with email/password \\
+POST & /refresh & Refresh JWT token \\
+POST & /logout & Invalidate refresh token \\
+POST & /forgot-password & Send password reset email \\
+POST & /reset-password & Reset password with token \\
+POST & /oauth/cognito & Login via AWS Cognito OAuth \\
+GET  & /me & Get current user profile \\
+\hline
+\end{tabular}
+
+\subsubsection{Users (\texttt{/api/core/users})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+GET    & /\{id\} & Get user profile \\
+PUT    & /\{id\} & Update profile \\
+DELETE & /\{id\} & Deactivate account \\
+GET    & /search?q=\{query\} & Search users \\
+PUT    & /\{id\}/avatar & Upload avatar to S3 \\
+GET    & /\{id\}/stats & Get user stats (spots, trips, friends) \\
+\hline
+\end{tabular}
+
+\subsubsection{Friends (\texttt{/api/core/friends})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST   & /request/\{userId\} & Send friend request \\
+PUT    & /\{id\}/accept & Accept friend request \\
+PUT    & /\{id\}/decline & Decline friend request \\
+DELETE & /\{id\} & Remove friend \\
+GET    & / & List friends \\
+GET    & /pending & List pending requests \\
+POST   & /\{userId\}/block & Block user \\
+\hline
+\end{tabular}
+
+\subsubsection{Notifications (\texttt{/api/core/notifications})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+GET    & / & List notifications (paginated) \\
+PUT    & /\{id\}/read & Mark as read \\
+PUT    & /read-all & Mark all as read \\
+DELETE & /\{id\} & Delete notification \\
+GET    & /unread-count & Get unread count \\
+\hline
+\end{tabular}
+
+\subsubsection{Live Sessions (\texttt{/api/core/live})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST & /start/\{tripId\} & Start sharing location \\
+PUT  & /ping & Update current location \\
+POST & /stop & Stop sharing location \\
+GET  & /trip/\{tripId\} & Get all active locations for a trip \\
+\hline
+\end{tabular}
+
+\subsection{SignalR Hubs}
+
+\subsubsection{TripHub}
+\begin{itemize}
+  \item \texttt{JoinTrip(tripId)} --- Join a trip's real-time group
+  \item \texttt{LeaveTrip(tripId)} --- Leave the group
+  \item \texttt{SpotAdded(tripId, spot)} --- Broadcast when someone adds a spot
+  \item \texttt{TripUpdated(tripId, changes)} --- Broadcast trip edits
+  \item \texttt{MemberJoined(tripId, user)} --- Notify when member joins
+\end{itemize}
+
+\subsubsection{LocationHub}
+\begin{itemize}
+  \item \texttt{ShareLocation(tripId, lat, lng)} --- Broadcast GPS position
+  \item \texttt{StopSharing(tripId)} --- Stop broadcasting
+  \item Pings every 5 seconds while active
+\end{itemize}
+
+\subsubsection{NotificationHub}
+\begin{itemize}
+  \item \texttt{OnConnected()} --- Subscribe to personal notification channel
+  \item Server pushes events: friend requests, likes, trip invites, reviews
+\end{itemize}
+
+\subsection{Kafka Events Produced}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Topic} & \textbf{When} \\
+\hline
+\texttt{user.registered} & New user signs up \\
+\texttt{user.updated} & Profile changes \\
+\texttt{friend.accepted} & Friendship established \\
+\texttt{live.location.updated} & GPS ping received \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ===========================================================================
+\section{Service 2: Content Engine (Django)}
+% ===========================================================================
+
+Django handles all content --- spots, trips, photos, reviews, and the social feed. Django was chosen for its powerful ORM, admin panel, and mature ecosystem for content-heavy applications.
+
+\subsection{Project Structure}
+\begin{lstlisting}[style=code]
+scope_content/
+  manage.py
+  scope_content/
+    settings.py
+    urls.py
+    wsgi.py
+  spots/
+    models.py
+    serializers.py
+    views.py
+    urls.py
+    filters.py
+    signals.py
+    tests/
+  trips/
+    models.py
+    serializers.py
+    views.py
+    urls.py
+    tests/
+  photos/
+    models.py
+    serializers.py
+    views.py
+    urls.py
+    services/
+      s3_service.py
+      image_processor.py
+    tests/
+  reviews/
+    models.py
+    serializers.py
+    views.py
+    urls.py
+    tests/
+  feed/
+    views.py
+    services/
+      feed_aggregator.py
+    tests/
+  common/
+    pagination.py
+    permissions.py
+    kafka_producer.py
+    kafka_consumer.py
+    middleware/
+      rate_limit.py
+\end{lstlisting}
+
+\subsection{API Endpoints}
+
+\subsubsection{Spots (\texttt{/api/content/spots})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST   & / & Create a new spot (drop a pin) \\
+GET    & / & List spots (filterable, paginated) \\
+GET    & /\{id\} & Get spot detail \\
+PUT    & /\{id\} & Update spot \\
+DELETE & /\{id\} & Delete spot \\
+GET    & /nearby?lat=\&lng=\&radius= & Find spots near coordinates \\
+GET    & /user/\{userId\} & Get all spots by user \\
+GET    & /explore?category=\&city= & Explore/discover spots \\
+POST   & /\{id\}/like & Like a spot \\
+DELETE & /\{id\}/like & Unlike a spot \\
+GET    & /\{id\}/photos & Get photos for a spot \\
+\hline
+\end{tabular}
+
+\subsubsection{Trips (\texttt{/api/content/trips})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST   & / & Create a new trip \\
+GET    & / & List user's trips \\
+GET    & /\{id\} & Get trip detail with spots \\
+PUT    & /\{id\} & Update trip \\
+DELETE & /\{id\} & Delete trip \\
+POST   & /\{id\}/spots & Add spot to trip \\
+DELETE & /\{id\}/spots/\{spotId\} & Remove spot from trip \\
+PUT    & /\{id\}/spots/reorder & Reorder spots in trip \\
+POST   & /\{id\}/members & Invite member \\
+DELETE & /\{id\}/members/\{userId\} & Remove member \\
+GET    & /\{id\}/members & List trip members \\
+GET    & /public & Browse public trips \\
+\hline
+\end{tabular}
+
+\subsubsection{Photos (\texttt{/api/content/photos})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST   & /upload & Upload photo to S3, create record \\
+DELETE & /\{id\} & Delete photo \\
+PUT    & /\{id\} & Update caption \\
+GET    & /presigned-url & Get S3 presigned upload URL \\
+\hline
+\end{tabular}
+
+\subsubsection{Reviews (\texttt{/api/content/reviews})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST & /spot/\{spotId\} & Write a review \\
+GET  & /spot/\{spotId\} & List reviews for spot \\
+PUT  & /\{id\} & Update review \\
+DELETE & /\{id\} & Delete review \\
+\hline
+\end{tabular}
+
+\subsubsection{Feed (\texttt{/api/content/feed})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+GET & / & Social feed (friends' recent spots + trips) \\
+GET & /trending & Trending spots this week \\
+\hline
+\end{tabular}
+
+\subsection{Kafka Events Produced}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Topic} & \textbf{When} \\
+\hline
+\texttt{spot.created} & New spot pinned \\
+\texttt{spot.updated} & Spot edited \\
+\texttt{spot.liked} & Spot receives like \\
+\texttt{trip.created} & New trip planned \\
+\texttt{trip.member.added} & Member joins trip \\
+\texttt{review.created} & New review posted \\
+\texttt{photo.uploaded} & Photo added to spot \\
+\hline
+\end{tabular}
+
+\subsection{Django Admin}
+Enable Django admin for content moderation:
+\begin{itemize}
+  \item View/edit/delete spots, trips, reviews, photos
+  \item User content analytics (most active users, popular spots)
+  \item Flagged content management
+  \item Bulk operations (approve, reject, feature spots)
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Service 3: Intelligence API (Flask)}
+% ===========================================================================
+
+Flask serves as the lightweight AI/ML service. It handles itinerary generation, spot recommendations, vibe matching, and route optimization. Flask was chosen for its simplicity and tight integration with Python ML libraries.
+
+\subsection{Project Structure}
+\begin{lstlisting}[style=code]
+scope_intel/
+  app.py
+  config.py
+  routes/
+    itinerary.py
+    recommendations.py
+    weather.py
+    geocoding.py
+  services/
+    itinerary_engine.py
+    recommendation_engine.py
+    vibe_matcher.py
+    route_optimizer.py
+    weather_service.py
+    geocoding_service.py
+  ml/
+    models/
+    training/
+    feature_extraction.py
+  kafka/
+    consumer.py
+    producer.py
+  tests/
+    test_itinerary.py
+    test_recommendations.py
+    test_vibe_matcher.py
+  requirements.txt
+  Dockerfile
+\end{lstlisting}
+
+\subsection{API Endpoints (\texttt{/api/intel})}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST & /itinerary/generate & Generate AI-optimized itinerary \\
+GET  & /itinerary/\{id\} & Get cached itinerary \\
+POST & /recommend/spots & Get personalized spot recommendations \\
+POST & /recommend/similar/\{spotId\} & Find similar spots \\
+POST & /vibe-match & Match spots by vibe description \\
+POST & /route/optimize & Optimize route between multiple spots \\
+GET  & /weather?lat=\&lng=\&date= & Get weather forecast for planning \\
+GET  & /geocode?q=\{query\} & Geocode address to coordinates \\
+GET  & /reverse-geocode?lat=\&lng= & Reverse geocode coordinates \\
+GET  & /health & Health check \\
+\hline
+\end{tabular}
+
+\subsection{Itinerary Generation Algorithm}
+\begin{enumerate}
+  \item Receive parameters: destination, dates, budget, interests, pace, group size
+  \item Query Content Engine for spots in the destination area
+  \item Score each spot: $S = w_1 \cdot rating + w_2 \cdot vibeMatch + w_3 \cdot popularity - w_4 \cdot cost$
+  \item Filter by budget constraints
+  \item Apply pace preference (relaxed = fewer spots/day, packed = more)
+  \item Optimize route order using nearest-neighbor heuristic
+  \item Factor in weather forecast (outdoor spots on sunny days)
+  \item Group by day, assign time slots
+  \item Return structured itinerary with map coordinates
+\end{enumerate}
+
+\subsection{Recommendation Engine}
+\begin{itemize}
+  \item \textbf{Content-based filtering:} TF-IDF on spot descriptions + category matching
+  \item \textbf{Collaborative filtering:} Users who liked similar spots also liked X
+  \item \textbf{Vibe matching:} Embed vibe tags into vector space, cosine similarity
+  \item Feature extraction from spot metadata: category, rating, location, time of visit, photos count
+\end{itemize}
+
+\subsection{Kafka Events Consumed}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Topic} & \textbf{Action} \\
+\hline
+\texttt{spot.created} & Extract features, update SpotFeatures table \\
+\texttt{spot.liked} & Update popularity score \\
+\texttt{review.created} & Run sentiment analysis, update SentimentScore \\
+\texttt{user.registered} & Initialize default preferences \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ===========================================================================
+\section{Frontend (Vue.js + TypeScript)}
+% ===========================================================================
+
+\subsection{Project Structure}
+\begin{lstlisting}[style=code]
+scope-frontend/
+  src/
+    assets/
+    components/
+      common/
+        Navbar.vue
+        Sidebar.vue
+        Avatar.vue
+        Button.vue
+        Modal.vue
+        LoadingSpinner.vue
+        Toast.vue
+        SearchBar.vue
+      map/
+        MapView.vue
+        SpotMarker.vue
+        RouteLayer.vue
+        LocationTracker.vue
+        MapControls.vue
+      spots/
+        SpotCard.vue
+        SpotDetail.vue
+        SpotForm.vue
+        PhotoGallery.vue
+        ReviewList.vue
+        ReviewForm.vue
+      trips/
+        TripCard.vue
+        TripDetail.vue
+        TripPlanner.vue
+        TripTimeline.vue
+        MemberList.vue
+        ItineraryView.vue
+      social/
+        FeedItem.vue
+        UserCard.vue
+        FriendList.vue
+        NotificationDropdown.vue
+      profile/
+        ProfileHeader.vue
+        ProfileMap.vue
+        ProfileStats.vue
+        SettingsForm.vue
+    views/
+      HomePage.vue
+      ExplorePage.vue
+      MapPage.vue
+      TripPlannerPage.vue
+      ProfilePage.vue
+      SpotDetailPage.vue
+      TripDetailPage.vue
+      FriendsPage.vue
+      SettingsPage.vue
+      LoginPage.vue
+      RegisterPage.vue
+      NotFoundPage.vue
+    stores/
+      auth.ts
+      user.ts
+      spots.ts
+      trips.ts
+      map.ts
+      notifications.ts
+      feed.ts
+    services/
+      api.ts
+      authService.ts
+      spotService.ts
+      tripService.ts
+      feedService.ts
+      intelService.ts
+      mapService.ts
+      signalrService.ts
+      s3Service.ts
+    router/
+      index.ts
+      guards.ts
+    types/
+      index.ts
+    utils/
+      formatters.ts
+      validators.ts
+      geolocation.ts
+    App.vue
+    main.ts
+  public/
+  tests/
+    e2e/
+    unit/
+  vite.config.ts
+  tsconfig.json
+  package.json
+\end{lstlisting}
+
+\subsection{Pages Overview}
+
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Page} & \textbf{Route} & \textbf{Description} \\
+\hline
+Home & \texttt{/} & Landing page, hero, featured spots, CTA \\
+Explore & \texttt{/explore} & Browse/filter spots by category, city, vibe \\
+Map & \texttt{/map} & Full-screen interactive Mapbox map \\
+Trip Planner & \texttt{/trips/new} & Create/edit trip with AI itinerary \\
+Trip Detail & \texttt{/trips/:id} & View trip with timeline and spots \\
+Spot Detail & \texttt{/spots/:id} & Spot info, photos, reviews, map \\
+Profile & \texttt{/profile/:id} & User's personal adventure map + stats \\
+Friends & \texttt{/friends} & Friend list, requests, search \\
+Settings & \texttt{/settings} & Account, preferences, privacy \\
+Login & \texttt{/login} & Email/password + Cognito OAuth \\
+Register & \texttt{/register} & Registration form \\
+404 & \texttt{/*} & Not found page \\
+\hline
+\end{tabular}
+
+\subsection{State Management (Pinia)}
+Each store module:
+\begin{itemize}
+  \item \textbf{auth} --- JWT tokens, current user, login/logout actions
+  \item \textbf{spots} --- CRUD operations, nearby spots, liked spots
+  \item \textbf{trips} --- Trip list, current trip, member management
+  \item \textbf{map} --- Map center, zoom, visible markers, filters
+  \item \textbf{notifications} --- Unread count, notification list, SignalR connection
+  \item \textbf{feed} --- Social feed items, pagination, trending spots
+\end{itemize}
+
+\subsection{SignalR Client Integration}
+\begin{lstlisting}[style=code,language=Java]
+// signalrService.ts
+import * as signalR from '@microsoft/signalr';
+
+const connection = new signalR.HubConnectionBuilder()
+  .withUrl('/api/core/hubs/notifications', {
+    accessTokenFactory: () => authStore.token
+  })
+  .withAutomaticReconnect()
+  .build();
+
+connection.on('NotificationReceived', (notification) => {
+  notificationStore.addNotification(notification);
+  showToast(notification.title);
+});
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Authentication \& Authorization}
+% ===========================================================================
+
+\subsection{Auth Flow}
+\begin{enumerate}
+  \item User registers via email/password (ASP.NET Core Identity) or OAuth (AWS Cognito)
+  \item Server issues JWT access token (15min) + refresh token (7 days)
+  \item Access token sent in \texttt{Authorization: Bearer <token>} header
+  \item Token validated by each service via shared JWT signing key
+  \item Refresh token stored in HTTP-only secure cookie
+  \item On expiry, frontend silently refreshes using refresh token
+\end{enumerate}
+
+\subsection{JWT Payload}
+\begin{lstlisting}[style=code,language=Java]
+{
+  "sub": "user-uuid",
+  "email": "louis@example.com",
+  "name": "Louis Do",
+  "roles": ["user"],
+  "iat": 1711500000,
+  "exp": 1711500900
+}
+\end{lstlisting}
+
+\subsection{Cross-Service Auth}
+All three services validate the same JWT:
+\begin{itemize}
+  \item Core Platform (C\#): \texttt{Microsoft.AspNetCore.Authentication.JwtBearer}
+  \item Content Engine (Django): Custom middleware decoding JWT with \texttt{PyJWT}
+  \item Intelligence API (Flask): \texttt{flask-jwt-extended} or custom decorator
+  \item Shared secret/public key stored in environment variables
+\end{itemize}
+
+\subsection{Role-Based Access}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Role} & \textbf{Permissions} \\
+\hline
+\texttt{user} & Create/edit own spots, trips, reviews; view public content \\
+\texttt{admin} & All user permissions + content moderation + Django admin \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ===========================================================================
+\section{Security Protocols}
+% ===========================================================================
+
+\subsection{Rate Limiting}
+\begin{itemize}
+  \item \textbf{Global:} 100 requests/minute per IP (Nginx level)
+  \item \textbf{Auth endpoints:} 10 requests/minute per IP (prevent brute force)
+  \item \textbf{Upload endpoints:} 20 requests/minute per user
+  \item \textbf{AI endpoints:} 30 requests/minute per user (expensive compute)
+  \item Implementation: Nginx \texttt{limit\_req\_zone} + application-level middleware
+  \item Return \texttt{429 Too Many Requests} with \texttt{Retry-After} header
+\end{itemize}
+
+\subsection{Input Validation}
+\begin{itemize}
+  \item All inputs validated at controller/serializer level before reaching business logic
+  \item C\#: Data annotations + FluentValidation
+  \item Django: DRF serializer validation + custom validators
+  \item Flask: Marshmallow schemas
+  \item Max lengths enforced on all string fields
+  \item Latitude: $-90$ to $90$; Longitude: $-180$ to $180$
+  \item File uploads: max 10MB, allowed types: JPEG, PNG, WebP only
+  \item SQL parameterized queries everywhere --- never string concatenation
+\end{itemize}
+
+\subsection{CORS Configuration}
+\begin{itemize}
+  \item Allow only the frontend origin in production
+  \item Allow \texttt{localhost:5173} in development
+  \item Credentials: true (for cookies)
+  \item Allowed methods: GET, POST, PUT, DELETE, OPTIONS
+  \item Allowed headers: Authorization, Content-Type
+\end{itemize}
+
+\subsection{HTTPS \& Transport Security}
+\begin{itemize}
+  \item TLS termination at Nginx / AWS ALB
+  \item HSTS header: \texttt{Strict-Transport-Security: max-age=31536000}
+  \item All cookies: \texttt{Secure; HttpOnly; SameSite=Strict}
+  \item Redirect all HTTP to HTTPS
+\end{itemize}
+
+\subsection{XSS \& CSRF Protection}
+\begin{itemize}
+  \item Vue.js auto-escapes template output
+  \item Django: CSRF middleware enabled for admin; API uses JWT (stateless)
+  \item Content-Security-Policy header configured
+  \item All user-generated HTML sanitized server-side
+\end{itemize}
+
+\subsection{Data Protection}
+\begin{itemize}
+  \item Passwords: bcrypt with cost factor 12 (ASP.NET Identity default)
+  \item S3 bucket: private ACL, presigned URLs for access (expire in 1 hour)
+  \item Database: encrypted at rest (SQL Server TDE)
+  \item Environment variables: never committed; use AWS Secrets Manager in prod
+  \item PII (email, location history): encrypted columns where applicable
+\end{itemize}
+
+\subsection{Dependency Security}
+\begin{itemize}
+  \item \texttt{dotnet list package --vulnerable} in CI
+  \item \texttt{pip-audit} for Python dependencies
+  \item \texttt{npm audit} for frontend dependencies
+  \item Dependabot / Renovate enabled on GitHub repo
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Kafka Event Streaming}
+% ===========================================================================
+
+\subsection{Why Kafka}
+Kafka provides durable, ordered, replayable event streams between services. Unlike simple message queues, events are stored and can be replayed by any consumer. This enables loose coupling --- services can be rebuilt or added without changing producers.
+
+\subsection{Topics}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Topic} & \textbf{Producer} & \textbf{Consumer(s)} \\
+\hline
+\texttt{user.registered} & Core & Intel \\
+\texttt{user.updated} & Core & Content, Intel \\
+\texttt{friend.accepted} & Core & Content (feed) \\
+\texttt{spot.created} & Content & Core (notify), Intel (features) \\
+\texttt{spot.liked} & Content & Core (notify), Intel (popularity) \\
+\texttt{review.created} & Content & Core (notify), Intel (sentiment) \\
+\texttt{trip.created} & Content & Core (notify) \\
+\texttt{trip.member.added} & Content & Core (notify) \\
+\texttt{photo.uploaded} & Content & Intel (image features) \\
+\hline
+\end{tabular}
+
+\subsection{Event Schema}
+\begin{lstlisting}[style=code,language=Java]
+{
+  "eventId": "uuid",
+  "eventType": "spot.created",
+  "timestamp": "2026-03-26T20:00:00Z",
+  "source": "content-engine",
+  "data": {
+    "spotId": "uuid",
+    "userId": "uuid",
+    "title": "Best Tacos in Fort Worth",
+    "latitude": 32.7555,
+    "longitude": -97.3308,
+    "category": "food"
+  }
+}
+\end{lstlisting}
+
+\subsection{Docker Compose for Kafka}
+\begin{lstlisting}[style=code]
+kafka:
+  image: confluentinc/cp-kafka:7.5.0
+  ports:
+    - "9092:9092"
+  environment:
+    KAFKA_BROKER_ID: 1
+    KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    KAFKA_ADVERTISED_LISTENERS:
+      PLAINTEXT://kafka:9092
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  depends_on:
+    - zookeeper
+
+zookeeper:
+  image: confluentinc/cp-zookeeper:7.5.0
+  ports:
+    - "2181:2181"
+  environment:
+    ZOOKEEPER_CLIENT_PORT: 2181
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Infrastructure \& Deployment}
+% ===========================================================================
+
+\subsection{Docker}
+Each service has its own Dockerfile. A root \texttt{docker-compose.yml} orchestrates local development.
+
+\subsubsection{docker-compose.yml (Local Dev)}
+\begin{lstlisting}[style=code]
+version: '3.8'
+services:
+  core:
+    build: ./Scope.Core
+    ports: ["5001:80"]
+    environment:
+      - ConnectionStrings__Default=...
+      - Kafka__BootstrapServers=kafka:9092
+    depends_on: [sqlserver, kafka]
+
+  content:
+    build: ./scope_content
+    ports: ["5002:8000"]
+    environment:
+      - DATABASE_URL=...
+      - KAFKA_BOOTSTRAP=kafka:9092
+    depends_on: [sqlserver, kafka]
+
+  intel:
+    build: ./scope_intel
+    ports: ["5003:5000"]
+    environment:
+      - DATABASE_URL=...
+      - KAFKA_BOOTSTRAP=kafka:9092
+    depends_on: [sqlserver, kafka]
+
+  frontend:
+    build: ./scope-frontend
+    ports: ["5173:80"]
+
+  nginx:
+    image: nginx:alpine
+    ports: ["80:80"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on: [core, content, intel, frontend]
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    ports: ["1433:1433"]
+    environment:
+      - SA_PASSWORD=Scope_Dev_2026!
+      - ACCEPT_EULA=Y
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    ports: ["9092:9092"]
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS:
+        PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    ports: ["2181:2181"]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+\end{lstlisting}
+
+\subsection{Nginx Configuration}
+\begin{lstlisting}[style=code]
+upstream core    { server core:80; }
+upstream content { server content:8000; }
+upstream intel   { server intel:5000; }
+
+server {
+    listen 80;
+
+    # Rate limiting zones
+    limit_req_zone $binary_remote_addr
+        zone=global:10m rate=100r/m;
+    limit_req_zone $binary_remote_addr
+        zone=auth:10m rate=10r/m;
+
+    location /api/core/auth {
+        limit_req zone=auth burst=5 nodelay;
+        proxy_pass http://core;
+    }
+    location /api/core {
+        limit_req zone=global burst=20 nodelay;
+        proxy_pass http://core;
+        # WebSocket support for SignalR
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+    location /api/content {
+        limit_req zone=global burst=20 nodelay;
+        proxy_pass http://content;
+        client_max_body_size 10M;
+    }
+    location /api/intel {
+        limit_req zone=global burst=10 nodelay;
+        proxy_pass http://intel;
+    }
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+    }
+}
+\end{lstlisting}
+
+\subsection{Terraform (AWS)}
+\begin{lstlisting}[style=code]
+# main.tf - Key resources
+resource "aws_eks_cluster" "scope" {
+  name     = "scope-cluster"
+  role_arn = aws_iam_role.eks.arn
+  vpc_config {
+    subnet_ids = aws_subnet.private[*].id
+  }
+}
+
+resource "aws_db_instance" "sqlserver" {
+  engine         = "sqlserver-ex"
+  instance_class = "db.t3.micro"
+  allocated_storage = 20
+  db_name        = "scope"
+  # Free tier eligible
+}
+
+resource "aws_s3_bucket" "photos" {
+  bucket = "scope-photos-prod"
+}
+
+resource "aws_cognito_user_pool" "scope" {
+  name = "scope-users"
+  auto_verified_attributes = ["email"]
+}
+\end{lstlisting}
+
+\subsection{GitHub Actions CI/CD}
+\begin{lstlisting}[style=code]
+# .github/workflows/deploy.yml
+name: Scope CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - run: dotnet test Scope.Core.Tests
+
+  test-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r scope_content/requirements.txt
+      - run: pytest scope_content/
+
+  test-intel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r scope_intel/requirements.txt
+      - run: pytest scope_intel/
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: cd scope-frontend && npm ci && npm run test
+
+  e2e:
+    needs: [test-core, test-content, test-intel, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker-compose up -d
+      - run: npx playwright test
+
+  deploy:
+    needs: [e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+      - run: |
+          docker build -t scope-core ./Scope.Core
+          docker build -t scope-content ./scope_content
+          docker build -t scope-intel ./scope_intel
+          docker build -t scope-frontend ./scope-frontend
+      - run: kubectl apply -f k8s/
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Design Principles}
+% ===========================================================================
+
+\subsection{SOLID Principles}
+\begin{itemize}
+  \item \textbf{Single Responsibility:} Each service owns one domain. Each class has one job.
+  \item \textbf{Open/Closed:} New recommendation algorithms added without modifying existing ones.
+  \item \textbf{Liskov Substitution:} All Kafka consumers implement \texttt{IEventHandler<T>}.
+  \item \textbf{Interface Segregation:} Separate \texttt{ISpotReader} and \texttt{ISpotWriter} interfaces.
+  \item \textbf{Dependency Inversion:} Services depend on abstractions (interfaces), not concrete implementations. Registered via DI containers.
+\end{itemize}
+
+\subsection{Clean Architecture}
+Each C\# service follows layered architecture:
+\begin{enumerate}
+  \item \textbf{API Layer} --- Controllers, middleware, DTOs
+  \item \textbf{Domain Layer} --- Entities, interfaces, business rules (zero dependencies)
+  \item \textbf{Infrastructure Layer} --- Database, external services, Kafka
+\end{enumerate}
+
+\subsection{API Design Conventions}
+\begin{itemize}
+  \item RESTful resource naming (plural nouns: \texttt{/spots}, \texttt{/trips})
+  \item Consistent response format: \texttt{\{"data": ..., "meta": \{"page": 1, "total": 50\}\}}
+  \item Error format: \texttt{\{"error": \{"code": "NOT\_FOUND", "message": "..."\}\}}
+  \item HTTP status codes used correctly (200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500)
+  \item Pagination: cursor-based for feeds, offset-based for lists
+  \item Versioning: URL prefix \texttt{/api/v1/} (prepared but v1 is default)
+\end{itemize}
+
+\subsection{Git Workflow}
+\begin{itemize}
+  \item \textbf{main} --- production-ready, protected branch
+  \item \textbf{develop} --- integration branch
+  \item \textbf{feature/*} --- individual feature branches
+  \item PR required with at least passing CI before merge
+\end{itemize}
+
+\subsection{Commit Strategy (CRITICAL)}
+\textbf{Agents MUST commit after EVERY milestone, no matter how small.} Do NOT batch multiple features into one giant commit. Each commit should represent one logical unit of work. This maximizes the GitHub contribution graph and keeps history clean.
+
+\subsubsection{Commit Format}
+Use Conventional Commits. Keep the first line short (50 chars max), add detail in the body only when needed:
+\begin{lstlisting}[style=code]
+<type>(<scope>): <short description>
+
+[optional body with more detail]
+\end{lstlisting}
+
+Types: \texttt{feat}, \texttt{fix}, \texttt{docs}, \texttt{chore}, \texttt{test}, \texttt{refactor}, \texttt{style}, \texttt{ci}
+
+\subsubsection{Mandatory Commit Points}
+Agents MUST commit at \textbf{each} of the following milestones. This is NOT optional:
+
+\textbf{Phase 1 --- Foundation:}
+\begin{lstlisting}[style=code]
+chore: initialize monorepo folder structure
+chore: add .gitignore and .env.example
+chore: add docker-compose with sqlserver and kafka
+feat(db): create core schema and tables
+feat(db): create content schema and tables
+feat(db): create intel schema and tables
+chore: add nginx config
+chore: add kafka topic creation script
+\end{lstlisting}
+
+\textbf{Phase 2 --- Core Platform (C\#):}
+\begin{lstlisting}[style=code]
+feat(core): scaffold ASP.NET Core project structure
+feat(core): add EF Core models and DbContext
+feat(core): implement user registration and login
+feat(core): implement JWT token issuance and refresh
+feat(core): add users controller and profile endpoints
+feat(core): add friends controller with request flow
+feat(core): add notifications controller
+feat(core): add live session controller
+feat(core): implement SignalR TripHub
+feat(core): implement SignalR LocationHub
+feat(core): implement SignalR NotificationHub
+feat(core): add Kafka producer service
+feat(core): add rate limiting middleware
+feat(core): add exception handling middleware
+test(core): add unit tests for auth controller
+test(core): add unit tests for all services
+chore(core): add Dockerfile
+\end{lstlisting}
+
+\textbf{Phase 3 --- Content Engine (Django):}
+\begin{lstlisting}[style=code]
+feat(content): scaffold Django project and settings
+feat(content): add spot models and migrations
+feat(content): add trip models and migrations
+feat(content): add photo, review, and like models
+feat(content): implement spots API with DRF
+feat(content): implement trips API with members
+feat(content): implement photo upload with S3
+feat(content): implement reviews API
+feat(content): implement social feed endpoint
+feat(content): add JWT auth middleware
+feat(content): add Kafka producer and consumer
+feat(content): enable Django admin panel
+test(content): add pytest tests for spots API
+test(content): add pytest tests for trips API
+chore(content): add Dockerfile
+\end{lstlisting}
+
+\textbf{Phase 4 --- Intelligence API (Flask):}
+\begin{lstlisting}[style=code]
+feat(intel): scaffold Flask app with factory pattern
+feat(intel): add itinerary generation endpoint
+feat(intel): implement itinerary algorithm
+feat(intel): add spot recommendation engine
+feat(intel): add vibe matching service
+feat(intel): add route optimizer
+feat(intel): add weather and geocoding endpoints
+feat(intel): add JWT auth decorator
+feat(intel): add Kafka consumer for spot features
+test(intel): add pytest tests for itinerary
+test(intel): add pytest tests for recommendations
+chore(intel): add Dockerfile
+\end{lstlisting}
+
+\textbf{Phase 5 --- Frontend (Vue.js):}
+\begin{lstlisting}[style=code]
+feat(frontend): scaffold Vite + Vue 3 + TypeScript
+feat(frontend): add design tokens and dark/light theme
+feat(frontend): build Navbar and common components
+feat(frontend): build login and registration pages
+feat(frontend): build MapView with Mapbox GL
+feat(frontend): build SpotCard and SpotDetail
+feat(frontend): build SpotForm with photo upload
+feat(frontend): build TripPlanner and ItineraryView
+feat(frontend): build social feed and notifications
+feat(frontend): build profile page with adventure map
+feat(frontend): build explore page with filters
+feat(frontend): add Pinia stores for all modules
+feat(frontend): add Vue Router with auth guards
+feat(frontend): add SignalR client integration
+feat(frontend): add Axios API services
+style(frontend): polish responsive layout
+chore(frontend): add Dockerfile
+\end{lstlisting}
+
+\textbf{Phase 6 --- Integration:}
+\begin{lstlisting}[style=code]
+chore: verify full docker-compose startup
+test: add Playwright e2e for auth flow
+test: add Playwright e2e for spot creation
+test: add Playwright e2e for trip planning
+feat: add seed data script
+ci: add GitHub Actions workflow
+chore: add Terraform infrastructure config
+docs: add README with setup instructions
+chore: final security audit pass
+\end{lstlisting}
+
+\subsubsection{Rules}
+\begin{itemize}
+  \item NEVER combine multiple features in one commit
+  \item NEVER write commit messages like ``update files'' or ``fix stuff''
+  \item Commit after each file or logical group is complete and working
+  \item If a commit breaks the build, fix it in the next commit with \texttt{fix(<scope>): ...}
+  \item Push to remote after every 3--5 commits minimum
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Testing Strategy}
+% ===========================================================================
+
+\subsection{Test Pyramid}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Level} & \textbf{Tool} & \textbf{Coverage Target} & \textbf{What} \\
+\hline
+Unit & xUnit / Pytest / Vitest & 80\%+ & Business logic, services, utils \\
+Integration & xUnit / Pytest & 60\%+ & API endpoints, DB queries \\
+E2E & Playwright & Critical paths & User flows end-to-end \\
+\hline
+\end{tabular}
+
+\subsection{Critical E2E Flows}
+\begin{enumerate}
+  \item Register $\rightarrow$ Login $\rightarrow$ Create Profile
+  \item Drop Pin $\rightarrow$ Upload Photo $\rightarrow$ Write Review
+  \item Create Trip $\rightarrow$ Add Spots $\rightarrow$ Invite Friend $\rightarrow$ Generate Itinerary
+  \item Search Spots $\rightarrow$ Filter by Category $\rightarrow$ View on Map
+  \item Send Friend Request $\rightarrow$ Accept $\rightarrow$ View Friend's Map
+  \item Live Location Sharing during active trip
+\end{enumerate}
+
+\newpage
+
+% ===========================================================================
+\section{Environment Setup (Local Development)}
+% ===========================================================================
+
+\textbf{IMPORTANT FOR THE USER:} You MUST complete Sections 14.1 and 14.2 manually on your laptop BEFORE the agent can begin building. The agent cannot install software or create accounts for you.
+
+\subsection{Software to Install (User Must Do)}
+
+Install the following software in this order. After each install, run the verification command in a terminal to confirm it works.
+
+\begin{enumerate}
+
+  \item \textbf{Git}
+  \begin{itemize}
+    \item Download: \url{https://git-scm.com/downloads}
+    \item Verify: \texttt{git --version} (expect v2.40+)
+    \item Configure:
+    \begin{lstlisting}[style=code,language=bash]
+git config --global user.name "Louis Do"
+git config --global user.email "your@email.com"
+    \end{lstlisting}
+  \end{itemize}
+
+  \item \textbf{Docker Desktop} (includes Docker Compose)
+  \begin{itemize}
+    \item Download: \url{https://www.docker.com/products/docker-desktop/}
+    \item Install and \textbf{launch Docker Desktop} (it must be running)
+    \item In Settings: enable WSL 2 backend (Windows) or Rosetta (Mac)
+    \item Allocate at least \textbf{6 GB RAM} and \textbf{4 CPUs} in Docker Settings $\rightarrow$ Resources
+    \item Verify: \texttt{docker --version} (expect v24+)
+    \item Verify: \texttt{docker-compose --version} (expect v2.20+)
+    \item Test: \texttt{docker run hello-world}
+  \end{itemize}
+
+  \item \textbf{.NET 8 SDK}
+  \begin{itemize}
+    \item Download: \url{https://dotnet.microsoft.com/download/dotnet/8.0}
+    \item Choose ``SDK'' (not Runtime)
+    \item Verify: \texttt{dotnet --version} (expect 8.0.x)
+    \item Install EF tools: \texttt{dotnet tool install --global dotnet-ef}
+    \item Verify: \texttt{dotnet ef --version}
+  \end{itemize}
+
+  \item \textbf{Python 3.12+}
+  \begin{itemize}
+    \item Download: \url{https://www.python.org/downloads/}
+    \item During install: CHECK ``Add Python to PATH''
+    \item Verify: \texttt{python --version} (expect 3.12+)
+    \item Verify: \texttt{pip --version}
+    \item Install virtualenv: \texttt{pip install virtualenv}
+  \end{itemize}
+
+  \item \textbf{Node.js 20 LTS}
+  \begin{itemize}
+    \item Download: \url{https://nodejs.org/} (choose LTS)
+    \item Verify: \texttt{node --version} (expect v20+)
+    \item Verify: \texttt{npm --version} (expect v10+)
+  \end{itemize}
+
+  \item \textbf{VS Code or preferred editor} (optional but recommended)
+  \begin{itemize}
+    \item Extensions: C\# Dev Kit, Python, Vue --- Official, ESLint, Prettier, Docker
+  \end{itemize}
+
+\end{enumerate}
+
+\subsection{Accounts to Create (User Must Do)}
+
+These accounts are free. The agent needs the API keys/tokens from these to configure the app.
+
+\begin{enumerate}
+
+  \item \textbf{GitHub} --- \url{https://github.com}
+  \begin{itemize}
+    \item Create a new repository called \texttt{Scope} (public or private)
+    \item Copy the repo URL for later
+  \end{itemize}
+
+  \item \textbf{Mapbox} --- \url{https://www.mapbox.com/}
+  \begin{itemize}
+    \item Sign up for free account
+    \item Go to Account $\rightarrow$ Access Tokens
+    \item Copy the default public token (starts with \texttt{pk.})
+    \item You will paste this into the \texttt{.env} file as \texttt{VITE\_MAPBOX\_TOKEN}
+  \end{itemize}
+
+  \item \textbf{AWS (Optional for local dev, required for deployment)}
+  \begin{itemize}
+    \item Sign up: \url{https://aws.amazon.com/free/}
+    \item Create an IAM user with programmatic access
+    \item Create an S3 bucket for photo uploads
+    \item Create a Cognito User Pool for OAuth
+    \item Save the access key, secret key, region, bucket name, pool ID, and client ID
+    \item \textbf{NOTE:} For local development, S3 and Cognito can be mocked. Only needed for deployment.
+  \end{itemize}
+
+\end{enumerate}
+
+\subsection{Verification Checklist}
+
+Before starting the agent, run ALL of these commands and confirm they pass:
+
+\begin{lstlisting}[style=code,language=bash]
+# Run these one by one in your terminal:
+git --version           # expect: git version 2.x
+docker --version        # expect: Docker version 24.x+
+docker-compose --version # expect: v2.20+
+dotnet --version        # expect: 8.0.x
+dotnet ef --version     # expect: 8.x
+python --version        # expect: 3.12+
+pip --version           # expect: pip 24+
+node --version          # expect: v20+
+npm --version           # expect: 10+
+
+# Test Docker is actually running:
+docker run hello-world  # expect: "Hello from Docker!"
+\end{lstlisting}
+
+\textbf{If ANY of the above commands fail, fix it before starting the agent.} The agent cannot debug your system installations.
+
+\subsection{Quick Start (Agent Will Handle)}
+\begin{lstlisting}[style=code,language=bash]
+# Clone the repo
+git clone https://github.com/lhd2156/Scope.git
+cd Scope
+
+# Copy environment files
+cp .env.example .env
+# EDIT .env: paste your Mapbox token, AWS keys (if any)
+
+# Start all services
+docker-compose up -d
+
+# Run database migrations
+dotnet ef database update --project Scope.Core
+python scope_content/manage.py migrate
+python scope_intel/manage.py migrate
+
+# Seed sample data
+python scripts/seed_data.py
+
+# Frontend dev server
+cd scope-frontend && npm install && npm run dev
+
+# Access the app
+# Frontend: http://localhost:5173
+# Nginx:    http://localhost:80
+# Core API: http://localhost:5001
+# Content:  http://localhost:5002
+# Intel:    http://localhost:5003
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Monorepo Root Structure}
+% ===========================================================================
+
+\begin{lstlisting}[style=code]
+Scope/
+  Scope.Core/                 # C# / ASP.NET Core service
+    Scope.Core.API/
+    Scope.Core.Domain/
+    Scope.Core.Infrastructure/
+    Scope.Core.Tests/
+    Scope.Core.sln
+    Dockerfile
+  scope_content/              # Python / Django service
+    scope_content/
+    spots/
+    trips/
+    photos/
+    reviews/
+    feed/
+    common/
+    manage.py
+    requirements.txt
+    Dockerfile
+  scope_intel/                # Python / Flask service
+    app.py
+    config.py
+    routes/
+    services/
+    ml/
+    kafka/
+    tests/
+    requirements.txt
+    Dockerfile
+  scope-frontend/             # Vue.js + TypeScript
+    src/
+    public/
+    tests/
+    package.json
+    vite.config.ts
+    Dockerfile
+  nginx/
+    nginx.conf
+  k8s/
+    core-deployment.yaml
+    content-deployment.yaml
+    intel-deployment.yaml
+    frontend-deployment.yaml
+    nginx-ingress.yaml
+    sqlserver-deployment.yaml
+    kafka-deployment.yaml
+  terraform/
+    main.tf
+    variables.tf
+    outputs.tf
+  scripts/
+    seed_data.py
+    create_topics.sh
+    wait_for_services.sh
+  .github/
+    workflows/
+      deploy.yml
+  docker-compose.yml
+  .env.example
+  .gitignore
+  README.md
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Environment Variables}
+% ===========================================================================
+
+The following \texttt{.env.example} must exist at the monorepo root. The agent MUST create this file and never hardcode secrets.
+
+\begin{lstlisting}[style=code,language=bash]
+# ============ GENERAL ============
+NODE_ENV=development
+COMPOSE_PROJECT_NAME=scope
+
+# ============ SQL SERVER ============
+SA_PASSWORD=Scope_Dev_2026!
+ACCEPT_EULA=Y
+DB_HOST=sqlserver
+DB_PORT=1433
+DB_NAME=scope
+DB_USER=sa
+DB_PASSWORD=Scope_Dev_2026!
+
+# ============ CORE PLATFORM (C#) ============
+CORE_ConnectionStrings__Default=
+    Server=sqlserver,1433;Database=scope;
+    User Id=sa;Password=Scope_Dev_2026!;
+    TrustServerCertificate=True
+CORE_JWT_SECRET=super-secret-256-bit-key-change-in-prod
+CORE_JWT_ISSUER=scope-core
+CORE_JWT_AUDIENCE=scope-frontend
+CORE_JWT_EXPIRATION_MINUTES=15
+CORE_REFRESH_TOKEN_DAYS=7
+
+# ============ CONTENT ENGINE (Django) ============
+DJANGO_SECRET_KEY=django-insecure-change-me-in-prod
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,content,nginx
+DJANGO_DATABASE_URL=mssql://sa:Scope_Dev_2026!
+    @sqlserver:1433/scope
+
+# ============ INTELLIGENCE API (Flask) ============
+FLASK_SECRET_KEY=flask-insecure-change-me-in-prod
+FLASK_DEBUG=True
+FLASK_DATABASE_URL=mssql://sa:Scope_Dev_2026!
+    @sqlserver:1433/scope
+
+# ============ KAFKA ============
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+
+# ============ AWS (leave blank for local dev) ============
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=scope-photos-dev
+AWS_COGNITO_USER_POOL_ID=
+AWS_COGNITO_CLIENT_ID=
+
+# ============ MAPBOX ============
+VITE_MAPBOX_TOKEN=pk.your-mapbox-token-here
+
+# ============ PORTS ============
+CORE_PORT=5001
+CONTENT_PORT=5002
+INTEL_PORT=5003
+FRONTEND_PORT=5173
+NGINX_PORT=80
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Dockerfiles}
+% ===========================================================================
+
+\subsection{Core Platform (C\#)}
+\begin{lstlisting}[style=code]
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY Scope.Core.sln .
+COPY Scope.Core.API/*.csproj Scope.Core.API/
+COPY Scope.Core.Domain/*.csproj Scope.Core.Domain/
+COPY Scope.Core.Infrastructure/*.csproj
+    Scope.Core.Infrastructure/
+RUN dotnet restore
+COPY . .
+RUN dotnet publish Scope.Core.API -c Release
+    -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 80
+HEALTHCHECK CMD curl -f http://localhost/api/core/health
+    || exit 1
+ENTRYPOINT ["dotnet", "Scope.Core.API.dll"]
+\end{lstlisting}
+
+\subsection{Content Engine (Django)}
+\begin{lstlisting}[style=code]
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y
+    gcc g++ unixodbc-dev curl
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN python manage.py collectstatic --noinput
+EXPOSE 8000
+HEALTHCHECK CMD curl -f http://localhost:8000
+    /api/content/health || exit 1
+CMD ["gunicorn", "scope_content.wsgi:application",
+    "--bind", "0.0.0.0:8000", "--workers", "3"]
+\end{lstlisting}
+
+\subsection{Intelligence API (Flask)}
+\begin{lstlisting}[style=code]
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y
+    gcc g++ unixodbc-dev curl
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 5000
+HEALTHCHECK CMD curl -f http://localhost:5000
+    /api/intel/health || exit 1
+CMD ["gunicorn", "app:create_app()",
+    "--bind", "0.0.0.0:5000", "--workers", "2"]
+\end{lstlisting}
+
+\subsection{Frontend (Vue.js)}
+\begin{lstlisting}[style=code]
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json .
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Error Handling \& Logging}
+% ===========================================================================
+
+\subsection{Standard Error Response}
+All three services MUST return errors in this exact format:
+\begin{lstlisting}[style=code,language=Java]
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Rating must be between 1.0 and 5.0",
+    "details": [
+      { "field": "rating", "message": "Out of range" }
+    ],
+    "traceId": "abc-123-def"
+  }
+}
+\end{lstlisting}
+
+\subsection{Error Codes}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{HTTP} & \textbf{Code} & \textbf{When} \\
+\hline
+400 & VALIDATION\_ERROR & Invalid input data \\
+401 & UNAUTHORIZED & Missing or expired token \\
+403 & FORBIDDEN & Insufficient permissions \\
+404 & NOT\_FOUND & Resource does not exist \\
+409 & CONFLICT & Duplicate resource \\
+422 & UNPROCESSABLE & Business rule violation \\
+429 & RATE\_LIMITED & Too many requests \\
+500 & INTERNAL\_ERROR & Unexpected server error \\
+\hline
+\end{tabular}
+
+\subsection{Exception Handling Middleware}
+\begin{itemize}
+  \item C\#: Global \texttt{ExceptionHandlingMiddleware} catches all unhandled exceptions, logs the stack trace, and returns the standard error response.
+  \item Django: Custom \texttt{EXCEPTION\_HANDLER} in DRF settings mapping Django exceptions to the standard format.
+  \item Flask: \texttt{@app.errorhandler(Exception)} decorator catching and formatting all errors.
+  \item NEVER return raw stack traces to the client in production.
+\end{itemize}
+
+\subsection{Structured Logging}
+\begin{itemize}
+  \item C\#: Use \texttt{Serilog} with JSON output. Log to console (Docker captures stdout).
+  \item Django: Python \texttt{logging} module with JSON formatter via \texttt{python-json-logger}.
+  \item Flask: Python \texttt{logging} module with JSON formatter.
+  \item Every log entry MUST include: timestamp (UTC), service name, log level, message, correlation ID (from request header \texttt{X-Correlation-Id}).
+  \item Log all incoming requests (method, path, status code, duration).
+  \item Log all Kafka events produced and consumed.
+  \item NEVER log passwords, tokens, or PII.
+\end{itemize}
+
+\subsection{Health Check Endpoints}
+Every service MUST expose a health check:
+\begin{itemize}
+  \item \texttt{GET /api/core/health} --- checks DB + Kafka connectivity
+  \item \texttt{GET /api/content/health} --- checks DB + S3 connectivity
+  \item \texttt{GET /api/intel/health} --- checks DB + ML model loaded
+  \item Response: \texttt{\{"status": "healthy", "version": "1.0.0", "uptime": 12345\}}
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Dark/Light Mode Design System}
+% ===========================================================================
+
+The frontend MUST support dark and light themes. Theme is toggled via a \texttt{ThemeToggle.vue} component in the navbar and persisted in \texttt{localStorage}.
+
+\subsection{Implementation}
+\begin{itemize}
+  \item Use CSS custom properties (variables) defined on \texttt{:root} for dark mode and \texttt{[data-theme="light"]} for light mode.
+  \item Toggle sets \texttt{document.documentElement.setAttribute('data-theme', 'dark'|'light')}.
+  \item All components use \texttt{var(--token-name)} --- never hardcoded hex values.
+  \item Mapbox map style switches between \texttt{mapbox://styles/mapbox/dark-v11} and \texttt{mapbox://styles/mapbox/light-v11}.
+  \item Default theme: dark.
+  \item Refer to the \texttt{design-tokens.css} file in \texttt{scope-assets/} for the complete token list.
+\end{itemize}
+
+\subsection{Key Color Tokens}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Token} & \textbf{Dark} & \textbf{Light} \\
+\hline
+\texttt{--bg-primary} & \#0f0f1a & \#fafafa \\
+\texttt{--bg-secondary} & \#1a1a2e & \#ffffff \\
+\texttt{--text-primary} & \#f0f0f5 & \#1a1a2e \\
+\texttt{--text-secondary} & \#a0a0b8 & \#4a4a6a \\
+\texttt{--accent-teal} & \#10b981 & \#10b981 \\
+\texttt{--accent-gold} & \#f59e0b & \#f59e0b \\
+\texttt{--border} & \#2a2a45 & \#e2e2ea \\
+\hline
+\end{tabular}
+
+\subsection{Additional Frontend Component}
+Add \texttt{ThemeToggle.vue} to the \texttt{components/common/} directory. It renders a sun/moon icon button that toggles between themes.
+
+\subsection{Typography}
+\begin{itemize}
+  \item Font: \texttt{Inter} from Google Fonts (add to \texttt{index.html} via CDN link).
+  \item Scale: 48px hero, 32px h1, 24px h2, 18px h3, 16px body, 14px small, 12px caption.
+  \item Font weights: 700 bold, 600 semibold, 500 medium, 400 regular.
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Subagent Strategy}
+% ===========================================================================
+
+This project is designed to be built by \textbf{multiple AI agents working in parallel}, each owning a specific service. This is possible because each microservice is a completely independent codebase with its own language, framework, and directory. Agents MUST NOT edit files outside their assigned directory.
+
+\subsection{Agent Assignments}
+
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Agent} & \textbf{Scope} & \textbf{Directory} & \textbf{Language} \\
+\hline
+Agent 0: Foundation & Infra, Docker, DB & Root / k8s / terraform & Bash / YAML \\
+Agent 1: Core & Auth, real-time, users & \texttt{Scope.Core/} & C\# \\
+Agent 2: Content & Spots, trips, social & \texttt{scope\_content/} & Python \\
+Agent 3: Intel & AI, recommendations & \texttt{scope\_intel/} & Python \\
+Agent 4: Frontend & UI, maps, state & \texttt{scope-frontend/} & TypeScript \\
+\hline
+\end{tabular}
+
+\subsection{Execution Order}
+
+\begin{lstlisting}[style=code]
+Phase 1 (Sequential):
+  Agent 0: Foundation
+    -> docker-compose.yml, .env, DB schemas, Kafka topics
+    -> MUST complete before others start
+
+Phase 2 (Parallel - run all 3 simultaneously):
+  Agent 1: Core Platform (C#)
+  Agent 2: Content Engine (Django)
+  Agent 3: Intelligence API (Flask)
+    -> Each builds their service independently
+    -> Each writes their own Dockerfile
+    -> Each writes their own tests
+
+Phase 3 (Sequential - after Phase 2):
+  Agent 4: Frontend (Vue.js)
+    -> Needs API contracts from Phase 2 agents
+    -> Connects to all 3 backend services
+
+Phase 4 (Sequential - after Phase 3):
+  Agent 0: Integration
+    -> Nginx config, Kafka wiring, E2E tests
+    -> GitHub Actions CI/CD
+    -> Terraform deployment
+\end{lstlisting}
+
+\subsection{Coordination Rules}
+\begin{enumerate}
+  \item \textbf{File boundaries are sacred.} Agent 1 NEVER touches \texttt{scope\_content/}. Agent 2 NEVER touches \texttt{Scope.Core/}. Violations will cause merge conflicts.
+  \item \textbf{Shared contract:} All agents share the JWT secret, Kafka topic names, and API response format defined in this document. Do not invent new ones.
+  \item \textbf{Database schemas:} Each agent creates migrations ONLY for their own schema prefix (\texttt{core.*}, \texttt{content.*}, \texttt{intel.*}).
+  \item \textbf{Git branches:} Each agent works on its own branch:
+  \begin{itemize}
+    \item Agent 0: \texttt{feature/foundation} and \texttt{feature/integration}
+    \item Agent 1: \texttt{feature/core-platform}
+    \item Agent 2: \texttt{feature/content-engine}
+    \item Agent 3: \texttt{feature/intel-api}
+    \item Agent 4: \texttt{feature/frontend}
+  \end{itemize}
+  \item \textbf{Merge order:} foundation $\rightarrow$ core $\rightarrow$ content $\rightarrow$ intel $\rightarrow$ frontend $\rightarrow$ integration
+  \item \textbf{Health checks:} Each backend agent must implement \texttt{GET /api/\{service\}/health} so other agents can verify connectivity.
+\end{enumerate}
+
+\subsection{Starter Prompts for Each Agent}
+
+\subsubsection{Agent 0: Foundation}
+``Read scope\_architecture.tex Sections 2, 3, 15, 16, and 17. Initialize the Scope monorepo. Create the root folder structure, docker-compose.yml, .env.example, .gitignore, and Nginx config. Start SQL Server and Kafka via Docker. Create all three database schemas (core, content, intel) with every table defined in Section 4. Verify all services start. Commit to feature/foundation.''
+
+\subsubsection{Agent 1: Core Platform (C\#)}
+``Read scope\_architecture.tex Sections 4.2, 5, 8, 9, and 19. Build the Core Platform service in Scope.Core/ using ASP.NET Core 8. Implement the 3-layer architecture (API, Domain, Infrastructure). Build all endpoints from Section 5.2, all SignalR hubs from Section 5.3, ASP.NET Core Identity auth with JWT, and the Kafka producer. Write xUnit tests for every controller and service. Create the Dockerfile. Do NOT touch any other service directory. Commit to feature/core-platform.''
+
+\subsubsection{Agent 2: Content Engine (Django)}
+``Read scope\_architecture.tex Sections 4.3, 6, and 19. Build the Content Engine in scope\_content/ using Django 5 and Django REST Framework. Implement all models from Section 4.3, all endpoints from Section 6.2, S3 photo upload, Kafka producer/consumer, JWT middleware (decode the shared JWT from Core), and Django Admin. Write Pytest tests. Create the Dockerfile. Do NOT touch any other service directory. Commit to feature/content-engine.''
+
+\subsubsection{Agent 3: Intelligence API (Flask)}
+``Read scope\_architecture.tex Sections 4.4, 7, and 19. Build the Intelligence API in scope\_intel/ using Flask 3. Implement all endpoints from Section 7.2, the itinerary generation algorithm from Section 7.3, the recommendation engine from Section 7.4, Kafka consumer from Section 7.5, and JWT auth decorator. Write Pytest tests. Create the Dockerfile. Do NOT touch any other service directory. Commit to feature/intel-api.''
+
+\subsubsection{Agent 4: Frontend (Vue.js)}
+``Read scope\_architecture.tex Sections 8, 20, and the design-tokens.css file. Build the frontend in scope-frontend/ using Vite + Vue 3 + TypeScript. Implement the design system with dark/light mode. Build all components and pages listed in Section 8. Implement Pinia stores, Vue Router with auth guards, Axios API services, Mapbox map integration, and SignalR client. The app must connect to all 3 backend APIs through Nginx. Create the Dockerfile. Commit to feature/frontend.''
+
+\subsubsection{Agent 0 (Return): Integration}
+``All services are built. Configure Nginx to route traffic to all three backends with rate limiting. Verify docker-compose up starts everything. Test Kafka event flow end-to-end. Write the Playwright E2E tests from Section 12.2. Write the seed data script. Set up GitHub Actions CI/CD. Write Terraform config. Write README.md. Commit to feature/integration and merge all branches into main.''
+
+\newpage
+
+% ===========================================================================
+\section{Build Order for Agents}
+% ===========================================================================
+
+Agents MUST follow this build order. Each phase should be completed and tested before moving to the next. Do not attempt to build everything in parallel.
+
+\subsection{Phase 1: Foundation (Do First)}
+\begin{enumerate}
+  \item Initialize the monorepo with the exact folder structure from Section 15
+  \item Create \texttt{.env.example} and \texttt{.gitignore}
+  \item Write \texttt{docker-compose.yml} with SQL Server, Kafka, and Zookeeper
+  \item Run \texttt{docker-compose up sqlserver kafka zookeeper} and verify connectivity
+  \item Create all database schemas and tables (SQL migration scripts)
+\end{enumerate}
+
+\subsection{Phase 2: Core Platform (C\#)}
+\begin{enumerate}
+  \item Scaffold ASP.NET Core 8 project with the 3-layer architecture
+  \item Implement Entity Framework Core models and \texttt{CoreDbContext}
+  \item Implement ASP.NET Core Identity (register, login, JWT issuance)
+  \item Build all Auth, Users, Friends, Notifications, LiveSession endpoints
+  \item Implement SignalR hubs (Trip, Location, Notification)
+  \item Implement Kafka producer service
+  \item Write xUnit tests for all controllers and services
+  \item Create Dockerfile, verify service starts in Docker
+\end{enumerate}
+
+\subsection{Phase 3: Content Engine (Django)}
+\begin{enumerate}
+  \item Initialize Django project with SQL Server backend (\texttt{mssql-django})
+  \item Create all Django models (Spots, Trips, Photos, Reviews, Likes, etc.)
+  \item Implement DRF serializers, views, and URL routing
+  \item Implement S3 photo upload service with presigned URLs
+  \item Implement Kafka producer and consumer
+  \item Implement JWT authentication middleware (decode shared JWT)
+  \item Enable Django Admin for content moderation
+  \item Write Pytest tests for all endpoints
+  \item Create Dockerfile, verify service starts in Docker
+\end{enumerate}
+
+\subsection{Phase 4: Intelligence API (Flask)}
+\begin{enumerate}
+  \item Initialize Flask project with application factory pattern
+  \item Implement all route blueprints (itinerary, recommendations, weather, geocoding)
+  \item Implement recommendation engine with scikit-learn
+  \item Implement itinerary generation algorithm
+  \item Implement Kafka consumer (spot features, sentiment analysis)
+  \item Implement JWT authentication decorator
+  \item Write Pytest tests
+  \item Create Dockerfile, verify service starts in Docker
+\end{enumerate}
+
+\subsection{Phase 5: Frontend (Vue.js)}
+\begin{enumerate}
+  \item Scaffold Vite + Vue 3 + TypeScript project
+  \item Install and configure: Pinia, Vue Router, Axios, Mapbox GL, SignalR client
+  \item Implement design system: \texttt{design-tokens.css}, dark/light theme toggle
+  \item Build common components (Navbar, Sidebar, Button, Modal, Toast, etc.)
+  \item Build auth pages (Login, Register) with Cognito OAuth
+  \item Build map components (MapView, SpotMarker, RouteLayer)
+  \item Build spot components (SpotCard, SpotDetail, SpotForm, PhotoGallery)
+  \item Build trip components (TripPlanner, TripTimeline, ItineraryView)
+  \item Build social components (FeedItem, FriendList, NotificationDropdown)
+  \item Build profile components (ProfileHeader, ProfileMap, ProfileStats)
+  \item Implement all page views and Vue Router configuration
+  \item Implement route guards (redirect unauthenticated users)
+  \item Create Dockerfile, verify build output
+\end{enumerate}
+
+\subsection{Phase 6: Integration \& Infrastructure}
+\begin{enumerate}
+  \item Configure Nginx reverse proxy with rate limiting
+  \item Verify full \texttt{docker-compose up} starts all services
+  \item Test cross-service Kafka event flow end-to-end
+  \item Test SignalR real-time features
+  \item Write Playwright E2E tests for critical user flows
+  \item Write seed data script (\texttt{scripts/seed\_data.py})
+  \item Set up GitHub Actions CI/CD workflow
+  \item Write Terraform infrastructure-as-code
+  \item Write \texttt{README.md} with setup instructions
+  \item Final security audit: check rate limiting, CORS, input validation, HTTPS
+\end{enumerate}
+
+\subsection{Seed Data Script}
+The seed script (\texttt{scripts/seed\_data.py}) MUST create:
+\begin{itemize}
+  \item 3 test users (with hashed passwords)
+  \item 15--20 spots across 3--4 cities with realistic data
+  \item 3--5 trips with spots assigned to days
+  \item 10+ reviews with varied ratings
+  \item 5+ photos (use placeholder image URLs)
+  \item Friend connections between test users
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+\section{Resume Bullets (Pre-Written)}
+% ===========================================================================
+
+The following are four resume-ready bullet points for Scope, written in XYZ format matching the style of existing resume projects:
+
+\begin{enumerate}
+  \item Architected a polyglot microservices platform in \textbf{C\#}, \textbf{Django}, and \textbf{Flask} with \textbf{Kafka} event streaming across \textbf{3} services and \textbf{60+} endpoints
+  \item Developed \textbf{30+} \textbf{Vue.js} components in \textbf{TypeScript} with interactive \textbf{Mapbox} maps supporting real-time location sharing via \textbf{SignalR}
+  \item Secured user accounts with \textbf{ASP.NET Core Identity} and \textbf{AWS Cognito} OAuth, enforcing \textbf{JWT} auth across all services with rate-limited \textbf{Nginx} gateway
+  \item Deployed to \textbf{AWS} with \textbf{Docker}, \textbf{Kubernetes}, and \textbf{Terraform} IaC via \textbf{GitHub Actions} CI/CD, tested across \textbf{xUnit}, \textbf{Pytest}, and \textbf{Playwright}
+\end{enumerate}
+
+\textbf{Resume header:}
+\begin{center}
+\textbf{C\# $|$ Django $|$ Flask $|$ Vue.js}
+\end{center}
+
+\newpage
+
+% ===========================================================================
+\section{Appendix A: Dependency Files}
+% ===========================================================================
+
+\subsection{.gitignore}
+\begin{lstlisting}[style=code]
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.eggs/
+
+# Node
+node_modules/
+dist/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+TestResults/
+\end{lstlisting}
+
+\subsection{scope\_content/requirements.txt}
+\begin{lstlisting}[style=code]
+Django==5.1
+djangorestframework==3.15.2
+django-filter==24.3
+mssql-django==1.5
+pyodbc==5.2.0
+PyJWT==2.9.0
+Pillow==11.0.0
+boto3==1.35.0
+gunicorn==23.0.0
+confluent-kafka==2.6.0
+python-json-logger==3.2.0
+django-cors-headers==4.6.0
+factory-boy==3.3.1
+pytest==8.3.4
+pytest-django==4.9.0
+\end{lstlisting}
+
+\subsection{scope\_intel/requirements.txt}
+\begin{lstlisting}[style=code]
+Flask==3.1.0
+flask-cors==5.0.0
+flask-jwt-extended==4.7.1
+marshmallow==3.23.0
+gunicorn==23.0.0
+pyodbc==5.2.0
+SQLAlchemy==2.0.36
+confluent-kafka==2.6.0
+scikit-learn==1.6.0
+numpy==2.1.0
+pandas==2.2.3
+requests==2.32.0
+python-json-logger==3.2.0
+pytest==8.3.4
+\end{lstlisting}
+
+\subsection{scope-frontend/package.json (Key Dependencies)}
+\begin{lstlisting}[style=code,language=Java]
+{
+  "name": "scope-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --ext .vue,.ts"
+  },
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0",
+    "pinia": "^2.2.0",
+    "axios": "^1.7.0",
+    "mapbox-gl": "^3.8.0",
+    "@microsoft/signalr": "^8.0.0",
+    "@vueuse/core": "^12.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vue-tsc": "^2.1.0",
+    "vitest": "^2.1.0",
+    "@playwright/test": "^1.49.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.30.0",
+    "@types/mapbox-gl": "^3.4.0"
+  }
+}
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Appendix B: API Request/Response Examples}
+% ===========================================================================
+
+Agents MUST follow these exact request and response body shapes. These are the critical endpoints that other services and the frontend depend on.
+
+\subsection{POST /api/core/auth/register}
+\begin{lstlisting}[style=code,language=Java]
+// Request
+{
+  "username": "louisdo",
+  "email": "louis@example.com",
+  "password": "SecurePass123!",
+  "displayName": "Louis Do"
+}
+
+// Response 201
+{
+  "data": {
+    "id": "uuid",
+    "username": "louisdo",
+    "email": "louis@example.com",
+    "displayName": "Louis Do",
+    "accessToken": "eyJhbG...",
+    "refreshToken": "dGhpcyBpcyBh..."
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /api/core/auth/login}
+\begin{lstlisting}[style=code,language=Java]
+// Request
+{
+  "email": "louis@example.com",
+  "password": "SecurePass123!"
+}
+
+// Response 200
+{
+  "data": {
+    "id": "uuid",
+    "username": "louisdo",
+    "accessToken": "eyJhbG...",
+    "refreshToken": "dGhpcyBpcyBh..."
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /api/content/spots}
+\begin{lstlisting}[style=code,language=Java]
+// Request (Authorization: Bearer <token>)
+{
+  "title": "Best Tacos in Fort Worth",
+  "description": "Incredible street tacos...",
+  "latitude": 32.7555,
+  "longitude": -97.3308,
+  "address": "123 Main St",
+  "city": "Fort Worth",
+  "country": "US",
+  "category": "food",
+  "vibe": "chill",
+  "rating": 4.5,
+  "visitedAt": "2026-03-20",
+  "isPublic": true
+}
+
+// Response 201
+{
+  "data": {
+    "id": "uuid",
+    "title": "Best Tacos in Fort Worth",
+    "latitude": 32.7555,
+    "longitude": -97.3308,
+    "category": "food",
+    "rating": 4.5,
+    "createdAt": "2026-03-26T20:00:00Z"
+  }
+}
+\end{lstlisting}
+
+\subsection{GET /api/content/spots (Paginated List)}
+\begin{lstlisting}[style=code,language=Java]
+// Response 200
+{
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Best Tacos in Fort Worth",
+      "latitude": 32.7555,
+      "longitude": -97.3308,
+      "category": "food",
+      "rating": 4.5,
+      "photoUrl": "https://s3.../thumb.jpg",
+      "createdAt": "2026-03-26T20:00:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 47,
+    "totalPages": 3
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /api/intel/itinerary/generate}
+\begin{lstlisting}[style=code,language=Java]
+// Request
+{
+  "destination": "Fort Worth, TX",
+  "startDate": "2026-04-01",
+  "endDate": "2026-04-03",
+  "budget": 500,
+  "interests": ["food", "culture", "nightlife"],
+  "pace": "moderate",
+  "groupSize": 2
+}
+
+// Response 200
+{
+  "data": {
+    "id": "uuid",
+    "destination": "Fort Worth, TX",
+    "days": [
+      {
+        "dayNumber": 1,
+        "date": "2026-04-01",
+        "spots": [
+          {
+            "spotId": "uuid",
+            "title": "Best Tacos in Fort Worth",
+            "timeSlot": "12:00",
+            "duration": 60,
+            "latitude": 32.7555,
+            "longitude": -97.3308,
+            "category": "food",
+            "estimatedCost": 25.00
+          }
+        ]
+      }
+    ],
+    "totalEstimatedCost": 420.00,
+    "weatherForecast": "Sunny, 75F"
+  }
+}
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+\section{Appendix C: Bash Scripts}
+% ===========================================================================
+
+\subsection{scripts/create\_topics.sh}
+\begin{lstlisting}[style=code,language=bash]
+#!/bin/bash
+# Create all Kafka topics for Scope
+# Run after Kafka is up:
+#   docker-compose exec kafka bash /scripts/create_topics.sh
+
+KAFKA_BIN="/usr/bin"
+BOOTSTRAP="localhost:9092"
+
+topics=(
+  "user.registered"
+  "user.updated"
+  "friend.accepted"
+  "spot.created"
+  "spot.updated"
+  "spot.liked"
+  "review.created"
+  "trip.created"
+  "trip.member.added"
+  "photo.uploaded"
+  "live.location.updated"
+)
+
+for topic in "${topics[@]}"; do
+  echo "Creating topic: $topic"
+  kafka-topics --create \
+    --bootstrap-server $BOOTSTRAP \
+    --topic "$topic" \
+    --partitions 3 \
+    --replication-factor 1 \
+    --if-not-exists
+done
+
+echo "All topics created. Listing:"
+kafka-topics --list --bootstrap-server $BOOTSTRAP
+\end{lstlisting}
+
+\subsection{scripts/wait\_for\_services.sh}
+\begin{lstlisting}[style=code,language=bash]
+#!/bin/bash
+# Wait for all infrastructure services before
+# starting application services
+
+echo "Waiting for SQL Server..."
+until docker-compose exec -T sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Scope_Dev_2026!" \
+  -C -Q "SELECT 1" > /dev/null 2>&1; do
+  sleep 2
+done
+echo "SQL Server is ready."
+
+echo "Waiting for Kafka..."
+until docker-compose exec -T kafka \
+  kafka-topics --bootstrap-server localhost:9092 \
+  --list > /dev/null 2>&1; do
+  sleep 2
+done
+echo "Kafka is ready."
+
+echo "All infrastructure services are up!"
+\end{lstlisting}
+
+\subsection{.env Notes for Agents}
+\begin{itemize}
+  \item For local development, the \texttt{.env} file contains dev-only credentials.
+  \item For S3 uploads in local dev, agents should implement a local file storage fallback if \texttt{AWS\_ACCESS\_KEY\_ID} is empty. Save files to a \texttt{media/} directory and serve via Django's \texttt{MEDIA\_URL}.
+  \item For Cognito in local dev, agents should implement a bypass: if \texttt{AWS\_COGNITO\_USER\_POOL\_ID} is empty, skip Cognito and use only ASP.NET Core Identity for auth.
+  \item The Mapbox token is required even for local dev. Without it, the map will not render.
+\end{itemize}
+
+\end{document}

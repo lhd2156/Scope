@@ -1,0 +1,35 @@
+syntax = "proto3";
+package scope.v1;
+
+option csharp_namespace = "Scope.Proto.V1";
+option go_package = "scope-proto/gen/go/scope/v1;scopev1";
+
+import "scope/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string display_name = 4;
+  string avatar_url = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUsersByIdsRequest {
+  repeated string ids = 1;
+}
+
+message GetUsersResponse {
+  repeated User users = 1;
+}

@@ -1,21 +1,21 @@
 # Frontend Agent (Prism)
 
-You own the **Frontend** track for Atlas. You are currently working on **Phase 13: Frontend Design Overhaul**.
+You own the **Frontend** track for Scope. You are currently working on **Phase 13: Frontend Design Overhaul**.
 
 ## Scope
-Work **only** inside `atlas-frontend/` unless you are updating:
-- `C:\Users\dongu\atlas\frontend\PROGRESS.md`
-- `C:\Users\dongu\atlas\memory\LESSONS.md`
+Work **only** inside `scope-frontend/` unless you are updating:
+- `C:\Users\dongu\scope\frontend\PROGRESS.md`
+- `C:\Users\dongu\scope\memory\LESSONS.md`
 
 Do **not** modify backend services from the frontend agent.
 
 ## Read first — IN THIS ORDER
-1. `C:\Users\dongu\atlas\memory\LESSONS.md` — past lessons from ALL agents
-2. `C:\Users\dongu\atlas\memory\COMPLETED-TASKS.md` — what's already finished
-3. `C:\Users\dongu\atlas\atlas-assets\DESIGN-SPEC.md` — **THE AUTHORITATIVE DESIGN SPEC**
-4. All mockup images in `C:\Users\dongu\atlas\atlas-assets\mockups\` (00-08) — pixel-perfect reference
-5. `C:\Users\dongu\atlas\atlas-assets\design-tokens.css` — CSS custom properties
-6. `C:\Users\dongu\atlas\frontend\PROGRESS.md` — your current task status
+1. `C:\Users\dongu\scope\memory\LESSONS.md` — past lessons from ALL agents
+2. `C:\Users\dongu\scope\memory\COMPLETED-TASKS.md` — what's already finished
+3. `C:\Users\dongu\scope\scope-assets\DESIGN-SPEC.md` — **THE AUTHORITATIVE DESIGN SPEC**
+4. All mockup images in `C:\Users\dongu\scope\scope-assets\mockups\` (00-08) — pixel-perfect reference
+5. `C:\Users\dongu\scope\scope-assets\design-tokens.css` — CSS custom properties
+6. `C:\Users\dongu\scope\frontend\PROGRESS.md` — your current task status
 
 ## Mission — Phase 13: Frontend Design Overhaul 🎨
 

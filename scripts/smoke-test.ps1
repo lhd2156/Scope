@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-    Atlas deployment smoke test.
+    Scope deployment smoke test.
 
 .DESCRIPTION
-    Verifies the edge/frontend route, backend health endpoints, and Atlas Metrics
-    scrape output for a deployed Atlas environment. By default it targets a local
+    Verifies the edge/frontend route, backend health endpoints, and Scope Metrics
+    scrape output for a deployed Scope environment. By default it targets a local
     Compose stack and reads .env for the nginx and metrics ports when available.
 
 .EXAMPLE
     powershell -File .\scripts\smoke-test.ps1
 
 .EXAMPLE
-    powershell -File .\scripts\smoke-test.ps1 -EdgeBaseUrl https://atlas.example.com -MetricsBaseUrl https://metrics.atlas.example.com
+    powershell -File .\scripts\smoke-test.ps1 -EdgeBaseUrl https://scope.example.com -MetricsBaseUrl https://metrics.scope.example.com
 #>
 [CmdletBinding()]
 param(
@@ -166,7 +166,7 @@ function Invoke-SmokeRequest {
         Uri        = $Uri
         Method     = 'GET'
         TimeoutSec = $TimeoutSeconds
-        Headers    = @{ 'User-Agent' = 'atlas-smoke-test/1.0' }
+        Headers    = @{ 'User-Agent' = 'scope-smoke-test/1.0' }
     }
 
     if ($script:InvokeWebRequestParameters.ContainsKey('UseBasicParsing')) {
@@ -252,10 +252,10 @@ function Assert-MetricsPayload {
 
     $body = [string]$Response.Content
     $requiredPatterns = @(
-        'atlas_metrics_last_refresh_success\s+1(?:\.0+)?',
-        'atlas_service_up\{service="core"',
-        'atlas_service_up\{service="content"',
-        'atlas_service_up\{service="intel"'
+        'scope_metrics_last_refresh_success\s+1(?:\.0+)?',
+        'scope_service_up\{service="core"',
+        'scope_service_up\{service="content"',
+        'scope_service_up\{service="intel"'
     )
 
     foreach ($pattern in $requiredPatterns) {
@@ -264,7 +264,7 @@ function Assert-MetricsPayload {
         }
     }
 
-    $downChecks = [regex]::Matches($body, 'atlas_service_up\{[^}]+\}\s+0(?:\.0+)?')
+    $downChecks = [regex]::Matches($body, 'scope_service_up\{[^}]+\}\s+0(?:\.0+)?')
     if ($downChecks.Count -gt 0) {
         $details = ($downChecks | ForEach-Object { $_.Value }) -join '; '
         throw "Metrics reported an unhealthy downstream dependency: $details"
@@ -281,7 +281,7 @@ if (-not $PSBoundParameters.ContainsKey('EdgeBaseUrl')) {
 }
 
 if (-not $PSBoundParameters.ContainsKey('MetricsBaseUrl')) {
-    $metricsPort = if ([string]::IsNullOrWhiteSpace($envValues['ATLAS_METRICS_PORT'])) { '9090' } else { $envValues['ATLAS_METRICS_PORT'] }
+    $metricsPort = if ([string]::IsNullOrWhiteSpace($envValues['SCOPE_METRICS_PORT'])) { '9090' } else { $envValues['SCOPE_METRICS_PORT'] }
     $MetricsBaseUrl = Resolve-LocalBaseUrl -Port $metricsPort
 }
 
@@ -357,7 +357,7 @@ $checks = @(
         }
     }
     [pscustomobject]@{
-        Name     = 'Atlas Metrics health'
+        Name     = 'Scope Metrics health'
         Url      = $MetricsHealthUrl
         Validate = {
             param($response)
@@ -366,7 +366,7 @@ $checks = @(
         }
     }
     [pscustomobject]@{
-        Name     = 'Atlas Metrics scrape'
+        Name     = 'Scope Metrics scrape'
         Url      = $MetricsUrl
         Validate = {
             param($response)
@@ -378,7 +378,7 @@ $checks = @(
 $results = New-Object System.Collections.Generic.List[object]
 
 Write-Host ''
-Write-Host 'Atlas deployment smoke test' -ForegroundColor Cyan
+Write-Host 'Scope deployment smoke test' -ForegroundColor Cyan
 Write-Host ('=' * 28) -ForegroundColor DarkGray
 Write-Host "Edge base URL:    $EdgeBaseUrl"
 Write-Host "Metrics base URL: $MetricsBaseUrl"
@@ -440,5 +440,5 @@ if ($failed.Count -gt 0) {
     exit 1
 }
 
-Write-Host 'All Atlas smoke checks passed.' -ForegroundColor Green
+Write-Host 'All Scope smoke checks passed.' -ForegroundColor Green
 exit 0

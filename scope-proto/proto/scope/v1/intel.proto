@@ -1,0 +1,82 @@
+syntax = "proto3";
+package scope.v1;
+
+option csharp_namespace = "Scope.Proto.V1";
+option go_package = "scope-proto/gen/go/scope/v1;scopev1";
+
+service IntelService {
+  rpc AnalyzeSentiment(SentimentRequest) returns (SentimentResponse);
+  rpc AnalyzeSentimentBatch(SentimentBatchRequest) returns (SentimentBatchResponse);
+  rpc ClassifyImage(ClassifyImageRequest) returns (ClassifyImageResponse);
+  rpc PredictTrip(PredictTripRequest) returns (PredictTripResponse);
+  rpc GetRecommendations(RecommendationRequest) returns (RecommendationResponse);
+}
+
+message SentimentRequest {
+  string text = 1;
+  string review_id = 2;
+}
+
+message SentimentResponse {
+  string label = 1;
+  float score = 2;
+  float normalized_score = 3;
+  string review_id = 4;
+}
+
+message SentimentBatchRequest {
+  repeated string texts = 1;
+}
+
+message SentimentBatchResponse {
+  repeated SentimentResponse results = 1;
+}
+
+message ClassifyImageRequest {
+  string url = 1;
+  bytes image_data = 2;
+  string photo_id = 3;
+  int32 top_k = 4;
+}
+
+message ClassifyImageResponse {
+  repeated ImageTag tags = 1;
+  string photo_id = 2;
+}
+
+message ImageTag {
+  string tag = 1;
+  float confidence = 2;
+}
+
+message PredictTripRequest {
+  int32 num_spots = 1;
+  float total_distance_km = 2;
+  float avg_rating = 3;
+  int32 num_outdoor = 4;
+  int32 num_food = 5;
+  int32 num_cultural = 6;
+  int32 month = 7;
+}
+
+message PredictTripResponse {
+  float predicted_days = 1;
+  float predicted_cost_usd = 2;
+  float confidence = 3;
+  string source = 4;
+}
+
+message RecommendationRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message RecommendationResponse {
+  repeated RecommendedSpot spots = 1;
+}
+
+message RecommendedSpot {
+  string spot_id = 1;
+  float score = 2;
+  string source = 3;
+}

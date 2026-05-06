@@ -25,8 +25,8 @@
 - 024d83d feat(core): scaffold ASP.NET Core project structure
 - Previous blocker "no .NET SDK" was WRONG — dotnet 8.0.419 IS installed at C:\Program Files\dotnet\dotnet.exe
 - Branch issue: committed while on feature/intel-api instead of feature/core-platform — needs cleanup
-- Agent MUST run `dotnet restore` and `dotnet build` inside Atlas.Core/ to validate
-- Agent MUST run `dotnet test` inside Atlas.Core.Tests/ to validate tests
+- Agent MUST run `dotnet restore` and `dotnet build` inside Scope.Core/ to validate
+- Agent MUST run `dotnet test` inside Scope.Core.Tests/ to validate tests
 - Agent MUST fix any compilation errors or test failures before marking COMPLETE
 - 2026-03-29T02:18:00Z restore/build passed via C:\Program Files\dotnet\dotnet.exe with 0 warnings and 0 errors
 - 2026-03-29T02:19:00Z test suite passed: 2 tests, 0 failures, 0 skipped

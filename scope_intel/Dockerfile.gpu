@@ -1,0 +1,40 @@
+# -- Stage 1: Build dependencies --------------------------------
+FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3.12-venv python3-pip curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3 /usr/bin/python
+
+RUN python3.12 -m venv "$VIRTUAL_ENV"
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --force-reinstall \
+        torch==2.9.0+cu129 torchvision==0.23.0+cu129 \
+        --index-url https://download.pytorch.org/whl/cu129
+
+# -- Stage 2: Application --------------------------------
+COPY . /app
+
+RUN addgroup --system --gid 10003 intel && \
+    adduser --system --uid 10003 --ingroup intel intel && \
+    chown -R intel:intel /app
+
+USER intel
+EXPOSE 5000
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=45s \
+    CMD curl -fsS http://localhost:5000/api/intel/health || exit 1
+
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "wsgi:app"]

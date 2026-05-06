@@ -1,0 +1,5 @@
+bin/
+coverage.out
+scope-metrics.exe
+.gocache/
+.gotmp/

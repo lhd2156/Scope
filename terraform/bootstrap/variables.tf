@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Project slug used for naming Terraform state resources."
   type        = string
-  default     = "atlas"
+  default     = "scope"
 }
 
 variable "environment" {

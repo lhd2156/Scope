@@ -1,7 +1,7 @@
-# Atlas — AI Agent Instructions
+# Scope — AI Agent Instructions
 
-## What is Atlas?
-Atlas is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
+## What is Scope?
+Scope is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
 
 **Elevator Pitch:** "Pokémon Go meets Instagram — real places, real photos, real adventures on a map."
 
@@ -10,10 +10,10 @@ Polyglot microservices with 3 backends + 1 frontend:
 
 | Service | Framework | Directory | Responsibility |
 |---------|-----------|-----------|---------------|
-| Core Platform | C# / ASP.NET Core 8 | `Atlas.Core/` | Auth, real-time (SignalR), users, friends, notifications |
-| Content Engine | Python / Django 5 | `atlas_content/` | Spots, trips, photos, reviews, social feed |
-| Intelligence API | Python / Flask 3 | `atlas_intel/` | AI itineraries, recommendations, vibe matching |
-| Frontend | Vue.js 3 / TypeScript | `atlas-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
+| Core Platform | C# / ASP.NET Core 8 | `Scope.Core/` | Auth, real-time (SignalR), users, friends, notifications |
+| Content Engine | Python / Django 5 | `scope_content/` | Spots, trips, photos, reviews, social feed |
+| Intelligence API | Python / Flask 3 | `scope_intel/` | AI itineraries, recommendations, vibe matching |
+| Frontend | Vue.js 3 / TypeScript | `scope-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
 
 **Communication:**
 - Frontend → Nginx → Services (REST)
@@ -21,7 +21,7 @@ Polyglot microservices with 3 backends + 1 frontend:
 - Core → Frontend (SignalR WebSocket for real-time)
 
 ## Critical Rules for Agents
-1. **Read `atlas_architecture.tex` FIRST** — it is the single source of truth (~2600 lines)
+1. **Read `scope_architecture.tex` FIRST** — it is the single source of truth (~2600 lines)
 2. **Never merge microservices** — each service is independent with its own Dockerfile
 3. **Never skip security** — rate limiting, input validation, JWT auth on every endpoint
 4. **Write tests for everything** — xUnit (C#), Pytest (Python), Vitest (Vue)
@@ -39,9 +39,9 @@ Single SQL Server instance with logical schema separation:
 - `intel.*` — ItineraryCache, UserPreferences, SpotFeatures
 
 ## Key Files
-- `atlas_architecture.tex` — Full architecture spec (THE source of truth)
-- `atlas-assets/design-tokens.css` — CSS custom properties for dark/light mode
-- `atlas-assets/icons/atlas-icons.svg` — 38 SVG icons
+- `scope_architecture.tex` — Full architecture spec (THE source of truth)
+- `scope-assets/design-tokens.css` — CSS custom properties for dark/light mode
+- `scope-assets/icons/scope-icons.svg` — 38 SVG icons
 - `.env.example` — All environment variables (agent creates from template)
 
 ## Design System
@@ -76,10 +76,10 @@ You own the **root directory** and these subdirectories:
 - `k8s/`
 - `terraform/`
 
-**Do NOT create or modify** `Atlas.Core/`, `atlas_content/`, `atlas_intel/`, or `atlas-frontend/`. Other agents handle those.
+**Do NOT create or modify** `Scope.Core/`, `scope_content/`, `scope_intel/`, or `scope-frontend/`. Other agents handle those.
 
 ## Reference
-Read `atlas_architecture.tex` — Sections 2, 3, 4, 12, 15, 16, and Appendix A + C.
+Read `scope_architecture.tex` — Sections 2, 3, 4, 12, 15, 16, and Appendix A + C.
 
 ## Tasks (in order)
 

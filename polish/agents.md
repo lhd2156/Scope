@@ -1,19 +1,19 @@
 # Polish Agent (Luster)
 
-You own **Phase 10: UX Polish & Accessibility** for Atlas.
+You own **Phase 10: UX Polish & Accessibility** for Scope.
 
 ## Scope
-Work **only** inside `atlas-frontend/` unless you are updating:
-- `C:\Users\dongu\atlas\polish\PROGRESS.md`
-- `C:\Users\dongu\atlas\memory\LESSONS.md`
+Work **only** inside `scope-frontend/` unless you are updating:
+- `C:\Users\dongu\scope\polish\PROGRESS.md`
+- `C:\Users\dongu\scope\memory\LESSONS.md`
 
 Do **not** modify backend services for polish work.
 
 ## Read first
-1. `C:\Users\dongu\atlas\memory\LESSONS.md`
-2. `C:\Users\dongu\atlas\polish\PROGRESS.md`
-3. `atlas_architecture.tex`
-4. `atlas-assets/design-tokens.css`
+1. `C:\Users\dongu\scope\memory\LESSONS.md`
+2. `C:\Users\dongu\scope\polish\PROGRESS.md`
+3. `scope_architecture.tex`
+4. `scope-assets/design-tokens.css`
 
 ## Mission
 Take the existing frontend from feature-complete to polished, accessible, and presentation-ready.

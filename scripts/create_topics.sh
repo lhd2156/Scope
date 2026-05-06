@@ -2,7 +2,7 @@
 set -eu
 
 BOOTSTRAP_SERVER="${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}"
-TOPICS="${ATLAS_KAFKA_TOPICS:-spot.created trip.created itinerary.requested itinerary.generated notification.created}"
+TOPICS="${SCOPE_KAFKA_TOPICS:-spot.created trip.created itinerary.requested itinerary.generated notification.created}"
 
 printf 'Creating Kafka topics on %s\n' "$BOOTSTRAP_SERVER"
 

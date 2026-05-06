@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "scope-metrics"
+    static_configs:
+      - targets: ["scope-metrics:9090"]
+    metrics_path: /metrics
+
+  - job_name: "core"
+    static_configs:
+      - targets: ["core:8080"]
+    metrics_path: /metrics
+
+  - job_name: "content"
+    static_configs:
+      - targets: ["content:8000"]
+    metrics_path: /api/content/metrics
+
+  - job_name: "intel"
+    static_configs:
+      - targets: ["intel:5000"]
+    metrics_path: /api/intel/metrics
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,4 +1,4 @@
-name: Atlas Deploy
+name: Scope Deploy
 
 on:
   push:
@@ -31,6 +31,31 @@ on:
         options:
           - staging
           - production
+      terraform_profile:
+        description: Terraform deployment cost profile
+        required: true
+        default: credit-saver
+        type: choice
+        options:
+          - credit-saver
+          - lightsail
+          - full
+      terraform_registry:
+        description: Container registry target for Terraform-managed infra
+        required: true
+        default: ghcr
+        type: choice
+        options:
+          - ghcr
+          - ecr
+      deploy_lightsail_app:
+        description: After a successful lightsail apply, copy Scope to the host and start it
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   contents: read
@@ -38,7 +63,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: atlas-deploy-${{ github.ref }}
+  group: scope-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -49,28 +74,38 @@ jobs:
   preflight:
     name: Deployment preflight
     runs-on: ubuntu-latest
-    env:
-      ACCEPT_EULA: Y
-      SA_PASSWORD: Atlas_Dev_2026!
-      CORE_JWT_SECRET: deploy-core-jwt-secret-please-change
-      CORE_JWT_ISSUER: atlas-core
-      CORE_JWT_AUDIENCE: atlas-frontend
-      DJANGO_SECRET_KEY: deploy-django-secret-key
-      DJANGO_DEBUG: 'false'
-      FLASK_SECRET_KEY: deploy-flask-secret-key
-      FLASK_ENV: production
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      AWS_REGION: us-east-1
-      AWS_S3_BUCKET: atlas-photos-deploy
-      VITE_MAPBOX_TOKEN: pk.deploy-token
-      VITE_API_BASE_URL: /
-      VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Generate throwaway values so `docker compose config` can interpolate.
+      # Real deploys inject secrets via the environment/cluster, not this file.
+      - name: Generate ephemeral preflight values
+        id: preflight
+        run: |
+          echo "sa=CI_$(openssl rand -base64 18 | tr -d '=+/' )!" >> "$GITHUB_OUTPUT"
+          echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "django=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "flask=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
       - name: Validate docker-compose bundle
-        run: docker compose config > /tmp/atlas-deploy-compose.yaml
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: ${{ steps.preflight.outputs.sa }}
+          CORE_JWT_SECRET: ${{ steps.preflight.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          DJANGO_SECRET_KEY: ${{ steps.preflight.outputs.django }}
+          DJANGO_DEBUG: 'false'
+          FLASK_SECRET_KEY: ${{ steps.preflight.outputs.flask }}
+          FLASK_ENV: production
+          KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+          AWS_REGION: us-east-1
+          AWS_S3_BUCKET: scope-photos-deploy
+          VITE_MAPBOX_TOKEN: pk.deploy-token
+          VITE_API_BASE_URL: /
+          VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
+        run: docker compose config > /tmp/scope-deploy-compose.yaml
 
   publish-images:
     name: Publish ${{ matrix.name }} image
@@ -81,34 +116,34 @@ jobs:
       matrix:
         include:
           - name: core
-            image: atlas-core
-            context: ./Atlas.Core
-            file: ./Atlas.Core/Dockerfile
+            image: scope-core
+            context: ./Scope.Core
+            file: ./Scope.Core/Dockerfile
             build_args: ''
           - name: content
-            image: atlas-content
-            context: ./atlas_content
-            file: ./atlas_content/Dockerfile
+            image: scope-content
+            context: ./scope_content
+            file: ./scope_content/Dockerfile
             build_args: ''
           - name: intel
-            image: atlas-intel
-            context: ./atlas_intel
-            file: ./atlas_intel/Dockerfile
+            image: scope-intel
+            context: ./scope_intel
+            file: ./scope_intel/Dockerfile
             build_args: ''
-          - name: atlas-metrics
-            image: atlas-metrics
-            context: ./atlas-metrics
-            file: ./atlas-metrics/Dockerfile
+          - name: scope-metrics
+            image: scope-metrics
+            context: ./scope-metrics
+            file: ./scope-metrics/Dockerfile
             build_args: ''
-          - name: atlas-cli
-            image: atlas-cli
-            context: ./atlas-cli
-            file: ./atlas-cli/Dockerfile
+          - name: scope-cli
+            image: scope-cli
+            context: ./scope-cli
+            file: ./scope-cli/Dockerfile
             build_args: ''
           - name: frontend
-            image: atlas-frontend
+            image: scope-frontend
             context: .
-            file: ./atlas-frontend/Dockerfile
+            file: ./scope-frontend/Dockerfile
             build_args: |
               VITE_API_BASE_URL=/
               VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
@@ -150,7 +185,7 @@ jobs:
           build-args: ${{ matrix.build_args }}
 
   terraform-plan:
-    name: Terraform plan (${{ github.event.inputs.terraform_environment }})
+    name: Terraform plan (${{ github.event.inputs.terraform_environment }} / ${{ github.event.inputs.terraform_profile }})
     if: github.event_name == 'workflow_dispatch' && (github.event.inputs.terraform_action == 'plan' || github.event.inputs.terraform_action == 'apply')
     runs-on: ubuntu-latest
     needs: preflight
@@ -162,11 +197,15 @@ jobs:
       TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
       TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
       TF_VAR_environment: ${{ github.event.inputs.terraform_environment }}
-      TF_VAR_project_name: atlas
-      TF_VAR_eks_cluster_name: atlas
+      TF_VAR_project_name: scope
+      TF_VAR_stack_profile: ${{ github.event.inputs.terraform_profile }}
+      TF_VAR_container_registry: ${{ github.event.inputs.terraform_registry }}
+      TF_VAR_eks_cluster_name: scope
       TF_VAR_photos_bucket_name: ${{ vars.TF_PHOTOS_BUCKET_NAME }}
       TF_VAR_cognito_domain_prefix: ${{ vars.TF_COGNITO_DOMAIN_PREFIX }}
-      TF_VAR_sqlserver_master_password: ${{ secrets.TF_SQLSERVER_MASTER_PASSWORD }}
+      TF_VAR_lightsail_key_pair_name: ${{ vars.LIGHTSAIL_KEY_PAIR_NAME }}
+      TF_VAR_lightsail_public_key: ${{ vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
+      TF_SQLSERVER_MASTER_PASSWORD: ${{ secrets.TF_SQLSERVER_MASTER_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,12 +214,30 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix TF_VAR_sqlserver_master_password; do
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE TF_VAR_photos_bucket_name TF_VAR_cognito_domain_prefix; do
             if [ -z "${!variable}" ]; then
               echo "::error::$variable is not configured for Terraform workflow runs."
               missing=1
             fi
           done
+
+          if [ "${TF_VAR_stack_profile}" = "full" ]; then
+            if [ -z "${TF_SQLSERVER_MASTER_PASSWORD}" ]; then
+              echo "::error::TF_SQLSERVER_MASTER_PASSWORD is required when terraform_profile=full."
+              missing=1
+            else
+              echo "TF_VAR_sqlserver_master_password=${TF_SQLSERVER_MASTER_PASSWORD}" >> "$GITHUB_ENV"
+            fi
+          fi
+
+          if [ "${TF_VAR_stack_profile}" = "lightsail" ]; then
+            for variable in TF_VAR_lightsail_key_pair_name TF_VAR_lightsail_public_key; do
+              if [ -z "${!variable}" ]; then
+                echo "::error::$variable is required when terraform_profile=lightsail."
+                missing=1
+              fi
+            done
+          fi
 
           if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
             echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
@@ -244,12 +301,12 @@ jobs:
       - name: Upload Terraform plan artifact
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          name: scope-terraform-${{ github.event.inputs.terraform_environment }}-${{ github.event.inputs.terraform_profile }}-plan
           path: terraform-artifacts
           if-no-files-found: error
 
   terraform-apply:
-    name: Terraform apply (${{ github.event.inputs.terraform_environment }})
+    name: Terraform apply (${{ github.event.inputs.terraform_environment }} / ${{ github.event.inputs.terraform_profile }})
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply'
     runs-on: ubuntu-latest
     needs: terraform-plan
@@ -260,6 +317,9 @@ jobs:
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
       TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
+      TF_VAR_stack_profile: ${{ github.event.inputs.terraform_profile }}
+      TF_VAR_lightsail_key_pair_name: ${{ vars.LIGHTSAIL_KEY_PAIR_NAME }}
+      TF_VAR_lightsail_public_key: ${{ vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -274,6 +334,15 @@ jobs:
               missing=1
             fi
           done
+
+          if [ "${TF_VAR_stack_profile}" = "lightsail" ]; then
+            for variable in TF_VAR_lightsail_key_pair_name TF_VAR_lightsail_public_key; do
+              if [ -z "${!variable}" ]; then
+                echo "::error::$variable is required when terraform_profile=lightsail."
+                missing=1
+              fi
+            done
+          fi
 
           if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
             echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
@@ -299,7 +368,7 @@ jobs:
       - name: Download Terraform plan artifact
         uses: actions/download-artifact@v4
         with:
-          name: atlas-terraform-${{ github.event.inputs.terraform_environment }}-plan
+          name: scope-terraform-${{ github.event.inputs.terraform_environment }}-${{ github.event.inputs.terraform_profile }}-plan
           path: terraform
 
       - name: Render Terraform backend config
@@ -321,6 +390,227 @@ jobs:
         working-directory: terraform
         run: terraform apply -input=false tfplan
 
+  deploy-lightsail:
+    name: Deploy Scope to Lightsail (${{ github.event.inputs.terraform_environment }})
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_profile == 'lightsail' && github.event.inputs.terraform_action == 'apply' && github.event.inputs.deploy_lightsail_app == 'true'
+    runs-on: ubuntu-latest
+    needs:
+      - preflight
+      - terraform-apply
+    environment: ${{ github.event.inputs.terraform_environment }}
+    timeout-minutes: 90
+    env:
+      AWS_REGION: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
+      TF_STATE_KEY_OVERRIDE: ${{ vars.TF_STATE_KEY }}
+      SCOPE_SA_PASSWORD: ${{ secrets.SCOPE_SA_PASSWORD }}
+      SCOPE_CORE_JWT_SECRET: ${{ secrets.SCOPE_CORE_JWT_SECRET }}
+      SCOPE_DJANGO_SECRET_KEY: ${{ secrets.SCOPE_DJANGO_SECRET_KEY }}
+      SCOPE_FLASK_SECRET_KEY: ${{ secrets.SCOPE_FLASK_SECRET_KEY }}
+      LIGHTSAIL_KEY_PAIR_NAME: ${{ vars.LIGHTSAIL_KEY_PAIR_NAME }}
+      LIGHTSAIL_SSH_PRIVATE_KEY: ${{ secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}
+      LIGHTSAIL_SSH_PUBLIC_KEY: ${{ vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
+      VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
+      SCOPE_PUBLIC_BASE_URL: ${{ vars.SCOPE_PUBLIC_BASE_URL }}
+      SCOPE_TLS_HOSTNAME: ${{ vars.SCOPE_TLS_HOSTNAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Lightsail deployment configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET TF_STATE_LOCK_TABLE SCOPE_SA_PASSWORD SCOPE_CORE_JWT_SECRET SCOPE_DJANGO_SECRET_KEY SCOPE_FLASK_SECRET_KEY LIGHTSAIL_KEY_PAIR_NAME LIGHTSAIL_SSH_PRIVATE_KEY LIGHTSAIL_SSH_PUBLIC_KEY VITE_MAPBOX_TOKEN; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is required for Lightsail application deployment."
+              missing=1
+            fi
+          done
+
+          if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
+            echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
+          else
+            echo "TF_STATE_KEY=foundation/${{ github.event.inputs.terraform_environment }}/terraform.tfstate" >> "$GITHUB_ENV"
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Render Terraform backend config
+        shell: bash
+        run: |
+          cat > terraform/backend.hcl <<EOF
+          bucket         = "${TF_STATE_BUCKET}"
+          key            = "${TF_STATE_KEY}"
+          region         = "${AWS_REGION}"
+          dynamodb_table = "${TF_STATE_LOCK_TABLE}"
+          encrypt        = true
+          EOF
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false -reconfigure -backend-config=backend.hcl
+
+      - name: Capture Lightsail deployment outputs
+        working-directory: terraform
+        shell: bash
+        run: |
+          public_ip="$(terraform output -raw lightsail_public_ip)"
+          username="$(terraform output -raw lightsail_username)"
+          photos_bucket="$(terraform output -raw photos_bucket_name)"
+          cognito_pool_id="$(terraform output -raw cognito_user_pool_id)"
+          cognito_client_id="$(terraform output -raw cognito_user_pool_client_id)"
+
+          if [ -z "${SCOPE_PUBLIC_BASE_URL}" ]; then
+            scope_public_base_url="https://${public_ip}"
+          else
+            scope_public_base_url="${SCOPE_PUBLIC_BASE_URL}"
+          fi
+
+          export public_ip username photos_bucket cognito_pool_id cognito_client_id scope_public_base_url SCOPE_SA_PASSWORD
+
+          python - <<'PY' >> "$GITHUB_ENV"
+from urllib.parse import quote, urlparse
+import os
+
+public_ip = os.environ["public_ip"]
+scope_public_base_url = os.environ["scope_public_base_url"]
+sa_password = os.environ["SCOPE_SA_PASSWORD"]
+parsed = urlparse(scope_public_base_url)
+host = parsed.hostname or public_ip
+encoded_password = quote(sa_password, safe="")
+
+print(f"LIGHTSAIL_PUBLIC_IP={public_ip}")
+print(f"LIGHTSAIL_USERNAME={os.environ['username']}")
+print(f"SCOPE_PUBLIC_BASE_URL={scope_public_base_url}")
+print(f"SCOPE_PUBLIC_HOST={host}")
+print(f"DJANGO_DB_PASSWORD_ENCODED={encoded_password}")
+print(f"PHOTOS_BUCKET_NAME={os.environ['photos_bucket']}")
+print(f"COGNITO_USER_POOL_ID={os.environ['cognito_pool_id']}")
+print(f"COGNITO_USER_POOL_CLIENT_ID={os.environ['cognito_client_id']}")
+PY
+
+      - name: Render Lightsail runtime environment
+        shell: bash
+        run: |
+          tls_hostname="${SCOPE_TLS_HOSTNAME:-$SCOPE_PUBLIC_HOST}"
+          cat > scope-lightsail.env <<EOF
+          NODE_ENV=production
+          COMPOSE_PROJECT_NAME=scope
+          DEBUG=false
+          ASPNETCORE_ENVIRONMENT=Production
+          FLASK_ENV=production
+          FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
+          CORE_FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
+          DEVELOPMENT_FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
+          SA_PASSWORD=${SCOPE_SA_PASSWORD}
+          ACCEPT_EULA=Y
+          DB_USER=sa
+          DB_PASSWORD=${SCOPE_SA_PASSWORD}
+          CORE_DB_CONNECTION=Server=sqlserver,1433;Database=ScopeDb;User Id=sa;Password=${SCOPE_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Min Pool Size=5;Max Pool Size=100;Connection Timeout=15;MultipleActiveResultSets=true
+          CORE_JWT_SECRET=${SCOPE_CORE_JWT_SECRET}
+          CORE_JWT_ISSUER=scope-core
+          CORE_JWT_AUDIENCE=scope-frontend
+          CORE_ALLOWED_ORIGINS=${SCOPE_PUBLIC_BASE_URL}
+          DJANGO_SECRET_KEY=${SCOPE_DJANGO_SECRET_KEY}
+          DJANGO_DEBUG=false
+          DJANGO_ALLOWED_HOSTS=${SCOPE_PUBLIC_HOST},localhost,127.0.0.1,content,nginx
+          ALLOWED_HOSTS=${SCOPE_PUBLIC_HOST},localhost,127.0.0.1,content,nginx
+          DJANGO_DATABASE_URL=mssql://sa:${DJANGO_DB_PASSWORD_ENCODED}@sqlserver:1433/ScopeDb
+          DJANGO_MSSQL_DRIVER=ODBC Driver 18 for SQL Server
+          DJANGO_MSSQL_EXTRA_PARAMS=Encrypt=yes;TrustServerCertificate=yes
+          SECURE_SSL_REDIRECT=true
+          FLASK_SECRET_KEY=${SCOPE_FLASK_SECRET_KEY}
+          FLASK_DATABASE_URL=sqlite:////app/data/scope_intel.db
+          CONTENT_SERVICE_URL=http://content:8000/api/content
+          REDIS_URL=redis:6379
+          KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+          PHOTO_UPLOAD_ASYNC_THUMBNAILS=true
+          RUN_MIGRATIONS_ON_STARTUP=true
+          AWS_ACCESS_KEY_ID=
+          AWS_SECRET_ACCESS_KEY=
+          AWS_REGION=${AWS_REGION}
+          AWS_S3_BUCKET=${PHOTOS_BUCKET_NAME}
+          AWS_COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+          AWS_COGNITO_CLIENT_ID=${COGNITO_USER_POOL_CLIENT_ID}
+          VITE_API_BASE_URL=/
+          VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
+          VITE_ENABLE_AUTH_MOCK_FALLBACK=false
+          VITE_DEMO_MODE=false
+          SCOPE_TLS_HOSTNAME=${tls_hostname}
+          NGINX_PORT=80
+          NGINX_TLS_PORT=443
+          EOF
+
+      - name: Build Lightsail release bundle
+        shell: bash
+        run: |
+          tar -czf scope-lightsail-release.tgz \
+            docker-compose.yml \
+            .env.example \
+            Scope.Core \
+            scope-assets \
+            scope-cli \
+            scope-metrics \
+            scope-frontend \
+            scope_content \
+            scope_intel \
+            nginx \
+            scripts
+
+      - name: Configure SSH access
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${LIGHTSAIL_SSH_PRIVATE_KEY}" > ~/.ssh/scope-lightsail
+          chmod 600 ~/.ssh/scope-lightsail
+          for attempt in $(seq 1 30); do
+            if ssh-keyscan -H "${LIGHTSAIL_PUBLIC_IP}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "::error::Unable to read the Lightsail host key after waiting for SSH."
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Upload release bundle to Lightsail
+        shell: bash
+        run: |
+          release_dir="/opt/scope/releases/${GITHUB_SHA}"
+          ssh -i ~/.ssh/scope-lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_PUBLIC_IP}" "mkdir -p '${release_dir}'"
+          scp -i ~/.ssh/scope-lightsail scope-lightsail-release.tgz "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_PUBLIC_IP}:${release_dir}/scope-lightsail-release.tgz"
+          scp -i ~/.ssh/scope-lightsail scope-lightsail.env "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_PUBLIC_IP}:${release_dir}/.env"
+
+      - name: Deploy Scope on the Lightsail host
+        shell: bash
+        run: |
+          release_dir="/opt/scope/releases/${GITHUB_SHA}"
+          ssh -i ~/.ssh/scope-lightsail "${LIGHTSAIL_USERNAME}@${LIGHTSAIL_PUBLIC_IP}" "
+            set -euo pipefail
+            cd '${release_dir}'
+            tar -xzf scope-lightsail-release.tgz
+            rm -f scope-lightsail-release.tgz
+            chmod +x scripts/lightsail/deploy-remote.sh
+            SCOPE_RELEASE_DIR='${release_dir}' ./scripts/lightsail/deploy-remote.sh
+          "
+
   deployment-bundle:
     name: Publish deployment bundle artifact
     runs-on: ubuntu-latest
@@ -338,6 +628,8 @@ jobs:
           cp -r k8s deploy-bundle/k8s
           cp -r terraform deploy-bundle/terraform
           cp -r docs deploy-bundle/docs
+          cp -r scripts/nginx deploy-bundle/nginx-scripts
+          cp -r scripts/lightsail deploy-bundle/lightsail-scripts
           cp -r scripts/sql deploy-bundle/sql
           cp .github/workflows/ci.yml deploy-bundle/ci.yml
           cp .github/workflows/deploy.yml deploy-bundle/deploy.yml
@@ -345,5 +637,5 @@ jobs:
       - name: Upload deployment bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-deployment-bundle
+          name: scope-deployment-bundle
           path: deploy-bundle

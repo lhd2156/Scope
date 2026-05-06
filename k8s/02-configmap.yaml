@@ -1,27 +1,27 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: atlas-shared-config
-  namespace: atlas
+  name: scope-shared-config
+  namespace: scope
   labels:
-    app.kubernetes.io/name: atlas
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/name: scope
+    app.kubernetes.io/part-of: scope-platform
 data:
   ASPNETCORE_ENVIRONMENT: Development
   FLASK_ENV: production
   DEBUG: "False"
-  DJANGO_ALLOWED_HOSTS: atlas.local,localhost,127.0.0.1,nginx
-  ALLOWED_HOSTS: atlas.local,localhost,127.0.0.1,nginx
-  FRONTEND_ORIGIN: https://atlas.local
-  CORE_FRONTEND_ORIGIN: https://atlas.local
-  CORE_JWT_ISSUER: atlas-core
-  CORE_JWT_AUDIENCE: atlas-frontend
+  DJANGO_ALLOWED_HOSTS: scope.local,localhost,127.0.0.1,nginx
+  ALLOWED_HOSTS: scope.local,localhost,127.0.0.1,nginx
+  FRONTEND_ORIGIN: https://scope.local
+  CORE_FRONTEND_ORIGIN: https://scope.local
+  CORE_JWT_ISSUER: scope-core
+  CORE_JWT_AUDIENCE: scope-frontend
   CONTENT_SERVICE_URL: http://content:8000/api/content
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   KAFKA_ENABLED: "true"
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
   AWS_REGION: us-east-1
-  AWS_S3_BUCKET: atlas-photos
+  AWS_S3_BUCKET: scope-photos
   VITE_API_BASE_URL: /
   VITE_CSRF_ENDPOINT: ""
   VITE_ENABLE_AUTH_MOCK_FALLBACK: "false"

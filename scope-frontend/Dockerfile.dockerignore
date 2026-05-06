@@ -1,0 +1,16 @@
+# The frontend image only needs the Vue app and shared design assets.
+*
+
+!scope-frontend/
+!scope-frontend/**
+!scope-assets/
+!scope-assets/**
+
+scope-frontend/node_modules
+scope-frontend/dist
+scope-frontend/coverage
+scope-frontend/playwright-report
+scope-frontend/test-results
+scope-frontend/.vite
+scope-frontend/emsdk
+scope-frontend/wasm/build

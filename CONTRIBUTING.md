@@ -1,6 +1,6 @@
-# Contributing to Atlas
+# Contributing to Scope
 
-Thanks for contributing to Atlas.
+Thanks for contributing to Scope.
 
 This repository is a multi-service system with shared integration infrastructure, so changes should be made deliberately and verified carefully.
 
@@ -10,10 +10,10 @@ This repository is a multi-service system with shared integration infrastructure
 
 Do not blur service ownership.
 
-- `Atlas.Core/` owns auth, users, friendships, notifications, live sessions
-- `atlas_content/` owns spots, trips, photos, reviews, feed
-- `atlas_intel/` owns itinerary/recommendation/vibe logic
-- `atlas-frontend/` owns the UI and browser-side integration logic
+- `Scope.Core/` owns auth, users, friendships, notifications, live sessions
+- `scope_content/` owns spots, trips, photos, reviews, feed
+- `scope_intel/` owns itinerary/recommendation/vibe logic
+- `scope-frontend/` owns the UI and browser-side integration logic
 
 Avoid cross-service shortcuts that bypass documented boundaries.
 
@@ -21,7 +21,7 @@ Avoid cross-service shortcuts that bypass documented boundaries.
 
 The architecture source of truth is:
 
-- `atlas_architecture.tex`
+- `scope_architecture.tex`
 
 If behavior, contracts, or schemas are ambiguous, resolve the question against the architecture before coding.
 
@@ -46,15 +46,15 @@ Run the relevant build/tests for the area you changed.
 #### Core
 
 ```powershell
-cd Atlas.Core
-dotnet build Atlas.Core.sln
-dotnet test Atlas.Core.sln
+cd Scope.Core
+dotnet build Scope.Core.sln
+dotnet test Scope.Core.sln
 ```
 
 #### Content
 
 ```powershell
-cd atlas_content
+cd scope_content
 python manage.py check
 python -m pytest
 ```
@@ -62,14 +62,14 @@ python -m pytest
 #### Intel
 
 ```powershell
-cd atlas_intel
+cd scope_intel
 python -m pytest tests
 ```
 
 #### Frontend
 
 ```powershell
-cd atlas-frontend
+cd scope-frontend
 npm run build
 npm run test
 ```
@@ -77,7 +77,7 @@ npm run test
 #### Frontend E2E
 
 ```powershell
-cd atlas-frontend
+cd scope-frontend
 npm run test:e2e -- --project=chromium
 ```
 
@@ -154,7 +154,7 @@ If you touch integration files, keep the repo-wide flow coherent across:
 Make sure you have:
 
 - [ ] kept the change within the correct service boundary
-- [ ] followed `atlas_architecture.tex`
+- [ ] followed `scope_architecture.tex`
 - [ ] run the relevant build/tests
 - [ ] updated docs if behavior or operations changed
 - [ ] used a Conventional Commit

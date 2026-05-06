@@ -2,10 +2,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sqlserver
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: sqlserver
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   selector:
     app.kubernetes.io/name: sqlserver
@@ -18,10 +18,10 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: sqlserver-data
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: sqlserver
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   accessModes:
     - ReadWriteOnce
@@ -33,10 +33,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: sqlserver
-  namespace: atlas
+  namespace: scope
   labels:
     app.kubernetes.io/name: sqlserver
-    app.kubernetes.io/part-of: atlas-platform
+    app.kubernetes.io/part-of: scope-platform
 spec:
   serviceName: sqlserver
   replicas: 1
@@ -47,7 +47,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sqlserver
-        app.kubernetes.io/part-of: atlas-platform
+        app.kubernetes.io/part-of: scope-platform
     spec:
       containers:
         - name: sqlserver
@@ -65,7 +65,7 @@ spec:
             - name: SA_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: atlas-secrets
+                  name: scope-secrets
                   key: SA_PASSWORD
           volumeMounts:
             - name: sqlserver-data

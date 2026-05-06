@@ -1,0 +1,87 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "scope-overview",
+    "title": "Scope - Service Overview",
+    "tags": ["scope"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Health Status",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "up",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "options": {
+                  "0": { "text": "DOWN", "color": "red" },
+                  "1": { "text": "UP", "color": "green" }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum by (job, method, status) (rate({__name__=~\".*http.*requests.*total\", status=~\".*\"}[5m])) or sum by (job, method, status_code) (rate({__name__=~\".*http.*requests.*total\", status_code=~\".*\"}[5m]))",
+            "legendFormat": "{{job}} {{method}} {{status}}{{status_code}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "HTTP Request Latency (p95)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum by (job, le) (rate({__name__=~\".*http.*request.*duration.*seconds_bucket\"}[5m])))",
+            "legendFormat": "{{job}} p95"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Error Rate (5xx)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "sum by (job) (rate({__name__=~\".*http.*requests.*total\", status=~\"5..\"}[5m])) or sum by (job) (rate({__name__=~\".*http.*requests.*total\", status_code=~\"5..\"}[5m]))",
+            "legendFormat": "{{job}} 5xx"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Memory Usage",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes",
+            "legendFormat": "{{job}}"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

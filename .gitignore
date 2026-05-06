@@ -3,11 +3,24 @@
 .env.*
 !.env.example
 
+# Credential / auth caches (never commit)
+auth-profiles.json
+*.auth-profiles.json
+**/credentials.json
+**/secrets/
+**/*.pem
+**/*.key
+**/*.pfx
+.openclaw/auth/
+.clawhub/credentials/
+
 # Dependencies
 node_modules/
 **/node_modules/
+.npm-cache/
 
 # Build outputs
+.scope-stale-generated/
 dist/
 build/
 out/
@@ -20,6 +33,13 @@ artifacts/
 TestResults/
 test-results/
 playwright-report/
+.playwright-cli/
+.playwright-mcp/
+**/.playwright-cli/
+**/.playwright-mcp/
+output/
+**/output/
+**/snaps/
 .terraform/
 .pytest_cache/
 .mypy_cache/
@@ -37,6 +57,7 @@ __pycache__/
 # Logs
 *.log
 logs/
+dotnet-*.log
 
 # IDE / OS
 .vscode/
@@ -52,8 +73,8 @@ Thumbs.db
 .mssql/
 .kafka/
 .zookeeper/
-atlas_intel/instance/
-atlas_content/db.sqlite3
+scope_intel/instance/
+scope_content/db.sqlite3
 
 # Python virtual environments
 .venv/
@@ -62,6 +83,12 @@ env/
 
 # Docker override files
 docker-compose.override.yml
+.docker-config/
+.dotnet-home/
+.dotnet-sdk/
+.tooling/
+.gocache/
+.gomodcache/
 
 # Terraform local state
 **/.terraform/

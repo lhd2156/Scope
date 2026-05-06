@@ -3,19 +3,19 @@
 Every time you wake up, execute this loop:
 
 ## Step 0: Load Context (MANDATORY)
-1. Run: `powershell -File C:\Users\dongu\atlas\scripts\load-lessons.ps1 -Agent frontend`
-2. Read `C:\Users\dongu\atlas\memory\COMPLETED-TASKS.md` — check what's already done
-3. Read `atlas-assets/DESIGN-SPEC.md` and `atlas-assets/design-tokens.css`
-4. Study ALL mockup images in `atlas-assets/mockups/` (00-08) — your pixel-perfect reference
+1. Run: `powershell -File C:\Users\dongu\scope\scripts\load-lessons.ps1 -Agent frontend`
+2. Read `C:\Users\dongu\scope\memory\COMPLETED-TASKS.md` — check what's already done
+3. Read `scope-assets/DESIGN-SPEC.md` and `scope-assets/design-tokens.css`
+4. Study ALL mockup images in `scope-assets/mockups/` (00-08) — your pixel-perfect reference
 
 ## Step 1: Read Progress
-Read `frontend/PROGRESS.md` in `C:\Users\dongu\atlas`. Find first unchecked task (`- [ ]`).
+Read `frontend/PROGRESS.md` in `C:\Users\dongu\scope`. Find first unchecked task (`- [ ]`).
 
 ## Step 2: Check Prerequisites
 Core, Content, and Intel must ALL be `COMPLETE`. If not: `HEARTBEAT_OK — waiting for backends`.
 
 ## Step 3: Execute Next Task
-Read `frontend/agents.md` for task instructions. DO the work — create files, run commands, build inside `atlas-frontend/`.
+Read `frontend/agents.md` for task instructions. DO the work — create files, run commands, build inside `scope-frontend/`.
 
 **Phase 13 reminder**: Match the mockup images pixel-for-pixel. Use glassmorphism, design tokens, Unsplash photos.
 
@@ -29,19 +29,19 @@ Do NOT run raw `git add/commit`. Use:
 
 **Success:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "feat(frontend): desc" -Result "success" -Lesson "what you learned" -Agent "frontend"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "feat(frontend): desc" -Result "success" -Lesson "what you learned" -Agent "frontend"
 ```
 
 **Failure:**
 ```powershell
-powershell -File C:\Users\dongu\atlas\scripts\complete-task.ps1 -Message "fix(frontend): desc" -Result "failure" -Lesson "what went wrong" -Agent "frontend"
+powershell -File C:\Users\dongu\scope\scripts\complete-task.ps1 -Message "fix(frontend): desc" -Result "failure" -Lesson "what went wrong" -Agent "frontend"
 ```
 
 The script handles git commit, LESSONS.md, AND COMPLETED-TASKS.md logging automatically.
 
 ## Step 6: Self-Check
-- Scope: only `atlas-frontend/` (+ PROGRESS.md + LESSONS.md)
-- Following `atlas_architecture.tex`?
+- Scope: only `scope-frontend/` (+ PROGRESS.md + LESSONS.md)
+- Following `scope_architecture.tex`?
 - Tests pass? (`npm run test`)
 - Builds? (`npm run build`)
 - Premium UI? Dark mode, animations, glassmorphism?

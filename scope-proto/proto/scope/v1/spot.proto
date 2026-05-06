@@ -1,0 +1,56 @@
+syntax = "proto3";
+package scope.v1;
+
+option csharp_namespace = "Scope.Proto.V1";
+option go_package = "scope-proto/gen/go/scope/v1;scopev1";
+
+import "scope/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service SpotService {
+  rpc GetSpot(GetSpotRequest) returns (Spot);
+  rpc ListSpots(ListSpotsRequest) returns (ListSpotsResponse);
+  rpc SearchSpots(SearchSpotsRequest) returns (ListSpotsResponse);
+  rpc GetSpotsByIds(GetSpotsByIdsRequest) returns (ListSpotsResponse);
+}
+
+message Spot {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  GeoPoint location = 4;
+  string category = 5;
+  repeated string tags = 6;
+  string creator_id = 7;
+  float avg_rating = 8;
+  int32 review_count = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message GetSpotRequest {
+  string id = 1;
+}
+
+message ListSpotsRequest {
+  Pagination pagination = 1;
+  string category = 2;
+  string creator_id = 3;
+  string ordering = 4;
+}
+
+message ListSpotsResponse {
+  repeated Spot spots = 1;
+  PaginatedMeta meta = 2;
+}
+
+message SearchSpotsRequest {
+  string query = 1;
+  int32 limit = 2;
+  GeoPoint center = 3;
+  string radius = 4;
+}
+
+message GetSpotsByIdsRequest {
+  repeated string ids = 1;
+}

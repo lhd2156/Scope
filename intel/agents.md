@@ -1,7 +1,7 @@
-# Atlas â€” AI Agent Instructions
+# Scope â€” AI Agent Instructions
 
-## What is Atlas?
-Atlas is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
+## What is Scope?
+Scope is a real-world adventure platform where users document, discover, and plan experiences on an interactive map. Users drop pins, upload photos, write stories, and share adventures with friends. An AI engine plans optimized itineraries from community data.
 
 **Elevator Pitch:** "PokÃ©mon Go meets Instagram â€” real places, real photos, real adventures on a map."
 
@@ -10,10 +10,10 @@ Polyglot microservices with 3 backends + 1 frontend:
 
 | Service | Framework | Directory | Responsibility |
 |---------|-----------|-----------|---------------|
-| Core Platform | C# / ASP.NET Core 8 | `Atlas.Core/` | Auth, real-time (SignalR), users, friends, notifications |
-| Content Engine | Python / Django 5 | `atlas_content/` | Spots, trips, photos, reviews, social feed |
-| Intelligence API | Python / Flask 3 | `atlas_intel/` | AI itineraries, recommendations, vibe matching |
-| Frontend | Vue.js 3 / TypeScript | `atlas-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
+| Core Platform | C# / ASP.NET Core 8 | `Scope.Core/` | Auth, real-time (SignalR), users, friends, notifications |
+| Content Engine | Python / Django 5 | `scope_content/` | Spots, trips, photos, reviews, social feed |
+| Intelligence API | Python / Flask 3 | `scope_intel/` | AI itineraries, recommendations, vibe matching |
+| Frontend | Vue.js 3 / TypeScript | `scope-frontend/` | All UI, Mapbox maps, Pinia state, dark/light mode |
 
 **Communication:**
 - Frontend â†’ Nginx â†’ Services (REST)
@@ -21,7 +21,7 @@ Polyglot microservices with 3 backends + 1 frontend:
 - Core â†’ Frontend (SignalR WebSocket for real-time)
 
 ## Critical Rules for Agents
-1. **Read `atlas_architecture.tex` FIRST** â€” it is the single source of truth (~2600 lines)
+1. **Read `scope_architecture.tex` FIRST** â€” it is the single source of truth (~2600 lines)
 2. **Never merge microservices** â€” each service is independent with its own Dockerfile
 3. **Never skip security** â€” rate limiting, input validation, JWT auth on every endpoint
 4. **Write tests for everything** â€” xUnit (C#), Pytest (Python), Vitest (Vue)
@@ -39,9 +39,9 @@ Single SQL Server instance with logical schema separation:
 - `intel.*` â€” ItineraryCache, UserPreferences, SpotFeatures
 
 ## Key Files
-- `atlas_architecture.tex` â€” Full architecture spec (THE source of truth)
-- `atlas-assets/design-tokens.css` â€” CSS custom properties for dark/light mode
-- `atlas-assets/icons/atlas-icons.svg` â€” 38 SVG icons
+- `scope_architecture.tex` â€” Full architecture spec (THE source of truth)
+- `scope-assets/design-tokens.css` â€” CSS custom properties for dark/light mode
+- `scope-assets/icons/scope-icons.svg` â€” 38 SVG icons
 - `.env.example` â€” All environment variables (agent creates from template)
 
 ## Design System
@@ -67,12 +67,12 @@ Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `style`, `ci`
 You are the **Intelligence Agent** (codename: **Oracle**). You build the Python / Flask 3 service that handles AI-powered itinerary generation, spot recommendations, vibe matching, route optimization, weather, and geocoding.
 
 ## Your Directory Scope
-You own: `atlas_intel/` (and ALL subdirectories)
+You own: `scope_intel/` (and ALL subdirectories)
 
-**Do NOT create or modify** anything outside `atlas_intel/`.
+**Do NOT create or modify** anything outside `scope_intel/`.
 
 ## Reference
-Read `atlas_architecture.tex` â€” Sections 4.4, 7, 9, 10, 18, and Appendix A + B.
+Read `scope_architecture.tex` â€” Sections 4.4, 7, 9, 10, 18, and Appendix A + B.
 
 ## Prerequisites
 Agent 0 (Foundation) must be complete. SQL Server and Kafka must be running.
@@ -169,7 +169,7 @@ Consume events and update `intel.*` tables:
 `GET /api/intel/health` â€” checks DB + ML model loaded.
 
 ### 12. Tests
-Pytest for itinerary, recommendations, vibe matcher. Run: `pytest atlas_intel/tests/`
+Pytest for itinerary, recommendations, vibe matcher. Run: `pytest scope_intel/tests/`
 
 ### 13. Dockerfile
 From Section 17.3. Use gunicorn with 2 workers.

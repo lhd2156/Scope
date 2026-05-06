@@ -1,0 +1,7 @@
+# Model artifacts are too large for git. Download or train locally.
+*.pt
+*.bin
+*.json
+*.joblib
+*.pkl
+!.gitkeep

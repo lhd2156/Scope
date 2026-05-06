@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en-US" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends." />
+    <meta name="robots" content="index,follow" />
+    <meta name="application-name" content="Scope" />
+    <meta name="apple-mobile-web-app-title" content="Scope" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="msapplication-TileColor" content="#0f0f1a" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta property="og:site_name" content="Scope" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Scope — Discover spots, map stories, and plan smarter trips" />
+    <meta property="og:description" content="Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends." />
+    <meta property="og:image" content="/social-preview.png" />
+    <meta property="og:image:alt" content="Scope preview showing a map-led adventure planning workspace" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Scope — Discover spots, map stories, and plan smarter trips" />
+    <meta name="twitter:description" content="Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends." />
+    <meta name="twitter:image" content="/social-preview.png" />
+    <meta name="twitter:image:alt" content="Scope preview showing a map-led adventure planning workspace" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa/icons/icon-512.png" />
+    <link rel="shortcut icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa/icons/apple-touch-icon-180.png" />
+    <link rel="mask-icon" href="/mask-icon.svg" color="#10b981" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-2532x1170.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-2048x1536.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/pwa/splash/apple-splash-2388x1668.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://i.pravatar.cc" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>Scope — Discover spots, map stories, and plan smarter trips</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      (() => {
+        if (import.meta.env.VITE_DEMO_MODE !== 'true') {
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const qaSession = params.get('scopeQaSession');
+
+        if (!qaSession) {
+          return;
+        }
+
+        document.documentElement.dataset.scopeQa = 'true';
+        window.localStorage.setItem('scope-analytics-consent', 'denied');
+        window.localStorage.setItem('scope-onboarding-completed-v1', 'completed');
+
+        if (qaSession === 'authenticated') {
+          window.localStorage.setItem(
+            'scope-auth-session-hint',
+            JSON.stringify({
+              version: 1,
+              hasSessionCookie: true,
+              lastAuthenticatedAt: new Date().toISOString(),
+            }),
+          );
+        } else {
+          window.localStorage.removeItem('scope-auth-session-hint');
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

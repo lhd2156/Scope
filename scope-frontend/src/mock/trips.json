@@ -1,0 +1,234 @@
+[
+  {
+    "id": "demo-trip-1",
+    "title": "North Texas Night + Food Loop",
+    "destination": "Fort Worth + Dallas, TX",
+    "description": "Two polished days across rooftop tacos, heritage retail, brunch, and a vinyl-bar finish sequenced for Scope demo mode.",
+    "isPublic": true,
+    "startDate": "2026-04-04",
+    "endDate": "2026-04-05",
+    "coverSpotId": "demo-spot-3",
+    "budget": 360,
+    "currency": "USD",
+    "status": "completed",
+    "weatherForecast": "Clear evenings, 74°F highs, and a photo-friendly blue-hour finish.",
+    "memberIds": [
+      { "userId": "demo-user-1", "status": "owner" },
+      { "userId": "demo-user-2", "status": "editor" },
+      { "userId": "demo-user-4", "status": "viewer" }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-3",
+        "dayNumber": 1,
+        "timeSlot": "12:30",
+        "duration": 90,
+        "estimatedCost": 32,
+        "notes": "Anchor the weekend with rooftop tacos while the skyline still reads warm and cinematic."
+      },
+      {
+        "spotId": "demo-spot-1",
+        "dayNumber": 1,
+        "timeSlot": "15:15",
+        "duration": 75,
+        "estimatedCost": 18,
+        "notes": "Use Mule Alley for a slower retail pass and a quick golden-hour photo reset before dinner."
+      },
+      {
+        "spotId": "demo-spot-11",
+        "dayNumber": 1,
+        "timeSlot": "21:00",
+        "duration": 120,
+        "estimatedCost": 48,
+        "notes": "Close the first night once the vinyl room settles into its best amber light and soundtrack."
+      },
+      {
+        "spotId": "demo-spot-6",
+        "dayNumber": 2,
+        "timeSlot": "10:00",
+        "duration": 80,
+        "estimatedCost": 26,
+        "notes": "Brunch by the park keeps day two social without feeling rushed."
+      },
+      {
+        "spotId": "demo-spot-14",
+        "dayNumber": 2,
+        "timeSlot": "13:15",
+        "duration": 90,
+        "estimatedCost": 24,
+        "notes": "Let the atrium light and clean negative space carry the culture portion of the route."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 170,
+      "dining": 110,
+      "tickets": 34,
+      "transport": 46
+    },
+    "highlights": [
+      "Blue-hour rooftop dinner",
+      "Curated Bishop Arts nightlife",
+      "Museum-light afternoon finish"
+    ]
+  },
+  {
+    "id": "demo-trip-2",
+    "title": "Dallas Design Weekend",
+    "destination": "Dallas → San Antonio, TX",
+    "description": "A multi-city design weekend pairing museum light, brunch reservations, gallery calm, and River Walk aperitivo energy.",
+    "isPublic": true,
+    "startDate": "2026-04-11",
+    "endDate": "2026-04-13",
+    "coverSpotId": "demo-spot-14",
+    "budget": 540,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Warm afternoons, soft evening cloud cover, and ideal patio weather after sunset.",
+    "memberIds": [
+      { "userId": "demo-user-2", "status": "owner" },
+      { "userId": "demo-user-4", "status": "editor" },
+      { "userId": "demo-user-1", "status": "viewer" }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-6",
+        "dayNumber": 1,
+        "timeSlot": "10:00",
+        "duration": 75,
+        "estimatedCost": 28,
+        "notes": "Kick off with an easy brunch and let the park set a polished pace for the whole route."
+      },
+      {
+        "spotId": "demo-spot-14",
+        "dayNumber": 1,
+        "timeSlot": "13:00",
+        "duration": 100,
+        "estimatedCost": 22,
+        "notes": "Book the atrium slot before afternoon crowds so the gallery still feels quiet and editorial."
+      },
+      {
+        "spotId": "demo-spot-11",
+        "dayNumber": 1,
+        "timeSlot": "20:30",
+        "duration": 110,
+        "estimatedCost": 44,
+        "notes": "Use the vinyl bar as the final Dallas chapter once dinner service winds down."
+      },
+      {
+        "spotId": "demo-spot-15",
+        "dayNumber": 2,
+        "timeSlot": "11:15",
+        "duration": 70,
+        "estimatedCost": 24,
+        "notes": "Mercado breakfast keeps the San Antonio handoff colorful and low friction."
+      },
+      {
+        "spotId": "demo-spot-4",
+        "dayNumber": 2,
+        "timeSlot": "14:00",
+        "duration": 85,
+        "estimatedCost": 18,
+        "notes": "The Pearl gallery hall gives the route a calmer midpoint before evening cocktails."
+      },
+      {
+        "spotId": "demo-spot-2",
+        "dayNumber": 2,
+        "timeSlot": "18:45",
+        "duration": 105,
+        "estimatedCost": 42,
+        "notes": "Arrive twenty minutes before sunset so the canal reflections evolve through blue hour."
+      },
+      {
+        "spotId": "demo-spot-18",
+        "dayNumber": 3,
+        "timeSlot": "16:30",
+        "duration": 90,
+        "estimatedCost": 16,
+        "notes": "Wrap the weekend with a slower art-district stroll and one last wine-bar detour."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 260,
+      "dining": 130,
+      "tickets": 58,
+      "transport": 92
+    },
+    "highlights": [
+      "Dallas atrium light",
+      "Pearl District culture stop",
+      "River Walk aperitivo close"
+    ]
+  },
+  {
+    "id": "demo-trip-3",
+    "title": "Hill Country Sunrise Sprint",
+    "destination": "Austin + Hill Country, TX",
+    "description": "A fast but premium two-day loop with creek overlooks, espresso resets, skyline boardwalk light, wellness calm, and a river launch finish.",
+    "isPublic": true,
+    "startDate": "2026-04-18",
+    "endDate": "2026-04-19",
+    "coverSpotId": "demo-spot-9",
+    "budget": 310,
+    "currency": "USD",
+    "status": "completed",
+    "weatherForecast": "Crisp sunrise air, sunny afternoons, and mild evening temperatures around the lake.",
+    "memberIds": [
+      { "userId": "demo-user-3", "status": "owner" },
+      { "userId": "demo-user-5", "status": "editor" },
+      { "userId": "demo-user-2", "status": "viewer" }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-9",
+        "dayNumber": 1,
+        "timeSlot": "07:30",
+        "duration": 105,
+        "estimatedCost": 0,
+        "notes": "Start early while the creek ledge is still quiet and the canopy keeps the light soft."
+      },
+      {
+        "spotId": "demo-spot-10",
+        "dayNumber": 1,
+        "timeSlot": "11:00",
+        "duration": 70,
+        "estimatedCost": 16,
+        "notes": "Recover with espresso and enough table space to re-sequence the afternoon route if needed."
+      },
+      {
+        "spotId": "demo-spot-5",
+        "dayNumber": 1,
+        "timeSlot": "18:45",
+        "duration": 80,
+        "estimatedCost": 0,
+        "notes": "Hold this one for sunset so the skyline reflections feel like a proper day-one payoff."
+      },
+      {
+        "spotId": "demo-spot-19",
+        "dayNumber": 2,
+        "timeSlot": "09:00",
+        "duration": 120,
+        "estimatedCost": 68,
+        "notes": "Use the bathhouse stop as a recovery chapter before shifting back into active travel."
+      },
+      {
+        "spotId": "demo-spot-16",
+        "dayNumber": 2,
+        "timeSlot": "14:00",
+        "duration": 150,
+        "estimatedCost": 54,
+        "notes": "Finish on the river so the sprint still ends with motion and a clear outdoors-first identity."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 120,
+      "dining": 52,
+      "activities": 122,
+      "transport": 16
+    },
+    "highlights": [
+      "Greenbelt sunrise",
+      "Coffee-led reset pacing",
+      "Kayak launch finale"
+    ]
+  }
+]

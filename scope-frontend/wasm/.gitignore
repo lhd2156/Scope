@@ -1,0 +1,17 @@
+# CMake / Emscripten in-source build outputs
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+build.ninja
+.ninja_deps
+.ninja_log
+make.cmd
+make.exe
+Makefile
+compile_commands.json
+
+dist/
+scope_wasm.js
+scope_wasm.wasm
+scope_wasm.worker.js
+emscripten_cache/

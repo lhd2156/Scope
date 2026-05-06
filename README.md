@@ -1,6 +1,6 @@
-# Atlas
+# Scope
 
-Atlas is a real-world adventure platform where people document, discover, and plan experiences on an interactive map.
+Scope is a real-world adventure platform where people document, discover, and plan experiences on an interactive map.
 
 Think:
 
@@ -16,7 +16,7 @@ This repository now includes:
 - the full multi-service codebase
 - Docker Compose integration for local full-stack runs
 - GitHub Actions CI
-- GitHub Actions deploy automation for image publishing + deployment bundle artifacts
+- GitHub Actions deploy automation for image publishing, Terraform, and Lightsail runtime rollout
 - Playwright critical-flow smoke coverage
 - Kubernetes manifests
 - Terraform baseline
@@ -25,18 +25,16 @@ This repository now includes:
 
 ## Architecture
 
-Atlas is a polyglot microservice system with eight app surfaces:
+Scope is a polyglot microservice system with six app surfaces:
 
 | Service | Stack | Directory | Responsibility |
 |---|---|---|---|
-| Core API | ASP.NET Core 8 / C# | `Atlas.Core/` | auth, users, friendships, notifications, live sessions |
-| Content API | Django 5 / Python | `atlas_content/` | spots, trips, photos, reviews, social feed |
-| Intel API | Flask 3 / Python | `atlas_intel/` | itinerary generation, recommendations, vibe matching |
-| Metrics Agent | Go | `atlas-metrics/` | Prometheus exporter, dependency probes, alert rules |
-| CLI Toolkit | Rust | `atlas-cli/` | health checks, seeding, deploy validation, benchmarking |
-| Frontend | Vue 3 / TypeScript | `atlas-frontend/` | map UX, social/product UI, trip planning flows |
-| iOS Client | Swift 5.9 / SwiftUI + Observation | `atlas-ios/` | native iPhone / iPad app, MapKit, Keychain JWTs |
-| Android Client | Kotlin 2.0 / Jetpack Compose + Hilt | `atlas-android/` | native Android app, MapLibre, EncryptedSharedPreferences JWTs |
+| Core API | ASP.NET Core 8 / C# | `Scope.Core/` | auth, users, friendships, notifications, live sessions |
+| Content API | Django 5 / Python | `scope_content/` | spots, trips, photos, reviews, social feed |
+| Intel API | Flask 3 / Python | `scope_intel/` | itinerary generation, recommendations, vibe matching |
+| Metrics Agent | Go | `scope-metrics/` | Prometheus exporter, dependency probes, alert rules |
+| CLI Toolkit | Rust | `scope-cli/` | health checks, seeding, deploy validation, benchmarking |
+| Frontend | Vue 3 / TypeScript | `scope-frontend/` | map UX, social/product UI, trip planning flows |
 
 Supporting infrastructure in-repo:
 
@@ -49,15 +47,13 @@ Supporting infrastructure in-repo:
 ## Repository layout
 
 ```text
-Atlas.Core/          Core backend (.NET)
-atlas_content/       Content backend (Django)
-atlas_intel/         Intelligence backend (Flask)
-atlas-metrics/       Metrics exporter + alerting (Go)
-atlas-cli/           Ops toolkit (Rust)
-atlas-frontend/      Frontend (Vue + Vite)
-atlas-ios/           iOS client (Swift + SwiftUI + SwiftPM)
-atlas-android/       Android client (Kotlin + Jetpack Compose + Gradle)
-atlas-assets/        Design tokens, icons, mockups
+Scope.Core/          Core backend (.NET)
+scope_content/       Content backend (Django)
+scope_intel/         Intelligence backend (Flask)
+scope-metrics/       Metrics exporter + alerting (Go)
+scope-cli/           Ops toolkit (Rust)
+scope-frontend/      Frontend (Vue + Vite)
+scope-assets/        Design tokens, icons, mockups
 scripts/sql/         SQL schema + seed scripts
 docs/                Deployment/integration documentation
 k8s/                 Kubernetes manifests
@@ -109,15 +105,15 @@ Execution order is documented in:
 #### Core
 
 ```powershell
-cd Atlas.Core
-dotnet build Atlas.Core.sln
-dotnet test Atlas.Core.sln
+cd Scope.Core
+dotnet build Scope.Core.sln
+dotnet test Scope.Core.sln
 ```
 
 #### Content
 
 ```powershell
-cd atlas_content
+cd scope_content
 python manage.py check
 python -m pytest
 ```
@@ -125,29 +121,29 @@ python -m pytest
 #### Intel
 
 ```powershell
-cd atlas_intel
+cd scope_intel
 python -m pytest tests
 ```
 
 #### Metrics Agent
 
 ```powershell
-cd atlas-metrics
+cd scope-metrics
 go test ./...
-go build ./cmd/atlas-metrics
+go build ./cmd/scope-metrics
 ```
 
 #### CLI Toolkit
 
 ```powershell
-cd atlas-cli
+cd scope-cli
 cargo test
 ```
 
 #### Frontend
 
 ```powershell
-cd atlas-frontend
+cd scope-frontend
 npm run build
 npm run test
 npm run test:e2e -- --project=chromium
@@ -165,8 +161,8 @@ The repository includes a Playwright critical-flow smoke test covering:
 
 Files:
 
-- `atlas-frontend/playwright.config.ts`
-- `atlas-frontend/tests/e2e/critical-flows.spec.ts`
+- `scope-frontend/playwright.config.ts`
+- `scope-frontend/tests/e2e/critical-flows.spec.ts`
 
 ## Deployment + infrastructure docs
 
@@ -192,7 +188,7 @@ Runs build/test validation for Core, Content, Intel, Frontend, and Docker Compos
 
 - `.github/workflows/deploy.yml`
 
-Publishes service images to GHCR and uploads a deployment bundle artifact on `main` or manual runs.
+Publishes service images to GHCR, can run Terraform plan/apply manually, and can deploy the Lightsail runtime after a successful `lightsail` apply when the required GitHub secrets are configured.
 
 ## Current known gaps
 
