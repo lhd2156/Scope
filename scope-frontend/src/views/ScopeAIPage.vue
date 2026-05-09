@@ -3,26 +3,14 @@
     <div class="page-container page-stack ai-page">
       <SectionHeading
         eyebrow="Scope AI"
-        title="Ask anything about Scope places, routes, and APIs"
-        description="Gemini handles the main chat. Ollama keeps Scope useful locally for memory, embeddings, and fallback answers."
+        title="Ask anything about your next move"
+        description="Tell me what you are planning, deciding, or wondering about. I will keep it clear and help you choose what to do next."
       />
 
-      <section class="ai-stack" aria-label="Scope AI model roles">
-        <article v-for="card in aiStackCards" :key="card.label" class="ai-stack-card">
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
-        </article>
-      </section>
-
       <section class="glass-panel chat-panel">
-        <header class="chat-panel__status">
-          <span class="ai-badge">{{ healthLabel }}</span>
-          <span v-if="healthMeta" class="model-badge">{{ healthMeta }}</span>
-        </header>
-
         <div ref="threadContainer" class="chat-thread">
           <div v-if="!messages.length" class="chat-empty">
-            <h2>What would you like to discover?</h2>
+            <h2>Where should we start?</h2>
             <div class="suggestion-chips" aria-label="Scope AI question suggestions">
               <button
                 v-for="suggestion in suggestions"
@@ -53,23 +41,11 @@
                 <figcaption>{{ image.filename }}</figcaption>
               </figure>
             </div>
-            <div v-if="msg.sources?.length" class="bubble-sources">
-              <span class="sources-label">Sources</span>
-              <template v-for="(source, sourceIndex) in msg.sources" :key="source.path ?? source.spot_id ?? source.title ?? `source-${sourceIndex}`">
-                <RouterLink v-if="sourceLink(source)" :to="sourceLink(source) ?? '/'" class="source-chip">
-                  {{ sourceLabel(source) }}
-                  <span v-if="sourceRating(source)">({{ sourceRating(source) }})</span>
-                </RouterLink>
-                <span v-else class="source-chip">
-                  {{ sourceLabel(source) }}
-                </span>
-              </template>
-            </div>
           </article>
 
           <div v-if="loading" class="chat-bubble chat-bubble--assistant" role="status" aria-live="polite">
             <span class="bubble-role">Scope AI</span>
-            <p class="chat-status-text">Reading Scope context</p>
+            <p class="chat-status-text">Thinking it through</p>
           </div>
         </div>
 
@@ -115,7 +91,7 @@
               v-model="question"
               type="text"
               class="chat-input"
-              placeholder="What are the best hiking trails near San Francisco?"
+              placeholder="Ask about a place or idea"
               aria-label="Ask Scope AI a question"
               :disabled="loading"
               autocomplete="off"
@@ -129,12 +105,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { nextTick, onBeforeUnmount, ref } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
-import { askScopeAI, getRagHealth, type RagConversationTurn, type RagImageAttachment, type RagSource } from '@/services/ragService';
+import { askScopeAI, type RagConversationTurn, type RagImageAttachment } from '@/services/ragService';
 import { getScopeAiResponseStartedAt, waitForScopeAiResponsePace } from '@/utils/scopeAiResponsePace';
 
 const MAX_PENDING_IMAGES = 3;
@@ -156,7 +131,6 @@ interface PendingImageAttachment extends ChatImagePreview {
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
-  sources?: RagSource[];
   images?: ChatImagePreview[];
 }
 
@@ -168,66 +142,12 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const pendingImages = ref<PendingImageAttachment[]>([]);
 const imageError = ref('');
 const imagePreviewUrls = new Set<string>();
-const health = ref<{
-  status: string;
-  vector_count: number;
-  app_catalog_count?: number;
-  model: string;
-  chat_provider?: string;
-  chat_model?: string;
-  local_provider?: string;
-  local_fallback_model?: string;
-  embedding_model: string;
-  embedding_provider?: string;
-  vision_enabled?: boolean;
-  vision_model?: string;
-} | null>(null);
 
 const suggestions = [
-  'What frontend routes does Scope have?',
-  'Which service owns trip planning endpoints?',
-  'What does Ollama do for Scope?',
+  'Help me plan a relaxed weekend nearby',
+  'Find a memorable first stop for tonight',
+  'What should I pack for a rainy city walk?',
 ];
-
-const healthLabel = computed(() => (health.value?.status === 'healthy' ? 'RAG online' : 'RAG assistant'));
-const healthMeta = computed(() => {
-  if (!health.value) {
-    return '';
-  }
-
-  const documentCount = health.value.vector_count + (health.value.app_catalog_count ?? 0);
-  return `${health.value.model} - ${documentCount.toLocaleString()} docs`;
-});
-
-const aiStackCards = computed(() => {
-  const chatProvider = health.value?.chat_provider ?? (health.value?.model?.toLowerCase().includes('gemini') ? 'gemini' : 'ollama');
-  const chatModel = health.value?.chat_model ?? health.value?.model ?? 'Gemini ready';
-  const embeddingModel = health.value?.embedding_model ?? 'nomic-embed-text';
-  const fallbackModel = health.value?.local_fallback_model ?? 'llama3.2:3b';
-
-  return [
-    {
-      label: 'Main chat',
-      value: `${formatProviderLabel(chatProvider)} - ${chatModel}`,
-    },
-    {
-      label: 'Image input',
-      value: health.value?.vision_enabled ? `Gemini - ${health.value.vision_model ?? chatModel}` : 'Gemini vision ready',
-    },
-    {
-      label: 'Local memory',
-      value: `Ollama - ${embeddingModel}`,
-    },
-    {
-      label: 'Offline fallback',
-      value: `Ollama - ${fallbackModel}`,
-    },
-  ];
-});
-
-function formatProviderLabel(provider: string): string {
-  return provider.toLowerCase() === 'gemini' ? 'Gemini' : 'Ollama';
-}
 
 function buildImageId(file: File): string {
   return `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`;
@@ -311,30 +231,6 @@ function formatMarkdown(text: string): string {
   return `<p>${withBold.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
 }
 
-function sourceLabel(source: RagSource): string {
-  if (source.method && source.path) {
-    return `${source.method} ${source.path}`;
-  }
-
-  return source.title ?? source.spot_name ?? source.path ?? 'Scope source';
-}
-
-function sourceLink(source: RagSource): string | null {
-  if (source.spot_id) {
-    return `/spots/${source.spot_id}`;
-  }
-
-  if (source.source_type === 'frontend_route' && source.path && !source.path.includes(':')) {
-    return source.path;
-  }
-
-  return null;
-}
-
-function sourceRating(source: RagSource): string {
-  return typeof source.rating === 'number' ? source.rating.toFixed(1) : '';
-}
-
 function buildConversationContext(history: ChatMessage[] = messages.value): RagConversationTurn[] {
   return history
     .slice(-8)
@@ -398,7 +294,6 @@ async function handleAsk() {
     assistantMessage = {
       role: 'assistant',
       text: result.answer,
-      sources: result.sources,
     };
   } catch (caughtError: unknown) {
     assistantMessage = {
@@ -413,14 +308,6 @@ async function handleAsk() {
   }
 }
 
-onMounted(async () => {
-  try {
-    health.value = await getRagHealth();
-  } catch {
-    health.value = null;
-  }
-});
-
 onBeforeUnmount(() => {
   imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
   imagePreviewUrls.clear();
@@ -433,85 +320,28 @@ onBeforeUnmount(() => {
   gap: var(--space-5);
 }
 
-.ai-stack {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.ai-stack-card {
-  display: grid;
-  align-content: center;
-  gap: var(--space-2);
-  min-height: 5rem;
-  padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 90%, transparent), color-mix(in srgb, var(--bg-secondary) 86%, transparent)),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent-teal) 8%, transparent), transparent 70%);
-}
-
-.ai-stack-card span,
-.ai-stack-card strong {
-  overflow-wrap: anywhere;
-}
-
-.ai-stack-card span {
-  color: var(--text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-eyebrow);
-}
-
-.ai-stack-card strong {
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-  line-height: var(--line-height-normal);
-}
-
 .chat-panel {
   display: grid;
-  grid-template-rows: auto minmax(24rem, 1fr) auto;
+  grid-template-rows: minmax(24rem, 1fr) auto;
   gap: var(--space-4);
   min-height: min(70vh, 46rem);
   padding: clamp(var(--space-5), 4vw, var(--space-8));
   overflow: hidden;
-  background:
-    radial-gradient(circle at 75% 22%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 92%, transparent), color-mix(in srgb, var(--bg-secondary) 92%, transparent));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--glass-bg) 94%, var(--bg-secondary));
 }
 
-.chat-panel__status,
-.bubble-sources,
 .chat-input-bar,
 .suggestion-chips {
   display: flex;
 }
 
-.chat-panel__status {
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.ai-badge,
-.bubble-role,
-.sources-label {
+.bubble-role {
   color: var(--accent-teal);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0;
-}
-
-.model-badge {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 24%, transparent);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
-  color: var(--text-secondary);
-  font-size: var(--font-size-caption);
 }
 
 .chat-thread {
@@ -555,8 +385,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition:
     transform var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    border-color var(--transition-fast);
 }
 
 .suggestion-chip:hover,
@@ -564,7 +393,6 @@ onBeforeUnmount(() => {
   outline: none;
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--glass-border));
-  box-shadow: var(--shadow-glow-teal);
 }
 
 .chat-bubble {
@@ -603,30 +431,6 @@ onBeforeUnmount(() => {
 
 .bubble-text :deep(strong) {
   color: var(--accent-teal);
-}
-
-.bubble-sources {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--glass-border);
-}
-
-.source-chip {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, transparent);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
-  color: var(--text-primary);
-  font-size: var(--font-size-caption);
-  text-decoration: none;
-}
-
-.source-chip:hover,
-.source-chip:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, var(--accent-teal) 22%, var(--bg-secondary));
 }
 
 .bubble-images,
@@ -729,8 +533,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition:
     transform var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    border-color var(--transition-fast);
 }
 
 .chat-image-button:hover:not(:disabled),
@@ -738,7 +541,6 @@ onBeforeUnmount(() => {
   outline: none;
   transform: translateY(-1px);
   border-color: var(--accent-teal);
-  box-shadow: var(--shadow-glow-teal);
 }
 
 .chat-image-button:disabled {
@@ -760,7 +562,6 @@ onBeforeUnmount(() => {
 .chat-input:focus {
   outline: none;
   border-color: var(--accent-teal);
-  box-shadow: var(--shadow-glow-teal);
 }
 
 .chat-send {
@@ -778,7 +579,6 @@ onBeforeUnmount(() => {
 .chat-send:focus-visible:not(:disabled) {
   outline: none;
   background: var(--accent-teal-hover);
-  box-shadow: var(--shadow-glow-teal);
 }
 
 .chat-send:disabled {
@@ -799,25 +599,21 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 700px) {
-  .ai-stack {
-    grid-template-columns: 1fr;
-  }
-
-  .chat-panel__status {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .chat-bubble {
     max-width: 94%;
   }
 
   .chat-input-bar {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr);
   }
 
-  .chat-image-button,
+  .chat-image-button {
+    width: 3.25rem;
+  }
+
   .chat-send {
+    grid-column: 1 / -1;
     width: 100%;
   }
 }

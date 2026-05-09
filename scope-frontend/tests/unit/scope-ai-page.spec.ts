@@ -92,51 +92,75 @@ describe('ScopeAIPage', () => {
     const wrapper = mountScopeAIPage();
     await flushPromises();
 
-    await askQuestion(wrapper, 'What frontend routes does Scope have?');
+    await askQuestion(wrapper, 'Help me plan a relaxed weekend nearby');
 
     expect(askScopeAIMock).toHaveBeenCalledWith({
-      question: 'What frontend routes does Scope have?',
+      question: 'Help me plan a relaxed weekend nearby',
       conversation: [],
     });
   });
 
-  it('shows Ollama as local memory and fallback instead of the main chat brain', async () => {
+  it('keeps provider and model details out of the traveler-facing page', async () => {
     const wrapper = mountScopeAIPage();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Main chat');
-    expect(wrapper.text()).toContain('Gemini - gemini-2.5-flash-lite');
-    expect(wrapper.text()).toContain('Image input');
-    expect(wrapper.text()).toContain('Local memory');
-    expect(wrapper.text()).toContain('Ollama - nomic-embed-text');
-    expect(wrapper.text()).toContain('Offline fallback');
-    expect(wrapper.text()).toContain('Ollama - llama3.2:3b');
+    expect(wrapper.text()).toContain('Ask anything about your next move');
+    expect(wrapper.text()).toContain('Help me plan a relaxed weekend nearby');
+    expect(wrapper.text()).not.toContain('Gemini');
+    expect(wrapper.text()).not.toContain('Ollama');
+    expect(wrapper.text()).not.toContain('RAG');
+    expect(wrapper.text()).not.toContain('docs');
+  });
+
+  it('does not expose backend source metadata in chat answers', async () => {
+    askScopeAIMock.mockResolvedValueOnce({
+      answer: 'Start with a nearby cafe, then walk to a lookout before sunset.',
+      sources: [
+        {
+          method: 'GET',
+          path: '/api/intel/recommendations',
+          service: 'intel',
+          relevance_score: 0.92,
+        },
+      ],
+      model: 'scope-rag-local',
+      context_docs_used: 1,
+    });
+    const wrapper = mountScopeAIPage();
+    await flushPromises();
+
+    await askQuestion(wrapper, 'Find a memorable first stop for tonight');
+
+    expect(wrapper.text()).toContain('Start with a nearby cafe');
+    expect(wrapper.text()).not.toContain('Sources');
+    expect(wrapper.text()).not.toContain('/api/intel/recommendations');
+    expect(wrapper.text()).not.toContain('GET');
   });
 
   it('uses only prior turns as conversation context for follow-up questions', async () => {
     const wrapper = mountScopeAIPage();
     await flushPromises();
 
-    await askQuestion(wrapper, 'What frontend routes does Scope have?');
-    await askQuestion(wrapper, 'Which service owns trip planning endpoints?');
+    await askQuestion(wrapper, 'Help me plan a relaxed weekend nearby');
+    await askQuestion(wrapper, 'Can you make it low budget?');
 
     expect(askScopeAIMock).toHaveBeenCalledTimes(2);
     expect(askScopeAIMock.mock.calls[1][0]).toEqual({
-      question: 'Which service owns trip planning endpoints?',
+      question: 'Can you make it low budget?',
       conversation: [
         {
           role: 'user',
-          text: 'What frontend routes does Scope have?',
+          text: 'Help me plan a relaxed weekend nearby',
         },
         {
           role: 'assistant',
-          text: 'Answer for What frontend routes does Scope have?',
+          text: 'Answer for Help me plan a relaxed weekend nearby',
         },
       ],
     });
     expect(askScopeAIMock.mock.calls[1][0].conversation).not.toContainEqual({
       role: 'user',
-      text: 'Which service owns trip planning endpoints?',
+      text: 'Can you make it low budget?',
     });
   });
 
@@ -144,19 +168,19 @@ describe('ScopeAIPage', () => {
     const wrapper = mountScopeAIPage();
     await flushPromises();
 
-    await askQuestion(wrapper, 'How is Ollama wired into Scope AI?');
-    await askQuestion(wrapper, 'How is Ollama wired into Scope AI?');
+    await askQuestion(wrapper, 'Find a memorable first stop for tonight');
+    await askQuestion(wrapper, 'Find a memorable first stop for tonight');
 
     const secondPayload = askScopeAIMock.mock.calls[1][0];
     const repeatedQuestionContextCount = secondPayload.conversation.filter(
-      (turn: { role: string; text: string }) => turn.role === 'user' && turn.text === 'How is Ollama wired into Scope AI?',
+      (turn: { role: string; text: string }) => turn.role === 'user' && turn.text === 'Find a memorable first stop for tonight',
     ).length;
 
-    expect(secondPayload.question).toBe('How is Ollama wired into Scope AI?');
+    expect(secondPayload.question).toBe('Find a memorable first stop for tonight');
     expect(repeatedQuestionContextCount).toBe(1);
     expect(secondPayload.conversation.at(-1)).toEqual({
       role: 'assistant',
-      text: 'Answer for How is Ollama wired into Scope AI?',
+      text: 'Answer for Find a memorable first stop for tonight',
     });
   });
 
@@ -179,7 +203,7 @@ describe('ScopeAIPage', () => {
     await wrapper.get('form.chat-input-bar').trigger('submit');
     await nextTick();
 
-    expect(wrapper.text()).toContain('Reading Scope context');
+    expect(wrapper.text()).toContain('Thinking it through');
     expect(wrapper.find('.typing-indicator').exists()).toBe(false);
     expect(wrapper.get('[role="status"]').text()).not.toContain('...');
 
@@ -192,7 +216,7 @@ describe('ScopeAIPage', () => {
     await flushPromises();
   });
 
-  it('sends attached images to Scope AI as base64 Gemini-ready payloads', async () => {
+  it('sends attached images to Scope AI as base64 payloads', async () => {
     const wrapper = mountScopeAIPage();
     await flushPromises();
 
