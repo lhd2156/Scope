@@ -16,7 +16,7 @@ const PUBLIC_MOBILE_LINKS: readonly MobileNavLink[] = [
   { label: 'Map', to: '/map', icon: 'map', description: 'Open the live adventure map and nearby pins' },
   { label: 'Trips', to: '/trips', icon: 'route', description: 'Open drafts, shared trip docs, and planned routes' },
   { label: 'New trip', to: '/trips/new', icon: 'plus', description: 'Build a route and generate an AI itinerary' },
-  { label: 'Scope AI', to: '/ai/ask', icon: 'sparkle', description: 'Ask grounded questions about app routes, APIs, spots, and trips' },
+  { label: 'Scope AI', to: '/ai/ask', icon: 'sparkle', description: 'Get help choosing places, routes, and trip ideas' },
   { label: 'Friends', to: '/friends', icon: 'friends', description: 'Keep up with your travel crew and invites' },
 ];
 
