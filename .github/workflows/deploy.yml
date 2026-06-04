@@ -267,6 +267,7 @@ jobs:
       TF_VAR_ec2_compose_key_pair_name: ${{ vars.EC2_COMPOSE_KEY_PAIR_NAME || vars.LIGHTSAIL_KEY_PAIR_NAME }}
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
+      TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
@@ -425,6 +426,7 @@ jobs:
       TF_VAR_ec2_compose_key_pair_name: ${{ vars.EC2_COMPOSE_KEY_PAIR_NAME || vars.LIGHTSAIL_KEY_PAIR_NAME }}
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
+      TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
