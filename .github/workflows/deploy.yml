@@ -141,7 +141,7 @@ jobs:
         include:
           - name: core
             image: scope-core
-            context: ./Scope.Core
+            context: .
             file: ./Scope.Core/Dockerfile
             build_args: ''
           - name: content
@@ -544,7 +544,7 @@ jobs:
         include:
           - name: core
             image: scope-core
-            context: ./Scope.Core
+            context: .
             file: ./Scope.Core/Dockerfile
             build_args: ''
           - name: content
@@ -1253,13 +1253,19 @@ jobs:
         shell: bash
         run: |
           tar -czf scope-compose-host-release.tgz \
+            .dockerignore \
             docker-compose.yml \
             .env.example \
+            monitoring \
             Scope.Core \
+            scope-proto \
             scope-assets \
+            scope-admin \
             scope-cli \
             scope-metrics \
             scope-frontend \
+            scope-rag \
+            scope-site \
             scope_content \
             scope_intel \
             nginx \
@@ -1383,12 +1389,25 @@ jobs:
       - name: Build deployment bundle
         run: |
           mkdir -p deploy-bundle
+          cp .dockerignore deploy-bundle/
           cp docker-compose.yml deploy-bundle/
           cp .env.example deploy-bundle/
           cp -r nginx deploy-bundle/nginx
+          cp -r monitoring deploy-bundle/monitoring
           cp -r k8s deploy-bundle/k8s
           cp -r terraform deploy-bundle/terraform
           cp -r docs deploy-bundle/docs
+          cp -r Scope.Core deploy-bundle/Scope.Core
+          cp -r scope-proto deploy-bundle/scope-proto
+          cp -r scope-assets deploy-bundle/scope-assets
+          cp -r scope-admin deploy-bundle/scope-admin
+          cp -r scope-cli deploy-bundle/scope-cli
+          cp -r scope-metrics deploy-bundle/scope-metrics
+          cp -r scope-frontend deploy-bundle/scope-frontend
+          cp -r scope-rag deploy-bundle/scope-rag
+          cp -r scope-site deploy-bundle/scope-site
+          cp -r scope_content deploy-bundle/scope_content
+          cp -r scope_intel deploy-bundle/scope_intel
           cp -r scripts/nginx deploy-bundle/nginx-scripts
           cp -r scripts/lightsail deploy-bundle/lightsail-scripts
           cp -r scripts/sql deploy-bundle/sql
