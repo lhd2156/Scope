@@ -23,7 +23,7 @@ redis==5.2.1
 whitenoise[brotli]==6.8.2
 elasticsearch[async]>=8.18.0,<9.0.0
 celery[rabbitmq]>=5.5.0
-requests>=2.32.3
+requests>=2.34.2
 grpcio>=1.80.0
 grpcio-tools>=1.80.0
 grpcio-reflection>=1.80.0
