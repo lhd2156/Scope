@@ -1251,6 +1251,38 @@ jobs:
           NGINX_TLS_PORT=443
           EOF
 
+      - name: Verify production DNS points at Compose host
+        if: github.event.inputs.terraform_environment == 'production'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import socket
+          import sys
+
+          host = os.environ.get("SCOPE_TLS_HOSTNAME") or os.environ["SCOPE_PUBLIC_HOST"]
+          expected_ip = os.environ["COMPOSE_HOST_PUBLIC_IP"]
+
+          try:
+              resolved_ips = {
+                  result[4][0]
+                  for result in socket.getaddrinfo(host, 80, family=socket.AF_INET, type=socket.SOCK_STREAM)
+              }
+          except socket.gaierror as exc:
+              print(f"::error::Unable to resolve {host}: {exc}")
+              sys.exit(1)
+
+          if resolved_ips != {expected_ip}:
+              found = ", ".join(sorted(resolved_ips)) or "none"
+              print(
+                  f"::error::{host} must have exactly one A record pointing at {expected_ip} "
+                  f"before trusted TLS can be issued. Current A records: {found}."
+              )
+              sys.exit(1)
+
+          print(f"{host} resolves to the Compose host IP {expected_ip}.")
+          PY
+
       - name: Build Compose host release bundle
         shell: bash
         run: |
