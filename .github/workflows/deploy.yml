@@ -132,7 +132,7 @@ jobs:
 
   publish-images:
     name: Publish ${{ matrix.name }} image to GHCR
-    if: github.event_name == 'push' || github.event.inputs.terraform_registry != 'ecr'
+    if: github.event_name == 'push' || (github.event.inputs.publish_images == 'true' && github.event.inputs.terraform_registry != 'ecr')
     runs-on: ubuntu-latest
     needs: preflight
     strategy:
