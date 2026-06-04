@@ -34,6 +34,7 @@ The current GitHub Actions image publishing path already uses GHCR, so `credit-s
 - `credit-guard.tf` - credit-window preconditions and optional AWS Budget resource
 - `lightsail.tf` - optional Lightsail instance, static IP, bootstrap user data, and public port rules
 - `ec2-compose.tf` - optional EC2 single-host Compose fallback
+- `dns.tf` - optional Route53 public DNS zone plus apex and `www` A records for the selected single-host runtime
 - `variables.tf` - configurable values and profile controls
 - `outputs.tf` - VPC, bucket, auth, and optional compute/database outputs
 - `vpc.tf` - VPC, subnets, optional NAT, and route tables
@@ -51,6 +52,9 @@ The current GitHub Actions image publishing path already uses GHCR, so `credit-s
 - `container_registry`
   - `ghcr` (default): do not create ECR repositories
   - `ecr`: create ECR repositories when `stack_profile=full`
+- `public_dns_zone_name`
+  - optional: creates a Route53 public hosted zone and points apex/`www` A records at the selected Lightsail or EC2 Compose host
+  - use the `public_dns_name_servers` output at the domain registrar to delegate the domain to AWS DNS
 
 ## Required input variables
 
@@ -205,6 +209,8 @@ The deploy workflow supports optional manual Terraform plan and apply jobs when 
 - Variable: `EC2_COMPOSE_KEY_PAIR_NAME` when `terraform_profile=ec2-compose` (falls back to `LIGHTSAIL_KEY_PAIR_NAME`)
 - Variable: `EC2_COMPOSE_SSH_PUBLIC_KEY` when `terraform_profile=ec2-compose` (falls back to `LIGHTSAIL_SSH_PUBLIC_KEY`)
 - Variable: `EC2_COMPOSE_ADMIN_IPV4_CIDRS` when `terraform_profile=ec2-compose` and `deploy_lightsail_app=true`; use an exact runner/VPN/admin CIDR
+- Variable: `PUBLIC_DNS_ZONE_NAME` (optional; for production this is `scope.travel`) to let Terraform create Route53 public DNS for apex and `www`
+- Variable: `PUBLIC_DNS_TTL_SECONDS` (optional; defaults to `60`)
 - Secret: `SCOPE_SA_PASSWORD` when `deploy_lightsail_app=true`
 - Secret: `SCOPE_CORE_JWT_SECRET` when `deploy_lightsail_app=true`
 - Secret: `SCOPE_GRPC_INTERNAL_TOKEN` or `GRPC_INTERNAL_TOKEN` when `deploy_lightsail_app=true` in production; use at least 32 random characters
