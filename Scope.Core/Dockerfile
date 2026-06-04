@@ -1,7 +1,7 @@
 # Base images are pinned to minor tags; for production release builds, replace
 # with explicit sha256 digests (e.g. `...sdk:8.0@sha256:<digest>`) so that a
 # compromised tag cannot silently swap our build base. Dependabot tracks these.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore Scope.Core/Scope.Core.API/Scope.Core.API.csproj
