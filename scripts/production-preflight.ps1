@@ -353,6 +353,7 @@ try {
         Test-GitHubName "secret" @("SCOPE_CORE_JWT_SECRET", "CORE_JWT_SECRET", "ATLAS_CORE_JWT_SECRET") "required for Core JWT signing"
         Test-GitHubName "secret" @("SCOPE_DJANGO_SECRET_KEY", "DJANGO_SECRET_KEY", "ATLAS_DJANGO_SECRET_KEY") "required for Content/Django runtime"
         Test-GitHubName "secret" @("SCOPE_FLASK_SECRET_KEY", "FLASK_SECRET_KEY", "ATLAS_FLASK_SECRET_KEY") "required for Intel/Flask runtime"
+        Test-GitHubName "secret" @("SCOPE_RABBITMQ_PASS", "RABBITMQ_PASS") "required for RabbitMQ/Celery broker authentication"
         Test-GitHubName "secret" @("COMPOSE_HOST_SSH_PRIVATE_KEY", "LIGHTSAIL_SSH_PRIVATE_KEY") "required for SSH bundle upload and remote deployment"
         Test-GitHubName "variable" @("VITE_MAPBOX_TOKEN") "required for production map rendering"
         if ($TerraformProfile -eq "lightsail") {
