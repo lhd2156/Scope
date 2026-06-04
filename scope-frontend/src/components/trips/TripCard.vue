@@ -4,7 +4,6 @@
       <LazyImage :src="tripImageUrl" :fallback-src="tripImageFallback" :alt="trip.title" class="trip-image" />
 
       <div class="trip-media-chrome">
-        <span class="status-pill" :class="`status-pill--${tripStatus}`">{{ statusLabel }}</span>
         <button
           type="button"
           class="save-button"
@@ -67,7 +66,7 @@
 import { computed, ref } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
-import type { Trip, TripStatus } from '@/types';
+import type { Trip } from '@/types';
 import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
 import { formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 
@@ -89,12 +88,10 @@ const dateRangeLabel = computed(() => {
 
 const tripLengthDays = computed(() => getInclusiveDaySpan(props.trip.startDate, props.trip.endDate));
 
-const tripStatus = computed<TripStatus>(() => props.trip.status ?? 'planning');
 const TRIP_CARD_IMAGE_WIDTH = 720;
 
 const tripImageFallback = computed(() => getTripCoverFallback(props.trip, TRIP_CARD_IMAGE_WIDTH));
 const tripImageUrl = computed(() => resolveTripCoverImageUrl(props.trip, TRIP_CARD_IMAGE_WIDTH));
-const statusLabel = computed(() => tripStatus.value.charAt(0).toUpperCase() + tripStatus.value.slice(1));
 const descriptionCopy = computed(() => props.trip.description?.trim() || 'A premium route board is waiting for the first itinerary notes.');
 const memberLabel = computed(() => `${props.trip.members.length} member${props.trip.members.length === 1 ? '' : 's'}`);
 const stopLabel = computed(() => `${props.trip.spots.length} stop${props.trip.spots.length === 1 ? '' : 's'}`);
@@ -105,7 +102,7 @@ const footerCopy = computed(() => {
     return `Budget target ${new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(props.trip.budget)}`;
   }
 
-  return tripStatus.value === 'planning' ? 'Ready for itinerary generation' : 'Open the full trip workspace';
+  return props.trip.spots.length ? 'Open the full trip workspace' : 'Ready for itinerary generation';
 });
 </script>
 
@@ -201,6 +198,7 @@ const footerCopy = computed(() => {
 
 .trip-media-chrome {
   top: var(--space-4);
+  justify-items: end;
 }
 
 .trip-overlay {
@@ -222,7 +220,6 @@ const footerCopy = computed(() => {
   text-shadow: var(--shadow-md);
 }
 
-.status-pill,
 .metric-pill,
 .metric-chip,
 .save-button {
@@ -232,7 +229,6 @@ const footerCopy = computed(() => {
   -webkit-backdrop-filter: var(--glass-blur);
 }
 
-.status-pill,
 .metric-pill,
 .metric-chip {
   display: inline-flex;
@@ -243,27 +239,6 @@ const footerCopy = computed(() => {
   background: color-mix(in srgb, var(--glass-bg) 100%, transparent);
   box-shadow: var(--shadow-sm);
   font-size: var(--font-size-small);
-}
-
-.status-pill {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.status-pill--planning {
-  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
-}
-
-.status-pill--active {
-  background: color-mix(in srgb, var(--accent-gold) 18%, var(--glass-bg));
-}
-
-.status-pill--completed {
-  background: color-mix(in srgb, var(--success) 18%, var(--glass-bg));
-}
-
-.status-pill--cancelled {
-  background: color-mix(in srgb, var(--danger) 16%, var(--glass-bg));
 }
 
 .metric-pill :deep(.scope-icon),

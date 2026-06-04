@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/content/trips/', include('trips.urls')),
     path('api/content/photos/', include('photos.urls')),
     path('api/content/reviews/', include('reviews.urls')),
+    path('api/content/comments/', include('comments.urls')),
     path('api/content/feed/', include('feed.urls')),
     path('api/content/interactions/', include('interactions.urls')),
 ]

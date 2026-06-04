@@ -17,9 +17,9 @@
         @click="emitWizardStepChange(4)"
       >
         <span class="itinerary-step-toggle__index">4</span>
-        <span class="itinerary-step-toggle__copy">
-          <span class="eyebrow">Step 4</span>
-          <strong>AI preview</strong>
+          <span class="itinerary-step-toggle__copy">
+            <span class="eyebrow">Step 4</span>
+          <strong>Guide preview</strong>
           <span>{{ stepSummary }}</span>
         </span>
         <span class="itinerary-step-toggle__state">{{ getWizardStepLabel(4) }}</span>
@@ -34,22 +34,398 @@
         <div class="map-shell" :class="{ 'map-shell--planning': !itinerary }">
           <MapView
             v-if="shouldRenderMap"
-            :spots="displayMapSpots"
+            ref="plannerMapView"
+            :spots="displayMapPins"
             :route-points="displayMapSpots"
-            :show-location-tracker="false"
+            :show-location-tracker="true"
             :show-summary="false"
             :show-controls="true"
             :show-fit-route-control="false"
             :show-place-labels="true"
+            :label-mode="mapLabelMode"
             :click-to-select="isMapPickModeEnabled"
             :initial-viewport="initialMapViewport"
             :optimize-route-order="shouldOptimizeRouteOrder"
+            :show-nearby-places="routeNearbyDrawerOpen || routeNearbyPinnedPlaces.length > 0"
+            :auto-search-nearby-places="false"
+            :auto-locate-on-load="false"
+            :single-route-point-zoom="PLANNER_START_CONTEXT_ZOOM"
+            :nearby-place-pins="routeNearbyMapPins"
+            :allow-route-point-removal="true"
+            map-presentation="native"
+            :show-map-style-toggle="true"
+            :show-traffic="true"
             marker-variant="sequence"
             route-variant="planner"
             @map-click="handleRouteMapClick"
+            @spot-select="handleRouteNearbyMapPointSelect"
+            @nearby-place-add="handleMapNearbyPlaceAdd"
+            @route-point-remove="handleMapRoutePointRemove"
           />
           <div v-else class="map-shell__placeholder" aria-hidden="true" />
           <div class="map-vignette" />
+          <section
+            class="map-nearby-drawer"
+            :data-drawer-state="routeNearbyDrawerOpen ? 'open' : 'closed'"
+            :data-drawer-size="routeNearbyDrawerExpanded ? 'expanded' : 'default'"
+            data-test="route-nearby-drawer"
+            aria-label="Nearby route stops"
+          >
+            <header class="map-nearby-drawer__header">
+              <div>
+                <p class="eyebrow">Nearby stops</p>
+                <h3>{{ routeNearbyDrawerTitle }}</h3>
+              </div>
+              <div class="map-nearby-drawer__actions">
+                <button
+                  v-if="routeNearbyDrawerOpen"
+                  type="button"
+                  class="map-nearby-drawer__resize"
+                  data-test="route-nearby-size-toggle"
+                  :aria-pressed="String(routeNearbyDrawerExpanded)"
+                  :aria-label="routeNearbyDrawerSizeLabel"
+                  :title="routeNearbyDrawerSizeLabel"
+                  @click="routeNearbyDrawerExpanded = !routeNearbyDrawerExpanded"
+                >
+                  <ScopeIcon name="map" label="" />
+                </button>
+                <button
+                  type="button"
+                  class="map-nearby-drawer__toggle"
+                  data-test="route-nearby-toggle"
+                  :aria-expanded="String(routeNearbyDrawerOpen)"
+                  @click="toggleRouteNearbyDrawer"
+                >
+                  <ScopeIcon name="chevron-down" label="Toggle nearby stops" />
+                </button>
+              </div>
+            </header>
+
+            <div v-if="routeNearbyDrawerOpen" class="map-nearby-drawer__body">
+              <p v-if="!routeNearbyAnchors.length" class="map-nearby-drawer__empty">
+                Add a start point to browse nearby Scope picks.
+              </p>
+
+              <template v-else>
+                <div class="map-nearby-layout">
+                  <div class="map-nearby-controls">
+                <div v-if="routeNearbyAnchors.length > 1" class="map-nearby-anchor-tabs" role="tablist" aria-label="Nearby search anchor">
+                  <button
+                  v-for="anchor in routeNearbyAnchors"
+                  :key="anchor.id"
+                  type="button"
+                  class="map-nearby-anchor-tab"
+                  :class="{ active: selectedRouteNearbyAnchorId === anchor.id }"
+                  :aria-selected="String(selectedRouteNearbyAnchorId === anchor.id)"
+                  role="tab"
+                    @click="selectRouteNearbyAnchor(anchor.id)"
+                  >
+                    <strong>{{ anchor.shortLabel }}</strong>
+                    <span>{{ anchor.placeLabel }}</span>
+                  </button>
+                </div>
+
+                <div class="map-nearby-radius-control" role="group" aria-label="Nearby search radius">
+                  <div class="map-nearby-radius-tabs">
+                    <button
+                      v-for="radiusOption in routeNearbyRadiusOptions"
+                      :key="radiusOption.id"
+                      type="button"
+                      class="map-nearby-radius-tab"
+                      :class="{ active: selectedRouteNearbyRadiusId === radiusOption.id }"
+                      :aria-pressed="String(selectedRouteNearbyRadiusId === radiusOption.id)"
+                      :title="getRouteNearbyRadiusTitle(radiusOption)"
+                      data-test="route-nearby-radius"
+                      @click="selectRouteNearbyRadius(radiusOption.id)"
+                    >
+                      {{ radiusOption.label }}
+                    </button>
+                  </div>
+                  <label
+                    class="map-nearby-radius-custom"
+                    :class="{ active: selectedRouteNearbyRadiusId === ROUTE_NEARBY_CUSTOM_RADIUS_ID }"
+                    :title="routeNearbyCustomRadiusTitle"
+                    @click="selectRouteNearbyCustomRadius"
+                  >
+                    <span>Custom</span>
+                    <input
+                      v-model="routeNearbyCustomRadiusMiles"
+                      type="number"
+                      inputmode="decimal"
+                      :min="ROUTE_NEARBY_CUSTOM_RADIUS_MIN_MI"
+                      :max="ROUTE_NEARBY_CUSTOM_RADIUS_MAX_MI"
+                      step="1"
+                      aria-label="Custom nearby search radius in miles"
+                      data-test="route-nearby-custom-radius"
+                      @focus="selectRouteNearbyCustomRadius"
+                      @input="handleRouteNearbyCustomRadiusInput"
+                      @change="normalizeRouteNearbyCustomRadius"
+                    />
+                    <small>mi</small>
+                  </label>
+                </div>
+
+                <div class="map-nearby-mode-tabs" role="tablist" aria-label="Nearby stop type">
+                  <button
+                    v-for="tab in routeNearbyTabs"
+                    :key="tab.id"
+                    type="button"
+                    class="map-nearby-mode-tab"
+                    :class="{ active: selectedRouteNearbyTabId === tab.id }"
+                    :aria-selected="String(selectedRouteNearbyTabId === tab.id)"
+                    role="tab"
+                    @click="selectRouteNearbyTab(tab.id)"
+                  >
+                    <ScopeIcon v-if="tab.icon" :name="tab.icon" label="" />
+                    <span>{{ tab.label }}</span>
+                  </button>
+                </div>
+
+                <div v-if="selectedRouteNearbyTabId === 'fuel'" class="map-nearby-fuel-panel">
+                  <div class="map-nearby-fuel-panel__header">
+                    <span>Tank type</span>
+                    <strong data-test="route-nearby-fuel-type">{{ selectedRouteNearbyFuelFilter.label }}</strong>
+                  </div>
+                  <div class="map-nearby-fuel-filters" role="group" aria-label="Fuel tank type">
+                    <button
+                      v-for="filter in routeNearbyFuelFilters"
+                      :key="filter.id"
+                      type="button"
+                      class="map-nearby-fuel-filter"
+                      :class="{ active: selectedRouteNearbyFuelFilterId === filter.id }"
+                      :aria-pressed="String(selectedRouteNearbyFuelFilterId === filter.id)"
+                      data-test="route-nearby-fuel-filter"
+                      @click="selectRouteNearbyFuelFilter(filter.id)"
+                    >
+                      <ScopeIcon :name="filter.icon" label="" />
+                      <span>{{ filter.label }}</span>
+                    </button>
+                  </div>
+                  <div class="map-nearby-fuel-tools">
+                    <label class="map-nearby-fuel-search">
+                      <ScopeIcon name="search" label="" />
+                      <input
+                        v-model="routeNearbyFuelSearchQuery"
+                        type="search"
+                        placeholder="Search stations"
+                        aria-label="Search fuel stations"
+                        data-test="route-nearby-fuel-search"
+                      />
+                    </label>
+                    <div class="map-nearby-fuel-sort" role="group" aria-label="Fuel result sort">
+                      <button
+                        v-for="sortOption in routeNearbyFuelSortOptions"
+                        :key="sortOption.id"
+                        type="button"
+                        :class="{ active: selectedRouteNearbyFuelSortMode === sortOption.id }"
+                        :aria-pressed="String(selectedRouteNearbyFuelSortMode === sortOption.id)"
+                        data-test="route-nearby-fuel-sort"
+                        @click="selectRouteNearbyFuelSortMode(sortOption.id)"
+                      >
+                        {{ sortOption.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="selectedRouteNearbyTabId !== 'fuel' && !routeNearbyDrawerExpanded" class="map-nearby-places-panel">
+                  <div
+                    v-if="selectedRouteNearbyTabId === 'recommended'"
+                    class="map-nearby-filterbar"
+                    :data-menu-open="routeNearbyFilterMenuOpen ? 'true' : 'false'"
+                  >
+                    <div class="map-nearby-filterbar__menu">
+                      <button
+                        type="button"
+                        class="map-nearby-filterbar__trigger"
+                        data-test="route-nearby-filter-trigger"
+                        aria-haspopup="listbox"
+                        :aria-expanded="String(routeNearbyFilterMenuOpen)"
+                        @click="toggleRouteNearbyFilterMenu"
+                      >
+                        <ScopeIcon name="filter" label="" />
+                        <span>Filter</span>
+                        <strong>{{ routeNearbyFilterLabel }}</strong>
+                        <ScopeIcon name="chevron-down" label="" />
+                      </button>
+                      <div
+                        v-if="routeNearbyFilterMenuOpen"
+                        class="map-nearby-filterbar__popover"
+                        role="listbox"
+                        data-test="route-nearby-filter-menu"
+                      >
+                        <button
+                          v-for="query in routeNearbyDropdownQueries"
+                          :key="query.id"
+                          type="button"
+                          class="map-nearby-filterbar__option"
+                          :class="{ active: selectedRouteNearbyQueryId === query.id, 'has-icon': query.icon }"
+                          role="option"
+                          :aria-selected="String(selectedRouteNearbyQueryId === query.id)"
+                          data-test="route-nearby-filter-option"
+                          @click="selectRouteNearbyQuery(query.id)"
+                        >
+                          <ScopeIcon v-if="query.icon" :name="query.icon" label="" />
+                          <span>{{ query.label }}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      v-if="selectedRouteNearbyQueryId !== 'recommended' || routeNearbyCustomQuery.trim()"
+                      type="button"
+                      class="map-nearby-filterbar__clear"
+                      data-test="route-nearby-filter-clear"
+                      @click="resetRouteNearbyFilter"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <form class="map-nearby-search" data-test="route-nearby-search" @submit.prevent="submitRouteNearbySearch">
+                    <ScopeIcon name="search" label="" />
+                    <input
+                      v-model="routeNearbyCustomQuery"
+                      type="search"
+                      placeholder="Search nearby"
+                      aria-label="Search places nearby"
+                    />
+                    <button type="submit" :disabled="!routeNearbyCustomQuery.trim()">Find</button>
+                  </form>
+                </div>
+
+                  </div>
+
+                <div class="map-nearby-results-column">
+                  <div v-if="selectedRouteNearbyTabId !== 'fuel' && routeNearbyDrawerExpanded" class="map-nearby-places-panel map-nearby-places-panel--results">
+                    <div
+                      v-if="selectedRouteNearbyTabId === 'recommended'"
+                      class="map-nearby-filterbar"
+                      :data-menu-open="routeNearbyFilterMenuOpen ? 'true' : 'false'"
+                    >
+                      <div class="map-nearby-filterbar__menu">
+                        <button
+                          type="button"
+                          class="map-nearby-filterbar__trigger"
+                          data-test="route-nearby-filter-trigger"
+                          aria-haspopup="listbox"
+                          :aria-expanded="String(routeNearbyFilterMenuOpen)"
+                          @click="toggleRouteNearbyFilterMenu"
+                        >
+                          <ScopeIcon name="filter" label="" />
+                          <span>Filter</span>
+                          <strong>{{ routeNearbyFilterLabel }}</strong>
+                          <ScopeIcon name="chevron-down" label="" />
+                        </button>
+                        <div
+                          v-if="routeNearbyFilterMenuOpen"
+                          class="map-nearby-filterbar__popover"
+                          role="listbox"
+                          data-test="route-nearby-filter-menu"
+                        >
+                          <button
+                            v-for="query in routeNearbyDropdownQueries"
+                            :key="query.id"
+                            type="button"
+                            class="map-nearby-filterbar__option"
+                            :class="{ active: selectedRouteNearbyQueryId === query.id, 'has-icon': query.icon }"
+                            role="option"
+                            :aria-selected="String(selectedRouteNearbyQueryId === query.id)"
+                            data-test="route-nearby-filter-option"
+                            @click="selectRouteNearbyQuery(query.id)"
+                          >
+                            <ScopeIcon v-if="query.icon" :name="query.icon" label="" />
+                            <span>{{ query.label }}</span>
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        v-if="selectedRouteNearbyQueryId !== 'recommended' || routeNearbyCustomQuery.trim()"
+                        type="button"
+                        class="map-nearby-filterbar__clear"
+                        data-test="route-nearby-filter-clear"
+                        @click="resetRouteNearbyFilter"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <form class="map-nearby-search" data-test="route-nearby-search" @submit.prevent="submitRouteNearbySearch">
+                      <ScopeIcon name="search" label="" />
+                      <input
+                        v-model="routeNearbyCustomQuery"
+                        type="search"
+                        placeholder="Search nearby"
+                        aria-label="Search places nearby"
+                      />
+                      <button type="submit" :disabled="!routeNearbyCustomQuery.trim()">Find</button>
+                    </form>
+                  </div>
+
+                <div class="map-nearby-results" data-test="route-nearby-results">
+                  <p v-if="routeNearbyLoading" class="map-nearby-state">{{ routeNearbyLoadingLabel }}</p>
+                  <p v-else-if="routeNearbyError" class="map-nearby-state map-nearby-state--error">{{ routeNearbyError }}</p>
+                  <p v-else-if="!routeNearbyResults.length" class="map-nearby-state">{{ routeNearbyEmptyLabel }}</p>
+
+                  <template v-else>
+                    <button
+                      v-for="place in routeNearbyResults"
+                      :key="place.id"
+                      type="button"
+                      class="map-nearby-result"
+                      :class="{ active: selectedRouteNearbyPlaceId === place.id, 'is-added': isRouteNearbyPlacePinned(place.id) }"
+                      :data-place-kind="place.kind"
+                      :data-category="getRouteNearbyCardCategory(place)"
+                      data-test="route-nearby-add"
+                      @click="addRouteNearbyPlace(place)"
+                    >
+                      <span class="map-nearby-result__visual" :data-has-photo="getRouteNearbyPhotoUrl(place) ? 'true' : 'false'">
+                        <img
+                          v-if="getRouteNearbyPhotoUrl(place)"
+                          :src="getRouteNearbyPhotoUrl(place)"
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <ScopeIcon v-else :name="getRouteNearbyIcon(place)" label="" />
+                      </span>
+                      <span class="map-nearby-result__copy">
+                        <strong>{{ place.title }}</strong>
+                        <small class="map-nearby-result__location">{{ formatRouteNearbyResultLocation(place) }}</small>
+                        <span class="map-nearby-result__tags">
+                          <span class="map-nearby-result__category">{{ getRouteNearbyCategoryLabel(place) }}</span>
+                          <span v-if="place.priceLabel" class="map-nearby-result__price">{{ place.priceLabel }}</span>
+                        </span>
+                      </span>
+                      <span class="map-nearby-result__meta">
+                        <strong>{{ getRouteNearbyDistanceValue(place) }}</strong>
+                      </span>
+                    </button>
+                  </template>
+                </div>
+                <nav v-if="routeNearbyPageCount > 1 && !routeNearbyLoading && !routeNearbyError" class="map-nearby-pagination" aria-label="Nearby stop result pages">
+                  <button
+                    type="button"
+                    data-test="route-nearby-page-prev"
+                    :disabled="normalizedRouteNearbyCurrentPage <= 1"
+                    aria-label="Previous nearby stops page"
+                    @click="selectRouteNearbyPage(normalizedRouteNearbyCurrentPage - 1)"
+                  >
+                    &lt;
+                  </button>
+                  <span data-test="route-nearby-page-label">Page {{ normalizedRouteNearbyCurrentPage }} / {{ routeNearbyPageCount }}</span>
+                  <button
+                    type="button"
+                    data-test="route-nearby-page-next"
+                    :disabled="normalizedRouteNearbyCurrentPage >= routeNearbyPageCount"
+                    aria-label="Next nearby stops page"
+                    @click="selectRouteNearbyPage(normalizedRouteNearbyCurrentPage + 1)"
+                  >
+                    &gt;
+                  </button>
+                </nav>
+                </div>
+                </div>
+              </template>
+            </div>
+          </section>
         </div>
 
         <section class="itinerary-detail-panel" :data-detail-state="itinerary ? 'built' : 'draft'" aria-label="Trip map planning details">
@@ -57,24 +433,20 @@
           <template v-if="itinerary">
           <header class="overlay-card summary-card planning-card planning-card--built" data-test="itinerary-summary-card">
             <div class="planning-card__header">
-              <p class="eyebrow">Scope AI handoff</p>
-              <h2>AI-ready route</h2>
+              <p class="eyebrow">Trip guide handoff</p>
+              <h2>Guide-ready route</h2>
               <p class="summary-copy">{{ handoffSummaryCopy }}</p>
             </div>
 
-            <div class="planning-route-brief" data-test="itinerary-route-brief">
-              <article class="planning-endpoint-card planning-endpoint-card--start">
+            <div v-if="showRouteBriefEndpoints" class="planning-route-brief" data-test="itinerary-route-brief">
+              <article v-if="showRouteBriefStart" class="planning-endpoint-card planning-endpoint-card--start">
                 <span class="route-point-badge">S</span>
                 <span>
                   <small>Start</small>
                   <strong>{{ routeBriefStartLabel }}</strong>
                 </span>
               </article>
-              <div class="planning-route-connector" aria-hidden="true">
-                <span />
-                <span />
-              </div>
-              <article class="planning-endpoint-card planning-endpoint-card--end">
+              <article v-if="showRouteBriefEnd" class="planning-endpoint-card planning-endpoint-card--end">
                 <span class="route-point-badge">E</span>
                 <span>
                   <small>End</small>
@@ -107,7 +479,8 @@
             <header class="route-card-header">
               <div>
                 <p class="eyebrow">Route canvas</p>
-                <h3>Shape the route Scope AI will build</h3>
+                <h2>Shape the route</h2>
+                <p class="summary-copy route-card-copy">Pick start and end first; stops and vibes can stay optional.</p>
               </div>
             </header>
 
@@ -119,6 +492,24 @@
               <span>
                 <strong>{{ routeEtaLabel }}</strong>
                 <small>ETA</small>
+              </span>
+              <span
+                data-test="route-fuel-cost"
+                class="route-signal-fuel-tile"
+                :class="{ 'is-actionable': routeFuelCost === null }"
+                :role="routeFuelCost === null ? 'button' : undefined"
+                :tabindex="routeFuelCost === null ? 0 : undefined"
+                :title="fuelMetricTitle"
+                @click="requestFuelSettings"
+                @keydown.enter.prevent="requestFuelSettings"
+                @keydown.space.prevent="requestFuelSettings"
+              >
+                <strong>{{ routeFuelCostLabel }}</strong>
+                <small>Fuel cost</small>
+              </span>
+              <span data-test="route-drive-score">
+                <strong>{{ driveScoreLabel }}</strong>
+                <small>{{ driveScoreDifficultyLabel }}</small>
               </span>
             </div>
 
@@ -139,9 +530,10 @@
                 type="button"
                 class="map-picker-button"
                 data-test="map-pick-stop"
+                :disabled="!canPickAfterStart"
                 :class="{ active: isMapPickModeEnabled && activeMapPickTarget === 'routeStop' }"
                 :aria-pressed="String(isMapPickModeEnabled && activeMapPickTarget === 'routeStop')"
-                :title="activeMapPickTarget === 'routeStop' && isMapPickModeEnabled ? mapPickStatusCopy : 'Add stop from map'"
+                :title="!canPickAfterStart ? 'Pick start first' : activeMapPickTarget === 'routeStop' && isMapPickModeEnabled ? mapPickStatusCopy : 'Add stop from map'"
                 @click="setMapPickTarget('routeStop')"
               >
                 <ScopeIcon name="plus" label="Add stop from map" />
@@ -151,9 +543,10 @@
                 type="button"
                 class="map-picker-button"
                 data-test="map-pick-end"
+                :disabled="!canPickAfterStart"
                 :class="{ active: isMapPickModeEnabled && activeMapPickTarget === 'endDestination' }"
                 :aria-pressed="String(isMapPickModeEnabled && activeMapPickTarget === 'endDestination')"
-                :title="activeMapPickTarget === 'endDestination' && isMapPickModeEnabled ? mapPickStatusCopy : 'Pick end on map'"
+                :title="!canPickAfterStart ? 'Pick start first' : activeMapPickTarget === 'endDestination' && isMapPickModeEnabled ? mapPickStatusCopy : 'Pick end on map'"
                 @click="setMapPickTarget('endDestination')"
               >
                 <ScopeIcon name="pin" label="Pick end on map" />
@@ -172,27 +565,36 @@
               </button>
             </div>
 
-            <p class="map-picker-status" :class="{ visible: isMapPickModeEnabled || mapPickState === 'error' }" aria-live="polite">
-              {{ mapPickStatusCopy }}
-            </p>
+            <div class="planning-route-card__extra">
+              <p class="map-picker-status" :class="{ visible: isMapPickModeEnabled || mapPickState === 'error' }" aria-live="polite">
+                {{ mapPickStatusCopy }}
+              </p>
 
-            <div v-if="draftRouteSequence.length" class="route-sequence-list" data-test="itinerary-route-sequence-list" aria-label="Current route points">
-              <div
-                v-for="point in draftRouteSequence"
-                :key="point.id"
-                class="route-sequence-chip"
-                :data-route-role="point.routeRole ?? 'stop'"
-              >
-                <strong>{{ point.routeLabel }}</strong>
-                <span>{{ formatLocationPreview(point.title) }}</span>
-                <button
-                  v-if="isDraftStopPoint(point)"
-                  type="button"
-                  :aria-label="`Remove ${point.title}`"
-                  @click="removeDraftRouteStop(point.id)"
+              <div v-if="draftRouteSequence.length" class="route-sequence-list" data-test="itinerary-route-sequence-list" aria-label="Current route points">
+                <div
+                  v-for="point in draftRouteSequence"
+                  :key="point.id"
+                  class="route-sequence-chip"
+                  :data-route-role="point.routeRole ?? 'stop'"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Focus ${point.title} on the map`"
+                  @click="selectRouteSequencePoint(point)"
+                  @keydown.enter.prevent="selectRouteSequencePoint(point)"
+                  @keydown.space.prevent="selectRouteSequencePoint(point)"
                 >
-                  <ScopeIcon name="close" label="Remove stop" />
-                </button>
+                  <strong>{{ point.routeLabel }}</strong>
+                  <span>{{ formatLocationPreview(point.title) }}</span>
+                  <button
+                    v-if="isRemovableRouteSequencePoint(point)"
+                    type="button"
+                    :aria-label="`Remove ${point.title}`"
+                    @click.stop="removeRouteSequencePoint(point)"
+                    @keydown.stop
+                  >
+                    <ScopeIcon name="close" label="" />
+                  </button>
+                </div>
               </div>
             </div>
           </aside>
@@ -236,6 +638,13 @@
                         <small>
                           {{ formatTimelineSpotMeta(spot) }}
                         </small>
+                        <small
+                          v-if="formatTimelineSpotReason(spot)"
+                          class="stop-ai-reason"
+                          data-test="itinerary-stop-ai-reason"
+                        >
+                          {{ formatTimelineSpotReason(spot) }}
+                        </small>
                       </div>
                       <div class="timeline-stop-controls">
                         <label class="timeline-edit-field">
@@ -244,12 +653,19 @@
                             type="text"
                             inputmode="numeric"
                             pattern="[0-9]*"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            name="scope-timeline-day"
+                            aria-label="Day number"
                             maxlength="2"
                             :value="spot.dayNumber ?? day.dayNumber"
                             data-test="itinerary-stop-day-input"
                             @focus="selectTimelineInputText"
                             @dblclick="selectTimelineInputText"
-                            @change="handleTimelineDayChange(spot.spotId, $event)"
+                            @input="sanitizeTimelineDayInput"
+                            @change="handleTimelineDayChange(spot.spotId, $event, spot.dayNumber ?? day.dayNumber)"
+                            @blur="resetInvalidTimelineDayInput($event, spot.dayNumber ?? day.dayNumber)"
                           />
                         </label>
                         <label class="timeline-edit-field">
@@ -257,13 +673,20 @@
                           <input
                             type="text"
                             inputmode="numeric"
-                            pattern="^[0-9]{1,2}:[0-9]{2}$"
+                            pattern="[0-9:]*"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            name="scope-timeline-time"
+                            aria-label="Time"
                             maxlength="5"
                             :value="normalizeTimeSlot(spot.timeSlot)"
                             data-test="itinerary-stop-time-input"
                             @focus="selectTimelineInputText"
                             @dblclick="selectTimelineInputText"
-                            @change="handleTimelineTimeChange(spot.spotId, $event)"
+                            @input="sanitizeTimelineTimeInput"
+                            @change="handleTimelineTimeChange(spot.spotId, $event, normalizeTimeSlot(spot.timeSlot))"
+                            @blur="resetInvalidTimelineTimeInput($event, normalizeTimeSlot(spot.timeSlot))"
                           />
                         </label>
                       </div>
@@ -278,26 +701,26 @@
         </template>
 
           <template v-else>
-          <header class="overlay-card summary-card planning-card" data-test="itinerary-planning-card">
+          <header
+            class="overlay-card summary-card planning-card"
+            data-test="itinerary-planning-card"
+            :data-route-canvas-density="routeCanvasDensity"
+          >
             <div class="planning-card__header">
-              <p class="eyebrow">Scope AI handoff</p>
-              <h2>AI-ready route</h2>
-              <p class="summary-copy">{{ planningDraftStatus }} Hand it to Scope AI when you want the live itinerary.</p>
+              <p class="eyebrow">Trip guide handoff</p>
+              <h2>Guide-ready route</h2>
+              <p class="summary-copy">{{ handoffSummaryCopy }}</p>
             </div>
 
-            <div class="planning-route-brief" data-test="planning-route-brief">
-              <article class="planning-endpoint-card planning-endpoint-card--start">
+            <div v-if="showRouteBriefEndpoints" class="planning-route-brief" data-test="planning-route-brief">
+              <article v-if="showRouteBriefStart" class="planning-endpoint-card planning-endpoint-card--start">
                 <span class="route-point-badge">S</span>
                 <span>
                   <small>Start</small>
                   <strong>{{ routeBriefStartLabel }}</strong>
                 </span>
               </article>
-              <div class="planning-route-connector" aria-hidden="true">
-                <span />
-                <span />
-              </div>
-              <article class="planning-endpoint-card planning-endpoint-card--end">
+              <article v-if="showRouteBriefEnd" class="planning-endpoint-card planning-endpoint-card--end">
                 <span class="route-point-badge">E</span>
                 <span>
                   <small>End</small>
@@ -330,7 +753,8 @@
             <header class="route-card-header">
               <div>
                 <p class="eyebrow">Route canvas</p>
-                <h3>Shape the route Scope AI will build</h3>
+                <h2>Shape the route</h2>
+                <p class="summary-copy route-card-copy">Pick start and end first; stops and vibes can stay optional.</p>
               </div>
             </header>
 
@@ -343,6 +767,24 @@
                 <strong>{{ routeEtaLabel }}</strong>
                 <small>ETA</small>
               </span>
+              <span
+                data-test="route-fuel-cost"
+                class="route-signal-fuel-tile"
+                :class="{ 'is-actionable': routeFuelCost === null }"
+                :role="routeFuelCost === null ? 'button' : undefined"
+                :tabindex="routeFuelCost === null ? 0 : undefined"
+                :title="fuelMetricTitle"
+                @click="requestFuelSettings"
+                @keydown.enter.prevent="requestFuelSettings"
+                @keydown.space.prevent="requestFuelSettings"
+              >
+                <strong>{{ routeFuelCostLabel }}</strong>
+                <small>Fuel cost</small>
+              </span>
+              <span data-test="route-drive-score">
+                <strong>{{ driveScoreLabel }}</strong>
+                <small>{{ driveScoreDifficultyLabel }}</small>
+              </span>
             </div>
 
             <div v-else class="route-signal-grid route-signal-grid--planning route-signal-grid--placeholder" data-test="route-canvas-placeholder">
@@ -353,6 +795,22 @@
               <span>
                 <strong>Add end</strong>
                 <small>ETA</small>
+              </span>
+              <span
+                class="route-signal-fuel-tile is-actionable"
+                role="button"
+                tabindex="0"
+                :title="fuelMetricTitle"
+                @click="requestFuelSettings"
+                @keydown.enter.prevent="requestFuelSettings"
+                @keydown.space.prevent="requestFuelSettings"
+              >
+                <strong>Set fuel</strong>
+                <small>Fuel cost</small>
+              </span>
+              <span>
+                <strong>Add route</strong>
+                <small>Drive score</small>
               </span>
             </div>
 
@@ -373,9 +831,10 @@
                 type="button"
                 class="map-picker-button"
                 data-test="map-pick-stop"
+                :disabled="!canPickAfterStart"
                 :class="{ active: isMapPickModeEnabled && activeMapPickTarget === 'routeStop' }"
                 :aria-pressed="String(isMapPickModeEnabled && activeMapPickTarget === 'routeStop')"
-                :title="activeMapPickTarget === 'routeStop' && isMapPickModeEnabled ? mapPickStatusCopy : 'Add stop from map'"
+                :title="!canPickAfterStart ? 'Pick start first' : activeMapPickTarget === 'routeStop' && isMapPickModeEnabled ? mapPickStatusCopy : 'Add stop from map'"
                 @click="setMapPickTarget('routeStop')"
               >
                 <ScopeIcon name="plus" label="Add stop from map" />
@@ -385,9 +844,10 @@
                 type="button"
                 class="map-picker-button"
                 data-test="map-pick-end"
+                :disabled="!canPickAfterStart"
                 :class="{ active: isMapPickModeEnabled && activeMapPickTarget === 'endDestination' }"
                 :aria-pressed="String(isMapPickModeEnabled && activeMapPickTarget === 'endDestination')"
-                :title="activeMapPickTarget === 'endDestination' && isMapPickModeEnabled ? mapPickStatusCopy : 'Pick end on map'"
+                :title="!canPickAfterStart ? 'Pick start first' : activeMapPickTarget === 'endDestination' && isMapPickModeEnabled ? mapPickStatusCopy : 'Pick end on map'"
                 @click="setMapPickTarget('endDestination')"
               >
                 <ScopeIcon name="pin" label="Pick end on map" />
@@ -406,96 +866,38 @@
               </button>
             </div>
 
-            <p class="map-picker-status" :class="{ visible: isMapPickModeEnabled || mapPickState === 'error' }" aria-live="polite">
-              {{ mapPickStatusCopy }}
-            </p>
+            <div class="planning-route-card__extra">
+              <p class="map-picker-status" :class="{ visible: isMapPickModeEnabled || mapPickState === 'error' }" aria-live="polite">
+                {{ mapPickStatusCopy }}
+              </p>
 
-            <div v-if="draftRouteSequence.length" class="route-sequence-list" data-test="route-sequence-list" aria-label="Draft route points">
-              <div
-                v-for="point in draftRouteSequence"
-                :key="point.id"
-                class="route-sequence-chip"
-                :data-route-role="point.routeRole ?? 'stop'"
-              >
-                <strong>{{ point.routeLabel }}</strong>
-                <span>{{ formatLocationPreview(point.title) }}</span>
-                <button
-                  v-if="isDraftStopPoint(point)"
-                  type="button"
-                  :aria-label="`Remove ${point.title}`"
-                  @click="removeDraftRouteStop(point.id)"
+              <div v-if="draftRouteSequence.length" class="route-sequence-list" data-test="route-sequence-list" aria-label="Draft route points">
+                <div
+                  v-for="point in draftRouteSequence"
+                  :key="point.id"
+                  class="route-sequence-chip"
+                  :data-route-role="point.routeRole ?? 'stop'"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Focus ${point.title} on the map`"
+                  @click="selectRouteSequencePoint(point)"
+                  @keydown.enter.prevent="selectRouteSequencePoint(point)"
+                  @keydown.space.prevent="selectRouteSequencePoint(point)"
                 >
-                  <ScopeIcon name="close" label="Remove stop" />
-                </button>
-              </div>
-            </div>
-
-            <section v-if="routePlaceAnchors.length && routePlacePanelVisible" class="route-place-panel" data-test="route-place-panel">
-              <header class="route-place-panel__header">
-                <div>
-                  <p class="eyebrow">Nearby places</p>
-                  <h4>{{ routePlacePanelTitle }}</h4>
-                </div>
-                <button
-                  type="button"
-                  class="route-place-refresh"
-                  :disabled="routePlaceSuggestionsLoading"
-                  data-test="route-place-refresh"
-                  @click="loadRoutePlaceSuggestions"
-                >
-                  <ScopeIcon name="reset" label="Refresh nearby places" />
-                </button>
-              </header>
-
-              <div v-if="routePlaceAnchors.length > 1" class="route-place-tabs" role="tablist" aria-label="Nearby place focus">
-                <button
-                  v-for="anchor in routePlaceAnchors"
-                  :key="anchor.id"
-                  type="button"
-                  class="route-place-tab"
-                  :class="{ active: selectedRoutePlaceAnchor?.id === anchor.id }"
-                  :aria-selected="String(selectedRoutePlaceAnchor?.id === anchor.id)"
-                  role="tab"
-                  @click="selectedRoutePlacePointId = anchor.id"
-                >
-                  <strong>{{ anchor.routeLabel }}</strong>
-                  <span>{{ formatLocationPreview(anchor.title) }}</span>
-                </button>
-              </div>
-
-              <div class="route-place-results" :data-place-state="routePlaceSuggestionsState" data-test="route-place-suggestions">
-                <p v-if="routePlaceSuggestionsLoading" class="route-place-state">Finding nearby places...</p>
-                <p v-else-if="routePlaceSuggestionsError" class="route-place-state route-place-state--error">{{ routePlaceSuggestionsError }}</p>
-                <div v-else-if="availableRoutePlaceSuggestions.length" class="route-place-list">
+                  <strong>{{ point.routeLabel }}</strong>
+                  <span>{{ formatLocationPreview(point.title) }}</span>
                   <button
-                    v-for="place in availableRoutePlaceSuggestions"
-                    :key="place.id"
+                    v-if="isRemovableRouteSequencePoint(point)"
                     type="button"
-                    class="route-place-card"
-                    data-test="route-place-add"
-                    :data-place-id="place.id"
-                    @click="addSuggestedRoutePlace(place)"
+                    :aria-label="`Remove ${point.title}`"
+                    @click.stop="removeRouteSequencePoint(point)"
+                    @keydown.stop
                   >
-                    <span class="route-place-card__media">
-                      <LazyImage
-                        :src="resolveRoutePlacePhoto(place)"
-                        :fallback-src="getSpotPhotoFallback(place.category, ROUTE_PLACE_IMAGE_WIDTH)"
-                        :alt="place.title"
-                        class="route-place-card__image"
-                      />
-                    </span>
-                    <span class="route-place-card__copy">
-                      <strong>{{ place.title }}</strong>
-                      <small>{{ formatRoutePlaceMeta(place) }}</small>
-                    </span>
-                    <span class="route-place-card__add" aria-hidden="true">
-                      <ScopeIcon name="plus" label="Add nearby place" />
-                    </span>
+                    <ScopeIcon name="close" label="" />
                   </button>
                 </div>
               </div>
-            </section>
-
+            </div>
           </aside>
 
             <section
@@ -541,6 +943,13 @@
                           <small>
                             {{ formatTimelineSpotMeta(spot) }}
                           </small>
+                          <small
+                            v-if="formatTimelineSpotReason(spot)"
+                            class="stop-ai-reason"
+                            data-test="itinerary-stop-ai-reason"
+                          >
+                            {{ formatTimelineSpotReason(spot) }}
+                          </small>
                         </div>
                         <div class="timeline-stop-controls">
                           <label class="timeline-edit-field">
@@ -549,12 +958,19 @@
                               type="text"
                               inputmode="numeric"
                               pattern="[0-9]*"
+                              autocomplete="off"
+                              autocapitalize="off"
+                              spellcheck="false"
+                              name="scope-timeline-day"
+                              aria-label="Day number"
                               maxlength="2"
                               :value="spot.dayNumber ?? day.dayNumber"
                               data-test="itinerary-stop-day-input"
                               @focus="selectTimelineInputText"
                               @dblclick="selectTimelineInputText"
-                              @change="handleTimelineDayChange(spot.spotId, $event)"
+                              @input="sanitizeTimelineDayInput"
+                              @change="handleTimelineDayChange(spot.spotId, $event, spot.dayNumber ?? day.dayNumber)"
+                              @blur="resetInvalidTimelineDayInput($event, spot.dayNumber ?? day.dayNumber)"
                             />
                           </label>
                           <label class="timeline-edit-field">
@@ -562,13 +978,20 @@
                             <input
                               type="text"
                               inputmode="numeric"
-                              pattern="^[0-9]{1,2}:[0-9]{2}$"
+                              pattern="[0-9:]*"
+                              autocomplete="off"
+                              autocapitalize="off"
+                              spellcheck="false"
+                              name="scope-timeline-time"
+                              aria-label="Time"
                               maxlength="5"
                               :value="normalizeTimeSlot(spot.timeSlot)"
                               data-test="itinerary-stop-time-input"
                               @focus="selectTimelineInputText"
                               @dblclick="selectTimelineInputText"
-                              @change="handleTimelineTimeChange(spot.spotId, $event)"
+                              @input="sanitizeTimelineTimeInput"
+                              @change="handleTimelineTimeChange(spot.spotId, $event, normalizeTimeSlot(spot.timeSlot))"
+                              @blur="resetInvalidTimelineTimeInput($event, normalizeTimeSlot(spot.timeSlot))"
                             />
                           </label>
                         </div>
@@ -578,7 +1001,12 @@
                 </article>
               </TransitionGroup>
             </section>
+
           </template>
+
+          <div v-if="$slots.assistant" class="itinerary-assistant-slot" data-test="itinerary-ai-slot">
+            <slot name="assistant" />
+          </div>
         </section>
 
         <div v-if="mobileWizard" class="itinerary-step-actions">
@@ -592,22 +1020,49 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import LazyImage from '@/components/common/LazyImage.vue';
-import { reverseGeocode, type GeocodeResult } from '@/services/mapService';
+import MapView from '@/components/map/MapView.vue';
+import { getPlacePhoto, reverseGeocode, searchNearbyPlaces, searchPlaces, type GeocodeResult, type NearbyPlaceBounds, type PlaceSearchResult } from '@/services/mapService';
+import { prewarmConfiguredMapboxRuntime } from '@/services/mapboxLoader';
+import { getNearbyFuelStations } from '@/services/fuelPriceService';
+import { getTravelNearbySuggestions, type TravelNearbyCategory, type TravelNearbySuggestion } from '@/services/travelNearbyService';
 import { resolveRoadRoute, type RoadRouteSummary } from '@/services/roadRouteService';
 import { listNearbySpots } from '@/services/spotService';
 import { addCalendarDays, formatWeekdayMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
-import type { Itinerary, MapPoint, MapViewport, SpotSummary, TripMember, TripPlannerInput, TripSpot } from '@/types';
-import { getSpotPhotoFallback, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
+import { calculateHaversineDistanceKm } from '@/utils/geoDistance';
+import type { FuelStationPrice, Itinerary, MapNearbyPlacePin, MapPoint, MapViewport, SpotCategory, SpotSummary, TripFuelSettings, TripFuelType, TripMember, TripPlannerInput, TripSpot } from '@/types';
+import { resolveSpotPhotoUrl, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
+import { getSpotTrendingScore } from '@/utils/spotRanking';
+import type { ScopeAiMapCommand, ScopeAiMapCommandPayload } from '@/stores/scopeAiPlanner';
 
 type PlannerWizardStep = 1 | 2 | 3 | 4;
 type LocationPickTarget = 'destination' | 'endDestination';
 type MapPickTarget = 'destination' | 'routeStop' | 'endDestination';
 type MapPickState = 'idle' | 'armed' | 'locating' | 'error';
-type RouteSequencePoint = Pick<MapPoint, 'id' | 'title' | 'routeRole' | 'routeLabel'>;
+type MapLabelMode = 'none' | 'states' | 'majorCities' | 'full';
+type PlannerMapViewHandle = InstanceType<typeof MapView> & {
+  runPlannerMapCommand?: (command: ScopeAiMapCommand | ScopeAiMapCommandPayload) => Promise<{ ok: boolean; message: string }>;
+};
+type RouteNearbyTabId = TravelNearbyCategory;
+type RouteNearbyQueryId =
+  | 'recommended'
+  | 'stay'
+  | 'essentials'
+  | 'food'
+  | 'coffee'
+  | 'nature'
+  | 'scenic'
+  | 'culture'
+  | 'shopping'
+  | 'entertainment'
+  | 'nightlife'
+  | 'custom';
+type RouteNearbyFuelFilterId = TripFuelType;
+type RouteNearbyFuelApiType = 'all' | 'regular' | 'midgrade' | 'premium' | 'diesel';
+type RouteNearbyFuelSortMode = 'closest' | 'best-price';
+type RouteSequencePoint = Pick<MapPoint, 'id' | 'title' | 'routeRole' | 'routeLabel'> & Partial<Pick<MapPoint, 'latitude' | 'longitude'>>;
 type TimelineRouteRole = 'start' | 'stop' | 'end';
 
 type TimelineTripSpot = TripSpot & {
@@ -631,6 +1086,92 @@ interface PlannerMapLocationSelection {
   country?: string;
 }
 
+type DriveScoreDifficulty = 'Easy' | 'Moderate' | 'Challenging';
+
+interface DriveScoreSnapshot {
+  score: number;
+  difficulty: DriveScoreDifficulty;
+}
+
+interface RouteNearbyQuery {
+  id: RouteNearbyQueryId;
+  label: string;
+  query: string;
+  category?: SpotCategory;
+  icon?: string;
+  placeCategories?: readonly string[];
+}
+
+interface RouteNearbyTab {
+  id: RouteNearbyTabId;
+  label: string;
+  icon?: string;
+}
+
+interface RouteNearbyFuelFilter {
+  id: RouteNearbyFuelFilterId;
+  label: string;
+  icon: string;
+  query: string;
+  apiFuelType: RouteNearbyFuelApiType;
+}
+
+interface RouteNearbyFuelSortOption {
+  id: RouteNearbyFuelSortMode;
+  label: string;
+}
+
+interface RouteNearbyRadiusOption {
+  id: string;
+  label: string;
+  radiusKm: number;
+}
+
+interface RouteNearbyAnchor {
+  id: string;
+  shortLabel: string;
+  placeLabel: string;
+  latitude: number;
+  longitude: number;
+  routeRole?: MapPoint['routeRole'];
+}
+
+interface RouteNearbyPlace {
+  id: string;
+  title: string;
+  subtitle: string;
+  latitude: number;
+  longitude: number;
+  category: SpotCategory;
+  source: 'scope' | 'discovery' | 'fuel' | 'google';
+  kind: RouteNearbyTabId;
+  travelCategory?: string;
+  anchorId?: string;
+  distanceKm?: number;
+  rating?: number;
+  photoUrl?: string;
+  photoAttribution?: string;
+  photoAttributionUrl?: string;
+  iconName?: string;
+  address?: string;
+  sourceLabel?: string;
+  priceLabel?: string;
+  priceValue?: number;
+  fuelType?: string;
+  recommendationScore?: number;
+  recommendationReason?: string;
+  isRecommended?: boolean;
+}
+
+interface RouteNearbyFuelPriceSelection {
+  placeId: string;
+  stationName: string;
+  pricePerGallon: number;
+  fuelType?: TripFuelType;
+}
+
+const routeNearbyFuelTypeIds = new Set<TripFuelType>(['regular', 'midgrade', 'premium', 'diesel', 'ev']);
+
 const props = withDefaults(
   defineProps<{
     itinerary: Itinerary | null;
@@ -642,6 +1183,7 @@ const props = withDefaults(
     submitting?: boolean;
     mobileWizard?: boolean;
     mobileActiveStep?: PlannerWizardStep;
+    fuelSettings?: TripFuelSettings;
   }>(),
   {
     draft: () => ({}),
@@ -651,6 +1193,7 @@ const props = withDefaults(
     submitting: false,
     mobileWizard: false,
     mobileActiveStep: 4 as PlannerWizardStep,
+    fuelSettings: () => ({}),
   },
 );
 
@@ -659,30 +1202,65 @@ const emit = defineEmits<{
   (event: 'map-location-select', payload: PlannerMapLocationSelection): void;
   (event: 'route-stop-add', payload: TripSpot): void;
   (event: 'route-stop-remove', payload: string): void;
+  (event: 'route-endpoint-remove', payload: LocationPickTarget): void;
   (event: 'itinerary-stops-update', payload: TripSpot[]): void;
+  (event: 'fuel-settings-request'): void;
+  (event: 'fuel-price-select', payload: RouteNearbyFuelPriceSelection): void;
+  (event: 'fuel-type-select', payload: TripFuelType): void;
 }>();
 
-const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
 const shouldRenderMap = ref(false);
+const plannerMapView = ref<PlannerMapViewHandle | null>(null);
+const cancelMapboxRuntimePrewarm = scheduleNonCriticalTask(() => {
+  if (shouldRenderMap.value) {
+    return;
+  }
+
+  void prewarmConfiguredMapboxRuntime().catch(() => undefined);
+}, { delayMs: 420, timeoutMs: 1_300 });
 const activeMapPickTarget = ref<MapPickTarget>('destination');
 const mapPickState = ref<MapPickState>('idle');
+const pendingStartPick = ref(false);
+const startAutoAdvanceLocked = ref(false);
 const routeSummary = ref<RoadRouteSummary | null>(null);
 const routeSummaryKey = ref('');
-const selectedRoutePlacePointId = ref('');
-const routePlaceSuggestions = ref<SpotSummary[]>([]);
-const routePlaceSuggestionsLoading = ref(false);
-const routePlaceSuggestionsError = ref('');
+const routeNearbyDrawerOpen = ref(false);
+const routeNearbyDrawerTouched = ref(false);
+const routeNearbyDrawerExpanded = ref(false);
+const selectedRouteNearbyTabId = ref<RouteNearbyTabId>('recommended');
+const selectedRouteNearbyAnchorId = ref('');
+const selectedRouteNearbyQueryId = ref<RouteNearbyQueryId>('recommended');
+const selectedRouteNearbyFuelFilterId = ref<RouteNearbyFuelFilterId>(normalizeTripFuelType(props.fuelSettings?.fuelType));
+const selectedRouteNearbyFuelSortMode = ref<RouteNearbyFuelSortMode>('closest');
+const selectedRouteNearbyRadiusId = ref('20mi');
+const routeNearbyCustomRadiusMiles = ref('40');
+const selectedRouteNearbyPlaceId = ref('');
+const routeNearbyCurrentPage = ref(1);
+const routeNearbyCustomQuery = ref('');
+const routeNearbyFuelSearchQuery = ref('');
+const routeNearbyFilterMenuOpen = ref(false);
+const routeNearbySearchResults = ref<RouteNearbyPlace[]>([]);
+const routeNearbyPinnedPlaces = ref<RouteNearbyPlace[]>([]);
+const routeNearbyLoading = ref(false);
+const routeNearbyError = ref('');
 const timelineEndpointOverrides = ref<Record<string, Partial<Pick<TripSpot, 'dayNumber' | 'timeSlot'>>>>({});
 const hasManualTimelineOrder = ref(false);
 let cancelMapRender: CancelScheduledTask = () => undefined;
 let routeSummaryRequestId = 0;
-let routePlaceSuggestionsRequestId = 0;
+let routeNearbyRequestId = 0;
 
 const METERS_PER_MILE = 1609.344;
-const ROUTE_PLACE_RADIUS_KM = 80;
-const ROUTE_PLACE_LIMIT = 6;
-const ROUTE_PLACE_IMAGE_WIDTH = 320;
+const KILOMETERS_PER_MILE = METERS_PER_MILE / 1000;
+const ROUTE_NEARBY_RESULT_LIMIT = 8;
+const ROUTE_NEARBY_MAP_PIN_LIMIT = 36;
+const ROUTE_NEARBY_PHOTO_WIDTH = 320;
+const ROUTE_NEARBY_CUSTOM_RADIUS_ID = 'custom';
+const ROUTE_NEARBY_CUSTOM_RADIUS_MIN_MI = 1;
+const ROUTE_NEARBY_CUSTOM_RADIUS_MAX_MI = 75;
+const ROUTE_NEARBY_CUSTOM_RADIUS_DEFAULT_MI = 40;
+const ROUTE_NEARBY_PROVIDER_RADIUS_LIMIT_KM = 50;
 const ITINERARY_DAY_IMAGE_WIDTH = 800;
+const PLANNER_START_CONTEXT_ZOOM = 7.2;
 const MAX_REASONABLE_TIMELINE_DAYS = 30;
 const TIMELINE_START_TIME_SLOT = '08:30';
 const TIMELINE_END_TIME_SLOT = '18:00';
@@ -700,7 +1278,58 @@ const paceLabelByValue: Record<TripPlannerInput['pace'], string> = {
   moderate: 'Moderate pace',
   packed: 'Packed pace',
 };
-
+const routeNearbyQueries: RouteNearbyQuery[] = [
+  { id: 'recommended', label: 'Recommended', query: 'scenic food local attraction entertainment', placeCategories: ['tourist_attraction', 'restaurant', 'cafe', 'park', 'museum', 'shopping', 'amusement_park', 'bowling_alley', 'movie_theater'] },
+  { id: 'stay', label: 'Stay', query: 'hotel motel campground rv park lodging', category: 'other', icon: 'pin', placeCategories: ['hotel'] },
+  { id: 'essentials', label: 'Essentials', query: 'rest stop grocery pharmacy parking auto repair', category: 'other', icon: 'pin', placeCategories: ['parking', 'pharmacy', 'grocery', 'supermarket'] },
+  { id: 'food', label: 'Food', query: 'restaurants food', category: 'food', icon: 'food', placeCategories: ['restaurant', 'food_and_drink'] },
+  { id: 'coffee', label: 'Coffee', query: 'coffee cafe bakery', category: 'food', icon: 'food', placeCategories: ['coffee', 'cafe'] },
+  { id: 'nature', label: 'Outdoors', query: 'park trail nature garden', category: 'nature', icon: 'nature', placeCategories: ['park'] },
+  { id: 'scenic', label: 'Views', query: 'scenic viewpoint overlook landmark', category: 'scenic', icon: 'scenic', placeCategories: ['tourist_attraction', 'park'] },
+  { id: 'culture', label: 'Culture', query: 'museum landmark culture historic', category: 'culture', icon: 'culture', placeCategories: ['museum', 'tourist_attraction'] },
+  { id: 'shopping', label: 'Shopping', query: 'shopping store market mall', category: 'shopping', icon: 'shopping', placeCategories: ['shopping'] },
+  { id: 'entertainment', label: 'Entertainment', query: 'entertainment bowling arcade theme park movie theater', category: 'entertainment', icon: 'entertainment', placeCategories: ['amusement_park', 'bowling_alley', 'movie_theater', 'tourist_attraction'] },
+  { id: 'nightlife', label: 'Nightlife', query: 'bar live music nightlife', category: 'nightlife', icon: 'nightlife', placeCategories: ['bar'] },
+];
+const routeNearbyExtraFilterQueryIds: RouteNearbyQueryId[] = ['coffee', 'nature', 'culture', 'shopping', 'entertainment', 'nightlife'];
+const routeNearbyTabs: RouteNearbyTab[] = [
+  { id: 'recommended', label: 'Recommended' },
+  { id: 'fuel', label: 'Fuel/EV', icon: 'fuel' },
+  { id: 'food', label: 'Food', icon: 'food' },
+  { id: 'stay', label: 'Stay', icon: 'pin' },
+  { id: 'essentials', label: 'Essentials', icon: 'pin' },
+  { id: 'entertainment', label: 'Entertainment', icon: 'entertainment' },
+  { id: 'scenic', label: 'Scenic', icon: 'scenic' },
+];
+const routeNearbyFuelFilters: RouteNearbyFuelFilter[] = [
+  { id: 'regular', label: 'Regular', icon: 'fuel', query: 'gas station', apiFuelType: 'regular' },
+  { id: 'midgrade', label: 'Midgrade', icon: 'fuel', query: 'gas station', apiFuelType: 'midgrade' },
+  { id: 'premium', label: 'Premium', icon: 'fuel', query: 'gas station premium', apiFuelType: 'premium' },
+  { id: 'diesel', label: 'Diesel', icon: 'fuel', query: 'diesel gas station', apiFuelType: 'diesel' },
+  { id: 'ev', label: 'EV', icon: 'fuel', query: 'ev charging station', apiFuelType: 'all' },
+];
+const routeNearbyFuelSortOptions: RouteNearbyFuelSortOption[] = [
+  { id: 'closest', label: 'Closest' },
+  { id: 'best-price', label: 'Best price' },
+];
+const routeNearbyRadiusOptions: RouteNearbyRadiusOption[] = [
+  { id: '5mi', label: '5 mi', radiusKm: 8.05 },
+  { id: '10mi', label: '10 mi', radiusKm: 16.09 },
+  { id: '20mi', label: '20 mi', radiusKm: 32.19 },
+  { id: '30mi', label: '30 mi', radiusKm: 48.28 },
+];
+const defaultRouteNearbyRadiusOption = routeNearbyRadiusOptions[2]!;
+const ROUTE_NEARBY_RECOMMENDATION_MIN_SCORE = 48;
+const ROUTE_NEARBY_RECOMMENDED_CATEGORIES = new Set<SpotCategory>([
+  'food',
+  'nature',
+  'scenic',
+  'culture',
+  'shopping',
+  'entertainment',
+  'nightlife',
+  'adventure',
+]);
 function clampWizardStep(step: number): PlannerWizardStep {
   if (step <= 1) {
     return 1;
@@ -753,12 +1382,24 @@ function emitWizardStepChange(step: number): void {
 }
 
 function setMapPickTarget(target: MapPickTarget): void {
+  if (target !== 'destination' && !canPickAfterStart.value) {
+    activeMapPickTarget.value = 'destination';
+    mapPickState.value = 'armed';
+    return;
+  }
+
+  if (target === 'destination' && canPickAfterStart.value) {
+    startAutoAdvanceLocked.value = true;
+  }
+
   activeMapPickTarget.value = target;
   mapPickState.value = 'armed';
 }
 
 function clearMapPickTarget(): void {
   mapPickState.value = 'idle';
+  pendingStartPick.value = false;
+  startAutoAdvanceLocked.value = false;
 }
 
 function formatGeocodeSelection(result: GeocodeResult, fallback: { latitude: number; longitude: number }): string {
@@ -789,6 +1430,17 @@ async function handleRouteMapClick(payload: { latitude: number; longitude: numbe
   }
 
   const selectedTarget = activeMapPickTarget.value;
+  const shouldAdvanceToEndAfterStart = selectedTarget === 'destination' &&
+    !startAutoAdvanceLocked.value &&
+    !draftEndDestination.value &&
+    !hasExplicitDraftEnd.value;
+
+  if (selectedTarget !== 'destination' && !canPickAfterStart.value) {
+    activeMapPickTarget.value = 'destination';
+    mapPickState.value = 'armed';
+    return;
+  }
+
   mapPickState.value = 'locating';
 
   try {
@@ -808,7 +1460,12 @@ async function handleRouteMapClick(payload: { latitude: number; longitude: numbe
       city: result.city,
       country: result.country,
     });
-    activeMapPickTarget.value = selectedTarget === 'destination' ? 'endDestination' : 'destination';
+    if (shouldAdvanceToEndAfterStart) {
+      pendingStartPick.value = true;
+      activeMapPickTarget.value = 'endDestination';
+    } else {
+      activeMapPickTarget.value = selectedTarget;
+    }
     mapPickState.value = 'armed';
   } catch {
     mapPickState.value = 'error';
@@ -837,15 +1494,49 @@ function getTimelineDayCost(day: EditableTimelineDay): number {
   return day.spots.reduce((total, spot) => total + (spot.estimatedCost ?? 0), 0);
 }
 
+function parseTimelineTimeInput(value: string | undefined): string | null {
+  const compactValue = String(value ?? '').trim().replace(/\s+/g, '');
+  if (!compactValue) {
+    return null;
+  }
+
+  let hourText = '';
+  let minuteText = '00';
+  const colonMatch = /^(\d{1,2})(?::(\d{0,2}))?$/.exec(compactValue);
+
+  if (colonMatch) {
+    hourText = colonMatch[1] ?? '';
+    const rawMinutes = colonMatch[2];
+    minuteText = rawMinutes ? rawMinutes.padStart(2, '0') : '00';
+  } else if (/^\d{1,2}$/.test(compactValue)) {
+    hourText = compactValue;
+  } else if (/^\d{3}$/.test(compactValue)) {
+    hourText = compactValue.slice(0, 1);
+    minuteText = compactValue.slice(1);
+  } else if (/^\d{4}$/.test(compactValue)) {
+    hourText = compactValue.slice(0, 2);
+    minuteText = compactValue.slice(2);
+  } else {
+    return null;
+  }
+
+  if (!/^\d{1,2}$/.test(hourText) || !/^\d{2}$/.test(minuteText)) {
+    return null;
+  }
+
+  const hour = Number.parseInt(hourText, 10);
+  const minutes = Number.parseInt(minuteText, 10);
+  if (!Number.isFinite(hour) || !Number.isFinite(minutes) || hour < 0 || hour > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 function normalizeTimeSlot(value: string | undefined, fallbackIndex = 0): string {
-  const trimmedValue = value?.trim() ?? '';
-  const timeMatch = /^(\d{1,2}):([0-5]\d)$/.exec(trimmedValue);
-  if (timeMatch) {
-    const hour = Number.parseInt(timeMatch[1] ?? '', 10);
-    const minutes = timeMatch[2] ?? '00';
-    if (hour >= 0 && hour <= 23) {
-      return `${String(hour).padStart(2, '0')}:${minutes}`;
-    }
+  const parsedTime = parseTimelineTimeInput(value);
+  if (parsedTime) {
+    return parsedTime;
   }
 
   return DEFAULT_TIMELINE_TIME_SLOTS[fallbackIndex % DEFAULT_TIMELINE_TIME_SLOTS.length] ?? '09:00';
@@ -984,6 +1675,19 @@ function formatTimelineSpotMeta(spot: TimelineTripSpot): string {
   return `${locationLabel} - ${currencyFormatter.format(spot.estimatedCost ?? 0)}`;
 }
 
+function formatTimelineSpotReason(spot: TimelineTripSpot): string {
+  if (spot.timelineRouteRole === 'start' || spot.timelineRouteRole === 'end') {
+    return '';
+  }
+
+  const reason = String(spot.reason ?? '').trim();
+  const confidence = typeof spot.confidence === 'number' && Number.isFinite(spot.confidence)
+    ? `${Math.round(Math.min(1, Math.max(0, spot.confidence)) * 100)}% match`
+    : '';
+
+  return [confidence, reason].filter(Boolean).join(' - ');
+}
+
 function isSyntheticTimelineEndpoint(spot: TimelineTripSpot): boolean {
   return spot.isTimelineEndpoint === true;
 }
@@ -1064,6 +1768,18 @@ function resolveTimelineDate(dayNumber: number): string {
 function buildEditableTimelineDays(stops: TimelineTripSpot[]): EditableTimelineDay[] {
   const dayLookup = new Map<number, EditableTimelineDay>();
 
+  if (props.itinerary) {
+    const itineraryDaySpan = props.itinerary.days.reduce((maxDay, day) => Math.max(maxDay, day.dayNumber), 0);
+    const expectedDaySpan = Math.max(getDraftTimelineDaySpan(), itineraryDaySpan);
+    for (let dayNumber = 1; dayNumber <= expectedDaySpan; dayNumber += 1) {
+      dayLookup.set(dayNumber, {
+        dayNumber,
+        date: resolveTimelineDate(dayNumber),
+        spots: [],
+      });
+    }
+  }
+
   stops.forEach((stop) => {
     const dayNumber = clampTimelineDayNumber(stop.dayNumber ?? 1);
     if (!dayLookup.has(dayNumber)) {
@@ -1130,45 +1846,132 @@ function getInputValue(event: Event): string {
   return event.target instanceof HTMLInputElement ? event.target.value : '';
 }
 
+function getTimelineInput(event: Event): HTMLInputElement | null {
+  return event.target instanceof HTMLInputElement ? event.target : null;
+}
+
 function selectTimelineInputText(event: Event): void {
   if (event.target instanceof HTMLInputElement) {
     event.target.select();
   }
 }
 
-function handleTimelineDayChange(spotId: string, event: Event): void {
-  const nextDayNumber = Number.parseInt(getInputValue(event), 10);
-  if (!Number.isFinite(nextDayNumber)) {
+function sanitizeTimelineDayInput(event: Event): void {
+  const input = getTimelineInput(event);
+  if (!input) {
     return;
   }
 
+  const sanitizedValue = input.value.replace(/\D/g, '').slice(0, 2);
+  if (input.value !== sanitizedValue) {
+    input.value = sanitizedValue;
+  }
+}
+
+function sanitizeTimelineTimeInput(event: Event): void {
+  const input = getTimelineInput(event);
+  if (!input) {
+    return;
+  }
+
+  const cleanedValue = input.value.replace(/[^\d:]/g, '');
+  const [hourPart = '', ...minuteParts] = cleanedValue.split(':');
+  const sanitizedValue = minuteParts.length
+    ? `${hourPart.slice(0, 2)}:${minuteParts.join('').slice(0, 2)}`
+    : hourPart.slice(0, 4);
+
+  if (input.value !== sanitizedValue) {
+    input.value = sanitizedValue;
+  }
+}
+
+function parseTimelineDayInput(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (!/^\d{1,2}$/.test(trimmedValue)) {
+    return null;
+  }
+
+  const parsedDay = Number.parseInt(trimmedValue, 10);
+  if (!Number.isFinite(parsedDay) || parsedDay < 1) {
+    return null;
+  }
+
+  return clampTimelineDayNumber(parsedDay, maxEditableTimelineDay.value);
+}
+
+function resetTimelineDayInput(event: Event, fallbackDayNumber: number): void {
+  const input = getTimelineInput(event);
+  if (input) {
+    input.value = String(clampTimelineDayNumber(fallbackDayNumber, maxEditableTimelineDay.value));
+  }
+}
+
+function resetTimelineTimeInput(event: Event, fallbackTimeSlot: string): void {
+  const input = getTimelineInput(event);
+  if (input) {
+    input.value = normalizeTimeSlot(fallbackTimeSlot);
+  }
+}
+
+function resetInvalidTimelineDayInput(event: Event, fallbackDayNumber: number): void {
+  if (parseTimelineDayInput(getInputValue(event)) === null) {
+    resetTimelineDayInput(event, fallbackDayNumber);
+  }
+}
+
+function resetInvalidTimelineTimeInput(event: Event, fallbackTimeSlot: string): void {
+  if (parseTimelineTimeInput(getInputValue(event)) === null) {
+    resetTimelineTimeInput(event, fallbackTimeSlot);
+  }
+}
+
+function handleTimelineDayChange(spotId: string, event: Event, fallbackDayNumber: number): void {
+  sanitizeTimelineDayInput(event);
+  const nextDayNumber = parseTimelineDayInput(getInputValue(event));
+  if (nextDayNumber === null) {
+    resetTimelineDayInput(event, fallbackDayNumber);
+    return;
+  }
+
+  resetTimelineDayInput(event, nextDayNumber);
   emitTimelineStopUpdate(spotId, {
     dayNumber: nextDayNumber,
   });
 }
 
-function handleTimelineTimeChange(spotId: string, event: Event): void {
-  const nextTimeSlot = getInputValue(event);
+function handleTimelineTimeChange(spotId: string, event: Event, fallbackTimeSlot: string): void {
+  sanitizeTimelineTimeInput(event);
+  const nextTimeSlot = parseTimelineTimeInput(getInputValue(event));
   if (!nextTimeSlot) {
+    resetTimelineTimeInput(event, fallbackTimeSlot);
     return;
   }
 
+  resetTimelineTimeInput(event, nextTimeSlot);
   emitTimelineStopUpdate(spotId, {
     timeSlot: nextTimeSlot,
   });
 }
 
-const displayedTitle = computed(() => props.tripTitle.trim() || props.itinerary?.destination || 'AI itinerary');
-const draftDestination = computed(() => props.draft?.destination?.trim() ?? '');
-const draftEndDestination = computed(() => props.draft?.endDestination?.trim() ?? '');
+const rawDraftDestination = computed(() => props.draft?.destination?.trim() ?? '');
+const rawDraftEndDestination = computed(() => props.draft?.endDestination?.trim() ?? '');
 const hasExplicitDraftStart = computed(() =>
   hasCoordinatePair(props.draft?.destinationLatitude, props.draft?.destinationLongitude),
 );
 const hasExplicitDraftEnd = computed(() =>
   hasCoordinatePair(props.draft?.endDestinationLatitude, props.draft?.endDestinationLongitude),
 );
+const draftDestination = computed(() =>
+  normalizeDraftEndpointLabel(rawDraftDestination.value, hasExplicitDraftStart.value),
+);
+const draftEndDestination = computed(() =>
+  normalizeDraftEndpointLabel(rawDraftEndDestination.value, hasExplicitDraftEnd.value),
+);
 const hasDraftEndpoint = computed(() =>
   Boolean(draftDestination.value || draftEndDestination.value || hasExplicitDraftStart.value || hasExplicitDraftEnd.value),
+);
+const canPickAfterStart = computed(() =>
+  Boolean(draftDestination.value || hasExplicitDraftStart.value || pendingStartPick.value),
 );
 const mappableDraftStops = computed(() =>
   props.stops.filter((stop) => hasCoordinatePair(stop.latitude, stop.longitude)),
@@ -1221,14 +2024,6 @@ const planningRouteLabel = computed(() => {
 
   return 'Choose a start city or place';
 });
-const planningDraftStatus = computed(() => {
-  const pointCount = draftRouteSequence.value.length;
-  if (pointCount > 1) {
-    return `${pointCount} route point${pointCount === 1 ? '' : 's'} selected`;
-  }
-
-  return planningRouteLabel.value;
-});
 const isMapPickModeEnabled = computed(() => mapPickState.value === 'armed' || mapPickState.value === 'locating');
 const mapPickTargetLabel = computed(() => {
   switch (activeMapPickTarget.value) {
@@ -1249,6 +2044,10 @@ const mapPickStatusCopy = computed(() => {
     return 'Scope could not locate that point yet.';
   }
 
+  if (!canPickAfterStart.value && activeMapPickTarget.value !== 'destination') {
+    return 'Pick the start city before adding stops or an end point.';
+  }
+
   if (activeMapPickTarget.value === 'routeStop' && isMapPickModeEnabled.value) {
     return 'Click the map to add another stop between start and end.';
   }
@@ -1259,6 +2058,27 @@ const mapPickStatusCopy = computed(() => {
 
   return draftDestination.value ? planningRouteLabel.value : 'Use the pointer to fill the start city from the map.';
 });
+
+watch(canPickAfterStart, (canPick) => {
+  if (canPick || activeMapPickTarget.value === 'destination') {
+    return;
+  }
+
+  activeMapPickTarget.value = 'destination';
+  if (isMapPickModeEnabled.value) {
+    mapPickState.value = 'armed';
+  }
+});
+
+watch(
+  [draftDestination, hasExplicitDraftStart],
+  ([destinationLabel, hasStartCoordinates]) => {
+    if (destinationLabel || hasStartCoordinates) {
+      pendingStartPick.value = false;
+    }
+  },
+);
+
 const draftDaysLabel = computed(() => {
   const startDate = props.draft?.startDate ?? '';
   const endDate = props.draft?.endDate ?? startDate;
@@ -1293,13 +2113,19 @@ const totalStops = computed(() => (
 ));
 const handoffSummaryCopy = computed(() => {
   if (!props.itinerary) {
-    return `${planningDraftStatus.value} Hand it to Scope AI when you want the live itinerary.`;
+    const pointCount = draftRouteSequence.value.length;
+    if (pointCount > 1) {
+      return `${pointCount} real route points selected. The guide can build from the drive now; vibes only steer the style.`;
+    }
+
+    if (pointCount === 1) {
+      return 'One real route point set. Add the other endpoint so the guide can use the actual route.';
+    }
+
+    return 'Set a real start and final destination first. The guide uses those points before suggesting stops.';
   }
 
-  const weatherCopy = props.itinerary.weatherForecast.trim()
-    ? `${props.itinerary.weatherForecast.trim().replace(/[.!?]+$/, '')}. `
-    : '';
-  return `${displayedTitle.value} is ready for ${props.itinerary.destination}. ${weatherCopy}Keep shaping this route here before publishing.`;
+  return `Route guide ready for ${props.itinerary.destination}. Keep the stops that match the actual drive, then publish when it feels right.`;
 });
 const handoffDaysLabel = computed(() => {
   if (!props.itinerary) {
@@ -1468,6 +2294,16 @@ const mapSpotsRouteKey = computed(() => getRouteSummaryKey(mapSpots.value));
 const currentRouteSummary = computed(() => (
   routeSummaryKey.value === mapSpotsRouteKey.value ? routeSummary.value : null
 ));
+function isMapboxAuthoritativeRoute(summary: RoadRouteSummary | null): boolean {
+  if (!summary) {
+    return false;
+  }
+
+  return summary.routeQuality === 'mapbox' ||
+    (summary.routeQuality === undefined && summary.provider.startsWith('mapbox-'));
+}
+
+const hasAuthoritativeRouteMetrics = computed(() => isMapboxAuthoritativeRoute(currentRouteSummary.value));
 function labelRoutePoints(points: MapPoint[]): MapPoint[] {
   return points.map((point, index) => {
     if (point.routeRole === 'start') {
@@ -1587,6 +2423,170 @@ const displayMapSpots = computed<MapPoint[]>(() => {
 
   return labelRoutePoints(keepVisualRouteEndpoints(summary.orderedPoints));
 });
+const routeNearbyAnchors = computed<RouteNearbyAnchor[]>(() => {
+  const routePoints = displayMapSpots.value.filter((point) => hasCoordinatePair(point.latitude, point.longitude));
+  if (!routePoints.length) {
+    return [];
+  }
+
+  const seenAnchorIds = new Set<string>();
+
+  return routePoints.reduce<RouteNearbyAnchor[]>((anchors, point) => {
+    if (seenAnchorIds.has(point.id)) {
+      return anchors;
+    }
+
+    seenAnchorIds.add(point.id);
+    anchors.push({
+      id: point.id,
+      shortLabel: point.routeLabel || (point.routeRole === 'start' ? 'S' : point.routeRole === 'end' ? 'E' : 'Stop'),
+      placeLabel: formatLocationPreview(point.title),
+      latitude: point.latitude,
+      longitude: point.longitude,
+      routeRole: point.routeRole,
+    });
+    return anchors;
+  }, []);
+});
+const selectedRouteNearbyAnchor = computed(() =>
+  routeNearbyAnchors.value.find((anchor) => anchor.id === selectedRouteNearbyAnchorId.value) ?? routeNearbyAnchors.value[0] ?? null,
+);
+const selectedRouteNearbyQuery = computed(() =>
+  routeNearbyQueries.find((query) => query.id === selectedRouteNearbyQueryId.value) ?? {
+    id: 'custom',
+    label: 'Custom',
+    query: routeNearbyCustomQuery.value.trim() || 'places',
+    icon: 'search',
+  },
+);
+const routeNearbyDropdownQueryIds: RouteNearbyQueryId[] = [
+  'recommended',
+  'food',
+  'stay',
+  'essentials',
+  'scenic',
+  ...routeNearbyExtraFilterQueryIds,
+];
+const routeNearbyDropdownQueries = computed(() =>
+  routeNearbyDropdownQueryIds
+    .map((queryId) => routeNearbyQueries.find((query) => query.id === queryId))
+    .filter((query): query is RouteNearbyQuery => Boolean(query)),
+);
+const routeNearbyFilterLabel = computed(() => {
+  if (selectedRouteNearbyQueryId.value === 'custom') {
+    const searchLabel = routeNearbyCustomQuery.value.trim();
+    return searchLabel ? `Search: ${searchLabel}` : 'Custom search';
+  }
+
+  if (selectedRouteNearbyQueryId.value === 'recommended') {
+    return 'Best picks';
+  }
+
+  return selectedRouteNearbyQuery.value.label;
+});
+const routeNearbyDrawerSizeLabel = computed(() => (
+  routeNearbyDrawerExpanded.value ? 'Keep nearby stops half width' : 'Expand nearby stops'
+));
+const selectedRouteNearbyFuelFilter = computed(() =>
+  routeNearbyFuelFilters.find((filter) => filter.id === selectedRouteNearbyFuelFilterId.value) ?? routeNearbyFuelFilters[0],
+);
+const routeNearbyCustomRadiusOption = computed<RouteNearbyRadiusOption>(() => {
+  const customMiles = parseRouteNearbyCustomRadiusMiles();
+  return {
+    id: ROUTE_NEARBY_CUSTOM_RADIUS_ID,
+    label: formatRouteNearbyRadiusMiles(customMiles),
+    radiusKm: Number((customMiles * KILOMETERS_PER_MILE).toFixed(2)),
+  };
+});
+const selectedRouteNearbyRadiusOption = computed<RouteNearbyRadiusOption>(() => {
+  if (selectedRouteNearbyRadiusId.value === ROUTE_NEARBY_CUSTOM_RADIUS_ID) {
+    return routeNearbyCustomRadiusOption.value;
+  }
+
+  return routeNearbyRadiusOptions.find((option) => option.id === selectedRouteNearbyRadiusId.value) ?? defaultRouteNearbyRadiusOption;
+});
+const selectedRouteNearbyRadiusKm = computed(() => selectedRouteNearbyRadiusOption.value.radiusKm);
+const routeNearbyCustomRadiusTitle = computed(() => getRouteNearbyRadiusTitle(routeNearbyCustomRadiusOption.value));
+const routeNearbyDrawerTitle = computed(() => {
+  if (!routeNearbyAnchors.value.length) {
+    return 'Browse from the map';
+  }
+
+  const anchor = selectedRouteNearbyAnchor.value;
+  return anchor ? `Near ${anchor.placeLabel}` : 'Along this route';
+});
+const routeNearbyLoadingLabel = computed(() => (
+  selectedRouteNearbyTabId.value === 'fuel' ? 'Finding fuel stops.' : 'Finding best picks.'
+));
+const routeNearbyEmptyLabel = computed(() => (
+  selectedRouteNearbyTabId.value === 'fuel'
+    ? `No live ${selectedRouteNearbyFuelFilter.value.label.toLowerCase()} prices within ${selectedRouteNearbyRadiusOption.value.label}. Widen the range or choose another route point.`
+    : `No strong picks within ${selectedRouteNearbyRadiusOption.value.label}. Widen the range or choose another route point.`
+));
+const routeNearbyVisibleSearchResults = computed<RouteNearbyPlace[]>(() =>
+  selectedRouteNearbyTabId.value === 'fuel'
+    ? filterAndSortRouteNearbyFuelPlaces(routeNearbySearchResults.value)
+    : filterRouteNearbyPlacesWithinSelectedRadius(routeNearbySearchResults.value),
+);
+const routeNearbyAllResults = computed<RouteNearbyPlace[]>(() => {
+  const pinnedPlacesForTab = routeNearbyPinnedPlaces.value
+    .filter((place) => place.kind === selectedRouteNearbyTabId.value)
+    .filter(isWithinSelectedRouteNearbyRadius);
+  return dedupeRouteNearbyPlaces(
+    [...pinnedPlacesForTab, ...routeNearbyVisibleSearchResults.value],
+    ROUTE_NEARBY_MAP_PIN_LIMIT + pinnedPlacesForTab.length,
+  );
+});
+const routeNearbyPageCount = computed(() => Math.max(1, Math.ceil(routeNearbyAllResults.value.length / ROUTE_NEARBY_RESULT_LIMIT)));
+const normalizedRouteNearbyCurrentPage = computed(() => clampNumber(routeNearbyCurrentPage.value, 1, routeNearbyPageCount.value));
+const routeNearbyResults = computed<RouteNearbyPlace[]>(() => {
+  const pageIndex = normalizedRouteNearbyCurrentPage.value - 1;
+  const startIndex = pageIndex * ROUTE_NEARBY_RESULT_LIMIT;
+  return routeNearbyAllResults.value.slice(startIndex, startIndex + ROUTE_NEARBY_RESULT_LIMIT);
+});
+const routeNearbyMapPlaces = computed<RouteNearbyPlace[]>(() =>
+  dedupeRouteNearbyPlaces(
+    routeNearbyDrawerOpen.value
+      ? [...routeNearbyPinnedPlaces.value, ...routeNearbyVisibleSearchResults.value]
+      : [...routeNearbyPinnedPlaces.value],
+    Math.max(ROUTE_NEARBY_MAP_PIN_LIMIT, ROUTE_NEARBY_RESULT_LIMIT + routeNearbyPinnedPlaces.value.length),
+  ),
+);
+const routeNearbyMapPins = computed<MapNearbyPlacePin[]>(() =>
+  routeNearbyMapPlaces.value.slice(0, ROUTE_NEARBY_MAP_PIN_LIMIT).map((place) => ({
+    id: `route-nearby-${place.id}`,
+    title: place.title,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    kind: place.kind === 'fuel' ? 'fuel' : 'place',
+    category: place.kind === 'fuel' ? 'fuel' : place.category,
+    iconName: place.iconName ?? getRouteNearbyIcon(place),
+    categoryLabel: getRouteNearbyCategoryLabel(place),
+    address: place.address ?? place.subtitle,
+    subtitle: place.subtitle,
+    photoUrl: getRouteNearbyPhotoUrl(place) || place.photoUrl,
+    photoLookupStatus: 'complete',
+    sourceLabel: place.sourceLabel ?? getRouteNearbySourceLabel(place),
+    distanceLabel: formatRouteNearbyDistance(getRouteNearbyPlaceDistanceKm(place) ?? undefined),
+    priceLabel: place.priceLabel,
+  })),
+);
+const displayMapPins = computed<MapPoint[]>(() => {
+  const existingIds = new Set<string>();
+  return displayMapSpots.value.filter((point) => {
+    if (existingIds.has(point.id)) {
+      return false;
+    }
+
+    existingIds.add(point.id);
+    return true;
+  });
+});
+const mapLabelMode = computed<MapLabelMode>(() => {
+  const viewportZoom = props.initialMapViewport?.zoom ?? 0;
+  const isDefaultWideMap = viewportZoom < 6 && displayMapSpots.value.length === 0 && !props.itinerary;
+  return isDefaultWideMap ? 'states' : 'full';
+});
 const draftRouteSequence = computed<RouteSequencePoint[]>(() => {
   const sequence: RouteSequencePoint[] = [];
 
@@ -1602,77 +2602,1822 @@ const draftRouteSequence = computed<RouteSequencePoint[]>(() => {
 
   return buildUserOrderedRouteSequence(sequence);
 });
+const routeCanvasDensity = computed(() => (draftRouteSequence.value.length ? 'expanded' : 'compact'));
 const routeBriefStartLabel = computed(() =>
   draftRouteSequence.value.find((point) => point.routeRole === 'start')?.title ?? draftStartLabel.value,
 );
 const routeBriefEndLabel = computed(() =>
   [...draftRouteSequence.value].reverse().find((point) => point.routeRole === 'end')?.title ?? draftEndLabel.value,
 );
-const routePlaceAnchors = computed<MapPoint[]>(() => {
-  if (props.itinerary) {
-    return [];
-  }
-
-  return displayMapSpots.value.filter((point) => hasCoordinatePair(point.latitude, point.longitude));
-});
-const selectedRoutePlaceAnchor = computed(() => {
-  if (routePlaceAnchors.value.length === 0) {
-    return null;
-  }
-
-  return routePlaceAnchors.value.find((anchor) => anchor.id === selectedRoutePlacePointId.value) ?? routePlaceAnchors.value[0];
-});
-const routePlacePanelTitle = computed(() => {
-  const anchor = selectedRoutePlaceAnchor.value;
-  if (!anchor) {
-    return 'Route places';
-  }
-
-  if (anchor.routeRole === 'start') {
-    return 'Around start';
-  }
-
-  if (anchor.routeRole === 'end') {
-    return 'Around end';
-  }
-
-  return `Around stop ${anchor.routeLabel}`;
-});
-const availableRoutePlaceSuggestions = computed(() => {
-  const existingStopIds = new Set(props.stops.map((stop) => stop.spotId));
-  return routePlaceSuggestions.value.filter((place) => !existingStopIds.has(place.id));
-});
-const routePlacePanelVisible = computed(
-  () => routePlaceSuggestionsLoading.value || Boolean(routePlaceSuggestionsError.value) || availableRoutePlaceSuggestions.value.length > 0,
+const showRouteBriefStart = computed(() =>
+  draftRouteSequence.value.some((point) => point.routeRole === 'start') && routeBriefStartLabel.value !== 'Choose start',
 );
-const routePlaceSuggestionsState = computed(() => {
-  if (routePlaceSuggestionsLoading.value) {
-    return 'loading';
-  }
-
-  if (routePlaceSuggestionsError.value) {
-    return 'error';
-  }
-
-  return availableRoutePlaceSuggestions.value.length ? 'ready' : 'empty';
-});
+const showRouteBriefEnd = computed(() =>
+  draftRouteSequence.value.some((point) => point.routeRole === 'end') && routeBriefEndLabel.value !== 'Choose end',
+);
+const showRouteBriefEndpoints = computed(() => showRouteBriefStart.value || showRouteBriefEnd.value);
 const routeDistanceLabel = computed(() => {
   const summary = currentRouteSummary.value;
   if (!summary || summary.distanceMeters <= 0) {
     return mapSpots.value.length > 1 ? 'Estimating' : 'Add points';
   }
 
+  if (!isMapboxAuthoritativeRoute(summary)) {
+    return 'Needs Mapbox';
+  }
+
   return formatMiles(summary.distanceMeters);
 });
 const routeEtaLabel = computed(() => {
   const summary = currentRouteSummary.value;
-  if (!summary || summary.durationSeconds <= 0) {
+  if (!summary) {
     return mapSpots.value.length > 1 ? 'Estimating' : 'Add end';
+  }
+
+  if (!isMapboxAuthoritativeRoute(summary) || summary.durationSeconds <= 0) {
+    return 'Unavailable';
   }
 
   return formatDuration(summary.durationSeconds);
 });
+const routeDistanceMiles = computed(() => {
+  const summary = currentRouteSummary.value;
+  return summary && isMapboxAuthoritativeRoute(summary) && summary.distanceMeters > 0 ? summary.distanceMeters / METERS_PER_MILE : 0;
+});
+const routeFuelCost = computed(() => {
+  const mpg = props.fuelSettings?.mpg;
+  const gasPricePerGallon = props.fuelSettings?.gasPricePerGallon;
+  if (!Number.isFinite(mpg) || !Number.isFinite(gasPricePerGallon) || Number(mpg) <= 0 || Number(gasPricePerGallon) <= 0 || routeDistanceMiles.value <= 0) {
+    return null;
+  }
+
+  return (routeDistanceMiles.value / Number(mpg)) * Number(gasPricePerGallon);
+});
+const routeFuelCostLabel = computed(() => {
+  if (currentRouteSummary.value && !hasAuthoritativeRouteMetrics.value) {
+    return 'Needs route';
+  }
+
+  if (routeFuelCost.value === null) {
+    return 'Set fuel';
+  }
+
+  return currencyFormatter.format(routeFuelCost.value);
+});
+const fuelMetricTitle = computed(() => (
+  currentRouteSummary.value && !hasAuthoritativeRouteMetrics.value
+    ? currentRouteSummary.value.routeError ?? 'Mapbox route is required for fuel cost.'
+    : routeFuelCost.value === null
+      ? 'Set MPG and gas price'
+      : 'Fuel estimate from MPG and gas price'
+));
+const driveScoreSnapshot = computed<DriveScoreSnapshot | null>(() => calculateDriveScore());
+const driveScoreLabel = computed(() => {
+  const score = driveScoreSnapshot.value?.score;
+  if (currentRouteSummary.value && !hasAuthoritativeRouteMetrics.value) {
+    return 'Needs route';
+  }
+
+  if (!score) {
+    return currentRouteSummary.value ? 'Scoring' : 'Add route';
+  }
+
+  return `${score.toFixed(1)}/10`;
+});
+const driveScoreDifficultyLabel = computed(() => {
+  const difficulty = driveScoreSnapshot.value?.difficulty;
+  if (!difficulty) {
+    return 'Drive score';
+  }
+
+  if (difficulty === 'Easy') {
+    return 'Smooth drive';
+  }
+
+  if (difficulty === 'Moderate') {
+    return 'Steady drive';
+  }
+
+  return 'Demanding drive';
+});
 const showRouteMetrics = computed(() => mapSpots.value.length > 1);
+
+function requestFuelSettings(): void {
+  if (routeFuelCost.value !== null) {
+    return;
+  }
+
+  emit('fuel-settings-request');
+}
+
+function clampRouteNearbyCustomRadiusMiles(value: number): number {
+  if (!Number.isFinite(value)) {
+    return ROUTE_NEARBY_CUSTOM_RADIUS_DEFAULT_MI;
+  }
+
+  return Math.min(ROUTE_NEARBY_CUSTOM_RADIUS_MAX_MI, Math.max(ROUTE_NEARBY_CUSTOM_RADIUS_MIN_MI, value));
+}
+
+function parseRouteNearbyCustomRadiusMiles(value = routeNearbyCustomRadiusMiles.value): number {
+  const trimmedValue = String(value).trim();
+  return clampRouteNearbyCustomRadiusMiles(trimmedValue ? Number(trimmedValue) : ROUTE_NEARBY_CUSTOM_RADIUS_DEFAULT_MI);
+}
+
+function formatRouteNearbyRadiusMiles(miles: number): string {
+  const safeMiles = clampRouteNearbyCustomRadiusMiles(miles);
+  const formattedMiles = safeMiles.toLocaleString('en-US', {
+    maximumFractionDigits: safeMiles < 10 ? 1 : 0,
+  });
+  return `${formattedMiles} mi`;
+}
+
+function normalizeRouteNearbyCustomRadiusValue(): string {
+  const customMiles = parseRouteNearbyCustomRadiusMiles();
+  return customMiles.toLocaleString('en-US', {
+    maximumFractionDigits: customMiles < 10 ? 1 : 0,
+    useGrouping: false,
+  });
+}
+
+function getRouteNearbyRadiusTitle(radiusOption: RouteNearbyRadiusOption): string {
+  const anchor = selectedRouteNearbyAnchor.value;
+  return anchor
+    ? `Search within ${radiusOption.label} of ${anchor.placeLabel}`
+    : `Search within ${radiusOption.label}`;
+}
+
+function getRouteNearbyPhotoCategory(place: RouteNearbyPlace): SpotCategory {
+  const cardCategory = getRouteNearbyCardCategory(place);
+  if (cardCategory === 'stay') {
+    return 'scenic';
+  }
+
+  if (cardCategory === 'essentials' || cardCategory === 'fuel' || cardCategory === 'ev') {
+    return 'shopping';
+  }
+
+  if (place.category && place.category !== 'other') {
+    return place.category;
+  }
+
+  const searchableCategory = [
+    place.title,
+    place.subtitle,
+    place.address,
+    place.sourceLabel,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return normalizeRouteNearbyCategory(searchableCategory, 'scenic');
+}
+
+function getRouteNearbyCardCategory(place: RouteNearbyPlace): string {
+  if (place.kind === 'fuel') {
+    return normalizeTripFuelType(place.fuelType) === 'ev' || selectedRouteNearbyFuelFilterId.value === 'ev'
+      ? 'ev'
+      : 'fuel';
+  }
+
+  const rawCategory = String(place.travelCategory || place.category || place.kind || '').toLowerCase();
+  if (/(stay|hotel|motel|lodging|campground|rv|hostel|resort|inn)/.test(rawCategory)) {
+    return 'stay';
+  }
+
+  if (/(essential|rest_stop|parking|pharmacy|grocery|supermarket|repair|convenience)/.test(rawCategory)) {
+    return 'essentials';
+  }
+
+  if (/(food|coffee|restaurant|cafe|bakery)/.test(rawCategory)) {
+    return 'food';
+  }
+
+  if (/(nature|outdoor|park|trail)/.test(rawCategory)) {
+    return 'nature';
+  }
+
+  if (/(scenic|view|landmark)/.test(rawCategory)) {
+    return 'scenic';
+  }
+
+  if (/(culture|museum|gallery|historic|art)/.test(rawCategory)) {
+    return 'culture';
+  }
+
+  if (/(shopping|shop|market|store|mall)/.test(rawCategory)) {
+    return 'shopping';
+  }
+
+  if (/(nightlife|night|bar|music|club)/.test(rawCategory)) {
+    return 'nightlife';
+  }
+
+  if (/(adventure|camp|hike|climb|bike|kayak)/.test(rawCategory)) {
+    return 'adventure';
+  }
+
+  return place.category === 'other' ? 'place' : place.category;
+}
+
+function getRouteNearbyPhotoUrl(place: RouteNearbyPlace): string {
+  if (place.photoUrl?.trim()) {
+    return resolveSpotPhotoUrl(getRouteNearbyPhotoCategory(place), place.photoUrl, ROUTE_NEARBY_PHOTO_WIDTH);
+  }
+
+  return '';
+}
+
+function getRouteNearbyIcon(place: RouteNearbyPlace): string {
+  if (place.iconName) {
+    return place.iconName;
+  }
+
+  if (place.kind === 'fuel') {
+    return 'fuel';
+  }
+
+  return place.category === 'other' ? 'pin' : place.category;
+}
+
+function getRouteNearbySourceLabel(place: RouteNearbyPlace): string {
+  if (place.source === 'fuel') {
+    return 'Fuel';
+  }
+
+  if (place.source === 'discovery') {
+    return 'Map place';
+  }
+
+  if (place.source === 'google') {
+    return 'Google';
+  }
+
+  return 'Scope';
+}
+
+function getRouteNearbyDistanceValue(place: RouteNearbyPlace): string {
+  return formatRouteNearbyDistance(getRouteNearbyPlaceDistanceKm(place) ?? undefined);
+}
+
+function getRouteNearbyCategoryLabel(place: RouteNearbyPlace): string {
+  if (place.kind === 'fuel') {
+    if (selectedRouteNearbyFuelFilterId.value === 'ev') {
+      return 'EV';
+    }
+
+    return place.fuelType && isFuelTypeForFilter(place.fuelType, selectedRouteNearbyFuelFilterId.value)
+      ? getFuelTypeLabel(place.fuelType)
+      : 'Fuel';
+  }
+
+  const category = place.travelCategory && place.travelCategory !== 'recommended'
+    ? place.travelCategory
+    : place.category;
+  return formatTravelCategoryLabel(category || 'place');
+}
+
+function cleanRouteNearbyLocationText(value: string | undefined): string {
+  return String(value ?? '')
+    .replace(/\bUnited States\b/gi, '')
+    .replace(/\bUSA\b/gi, '')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/,\s*$/g, '')
+    .trim();
+}
+
+function stripRouteNearbyLocationPrefix(value: string): string {
+  const cleanedValue = cleanRouteNearbyLocationText(value);
+  const dividerMatch = cleanedValue.match(/^(.+?)\s+-\s+(.+)$/);
+  if (!dividerMatch) {
+    return cleanedValue;
+  }
+
+  const [, prefix, detail] = dividerMatch;
+  const normalizedPrefix = normalizeRouteNearbyDedupeText(prefix);
+  const normalizedDetail = normalizeRouteNearbyDedupeText(detail);
+  const looksLikeStreetAddress = /\d|\b(road|rd|street|st|avenue|ave|highway|hwy|drive|dr|lane|ln|boulevard|blvd|parkway|pkwy|way|court|ct|circle|cir)\b/i.test(detail);
+
+  if (looksLikeStreetAddress || (normalizedPrefix && normalizedDetail.includes(normalizedPrefix))) {
+    return cleanRouteNearbyLocationText(detail);
+  }
+
+  return cleanedValue;
+}
+
+function formatRouteNearbyResultLocation(place: RouteNearbyPlace): string {
+  const address = cleanRouteNearbyLocationText(place.address);
+  if (address) {
+    return address;
+  }
+
+  const subtitle = stripRouteNearbyLocationPrefix(place.subtitle);
+  if (subtitle) {
+    return subtitle;
+  }
+
+  return place.kind === 'fuel' ? 'Fuel stop' : 'Near this route';
+}
+
+function calculateDistanceKm(
+  start: Pick<RouteNearbyAnchor, 'latitude' | 'longitude'>,
+  end: Pick<RouteNearbyPlace, 'latitude' | 'longitude'>,
+): number {
+  return calculateHaversineDistanceKm(start, end);
+}
+
+function normalizeRouteNearbyCategory(value: string | undefined, fallback: SpotCategory = 'other'): SpotCategory {
+  const normalizedValue = value?.toLowerCase() ?? '';
+  if (/(restaurant|food|coffee|cafe|bakery|barbecue|breakfast|lunch|dinner)/.test(normalizedValue)) {
+    return 'food';
+  }
+
+  if (/(park|trail|nature|garden|wildlife|lake|river)/.test(normalizedValue)) {
+    return 'nature';
+  }
+
+  if (/(view|scenic|overlook|landmark|lookout)/.test(normalizedValue)) {
+    return 'scenic';
+  }
+
+  if (/(museum|gallery|culture|historic|monument|art)/.test(normalizedValue)) {
+    return 'culture';
+  }
+
+  if (/(adventure|climb|bike|kayak|outdoor)/.test(normalizedValue)) {
+    return 'adventure';
+  }
+
+  if (/(shop|market|store|mall)/.test(normalizedValue)) {
+    return 'shopping';
+  }
+
+  if (/(entertainment|amusement|theme park|six flags|bowling|arcade|movie|cinema|concert|zoo|aquarium|stadium|arena|escape room|mini golf|laser tag)/.test(normalizedValue)) {
+    return 'entertainment';
+  }
+
+  if (/(night|music|club|bar)/.test(normalizedValue)) {
+    return 'nightlife';
+  }
+
+  return fallback;
+}
+
+function normalizeTravelSuggestionCategory(value: string | undefined, fallback: SpotCategory = 'other'): SpotCategory {
+  const normalizedValue = value?.toLowerCase() ?? '';
+  if (/(food|restaurant|cafe|coffee|bakery)/.test(normalizedValue)) {
+    return 'food';
+  }
+
+  if (/(nature|park|trail|outdoor)/.test(normalizedValue)) {
+    return 'nature';
+  }
+
+  if (/(scenic|view|landmark|tourist)/.test(normalizedValue)) {
+    return 'scenic';
+  }
+
+  if (/(culture|museum|gallery|historic|art)/.test(normalizedValue)) {
+    return 'culture';
+  }
+
+  if (/(adventure|camp|rv|hike|climb)/.test(normalizedValue)) {
+    return 'adventure';
+  }
+
+  if (/(shop|market|store|grocery|pharmacy)/.test(normalizedValue)) {
+    return 'shopping';
+  }
+
+  if (/(entertainment|amusement|theme park|six flags|bowling|arcade|movie|cinema|concert|zoo|aquarium|stadium|arena|escape room|mini golf|laser tag)/.test(normalizedValue)) {
+    return 'entertainment';
+  }
+
+  if (/(night|bar|music)/.test(normalizedValue)) {
+    return 'nightlife';
+  }
+
+  return fallback;
+}
+
+function getRouteNearbyValidationText(place: RouteNearbyPlace): string {
+  return [
+    place.title,
+    place.subtitle,
+    place.address,
+    place.category,
+    place.sourceLabel,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function hasRouteNearbyTextSignal(place: RouteNearbyPlace, pattern: RegExp): boolean {
+  return pattern.test(getRouteNearbyValidationText(place));
+}
+
+function isRouteNearbyFoodPlace(place: RouteNearbyPlace): boolean {
+  if (hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|inspection station|port of entry|highway patrol|state trooper|sheriff|police|department of transportation|\bdot\b|dmv|courthouse|jail|prison)\b/i)) {
+    return false;
+  }
+
+  if (place.category === 'food') {
+    return true;
+  }
+
+  return hasRouteNearbyTextSignal(place, /\b(restaurant|cafe|coffee|bakery|bistro|grill|diner|pizza|burger|taco|bbq|barbecue|kitchen|steak|seafood|sushi|ramen|noodle|breakfast|brunch|ice cream|donut|doughnut|brewery|winery|mcdonald'?s|starbucks|subway|sonic|dairy queen|whataburger|taco bell|kfc|wendy'?s|burger king|chick-fil-a|chipotle|panera|domino'?s|pizza hut|popeyes|arby'?s|ihop|denny'?s|waffle house)\b/i);
+}
+
+function isRouteNearbyStayPlace(place: RouteNearbyPlace): boolean {
+  if (hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|gas station|fuel|restaurant|cafe|pharmacy|supermarket|police|sheriff|courthouse)\b/i)) {
+    return false;
+  }
+
+  return (
+    place.category === 'stay' ||
+    (place.source !== 'discovery' && place.travelCategory === 'stay') ||
+    hasRouteNearbyTextSignal(place, /\b(hotel|motel|lodging|inn|suites|resort|hostel|campground|rv park|bed and breakfast|bnb|lodge|cabin)\b/i)
+  );
+}
+
+function isRouteNearbyEssentialsPlace(place: RouteNearbyPlace): boolean {
+  if (hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|inspection station|port of entry|tourist attraction|museum|gallery|nightclub)\b/i)) {
+    return false;
+  }
+
+  return (
+    place.category === 'essentials' ||
+    (place.source !== 'discovery' && place.travelCategory === 'essentials') ||
+    hasRouteNearbyTextSignal(place, /\b(rest stop|rest area|convenience store|supermarket|grocery|pharmacy|parking|car repair|auto repair|urgent care|hospital|bank|atm|market|travel center)\b/i)
+  );
+}
+
+function isRouteNearbyScenicPlace(place: RouteNearbyPlace): boolean {
+  if (hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|gas station|fuel|convenience store|supermarket|pharmacy|parking lot|police|sheriff)\b/i)) {
+    return false;
+  }
+
+  return (
+    place.category === 'scenic' ||
+    place.category === 'nature' ||
+    place.category === 'culture' ||
+    place.category === 'adventure' ||
+    (place.source !== 'discovery' && place.travelCategory === 'scenic') ||
+    hasRouteNearbyTextSignal(place, /\b(scenic|view|overlook|lookout|vista|park|trail|lake|river|garden|museum|gallery|historic|landmark|monument|tourist attraction|nature|wildlife)\b/i)
+  );
+}
+
+function isRouteNearbyEntertainmentPlace(place: RouteNearbyPlace): boolean {
+  if (hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|gas station|fuel|convenience store|supermarket|pharmacy|parking lot|police|sheriff|courthouse|hospital|clinic)\b/i)) {
+    return false;
+  }
+
+  return (
+    place.category === 'entertainment' ||
+    (place.source !== 'discovery' && place.travelCategory === 'entertainment') ||
+    hasRouteNearbyTextSignal(place, /\b(entertainment|amusement park|theme park|six flags|bowling|bowling alley|arcade|movie theater|movie theatre|cinema|concert|music venue|stadium|arena|zoo|aquarium|escape room|laser tag|mini golf|carnival|fair)\b/i)
+  );
+}
+
+function isRouteNearbyPlaceValidForSelectedCategory(place: RouteNearbyPlace): boolean {
+  if (place.kind === 'fuel') {
+    return true;
+  }
+
+  const activeCategory = selectedRouteNearbyTabId.value === 'recommended'
+    ? selectedRouteNearbyQueryId.value
+    : selectedRouteNearbyTabId.value;
+
+  if (activeCategory === 'food' || activeCategory === 'coffee') {
+    return isRouteNearbyFoodPlace(place);
+  }
+
+  if (activeCategory === 'stay') {
+    return isRouteNearbyStayPlace(place);
+  }
+
+  if (activeCategory === 'essentials') {
+    return isRouteNearbyEssentialsPlace(place);
+  }
+
+  if (activeCategory === 'scenic' || activeCategory === 'nature' || activeCategory === 'culture') {
+    return isRouteNearbyScenicPlace(place);
+  }
+
+  if (activeCategory === 'shopping') {
+    return hasRouteNearbyTextSignal(place, /\b(shop|shopping|store|market|mall|boutique|outlet)\b/i);
+  }
+
+  if (activeCategory === 'entertainment') {
+    return isRouteNearbyEntertainmentPlace(place);
+  }
+
+  if (activeCategory === 'nightlife') {
+    return hasRouteNearbyTextSignal(place, /\b(bar|nightlife|music|club|lounge|brewery|pub)\b/i);
+  }
+
+  return !hasRouteNearbyTextSignal(place, /\b(weigh station|truck scale|inspection station|port of entry)\b/i);
+}
+
+function formatRouteNearbyDistance(distanceKm: number | undefined): string {
+  if (!Number.isFinite(distanceKm)) {
+    return 'nearby';
+  }
+
+  const miles = Number(distanceKm) * 0.621371;
+  if (miles < 0.1) {
+    return '<0.1 mi';
+  }
+
+  return `${miles.toFixed(miles < 10 ? 1 : 0)} mi`;
+}
+
+function getRouteNearbyPlaceDistanceKm(place: RouteNearbyPlace): number | null {
+  if (Number.isFinite(place.distanceKm)) {
+    return Number(place.distanceKm);
+  }
+
+  const anchor = selectedRouteNearbyAnchor.value;
+  if (!anchor || !hasCoordinatePair(place.latitude, place.longitude)) {
+    return null;
+  }
+
+  return calculateDistanceKm(anchor, place);
+}
+
+function formatTravelCategoryLabel(value: string): string {
+  const normalizedValue = value.trim().replace(/[_-]+/g, ' ');
+  if (!normalizedValue) {
+    return 'Place';
+  }
+
+  return normalizedValue
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function isWithinSelectedRouteNearbyRadius(place: RouteNearbyPlace): boolean {
+  const distanceKm = getRouteNearbyPlaceDistanceKm(place);
+  if (!Number.isFinite(distanceKm)) {
+    return false;
+  }
+
+  return Number(distanceKm) <= selectedRouteNearbyRadiusKm.value + 0.05;
+}
+
+function filterRouteNearbyPlacesWithinSelectedRadius(places: RouteNearbyPlace[]): RouteNearbyPlace[] {
+  return places
+    .filter(isWithinSelectedRouteNearbyRadius)
+    .filter(isRouteNearbyPlaceValidForSelectedCategory);
+}
+
+function hasLiveFuelPrice(place: RouteNearbyPlace): boolean {
+  return (
+    place.kind === 'fuel' &&
+    selectedRouteNearbyFuelFilterId.value !== 'ev' &&
+    place.source === 'fuel' &&
+    isFuelTypeForFilter(place.fuelType, selectedRouteNearbyFuelFilterId.value) &&
+    Number.isFinite(place.priceValue) &&
+    Number(place.priceValue) > 0
+  );
+}
+
+function matchesRouteNearbyFuelSearch(place: RouteNearbyPlace): boolean {
+  const query = routeNearbyFuelSearchQuery.value.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  const haystack = [
+    place.title,
+    place.subtitle,
+    place.address,
+    place.fuelType,
+    place.priceLabel,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
+function compareRouteNearbyFuelPlaces(left: RouteNearbyPlace, right: RouteNearbyPlace): number {
+  const leftHasPrice = hasLiveFuelPrice(left);
+  const rightHasPrice = hasLiveFuelPrice(right);
+
+  if (selectedRouteNearbyFuelSortMode.value === 'best-price') {
+    if (leftHasPrice !== rightHasPrice) {
+      return leftHasPrice ? -1 : 1;
+    }
+
+    if (leftHasPrice && rightHasPrice && left.priceValue !== right.priceValue) {
+      return Number(left.priceValue) - Number(right.priceValue);
+    }
+  }
+
+  const distanceDelta = (left.distanceKm ?? Number.MAX_SAFE_INTEGER) - (right.distanceKm ?? Number.MAX_SAFE_INTEGER);
+  if (Math.abs(distanceDelta) > 0.001) {
+    return distanceDelta;
+  }
+
+  if (leftHasPrice !== rightHasPrice) {
+    return leftHasPrice ? -1 : 1;
+  }
+
+  return (left.priceValue ?? Number.MAX_SAFE_INTEGER) - (right.priceValue ?? Number.MAX_SAFE_INTEGER);
+}
+
+function filterAndSortRouteNearbyFuelPlaces(places: RouteNearbyPlace[]): RouteNearbyPlace[] {
+  const matchingPlaces = places
+    .filter(isWithinSelectedRouteNearbyRadius)
+    .filter(matchesRouteNearbyFuelSearch);
+  const hasAnyLivePrice = matchingPlaces.some(hasLiveFuelPrice);
+  const visiblePlaces = hasAnyLivePrice
+    ? matchingPlaces.filter(hasLiveFuelPrice)
+    : matchingPlaces;
+
+  return [...visiblePlaces].sort(compareRouteNearbyFuelPlaces);
+}
+
+function buildRouteNearbySearchQuery(): string {
+  if (selectedRouteNearbyQueryId.value === 'custom') {
+    return routeNearbyCustomQuery.value.trim() || 'places';
+  }
+
+  if (selectedRouteNearbyQueryId.value !== 'recommended') {
+    return selectedRouteNearbyQuery.value.query;
+  }
+
+  const interests = props.draft?.interests ?? [];
+  if (interests.length) {
+    return `${interests.slice(0, 2).join(' ')} places`;
+  }
+
+  return selectedRouteNearbyQuery.value.query;
+}
+
+function getRouteNearbyInterestSet(): Set<SpotCategory> {
+  const interests = props.draft?.interests ?? [];
+  return new Set(interests.filter((interest): interest is SpotCategory => Boolean(interest)));
+}
+
+function buildRouteNearbyBounds(anchor: RouteNearbyAnchor): NearbyPlaceBounds {
+  const radiusKm = selectedRouteNearbyRadiusKm.value;
+  const latitudeDelta = radiusKm / 111.32;
+  const longitudeScale = Math.max(Math.cos((anchor.latitude * Math.PI) / 180), 0.2);
+  const longitudeDelta = radiusKm / (111.32 * longitudeScale);
+
+  return {
+    west: clampNumber(anchor.longitude - longitudeDelta, -180, 180),
+    south: clampNumber(anchor.latitude - latitudeDelta, -90, 90),
+    east: clampNumber(anchor.longitude + longitudeDelta, -180, 180),
+    north: clampNumber(anchor.latitude + latitudeDelta, -90, 90),
+  };
+}
+
+function getRouteNearbyPlaceCategories(query: RouteNearbyQuery): readonly string[] {
+  if (query.id === 'recommended') {
+    const interests = getRouteNearbyInterestSet();
+    if (!interests.size) {
+      return query.placeCategories ?? [];
+    }
+
+    const categories = new Set<string>();
+    if (interests.has('food')) {
+      categories.add('restaurant');
+      categories.add('cafe');
+    }
+    if (interests.has('nature') || interests.has('adventure')) {
+      categories.add('park');
+    }
+    if (interests.has('culture') || interests.has('scenic')) {
+      categories.add('tourist_attraction');
+      categories.add('museum');
+    }
+    if (interests.has('shopping')) {
+      categories.add('shopping');
+    }
+    if (interests.has('entertainment')) {
+      categories.add('amusement_park');
+      categories.add('bowling_alley');
+      categories.add('movie_theater');
+      categories.add('tourist_attraction');
+    }
+    if (interests.has('nightlife')) {
+      categories.add('bar');
+    }
+
+    return categories.size ? [...categories] : query.placeCategories ?? [];
+  }
+
+  return query.placeCategories ?? [];
+}
+
+async function searchRouteNearbyDiscoveryPlaces(
+  anchor: RouteNearbyAnchor,
+  query: RouteNearbyQuery,
+  queryText: string,
+): Promise<{ data: PlaceSearchResult[] }> {
+  const categories = getRouteNearbyPlaceCategories(query);
+  if (query.id !== 'custom' && categories.length) {
+    const nearbyResponse = await searchNearbyPlaces({
+      center: { latitude: anchor.latitude, longitude: anchor.longitude },
+      bounds: buildRouteNearbyBounds(anchor),
+      categories,
+      limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+    }).catch(() => ({ data: [] as PlaceSearchResult[] }));
+
+    if (nearbyResponse.data.length) {
+      return { data: nearbyResponse.data };
+    }
+  }
+
+  return searchPlaces(queryText, {
+    proximity: { latitude: anchor.latitude, longitude: anchor.longitude },
+    bboxRadiusKm: selectedRouteNearbyRadiusKm.value,
+    sortByDistance: true,
+    limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+    types: 'poi',
+  });
+}
+
+function getRouteNearbyFuelApiType(): RouteNearbyFuelApiType {
+  return selectedRouteNearbyFuelFilter.value.apiFuelType;
+}
+
+function getRouteNearbyFuelApiSortMode(): 'closest' | 'best_price' {
+  return selectedRouteNearbyFuelSortMode.value === 'best-price' ? 'best_price' : 'closest';
+}
+
+function isRouteNearbyRadiusBeyondProviderLimit(): boolean {
+  return selectedRouteNearbyRadiusKm.value > ROUTE_NEARBY_PROVIDER_RADIUS_LIMIT_KM;
+}
+
+async function searchDiscoveryFuelPlaces(anchor: RouteNearbyAnchor, fuelFilter: RouteNearbyFuelFilter): Promise<{ data: PlaceSearchResult[] }> {
+  if (fuelFilter.id === 'ev' || isRouteNearbyRadiusBeyondProviderLimit()) {
+    return searchPlaces(fuelFilter.query, {
+      proximity: { latitude: anchor.latitude, longitude: anchor.longitude },
+      bboxRadiusKm: selectedRouteNearbyRadiusKm.value,
+      sortByDistance: true,
+      limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+      types: 'poi',
+    });
+  }
+
+  const response = await searchNearbyPlaces({
+    center: { latitude: anchor.latitude, longitude: anchor.longitude },
+    categories: ['gas_station'],
+    limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+  });
+
+  return { data: response.data };
+}
+
+function normalizeTripFuelType(value: string | undefined): TripFuelType {
+  const normalizedValue = String(value ?? '').trim().toLowerCase();
+  return routeNearbyFuelTypeIds.has(normalizedValue as TripFuelType) ? (normalizedValue as TripFuelType) : 'regular';
+}
+
+function getFuelTypeLabel(value: string | undefined): string {
+  const normalizedValue = normalizeTripFuelType(value);
+  return routeNearbyFuelFilters.find((filter) => filter.id === normalizedValue)?.label ?? 'Regular';
+}
+
+function normalizeFuelTypeText(value: string | undefined): string {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+}
+
+function isRegularFuelType(value: string | undefined): boolean {
+  const normalizedValue = normalizeFuelTypeText(value);
+  if (!normalizedValue || /premium|midgrade|diesel|electric|ev|all/.test(normalizedValue)) {
+    return false;
+  }
+
+  return /\b(regular|unleaded|sp91|sp92|e10)\b/.test(normalizedValue);
+}
+
+function isDieselFuelType(value: string | undefined): boolean {
+  return /\bdiesel\b/i.test(value ?? '');
+}
+
+function isMidgradeFuelType(value: string | undefined): boolean {
+  const normalizedValue = normalizeFuelTypeText(value);
+  if (!normalizedValue || /premium|diesel|electric|ev/.test(normalizedValue)) {
+    return false;
+  }
+
+  return /\b(midgrade|plus|sp93)\b/.test(normalizedValue);
+}
+
+function isPremiumFuelType(value: string | undefined): boolean {
+  return /\b(premium|super|supreme|sp95|sp98)\b/i.test(value ?? '');
+}
+
+function isEvFuelType(value: string | undefined): boolean {
+  return /\b(ev|electric|charging|charger|supercharger)\b/i.test(value ?? '');
+}
+
+function isFuelTypeForFilter(value: string | undefined, filterId: RouteNearbyFuelFilterId): boolean {
+  if (filterId === 'regular') {
+    return isRegularFuelType(value);
+  }
+
+  if (filterId === 'midgrade') {
+    return isMidgradeFuelType(value);
+  }
+
+  if (filterId === 'premium') {
+    return isPremiumFuelType(value);
+  }
+
+  if (filterId === 'diesel') {
+    return isDieselFuelType(value);
+  }
+
+  return isEvFuelType(value);
+}
+
+function getSelectedFuelStationPrice(
+  station: FuelStationPrice,
+): { price: number; currency: string; fuelType: string; updatedAt?: string } | null {
+  const filterId = selectedRouteNearbyFuelFilterId.value;
+  if (filterId === 'ev') {
+    return null;
+  }
+
+  const exactPrices = Array.isArray(station.prices)
+    ? station.prices
+      .filter((price) => (
+        isFuelTypeForFilter(price.fuelType, filterId) &&
+        Number.isFinite(Number(price.price)) &&
+        Number(price.price) > 0
+      ))
+      .map((price) => ({
+        price: Number(price.price),
+        currency: price.currency || station.currency || 'USD',
+        fuelType: price.fuelType,
+        updatedAt: price.updatedAt ?? station.updatedAt,
+      }))
+    : [];
+
+  if (exactPrices.length) {
+    return exactPrices.sort((left, right) => left.price - right.price)[0] ?? null;
+  }
+
+  if (
+    isFuelTypeForFilter(station.fuelType, filterId) &&
+    Number.isFinite(Number(station.pricePerUnit)) &&
+    Number(station.pricePerUnit) > 0
+  ) {
+    return {
+      price: Number(station.pricePerUnit),
+      currency: station.currency || 'USD',
+      fuelType: station.fuelType,
+      updatedAt: station.updatedAt,
+    };
+  }
+
+  return null;
+}
+
+function isStrictFuelPlaceResult(place: PlaceSearchResult, filterId = selectedRouteNearbyFuelFilterId.value): boolean {
+  const haystack = [
+    place.placeName,
+    place.formattedAddress,
+    place.address,
+    place.category,
+    place.precision,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  if (filterId === 'ev') {
+    return /\b(ev|electric|charging|charger|supercharger|chargepoint|electrify|tesla)\b/i.test(haystack);
+  }
+
+  const hasFuelCategory = /(gas[_\s-]?station|fuel|petrol|service station|filling station|convenience store)/i.test(haystack);
+  const hasKnownStationName = /\b(shell|exxon|mobil|chevron|texaco|valero|sunoco|bp|citgo|phillips|conoco|circle k|quiktrip|qt|racetrac|raceway|marathon|murphy|walmart fuel|sam'?s club|7-eleven|speedway)\b/i.test(haystack);
+  return hasFuelCategory || hasKnownStationName;
+}
+
+function shouldIncludeFuelStation(station: FuelStationPrice): boolean {
+  const filterId = selectedRouteNearbyFuelFilterId.value;
+  if (filterId === 'ev') {
+    return false;
+  }
+
+  return Boolean(getSelectedFuelStationPrice(station)) || isFuelTypeForFilter(station.fuelType, filterId);
+}
+
+function calculateRouteNearbyRecommendationScore(
+  input: {
+    category: SpotCategory;
+    source: RouteNearbyPlace['source'];
+    distanceKm?: number;
+    rating?: number;
+    likesCount?: number;
+    createdAt?: string;
+  },
+): number {
+  const interests = getRouteNearbyInterestSet();
+  const selectedCategory = selectedRouteNearbyQuery.value.category;
+  const isRecommendedMode = selectedRouteNearbyQueryId.value === 'recommended';
+  const hasInterestSignal = interests.size > 0;
+  const matchesSelectedCategory = Boolean(selectedCategory && input.category === selectedCategory);
+  const matchesInterest = interests.has(input.category);
+  const isBroadlyRecommendable = ROUTE_NEARBY_RECOMMENDED_CATEGORIES.has(input.category);
+  const categoryBoost = matchesSelectedCategory ? 34 : selectedCategory ? -18 : 0;
+  const interestBoost = matchesInterest
+    ? 32
+    : isRecommendedMode && hasInterestSignal
+      ? -10
+      : isBroadlyRecommendable
+        ? 8
+        : -8;
+  const sourceConfidenceBoost = input.source === 'scope' ? 18 : input.source === 'discovery' ? 6 : 0;
+  const ratingBoost = Number.isFinite(input.rating)
+    ? Math.max(0, Number(input.rating) - 3.2) * 12
+    : 0;
+  const popularityBoost = Math.min(18, Math.log1p(Math.max(0, input.likesCount ?? 0)) * 4.5);
+  const trendBoost = input.createdAt
+    ? Math.min(22, getSpotTrendingScore({
+        id: 'score',
+        title: 'score',
+        latitude: 0,
+        longitude: 0,
+        category: input.category,
+        rating: input.rating ?? 0,
+        likesCount: input.likesCount,
+        createdAt: input.createdAt,
+      }))
+    : 0;
+  const radiusKm = Math.max(1, selectedRouteNearbyRadiusKm.value);
+  const distanceKm = Number.isFinite(input.distanceKm) ? Number(input.distanceKm) : radiusKm;
+  const distanceBoost = Math.max(0, 24 * (1 - Math.min(distanceKm, radiusKm) / radiusKm));
+  const lowPrecisionPenalty = isRecommendedMode && input.category === 'other' ? 12 : 0;
+
+  return Math.max(
+    0,
+    categoryBoost +
+      interestBoost +
+      sourceConfidenceBoost +
+      ratingBoost +
+      popularityBoost +
+      trendBoost +
+      distanceBoost -
+      lowPrecisionPenalty,
+  );
+}
+
+function isStrongRouteNearbyRecommendation(score: number, category: SpotCategory): boolean {
+  if (selectedRouteNearbyQueryId.value !== 'recommended') {
+    return false;
+  }
+
+  if (!ROUTE_NEARBY_RECOMMENDED_CATEGORIES.has(category)) {
+    return false;
+  }
+
+  return score >= ROUTE_NEARBY_RECOMMENDATION_MIN_SCORE;
+}
+
+function buildRouteNearbyRecommendationReason(place: Pick<RouteNearbyPlace, 'source' | 'category' | 'distanceKm' | 'rating'>): string {
+  if (place.source === 'scope') {
+    const ratingCopy = Number.isFinite(place.rating) ? `${Number(place.rating).toFixed(1)} rating` : 'community signal';
+    return `Public Scope pin with ${ratingCopy}`;
+  }
+
+  const distanceCopy = formatRouteNearbyDistance(place.distanceKm);
+  return `Nearby ${place.category} pick${distanceCopy ? ` within ${distanceCopy}` : ''}`;
+}
+
+function buildScopeNearbyPlace(spot: SpotSummary, anchor: RouteNearbyAnchor): RouteNearbyPlace {
+  const distanceKm = calculateDistanceKm(anchor, spot);
+  const recommendationScore = calculateRouteNearbyRecommendationScore({
+    category: spot.category,
+    source: 'scope',
+    distanceKm,
+    rating: spot.rating,
+    likesCount: spot.likesCount,
+    createdAt: spot.createdAt,
+  });
+  const isRecommended = isStrongRouteNearbyRecommendation(recommendationScore, spot.category);
+  return {
+    id: `scope-${spot.id}`,
+    title: spot.title,
+    subtitle: spot.city || 'Scope community pin',
+    latitude: spot.latitude,
+    longitude: spot.longitude,
+    category: spot.category,
+    source: 'scope',
+    kind: selectedRouteNearbyTabId.value === 'fuel' ? 'recommended' : selectedRouteNearbyTabId.value,
+    travelCategory: spot.category,
+    anchorId: anchor.id,
+    distanceKm,
+    rating: spot.rating,
+    photoUrl: spot.photoUrl?.trim()
+      ? resolveSpotPhotoUrl(spot.category, spot.photoUrl, ROUTE_NEARBY_PHOTO_WIDTH)
+      : undefined,
+    iconName: spot.category === 'other' ? 'pin' : spot.category,
+    sourceLabel: isRecommended ? 'Scope AI' : 'Scope',
+    recommendationScore,
+    recommendationReason: buildRouteNearbyRecommendationReason({
+      source: 'scope',
+      category: spot.category,
+      distanceKm,
+      rating: spot.rating,
+    }),
+    isRecommended,
+  };
+}
+
+function buildDiscoveryNearbyPlace(place: PlaceSearchResult, anchor: RouteNearbyAnchor, options: { kind?: RouteNearbyTabId } = {}): RouteNearbyPlace {
+  const isFuel = options.kind === 'fuel';
+  const isEvFuelFilter = isFuel && selectedRouteNearbyFuelFilterId.value === 'ev';
+  const category = isFuel
+    ? 'other'
+    : normalizeRouteNearbyCategory(place.category, 'other');
+  const distanceKm = Number.isFinite(place.distanceKm)
+    ? Number(place.distanceKm)
+    : calculateDistanceKm(anchor, { latitude: place.latitude, longitude: place.longitude });
+  const recommendationScore = calculateRouteNearbyRecommendationScore({
+    category,
+    source: 'discovery',
+    distanceKm,
+  });
+  const isRecommended = !isFuel && isStrongRouteNearbyRecommendation(recommendationScore, category);
+  const address = cleanRouteNearbyLocationText(place.formattedAddress || place.address);
+
+  return {
+    id: `${isFuel ? 'scope-fuel-place' : 'scope-place'}-${place.id || `${place.placeName}-${place.latitude}-${place.longitude}`}`,
+    title: place.placeName,
+    subtitle: address || place.city || (isFuel ? 'Fuel stop' : 'Map place'),
+    latitude: place.latitude,
+    longitude: place.longitude,
+    category,
+    source: 'discovery',
+    kind: isFuel ? 'fuel' : selectedRouteNearbyTabId.value,
+    travelCategory: isFuel ? 'fuel' : selectedRouteNearbyTabId.value,
+    anchorId: anchor.id,
+    distanceKm,
+    iconName: isFuel ? 'fuel' : category === 'other' ? 'pin' : category,
+    address,
+    photoUrl: place.photoUrl,
+    photoAttribution: place.photoAttribution,
+    photoAttributionUrl: place.photoAttributionUrl,
+    sourceLabel: isFuel ? (isEvFuelFilter ? 'EV stop' : 'Fuel stop') : place.source === 'mapbox' ? 'Map place' : 'Discovery',
+    fuelType: isEvFuelFilter ? 'ev' : undefined,
+    recommendationScore,
+    recommendationReason: buildRouteNearbyRecommendationReason({
+      source: 'discovery',
+      category,
+      distanceKm,
+    }),
+    isRecommended,
+  };
+}
+
+function formatFuelPriceValue(price: number | undefined, currency = 'USD'): string | undefined {
+  if (!Number.isFinite(Number(price)) || Number(price) <= 0) {
+    return undefined;
+  }
+
+  const unitLabel = currency.toUpperCase() === 'USD' ? '/gal' : '/unit';
+  try {
+    const formattedPrice = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Number(price));
+    return `${formattedPrice}${unitLabel}`;
+  } catch {
+    return `${Number(price).toFixed(2)} ${currency}${unitLabel}`;
+  }
+}
+
+function formatFuelUpdatedAt(value: string | undefined): string {
+  if (!value) {
+    return '';
+  }
+
+  const updatedAt = new Date(value);
+  if (Number.isNaN(updatedAt.getTime())) {
+    return '';
+  }
+
+  return `Updated ${updatedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
+function buildFuelNearbyPlace(station: FuelStationPrice, anchor: RouteNearbyAnchor): RouteNearbyPlace | null {
+  if (!Number.isFinite(station.latitude) || !Number.isFinite(station.longitude)) {
+    return null;
+  }
+
+  const latitude = Number(station.latitude);
+  const longitude = Number(station.longitude);
+  const distanceKm = Number.isFinite(station.distanceKm)
+    ? Number(station.distanceKm)
+    : calculateDistanceKm(anchor, { latitude, longitude });
+  const selectedPrice = getSelectedFuelStationPrice(station);
+  const fuelType = selectedPrice?.fuelType ?? station.fuelType;
+  const fuelTypeLabel = getFuelTypeLabel(fuelType);
+  const updatedLabel = formatFuelUpdatedAt(selectedPrice?.updatedAt ?? station.updatedAt);
+  const sourceLabel = updatedLabel || (station.source === 'Google Places' ? 'Google' : station.source || 'Fuel');
+
+  return {
+    id: `fuel-${station.id}`,
+    title: station.name,
+    subtitle: cleanRouteNearbyLocationText(station.address) || station.brand || `${fuelTypeLabel} fuel stop`,
+    latitude,
+    longitude,
+    category: 'other',
+    source: 'fuel',
+    kind: 'fuel',
+    travelCategory: 'fuel',
+    anchorId: anchor.id,
+    distanceKm,
+    iconName: 'fuel',
+    address: cleanRouteNearbyLocationText(station.address),
+    sourceLabel,
+    priceLabel: formatFuelPriceValue(selectedPrice?.price, selectedPrice?.currency),
+    priceValue: selectedPrice?.price,
+    fuelType,
+  };
+}
+
+function buildTravelNearbyPlace(suggestion: TravelNearbySuggestion): RouteNearbyPlace | null {
+  if (!Number.isFinite(suggestion.latitude) || !Number.isFinite(suggestion.longitude)) {
+    return null;
+  }
+
+  const travelCategory = suggestion.category || selectedRouteNearbyTabId.value;
+  const isFuel = travelCategory === 'fuel' || selectedRouteNearbyTabId.value === 'fuel';
+  const category = isFuel
+    ? 'other'
+    : normalizeTravelSuggestionCategory(travelCategory, selectedRouteNearbyQuery.value.category ?? 'other');
+  const isEvFuelFilter = isFuel && selectedRouteNearbyFuelFilterId.value === 'ev';
+  const hasExactFuelPrice = (
+    isFuel &&
+    !isEvFuelFilter &&
+    suggestion.source === 'google' &&
+    suggestion.sourceLabel === 'Fuel price' &&
+    isFuelTypeForFilter(suggestion.fuelType, selectedRouteNearbyFuelFilterId.value) &&
+    Number.isFinite(Number(suggestion.priceValue)) &&
+    Number(suggestion.priceValue) > 0
+  );
+
+  return {
+    id: suggestion.id,
+    title: suggestion.title,
+    subtitle: cleanRouteNearbyLocationText(suggestion.address) || stripRouteNearbyLocationPrefix(suggestion.subtitle || '') || `${formatTravelCategoryLabel(travelCategory)} near the route`,
+    latitude: suggestion.latitude,
+    longitude: suggestion.longitude,
+    category,
+    source: suggestion.source === 'scope' ? 'scope' : 'google',
+    kind: isFuel ? 'fuel' : selectedRouteNearbyTabId.value,
+    travelCategory,
+    anchorId: suggestion.anchorId,
+    distanceKm: suggestion.distanceKm,
+    rating: suggestion.rating,
+    photoUrl: suggestion.photoUrl,
+    photoAttribution: suggestion.photoAttribution,
+    photoAttributionUrl: suggestion.photoAttributionUrl,
+    iconName: isFuel ? 'fuel' : category === 'other' ? 'pin' : category,
+    address: cleanRouteNearbyLocationText(suggestion.address),
+    sourceLabel: suggestion.sourceLabel ?? (suggestion.source === 'scope' ? 'Scope' : 'Google'),
+    priceLabel: isFuel ? (hasExactFuelPrice ? suggestion.priceLabel : undefined) : suggestion.priceLabel,
+    priceValue: isFuel && hasExactFuelPrice ? suggestion.priceValue : undefined,
+    fuelType: isFuel
+      ? isEvFuelFilter
+        ? 'ev'
+        : hasExactFuelPrice
+          ? suggestion.fuelType
+          : undefined
+      : suggestion.fuelType,
+    recommendationReason: suggestion.reason,
+    isRecommended: selectedRouteNearbyTabId.value === 'recommended',
+  };
+}
+
+function isRouteNearbyStreetLevelAddress(value: string | undefined): boolean {
+  const cleanedValue = cleanRouteNearbyLocationText(value);
+  return /\d/.test(cleanedValue) && /\b(road|rd|street|st|avenue|ave|highway|hwy|drive|dr|lane|ln|boulevard|blvd|parkway|pkwy|way|court|ct|circle|cir|trail|trl|route|rte|fm)\b/i.test(cleanedValue);
+}
+
+async function enrichRouteNearbyPlace(place: RouteNearbyPlace): Promise<RouteNearbyPlace> {
+  if (place.kind === 'fuel') {
+    return place;
+  }
+
+  const patch: Partial<RouteNearbyPlace> = {};
+  let address = cleanRouteNearbyLocationText(place.address);
+
+  if (place.source !== 'scope' && !isRouteNearbyStreetLevelAddress(address)) {
+    try {
+      const geocoded = await reverseGeocode(place.latitude, place.longitude);
+      const geocodedAddress = cleanRouteNearbyLocationText(
+        geocoded.formattedAddress || geocoded.address || geocoded.placeName,
+      );
+      if (isRouteNearbyStreetLevelAddress(geocodedAddress) || (!address && geocodedAddress)) {
+        address = geocodedAddress;
+        patch.address = geocodedAddress;
+        patch.subtitle = geocodedAddress;
+      }
+    } catch {
+      // A photo or address miss should never block nearby stop browsing.
+    }
+  }
+
+  if (!place.photoUrl?.trim()) {
+    try {
+      const photoLookup = await getPlacePhoto({
+        title: place.title,
+        address: address || stripRouteNearbyLocationPrefix(place.subtitle),
+        latitude: place.latitude,
+        longitude: place.longitude,
+        maxWidthPx: ROUTE_NEARBY_PHOTO_WIDTH,
+      });
+      const photoUrl = photoLookup.photoUrl?.trim();
+      if (photoUrl) {
+        patch.photoUrl = photoUrl;
+        patch.photoAttribution = photoLookup.photoAttribution;
+        patch.photoAttributionUrl = photoLookup.photoAttributionUrl;
+        patch.sourceLabel = photoLookup.source || place.sourceLabel;
+      }
+    } catch {
+      // Fallback category imagery handles the empty-photo case.
+    }
+  }
+
+  return Object.keys(patch).length ? { ...place, ...patch } : place;
+}
+
+async function enrichRouteNearbyPlaces(places: RouteNearbyPlace[]): Promise<RouteNearbyPlace[]> {
+  const enrichableLimit = Math.min(places.length, ROUTE_NEARBY_RESULT_LIMIT);
+  return Promise.all(
+    places.map((place, index) => (index < enrichableLimit ? enrichRouteNearbyPlace(place) : place)),
+  );
+}
+
+function getRouteNearbyPlaceDedupeKey(place: RouteNearbyPlace): string {
+  const titleKey = normalizeRouteNearbyDedupeText(place.title);
+  const addressKey = normalizeRouteNearbyDedupeText(place.address || place.subtitle);
+  if (addressKey) {
+    return `${titleKey}-${addressKey}`;
+  }
+
+  return `${titleKey}-${place.latitude.toFixed(3)}-${place.longitude.toFixed(3)}`;
+}
+
+function normalizeRouteNearbyDedupeText(value: string | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .replace(/\b(united states|usa)\b/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function dedupeRouteNearbyPlaces(places: RouteNearbyPlace[], limit = ROUTE_NEARBY_RESULT_LIMIT): RouteNearbyPlace[] {
+  const seenKeys = new Set<string>();
+  const dedupedPlaces: RouteNearbyPlace[] = [];
+
+  places.forEach((place) => {
+    const key = getRouteNearbyPlaceDedupeKey(place);
+    if (seenKeys.has(key)) {
+      return;
+    }
+
+    seenKeys.add(key);
+    dedupedPlaces.push(place);
+  });
+
+  return dedupedPlaces.slice(0, limit);
+}
+
+function mergeRouteNearbyPlaces(scopePlaces: RouteNearbyPlace[], discoveryPlaces: RouteNearbyPlace[], limit = ROUTE_NEARBY_RESULT_LIMIT): RouteNearbyPlace[] {
+  return dedupeRouteNearbyPlaces([...scopePlaces, ...discoveryPlaces], Number.MAX_SAFE_INTEGER)
+    .sort((left, right) => {
+      if (selectedRouteNearbyTabId.value === 'recommended' && selectedRouteNearbyQueryId.value === 'recommended') {
+        const scoreDelta = (right.recommendationScore ?? 0) - (left.recommendationScore ?? 0);
+        if (Math.abs(scoreDelta) > 0.001) {
+          return scoreDelta;
+        }
+      }
+
+      if (left.kind !== right.kind) {
+        return left.kind === selectedRouteNearbyTabId.value ? -1 : 1;
+      }
+
+      if (selectedRouteNearbyTabId.value === 'fuel' && left.kind === 'fuel' && right.kind === 'fuel') {
+        const leftHasLivePrice = hasLiveFuelPrice(left);
+        const rightHasLivePrice = hasLiveFuelPrice(right);
+        if (leftHasLivePrice !== rightHasLivePrice) {
+          return leftHasLivePrice ? -1 : 1;
+        }
+      }
+
+      if (left.source !== right.source) {
+        if (left.source === 'scope') return -1;
+        if (right.source === 'scope') return 1;
+        if (selectedRouteNearbyTabId.value === 'fuel' && left.source === 'fuel') return -1;
+        if (selectedRouteNearbyTabId.value === 'fuel' && right.source === 'fuel') return 1;
+      }
+
+      return (left.distanceKm ?? Number.MAX_SAFE_INTEGER) - (right.distanceKm ?? Number.MAX_SAFE_INTEGER);
+    })
+    .slice(0, limit);
+}
+
+async function loadRouteNearbyPlaces(): Promise<void> {
+  const anchor = selectedRouteNearbyAnchor.value;
+  const requestId = ++routeNearbyRequestId;
+  routeNearbyError.value = '';
+
+  if (!anchor) {
+    routeNearbySearchResults.value = [];
+    routeNearbyLoading.value = false;
+    return;
+  }
+
+  routeNearbyLoading.value = true;
+  const activeQuery = selectedRouteNearbyQuery.value;
+  const queryText = buildRouteNearbySearchQuery();
+  let cappedTravelPlaces: RouteNearbyPlace[] = [];
+
+  try {
+    if (selectedRouteNearbyTabId.value !== 'fuel') {
+      try {
+        const travelResponse = await getTravelNearbySuggestions({
+          anchors: [anchor],
+          routePoints: displayMapSpots.value.map((point) => ({
+            id: point.id,
+            title: point.title,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            routeRole: point.routeRole,
+          })),
+          category: selectedRouteNearbyTabId.value,
+          radiusKm: Math.min(selectedRouteNearbyRadiusKm.value, ROUTE_NEARBY_PROVIDER_RADIUS_LIMIT_KM),
+          limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+          interests: props.draft?.interests ?? [],
+          pace: props.draft?.pace ?? 'relaxed',
+          budgetFloor: props.draft?.budgetFloor ?? 0,
+          budgetCeiling: props.draft?.budget ?? 0,
+          startDate: props.draft?.startDate ?? '',
+          endDate: props.draft?.endDate ?? '',
+          fuelType: props.fuelSettings?.fuelType ?? 'all',
+          latestIntent: queryText,
+        });
+
+        if (requestId !== routeNearbyRequestId) {
+          return;
+        }
+
+        const travelPlaces = travelResponse.suggestions
+          .map(buildTravelNearbyPlace)
+          .filter((place): place is RouteNearbyPlace => Boolean(place))
+          .filter(isWithinSelectedRouteNearbyRadius);
+        const enrichedTravelPlaces = await enrichRouteNearbyPlaces(travelPlaces);
+        if (requestId !== routeNearbyRequestId) {
+          return;
+        }
+
+        if (!isRouteNearbyRadiusBeyondProviderLimit() && enrichedTravelPlaces.length) {
+          routeNearbySearchResults.value = enrichedTravelPlaces;
+          return;
+        }
+
+        cappedTravelPlaces = enrichedTravelPlaces;
+      } catch {
+        // Fall back to the existing client-side Scope + Mapbox path while the Intel travel endpoint is unavailable.
+      }
+    }
+
+    if (selectedRouteNearbyTabId.value === 'fuel') {
+      const fuelFilter = selectedRouteNearbyFuelFilter.value;
+      const shouldRequestLiveFuelPrices = fuelFilter.id !== 'ev' && !isRouteNearbyRadiusBeyondProviderLimit();
+      const [fuelResponse, discoveryFuelResponse] = await Promise.all([
+        !shouldRequestLiveFuelPrices
+          ? Promise.resolve({ stations: [] as FuelStationPrice[] })
+          : getNearbyFuelStations({
+              latitude: anchor.latitude,
+              longitude: anchor.longitude,
+              radiusKm: selectedRouteNearbyRadiusKm.value,
+              fuelType: getRouteNearbyFuelApiType(),
+              limit: ROUTE_NEARBY_MAP_PIN_LIMIT,
+              sortBy: getRouteNearbyFuelApiSortMode(),
+            }).catch(() => ({ stations: [] })),
+        searchDiscoveryFuelPlaces(anchor, fuelFilter).catch(() => ({ data: [] as PlaceSearchResult[] })),
+      ]);
+
+      if (requestId !== routeNearbyRequestId) {
+        return;
+      }
+
+      const fuelPlaces = fuelResponse.stations
+        .filter(shouldIncludeFuelStation)
+        .map((station) => buildFuelNearbyPlace(station, anchor))
+        .filter((place): place is RouteNearbyPlace => Boolean(place))
+        .filter(isWithinSelectedRouteNearbyRadius);
+      const discoveryFuelPlaces = discoveryFuelResponse.data
+        .filter((place) => isStrictFuelPlaceResult(place, fuelFilter.id))
+        .map((place) => buildDiscoveryNearbyPlace(place, anchor, { kind: 'fuel' }))
+        .filter(isWithinSelectedRouteNearbyRadius);
+      routeNearbySearchResults.value = mergeRouteNearbyPlaces(fuelPlaces, discoveryFuelPlaces, ROUTE_NEARBY_MAP_PIN_LIMIT);
+      return;
+    }
+
+    const [scopeResponse, discoveryResponse] = await Promise.all([
+      listNearbySpots({
+        latitude: anchor.latitude,
+        longitude: anchor.longitude,
+        radiusKm: selectedRouteNearbyRadiusKm.value,
+        page: 1,
+        pageSize: ROUTE_NEARBY_MAP_PIN_LIMIT,
+      }).catch(() => ({ data: [] as SpotSummary[] })),
+      searchRouteNearbyDiscoveryPlaces(anchor, activeQuery, queryText).catch(() => ({ data: [] as PlaceSearchResult[] })),
+    ]);
+
+    if (requestId !== routeNearbyRequestId) {
+      return;
+    }
+
+    const scopePlaces = scopeResponse.data
+      .filter((spot) => !activeQuery.category || activeQuery.id === 'recommended' || spot.category === activeQuery.category)
+      .map((spot) => buildScopeNearbyPlace(spot, anchor))
+      .filter(isWithinSelectedRouteNearbyRadius);
+    const discoveryPlaces = discoveryResponse.data
+      .map((place) => buildDiscoveryNearbyPlace(place, anchor))
+      .filter(isWithinSelectedRouteNearbyRadius);
+      const mergedPlaces = mergeRouteNearbyPlaces(
+        [...cappedTravelPlaces, ...scopePlaces],
+        discoveryPlaces,
+        ROUTE_NEARBY_MAP_PIN_LIMIT,
+      );
+      const enrichedPlaces = await enrichRouteNearbyPlaces(mergedPlaces);
+      if (requestId !== routeNearbyRequestId) {
+        return;
+      }
+
+      routeNearbySearchResults.value = enrichedPlaces;
+  } catch {
+    if (requestId === routeNearbyRequestId) {
+      routeNearbyError.value = 'Nearby places are unavailable right now.';
+      routeNearbySearchResults.value = [];
+    }
+  } finally {
+    if (requestId === routeNearbyRequestId) {
+      routeNearbyLoading.value = false;
+    }
+  }
+}
+
+function toggleRouteNearbyDrawer(): void {
+  routeNearbyDrawerTouched.value = true;
+  if (routeNearbyDrawerOpen.value) {
+    routeNearbyDrawerExpanded.value = false;
+    routeNearbyDrawerOpen.value = false;
+    routeNearbyFilterMenuOpen.value = false;
+    return;
+  }
+
+  routeNearbyDrawerOpen.value = true;
+}
+
+function clearRouteNearbySearchResults(): void {
+  routeNearbyRequestId += 1;
+  routeNearbyLoading.value = false;
+  routeNearbyError.value = '';
+  routeNearbySearchResults.value = [];
+  routeNearbyCurrentPage.value = 1;
+}
+
+function selectRouteNearbyPage(page: number): void {
+  routeNearbyCurrentPage.value = Math.round(clampNumber(page, 1, routeNearbyPageCount.value));
+  selectedRouteNearbyPlaceId.value = '';
+}
+
+function toggleRouteNearbyFilterMenu(): void {
+  routeNearbyFilterMenuOpen.value = !routeNearbyFilterMenuOpen.value;
+}
+
+function selectRouteNearbyAnchor(anchorId: string): void {
+  if (!anchorId) {
+    return;
+  }
+
+  routeNearbyDrawerTouched.value = true;
+  routeNearbyDrawerOpen.value = true;
+  routeNearbyFilterMenuOpen.value = false;
+  selectedRouteNearbyPlaceId.value = '';
+
+  if (selectedRouteNearbyAnchorId.value === anchorId) {
+    return;
+  }
+
+  clearRouteNearbySearchResults();
+  selectedRouteNearbyAnchorId.value = anchorId;
+}
+
+function selectRouteNearbyTab(tabId: RouteNearbyTabId): void {
+  const tabChanged = selectedRouteNearbyTabId.value !== tabId;
+  selectedRouteNearbyTabId.value = tabId;
+  selectedRouteNearbyPlaceId.value = '';
+  routeNearbyCustomQuery.value = '';
+  routeNearbyFilterMenuOpen.value = false;
+  if (tabChanged) {
+    clearRouteNearbySearchResults();
+  }
+
+  if (tabId !== 'fuel') {
+    selectedRouteNearbyQueryId.value = tabId;
+    routeNearbyFuelSearchQuery.value = '';
+    return;
+  }
+
+  selectedRouteNearbyQueryId.value = 'recommended';
+}
+
+function selectRouteNearbyQuery(queryId: RouteNearbyQueryId): void {
+  if (queryId === 'custom') {
+    routeNearbyFilterMenuOpen.value = false;
+    return;
+  }
+
+  if (selectedRouteNearbyQueryId.value === queryId) {
+    routeNearbyFilterMenuOpen.value = false;
+    return;
+  }
+
+  selectedRouteNearbyQueryId.value = queryId;
+  routeNearbyCustomQuery.value = '';
+  selectedRouteNearbyPlaceId.value = '';
+  routeNearbyFilterMenuOpen.value = false;
+  clearRouteNearbySearchResults();
+}
+
+function resetRouteNearbyFilter(): void {
+  const shouldClearResults = selectedRouteNearbyQueryId.value !== 'recommended';
+  selectedRouteNearbyQueryId.value = 'recommended';
+  routeNearbyCustomQuery.value = '';
+  selectedRouteNearbyPlaceId.value = '';
+  routeNearbyFilterMenuOpen.value = false;
+  if (shouldClearResults) {
+    clearRouteNearbySearchResults();
+  }
+}
+
+function selectRouteNearbyFuelFilter(filterId: RouteNearbyFuelFilterId): void {
+  if (selectedRouteNearbyFuelFilterId.value === filterId) {
+    return;
+  }
+
+  selectedRouteNearbyFuelFilterId.value = filterId;
+  selectedRouteNearbyPlaceId.value = '';
+  clearRouteNearbySearchResults();
+  emit('fuel-type-select', filterId);
+}
+
+function selectRouteNearbyFuelSortMode(sortMode: RouteNearbyFuelSortMode): void {
+  selectedRouteNearbyFuelSortMode.value = sortMode;
+  selectedRouteNearbyPlaceId.value = '';
+  routeNearbyCurrentPage.value = 1;
+}
+
+function selectRouteNearbyRadius(radiusId: string): void {
+  if (selectedRouteNearbyRadiusId.value === radiusId) {
+    return;
+  }
+
+  selectedRouteNearbyRadiusId.value = radiusId;
+  selectedRouteNearbyPlaceId.value = '';
+  clearRouteNearbySearchResults();
+}
+
+function selectRouteNearbyCustomRadius(): void {
+  selectRouteNearbyRadius(ROUTE_NEARBY_CUSTOM_RADIUS_ID);
+}
+
+function handleRouteNearbyCustomRadiusInput(): void {
+  selectedRouteNearbyRadiusId.value = ROUTE_NEARBY_CUSTOM_RADIUS_ID;
+  selectedRouteNearbyPlaceId.value = '';
+  clearRouteNearbySearchResults();
+}
+
+function normalizeRouteNearbyCustomRadius(): void {
+  const normalizedRadius = normalizeRouteNearbyCustomRadiusValue();
+  const radiusChanged = routeNearbyCustomRadiusMiles.value !== normalizedRadius;
+  routeNearbyCustomRadiusMiles.value = normalizedRadius;
+  if (radiusChanged || selectedRouteNearbyRadiusId.value !== ROUTE_NEARBY_CUSTOM_RADIUS_ID) {
+    handleRouteNearbyCustomRadiusInput();
+  }
+}
+
+function submitRouteNearbySearch(): void {
+  if (!routeNearbyCustomQuery.value.trim()) {
+    return;
+  }
+
+  selectedRouteNearbyQueryId.value = 'custom';
+  routeNearbyFilterMenuOpen.value = false;
+  selectedRouteNearbyPlaceId.value = '';
+  clearRouteNearbySearchResults();
+  void loadRouteNearbyPlaces();
+}
+
+function isRouteNearbyPlacePinned(placeId: string): boolean {
+  return routeNearbyPinnedPlaces.value.some((place) => place.id === placeId);
+}
+
+function upsertRouteNearbyPinnedPlace(place: RouteNearbyPlace): void {
+  const dedupeKey = getRouteNearbyPlaceDedupeKey(place);
+  const nextPinnedPlaces = routeNearbyPinnedPlaces.value.filter((entry) => getRouteNearbyPlaceDedupeKey(entry) !== dedupeKey);
+  routeNearbyPinnedPlaces.value = [place, ...nextPinnedPlaces].slice(0, 12);
+}
+
+function emitFuelPriceSelection(place: RouteNearbyPlace): void {
+  if (!hasLiveFuelPrice(place)) {
+    return;
+  }
+
+  emit('fuel-price-select', {
+    placeId: place.id,
+    stationName: place.title,
+    pricePerGallon: Number(place.priceValue),
+    fuelType: normalizeTripFuelType(place.fuelType),
+  });
+}
+
+function getRouteNearbySelectionContext(): string {
+  const radiusLabel = selectedRouteNearbyRadiusOption.value.label;
+  if (selectedRouteNearbyTabId.value === 'fuel') {
+    return `${selectedRouteNearbyFuelFilter.value.label} within ${radiusLabel}`;
+  }
+
+  if (selectedRouteNearbyTabId.value === 'recommended') {
+    return `${routeNearbyFilterLabel.value} within ${radiusLabel}`;
+  }
+
+  const tabLabel = routeNearbyTabs.find((tab) => tab.id === selectedRouteNearbyTabId.value)?.label ?? 'nearby picks';
+  return `${tabLabel} within ${radiusLabel}`;
+}
+
+function addRouteNearbyPlace(place: RouteNearbyPlace): void {
+  const photoUrl = getRouteNearbyPhotoUrl(place) || place.photoUrl;
+  const nearbyContext = getRouteNearbySelectionContext();
+  routeNearbyFilterMenuOpen.value = false;
+  selectedRouteNearbyPlaceId.value = place.id;
+  upsertRouteNearbyPinnedPlace(place);
+  emitFuelPriceSelection(place);
+  emit('route-stop-add', {
+    spotId: place.id,
+    title: place.title,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    category: place.category,
+    city: formatRouteNearbyResultLocation(place),
+    photoUrl,
+    estimatedCost: place.source === 'scope' ? 15 : undefined,
+    notes: `${getRouteNearbyCategoryLabel(place)} nearby stop from ${nearbyContext} near ${selectedRouteNearbyAnchor.value?.placeLabel ?? 'the route'}.`,
+  });
+}
+
+function buildRouteNearbyPlaceFromMapPin(place: MapNearbyPlacePin): RouteNearbyPlace {
+  const anchor = selectedRouteNearbyAnchor.value;
+  const categoryText = [place.category, place.categoryLabel].filter(Boolean).join(' ');
+  const fallbackCategory: SpotCategory = /school|college|university|education/i.test(categoryText) ? 'culture' : 'other';
+  const category = normalizeRouteNearbyCategory(categoryText, fallbackCategory);
+  const distanceKm = anchor ? calculateDistanceKm(anchor, place) : undefined;
+
+  return {
+    id: place.id.replace(/^route-nearby-/, ''),
+    title: place.title || 'Map place',
+    subtitle: cleanRouteNearbyLocationText(place.address) || stripRouteNearbyLocationPrefix(place.subtitle || '') || place.sourceLabel || 'Map place',
+    latitude: place.latitude,
+    longitude: place.longitude,
+    category,
+    source: 'discovery',
+    kind: place.kind === 'fuel' ? 'fuel' : selectedRouteNearbyTabId.value,
+    travelCategory: place.categoryLabel || place.category,
+    anchorId: anchor?.id,
+    distanceKm,
+    iconName: place.iconName,
+    address: cleanRouteNearbyLocationText(place.address),
+    photoUrl: place.photoUrl,
+    sourceLabel: place.kind === 'fuel' ? place.sourceLabel || 'Fuel stop' : place.sourceLabel || 'Map place',
+    priceLabel: place.priceLabel,
+    recommendationScore: calculateRouteNearbyRecommendationScore({
+      category,
+      source: 'discovery',
+      distanceKm,
+    }),
+  };
+}
+
+function handleMapNearbyPlaceAdd(place: MapNearbyPlacePin): void {
+  addRouteNearbyPlace(buildRouteNearbyPlaceFromMapPin(place));
+}
+
+function getRouteSequenceFocusPoint(point: RouteSequencePoint): Pick<MapPoint, 'id' | 'title' | 'latitude' | 'longitude'> | null {
+  const mapPoint = displayMapSpots.value.find((candidate) => candidate.id === point.id);
+  if (mapPoint && hasCoordinatePair(mapPoint.latitude, mapPoint.longitude)) {
+    return {
+      id: mapPoint.id,
+      title: mapPoint.title,
+      latitude: Number(mapPoint.latitude),
+      longitude: Number(mapPoint.longitude),
+    };
+  }
+
+  if (hasCoordinatePair(point.latitude, point.longitude)) {
+    return {
+      id: point.id,
+      title: point.title,
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+    };
+  }
+
+  return null;
+}
+
+function selectRouteSequencePoint(point: RouteSequencePoint): void {
+  const focusPoint = getRouteSequenceFocusPoint(point);
+  if (!focusPoint) {
+    return;
+  }
+
+  selectRouteNearbyAnchor(focusPoint.id);
+  void runPlannerMapCommand({
+    command: 'zoom_to_place',
+    query: focusPoint.title,
+    target: {
+      label: formatLocationPreview(focusPoint.title),
+      latitude: focusPoint.latitude,
+      longitude: focusPoint.longitude,
+      zoom: 12.2,
+      precision: 'route-point',
+    },
+  });
+}
+
+function handleRouteNearbyMapPointSelect(point: MapPoint): void {
+  if (!point.id.startsWith('route-nearby-')) {
+    if (routeNearbyAnchors.value.some((anchor) => anchor.id === point.id)) {
+      selectRouteNearbyAnchor(point.id);
+    }
+    return;
+  }
+
+  const placeId = point.id.replace(/^route-nearby-/, '');
+  selectedRouteNearbyPlaceId.value = placeId;
+  routeNearbyDrawerOpen.value = true;
+}
+
+function clampNumber(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function getDriveStartHour(): number {
+  const startStop = timelineSourceStops.value.find((stop) => stop.timelineRouteRole === 'start') ?? timelineSourceStops.value[0];
+  const [hourValue = '8'] = normalizeTimeSlot(startStop?.timeSlot ?? TIMELINE_START_TIME_SLOT).split(':');
+  const parsedHour = Number.parseInt(hourValue, 10);
+  return Number.isFinite(parsedHour) ? parsedHour : 8;
+}
+
+function estimateHighwayPercent(averageMph: number): number {
+  if (!Number.isFinite(averageMph) || averageMph <= 0) {
+    return 0.35;
+  }
+
+  return clampNumber((averageMph - 25) / 45, 0.1, 0.95);
+}
+
+function calculateDriveScore(): DriveScoreSnapshot | null {
+  const summary = currentRouteSummary.value;
+  if (!summary || !isMapboxAuthoritativeRoute(summary) || summary.durationSeconds <= 0 || routeDistanceMiles.value <= 0) {
+    return null;
+  }
+
+  const driveHours = summary.durationSeconds / 3600;
+  const averageMph = routeDistanceMiles.value / driveHours;
+  const highwayPercent = estimateHighwayPercent(averageMph);
+  const stopCount = inferredMiddleStopCount.value;
+  const startHour = getDriveStartHour();
+  const timePenalty = startHour < 6 || startHour >= 21
+    ? 1.2
+    : startHour >= 16 && startHour <= 18
+      ? 0.6
+      : 0;
+  const durationPenalty = clampNumber((driveHours - 1) * 0.45, 0, 3);
+  const stopPenalty = clampNumber(stopCount * 0.35, 0, 2);
+  const highwayPenalty = (1 - highwayPercent) * 1.6;
+  const score = clampNumber(10 - durationPenalty - stopPenalty - timePenalty - highwayPenalty, 1, 10);
+  const difficulty: DriveScoreDifficulty = score >= 8
+    ? 'Easy'
+    : score >= 5.5
+      ? 'Moderate'
+      : 'Challenging';
+
+  return {
+    score,
+    difficulty,
+  };
+}
+
 function cleanLocationDisplay(value: string): string {
   return value
     .replace(/\s*\.{3,}\s*/g, ' ')
@@ -1686,6 +4431,20 @@ function cleanLocationDisplay(value: string): string {
 function formatDisplayLocation(value: string, fallback: string): string {
   const cleanedValue = cleanLocationDisplay(value);
   return cleanedValue || fallback;
+}
+
+function normalizeDraftEndpointLabel(value: string, hasCoordinates: boolean): string {
+  const cleanedValue = cleanLocationDisplay(value);
+  if (!cleanedValue) {
+    return '';
+  }
+
+  const normalizedValue = cleanedValue.toLowerCase();
+  if (!hasCoordinates && (normalizedValue === 'planning route' || normalizedValue === 'untitled trip')) {
+    return '';
+  }
+
+  return cleanedValue;
 }
 
 function formatLocationPreview(value: string): string {
@@ -1745,71 +4504,40 @@ function removeDraftRouteStop(pointId: string): void {
   }
 }
 
-function isDraftStopPoint(point: RouteSequencePoint): boolean {
-  return point.id.startsWith('planner-stop-');
-}
-
-function resolveRoutePlacePhoto(place: SpotSummary): string {
-  return place.photoUrl || getSpotPhotoFallback(place.category, ROUTE_PLACE_IMAGE_WIDTH);
-}
-
-function formatRoutePlaceMeta(place: SpotSummary): string {
-  const categoryLabel = place.category.replace(/[-_]/g, ' ');
-  const ratingLabel = Number.isFinite(place.rating) && place.rating > 0 ? `${place.rating.toFixed(1)} rated` : '';
-  return [categoryLabel, place.city, ratingLabel].filter(Boolean).join(' / ');
-}
-
-function addSuggestedRoutePlace(place: SpotSummary): void {
-  emit('route-stop-add', {
-    spotId: place.id,
-    title: place.title,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    category: place.category,
-    city: place.city,
-    photoUrl: place.photoUrl,
-    notes: place.description,
-  });
-}
-
-async function loadRoutePlaceSuggestions(): Promise<void> {
-  const anchor = selectedRoutePlaceAnchor.value;
-  const requestId = ++routePlaceSuggestionsRequestId;
-
-  if (!anchor || props.itinerary) {
-    routePlaceSuggestions.value = [];
-    routePlaceSuggestionsError.value = '';
-    routePlaceSuggestionsLoading.value = false;
+function removeRouteSequencePoint(point: RouteSequencePoint): void {
+  if (point.id.startsWith('planner-stop-')) {
+    removeDraftRouteStop(point.id);
     return;
   }
 
-  routePlaceSuggestionsLoading.value = true;
-  routePlaceSuggestionsError.value = '';
-
-  try {
-    const response = await listNearbySpots({
-      latitude: anchor.latitude,
-      longitude: anchor.longitude,
-      radiusKm: ROUTE_PLACE_RADIUS_KM,
-      page: 1,
-      pageSize: ROUTE_PLACE_LIMIT,
-    });
-
-    if (requestId !== routePlaceSuggestionsRequestId) {
-      return;
-    }
-
-    routePlaceSuggestions.value = response.data.filter((place) => hasCoordinatePair(place.latitude, place.longitude));
-  } catch {
-    if (requestId === routePlaceSuggestionsRequestId) {
-      routePlaceSuggestions.value = [];
-      routePlaceSuggestionsError.value = 'Nearby places are unavailable right now.';
-    }
-  } finally {
-    if (requestId === routePlaceSuggestionsRequestId) {
-      routePlaceSuggestionsLoading.value = false;
-    }
+  if (point.routeRole === 'start') {
+    emit('route-endpoint-remove', 'destination');
+    return;
   }
+
+  if (point.routeRole === 'end') {
+    emit('route-endpoint-remove', 'endDestination');
+  }
+}
+
+function handleMapRoutePointRemove(point: MapPoint): void {
+  if (point.id.startsWith('planner-stop-')) {
+    removeDraftRouteStop(point.id);
+    return;
+  }
+
+  if (point.routeRole === 'start' || point.id === 'planner-start') {
+    emit('route-endpoint-remove', 'destination');
+    return;
+  }
+
+  if (point.routeRole === 'end' || point.id === 'planner-end') {
+    emit('route-endpoint-remove', 'endDestination');
+  }
+}
+
+function isRemovableRouteSequencePoint(point: RouteSequencePoint): boolean {
+  return point.id.startsWith('planner-stop-') || point.routeRole === 'start' || point.routeRole === 'end';
 }
 
 function hasCoordinatePair(latitude: number | undefined, longitude: number | undefined): boolean {
@@ -1876,9 +4604,85 @@ watch(
     shouldRenderMap.value = false;
     cancelMapRender = scheduleNonCriticalTask(() => {
       shouldRenderMap.value = true;
-    }, { delayMs: 900, timeoutMs: 2_200 });
+    }, { delayMs: 120, timeoutMs: 900 });
   },
   { immediate: true },
+);
+
+watch(
+  routeNearbyAnchors,
+  (anchors) => {
+    if (!anchors.length) {
+      selectedRouteNearbyAnchorId.value = '';
+      routeNearbyDrawerOpen.value = false;
+      routeNearbyDrawerExpanded.value = false;
+      routeNearbySearchResults.value = [];
+      routeNearbyPinnedPlaces.value = [];
+      routeNearbyCurrentPage.value = 1;
+      return;
+    }
+
+    const anchorIds = new Set(anchors.map((anchor) => anchor.id));
+    routeNearbyPinnedPlaces.value = routeNearbyPinnedPlaces.value.filter((place) => !place.anchorId || anchorIds.has(place.anchorId));
+
+    if (!anchors.some((anchor) => anchor.id === selectedRouteNearbyAnchorId.value)) {
+      clearRouteNearbySearchResults();
+      selectedRouteNearbyAnchorId.value = anchors.find((anchor) => anchor.routeRole === 'start')?.id ?? anchors[0]?.id ?? '';
+    }
+
+    if (!routeNearbyDrawerTouched.value) {
+      routeNearbyDrawerOpen.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    routeNearbyDrawerOpen.value,
+    selectedRouteNearbyAnchor.value?.id ?? '',
+    selectedRouteNearbyTabId.value,
+    selectedRouteNearbyQueryId.value,
+    selectedRouteNearbyFuelFilterId.value,
+    selectedRouteNearbyRadiusId.value,
+    selectedRouteNearbyRadiusKm.value,
+  ] as const,
+  () => {
+    if (!routeNearbyDrawerOpen.value) {
+      routeNearbyRequestId += 1;
+      routeNearbyLoading.value = false;
+      routeNearbyError.value = '';
+      routeNearbySearchResults.value = [];
+      routeNearbyCurrentPage.value = 1;
+      routeNearbyFilterMenuOpen.value = false;
+      return;
+    }
+
+    void loadRouteNearbyPlaces();
+  },
+  { immediate: true },
+);
+
+watch(routeNearbyPageCount, (pageCount) => {
+  if (routeNearbyCurrentPage.value > pageCount) {
+    routeNearbyCurrentPage.value = pageCount;
+  }
+});
+
+watch(routeNearbyFuelSearchQuery, () => {
+  routeNearbyCurrentPage.value = 1;
+  selectedRouteNearbyPlaceId.value = '';
+});
+
+watch(
+  () => props.fuelSettings?.fuelType,
+  (nextFuelType) => {
+    const normalizedFuelType = normalizeTripFuelType(nextFuelType);
+    if (selectedRouteNearbyFuelFilterId.value !== normalizedFuelType) {
+      clearRouteNearbySearchResults();
+      selectedRouteNearbyFuelFilterId.value = normalizedFuelType;
+    }
+  },
 );
 
 watch(
@@ -1889,44 +4693,200 @@ watch(
   { immediate: true },
 );
 
-watch(
-  () => routePlaceAnchors.value.map((anchor) => `${anchor.id}:${anchor.latitude.toFixed(5)},${anchor.longitude.toFixed(5)}`).join('|'),
-  () => {
-    if (routePlaceAnchors.value.length === 0) {
-      selectedRoutePlacePointId.value = '';
-      routePlaceSuggestions.value = [];
-      routePlaceSuggestionsError.value = '';
-      routePlaceSuggestionsLoading.value = false;
-      routePlaceSuggestionsRequestId += 1;
-      return;
-    }
-
-    if (!routePlaceAnchors.value.some((anchor) => anchor.id === selectedRoutePlacePointId.value)) {
-      selectedRoutePlacePointId.value = routePlaceAnchors.value[0].id;
-    }
-  },
-  { immediate: true },
-);
-
-watch(
-  () => {
-    const anchor = selectedRoutePlaceAnchor.value;
-    if (!anchor) {
-      return '';
-    }
-
-    return `${anchor.id}:${anchor.latitude.toFixed(5)},${anchor.longitude.toFixed(5)}:${props.stops.map((stop) => stop.spotId).join('|')}`;
-  },
-  () => {
-    void loadRoutePlaceSuggestions();
-  },
-  { immediate: true },
-);
-
 onBeforeUnmount(() => {
+  cancelMapboxRuntimePrewarm();
   cancelMapRender();
   routeSummaryRequestId += 1;
-  routePlaceSuggestionsRequestId += 1;
+  routeNearbyRequestId += 1;
+});
+
+async function runPlannerMapCommand(command: ScopeAiMapCommand | ScopeAiMapCommandPayload): Promise<{ ok: boolean; message: string }> {
+  shouldRenderMap.value = true;
+  const result = await plannerMapView.value?.runPlannerMapCommand?.(command);
+  return result ?? {
+    ok: false,
+    message: 'The planner map is still loading, so I could not run that map command yet.',
+  };
+}
+
+defineExpose({
+  runPlannerMapCommand,
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          clampWizardStep,
+          isWizardStepActive,
+          getWizardStepState,
+          getWizardStepLabel,
+          emitWizardStepChange,
+          setMapPickTarget,
+          clearMapPickTarget,
+          formatGeocodeSelection,
+          handleRouteMapClick,
+          buildRouteStopFromGeocode,
+          getTimelineDayCost,
+          emitTimelineStopUpdate,
+          sanitizeTimelineDayInput,
+          sanitizeTimelineTimeInput,
+          handleTimelineDayChange,
+          handleTimelineTimeChange,
+          parseTimelineTimeInput,
+          normalizeTimeSlot,
+          clampTimelineDayNumber,
+          getDraftTimelineDaySpan,
+          formatCoordinateLabel,
+          getTimelineEndpointTitle,
+          buildTimelineEndpointStop,
+          resolveTimelineRouteRole,
+          labelTimelineStops,
+          getTimelineSpotBadgeText,
+          formatTimelineSpotMeta,
+          formatTimelineSpotReason,
+          isSyntheticTimelineEndpoint,
+          stripTimelineMetadata,
+          compareTimelineStops,
+          getTimelineSourceStops,
+          resolveTimelineDate,
+          buildEditableTimelineDays,
+          parseTimelineDayInput,
+          buildUserOrderedMapSpots,
+          isMapboxAuthoritativeRoute,
+          labelRouteSequencePoints,
+          buildUserOrderedRouteSequence,
+          keepVisualRouteEndpoints,
+          clampRouteNearbyCustomRadiusMiles,
+          parseRouteNearbyCustomRadiusMiles,
+          formatRouteNearbyRadiusMiles,
+          normalizeRouteNearbyCustomRadiusValue,
+          getRouteNearbyRadiusTitle,
+          getRouteNearbyPhotoCategory,
+          getRouteNearbyCardCategory,
+          getRouteNearbyPhotoUrl,
+          getRouteNearbyIcon,
+          getRouteNearbySourceLabel,
+          getRouteNearbyDistanceValue,
+          getRouteNearbyCategoryLabel,
+          cleanRouteNearbyLocationText,
+          stripRouteNearbyLocationPrefix,
+          formatRouteNearbyResultLocation,
+          calculateDistanceKm,
+          normalizeRouteNearbyCategory,
+          normalizeTravelSuggestionCategory,
+          getRouteNearbyValidationText,
+          hasRouteNearbyTextSignal,
+          isRouteNearbyFoodPlace,
+          isRouteNearbyStayPlace,
+          isRouteNearbyEssentialsPlace,
+          isRouteNearbyScenicPlace,
+          isRouteNearbyEntertainmentPlace,
+          isRouteNearbyPlaceValidForSelectedCategory,
+          formatRouteNearbyDistance,
+          getRouteNearbyPlaceDistanceKm,
+          formatTravelCategoryLabel,
+          isWithinSelectedRouteNearbyRadius,
+          filterRouteNearbyPlacesWithinSelectedRadius,
+          hasLiveFuelPrice,
+          matchesRouteNearbyFuelSearch,
+          compareRouteNearbyFuelPlaces,
+          filterAndSortRouteNearbyFuelPlaces,
+          buildRouteNearbySearchQuery,
+          getRouteNearbyInterestSet,
+          buildRouteNearbyBounds,
+          getRouteNearbyPlaceCategories,
+          normalizeTripFuelType,
+          getFuelTypeLabel,
+          normalizeFuelTypeText,
+          isRegularFuelType,
+          isDieselFuelType,
+          isMidgradeFuelType,
+          isPremiumFuelType,
+          isEvFuelType,
+          isFuelTypeForFilter,
+          getSelectedFuelStationPrice,
+          isStrictFuelPlaceResult,
+          shouldIncludeFuelStation,
+          calculateRouteNearbyRecommendationScore,
+          isStrongRouteNearbyRecommendation,
+          buildRouteNearbyRecommendationReason,
+          buildScopeNearbyPlace,
+          buildDiscoveryNearbyPlace,
+          formatFuelPriceValue,
+          formatFuelUpdatedAt,
+          buildFuelNearbyPlace,
+          buildTravelNearbyPlace,
+          isRouteNearbyStreetLevelAddress,
+          enrichRouteNearbyPlace,
+          enrichRouteNearbyPlaces,
+          loadRouteNearbyPlaces,
+          getRouteNearbyPlaceDedupeKey,
+          normalizeRouteNearbyDedupeText,
+          dedupeRouteNearbyPlaces,
+          mergeRouteNearbyPlaces,
+          toggleRouteNearbyDrawer,
+          selectRouteNearbyAnchor,
+          selectRouteNearbyTab,
+          selectRouteNearbyQuery,
+          selectRouteNearbyFuelFilter,
+          selectRouteNearbyRadius,
+          selectRouteNearbyCustomRadius,
+          submitRouteNearbySearch,
+          getRouteSequenceFocusPoint,
+          selectRouteSequencePoint,
+          handleRouteNearbyMapPointSelect,
+          estimateHighwayPercent,
+          calculateDriveScore,
+          formatMiles,
+          formatLocationPreview,
+          normalizeDraftEndpointLabel,
+          syncRouteSummary,
+          getInputValue,
+          getTimelineInput,
+          selectTimelineInputText,
+          resetTimelineDayInput,
+          resetTimelineTimeInput,
+          resetInvalidTimelineDayInput,
+          resetInvalidTimelineTimeInput,
+          getTimelineMapPointId,
+          labelRoutePointsByUserSequence,
+          labelRoutePoints,
+          labelRouteSequenceByUserSequence,
+          buildTextRouteEndpoint,
+          getTimelineRouteSequencePointId,
+          requestFuelSettings,
+          searchRouteNearbyDiscoveryPlaces,
+          getRouteNearbyFuelApiType,
+          getRouteNearbyFuelApiSortMode,
+          isRouteNearbyRadiusBeyondProviderLimit,
+          searchDiscoveryFuelPlaces,
+          clearRouteNearbySearchResults,
+          selectRouteNearbyPage,
+          toggleRouteNearbyFilterMenu,
+          resetRouteNearbyFilter,
+          selectRouteNearbyFuelSortMode,
+          handleRouteNearbyCustomRadiusInput,
+          normalizeRouteNearbyCustomRadius,
+          isRouteNearbyPlacePinned,
+          upsertRouteNearbyPinnedPlace,
+          emitFuelPriceSelection,
+          getRouteNearbySelectionContext,
+          addRouteNearbyPlace,
+          buildRouteNearbyPlaceFromMapPin,
+          handleMapNearbyPlaceAdd,
+          clampNumber,
+          getDriveStartHour,
+          cleanLocationDisplay,
+          formatDisplayLocation,
+          formatDuration,
+          removeDraftRouteStop,
+          removeRouteSequencePoint,
+          handleMapRoutePointRemove,
+          isRemovableRouteSequencePoint,
+          hasCoordinatePair,
+          getRouteSummaryKey,
+          runPlannerMapCommand,
+        },
+      }
+    : {}),
 });
 </script>
 
@@ -1947,6 +4907,8 @@ onBeforeUnmount(() => {
 
 .itinerary-stage {
   position: relative;
+  align-content: start;
+  align-items: start;
   min-height: 34rem;
   overflow: hidden;
   padding: 0;
@@ -1976,8 +4938,9 @@ onBeforeUnmount(() => {
 
 .itinerary-step-content {
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   align-items: start;
-  gap: var(--space-4);
+  gap: clamp(var(--space-5), 2vw, var(--space-8));
   padding: var(--space-4);
 }
 
@@ -1986,6 +4949,12 @@ onBeforeUnmount(() => {
 }
 
 .itinerary-detail-panel {
+  --route-canvas-control-min: 3.05rem;
+  --route-canvas-tile-gap: 0.35rem;
+  --route-canvas-tile-inset: 0.35rem;
+  --route-canvas-top-block-min: calc(var(--route-canvas-control-min) + var(--route-canvas-control-min) + var(--route-canvas-tile-gap) + var(--route-canvas-tile-inset) + var(--route-canvas-tile-inset));
+  --route-canvas-text-gutter: 1.65rem;
+  --route-canvas-control-pad-x: 0.65rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
   align-items: stretch;
@@ -1997,8 +4966,8 @@ onBeforeUnmount(() => {
 .map-shell__placeholder {
   width: 100%;
   min-width: 0;
-  min-height: clamp(34rem, 52vh, 44rem);
-  height: 100%;
+  min-height: clamp(31rem, 50vh, 40rem);
+  height: clamp(31rem, 50vh, 40rem);
 }
 
 .map-shell {
@@ -2026,12 +4995,31 @@ onBeforeUnmount(() => {
 .map-shell :deep(.map-view) {
   --scope-map-controls-right: var(--space-3);
   --scope-map-controls-bottom: var(--space-3);
+  --scope-map-vignette-background: none;
+  --scope-map-vignette-shadow: inset 0 0 0 1px color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
+}
+
+.map-shell :deep(.map-controls) {
+  gap: var(--space-3);
+}
+
+.map-shell :deep(.control-stack) {
+  gap: 0.42rem;
+  padding: 0.38rem;
+}
+
+.map-shell :deep(.control-button) {
+  width: 2.45rem;
+  height: 2.45rem;
+}
+
+.map-shell :deep(.control-button .scope-icon) {
+  width: 0.96rem;
+  height: 0.96rem;
 }
 
 .map-shell__placeholder {
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 20%, transparent), transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 100%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent));
+  background: var(--bg-secondary);
 }
 
 .map-shell :deep(.spot-marker__label) {
@@ -2044,6 +5032,1190 @@ onBeforeUnmount(() => {
 
 .map-vignette {
   display: none;
+}
+
+.map-nearby-drawer {
+  position: absolute;
+  z-index: 5000;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  isolation: isolate;
+  display: grid;
+  gap: clamp(0.76rem, 0.9vw, var(--space-4));
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(50%, 46rem);
+  max-width: calc(100% - (var(--space-4) * 2));
+  max-height: none;
+  padding: clamp(0.8rem, 1vw, var(--space-4));
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, var(--glass-border));
+  border-radius: var(--radius-2xl);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-secondary) 98%, var(--bg-primary)), color-mix(in srgb, var(--bg-primary) 98%, var(--bg-secondary))),
+    var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow:
+    0 1.5rem 3.6rem color-mix(in srgb, var(--shadow-color) 34%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(1.12);
+  overflow: hidden;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] {
+  right: var(--space-4);
+  width: auto;
+  gap: clamp(0.9rem, 1.1vw, 1.2rem);
+  padding: clamp(1rem, 1.25vw, 1.3rem);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-secondary) 99%, var(--bg-primary)), color-mix(in srgb, var(--bg-primary) 99%, var(--bg-secondary))),
+    var(--bg-primary);
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-drawer__header h3 {
+  max-width: 68rem;
+  font-size: clamp(1.05rem, 0.5vw + 0.92rem, 1.38rem);
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-drawer__body {
+  align-content: stretch;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-layout {
+  grid-template-columns: minmax(24rem, 0.32fr) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-results-column {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  min-height: 0;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-controls {
+  align-content: start;
+  gap: 0.7rem;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 76%, var(--border));
+  border-radius: 1.2rem;
+  background: color-mix(in srgb, var(--bg-primary) 58%, transparent);
+  scrollbar-width: none;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-controls::-webkit-scrollbar {
+  display: none;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-anchor-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.45rem;
+  min-height: 0;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-anchor-tab {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 2.62rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-radius-control {
+  gap: 0.42rem;
+  padding: 0.36rem;
+  border-radius: 1rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-radius-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-radius-custom {
+  min-height: 2.42rem;
+  padding-inline: 0.78rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-mode-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-mode-tab {
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 2.7rem;
+  padding-inline: 0.82rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel,
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-panel {
+  align-self: start;
+  gap: 0.72rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: 1.1rem;
+  background: color-mix(in srgb, var(--bg-primary) 62%, transparent);
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-filter {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 2.36rem;
+  padding-inline: 0.7rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-tools {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.48rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-sort {
+  justify-self: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-search,
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-fuel-search {
+  min-height: 2.55rem;
+  border-radius: 1rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel--results {
+  justify-self: end;
+  width: min(100%, 52rem);
+  margin-bottom: 0.82rem;
+  grid-template-columns: minmax(22rem, 1fr) minmax(12.5rem, 15rem);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel--results .map-nearby-filterbar {
+  order: 2;
+  min-width: 0;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel--results .map-nearby-search {
+  order: 1;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel--results .map-nearby-search:only-child {
+  grid-column: 1 / -1;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-places-panel--results .map-nearby-filterbar__trigger {
+  min-width: 0;
+  padding-inline: 0.6rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-results {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  align-content: start;
+  gap: 0.82rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.18rem;
+  scrollbar-width: none;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-results::-webkit-scrollbar {
+  display: none;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-state {
+  grid-column: 1 / -1;
+  min-height: 13rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-result {
+  grid-template-columns: 5.3rem minmax(0, 1fr) auto;
+  gap: 1rem;
+  min-height: 6.35rem;
+  padding: 0.86rem;
+  border-radius: 1.28rem;
+}
+
+.map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-result__visual {
+  inline-size: 5.1rem;
+  block-size: 5.1rem;
+  border-radius: 1.05rem;
+}
+
+.map-nearby-drawer[data-drawer-state='closed'] {
+  bottom: auto;
+  right: auto;
+  width: auto;
+  max-height: none;
+  grid-template-rows: auto;
+  padding: 0.45rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+}
+
+.map-nearby-drawer[data-drawer-state='closed'] .map-nearby-drawer__header > div:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.map-nearby-drawer[data-drawer-state='closed'] .map-nearby-drawer__toggle {
+  inline-size: auto;
+  min-inline-size: 7rem;
+  block-size: 2.35rem;
+  display: inline-flex;
+  gap: 0.5rem;
+  padding-inline: 0.82rem 0.9rem;
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+}
+
+.map-nearby-drawer[data-drawer-state='closed'] .map-nearby-drawer__toggle::after {
+  content: "Nearby";
+  color: currentColor;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.map-nearby-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.map-nearby-drawer__header > div {
+  min-width: 0;
+}
+
+.map-nearby-drawer__header h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-drawer__header .eyebrow {
+  margin-bottom: 0.18rem;
+  color: color-mix(in srgb, var(--accent-teal) 78%, var(--text-secondary));
+}
+
+.map-nearby-drawer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex: 0 0 auto;
+}
+
+.map-nearby-drawer__toggle,
+.map-nearby-drawer__resize {
+  inline-size: 2.1rem;
+  block-size: 2.1rem;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 36%, var(--glass-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-secondary));
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.map-nearby-drawer__toggle:hover,
+.map-nearby-drawer__resize:hover,
+.map-nearby-drawer__resize[aria-pressed='true'] {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 72%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 24%, var(--bg-secondary));
+}
+
+.map-nearby-drawer__toggle :deep(.scope-icon) {
+  display: none;
+}
+
+.map-nearby-drawer__toggle::before {
+  display: block;
+  inline-size: 0.62rem;
+  block-size: 0.62rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  content: "";
+  transform: translateY(-0.08rem) rotate(45deg);
+  transition: transform var(--transition-fast);
+}
+
+.map-nearby-drawer[data-drawer-state='open'] .map-nearby-drawer__toggle::before {
+  transform: translateY(0.08rem) rotate(225deg);
+}
+
+.map-nearby-drawer__body {
+  display: grid;
+  align-content: start;
+  align-items: start;
+  gap: clamp(0.72rem, 0.84vw, var(--space-3));
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.map-nearby-drawer__body::-webkit-scrollbar {
+  display: none;
+}
+
+.map-nearby-layout,
+.map-nearby-controls,
+.map-nearby-results-column {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  gap: clamp(0.72rem, 0.84vw, var(--space-3));
+}
+
+.map-nearby-drawer__empty,
+.map-nearby-state {
+  margin: 0;
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--accent-teal) 30%, var(--glass-border));
+  border-radius: var(--radius-xl);
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.map-nearby-drawer__empty {
+  min-height: 8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-primary) 58%, transparent);
+}
+
+.map-nearby-state {
+  display: grid;
+  place-items: center;
+  min-height: 5.25rem;
+}
+
+.map-nearby-state--error {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--glass-border));
+  color: var(--danger);
+}
+
+.map-nearby-anchor-tabs {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+  min-height: 2.5rem;
+}
+
+.map-nearby-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.map-nearby-radius-control {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.22rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+}
+
+.map-nearby-radius-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.map-nearby-radius-custom {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 2.32rem;
+  padding: 0 0.66rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.map-nearby-radius-custom span,
+.map-nearby-radius-custom small {
+  white-space: nowrap;
+}
+
+.map-nearby-radius-custom input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-align: right;
+  outline: none;
+  appearance: textfield;
+}
+
+.map-nearby-radius-custom input::-webkit-outer-spin-button,
+.map-nearby-radius-custom input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.map-nearby-radius-custom:hover,
+.map-nearby-radius-custom:focus-within,
+.map-nearby-radius-custom.active {
+  border-color: color-mix(in srgb, var(--accent-teal) 60%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 13%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.map-nearby-places-panel,
+.map-nearby-fuel-panel {
+  display: grid;
+  gap: 0.66rem;
+}
+
+.map-nearby-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  position: relative;
+  z-index: 4;
+}
+
+.map-nearby-filterbar__menu {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map-nearby-filterbar__trigger,
+.map-nearby-filterbar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.map-nearby-filterbar__trigger {
+  width: 100%;
+  gap: 0.4rem;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0 0.68rem;
+}
+
+.map-nearby-filterbar__trigger span {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.map-nearby-filterbar__trigger strong {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-filterbar__clear {
+  flex: 0 0 auto;
+  padding: 0 0.58rem;
+}
+
+.map-nearby-filterbar__trigger:hover,
+.map-nearby-filterbar__trigger:focus-visible,
+.map-nearby-filterbar[data-menu-open='true'] .map-nearby-filterbar__trigger,
+.map-nearby-filterbar__clear:hover {
+  border-color: color-mix(in srgb, var(--accent-teal) 46%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-primary));
+  color: var(--text-primary);
+}
+
+.map-nearby-filterbar__trigger :deep(.scope-icon) {
+  inline-size: 0.92rem;
+  block-size: 0.92rem;
+  color: var(--accent-teal);
+}
+
+.map-nearby-filterbar__trigger :deep(.scope-icon:last-child) {
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.map-nearby-filterbar[data-menu-open='true'] .map-nearby-filterbar__trigger :deep(.scope-icon:last-child) {
+  transform: rotate(180deg);
+}
+
+.map-nearby-filterbar__popover {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 0.42rem);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 0.22rem;
+  max-height: min(20rem, 46vh);
+  overflow-y: auto;
+  padding: 0.36rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, var(--glass-border));
+  border-radius: 1rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-secondary) 98%, var(--bg-primary)), color-mix(in srgb, var(--bg-primary) 98%, var(--bg-secondary))),
+    var(--bg-primary);
+  box-shadow: 0 1rem 2.4rem color-mix(in srgb, var(--shadow-color) 36%, transparent);
+  scrollbar-width: none;
+}
+
+.map-nearby-filterbar__popover::-webkit-scrollbar {
+  display: none;
+}
+
+.map-nearby-filterbar__option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.48rem;
+  min-height: 2.32rem;
+  padding: 0 0.58rem;
+  border: 1px solid transparent;
+  border-radius: 0.76rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-nearby-filterbar__option.has-icon {
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+}
+
+.map-nearby-filterbar__option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-filterbar__option :deep(.scope-icon) {
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--text-muted);
+}
+
+.map-nearby-filterbar__option:hover,
+.map-nearby-filterbar__option.active {
+  border-color: color-mix(in srgb, var(--accent-teal) 36%, transparent);
+  background: color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.map-nearby-filterbar__option.active :deep(.scope-icon) {
+  color: var(--accent-teal);
+}
+
+.map-nearby-places-panel__header,
+.map-nearby-fuel-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.map-nearby-places-panel__header strong,
+.map-nearby-fuel-panel__header strong {
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.map-nearby-places-panel__header strong {
+  color: var(--accent-teal);
+}
+
+.map-nearby-fuel-panel__header strong {
+  color: var(--accent-mint);
+}
+
+.map-nearby-place-filters,
+.map-nearby-fuel-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.map-nearby-anchor-tab,
+.map-nearby-mode-tab,
+.map-nearby-radius-tab,
+.map-nearby-place-filter,
+.map-nearby-fuel-filter {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-width: max-content;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.map-nearby-anchor-tab:hover,
+.map-nearby-mode-tab:hover,
+.map-nearby-radius-tab:hover,
+.map-nearby-place-filter:hover,
+.map-nearby-fuel-filter:hover {
+  border-color: color-mix(in srgb, var(--accent-teal) 50%, var(--glass-border));
+  color: var(--text-primary);
+}
+
+.map-nearby-anchor-tab.active,
+.map-nearby-mode-tab.active,
+.map-nearby-radius-tab.active,
+.map-nearby-place-filter.active,
+.map-nearby-fuel-filter.active {
+  border-color: color-mix(in srgb, var(--accent-teal) 68%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 17%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.map-nearby-mode-tab.active :deep(.scope-icon),
+.map-nearby-place-filter.active :deep(.scope-icon),
+.map-nearby-fuel-filter.active :deep(.scope-icon) {
+  color: color-mix(in srgb, var(--accent-teal) 86%, white);
+}
+
+.map-nearby-anchor-tab {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.38rem;
+  max-width: 11rem;
+  min-height: 2.3rem;
+  padding: 0.44rem 0.56rem;
+  border-radius: var(--radius-xl);
+  text-align: left;
+}
+
+.map-nearby-anchor-tab strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
+  min-height: 1.45rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-teal) 18%, var(--bg-secondary));
+  color: var(--text-primary);
+  font-size: var(--font-size-caption);
+}
+
+.map-nearby-anchor-tab span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 2.42rem;
+  padding: 0.46rem 0.66rem;
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.map-nearby-mode-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-radius-tab {
+  min-width: 0;
+  min-height: 2.28rem;
+  padding: 0 0.42rem;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.map-nearby-fuel-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.map-nearby-fuel-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.36rem;
+  min-height: 2rem;
+  padding: 0 0.58rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 86%, transparent);
+  color: var(--text-secondary);
+}
+
+.map-nearby-fuel-search input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  outline: none;
+}
+
+.map-nearby-fuel-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.map-nearby-fuel-search :deep(.scope-icon) {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+}
+
+.map-nearby-fuel-sort {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: 0.24rem;
+  padding: 0.18rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+}
+
+.map-nearby-fuel-sort button {
+  min-height: 1.62rem;
+  padding: 0 0.48rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.map-nearby-fuel-sort button.active {
+  background: color-mix(in srgb, var(--accent-teal) 24%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.map-nearby-place-filter,
+.map-nearby-fuel-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+  width: auto;
+  min-width: 0;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.56rem;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.map-nearby-fuel-filter span {
+  min-width: 0;
+  max-width: 6.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-place-filter span {
+  min-width: 0;
+  max-width: 6.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-mode-tab :deep(.scope-icon),
+.map-nearby-place-filter :deep(.scope-icon),
+.map-nearby-fuel-filter :deep(.scope-icon) {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.map-nearby-search {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.62rem;
+  padding: 0.3rem 0.32rem 0.3rem 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-primary) 84%, transparent);
+}
+
+.map-nearby-search input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.map-nearby-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.map-nearby-search button {
+  min-height: 1.86rem;
+  padding: 0 0.66rem;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.map-nearby-search button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.map-nearby-results {
+  display: grid;
+  gap: 0.68rem;
+  min-height: 0;
+  overflow: visible;
+  padding-right: 0.08rem;
+}
+
+.map-nearby-pagination {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin-top: 0.1rem;
+  padding: 0.22rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, var(--border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.map-nearby-pagination button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2rem;
+  min-height: 1.86rem;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.map-nearby-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.map-nearby-result {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 4.8rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.92rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 5.65rem;
+  padding: 0.74rem 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.map-nearby-result:hover,
+.map-nearby-result.active {
+  border-color: color-mix(in srgb, var(--accent-teal) 44%, var(--glass-border));
+  background: color-mix(in srgb, var(--bg-secondary) 50%, var(--bg-primary));
+}
+
+.map-nearby-result.active {
+  box-shadow: none;
+}
+
+.map-nearby-result.is-added {
+  border-color: color-mix(in srgb, var(--accent-mint) 42%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-mint) 8%, var(--bg-primary));
+}
+
+.map-nearby-result[data-place-kind='fuel'] .map-nearby-result__visual[data-has-photo='false'] {
+  background: color-mix(in srgb, var(--accent-mint) 18%, var(--bg-secondary));
+  color: var(--accent-mint);
+}
+
+.map-nearby-result__visual {
+  inline-size: 4.65rem;
+  block-size: 4.65rem;
+  overflow: hidden;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--bg-secondary) 74%, var(--bg-primary));
+  color: var(--accent-teal);
+}
+
+.map-nearby-result__visual[data-has-photo='false'] {
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
+}
+
+.map-nearby-result__visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-nearby-result__copy {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  align-self: stretch;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.map-nearby-result__copy strong,
+.map-nearby-result__location {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-nearby-result__copy strong {
+  display: -webkit-box;
+  font-size: 1.02rem;
+  line-height: var(--line-height-tight);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.map-nearby-result__location {
+  display: -webkit-box;
+  line-height: 1.22;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.map-nearby-result__location {
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.map-nearby-result__tags {
+  display: flex;
+  flex-wrap: wrap;
+  grid-row: 4;
+  align-self: end;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.map-nearby-result__category,
+.map-nearby-result__price {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  max-width: 100%;
+  padding: 0.2rem 0.56rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, transparent);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.map-nearby-result[data-category='food'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-adventure-fg) 44%, var(--glass-border));
+  color: var(--badge-adventure-fg);
+  background: color-mix(in srgb, var(--badge-adventure-fg) 10%, transparent);
+}
+
+.map-nearby-result[data-category='stay'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-culture-fg) 44%, var(--glass-border));
+  color: var(--badge-culture-fg);
+  background: color-mix(in srgb, var(--badge-culture-fg) 10%, transparent);
+}
+
+.map-nearby-result[data-category='essentials'] .map-nearby-result__category,
+.map-nearby-result[data-category='shopping'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-shopping-fg) 42%, var(--glass-border));
+  color: var(--badge-shopping-fg);
+  background: color-mix(in srgb, var(--badge-shopping-fg) 9%, transparent);
+}
+
+.map-nearby-result[data-category='entertainment'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-entertainment-fg) 44%, var(--glass-border));
+  color: var(--badge-entertainment-fg);
+  background: color-mix(in srgb, var(--badge-entertainment-fg) 10%, transparent);
+}
+
+.map-nearby-result[data-category='nature'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-nature-fg) 44%, var(--glass-border));
+  color: var(--badge-nature-fg);
+  background: color-mix(in srgb, var(--badge-nature-fg) 9%, transparent);
+}
+
+.map-nearby-result[data-category='scenic'] .map-nearby-result__category,
+.map-nearby-result[data-category='adventure'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-scenic-fg) 44%, var(--glass-border));
+  color: var(--badge-scenic-fg);
+  background: color-mix(in srgb, var(--badge-scenic-fg) 9%, transparent);
+}
+
+.map-nearby-result[data-category='culture'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-nightlife-fg) 44%, var(--glass-border));
+  color: var(--badge-nightlife-fg);
+  background: color-mix(in srgb, var(--badge-nightlife-fg) 10%, transparent);
+}
+
+.map-nearby-result[data-category='nightlife'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--badge-nightlife-fg) 44%, var(--glass-border));
+  color: var(--badge-nightlife-fg);
+  background: color-mix(in srgb, var(--badge-nightlife-fg) 10%, transparent);
+}
+
+.map-nearby-result[data-category='fuel'] .map-nearby-result__category,
+.map-nearby-result[data-category='ev'] .map-nearby-result__category {
+  border-color: color-mix(in srgb, var(--accent-mint) 46%, var(--glass-border));
+  color: var(--accent-mint);
+  background: color-mix(in srgb, var(--accent-mint) 10%, transparent);
+}
+
+.map-nearby-result__price {
+  border-color: color-mix(in srgb, var(--accent-mint) 34%, var(--glass-border));
+  color: var(--accent-mint);
+}
+
+.map-nearby-result__meta {
+  display: grid;
+  justify-items: end;
+  min-width: 0;
+  align-self: start;
+  padding-top: 0.14rem;
+}
+
+.map-nearby-result__meta strong {
+  max-width: 4.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-nearby-result__meta strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
 }
 
 .itinerary-step-toggle {
@@ -2235,6 +6407,7 @@ onBeforeUnmount(() => {
 
 .timeline-overlay {
   grid-column: 1 / -1;
+  order: 20;
   width: 100%;
   padding: clamp(var(--space-4), 1.4vw, var(--space-5));
   overflow: hidden;
@@ -2242,6 +6415,32 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--glass-bg) 96%, var(--bg-secondary)), color-mix(in srgb, var(--bg-primary) 54%, var(--glass-bg))),
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent-teal) 10%, transparent), transparent 34%);
+}
+
+.itinerary-assistant-slot {
+  grid-column: 1 / -1;
+  order: 30;
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  margin-inline: 0;
+  padding-top: var(--space-2);
+  position: relative;
+  z-index: 2;
+}
+
+.itinerary-assistant-slot :deep(.trip-ai-assist) {
+  width: 100%;
+  border-radius: var(--radius-2xl);
+}
+
+.itinerary-stage[data-itinerary-mode='mobile-wizard'] .itinerary-assistant-slot {
+  width: 100%;
+  margin-inline: 0;
+}
+
+.itinerary-stage[data-itinerary-mode='mobile-wizard'] .itinerary-assistant-slot :deep(.trip-ai-assist) {
+  border-radius: var(--radius-2xl);
 }
 
 .timeline-overlay--draft .timeline-rail {
@@ -2270,11 +6469,8 @@ onBeforeUnmount(() => {
   align-items: flex-start;
 }
 
-.route-card-header h3 {
-  margin: var(--space-1) 0 0;
-  color: var(--text-primary);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-tight);
+.route-card-header h2 {
+  margin: 0;
 }
 
 .route-source-pill {
@@ -2298,8 +6494,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-content: stretch;
-  gap: 0.4rem;
-  padding: 0.4rem;
+  gap: var(--route-canvas-tile-gap);
+  padding: var(--route-canvas-tile-inset);
   border: 1px solid color-mix(in srgb, var(--accent-teal) 20%, var(--glass-border));
   border-radius: var(--radius-2xl);
   background:
@@ -2308,13 +6504,14 @@ onBeforeUnmount(() => {
 }
 
 .map-picker-button {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: var(--route-canvas-text-gutter) minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  justify-content: stretch;
+  column-gap: var(--space-3);
   min-width: 0;
-  min-height: 2.35rem;
-  padding: 0.48rem 0.75rem;
+  min-height: var(--route-canvas-control-min);
+  padding: 0.38rem var(--route-canvas-control-pad-x);
   border: 1px solid transparent;
   border-radius: var(--radius-full);
   background: transparent;
@@ -2348,8 +6545,14 @@ onBeforeUnmount(() => {
 }
 
 .map-picker-button :deep(.scope-icon) {
+  justify-self: center;
   width: 1rem;
   height: 1rem;
+}
+
+.map-picker-button span {
+  min-width: 0;
+  text-align: left;
 }
 
 .map-picker-status {
@@ -2371,6 +6574,7 @@ onBeforeUnmount(() => {
 .route-sequence-list {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
 }
@@ -2382,16 +6586,29 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  max-width: 100%;
+  max-width: min(100%, 18rem);
+  width: fit-content;
+  flex: 0 1 auto;
   padding: 0.42rem 0.55rem 0.42rem 0.42rem;
   border: 1px solid color-mix(in srgb, var(--route-chip-color) 30%, var(--glass-border));
   border-radius: var(--radius-full);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--route-chip-color) 8%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 40%, var(--glass-bg)));
   color: var(--text-primary);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
-    0 0.45rem 1.1rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.route-sequence-chip:hover,
+.route-sequence-chip:focus-visible {
+  border-color: color-mix(in srgb, var(--route-chip-color) 52%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--route-chip-color) 14%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 50%, var(--glass-bg)));
+  box-shadow: none;
+  outline: none;
 }
 
 .route-sequence-chip strong {
@@ -2410,7 +6627,7 @@ onBeforeUnmount(() => {
   line-height: 1;
   letter-spacing: 0;
   text-transform: uppercase;
-  box-shadow: 0 0 0.8rem color-mix(in srgb, var(--route-chip-color) 24%, transparent);
+  box-shadow: none;
 }
 
 .route-sequence-chip[data-route-role='stop'] {
@@ -2423,7 +6640,7 @@ onBeforeUnmount(() => {
 
 .route-sequence-chip span {
   min-width: 0;
-  max-width: 15rem;
+  max-width: min(12.5rem, 100%);
   overflow-wrap: anywhere;
   white-space: normal;
   line-height: var(--line-height-tight);
@@ -2458,9 +6675,10 @@ onBeforeUnmount(() => {
 }
 
 .route-place-panel {
+  grid-column: 1 / -1;
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: 0.65rem;
   border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
   border-radius: var(--radius-xl);
   background:
@@ -2469,12 +6687,20 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
 }
 
+.route-place-panel[data-expanded='true'] {
+  padding: var(--space-3);
+}
+
 .route-place-panel__header {
   display: flex;
   justify-content: space-between;
   gap: var(--space-3);
   align-items: flex-start;
   min-width: 0;
+}
+
+.route-place-panel__header .eyebrow {
+  margin-bottom: 0.18rem;
 }
 
 .route-place-panel__header h4 {
@@ -2486,22 +6712,50 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-.route-place-refresh {
+.route-place-panel__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.route-place-refresh,
+.route-place-toggle {
   width: 2.35rem;
   height: 2.35rem;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border));
+  border: 1px solid color-mix(in srgb, var(--glass-border) 92%, transparent);
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg-primary) 44%, var(--glass-bg));
+  background: color-mix(in srgb, var(--bg-secondary) 86%, var(--bg-primary));
   color: var(--text-primary);
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 0.4rem 1rem color-mix(in srgb, black 18%, transparent);
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
-    background var(--transition-fast);
+    background var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.route-place-refresh :deep(.scope-icon),
+.route-place-toggle :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+  color: color-mix(in srgb, var(--text-primary) 78%, var(--text-secondary));
+}
+
+.route-place-toggle :deep(.scope-icon) {
+  transition: transform var(--transition-fast);
+}
+
+.route-place-panel[data-expanded='true'] .route-place-toggle :deep(.scope-icon) {
+  transform: rotate(180deg);
 }
 
 .route-place-refresh:disabled {
@@ -2510,17 +6764,243 @@ onBeforeUnmount(() => {
 }
 
 .route-place-refresh:not(:disabled):hover,
-.route-place-refresh:not(:disabled):focus-visible {
+.route-place-refresh:not(:disabled):focus-visible,
+.route-place-toggle:hover,
+.route-place-toggle:focus-visible {
   transform: translateY(var(--motion-button-lift));
-  border-color: color-mix(in srgb, var(--accent-teal) 58%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-teal) 18%, var(--glass-bg));
+  border-color: color-mix(in srgb, var(--accent-teal) 52%, var(--glass-border));
+  background: color-mix(in srgb, var(--bg-secondary) 90%, var(--accent-teal) 10%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-teal) 14%, transparent);
+  outline: none;
+}
+
+.route-place-preview,
+.route-place-panel__body {
+  min-width: 0;
+}
+
+.route-place-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.route-place-preview__place,
+.route-place-preview__empty {
+  display: grid;
+  grid-template-columns: 2.15rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 62%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 42%, var(--glass-bg)));
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.route-place-preview__empty {
+  grid-column: 1 / -1;
+  grid-template-columns: 2.15rem minmax(0, 1fr);
+}
+
+.route-place-preview__place:hover,
+.route-place-preview__place:focus-visible,
+.route-place-preview__empty:hover,
+.route-place-preview__empty:focus-visible,
+.route-place-preview__more:hover,
+.route-place-preview__more:focus-visible {
+  transform: translateY(var(--motion-button-lift));
+  border-color: color-mix(in srgb, var(--accent-teal) 52%, var(--glass-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 0.8rem 1.5rem color-mix(in srgb, var(--accent-teal) 10%, transparent);
+  outline: none;
+}
+
+.route-place-preview__icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-primary));
+  color: var(--accent-teal);
+}
+
+.route-place-preview__icon :deep(.scope-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.route-place-preview__copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.route-place-preview__copy strong,
+.route-place-preview__copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-place-preview__copy strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.route-place-preview__copy small {
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.route-place-preview__more {
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  padding: 0 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 14%, var(--glass-bg));
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.route-place-panel__body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.route-place-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.45rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 42%, var(--glass-bg));
+  color: var(--text-secondary);
+}
+
+.route-place-search :deep(.scope-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.route-place-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  outline: none;
+}
+
+.route-place-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.route-place-search button {
+  width: 1.95rem;
+  height: 1.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.route-place-search:focus-within,
+.route-place-search button:hover,
+.route-place-search button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-teal) 14%, transparent);
+  outline: none;
+}
+
+.route-place-query-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.12rem;
+  scrollbar-width: thin;
+}
+
+.route-place-query-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.34rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 14%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 38%, var(--glass-bg));
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.route-place-query-tab :deep(.scope-icon) {
+  width: 0.86rem;
+  height: 0.86rem;
+}
+
+.route-place-query-tab.active,
+.route-place-query-tab:hover,
+.route-place-query-tab:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 14%, var(--glass-bg));
+  color: var(--text-primary);
   outline: none;
 }
 
 .route-place-tabs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(5.8rem, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   gap: 0.45rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.12rem;
+  scrollbar-width: thin;
 }
 
 .route-place-tab {
@@ -2535,6 +7015,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--bg-primary) 44%, var(--glass-bg));
   color: var(--text-secondary);
   cursor: pointer;
+  flex: 0 0 min(13rem, 72%);
   transition:
     border-color var(--transition-fast),
     background var(--transition-fast),
@@ -2574,12 +7055,16 @@ onBeforeUnmount(() => {
 }
 
 .route-place-results {
-  min-height: 5.5rem;
+  min-height: 4.6rem;
+  max-height: min(16rem, 34vh);
+  overflow: auto;
+  padding-right: 0.12rem;
+  scrollbar-width: thin;
 }
 
 .route-place-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -2672,7 +7157,7 @@ onBeforeUnmount(() => {
 }
 
 .route-place-state {
-  min-height: 5.5rem;
+  min-height: 4.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2758,8 +7243,11 @@ onBeforeUnmount(() => {
 .route-signal-grid--planning {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
+  gap: var(--route-canvas-tile-gap);
   width: 100%;
+  padding: var(--route-canvas-tile-inset);
+  box-sizing: border-box;
+  min-height: var(--route-canvas-top-block-min);
 }
 
 .route-signal-grid span {
@@ -2773,12 +7261,33 @@ onBeforeUnmount(() => {
 }
 
 .route-signal-grid--planning span {
+  /*
+    Keep the same internal text start gutter as the Start/End rows on the left card
+    (badge width + gap), so both cards share one visual text axis.
+  */
+  display: grid;
+  grid-template-columns: var(--route-canvas-text-gutter) minmax(0, 1fr);
+  column-gap: var(--space-3);
   min-width: 0;
-  padding: 0.8rem 0.9rem;
+  min-height: var(--route-canvas-control-min);
+  padding: 0.52rem var(--route-canvas-control-pad-x);
   border-color: color-mix(in srgb, var(--accent-teal) 26%, var(--glass-border));
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 8%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 46%, var(--glass-bg)));
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+}
+
+.route-signal-grid--planning span::before {
+  content: '';
+  width: var(--route-canvas-text-gutter);
+  height: var(--route-canvas-text-gutter);
+  border-radius: var(--radius-full);
+  opacity: 0;
+}
+
+.route-signal-grid--planning span > strong,
+.route-signal-grid--planning span > small {
+  grid-column: 2;
 }
 
 .route-signal-grid--placeholder span {
@@ -2788,6 +7297,18 @@ onBeforeUnmount(() => {
 
 .route-signal-grid--placeholder strong {
   color: var(--text-secondary);
+}
+
+.route-signal-fuel-tile.is-actionable {
+  cursor: pointer;
+}
+
+.route-signal-fuel-tile.is-actionable:hover,
+.route-signal-fuel-tile.is-actionable:focus-visible {
+  border-color: var(--accent-teal);
+  background: color-mix(in srgb, var(--accent-teal) 13%, var(--glass-bg));
+  box-shadow: var(--shadow-glow-teal);
+  outline: none;
 }
 
 .route-signal-grid strong,
@@ -2803,10 +7324,8 @@ onBeforeUnmount(() => {
 }
 
 .route-signal-grid small {
-  color: var(--text-muted);
-  font-size: var(--font-size-caption);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--letter-spacing-eyebrow);
 }
 
 .timeline-rail {
@@ -3033,11 +7552,18 @@ onBeforeUnmount(() => {
   align-self: center;
 }
 
+.stop-ai-reason {
+  display: block;
+  margin-top: 0.16rem;
+  color: color-mix(in srgb, var(--accent-teal) 72%, var(--text-secondary));
+  font-size: var(--font-size-caption);
+}
+
 .itinerary-stage[data-itinerary-mode='desktop'] .stop-list {
   gap: 0.45rem;
 }
 
-.itinerary-stage[data-itinerary-mode='desktop'] .stop-copy small {
+.itinerary-stage[data-itinerary-mode='desktop'] .stop-copy small:not(.stop-ai-reason) {
   display: none;
 }
 
@@ -3046,10 +7572,11 @@ onBeforeUnmount(() => {
   isolation: isolate;
   width: 100%;
   align-self: start;
-  align-content: stretch;
-  gap: var(--space-5);
+  align-content: start;
+  gap: var(--space-3);
+  height: auto;
   min-height: 0;
-  padding: var(--space-5);
+  padding: var(--space-4);
   overflow: hidden;
   border-color: color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border));
   background:
@@ -3059,16 +7586,52 @@ onBeforeUnmount(() => {
     0 1.4rem 3.6rem color-mix(in srgb, var(--bg-primary) 34%, transparent);
 }
 
+.planning-card[data-route-canvas-density='compact'] {
+  align-self: stretch;
+  height: 100%;
+}
+
 .planning-card__header {
   min-width: 0;
+}
+
+.planning-card__header,
+.route-card-header > div {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-height: 6.35rem;
+}
+
+.planning-card__header h2,
+.route-card-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(1.35rem, 0.85vw + 1rem, 1.8rem);
+  line-height: var(--line-height-tight);
+}
+
+.planning-card__header .summary-copy,
+.route-card-header .summary-copy {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--text-secondary) 88%, var(--text-primary));
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-normal);
+  letter-spacing: 0;
 }
 
 .planning-route-brief {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(var(--route-canvas-control-min), auto);
   align-items: stretch;
-  gap: 0.55rem;
-  padding: 0.55rem;
+  gap: var(--route-canvas-tile-gap);
+  padding: var(--route-canvas-tile-inset);
+  min-height: calc(var(--route-canvas-control-min) + (var(--route-canvas-tile-inset) * 2));
   border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
   border-radius: var(--radius-2xl);
   background:
@@ -3077,18 +7640,20 @@ onBeforeUnmount(() => {
 
 .planning-endpoint-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: var(--route-canvas-text-gutter) minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-3);
   min-width: 0;
-  padding: 0.85rem 0.95rem;
+  min-height: 100%;
+  padding: 0.52rem var(--route-canvas-control-pad-x);
   border-radius: var(--radius-xl);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 40%, transparent), color-mix(in srgb, var(--bg-primary) 18%, transparent));
 }
 
 .planning-endpoint-card small,
-.planning-metrics small {
+.planning-metrics small,
+.route-signal-grid small {
   display: block;
   color: var(--text-muted);
   font-size: var(--font-size-caption);
@@ -3100,7 +7665,7 @@ onBeforeUnmount(() => {
 
 .planning-endpoint-card strong {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: 0.16rem;
   color: var(--text-primary);
   font-size: var(--font-size-body);
   line-height: var(--line-height-tight);
@@ -3111,49 +7676,22 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.15rem;
-  height: 2.15rem;
+  width: var(--route-canvas-text-gutter);
+  height: var(--route-canvas-text-gutter);
   border-radius: var(--radius-full);
   background: var(--accent-teal);
   color: var(--bg-primary);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-bold);
   box-shadow: 0 0 1.35rem color-mix(in srgb, var(--accent-teal) 22%, transparent);
-}
-
-.planning-route-connector {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(2rem, 1fr));
-  grid-template-rows: auto;
-  align-items: center;
-  justify-items: center;
-  min-width: 0;
-  min-height: 0;
-  padding: 0 2.6rem;
-  color: color-mix(in srgb, var(--accent-teal) 62%, var(--text-secondary));
-}
-
-.planning-route-connector span {
-  width: 100%;
-  height: 1px;
-  min-height: 1px;
-  background: linear-gradient(90deg, transparent, currentColor, transparent);
-  opacity: 0.58;
 }
 
 .planning-card .planning-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: var(--route-canvas-tile-gap);
+  padding: var(--route-canvas-tile-inset);
   margin-top: 0;
-}
-
-.planning-card .summary-copy {
-  display: -webkit-box;
-  max-width: 42rem;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .planning-card .planning-metrics .summary-pill {
@@ -3161,8 +7699,8 @@ onBeforeUnmount(() => {
   justify-items: start;
   gap: 0.22rem;
   min-width: 0;
-  min-height: 3.65rem;
-  padding: 0.75rem 0.9rem;
+  min-height: var(--route-canvas-control-min);
+  padding: 0.58rem var(--route-canvas-control-pad-x);
   border-radius: var(--radius-xl);
   border-color: color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
   background:
@@ -3198,11 +7736,21 @@ onBeforeUnmount(() => {
   width: 100%;
   align-self: stretch;
   min-height: 100%;
-  gap: var(--space-4);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-3);
   padding: var(--space-4);
   overflow: hidden;
   border-color: color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border));
   background: color-mix(in srgb, var(--glass-bg) 96%, var(--bg-secondary));
+}
+
+.planning-route-card__extra {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-height: 0;
 }
 
 .route-provider-copy {
@@ -3230,7 +7778,7 @@ onBeforeUnmount(() => {
   }
 
   .map-vignette {
-    background: linear-gradient(180deg, var(--bg-primary), transparent 18%, transparent 82%, var(--bg-primary));
+    background: none;
   }
 }
 
@@ -3240,6 +7788,7 @@ onBeforeUnmount(() => {
   .map-shell :deep(.map-view),
   .map-shell__placeholder {
     min-height: 32rem;
+    height: 32rem;
   }
 
   .timeline-header,
@@ -3264,23 +7813,79 @@ onBeforeUnmount(() => {
     border-radius: var(--radius-xl);
   }
 
+  .map-nearby-drawer,
+  .map-nearby-drawer[data-drawer-state='closed'] {
+    top: var(--space-2);
+    left: var(--space-2);
+    bottom: auto;
+    width: auto;
+    max-height: min(24rem, calc(56% - var(--space-2)));
+    padding: 0.62rem;
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] {
+    right: var(--space-2);
+    width: auto;
+    bottom: var(--space-2);
+    max-height: none;
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-drawer__body {
+    overflow-y: auto;
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-layout {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-controls {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-mode-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] .map-nearby-results {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .map-nearby-drawer__header h3 {
+    max-width: 100%;
+    font-size: var(--font-size-body-sm);
+  }
+
+  .map-nearby-results {
+    max-height: none;
+  }
+
+  .map-nearby-search {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .map-nearby-result {
+    grid-template-columns: 3.35rem minmax(0, 1fr) auto;
+    gap: 0.64rem;
+  }
+
+  .map-nearby-result__visual {
+    inline-size: 3.2rem;
+    block-size: 3.2rem;
+  }
+
+  .map-nearby-result__copy strong {
+    font-size: var(--font-size-body-sm);
+  }
+
+  .map-nearby-mode-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .planning-route-brief {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .planning-route-connector {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto;
-    align-items: center;
-    min-height: 0;
-    padding-inline: var(--space-4);
-  }
-
-  .planning-route-connector span {
-    width: 100%;
-    height: 1px;
-    min-height: 1px;
-    background: linear-gradient(90deg, transparent, currentColor, transparent);
   }
 
   .planning-card .planning-metrics {
@@ -3334,6 +7939,7 @@ onBeforeUnmount(() => {
   .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell :deep(.map-view),
   .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-shell__placeholder {
     min-height: 20rem;
+    height: 20rem;
   }
 
   .itinerary-stage[data-itinerary-mode='mobile-wizard'] :is(.summary-card, .route-signal-card, .timeline-overlay, .loading-card) {
@@ -3351,6 +7957,23 @@ onBeforeUnmount(() => {
 
   .route-signal-grid--planning {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .route-sequence-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-nearby-drawer {
+    max-height: min(18rem, calc(58% - var(--space-2)));
+  }
+
+  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-nearby-drawer[data-drawer-state='open'][data-drawer-size='expanded'] {
+    bottom: var(--space-2);
+    max-height: none;
+  }
+
+  .itinerary-stage[data-itinerary-mode='mobile-wizard'] .map-nearby-results {
+    max-height: none;
   }
 
 }
@@ -3378,5 +8001,6 @@ onBeforeUnmount(() => {
   .itinerary-step-toggle[data-onboarding-active='true'] {
     transform: none;
   }
+
 }
 </style>

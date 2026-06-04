@@ -255,6 +255,13 @@ describe('auth page views', () => {
     await inputs[6].setValue('SecurePass123!');
     await inputs[7].setValue('SecurePass123!');
     await inputs[8].setValue(true);
+
+    const passwordToggleButtons = wrapper.findAll('button[aria-label="Show password"]');
+    await passwordToggleButtons[0].trigger('click');
+    await passwordToggleButtons[1].trigger('click');
+    expect((inputs[6].element as HTMLInputElement).type).toBe('text');
+    expect((inputs[7].element as HTMLInputElement).type).toBe('text');
+
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
@@ -393,5 +400,145 @@ describe('auth page views', () => {
 
     expect(authStoreMock.register).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('Passwords do not match');
+  });
+
+  it('surfaces registration failures without leaving the form', async () => {
+    authStoreMock.register.mockRejectedValueOnce(new Error('Register failed'));
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/register', component: RegisterPage },
+        {
+          path: '/onboarding/preferences',
+          name: 'onboarding-preferences',
+          component: { template: '<div>Onboarding target</div>' },
+        },
+      ],
+    });
+
+    await router.push('/register');
+    await router.isReady();
+
+    const wrapper = mount(RegisterPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+        },
+      },
+    });
+
+    const dob = new Date();
+    dob.setUTCFullYear(dob.getUTCFullYear() - 24);
+    const isoDob = dob.toISOString().slice(0, 10);
+
+    const inputs = wrapper.findAll('input');
+    await inputs[0].setValue('John');
+    await inputs[1].setValue('Doe');
+    await inputs[2].setValue('johndoe');
+    await inputs[3].setValue('john@example.com');
+    await inputs[4].setValue(isoDob);
+    await inputs[5].setValue('');
+    await inputs[6].setValue('SecurePass123!');
+    await inputs[7].setValue('SecurePass123!');
+    await inputs[8].setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(authStoreMock.register).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Scope could not create your account right now.');
+    expect(router.currentRoute.value.fullPath).toBe('/register');
+  });
+
+  it('requires terms before continuing registration with Google', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/register', component: RegisterPage }],
+    });
+
+    await router.push('/register');
+    await router.isReady();
+
+    const wrapper = mount(RegisterPage, {
+      global: {
+        plugins: [router],
+      },
+    });
+
+    await wrapper.get('button.oauth-button').trigger('click');
+    await flushPromises();
+
+    expect(authStoreMock.loginWithCognito).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain(
+      'Agree to the Terms of Service and Privacy Policy before continuing with Google.',
+    );
+    expect(router.currentRoute.value.fullPath).toBe('/register');
+  });
+
+  it('continues registration with Google and routes to onboarding', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/register', component: RegisterPage },
+        { path: '/map', component: { template: '<div>Map target</div>' } },
+        {
+          path: '/onboarding/preferences',
+          name: 'onboarding-preferences',
+          component: { template: '<div>Onboarding target</div>' },
+        },
+      ],
+    });
+
+    await router.push('/register');
+    await router.isReady();
+
+    const wrapper = mount(RegisterPage, {
+      global: {
+        plugins: [router],
+      },
+    });
+
+    await wrapper.get('#register-accept-terms').setValue(true);
+    await wrapper.get('button.oauth-button').trigger('click');
+    await flushPromises();
+
+    expect(authStoreMock.clearError).toHaveBeenCalledTimes(1);
+    expect(authStoreMock.loginWithCognito).toHaveBeenCalledTimes(1);
+    expect(router.currentRoute.value.name).toBe('onboarding-preferences');
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it('surfaces Google registration failures without redirecting', async () => {
+    authStoreMock.loginWithCognito.mockRejectedValueOnce(new Error('Google failed'));
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/register', component: RegisterPage },
+        {
+          path: '/onboarding/preferences',
+          name: 'onboarding-preferences',
+          component: { template: '<div>Onboarding target</div>' },
+        },
+      ],
+    });
+
+    await router.push('/register');
+    await router.isReady();
+
+    const wrapper = mount(RegisterPage, {
+      global: {
+        plugins: [router],
+      },
+    });
+
+    await wrapper.get('#register-accept-terms').setValue(true);
+    await wrapper.get('button.oauth-button').trigger('click');
+    await flushPromises();
+
+    expect(authStoreMock.loginWithCognito).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Scope could not continue with Google right now.');
+    expect(router.currentRoute.value.fullPath).toBe('/register');
   });
 });

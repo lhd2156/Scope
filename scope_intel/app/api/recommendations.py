@@ -1,8 +1,10 @@
+import logging
+
 from flask import Blueprint, g, request
 
 from app.auth import require_auth
 from app.extensions import limiter
-from app.ml.runtime import run_ml_with_timeout
+from app.ml.runtime import MlComputationTimeoutError, run_ml_with_timeout
 from app.rate_limit import rate_limited
 from app.repositories import IntelRepository
 from app.responses import error_response, success_response
@@ -16,6 +18,7 @@ from app.services.content_client import ContentServiceClient
 from app.services.recommendation_engine import RecommendationEngine
 
 recommendations_bp = Blueprint("recommendations", __name__)
+logger = logging.getLogger(__name__)
 request_schema = RecommendationRequestSchema()
 similar_request_schema = SimilarRecommendationRequestSchema()
 feedback_schema = RecommendationFeedbackSchema()
@@ -56,14 +59,18 @@ def recommend_spots():
     if failure is not None:
         return failure
 
-    recommendations = run_ml_with_timeout(
-        "recommend_spots",
-        engine.recommend_spots,
-        user_id,
-        payload["likedSpotIds"],
-        payload["interests"],
-        payload["limit"],
-    )
+    try:
+        recommendations = run_ml_with_timeout(
+            "recommend_spots",
+            engine.recommend_spots,
+            user_id,
+            payload["likedSpotIds"],
+            payload["interests"],
+            payload["limit"],
+        )
+    except MlComputationTimeoutError:
+        logger.warning("recommend_spots_timeout_fallback", extra={"user_id": user_id})
+        recommendations = []
     return success_response({"recommendations": recommendations})
 
 @recommendations_bp.post("/recommend/similar/<spot_id>")
@@ -72,7 +79,11 @@ def recommend_spots():
 @require_auth
 def similar_spots(spot_id: str):
     payload = similar_request_schema.load(request.get_json(silent=True) or {})
-    recommendations = run_ml_with_timeout("similar_spots", engine.similar_spots, spot_id, payload["limit"])
+    try:
+        recommendations = run_ml_with_timeout("similar_spots", engine.similar_spots, spot_id, payload["limit"])
+    except MlComputationTimeoutError:
+        logger.warning("similar_spots_timeout_fallback", extra={"spot_id": spot_id})
+        recommendations = []
     return success_response({"recommendations": recommendations})
 
 
@@ -110,12 +121,12 @@ def recommend_feedback():
 @require_auth
 def recommend_ncf():
     """Return Neural Collaborative Filtering recommendations."""
-    from app.ml.inference.recommender import recommend_spots as recommend_ncf_spots
-
     payload = ncf_request_schema.load(request.get_json() or {})
     user_id, failure = _resolve_request_user_id(payload)
     if failure is not None:
         return failure
+
+    from app.ml.inference.recommender import recommend_spots as recommend_ncf_spots
 
     limit = payload["limit"]
     recommendations = run_ml_with_timeout("recommend_ncf", recommend_ncf_spots, str(user_id), limit)

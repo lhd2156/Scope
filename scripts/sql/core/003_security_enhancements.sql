@@ -11,6 +11,10 @@
 -- Every block is guarded so this file is safe to run on any database that
 -- already has the Scope core schema. Run it after `001_core_schema.sql`.
 
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF COL_LENGTH('core.Users', 'Role') IS NULL
 BEGIN
     ALTER TABLE core.Users
@@ -47,13 +51,13 @@ GO
 
 IF COL_LENGTH('core.Users', 'LockoutUntil') IS NULL
 BEGIN
-    ALTER TABLE core.Users ADD LockoutUntil DATETIME2 NULL;
+    ALTER TABLE core.Users ADD LockoutUntil DATETIMEOFFSET NULL;
 END;
 GO
 
 IF COL_LENGTH('core.Users', 'EmailVerifiedAt') IS NULL
 BEGIN
-    ALTER TABLE core.Users ADD EmailVerifiedAt DATETIME2 NULL;
+    ALTER TABLE core.Users ADD EmailVerifiedAt DATETIMEOFFSET NULL;
 END;
 GO
 
@@ -65,7 +69,7 @@ GO
 
 IF COL_LENGTH('core.Users', 'EmailVerificationSentAt') IS NULL
 BEGIN
-    ALTER TABLE core.Users ADD EmailVerificationSentAt DATETIME2 NULL;
+    ALTER TABLE core.Users ADD EmailVerificationSentAt DATETIMEOFFSET NULL;
 END;
 GO
 
@@ -91,15 +95,51 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH('core.Users', 'HomeBase') IS NULL
+BEGIN
+    ALTER TABLE core.Users ADD HomeBase NVARCHAR(120) NULL;
+END;
+GO
+
+IF COL_LENGTH('core.Users', 'InterestsJson') IS NULL
+BEGIN
+    ALTER TABLE core.Users ADD InterestsJson NVARCHAR(1000) NULL;
+END;
+GO
+
+IF COL_LENGTH('core.Users', 'ShowActivityStatus') IS NULL
+BEGIN
+    ALTER TABLE core.Users
+        ADD ShowActivityStatus BIT NOT NULL CONSTRAINT DF_core_Users_ShowActivityStatus DEFAULT 1;
+END;
+GO
+
+IF OBJECT_ID('core.UserPresence', 'U') IS NULL
+BEGIN
+    CREATE TABLE core.UserPresence (
+        UserId UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_core_UserPresence PRIMARY KEY,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_core_UserPresence_Status DEFAULT 'offline',
+        RouteContext NVARCHAR(160) NULL,
+        IsIdle BIT NOT NULL CONSTRAINT DF_core_UserPresence_IsIdle DEFAULT 0,
+        LastActiveAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_UserPresence_LastActiveAt DEFAULT SYSDATETIMEOFFSET(),
+        LastPlanningAt DATETIMEOFFSET NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_UserPresence_UpdatedAt DEFAULT SYSDATETIMEOFFSET(),
+        CONSTRAINT FK_core_UserPresence_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
+        CONSTRAINT CK_core_UserPresence_Status CHECK (Status IN ('planning', 'online', 'idle', 'offline'))
+    );
+    CREATE INDEX IX_core_UserPresence_Status_LastActiveAt ON core.UserPresence (Status, LastActiveAt);
+END;
+GO
+
 IF OBJECT_ID('core.RefreshTokens', 'U') IS NULL
 BEGIN
     CREATE TABLE core.RefreshTokens (
         Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_core_RefreshTokens PRIMARY KEY DEFAULT NEWID(),
         UserId UNIQUEIDENTIFIER NOT NULL,
         Token NVARCHAR(128) NOT NULL,
-        ExpiresAt DATETIME2 NOT NULL,
-        RevokedAt DATETIME2 NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_RefreshTokens_CreatedAt DEFAULT GETUTCDATE(),
+        ExpiresAt DATETIMEOFFSET NOT NULL,
+        RevokedAt DATETIMEOFFSET NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_RefreshTokens_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         ReplacedByTokenHash NVARCHAR(128) NULL,
         RevokedReason NVARCHAR(64) NULL,
         CONSTRAINT FK_core_RefreshTokens_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
@@ -128,9 +168,9 @@ BEGIN
         -- SHA-256 hash of the token we email to the user. The plaintext token
         -- lives only in the outbound email and the user's clipboard.
         TokenHash NVARCHAR(128) NOT NULL,
-        ExpiresAt DATETIME2 NOT NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_PasswordResets_CreatedAt DEFAULT GETUTCDATE(),
-        ConsumedAt DATETIME2 NULL,
+        ExpiresAt DATETIMEOFFSET NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_PasswordResets_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
+        ConsumedAt DATETIMEOFFSET NULL,
         RequestIpHash NVARCHAR(128) NULL,
         CONSTRAINT FK_core_PasswordResets_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
         CONSTRAINT UQ_core_PasswordResets_TokenHash UNIQUE (TokenHash)

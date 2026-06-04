@@ -171,7 +171,7 @@ type EngagementKind = 'like' | 'comment' | 'share';
 
 function engagementTitle(kind: EngagementKind): string {
   if (props.preview) {
-    return 'Sample Scope activity — actions unlock once the live feed connects.';
+    return 'Sample Scope activity.';
   }
 
   if (!authStore.isAuthenticated) {
@@ -192,7 +192,7 @@ function engagementTitle(kind: EngagementKind): string {
 function emitPreviewToast(): void {
   toastStore.showInfo({
     title: 'Sample Scope activity',
-    message: 'Likes, comments, and shares unlock once Scope is connected to live community posts.',
+    message: 'Sign in to like, comment, and share live Scope activity.',
   });
 }
 

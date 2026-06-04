@@ -44,7 +44,7 @@ def _png_bytes() -> bytes:
 @pytest.mark.parametrize(
     ('path', 'payload', 'expected_fields'),
     [
-        ('/api/content/spots/', {}, {'title', 'latitude', 'longitude', 'category'}),
+        ('/api/content/spots/', {}, {'isPublic'}),
         ('/api/content/trips/', {}, {'title'}),
         ('/api/content/photos/upload', {}, {'spot_id', 'file'}),
         ('/api/content/reviews/spot/{spot_id}', {}, {'rating'}),

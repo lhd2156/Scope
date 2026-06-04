@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace Scope.Core.API.Controllers;
 
 [ApiController]
-[EnableRateLimiting("auth")]
 [Route("api/core/auth")]
 public sealed class AuthController(
     IAuthService authService,
@@ -17,11 +16,13 @@ public sealed class AuthController(
     IEmailVerificationService emailVerificationService,
     IMfaService mfaService) : ControllerBase
 {
+    [EnableRateLimiting("auth")]
     [HttpPost("register")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
         => StatusCode(StatusCodes.Status201Created, new ApiResponse<object>(await authService.RegisterAsync(request.Username, request.Email, request.Password, request.DisplayName, request.DateOfBirth, request.PhoneNumber, cancellationToken)));
 
+    [EnableRateLimiting("auth")]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
@@ -37,10 +38,12 @@ public sealed class AuthController(
         return Ok(new ApiResponse<object>(outcome.Result!));
     }
 
+    [EnableRateLimiting("auth")]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest? request, CancellationToken cancellationToken)
         => Ok(new ApiResponse<object>(await authService.RefreshAsync(request?.RefreshToken ?? string.Empty, cancellationToken)));
 
+    [EnableRateLimiting("global")]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest? request, CancellationToken cancellationToken)
     {
@@ -53,10 +56,12 @@ public sealed class AuthController(
     }
 
     [Authorize]
+    [EnableRateLimiting("global")]
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
         => Ok(new ApiResponse<object>(await authService.GetCurrentUserAsync(User.GetRequiredUserId(), cancellationToken)));
 
+    [EnableRateLimiting("auth")]
     [HttpPost("password-reset/request")]
     public async Task<IActionResult> RequestPasswordReset([FromBody] PasswordResetRequest request, CancellationToken cancellationToken)
     {
@@ -68,6 +73,7 @@ public sealed class AuthController(
         return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<object>(new { accepted = true }));
     }
 
+    [EnableRateLimiting("auth")]
     [HttpPost("password-reset/complete")]
     public async Task<IActionResult> CompletePasswordReset([FromBody] PasswordResetCompleteRequest request, CancellationToken cancellationToken)
     {
@@ -76,6 +82,7 @@ public sealed class AuthController(
     }
 
     [Authorize]
+    [EnableRateLimiting("auth")]
     [HttpPost("email/verify/send")]
     public async Task<IActionResult> SendEmailVerification(CancellationToken cancellationToken)
     {
@@ -83,6 +90,7 @@ public sealed class AuthController(
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
+    [EnableRateLimiting("auth")]
     [HttpPost("email/verify")]
     public async Task<IActionResult> ConfirmEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
     {
@@ -91,11 +99,13 @@ public sealed class AuthController(
     }
 
     [Authorize]
+    [EnableRateLimiting("auth")]
     [HttpPost("mfa/enroll")]
     public async Task<IActionResult> StartMfaEnrollment(CancellationToken cancellationToken)
         => Ok(new ApiResponse<object>(await mfaService.StartEnrollmentAsync(User.GetRequiredUserId(), cancellationToken)));
 
     [Authorize]
+    [EnableRateLimiting("auth")]
     [HttpPost("mfa/enroll/confirm")]
     public async Task<IActionResult> ConfirmMfaEnrollment([FromBody] MfaConfirmRequest request, CancellationToken cancellationToken)
     {
@@ -104,6 +114,7 @@ public sealed class AuthController(
     }
 
     [Authorize]
+    [EnableRateLimiting("auth")]
     [HttpPost("mfa/disable")]
     public async Task<IActionResult> DisableMfa([FromBody] MfaDisableRequest request, CancellationToken cancellationToken)
     {

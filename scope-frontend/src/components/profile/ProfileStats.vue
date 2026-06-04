@@ -1,22 +1,31 @@
 <template>
   <section class="stats-strip" data-test="profile-stats" :aria-label="statsAriaLabel">
-    <div class="stats-grid">
-      <article v-for="item in statCards" :key="item.label" class="glass-panel stat-card" data-test="profile-stat-card">
-        <div class="icon-shell">
+    <div class="stats-row">
+      <article v-for="item in statCards" :key="item.label" class="stat-card stat-pill" data-test="profile-stat-card">
+        <span class="stat-pill__icon" aria-hidden="true">
           <ScopeIcon :name="item.icon" :label="item.label" />
-        </div>
-        <div class="stat-copy">
-          <strong>{{ item.value }}</strong>
-          <span>{{ item.label }}</span>
-          <small>{{ item.description }}</small>
-        </div>
+        </span>
+        <strong>{{ item.value }}</strong>
+        <span class="stat-pill__label">{{ item.label }}</span>
       </article>
     </div>
 
     <div class="support-strip">
-      <span class="support-pill">{{ publicSpotCount }} public pin{{ publicSpotCount === 1 ? '' : 's' }}</span>
-      <span class="support-pill">{{ averageRatingLabel }}</span>
-      <span class="support-pill support-pill--accent" :class="favoriteCategoryClass">{{ favoriteCategoryLabel }}</span>
+      <span class="support-pill">
+        <ScopeIcon class="support-pill__icon" name="pin" label="Public pins" />
+        <span>{{ publicSpotCount }} public pin{{ publicSpotCount === 1 ? '' : 's' }}</span>
+      </span>
+      <span class="support-pill support-pill--rating">
+        <StarRatingDisplay
+          v-if="averageRating"
+          :rating="averageRating"
+          :label="`Average rating ${averageRatingLabel} out of 5`"
+          id-prefix="profile-average-rating"
+          variant="compact"
+        />
+        <span>{{ averageRatingLabel }}</span>
+      </span>
+      <span v-if="favoriteCategory" class="support-pill support-pill--accent" :class="favoriteCategoryClass">{{ favoriteCategoryLabel }}</span>
     </div>
   </section>
 </template>
@@ -24,6 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
+import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import type { SpotCategory, UserProfile } from '@/types';
 
 const props = defineProps<{
@@ -42,167 +52,130 @@ function formatCategory(category: SpotCategory): string {
 }
 
 const statCards = computed(() => [
-  {
-    label: 'Countries',
-    value: `${props.countryCount}`,
-    description: 'National footprints represented by public pins and trip stops.',
-    icon: 'globe',
-  },
-  {
-    label: 'Cities',
-    value: `${props.cityCount}`,
-    description: 'Distinct city anchors shaping the visible travel story.',
-    icon: 'map',
-  },
-  {
-    label: 'Trips',
-    value: `${props.tripCount}`,
-    description: 'Public adventures and collaborative routes shared on Scope.',
-    icon: 'route',
-  },
-  {
-    label: 'Days',
-    value: `${props.travelDays}`,
-    description: 'Documented days on the road captured in visible itineraries.',
-    icon: 'calendar',
-  },
+  { label: 'Countries', value: `${props.countryCount}`, icon: 'globe' },
+  { label: 'Cities', value: `${props.cityCount}`, icon: 'map' },
+  { label: 'Trips', value: `${props.tripCount}`, icon: 'route' },
+  { label: 'Days', value: `${props.travelDays}`, icon: 'calendar' },
 ]);
 
 const averageRatingLabel = computed(() => (props.averageRating ? `${props.averageRating.toFixed(1)} avg rating` : 'Freshly launched profile'));
-const favoriteCategoryLabel = computed(() => (props.favoriteCategory ? `${formatCategory(props.favoriteCategory)} focus` : 'Mixed vibes'));
-const favoriteCategoryClass = computed(() => (props.favoriteCategory ? `badge-${props.favoriteCategory}` : 'badge-other'));
+const favoriteCategoryLabel = computed(() => (props.favoriteCategory ? `${formatCategory(props.favoriteCategory)} focus` : ''));
+const favoriteCategoryClass = computed(() => (props.favoriteCategory ? `badge-${props.favoriteCategory}` : ''));
 const statsAriaLabel = computed(() => `${props.user?.displayName ?? 'Traveler'} footprint stats`);
 </script>
 
 <style scoped>
-.stats-strip,
-.stats-grid,
-.support-strip {
-  display: grid;
-}
-
 .stats-strip {
-  gap: var(--space-4);
-}
-
-.stats-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.stat-card {
   display: grid;
   gap: var(--space-3);
-  align-content: start;
-  padding: var(--space-5);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 42%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-gold) 8%, transparent), transparent 35%),
-    color-mix(in srgb, var(--glass-bg) 92%, var(--bg-secondary));
-  transition:
-    transform var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
-.stat-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-lg);
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-2);
+  padding: 0;
+  overflow: visible;
 }
 
-.icon-shell {
-  width: 3.25rem;
-  height: 3.25rem;
+.stat-pill {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'icon value'
+    'icon label';
+  align-items: center;
+  gap: 0 0.65rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
+}
+
+.stat-pill__icon {
+  grid-area: icon;
   display: grid;
   place-items: center;
-  border-radius: 1.1rem;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-teal) 24%, transparent), color-mix(in srgb, var(--accent-gold) 10%, transparent)),
-    var(--bg-tertiary);
-  color: var(--accent-teal);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent);
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  color: var(--text-secondary);
 }
 
-.icon-shell :deep(.scope-icon) {
-  width: 1.4rem;
-  height: 1.4rem;
-}
-
-.stat-copy {
-  display: grid;
-  gap: var(--space-2);
+.stat-pill__icon :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
 }
 
 strong,
-span,
-small {
+.stat-pill__label {
   margin: 0;
 }
 
 strong {
+  grid-area: value;
   color: var(--text-primary);
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-size: 1.25rem;
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
+  font-weight: var(--font-weight-bold);
+  align-self: end;
 }
 
-span {
-  color: var(--text-primary);
-  font-size: var(--font-size-h3);
-  font-weight: var(--font-weight-semibold);
-}
-
-small {
+.stat-pill__label {
+  grid-area: label;
   color: var(--text-secondary);
-  line-height: var(--line-height-normal);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: var(--font-weight-medium);
+  align-self: start;
 }
 
 .support-strip {
-  grid-template-columns: repeat(3, auto);
-  justify-content: center;
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .support-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.65rem 1rem;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
   border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 90%, transparent);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, var(--bg-secondary));
   color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
+}
+
+.support-pill__icon {
+  width: 0.82rem;
+  height: 0.82rem;
+  color: var(--accent-teal);
+}
+
+.support-pill--rating {
+  color: var(--text-primary);
 }
 
 .support-pill--accent {
   color: var(--text-primary);
 }
 
-@media (max-width: 1120px) {
-  .stats-grid {
+@media (max-width: 720px) {
+  .stats-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .support-strip {
-    grid-template-columns: repeat(2, auto);
-  }
 }
 
-@media (max-width: 720px) {
-  .stats-grid,
-  .support-strip {
+@media (max-width: 420px) {
+  .stats-row {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stat-card:hover {
-    transform: none;
   }
 }
 </style>

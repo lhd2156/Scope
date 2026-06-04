@@ -1,14 +1,6 @@
 <template>
-  <AppShell>
-    <div class="page-container page-stack">
-      <SectionHeading
-        :eyebrow="mode === 'edit' ? 'Edit spot' : 'Create spot'"
-        :title="mode === 'edit' ? 'Refine a community pin' : 'Drop a new adventure pin'"
-        :description="mode === 'edit'
-          ? 'Update the story, media, and exact location so the discovery experience stays accurate.'
-          : 'Compose the full spot record with photos, map coordinates, and the metadata Scope needs for discovery.'"
-      />
-
+  <AppShell hide-footer>
+    <div class="page-container page-stack spot-composer-page">
       <section v-if="mode === 'edit' && spotsStore.loading" class="glass-panel state-card">
         <p class="eyebrow">Loading</p>
         <h2>Pulling the current spot draft</h2>
@@ -45,15 +37,18 @@
           </article>
         </div>
       </section>
-      <SpotForm
-        v-else
-        :mode="mode"
-        :initial-value="initialFormValue"
-        :initial-photos="initialPhotos"
-        :submitting="spotsStore.saving"
-        @submit="handleSubmit"
-        @cancel="handleCancel"
-      />
+      <template v-else>
+        <SpotForm
+          :mode="mode"
+          :initial-value="initialFormValue"
+          :initial-photos="initialPhotos"
+          :server-rejection="composerRejection"
+          :submitting="spotsStore.saving"
+          @submit="handleSubmit"
+          @cancel="handleCancel"
+          @server-rejection-cleared="composerRejection = null"
+        />
+      </template>
     </div>
   </AppShell>
 </template>
@@ -62,13 +57,13 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
-import SectionHeading from '@/components/common/SectionHeading.vue';
 import SpotForm from '@/components/spots/SpotForm.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
-import type { Photo, SpotFormInput, SpotFormSubmission } from '@/types';
+import type { Photo, SpotComposerRejection, SpotFormInput, SpotFormSubmission } from '@/types';
 import { isScopeQaMode } from '@/utils/qaMode';
+import { buildSpotComposerRejection } from '@/utils/spotComposerRejection';
 
 const route = useRoute();
 const router = useRouter();
@@ -76,6 +71,7 @@ const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
 const toastStore = useToastStore();
 const pageErrorMessage = ref('');
+const composerRejection = ref<SpotComposerRejection | null>(null);
 const isSpotComposerAuditMode = isScopeQaMode();
 
 const mode = computed<'create' | 'edit'>(() => (route.name === 'spot-edit' ? 'edit' : 'create'));
@@ -92,11 +88,20 @@ const initialFormValue = computed<Partial<SpotFormInput>>(() => {
       address: spotsStore.selectedSpot.address ?? '',
       city: spotsStore.selectedSpot.city ?? '',
       country: spotsStore.selectedSpot.country ?? 'US',
+      postalCode: spotsStore.selectedSpot.postalCode ?? '',
       category: spotsStore.selectedSpot.category,
+      pillars: spotsStore.selectedSpot.pillars?.length ? spotsStore.selectedSpot.pillars : ['hidden-gem'],
       vibe: spotsStore.selectedSpot.vibe ?? '',
       rating: spotsStore.selectedSpot.rating,
       visitedAt: spotsStore.selectedSpot.createdAt.slice(0, 10),
-      isPublic: true,
+      isPublic: spotsStore.selectedSpot.isPublic ?? true,
+      providerPlaceId: spotsStore.selectedSpot.providerPlaceId,
+      providerPlaceName: spotsStore.selectedSpot.providerPlaceName,
+      providerPlaceAddress: spotsStore.selectedSpot.providerPlaceAddress,
+      verificationStatus: spotsStore.selectedSpot.verificationStatus,
+      verificationSource: spotsStore.selectedSpot.verificationSource,
+      verificationDistanceMeters: spotsStore.selectedSpot.verificationDistanceMeters,
+      verifiedAt: spotsStore.selectedSpot.verifiedAt,
     };
   }
 
@@ -104,6 +109,7 @@ const initialFormValue = computed<Partial<SpotFormInput>>(() => {
     city: homeBaseCity.value,
     country: '',
     category: 'food',
+    pillars: ['hidden-gem'],
     rating: 4.5,
     latitude: 32.7555,
     longitude: -97.3308,
@@ -136,6 +142,7 @@ async function loadEditableSpot(spotId: string): Promise<void> {
 
 async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
   pageErrorMessage.value = '';
+  composerRejection.value = null;
   const isEditingSpot = mode.value === 'edit';
 
   try {
@@ -150,12 +157,12 @@ async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
         ? 'Scope saved the latest pin details for explorers.'
         : 'Your new Scope pin is now ready for discovery.',
     });
-  } catch {
+  } catch (error) {
     const saveErrorMessage = spotsStore.error || 'Scope could not save that spot right now.';
-    pageErrorMessage.value = saveErrorMessage;
+    composerRejection.value = buildSpotComposerRejection(error, saveErrorMessage);
     toastStore.showError({
       title: 'Spot save failed',
-      message: saveErrorMessage,
+      message: composerRejection.value.message,
     });
   }
 }
@@ -174,15 +181,18 @@ watch(
   async ([nextMode, spotId]) => {
     if (isSpotComposerAuditMode) {
       pageErrorMessage.value = '';
+      composerRejection.value = null;
       return;
     }
 
     if (nextMode === 'edit') {
+      composerRejection.value = null;
       await loadEditableSpot(spotId);
       return;
     }
 
     pageErrorMessage.value = '';
+    composerRejection.value = null;
   },
   { immediate: true },
 );
@@ -198,7 +208,15 @@ watch(
 }
 
 .page-stack {
-  gap: var(--space-6);
+  gap: var(--space-4);
+}
+
+.spot-composer-page {
+  width: min(100%, 98rem);
+  max-width: none;
+  margin: 0 auto;
+  padding-top: calc(var(--shell-content-top) + var(--space-2));
+  padding-bottom: var(--space-4);
 }
 
 .state-card,
@@ -250,4 +268,16 @@ watch(
   color: var(--accent-teal-hover);
   outline: none;
 }
+
+@media (max-height: 820px) and (min-width: 1021px) {
+  .page-stack {
+    gap: var(--space-2);
+  }
+
+  .spot-composer-page {
+    padding-top: calc(4.75rem + var(--safe-area-top, 0px));
+    padding-bottom: var(--space-2);
+  }
+}
+
 </style>

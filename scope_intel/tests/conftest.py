@@ -8,8 +8,8 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
-from app import create_app
-from app.rate_limit import reset_rate_limit_state
+from app import create_app  # noqa: E402
+from app.rate_limit import reset_rate_limit_state  # noqa: E402
 
 TEST_SECRET_KEY = "scope-intel-test-secret"
 TEST_JWT_SECRET = "scope-intel-test-jwt-secret"

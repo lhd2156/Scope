@@ -7,21 +7,37 @@ metadata:
     app.kubernetes.io/name: scope
     app.kubernetes.io/part-of: scope-platform
 data:
-  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_ENVIRONMENT: Production
   FLASK_ENV: production
   DEBUG: "False"
-  DJANGO_ALLOWED_HOSTS: scope.local,localhost,127.0.0.1,nginx
-  ALLOWED_HOSTS: scope.local,localhost,127.0.0.1,nginx
-  FRONTEND_ORIGIN: https://scope.local
-  CORE_FRONTEND_ORIGIN: https://scope.local
+  DJANGO_ALLOWED_HOSTS: scope.example.com,localhost,127.0.0.1,nginx
+  ALLOWED_HOSTS: scope.example.com,localhost,127.0.0.1,nginx
+  FRONTEND_ORIGIN: https://scope.example.com
+  CORE_FRONTEND_ORIGIN: https://scope.example.com
   CORE_JWT_ISSUER: scope-core
   CORE_JWT_AUDIENCE: scope-frontend
+  CORE_FORWARDED_HEADERS_KNOWN_NETWORKS: 10.0.0.0/8
+  CORE_FORWARDED_HEADERS_FORWARD_LIMIT: "1"
   CONTENT_SERVICE_URL: http://content:8000/api/content
+  CONTENT_GRPC_URL: http://content:50051
+  GRPC_ENABLED: "true"
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   KAFKA_ENABLED: "true"
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
   AWS_REGION: us-east-1
-  AWS_S3_BUCKET: scope-photos
+  AWS_USE_IAM_ROLE: "true"
+  AWS_S3_BUCKET: scope-production-photos
+  OLLAMA_BASE_URL: http://ollama:11434
+  ELASTICSEARCH_URL: http://elasticsearch:9200
+  REDIS_URL: redis:6379
+  RAG_BASE_URL: http://rag:8100
   VITE_API_BASE_URL: /
+  VITE_WEB_PUSH_PUBLIC_KEY: ""
+  WEB_PUSH_PUBLIC_KEY: ""
+  WEB_PUSH_SUBJECT: mailto:ops@example.com
+  RateLimit__GlobalLimit: "600"
+  RateLimit__AuthLimit: "10"
+  RateLimit__RefreshLimit: "120"
+  RateLimit__WindowSeconds: "60"
   VITE_CSRF_ENDPOINT: ""
   VITE_ENABLE_AUTH_MOCK_FALLBACK: "false"

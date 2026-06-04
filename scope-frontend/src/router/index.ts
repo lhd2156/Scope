@@ -14,12 +14,12 @@ const ExplorePage = lazyView(() => import('@/views/ExplorePage.vue'));
 const MapPage = lazyView(() => import('@/views/MapPage.vue'));
 const TripsWorkspacePage = lazyView(() => import('@/views/TripsWorkspacePage.vue'));
 const TripPlannerPage = lazyView(() => import('@/views/TripPlannerPage.vue'));
-const ScopeAIPage = lazyView(() => import('@/views/ScopeAIPage.vue'));
 const TripDetailPage = lazyView(() => import('@/views/TripDetailPage.vue'));
 const SpotComposerPage = lazyView(() => import('@/views/SpotComposerPage.vue'));
 const SpotDetailPage = lazyView(() => import('@/views/SpotDetailPage.vue'));
 const ProfilePage = lazyView(() => import('@/views/ProfilePage.vue'));
 const FriendsPage = lazyView(() => import('@/views/FriendsPage.vue'));
+const NotificationsPage = lazyView(() => import('@/views/NotificationsPage.vue'));
 const SettingsPage = lazyView(() => import('@/views/SettingsPage.vue'));
 const LoginPage = lazyView(() => import('@/views/LoginPage.vue'));
 const RegisterPage = lazyView(() => import('@/views/RegisterPage.vue'));
@@ -83,7 +83,7 @@ const routes = [
     component: ExplorePage,
     meta: publicRouteMeta(
       'Explore community-loved spots | Scope',
-      'Browse Scope spots by category, city, and vibe to find your next food stop, scenic trail, cultural gem, or nightlife plan.',
+      'Browse Scope spots by category, city, and vibe to find food stops, scenic trails, cultural gems, entertainment, or nightlife plans.',
     ),
   },
   {
@@ -128,11 +128,19 @@ const routes = [
   },
   {
     path: '/ai/ask',
-    name: 'scope-ai',
-    component: ScopeAIPage,
-    meta: privateRouteMeta(
-      'Scope AI assistant | Scope',
-      'Ask Scope AI anything about travel spots, reviews, and recommendations powered by RAG and local LLMs.',
+    redirect: { name: 'trip-planner', query: { assistant: 'open' } },
+  },
+  {
+    path: '/scope/ai',
+    redirect: { name: 'trip-planner', query: { assistant: 'open' } },
+  },
+  {
+    path: '/trips/shared/:token',
+    name: 'trip-share',
+    component: TripDetailPage,
+    meta: publicRouteMeta(
+      'Shared trip | Scope',
+      'Open a shared Scope trip itinerary, route, stops, and crew context.',
     ),
   },
   {
@@ -187,6 +195,15 @@ const routes = [
     meta: privateRouteMeta(
       'Friend graph | Scope',
       'Manage your Scope network, incoming requests, and shared-adventure relationships in one place.',
+    ),
+  },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: NotificationsPage,
+    meta: privateRouteMeta(
+      'Notifications | Scope',
+      'Review Scope trip invites, friend activity, comments, mentions, and account alerts from one inbox.',
     ),
   },
   {

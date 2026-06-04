@@ -55,9 +55,9 @@ class ScopeKafkaProducer:
                 batch_size=int(os.getenv('KAFKA_BATCH_SIZE', '32768')),
             )
 
-    def publish(self, topic: str, data: dict):
+    def publish(self, topic: str, data: dict, event_id: str | None = None):
         event = {
-            'eventId': str(uuid.uuid4()),
+            'eventId': event_id or str(uuid.uuid4()),
             'eventType': topic,
             'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             'source': 'content-engine',

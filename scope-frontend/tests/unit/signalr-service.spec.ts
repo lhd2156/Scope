@@ -209,4 +209,101 @@ describe('signalrService', () => {
     expect(signalrMock.connection.stop).toHaveBeenCalledTimes(1);
     expect(onStateChange.mock.calls.at(-1)?.[0]).toBe('idle');
   });
+
+  it('reports already connected and reconnecting hub states without starting again', async () => {
+    const { startNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    signalrMock.connection.state = 'Connected';
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    expect(signalrMock.connection.start).not.toHaveBeenCalled();
+    expect(onStateChange).toHaveBeenLastCalledWith('connected');
+    expect(onError).toHaveBeenLastCalledWith(null);
+
+    signalrMock.connection.state = 'Reconnecting';
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    expect(signalrMock.connection.start).not.toHaveBeenCalled();
+    expect(onStateChange).toHaveBeenLastCalledWith('reconnecting');
+  });
+
+  it('surfaces reconnect lifecycle errors and clears them after reconnect', async () => {
+    const { startNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    });
+
+    const reconnectingHandler = signalrMock.connection.onreconnecting.mock.calls[0]?.[0];
+    const reconnectedHandler = signalrMock.connection.onreconnected.mock.calls[0]?.[0];
+    const closeHandler = signalrMock.connection.onclose.mock.calls[0]?.[0];
+
+    reconnectingHandler?.(new Error('network wobble'));
+    expect(onStateChange).toHaveBeenLastCalledWith('reconnecting');
+    expect(onError).toHaveBeenLastCalledWith('network wobble');
+
+    reconnectedHandler?.();
+    expect(onStateChange).toHaveBeenLastCalledWith('connected');
+    expect(onError).toHaveBeenLastCalledWith(null);
+
+    closeHandler?.('closed by server');
+    expect(onStateChange).toHaveBeenLastCalledWith('disconnected');
+    expect(onError).toHaveBeenLastCalledWith('closed by server');
+  });
+
+  it('deduplicates concurrent starts and reports startup failures', async () => {
+    let rejectStart: (error: Error) => void = () => undefined;
+    signalrMock.connection.start.mockImplementationOnce(() => new Promise<void>((_, reject) => {
+      rejectStart = reject;
+    }));
+
+    const { startNotificationStream, stopNotificationStream } = await import('@/services/signalrService');
+    const onStateChange = vi.fn();
+    const onError = vi.fn();
+
+    const options = {
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange,
+      onError,
+    };
+
+    const firstStart = startNotificationStream(options);
+    const secondStart = startNotificationStream(options);
+
+    expect(signalrMock.connection.start).toHaveBeenCalledTimes(1);
+
+    const startResults = Promise.allSettled([firstStart, secondStart]);
+    rejectStart(new Error('hub refused'));
+    const results = await startResults;
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    expect(results.map((result) => (result as PromiseRejectedResult).reason.message)).toEqual([
+      'hub refused',
+      'hub refused',
+    ]);
+    expect(onStateChange).toHaveBeenLastCalledWith('disconnected');
+    expect(onError).toHaveBeenLastCalledWith('hub refused');
+
+    await stopNotificationStream();
+    expect(onStateChange).toHaveBeenLastCalledWith('idle');
+    expect(onError).toHaveBeenLastCalledWith(null);
+  });
 });

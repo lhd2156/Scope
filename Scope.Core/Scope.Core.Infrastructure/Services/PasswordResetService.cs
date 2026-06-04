@@ -3,6 +3,7 @@ using System.Text;
 using Scope.Core.Domain.Entities;
 using Scope.Core.Domain.Exceptions;
 using Scope.Core.Domain.Interfaces;
+using Scope.Core.Domain.Models;
 using Scope.Core.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,7 @@ public sealed class PasswordResetService(
     IPasswordPolicy passwordPolicy,
     IPasswordBreachChecker breachChecker,
     IKafkaProducerService kafkaProducerService,
+    INotificationService? notificationService = null,
     ILogger<PasswordResetService>? logger = null) : IPasswordResetService
 {
     private static readonly EventId AuditEvent = new(9002, "scope.security.audit");
@@ -129,10 +131,11 @@ public sealed class PasswordResetService(
 
         // Invalidate every live refresh token for this user so stolen sessions
         // cannot continue past a credential rotation.
+        var revokedAt = DateTimeOffset.UtcNow;
         await dbContext.RefreshTokens
             .Where(x => x.UserId == user.Id && x.RevokedAt == null)
             .ExecuteUpdateAsync(
-                s => s.SetProperty(t => t.RevokedAt, _ => DateTimeOffset.UtcNow)
+                s => s.SetProperty(t => t.RevokedAt, _ => revokedAt)
                       .SetProperty(t => t.RevokedReason, _ => "password_reset"),
                 cancellationToken);
 
@@ -142,6 +145,23 @@ public sealed class PasswordResetService(
             "user.password_reset_completed",
             new { userId = user.Id, email = user.Email },
             cancellationToken);
+
+        if (notificationService is not null)
+        {
+            await notificationService.CreateAsync(new NotificationCreateRequest(
+                user.Id,
+                "security.password.changed",
+                "security.password.changed",
+                "security",
+                "urgent",
+                "Password changed",
+                "Your Scope account password was changed. If this was not you, reset it immediately.",
+                "/settings#settings-account",
+                null,
+                "user",
+                user.Id.ToString(),
+                $"security.password.changed:{user.Id:N}:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}"), cancellationToken);
+        }
 
         Audit("password_reset_complete", "success", user.Id.ToString());
     }

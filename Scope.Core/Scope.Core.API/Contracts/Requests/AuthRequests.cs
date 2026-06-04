@@ -23,7 +23,27 @@ public sealed record LoginRequest(
 }
 public sealed record RefreshRequest([Required] string RefreshToken);
 public sealed record LogoutRequest([Required] string RefreshToken);
-public sealed record PingLocationRequest(Guid TripId, double Latitude, double Longitude);
+public sealed record PingLocationRequest(
+    [Required] Guid TripId,
+    [Range(-90, 90)] double Latitude,
+    [Range(-180, 180)] double Longitude);
+public sealed record UserProfileUpdateRequest(
+    [MinLength(2)]
+    [MaxLength(60)]
+    string? DisplayName = null,
+    [MaxLength(500)]
+    string? Bio = null,
+    [MaxLength(1000)]
+    string? AvatarUrl = null,
+    [MaxLength(120)]
+    string? HomeBase = null,
+    IReadOnlyList<string>? Interests = null,
+    bool? ShowActivityStatus = null);
+public sealed record PresenceHeartbeatRequest(
+    [MaxLength(20)] string? Status = null,
+    [MaxLength(160)] string? RouteContext = null,
+    bool IsIdle = false,
+    bool IsPlanning = false);
 public sealed record PasswordResetRequest([Required][EmailAddress] string Email);
 public sealed record PasswordResetCompleteRequest([Required] string Token, [Required][MinLength(10)] string NewPassword);
 public sealed record VerifyEmailRequest([Required] string Token);

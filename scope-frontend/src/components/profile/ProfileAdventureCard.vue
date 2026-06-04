@@ -5,7 +5,6 @@
 
       <div class="adventure-media-chrome">
         <span class="destination-pill">{{ trip.destination }}</span>
-        <span class="status-pill" :class="`status-pill--${tripStatus}`">{{ statusLabel }}</span>
       </div>
     </div>
 
@@ -39,7 +38,7 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
-import type { Trip, TripStatus } from '@/types';
+import type { Trip } from '@/types';
 import { formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
 
@@ -60,8 +59,6 @@ const dateRangeLabel = computed(() => {
 
 const tripLengthDays = computed(() => getInclusiveDaySpan(props.trip.startDate, props.trip.endDate));
 
-const tripStatus = computed<TripStatus>(() => props.trip.status ?? 'planning');
-const statusLabel = computed(() => tripStatus.value.charAt(0).toUpperCase() + tripStatus.value.slice(1));
 const descriptionCopy = computed(() => props.trip.description?.trim() || 'A premium route board is ready for its next chapter.');
 </script>
 
@@ -132,7 +129,6 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
 }
 
 .destination-pill,
-.status-pill,
 .meta-pill {
   display: inline-flex;
   align-items: center;
@@ -148,26 +144,9 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
   font-size: var(--font-size-small);
 }
 
-.destination-pill,
-.status-pill {
+.destination-pill {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
-}
-
-.status-pill--planning {
-  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
-}
-
-.status-pill--active {
-  background: color-mix(in srgb, var(--accent-gold) 18%, var(--glass-bg));
-}
-
-.status-pill--completed {
-  background: color-mix(in srgb, var(--success) 18%, var(--glass-bg));
-}
-
-.status-pill--cancelled {
-  background: color-mix(in srgb, var(--danger) 16%, var(--glass-bg));
 }
 
 .adventure-body {
@@ -182,8 +161,11 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
 }
 
 .meta-pill {
-  justify-content: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: stretch;
   min-width: 0;
+  width: 100%;
   color: var(--text-secondary);
 }
 
@@ -191,6 +173,13 @@ const descriptionCopy = computed(() => props.trip.description?.trim() || 'A prem
   width: 0.95rem;
   height: 0.95rem;
   color: var(--accent-teal);
+}
+
+.meta-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copy-stack h3,

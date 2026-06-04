@@ -6,40 +6,72 @@ vi.mock('@/services/analyticsService', () => ({
   analyticsService: analyticsServiceMock,
 }));
 
-describe('analytics consent utility', () => {
+async function loadConsentModule() {
+  vi.resetModules();
+  return import('@/utils/analyticsConsent');
+}
+
+describe('analyticsConsent utility', () => {
   beforeEach(() => {
-    vi.resetModules();
-    analyticsServiceMock.setConsent.mockReset();
     localStorage.clear();
+    analyticsServiceMock.setConsent.mockReset();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('hydrates persisted consent and syncs it into the analytics service', async () => {
-    localStorage.setItem('scope-analytics-consent', 'granted');
-
-    const { initializeAnalyticsConsent, useAnalyticsConsent } = await import('@/utils/analyticsConsent');
+  it('initializes once from stored consent and exposes readonly state helpers', async () => {
+    const {
+      ANALYTICS_CONSENT_STORAGE_KEY,
+      initializeAnalyticsConsent,
+      useAnalyticsConsent,
+    } = await loadConsentModule();
+    localStorage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, 'granted');
 
     expect(initializeAnalyticsConsent()).toBe('granted');
-    expect(useAnalyticsConsent().consent.value).toBe('granted');
+    expect(initializeAnalyticsConsent()).toBe('granted');
+
+    const consentState = useAnalyticsConsent();
+    expect(consentState.consent.value).toBe('granted');
+    expect(consentState.hasAnalyticsConsentChoice.value).toBe(true);
+    expect(consentState.isAnalyticsConsentInitialized.value).toBe(true);
     expect(analyticsServiceMock.setConsent).toHaveBeenCalledWith('granted');
   });
 
-  it('persists explicit consent choices and can reset back to unknown', async () => {
-    const { resetAnalyticsConsent, setAnalyticsConsent, useAnalyticsConsent } = await import('@/utils/analyticsConsent');
+  it('persists explicit choices and removes storage when consent is reset', async () => {
+    const {
+      ANALYTICS_CONSENT_STORAGE_KEY,
+      readStoredAnalyticsConsent,
+      resetAnalyticsConsent,
+      setAnalyticsConsent,
+    } = await loadConsentModule();
 
-    setAnalyticsConsent('denied');
+    expect(readStoredAnalyticsConsent()).toBe('unknown');
+    localStorage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, 'maybe');
+    expect(readStoredAnalyticsConsent()).toBe('unknown');
 
-    expect(useAnalyticsConsent().consent.value).toBe('denied');
-    expect(localStorage.getItem('scope-analytics-consent')).toBe('denied');
-    expect(analyticsServiceMock.setConsent).toHaveBeenLastCalledWith('denied');
+    expect(setAnalyticsConsent('denied')).toBe('denied');
+    expect(localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY)).toBe('denied');
+    expect(readStoredAnalyticsConsent()).toBe('denied');
 
-    resetAnalyticsConsent();
+    expect(setAnalyticsConsent('granted')).toBe('granted');
+    expect(localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY)).toBe('granted');
 
-    expect(useAnalyticsConsent().consent.value).toBe('unknown');
-    expect(localStorage.getItem('scope-analytics-consent')).toBeNull();
+    expect(resetAnalyticsConsent()).toBe('unknown');
+    expect(localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY)).toBeNull();
     expect(analyticsServiceMock.setConsent).toHaveBeenLastCalledWith('unknown');
+  });
+
+  it('returns unknown when browser storage is unavailable', async () => {
+    const { initializeAnalyticsConsent, readStoredAnalyticsConsent, setAnalyticsConsent } = await loadConsentModule();
+    const originalWindow = window;
+
+    vi.stubGlobal('window', undefined);
+    expect(readStoredAnalyticsConsent()).toBe('unknown');
+    expect(initializeAnalyticsConsent()).toBe('unknown');
+    expect(setAnalyticsConsent('granted')).toBe('granted');
+
+    vi.stubGlobal('window', originalWindow);
   });
 });

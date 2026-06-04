@@ -34,14 +34,23 @@ def _safe_delete(index: str, doc_id: str) -> None:
 
 def index_spot(spot) -> None:
     """Index a Spot model instance."""
+    if not getattr(spot, 'is_public', False):
+        _safe_delete(SPOT_INDEX, str(spot.id))
+        return
+
     stats = spot.reviews.aggregate(avg_rating=Avg('rating'), review_count=Count('id'))
+    pillars = getattr(spot, 'pillars', None) or []
     body = {
         'id': str(spot.id),
         'name': getattr(spot, 'name', getattr(spot, 'title', '')),
         'description': getattr(spot, 'description', '') or '',
         'category': getattr(spot, 'category', '') or '',
-        'tags': [tag for tag in [getattr(spot, 'vibe', ''), getattr(spot, 'city', '')] if tag],
+        'tags': [tag for tag in [getattr(spot, 'vibe', ''), getattr(spot, 'city', ''), *pillars] if tag],
+        'pillars': pillars,
+        'verification_status': getattr(spot, 'verification_status', ''),
+        'safety_status': getattr(spot, 'safety_status', ''),
         'creator_id': str(getattr(spot, 'creator_id', getattr(spot, 'user_id', ''))) or None,
+        'is_public': True,
         'avg_rating': float(stats['avg_rating'] or getattr(spot, 'rating', 0) or 0),
         'review_count': int(stats['review_count'] or 0),
         'created_at': spot.created_at.isoformat() if getattr(spot, 'created_at', None) else None,
@@ -60,9 +69,16 @@ def delete_spot(spot_id: str) -> None:
 
 def index_review(review) -> None:
     """Index a Review model instance."""
+    spot = getattr(review, 'spot', None)
+    if spot is not None and not getattr(spot, 'is_public', False):
+        _safe_delete(REVIEW_INDEX, str(review.id))
+        return
+
     body = {
         'id': str(review.id),
         'spot_id': str(review.spot_id) if review.spot_id else None,
+        'spot_is_public': bool(getattr(spot, 'is_public', False)) if spot is not None else False,
+        'spot_owner_id': str(getattr(spot, 'user_id', '')) if spot is not None else None,
         'user_id': str(review.user_id) if review.user_id else None,
         'text': getattr(review, 'text', getattr(review, 'comment', '')) or '',
         'rating': int(float(review.rating)) if getattr(review, 'rating', None) else 0,
@@ -82,11 +98,16 @@ def delete_review(review_id: str) -> None:
 
 def index_trip(trip) -> None:
     """Index a Trip model instance."""
+    if hasattr(trip, 'is_public') and not getattr(trip, 'is_public', False):
+        _safe_delete(TRIP_INDEX, str(trip.id))
+        return
+
     body = {
         'id': str(trip.id),
         'name': getattr(trip, 'name', getattr(trip, 'title', '')),
         'description': getattr(trip, 'description', '') or '',
         'creator_id': str(trip.creator_id) if trip.creator_id else None,
+        'is_public': bool(getattr(trip, 'is_public', True)),
         'member_count': int(getattr(trip, 'member_count', None) or trip.members.count()),
         'spot_count': int(getattr(trip, 'spot_count', None) or trip.trip_spots.count()),
         'created_at': trip.created_at.isoformat() if getattr(trip, 'created_at', None) else None,

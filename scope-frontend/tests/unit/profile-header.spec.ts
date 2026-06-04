@@ -14,24 +14,30 @@ const user: UserProfile = {
 };
 
 describe('ProfileHeader', () => {
-  it('renders the centered identity layout, travel interests, and action links', () => {
-    const wrapper = mount(ProfileHeader, {
-      props: {
-        user,
-        isCurrentUser: true,
-        primaryActionLabel: 'Edit preferences',
-        primaryActionTo: '/settings',
-        secondaryActionLabel: 'View friends',
-        secondaryActionTo: '/friends',
-      },
-      global: {
-        stubs: {
-          RouterLink: {
-            props: ['to'],
-            template: '<a :href="typeof to === \'string\' ? to : \'/mock\'"><slot /></a>',
-          },
+  const mountProfileHeader = (props: InstanceType<typeof ProfileHeader>['$props']) => mount(ProfileHeader, {
+    props,
+    global: {
+      stubs: {
+        LazyImage: {
+          props: ['src', 'alt'],
+          template: '<img class="lazy-image-stub" :src="src" :alt="alt" />',
+        },
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="typeof to === \'string\' ? to : \'/mock\'"><slot /></a>',
         },
       },
+    },
+  });
+
+  it('renders the centered identity layout, travel interests, and action links', () => {
+    const wrapper = mountProfileHeader({
+      user,
+      isCurrentUser: true,
+      primaryActionLabel: 'Edit preferences',
+      primaryActionTo: '/settings',
+      secondaryActionLabel: 'View friends',
+      secondaryActionTo: '/friends',
     });
 
     expect(wrapper.text()).toContain('Your scope');
@@ -42,5 +48,44 @@ describe('ProfileHeader', () => {
     expect(wrapper.text()).toContain('View friends');
     expect(wrapper.text()).toContain('Food');
     expect(wrapper.find('.avatar-ring').exists()).toBe(true);
+  });
+
+  it('renders fallback identity copy, avatar media, and presence states for other travelers', async () => {
+    const wrapper = mountProfileHeader({
+      user: {
+        id: 'user-2',
+        username: 'maya',
+        email: 'maya@example.com',
+        displayName: 'Maya Chen',
+        bio: '  ',
+        homeBase: '',
+        avatarUrl: '  https://images.example.com/maya.jpg  ',
+        interests: ['adventure', 'unknown-interest'],
+        stats: { spots: 0, trips: 0, friends: 0 },
+      },
+      presence: 'planning',
+      primaryActionLabel: 'Add friend',
+      primaryActionTo: { name: 'profile', params: { id: 'user-2' } },
+    });
+
+    expect(wrapper.text()).not.toContain('Your scope');
+    expect(wrapper.text()).toContain('Scope community');
+    expect(wrapper.text()).toContain('Building a Scope footprint one memorable pin at a time.');
+    expect(wrapper.text()).toContain('Planning now');
+    expect(wrapper.find('.avatar-presence--planning').exists()).toBe(true);
+    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe('https://images.example.com/maya.jpg');
+    expect(wrapper.find('.badge-adventure').exists()).toBe(true);
+    expect(wrapper.find('.badge-other').exists()).toBe(true);
+
+    await wrapper.setProps({ presence: 'hidden' });
+    expect(wrapper.text()).toContain('Activity hidden');
+    expect(wrapper.find('.presence-chip--hidden').exists()).toBe(true);
+
+    await wrapper.setProps({ presence: 'offline' });
+    expect(wrapper.text()).toContain('Offline');
+    expect(wrapper.find('.avatar-presence--offline').exists()).toBe(true);
+
+    await wrapper.setProps({ presence: undefined });
+    expect(wrapper.find('.presence-chip').exists()).toBe(false);
   });
 });

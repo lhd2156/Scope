@@ -1,4 +1,7 @@
-const DEFAULT_SCOPE_AI_MIN_REPLY_MS = 2_200;
+// Historically we enforced a minimum "thinking" duration for perceived polish.
+// That is expensive UX-wise (it adds latency even when the model is fast),
+// so the default is now 0ms and can be re-enabled via VITE_SCOPE_AI_MIN_REPLY_MS.
+const DEFAULT_SCOPE_AI_MIN_REPLY_MS = 0;
 const MAX_SCOPE_AI_MIN_REPLY_MS = 10_000;
 
 function readConfiguredMinimumReplyMs(): number | null {

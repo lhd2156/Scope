@@ -38,18 +38,9 @@ func Load() Config {
 		AlertSource:         getEnv("SCOPE_ALERT_SOURCE", "scope-metrics"),
 		DiskPath:            getEnv("SCOPE_METRICS_DISK_PATH", "."),
 		Targets: []Target{
-			{
-				Name: "core",
-				URL:  getEnv("SCOPE_CORE_HEALTH_URL", "http://localhost:5001/api/core/health"),
-			},
-			{
-				Name: "content",
-				URL:  getEnv("SCOPE_CONTENT_HEALTH_URL", "http://localhost:5002/api/content/health"),
-			},
-			{
-				Name: "intel",
-				URL:  getEnv("SCOPE_INTEL_HEALTH_URL", "http://localhost:5003/api/intel/health"),
-			},
+			targetFromEnv("core", "SCOPE_CORE_HEALTH_URL", "http://localhost:5001/api/core/health"),
+			targetFromEnv("content", "SCOPE_CONTENT_HEALTH_URL", "http://localhost:5002/api/content/health"),
+			targetFromEnv("intel", "SCOPE_INTEL_HEALTH_URL", "http://localhost:5003/api/intel/health"),
 		},
 	}
 }
@@ -65,6 +56,13 @@ func getEnv(key string, fallback string) string {
 	}
 
 	return value
+}
+
+func targetFromEnv(name string, key string, fallbackURL string) Target {
+	return Target{
+		Name: name,
+		URL:  getEnv(key, fallbackURL),
+	}
 }
 
 func loadPositiveDuration(key string, fallbackSeconds float64) time.Duration {

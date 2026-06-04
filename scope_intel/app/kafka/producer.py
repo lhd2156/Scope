@@ -1,7 +1,12 @@
 import json
 import logging
 
-from confluent_kafka import Producer
+try:
+    from confluent_kafka import Producer
+except ImportError:
+    class Producer:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("confluent_kafka is not installed; Kafka producer is unavailable")
 
 from config import settings
 

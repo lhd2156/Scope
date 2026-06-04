@@ -194,6 +194,11 @@ onBeforeUnmount(() => {
   animation: shimmer 1.25s ease-in-out infinite;
 }
 
+.lazy-image-placeholder.is-error .lazy-image-placeholder__shimmer {
+  display: none;
+  animation: none;
+}
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);

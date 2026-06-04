@@ -1,12 +1,9 @@
 import pytest
 
 PUBLIC_ROUTE_EXCEPTIONS = {
-    "/api/intel/classify-image",
     "/api/intel/health",
     "/api/intel/metrics",
     "/api/intel/ml/info",
-    "/api/intel/predict-trip",
-    "/api/intel/sentiment",
 }
 
 PROTECTED_ROUTE_CASES = [
@@ -18,9 +15,14 @@ PROTECTED_ROUTE_CASES = [
     ("POST", "/api/intel/vibe-match", {"json": {"description": "I want a chill outdoor walk with sunset views", "limit": 2}}),
     ("POST", "/api/intel/route/optimize", {"json": {"spots": [{"spotId": "spot-1", "latitude": 32.7555, "longitude": -97.3308}, {"spotId": "spot-2", "latitude": 32.7489, "longitude": -97.3623}], "startLat": 32.7555, "startLng": -97.3308}}),
     ("POST", "/api/intel/agent/plan-trip", {"json": {"prompt": "Plan a quick coffee walk in Fort Worth"}}),
+    ("POST", "/api/intel/agent/trip-chat", {"json": {"message": "What should I do around Fort Worth?"}}),
     ("GET", "/api/intel/weather?lat=32.7555&lng=-97.3308&date=2026-04-01", {}),
+    ("GET", "/api/intel/weather/current?lat=32.7555&lng=-97.3308", {}),
     ("GET", "/api/intel/geocode?q=Fort%20Worth%2C%20TX", {}),
     ("GET", "/api/intel/reverse-geocode?lat=32.7555&lng=-97.3308", {}),
+    ("POST", "/api/intel/classify-image", {"json": {"image_base64": "AA=="}}),
+    ("POST", "/api/intel/predict-trip", {"json": {"num_spots": 2}}),
+    ("POST", "/api/intel/sentiment", {"json": {"text": "Great spot"}}),
 ]
 
 
@@ -40,6 +42,16 @@ def test_protected_routes_reject_invalid_bearer_token(client, method, path, kwar
     assert response.status_code == 401
     payload = response.get_json()["error"]
     assert payload["code"] == "UNAUTHORIZED"
+
+
+def test_bearer_scheme_is_case_insensitive(client, auth_header):
+    response = client.get(
+        "/api/intel/itinerary/missing-itinerary",
+        headers={"Authorization": auth_header["Authorization"].replace("Bearer ", "bearer ")},
+    )
+
+    assert response.status_code == 404
+    assert response.get_json()["error"]["code"] == "NOT_FOUND"
 
 
 def test_route_map_marks_all_protected_endpoints_with_require_auth(app):

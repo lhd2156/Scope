@@ -59,8 +59,9 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
-function formatCategory(category: SpotCategory): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
+function formatCategory(category: SpotCategory | undefined): string {
+  const resolvedCategory = category || 'other';
+  return resolvedCategory.charAt(0).toUpperCase() + resolvedCategory.slice(1);
 }
 
 function formatDate(value: string): string {

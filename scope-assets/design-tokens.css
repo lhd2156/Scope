@@ -54,6 +54,24 @@
 
   /* Map */
   --map-style: 'mapbox://styles/mapbox/dark-v11';
+  --map-route-outline-light: #061018;
+  --map-route-outline-dark: #ecfeff;
+  --map-route-planner-light: #08715f;
+  --map-route-default-light: #b45309;
+  --map-route-planner-dark: #2fffd6;
+  --map-route-default-dark: #fbbf24;
+  --map-traffic-moderate: #f4aa3d;
+  --map-traffic-heavy: #ef5a55;
+  --map-traffic-severe: #cf2437;
+  --map-traffic-closure: #7654d7;
+  --map-traffic-casing-native: #f8faf7;
+  --map-traffic-casing-scope: #e8f1ff;
+  --nearby-place-education: #6f8792;
+  --nearby-place-shopping: #4f8fc5;
+  --nearby-place-lodging: #d862bd;
+  --nearby-place-fuel: #2f9b75;
+  --nearby-place-health: #df6969;
+  --nearby-place-landmark: #8f78da;
 
   /* Scrollbar */
   --scrollbar-track: #1a1a2e;
@@ -78,6 +96,8 @@
   --badge-adventure-fg: #ffd491;
   --badge-shopping-bg: #4b1635;
   --badge-shopping-fg: #ffb2d9;
+  --badge-entertainment-bg: #3b1d0f;
+  --badge-entertainment-fg: #ffc47a;
   --badge-scenic-bg: #093a47;
   --badge-scenic-fg: #84e8ff;
   --badge-other-bg: #2a2f44;
@@ -118,7 +138,7 @@
   --glass-blur: none;
 
   /* Map */
-  --map-style: 'mapbox://styles/mapbox/light-v11';
+  --map-style: 'mapbox://styles/mapbox/streets-v12';
 
   /* Scrollbar */
   --scrollbar-track: #f0f0f5;
@@ -143,6 +163,8 @@
   --badge-adventure-fg: #c2410c;
   --badge-shopping-bg: #fce7f3;
   --badge-shopping-fg: #be185d;
+  --badge-entertainment-bg: #fef3c7;
+  --badge-entertainment-fg: #b45309;
   --badge-scenic-bg: #cffafe;
   --badge-scenic-fg: #0e7490;
   --badge-other-bg: #e5e7eb;
@@ -158,6 +180,7 @@
 .badge-culture   { background: var(--badge-culture-bg); color: var(--badge-culture-fg); }
 .badge-adventure { background: var(--badge-adventure-bg); color: var(--badge-adventure-fg); }
 .badge-shopping  { background: var(--badge-shopping-bg); color: var(--badge-shopping-fg); }
+.badge-entertainment { background: var(--badge-entertainment-bg); color: var(--badge-entertainment-fg); }
 .badge-scenic    { background: var(--badge-scenic-bg); color: var(--badge-scenic-fg); }
 .badge-other     { background: var(--badge-other-bg); color: var(--badge-other-fg); }
 

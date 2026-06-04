@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
+from app.services.geo_math import haversine_distance_km
 from app.services.native_geo import get_native_geo
 
-EARTH_RADIUS_KM = 6371.0088
 NATIVE_R_TREE_NODE_CAPACITY = 8
 
 
@@ -99,14 +98,4 @@ class RouteOptimizer:
 
     @staticmethod
     def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-        lat1_radians = radians(lat1)
-        lat2_radians = radians(lat2)
-        delta_latitude = radians(lat2 - lat1)
-        delta_longitude = radians(lon2 - lon1)
-
-        haversine = (
-            sin(delta_latitude / 2) ** 2
-            + cos(lat1_radians) * cos(lat2_radians) * sin(delta_longitude / 2) ** 2
-        )
-        arc = 2 * asin(sqrt(haversine))
-        return EARTH_RADIUS_KM * arc
+        return haversine_distance_km(lat1, lon1, lat2, lon2)

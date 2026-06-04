@@ -115,7 +115,7 @@ const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
     id: 'demo-user-1',
     username: 'scopedemo',
     email: 'demo@scope.travel',
-    displayName: 'Local preview user',
+    displayName: 'Scope traveler',
     interests: ['food', 'nightlife', 'culture'],
   },
   liked: false,
@@ -147,13 +147,19 @@ const auditSpot = computed<SpotDetailModel | null>(() => (
     : null
 ));
 const activeSpot = computed(() => auditSpot.value ?? (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
+const lastAuthenticatedSpotRefreshKey = ref('');
+
+function resolveSpotOwnerId(spot: SpotDetailModel): string | undefined {
+  return spot.author?.id ?? spot.userId;
+}
+
 const canManageSpot = computed(() => {
   if (!activeSpot.value || !authStore.isAuthenticated) {
     return false;
   }
 
-  const authorId = activeSpot.value.author?.id;
-  return !authorId || authorId === authStore.currentUser?.id;
+  const ownerId = resolveSpotOwnerId(activeSpot.value);
+  return Boolean(ownerId && authStore.currentUser?.id && ownerId === authStore.currentUser.id);
 });
 
 function openDeleteModal() {
@@ -226,6 +232,28 @@ onMounted(() => {
 watch(requestedSpotId, (spotId) => {
   void loadSpot(spotId);
 });
+
+watch(
+  () => [
+    requestedSpotId.value,
+    authStore.hasHydratedSession,
+    authStore.isAuthenticated,
+    authStore.currentUser?.id,
+  ] as const,
+  ([spotId, hasHydratedSession, isAuthenticated, userId]) => {
+    if (!spotId || !hasHydratedSession || !isAuthenticated || !userId) {
+      return;
+    }
+
+    const refreshKey = `${spotId}:${userId}`;
+    if (lastAuthenticatedSpotRefreshKey.value === refreshKey) {
+      return;
+    }
+
+    lastAuthenticatedSpotRefreshKey.value = refreshKey;
+    void loadSpot(spotId);
+  },
+);
 </script>
 
 <style scoped>

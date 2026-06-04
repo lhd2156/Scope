@@ -28,4 +28,49 @@ describe('VirtualList', () => {
     expect(wrapper.text()).toContain('Item 6');
     expect(wrapper.text()).not.toContain('Item 0');
   });
+
+  it('supports custom keys, staggered rendering, and clamps scroll after list shrink', async () => {
+    const itemKey = vi.fn((item: unknown, index: number) => `custom-${String((item as { label?: string }).label ?? item)}-${index}`);
+    const wrapper = mount(VirtualList, {
+      props: {
+        items: [
+          { label: 'No id object' },
+          'Primitive item',
+          { id: 3, label: 'Numeric id item' },
+          { label: 'Last item' },
+        ],
+        itemHeight: 30,
+        viewportHeight: 60,
+        overscan: 0,
+        stagger: true,
+        itemKey,
+      },
+      slots: {
+        default: ({ item }: { item: { label?: string } | string }) => `<div class="row">${typeof item === 'string' ? item : item.label}</div>`,
+      },
+    });
+
+    expect(wrapper.classes()).toContain('virtual-list--stagger');
+    expect(itemKey).toHaveBeenCalledWith({ label: 'No id object' }, 0);
+
+    const container = wrapper.get('.virtual-list').element as HTMLElement;
+    container.scrollTop = 120;
+    await wrapper.setProps({ items: [{ label: 'Only item left' }] });
+
+    expect(container.scrollTop).toBe(0);
+    expect(wrapper.text()).toContain('Only item left');
+
+    const primitiveWrapper = mount(VirtualList, {
+      props: {
+        items: ['Primitive fallback'],
+        itemHeight: 20,
+        viewportHeight: 20,
+      },
+      slots: {
+        default: ({ item }: { item: string }) => `<div class="row">${item}</div>`,
+      },
+    });
+
+    expect(primitiveWrapper.text()).toContain('Primitive fallback');
+  });
 });

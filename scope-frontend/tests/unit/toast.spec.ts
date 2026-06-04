@@ -25,9 +25,12 @@ describe('Toast', () => {
     expect(wrapper.attributes('role')).toBe('status');
     expect(wrapper.attributes('aria-live')).toBe('polite');
 
+    await wrapper.get('.toast-close').trigger('click');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(wrapper.emitted('close')).toHaveLength(1);
+    expect(wrapper.emitted('close')).toHaveLength(2);
   });
 
   it('announces error toasts assertively and stays open when auto-hide is disabled', async () => {

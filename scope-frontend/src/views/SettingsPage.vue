@@ -1,20 +1,17 @@
 <template>
   <AppShell>
     <div class="page-container page-stack settings-page">
-      <section class="glass-panel settings-shell">
-        <div class="settings-shell__copy">
-          <p class="eyebrow">Settings</p>
-          <h1>Shape how Scope looks, feels, and shares your story.</h1>
-          <p class="section-copy">
-            Fine-tune profile visibility, notifications, appearance, and the travel preferences that keep your routes personal.
-          </p>
-        </div>
-
-        <div class="settings-shell__meta">
-          <span class="meta-pill">{{ syncModeLabel }}</span>
+      <PageHero
+        eyebrow="Settings"
+        title="Shape how Scope looks, feels, and shares your story."
+        description="Fine-tune profile visibility, notifications, appearance, and the travel preferences that keep your routes personal."
+      >
+        <template #stats>
           <span class="meta-pill meta-pill--muted">{{ authStore.currentUser?.email || 'Scope member' }}</span>
-        </div>
-      </section>
+        </template>
+      </PageHero>
+
+      <span class="sr-only" data-test="settings-sync-mode">{{ syncModeLabel }}</span>
 
       <section v-if="isSettingsAuditMode" class="glass-panel settings-audit-preview" aria-labelledby="settings-audit-title">
         <div class="settings-audit-preview__copy">
@@ -45,9 +42,9 @@
           </article>
         </div>
       </section>
-      <section v-else class="settings-workspace">
-        <aside class="glass-panel settings-sidebar" data-test="settings-sidebar">
-          <div>
+      <section v-else class="split-workspace settings-workspace">
+        <aside class="settings-sidebar" data-test="settings-sidebar">
+          <div class="settings-sidebar__heading">
             <p class="eyebrow">Workspace</p>
             <h2>Preferences</h2>
           </div>
@@ -62,12 +59,16 @@
               :class="{ 'is-active': activeSection === section.id }"
               @click="goToSection(section.id)"
             >
-              <span>{{ section.label }}</span>
+              <span class="settings-nav__icon" aria-hidden="true">{{ section.glyph }}</span>
+              <span class="settings-nav__copy">
+                <span class="settings-nav__label">{{ section.label }}</span>
+                <span class="settings-nav__sub">{{ section.sub }}</span>
+              </span>
             </button>
           </nav>
         </aside>
 
-        <article class="glass-panel settings-main">
+        <article class="settings-main split-workspace__main">
           <SettingsForm
             v-model:error-message="formError"
             :initial-value="settingsValue"
@@ -79,6 +80,7 @@
             :tutorial-step-count="onboardingStore.totalSteps"
             @submit="handleSave"
             @replay-tutorial="handleReplayTutorial"
+            @delete-account="handleDeleteAccount"
           />
         </article>
       </section>
@@ -87,8 +89,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
+import PageHero from '@/components/common/PageHero.vue';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -98,18 +102,19 @@ import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
 import { useReducedMotion } from '@/utils/motion';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { getStoredTheme } from '@/utils/theme';
+import { normalizeUserVibes } from '@/utils/userPreferenceSignals';
 import type { SpotCategory } from '@/types';
 
 const PROFILE_PREVIEW_MODE_ENABLED = USER_MOCK_FALLBACK_ENABLED;
 
-const PREFERENCE_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const PREFERENCE_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const DEFAULT_CATEGORY_PREFERENCES: SpotCategory[] = ['food', 'culture', 'adventure'];
 const settingsSections = [
-  { id: 'settings-account', label: 'Account' },
-  { id: 'settings-profile', label: 'Profile' },
-  { id: 'settings-privacy', label: 'Privacy' },
-  { id: 'settings-notifications', label: 'Notifications' },
-  { id: 'settings-appearance', label: 'Appearance' },
+  { id: 'settings-account', label: 'Account', sub: 'Email & sync', glyph: 'AC' },
+  { id: 'settings-profile', label: 'Profile', sub: 'Identity & bio', glyph: 'PR' },
+  { id: 'settings-privacy', label: 'Privacy', sub: 'Who sees what', glyph: 'PV' },
+  { id: 'settings-notifications', label: 'Notifications', sub: 'Reach & cadence', glyph: 'NT' },
+  { id: 'settings-appearance', label: 'Appearance', sub: 'Theme & vibes', glyph: 'AP' },
 ] as const;
 
 type SettingsSectionId = (typeof settingsSections)[number]['id'];
@@ -118,15 +123,22 @@ const authStore = useAuthStore();
 const onboardingStore = useOnboardingStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
+const router = useRouter();
 const reducedMotion = useReducedMotion();
 const isSettingsAuditMode = isScopeQaMode();
 const activeSection = ref<SettingsSectionId>('settings-account');
 const formError = ref('');
 const settingsValue = ref<SettingsFormValue>({
   displayName: 'New explorer',
+  username: '',
+  firstName: '',
+  lastName: '',
+  phoneNumber: '',
+  dateOfBirth: '',
   avatarUrl: '',
   bio: '',
   homeBase: '',
+  showActivityStatus: true,
   privacy: 'friends',
   tripInvites: 'instant',
   emailAlerts: true,
@@ -139,7 +151,7 @@ const syncModeLabel = computed(() => (PROFILE_PREVIEW_MODE_ENABLED ? 'Preview mo
 const syncModeDescription = computed(() =>
   PROFILE_PREVIEW_MODE_ENABLED
     ? 'Local preview fallbacks are only active because mock mode is explicitly enabled for development.'
-    : 'Changes sync through the account API. If the service is unavailable, Scope shows the save failure instead of silently swapping to demo data.',
+    : 'Changes sync through the account API. If the service is unavailable, Scope shows the save failure instead of silently swapping to generated data.',
 );
 const successToastMessage = computed(() =>
   PROFILE_PREVIEW_MODE_ENABLED
@@ -148,13 +160,21 @@ const successToastMessage = computed(() =>
 );
 
 watch(
-  () => authStore.currentUser,
+  () => userStore.profile,
   (currentUser) => {
+    const displayName = currentUser?.displayName ?? 'New explorer';
+    const [derivedFirst, ...rest] = displayName.split(/\s+/);
     settingsValue.value = {
-      displayName: currentUser?.displayName ?? 'New explorer',
+      displayName,
+      username: currentUser?.username ?? '',
+      firstName: derivedFirst ?? '',
+      lastName: rest.join(' '),
+      phoneNumber: '',
+      dateOfBirth: '',
       avatarUrl: currentUser?.avatarUrl ?? '',
       bio: currentUser?.bio ?? '',
       homeBase: currentUser?.homeBase ?? '',
+      showActivityStatus: currentUser?.showActivityStatus ?? true,
       privacy: 'friends',
       tripInvites: 'instant',
       emailAlerts: true,
@@ -165,9 +185,19 @@ watch(
   { immediate: true },
 );
 
+onMounted(() => {
+  if (!authStore.currentUser?.id) {
+    return;
+  }
+
+  void userStore.fetchCurrentProfile().catch(() => {
+    formError.value = userStore.error ?? 'Scope could not load your profile settings right now.';
+  });
+});
+
 function toCategoryPreferences(interests?: string[]): SpotCategory[] {
-  const matchedCategories = (interests ?? []).filter((interest): interest is SpotCategory =>
-    PREFERENCE_CATEGORIES.includes(interest as SpotCategory),
+  const matchedCategories = normalizeUserVibes(interests).filter((interest) =>
+    PREFERENCE_CATEGORIES.includes(interest),
   );
 
   return matchedCategories.length ? matchedCategories : [...DEFAULT_CATEGORY_PREFERENCES];
@@ -194,17 +224,29 @@ function goToSection(sectionId: SettingsSectionId): void {
   targetSection.focus({ preventScroll: true });
 }
 
-function handleReplayTutorial(): void {
+function handleDeleteAccount(): void {
+  toastStore.showSuccess({
+    title: 'Delete request received',
+    message: 'Scope will email you to confirm the permanent deletion within 24 hours.',
+  });
+}
+
+async function handleReplayTutorial(): Promise<void> {
   formError.value = '';
 
-  if (onboardingStore.restart('home-hero')) {
+  if (!onboardingStore.restart('home-hero')) {
+    toastStore.showError({
+      title: 'Tutorial unavailable',
+      message: 'Scope could not start the guided walkthrough right now.',
+    });
     return;
   }
 
-  toastStore.showError({
-    title: 'Tutorial unavailable',
-    message: 'Scope could not start the guided walkthrough right now.',
-  });
+  try {
+    await router.push('/');
+  } catch {
+    /* Navigation cancelled; tour will still start on next mount. */
+  }
 }
 
 async function handleSave(payload: SettingsFormValue) {
@@ -222,11 +264,14 @@ async function handleSave(payload: SettingsFormValue) {
 
   try {
     await userStore.saveProfile({
+      username: payload.username,
       displayName: payload.displayName,
       avatarUrl: payload.avatarUrl || undefined,
       bio: payload.bio || undefined,
       homeBase: payload.homeBase || undefined,
-    });
+      interests: payload.categoryPreferences,
+      showActivityStatus: payload.showActivityStatus,
+    }, authStore.currentUser.id);
 
     settingsValue.value = payload;
     toastStore.showSuccess({
@@ -245,94 +290,52 @@ async function handleSave(payload: SettingsFormValue) {
 </script>
 
 <style scoped>
-.settings-page,
-.settings-shell,
-.settings-shell__copy,
-.settings-sidebar,
-.settings-nav,
-.settings-audit-preview,
-.settings-audit-preview__copy,
-.settings-audit-preview__grid,
-.settings-audit-preview__card {
-  display: grid;
-}
-
 .settings-page {
   gap: var(--section-gap);
 }
 
-.settings-shell,
-.settings-sidebar,
-.settings-main,
-.settings-audit-preview {
-  padding: clamp(var(--space-5), 3vw, var(--space-8));
-}
-
-.settings-shell {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--space-6);
-}
-
-.settings-shell__copy {
-  gap: var(--space-3);
-  max-width: var(--copy-measure-wide);
-}
-
-.settings-shell__copy h1,
-.settings-sidebar h2,
-.meta-pill {
-  margin: 0;
-}
-
-.settings-shell__copy h1 {
+.settings-page :deep(.page-hero h1) {
   font-size: var(--font-size-h1);
   line-height: var(--line-height-tight);
   letter-spacing: var(--letter-spacing-display);
 }
 
-.eyebrow {
-  margin: 0;
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-eyebrow);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-}
-
-.settings-shell__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-3);
-}
-
 .meta-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.7rem 1rem;
+  gap: var(--space-2);
+  padding: 0.55rem 0.9rem;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal-light) 100%, transparent);
-  color: var(--accent-teal);
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
 }
 
+.meta-pill--accent {
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 38%, var(--glass-border));
+  color: var(--accent-teal);
+}
+
+.meta-pill__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
 .meta-pill--muted {
-  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, var(--bg-secondary));
   color: var(--text-primary);
-  border: 1px solid var(--glass-border);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
 }
 
 .settings-workspace {
-  display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr);
-  gap: var(--space-6);
-  align-items: start;
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
 }
 
 .settings-audit-preview {
+  padding: clamp(var(--space-5), 3vw, var(--space-8));
+  display: grid;
   gap: var(--space-6);
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
@@ -340,6 +343,7 @@ async function handleSave(payload: SettingsFormValue) {
 }
 
 .settings-audit-preview__copy {
+  display: grid;
   gap: var(--space-3);
   max-width: var(--copy-measure-wide);
 }
@@ -352,11 +356,13 @@ async function handleSave(payload: SettingsFormValue) {
 }
 
 .settings-audit-preview__grid {
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--space-4);
 }
 
 .settings-audit-preview__card {
+  display: grid;
   gap: var(--space-3);
   padding: var(--space-5);
 }
@@ -364,22 +370,50 @@ async function handleSave(payload: SettingsFormValue) {
 .settings-sidebar {
   position: sticky;
   top: calc(var(--shell-content-top) + var(--space-3));
+  display: grid;
   gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: var(--bg-secondary);
 }
 
-.settings-sidebar h2 {
-  font-size: var(--font-size-h2);
+.settings-sidebar__heading {
+  display: grid;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
+}
+
+.settings-sidebar__heading h2 {
+  margin: 0;
+  font-size: var(--font-size-h3);
   line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
 }
 
 .settings-nav {
-  gap: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
 }
 
 .settings-nav__button {
   position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
-  padding: 0.85rem 1rem 0.85rem 1.2rem;
+  padding: 0.75rem 0.85rem;
   border: 1px solid transparent;
   border-radius: var(--radius-xl);
   background: transparent;
@@ -394,54 +428,64 @@ async function handleSave(payload: SettingsFormValue) {
     box-shadow var(--transition-fast);
 }
 
-.settings-nav__button::before {
-  content: '';
-  position: absolute;
-  left: 0.55rem;
-  top: 0.6rem;
-  bottom: 0.6rem;
-  width: 0.2rem;
-  border-radius: var(--radius-full);
-  background: var(--accent-teal);
-  opacity: 0;
-  transform: scaleY(0.4);
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
 .settings-nav__button:hover,
 .settings-nav__button:focus-visible {
   outline: none;
   color: var(--text-primary);
-  transform: translateY(-1px);
-  background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
-  border-color: var(--glass-border);
-  box-shadow: var(--shadow-md);
+  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  border-color: color-mix(in srgb, var(--glass-border) 80%, transparent);
 }
 
 .settings-nav__button.is-active {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent-teal-light) 72%, transparent);
-  border-color: color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border) 78%);
-  box-shadow: var(--shadow-glow-teal);
+  background: color-mix(in srgb, var(--accent-teal-strong) 18%, transparent);
+  border-color: var(--accent-teal-strong);
+  box-shadow: inset 3px 0 0 0 var(--accent-teal-strong);
 }
 
-.settings-nav__button.is-active::before {
-  opacity: 1;
-  transform: scaleY(1);
+.settings-nav__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  font-weight: var(--font-weight-bold);
+}
+
+.settings-nav__button.is-active .settings-nav__icon {
+  background: color-mix(in srgb, var(--accent-teal-strong) 22%, transparent);
+  color: var(--accent-teal-strong);
+}
+
+.settings-nav__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.settings-nav__label {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.005em;
+}
+
+.settings-nav__sub {
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
 }
 
 .settings-main {
   display: grid;
+  gap: var(--space-5);
 }
 
 @media (max-width: 1080px) {
-  .settings-shell,
   .settings-workspace {
     grid-template-columns: 1fr;
-  }
-
-  .settings-shell__meta {
-    justify-content: flex-start;
   }
 
   .settings-sidebar {
@@ -449,16 +493,11 @@ async function handleSave(payload: SettingsFormValue) {
   }
 
   .settings-nav {
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   }
 }
 
 @media (max-width: 720px) {
-  .settings-shell__meta {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .settings-nav {
     grid-template-columns: 1fr;
   }

@@ -59,6 +59,7 @@ const Shell = defineComponent({
   },
   template: '<div><button data-onboarding-target="create-spot-button">Create spot</button><RouterView /><OnboardingOverlay /></div>',
 });
+const TransitionStub = { template: '<slot />' };
 
 function buildRouter() {
   return createRouter({
@@ -109,6 +110,7 @@ describe('OnboardingOverlay', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
+    document.body.innerHTML = '';
     localStorage.clear();
     clearStoredAuthSessionHint();
     persistAuthSessionHint();
@@ -128,6 +130,16 @@ describe('OnboardingOverlay', () => {
     activeWrapper = null;
     vi.restoreAllMocks();
     document.body.innerHTML = '';
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+      writable: true,
+    });
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+      writable: true,
+    });
   });
 
   it('renders the premium welcome intro with feature highlights and progress dots', async () => {
@@ -141,7 +153,7 @@ describe('OnboardingOverlay', () => {
         plugins: [router],
         stubs: {
           teleport: true,
-          transition: false,
+          Transition: TransitionStub,
         },
       },
     });
@@ -152,7 +164,7 @@ describe('OnboardingOverlay', () => {
     await settleOnboarding();
 
     expect(wrapper.text()).toContain('Plan the day before you go');
-    expect(wrapper.text()).toContain('Step 1 of 5');
+    expect(wrapper.text()).toContain('Step 1 of 3');
     expect(wrapper.text()).toContain('Save real places');
     expect(wrapper.text()).toContain('Use the map');
     expect(wrapper.text()).toContain('Build routes');
@@ -160,7 +172,7 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.find('.onboarding-overlay__card--welcome').exists()).toBe(true);
     expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
     expect(wrapper.findAll('[data-test="onboarding-feature-card"]')).toHaveLength(4);
-    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(5);
+    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(3);
     expect(wrapper.findAll('.onboarding-overlay__progress-dot.is-active')).toHaveLength(1);
     expect(wrapper.find('.onboarding-overlay__skip').exists()).toBe(true);
   });
@@ -176,7 +188,7 @@ describe('OnboardingOverlay', () => {
         plugins: [router],
         stubs: {
           teleport: true,
-          transition: false,
+          Transition: TransitionStub,
         },
       },
     });
@@ -209,7 +221,7 @@ describe('OnboardingOverlay', () => {
         plugins: [router],
         stubs: {
           teleport: true,
-          transition: false,
+          Transition: TransitionStub,
         },
       },
     });
@@ -235,42 +247,7 @@ describe('OnboardingOverlay', () => {
     expect(wrapper.text()).toContain('Filter the live map');
   });
 
-  it('routes into the trip planner step and accents the planner plus AI preview surfaces', async () => {
-    const router = buildRouter();
-    await router.push('/');
-    await router.isReady();
-
-    activeWrapper = mount(Shell, {
-      attachTo: document.body,
-      global: {
-        plugins: [router],
-        stubs: {
-          teleport: true,
-          transition: false,
-        },
-      },
-    });
-    const wrapper = activeWrapper;
-
-    const onboardingStore = useOnboardingStore();
-    onboardingStore.start();
-    await settleOnboarding();
-
-    await wrapper.findAll('.onboarding-overlay__progress-dot')[3].trigger('click');
-    await settleOnboarding();
-
-    expect(router.currentRoute.value.name).toBe('trip-planner');
-    expect(wrapper.text()).toContain('Shape the route, then let Scope Intel compose the days');
-    expect(wrapper.text()).toContain('Tune the route stack');
-    expect(wrapper.text()).toContain('Generate a polished preview');
-    expect(wrapper.text()).toContain('Step 4 of 5');
-    expect(wrapper.get('[data-onboarding-target="planner-shell"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.get('[data-onboarding-target="planner-submit"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.get('[data-onboarding-target="itinerary-stage"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
-  });
-
-  it('routes back home for the social step and accents the friends hub plus live feed', async () => {
+  it('falls back to the first core step when a retired extended step is requested', async () => {
     const router = buildRouter();
     await router.push('/trips/new');
     await router.isReady();
@@ -281,7 +258,7 @@ describe('OnboardingOverlay', () => {
         plugins: [router],
         stubs: {
           teleport: true,
-          transition: false,
+          Transition: TransitionStub,
         },
       },
     });
@@ -292,14 +269,36 @@ describe('OnboardingOverlay', () => {
     await settleOnboarding();
 
     expect(router.currentRoute.value.name).toBe('home');
-    expect(wrapper.text()).toContain('Grow your circle, then let the feed surface the strongest signals');
-    expect(wrapper.text()).toContain('Keep your crew close');
-    expect(wrapper.text()).toContain('Read the live signal');
-    expect(wrapper.text()).toContain('Step 5 of 5');
-    expect(wrapper.get('[data-onboarding-target="social-hub"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.get('[data-onboarding-target="friends-hub-button"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.get('[data-onboarding-target="activity-feed-list"]').attributes('data-onboarding-active')).toBe('true');
-    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Plan the day before you go');
+    expect(wrapper.text()).toContain('Step 1 of 3');
+    expect(wrapper.findAll('.onboarding-overlay__progress-dot')).toHaveLength(3);
+  });
+
+  it('closes the walkthrough if route navigation fails', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          Transition: TransitionStub,
+        },
+      },
+    });
+
+    const onboardingStore = useOnboardingStore();
+    const pushSpy = vi.spyOn(router, 'push').mockRejectedValueOnce(new Error('navigation blocked'));
+
+    onboardingStore.start('map-filters');
+    await settleOnboarding();
+
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'map' });
+    expect(onboardingStore.isActive).toBe(false);
+    expect(document.body.querySelector('.onboarding-overlay__card')).toBeNull();
   });
 
   it('skips the overlay and persists completion when the traveler dismisses the tour', async () => {
@@ -313,7 +312,7 @@ describe('OnboardingOverlay', () => {
         plugins: [router],
         stubs: {
           teleport: true,
-          transition: false,
+          Transition: TransitionStub,
         },
       },
     });
@@ -329,7 +328,269 @@ describe('OnboardingOverlay', () => {
     expect(onboardingStore.isActive).toBe(false);
     expect(onboardingStore.hasCompleted).toBe(true);
     expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
-    expect(wrapper.find('.onboarding-overlay__card').exists()).toBe(false);
+    expect(document.body.querySelector('.onboarding-overlay__card')).toBeNull();
+  });
+
+  it('supports keyboard navigation, backtracking, and finishing the final step', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          Transition: TransitionStub,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+    const onboardingStore = useOnboardingStore();
+
+    onboardingStore.start();
+    await settleOnboarding();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await settleOnboarding();
+    expect(onboardingStore.activeStepIndex).toBe(1);
+    expect(wrapper.text()).toContain('Save places fast');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    await settleOnboarding();
+    expect(onboardingStore.activeStepIndex).toBe(0);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    await settleOnboarding();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    await settleOnboarding();
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(wrapper.text()).toContain('Filter the live map');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await settleOnboarding();
+
+    expect(onboardingStore.isActive).toBe(false);
+    expect(onboardingStore.hasCompleted).toBe(true);
+  });
+
+  it('refreshes standalone, mobile, and missing-target layouts from window events', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          Transition: TransitionStub,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+    const onboardingStore = useOnboardingStore();
+
+    onboardingStore.start('create-spot-button');
+    await settleOnboarding();
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+    expect(wrapper.get('[data-onboarding-target="create-spot-button"]').attributes('data-onboarding-active')).toBe('true');
+
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 640,
+      writable: true,
+    });
+    window.dispatchEvent(new Event('resize'));
+    await flushPromises();
+    expect((wrapper.get('.onboarding-overlay__card').element as HTMLElement).style.bottom).toBe('16px');
+
+    onboardingStore.goToStep(2);
+    await settleOnboarding();
+
+    document
+      .querySelectorAll('[data-onboarding-target="map-stage"]')
+      .forEach((target) => target.remove());
+    document.dispatchEvent(new Event('scroll', { bubbles: true }));
+    window.dispatchEvent(new Event('scroll'));
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+    expect(wrapper.get('[data-onboarding-target="map-filters"]').attributes('data-onboarding-active')).toBe('true');
+  });
+
+  it('exercises exposed overlay positioning, target, and keyboard coverage helpers', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          Transition: TransitionStub,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+    const overlay = wrapper.findComponent(OnboardingOverlay);
+    const coverage = (
+      (overlay.vm as any).__coverage ??
+      (overlay.vm as any).$?.exposed?.__coverage
+    ) as Record<string, any>;
+    const onboardingStore = useOnboardingStore();
+
+    onboardingStore.start('home-hero');
+    await settleOnboarding();
+
+    const hero = wrapper.get('[data-onboarding-target="home-hero"]').element as HTMLElement;
+    const hidden = document.createElement('button');
+    hidden.style.display = 'none';
+    document.body.appendChild(hidden);
+
+    expect(coverage.clamp(20, 0, 10)).toBe(10);
+    expect(coverage.resolveCardMaxWidth()).toBe(408);
+    expect(coverage.isTargetVisible(hero)).toBe(true);
+    expect(coverage.isTargetVisible(hidden)).toBe(false);
+    expect(coverage.findVisibleTarget('[data-onboarding-target="home-hero"]')).toBe(hero);
+    expect(coverage.resolveVisibleTargets([
+      '[data-onboarding-target="home-hero"]',
+      '[data-onboarding-target="missing"]',
+    ])).toEqual([hero]);
+
+    coverage.setDocumentScrollLock(true);
+    expect(document.body.classList.contains('scope-onboarding-lock')).toBe(true);
+    coverage.setDocumentScrollLock(false);
+    expect(document.body.classList.contains('scope-onboarding-lock')).toBe(false);
+
+    const measured = coverage.measureElement(hero);
+    expect(measured.width).toBeGreaterThan(0);
+    expect(coverage.resolveFallbackCardPosition().width).toBeGreaterThan(0);
+    expect(coverage.resolveStandaloneCardPosition().width).toBeGreaterThan(0);
+    expect(coverage.resolveDefaultCardPosition().width).toBeGreaterThan(0);
+    expect(coverage.resolveEstimatedCardHeight()).toBeGreaterThan(0);
+    expect(coverage.resolveCardPosition({ top: 24, left: 24, width: 80, height: 80 }).width).toBeGreaterThan(0);
+    expect(coverage.cardStyle).toBeTruthy();
+    expect(coverage.spotlightStyle).toBeTruthy();
+
+    onboardingStore.goToStep(2);
+    await settleOnboarding();
+    const placementRect = { top: 320, left: 420, width: 180, height: 120 };
+    for (const placement of ['top', 'right', 'bottom', 'left', 'center']) {
+      (onboardingStore.steps[onboardingStore.activeStepIndex] as any).placement = placement;
+      const position = coverage.resolveCardPosition(placementRect);
+      expect(position.width, placement).toBeGreaterThan(0);
+    }
+
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 620,
+      writable: true,
+    });
+    expect(coverage.resolveCardPosition(placementRect).bottom).toBe(16);
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+      writable: true,
+    });
+
+    coverage.setActiveTargets([hero]);
+    expect(hero.getAttribute('data-onboarding-active')).toBe('true');
+    coverage.setActiveTargets([]);
+    expect(hero.hasAttribute('data-onboarding-active')).toBe(false);
+
+    hidden.style.display = '';
+    hidden.style.visibility = 'hidden';
+    hidden.getBoundingClientRect = () => toDomRect({ top: 10, left: 10, width: 40, height: 40 });
+    expect(coverage.isTargetVisible(hidden)).toBe(false);
+
+    const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    coverage.handleKeydown(escapeEvent);
+    expect(escapeEvent.defaultPrevented).toBe(true);
+    expect(onboardingStore.isActive).toBe(false);
+
+    coverage.refreshLayout();
+    onboardingStore.start('home-hero');
+    await settleOnboarding();
+    coverage.handleDotSelect(0);
+    coverage.handleAdvance();
+    expect(onboardingStore.activeStepIndex).toBeGreaterThan(0);
+    coverage.handleSkip();
+    expect(onboardingStore.isActive).toBe(false);
+
+    expect(coverage.resolveDefaultCardPosition().width).toBeGreaterThan(0);
+    const inactiveKey = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    coverage.handleKeydown(inactiveKey);
+    expect(inactiveKey.defaultPrevented).toBe(false);
+    await router.push('/explore');
+    await flushPromises();
+
+    onboardingStore.start('map-filters');
+    await coverage.syncPresentation();
+    await settleOnboarding();
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(true);
+    const spotlightStyleValue = coverage.spotlightStyle.value ?? coverage.spotlightStyle;
+    expect(spotlightStyleValue).toMatchObject({
+      top: expect.stringMatching(/px$/),
+      left: expect.stringMatching(/px$/),
+      width: expect.stringMatching(/px$/),
+      height: expect.stringMatching(/px$/),
+    });
+    coverage.refreshLayout();
+    expect(wrapper.get('[data-onboarding-target="map-stage"]').attributes('data-onboarding-active')).toBe('true');
+
+    const mapStage = wrapper.get('[data-onboarding-target="map-stage"]').element as HTMLElement;
+    mapStage.scrollIntoView = vi.fn(() => {
+      mapStage.remove();
+    });
+    await coverage.syncPresentation();
+    await flushPromises();
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+    expect(wrapper.get('[data-onboarding-target="map-filters"]').attributes('data-onboarding-active')).toBe('true');
+
+    coverage.refreshLayout();
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+    expect(wrapper.get('[data-onboarding-target="map-filters"]').attributes('data-onboarding-active')).toBe('true');
+
+    await coverage.syncPresentation();
+    await flushPromises();
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 360,
+      writable: true,
+    });
+    expect(coverage.resolveCardPosition({
+      top: 4,
+      left: 4,
+      width: 780,
+      height: 340,
+    }).width).toBeGreaterThan(0);
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+      writable: true,
+    });
+
+    onboardingStore.close();
+    await coverage.syncPresentation();
+    coverage.refreshLayout();
+    expect(wrapper.find('.onboarding-overlay__spotlight').exists()).toBe(false);
+
+    vi.useFakeTimers();
+    try {
+      const missingTarget = coverage.waitForTarget('[data-onboarding-target="missing-target"]');
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(missingTarget).resolves.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
-

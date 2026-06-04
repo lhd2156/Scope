@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: core
-          image: ghcr.io/replace-me/scope-core:latest
+          image: ghcr.io/lhd2156/scope/scope-core:latest
           ports:
             - containerPort: 8080
               name: http
@@ -58,6 +58,16 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: CORE_JWT_SECRET
+            - name: GRPC_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: GRPC_INTERNAL_TOKEN
+            - name: WEB_PUSH_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: WEB_PUSH_PRIVATE_KEY
           resources:
             requests:
               cpu: 150m
@@ -66,10 +76,17 @@ spec:
               cpu: 1
               memory: 768Mi
           readinessProbe:
-            tcpSocket:
-              port: 8080
+            httpGet:
+              path: /api/core/health
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/core/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
 ---
 apiVersion: v1
 kind: Service
@@ -86,6 +103,9 @@ spec:
     - name: http
       port: 8000
       targetPort: 8000
+    - name: grpc
+      port: 50051
+      targetPort: 50051
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -108,10 +128,89 @@ spec:
     spec:
       containers:
         - name: content
-          image: ghcr.io/replace-me/scope-content:latest
+          image: ghcr.io/lhd2156/scope/scope-content:latest
           ports:
             - containerPort: 8000
               name: http
+            - containerPort: 50051
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: scope-shared-config
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: DJANGO_SECRET_KEY
+            - name: CORE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: CORE_JWT_SECRET
+            - name: GRPC_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: GRPC_INTERNAL_TOKEN
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/content/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/content/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-worker
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: content-worker
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: content-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: content-worker
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      containers:
+        - name: content-worker
+          image: ghcr.io/lhd2156/scope/scope-content:latest
+          command:
+            - python
+            - manage.py
+            - scope_thumbnail_worker
           envFrom:
             - configMapRef:
                 name: scope-shared-config
@@ -131,23 +230,22 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: AWS_ACCESS_KEY_ID
+                  optional: true
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: scope-secrets
                   key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: RUN_MIGRATIONS_ON_STARTUP
+              value: "false"
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              cpu: 1
-              memory: 512Mi
-          readinessProbe:
-            tcpSocket:
-              port: 8000
-            initialDelaySeconds: 15
-            periodSeconds: 10
+              cpu: 500m
+              memory: 384Mi
 ---
 apiVersion: v1
 kind: Service
@@ -164,6 +262,9 @@ spec:
     - name: http
       port: 5000
       targetPort: 5000
+    - name: grpc
+      port: 50052
+      targetPort: 50052
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -186,10 +287,12 @@ spec:
     spec:
       containers:
         - name: intel
-          image: ghcr.io/replace-me/scope-intel:latest
+          image: ghcr.io/lhd2156/scope/scope-intel:latest
           ports:
             - containerPort: 5000
               name: http
+            - containerPort: 50052
+              name: grpc
           envFrom:
             - configMapRef:
                 name: scope-shared-config
@@ -204,6 +307,11 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: CORE_JWT_SECRET
+            - name: GRPC_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: GRPC_INTERNAL_TOKEN
           resources:
             requests:
               cpu: 100m
@@ -212,10 +320,167 @@ spec:
               cpu: 1
               memory: 512Mi
           readinessProbe:
-            tcpSocket:
-              port: 5000
+            httpGet:
+              path: /api/intel/health
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/intel/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intel-worker
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: intel-worker
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: intel-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: intel-worker
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      containers:
+        - name: intel-worker
+          image: ghcr.io/lhd2156/scope/scope-intel:latest
+          command:
+            - python
+            - -m
+            - app.kafka.consumer_worker
+          envFrom:
+            - configMapRef:
+                name: scope-shared-config
+          env:
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: FLASK_SECRET_KEY
+            - name: CORE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: CORE_JWT_SECRET
+            - name: GRPC_ENABLED
+              value: "false"
+            - name: INTEL_WARMUP_RECOMMENDATIONS
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rag
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  selector:
+    app.kubernetes.io/name: rag
+  ports:
+    - name: http
+      port: 8100
+      targetPort: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rag-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rag
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rag
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rag
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rag
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      containers:
+        - name: rag
+          image: ghcr.io/lhd2156/scope/scope-rag:latest
+          ports:
+            - containerPort: 8100
+              name: http
+          envFrom:
+            - configMapRef:
+                name: scope-shared-config
+          env:
+            - name: CORE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: CORE_JWT_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: GEMINI_API_KEY
+                  optional: true
+          volumeMounts:
+            - name: rag-data
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /api/rag/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/rag/health
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+      volumes:
+        - name: rag-data
+          persistentVolumeClaim:
+            claimName: rag-data
 ---
 apiVersion: v1
 kind: Service
@@ -254,7 +519,7 @@ spec:
     spec:
       containers:
         - name: scope-metrics
-          image: ghcr.io/replace-me/scope-metrics:latest
+          image: ghcr.io/lhd2156/scope/scope-metrics:latest
           ports:
             - containerPort: 9090
               name: http
@@ -277,6 +542,116 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: site
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: site
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  selector:
+    app.kubernetes.io/name: site
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: site
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: site
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: site
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: site
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      containers:
+        - name: site
+          image: ghcr.io/lhd2156/scope/scope-site:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: admin
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  selector:
+    app.kubernetes.io/name: admin
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: admin
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: admin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: admin
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      containers:
+        - name: admin
+          image: ghcr.io/lhd2156/scope/scope-admin:latest
+          ports:
+            - containerPort: 8081
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -313,7 +688,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: scope-cli
-              image: ghcr.io/replace-me/scope-cli:latest
+              image: ghcr.io/lhd2156/scope/scope-cli:latest
               args:
                 - health
                 - --verbose
@@ -371,7 +746,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/replace-me/scope-frontend:latest
+          image: ghcr.io/lhd2156/scope/scope-frontend:latest
           ports:
             - containerPort: 80
               name: http

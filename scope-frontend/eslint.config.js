@@ -9,6 +9,8 @@ export default tseslint.config(
       'dist/',
       'node_modules/',
       'coverage/',
+      '.ms-playwright/',
+      '.playwright-browsers/',
       'playwright-report/',
       'test-results/',
       'emsdk/',

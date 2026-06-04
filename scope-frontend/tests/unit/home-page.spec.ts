@@ -82,6 +82,7 @@ describe('HomePage', () => {
       },
     ];
     feedStoreMock.error = '';
+    feedStoreMock.loading = false;
     spotsStoreMock.featuredSpots = [
       {
         id: 'spot-1',
@@ -93,6 +94,7 @@ describe('HomePage', () => {
       },
     ];
     spotsStoreMock.error = '';
+    spotsStoreMock.loading = false;
     onboardingStoreMock.hasCompleted = false;
     feedStoreMock.fetchFeed.mockReset().mockResolvedValue(undefined);
     spotsStoreMock.fetchTrending.mockReset().mockResolvedValue(undefined);
@@ -171,9 +173,9 @@ describe('HomePage', () => {
     expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(4);
   });
 
-  it('shows an inline error panel when a home feed request fails', async () => {
-    spotsStoreMock.error = 'Scope could not load trending spots right now.';
-    spotsStoreMock.fetchTrending.mockRejectedValue(new Error('Trending failed'));
+  it('shows empty discovery and activity states after both home rails resolve without content', async () => {
+    feedStoreMock.items = [];
+    spotsStoreMock.featuredSpots = [];
 
     const wrapper = mountHomePage({
       SpotCard: { template: '<div />' },
@@ -182,7 +184,84 @@ describe('HomePage', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Part of the Scope home feed could not be loaded');
-    expect(wrapper.text()).toContain('Scope could not load trending spots right now.');
+    expect(wrapper.text()).toContain('Featured spots are waiting on the first pin drop');
+    expect(wrapper.text()).toContain('Once travelers start surfacing standout places, Scope will spotlight them here first.');
+    expect(wrapper.text()).toContain('No activity yet');
+    expect(wrapper.text()).toContain('Once your network starts pinning spots and planning trips, the Scope feed will fill in here.');
+    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(0);
+  });
+
+  it('scrolls to the activity feed from the hero using motion-safe behavior', async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+    await wrapper.findAll('button').find((button) => button.text() === 'See activity')?.trigger('click');
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'start',
+    });
+
+    if (originalScrollIntoView) {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
+
+  it('starts the onboarding tour from the hero control', async () => {
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+    await wrapper.get('.hero-tour-link').trigger('click');
+
+    expect(onboardingStoreMock.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start duplicate home rail requests while stores are already loading', async () => {
+    feedStoreMock.loading = true;
+    spotsStoreMock.loading = true;
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+
+    expect(spotsStoreMock.fetchTrending).not.toHaveBeenCalled();
+    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Trending Destinations');
+    expect(wrapper.text()).toContain('Activity Feed');
+  });
+
+  it('keeps release rails mounted without surfacing raw home feed failures', async () => {
+    spotsStoreMock.error = 'Scope could not load trending spots right now.';
+    spotsStoreMock.fetchTrending.mockRejectedValue(new Error('Trending failed'));
+    feedStoreMock.items = [];
+    spotsStoreMock.featuredSpots = [];
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: { template: '<div />' },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Part of the Scope home feed could not be loaded');
+    expect(wrapper.text()).not.toContain('Scope could not load trending spots right now.');
+    expect(wrapper.text()).toContain('Featured spots are waiting on the first pin drop');
+    expect(wrapper.text()).toContain('No activity yet');
   });
 });

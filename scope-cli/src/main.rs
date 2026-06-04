@@ -24,6 +24,7 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 type CliResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 type EnvMap = BTreeMap<String, String>;
+type ProcessRunner = dyn Fn(&str, &[&str], &Path) -> CliResult<String>;
 type SqlConnection = SqlClient<Compat<TcpStream>>;
 
 const SENSITIVE_ENV_KEYS: &[&str] = &[
@@ -689,7 +690,7 @@ fn resolve_database_config(
         .unwrap_or_else(|| ("localhost".to_string(), None));
 
     let host = resolve_value(&["SCOPE_DB_HOST", "DB_HOST"], &env_map)
-        .or_else(|| Some(connection_host))
+        .or(Some(connection_host))
         .unwrap_or_else(|| "localhost".to_string());
     let port = resolve_value(&["SCOPE_DB_PORT", "DB_PORT"], &env_map)
         .map(|value| parse_u16(&value, "database port"))
@@ -798,17 +799,19 @@ async fn ensure_database_exists(config: &DatabaseConfig) -> CliResult {
     let mut master_config = config.clone();
     master_config.database = "master".to_string();
     let mut connection = connect_sql(&master_config).await?;
-    let escaped_database_name = config.database.replace(']', "]]");
-    let escaped_literal = config.database.replace('\'', "''");
-    let create_statement = format!(
-        "IF DB_ID(N'{escaped_literal}') IS NULL CREATE DATABASE [{escaped_database_name}];"
-    );
+    let create_statement = build_create_database_statement(&config.database);
     connection
         .simple_query(create_statement.as_str())
         .await?
         .into_results()
         .await?;
     Ok(())
+}
+
+fn build_create_database_statement(database: &str) -> String {
+    let escaped_database_name = database.replace(']', "]]");
+    let escaped_literal = database.replace('\'', "''");
+    format!("IF DB_ID(N'{escaped_literal}') IS NULL CREATE DATABASE [{escaped_database_name}];")
 }
 
 async fn connect_sql(config: &DatabaseConfig) -> CliResult<SqlConnection> {
@@ -834,6 +837,13 @@ async fn run_deploy(args: DeployArgs, context: &AppContext) -> CliResult {
 }
 
 async fn run_deploy_validate(args: DeployValidateArgs, _context: &AppContext) -> CliResult {
+    run_deploy_validate_with_runner(args, &run_process).await
+}
+
+async fn run_deploy_validate_with_runner(
+    args: DeployValidateArgs,
+    process_runner: &ProcessRunner,
+) -> CliResult {
     print_banner("Scope deploy validation");
 
     let env_report = build_env_check_report(&args.env_file, &args.example_file)?;
@@ -843,13 +853,13 @@ async fn run_deploy_validate(args: DeployValidateArgs, _context: &AppContext) ->
     print_env_check_report(&env_report, true);
 
     let workspace = env::current_dir()?;
-    let docker_version = run_process("docker", &["version", "--format", "{{.Server.Version}}"], &workspace);
+    let docker_version = process_runner("docker", &["version", "--format", "{{.Server.Version}}"], &workspace);
     match &docker_version {
         Ok(version) => print_row("docker", format!("reachable ({version})")),
         Err(error) => print_row("docker", format!("unavailable ({error})").red()),
     }
 
-    let compose_services = run_process(
+    let compose_services = process_runner(
         "docker",
         &[
             "compose",
@@ -1454,7 +1464,41 @@ fn boxed_error(message: impl Into<String>) -> Box<dyn Error + Send + Sync> {
 mod tests {
     use super::*;
     use clap::Parser;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::{Mutex, OnceLock},
+        thread,
+    };
     use tempfile::tempdir;
+
+    fn global_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn http_response(status: u16, reason: &str, body: &str, content_type: &str) -> String {
+        format!(
+            "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    fn spawn_http_server(responses: Vec<String>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let address = listener.local_addr().expect("server address");
+
+        thread::spawn(move || {
+            for response in responses {
+                let (mut stream, _) = listener.accept().expect("accept request");
+                let mut buffer = [0u8; 1024];
+                let _ = stream.read(&mut buffer);
+                stream.write_all(response.as_bytes()).expect("write response");
+            }
+        });
+
+        format!("http://{address}")
+    }
 
     #[test]
     fn parses_health_command() {
@@ -1565,7 +1609,7 @@ mod tests {
         fs::write(
             &example_file,
             "\
-SA_PASSWORD=Scope_Dev_2026!\n\
+SA_PASSWORD=CHANGE_ME_STRONG_PASSWORD!\n\
 CORE_JWT_SECRET=super-secret-256-bit-key-change-in-prod\n\
 DJANGO_SECRET_KEY=django-insecure-change-me-in-prod\n\
 AWS_ACCESS_KEY_ID=\n\
@@ -1575,7 +1619,7 @@ AWS_ACCESS_KEY_ID=\n\
         fs::write(
             &env_file,
             "\
-SA_PASSWORD=Scope_Dev_2026!\n\
+SA_PASSWORD=CHANGE_ME_STRONG_PASSWORD!\n\
 DJANGO_SECRET_KEY=\n\
 EXTRA_KEY=1\n\
 ",
@@ -1617,6 +1661,11 @@ EXTRA_KEY=1\n\
 
     #[test]
     fn benchmark_summary_calculates_percentiles_and_status_counts() {
+        let empty = summarize_benchmark_results(&[], Duration::ZERO);
+        assert_eq!(empty.average_ms, 0.0);
+        assert_eq!(empty.requests_per_second, 0.0);
+        assert_eq!(percentile(&[], 0.50), 0.0);
+
         let summary = summarize_benchmark_results(
             &[
                 BenchmarkRequestResult {
@@ -1657,5 +1706,721 @@ EXTRA_KEY=1\n\
         assert_eq!(summary.status_counts.get("200"), Some(&2));
         assert_eq!(summary.status_counts.get("503"), Some(&1));
         assert_eq!(summary.status_counts.get("error"), Some(&1));
+    }
+
+    #[test]
+    fn app_context_new_resolves_default_configuration() {
+        let context = AppContext::new();
+
+        assert_eq!(context.config.services.len(), 4);
+        assert_eq!(context.config.seed_directory, PathBuf::from("scripts/sql"));
+        assert_eq!(context.config.env_file, PathBuf::from(".env"));
+        assert_eq!(context.config.env_example_file, PathBuf::from(".env.example"));
+    }
+
+    #[tokio::test]
+    async fn inspect_service_health_handles_success_unhealthy_invalid_and_transport_errors() {
+        let healthy_url = spawn_http_server(vec![http_response(
+            200,
+            "OK",
+            r#"{"data":{"status":"ok"},"service":"content"}"#,
+            "application/json",
+        )]);
+        let unhealthy_url = spawn_http_server(vec![http_response(
+            503,
+            "Service Unavailable",
+            r#"{"status":"degraded"}"#,
+            "application/json",
+        )]);
+        let client = build_http_client(1.0).expect("client");
+
+        let healthy = inspect_service_health(
+            client.clone(),
+            ServiceTarget {
+                name: "content".to_string(),
+                health_url: healthy_url,
+            },
+        )
+        .await;
+        assert!(healthy.healthy);
+        assert_eq!(healthy.http_status, Some(200));
+        assert_eq!(healthy.service_status.as_deref(), Some("ok"));
+        assert!(healthy.detail.contains("status"));
+
+        let unhealthy = inspect_service_health(
+            client.clone(),
+            ServiceTarget {
+                name: "intel".to_string(),
+                health_url: unhealthy_url,
+            },
+        )
+        .await;
+        assert!(!unhealthy.healthy);
+        assert_eq!(unhealthy.http_status, Some(503));
+        assert!(unhealthy.detail.contains("unexpected response"));
+
+        let invalid = inspect_service_health(
+            client.clone(),
+            ServiceTarget {
+                name: "broken".to_string(),
+                health_url: "not a url".to_string(),
+            },
+        )
+        .await;
+        assert!(!invalid.healthy);
+        assert!(invalid.detail.contains("invalid URL"));
+
+        let transport = inspect_service_health(
+            client,
+            ServiceTarget {
+                name: "offline".to_string(),
+                health_url: "http://127.0.0.1:1/health".to_string(),
+            },
+        )
+        .await;
+        assert!(!transport.healthy);
+        assert!(transport.detail.contains("request failed"));
+    }
+
+    #[tokio::test]
+    async fn run_health_reports_all_services_healthy_and_fails_when_any_service_fails() {
+        let services = (0..4)
+            .map(|index| ServiceTarget {
+                name: format!("svc-{index}"),
+                health_url: spawn_http_server(vec![http_response(
+                    200,
+                    "OK",
+                    r#"{"status":"healthy"}"#,
+                    "application/json",
+                )]),
+            })
+            .collect::<Vec<_>>();
+        let context = AppContext {
+            config: ScopeConfig {
+                services,
+                seed_directory: PathBuf::from("scripts/sql"),
+                env_file: PathBuf::from(".env"),
+                env_example_file: PathBuf::from(".env.example"),
+            },
+        };
+
+        run_health(
+            HealthArgs {
+                verbose: true,
+                timeout_seconds: 1.0,
+            },
+            &context,
+        )
+        .await
+        .expect("healthy services should pass");
+
+        let context = AppContext {
+            config: ScopeConfig {
+                services: vec![ServiceTarget {
+                    name: "bad".to_string(),
+                    health_url: spawn_http_server(vec![http_response(
+                        200,
+                        "OK",
+                        r#"{"status":"degraded"}"#,
+                        "application/json",
+                    )]),
+                }],
+                seed_directory: PathBuf::from("scripts/sql"),
+                env_file: PathBuf::from(".env"),
+                env_example_file: PathBuf::from(".env.example"),
+            },
+        };
+        let error = run_health(
+            HealthArgs {
+                verbose: false,
+                timeout_seconds: 1.0,
+            },
+            &context,
+        )
+        .await
+        .expect_err("unhealthy service should fail");
+        assert!(error.to_string().contains("Health checks failed for: bad"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_env_seed_and_benchmark_commands() {
+        let directory = tempdir().expect("tempdir");
+        let seed_dir = directory.path().join("seeds");
+        fs::create_dir_all(seed_dir.join("core")).expect("seed dir");
+        fs::write(seed_dir.join("core").join("001.sql"), "SELECT 1;\nGO\n").expect("seed file");
+        let env_file = directory.path().join(".env");
+        let example_file = directory.path().join(".env.example");
+        fs::write(&env_file, "A=1\n").expect("env");
+        fs::write(&example_file, "A=required\n").expect("example");
+        let context = AppContext {
+            config: ScopeConfig {
+                services: vec![],
+                seed_directory: seed_dir.clone(),
+                env_file: env_file.clone(),
+                env_example_file: example_file.clone(),
+            },
+        };
+
+        dispatch(
+            Command::Seed(SeedArgs {
+                directory: Some(seed_dir),
+                env_file: None,
+                dry_run: true,
+            }),
+            &context,
+        )
+        .await
+        .expect("seed dry run");
+
+        dispatch(
+            Command::Env(EnvArgs {
+                command: EnvCommand::Check(EnvCheckArgs {
+                    env_file,
+                    example_file: example_file.clone(),
+                    strict_placeholders: false,
+                }),
+            }),
+            &context,
+        )
+        .await
+        .expect("env check");
+
+        dispatch(
+            Command::Health(HealthArgs {
+                verbose: false,
+                timeout_seconds: 1.0,
+            }),
+            &context,
+        )
+        .await
+        .expect("empty health service list should pass");
+
+        let deploy_error = dispatch(
+            Command::Deploy(DeployArgs {
+                command: DeployCommand::Validate(DeployValidateArgs {
+                    env_file: directory.path().join("missing.env"),
+                    example_file: example_file.clone(),
+                    compose_file: directory.path().join("missing-compose.yml"),
+                    https_urls: vec![],
+                    timeout_seconds: 1.0,
+                }),
+            }),
+            &context,
+        )
+        .await
+        .expect_err("missing deploy env should fail through dispatch");
+        assert!(deploy_error.to_string().contains("Environment file does not exist"));
+
+        let error = dispatch(
+            Command::Benchmark(BenchmarkArgs {
+                url: "http://127.0.0.1:1/".to_string(),
+                method: "GET".to_string(),
+                requests: 0,
+                concurrency: 1,
+                timeout_seconds: 1.0,
+            }),
+            &context,
+        )
+        .await
+        .expect_err("zero requests should fail");
+        assert!(error.to_string().contains("--requests"));
+    }
+
+    #[tokio::test]
+    async fn run_seed_dry_run_uses_default_directory_and_reports_missing_sql() {
+        let directory = tempdir().expect("tempdir");
+        let seed_dir = directory.path().join("scripts").join("sql");
+        fs::create_dir_all(seed_dir.join("content")).expect("seed dir");
+        fs::write(seed_dir.join("content").join("001_content.sql"), "SELECT 1;\nGO\n").expect("sql");
+        fs::write(seed_dir.join("ignore.txt"), "nope").expect("non-sql");
+        let context = AppContext {
+            config: ScopeConfig {
+                services: vec![],
+                seed_directory: seed_dir.clone(),
+                env_file: directory.path().join(".env"),
+                env_example_file: directory.path().join(".env.example"),
+            },
+        };
+
+        run_seed(
+            SeedArgs {
+                directory: None,
+                env_file: None,
+                dry_run: true,
+            },
+            &context,
+        )
+        .await
+        .expect("dry run should inspect SQL files");
+
+        let missing = discover_seed_files(&directory.path().join("missing")).expect_err("missing dir");
+        assert!(missing.to_string().contains("does not exist"));
+
+        let empty = directory.path().join("empty");
+        fs::create_dir(&empty).expect("empty dir");
+        let error = discover_seed_files(&empty).expect_err("empty dir should fail");
+        assert!(error.to_string().contains("No SQL files"));
+    }
+
+    #[test]
+    fn seed_plan_counts_batches_and_sorts_unknown_services_last() {
+        let directory = tempdir().expect("tempdir");
+        let root = directory.path();
+        fs::create_dir_all(root.join("zeta")).expect("zeta");
+        fs::create_dir_all(root.join("core")).expect("core");
+        fs::write(root.join("zeta").join("010_extra.sql"), "SELECT 1;\nGO\nSELECT 2;\n").expect("sql");
+        fs::write(root.join("core").join("abc_core.sql"), "SELECT 1;\n").expect("sql");
+
+        let entries = build_seed_plan(root).expect("plan");
+        let names = entries
+            .iter()
+            .map(|entry| {
+                (
+                    entry
+                        .path
+                        .strip_prefix(root)
+                        .expect("relative")
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                    entry.batch_count,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(names[0], ("zeta/010_extra.sql".to_string(), 2));
+        assert_eq!(names[1], ("core/abc_core.sql".to_string(), 1));
+        assert_eq!(numeric_prefix("abc_core.sql"), u32::MAX);
+    }
+
+    #[test]
+    fn database_config_resolves_connection_string_overrides_and_errors() {
+        let directory = tempdir().expect("tempdir");
+        let env_file = directory.path().join(".env");
+        fs::write(
+            &env_file,
+            "\
+SCOPE_SQL_CONNECTION_STRING=Server=db.example.test,1444;Database=ScopeDb;User Id=scope;Password=secret;TrustServerCertificate=True;
+SCOPE_DB_HOST=override-host
+SCOPE_DB_PORT=1555
+SCOPE_DB_NAME=OverrideDb
+SCOPE_DB_USER=override-user
+SCOPE_DB_PASSWORD=override-pass
+SCOPE_DB_TRUST_CERT=false
+",
+        )
+        .expect("env");
+
+        let (config, source) = resolve_database_config(Some(&env_file), Path::new(".env")).expect("db config");
+        assert_eq!(source, env_file);
+        assert_eq!(config.host, "override-host");
+        assert_eq!(config.port, 1555);
+        assert_eq!(config.database, "OverrideDb");
+        assert_eq!(config.user, "override-user");
+        assert_eq!(config.password, "override-pass");
+        assert!(!config.trust_cert);
+        assert_eq!(config.database_target(), "override-user@override-host:1555/OverrideDb");
+
+        let env_file = directory.path().join("connection-only.env");
+        fs::write(
+            &env_file,
+            "CORE_CONNECTION_STRING=Server=tcp:localhost:1434;Initial Catalog=CoreDb;Uid=sa;Pwd=from-connection;\n",
+        )
+        .expect("env");
+        let (config, _) = resolve_database_config(Some(&env_file), Path::new(".env")).expect("db config");
+        assert_eq!(config.host, "tcp:localhost");
+        assert_eq!(config.port, 1434);
+        assert_eq!(config.database, "CoreDb");
+        assert_eq!(config.user, "sa");
+        assert_eq!(config.password, "from-connection");
+
+        let env_file = directory.path().join("bad.env");
+        fs::write(&env_file, "SCOPE_DB_PORT=bad\nSA_PASSWORD=secret\n").expect("env");
+        let error = resolve_database_config(Some(&env_file), Path::new(".env")).expect_err("bad port");
+        assert!(error.to_string().contains("Invalid database port"));
+
+        let env_file = directory.path().join("missing-password.env");
+        fs::write(&env_file, "SCOPE_DB_HOST=localhost\n").expect("env");
+        let error = resolve_database_config(Some(&env_file), Path::new(".env")).expect_err("password required");
+        assert!(error.to_string().contains("No SQL password"));
+    }
+
+    #[test]
+    fn server_port_and_u16_parsing_cover_common_sql_forms() {
+        assert_eq!(parse_server_host_port("sqlserver,1433"), ("sqlserver".to_string(), Some(1433)));
+        assert_eq!(parse_server_host_port("tcp:sqlserver:1444"), ("tcp:sqlserver".to_string(), Some(1444)));
+        assert_eq!(parse_server_host_port("localhost,bad"), ("localhost,bad".to_string(), None));
+        assert_eq!(parse_server_host_port("localhost:bad"), ("localhost:bad".to_string(), None));
+        assert_eq!(parse_u16(" 8080 ", "port").expect("port"), 8080);
+        assert!(parse_u16("bad", "port").is_err());
+    }
+
+    #[tokio::test]
+    async fn sql_connection_helpers_surface_connection_errors_and_escape_database_names() {
+        let config = DatabaseConfig {
+            host: "127.0.0.1".to_string(),
+            port: 1,
+            database: "scope]prod's".to_string(),
+            user: "sa".to_string(),
+            password: "secret".to_string(),
+            trust_cert: true,
+        };
+
+        let statement = build_create_database_statement(&config.database);
+        assert_eq!(
+            statement,
+            "IF DB_ID(N'scope]prod''s') IS NULL CREATE DATABASE [scope]]prod's];"
+        );
+        assert!(connect_sql(&config).await.is_err());
+        assert!(ensure_database_exists(&config).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn deploy_validation_covers_successful_process_checks_duplicate_ports_and_https_failures() {
+        let directory = tempdir().expect("tempdir");
+        let env_file = directory.path().join(".env");
+        let example_file = directory.path().join(".env.example");
+        let compose_file = directory.path().join("docker-compose.yml");
+        fs::write(
+            &example_file,
+            "\
+NGINX_PORT=8080
+CORE_PORT=5001
+SA_PASSWORD=change-me
+CORE_JWT_SECRET=change-me
+",
+        )
+        .expect("example");
+        fs::write(
+            &env_file,
+            "\
+NGINX_PORT=45671
+CORE_PORT=45671
+SA_PASSWORD=real-password
+CORE_JWT_SECRET=real-secret
+",
+        )
+        .expect("env");
+        fs::write(&compose_file, "services: {}\n").expect("compose");
+        let runner = |program: &str, args: &[&str], _working_directory: &Path| -> CliResult<String> {
+            assert_eq!(program, "docker");
+            if args.first() == Some(&"version") {
+                Ok("29.0.0".to_string())
+            } else if args.first() == Some(&"compose") {
+                Ok("core\ncontent\n".to_string())
+            } else {
+                Err(boxed_error("unexpected docker command"))
+            }
+        };
+        assert!(runner("docker", &["unknown"], directory.path())
+            .expect_err("unknown fake docker command")
+            .to_string()
+            .contains("unexpected"));
+
+        let error = run_deploy_validate_with_runner(
+            DeployValidateArgs {
+                env_file: env_file.clone(),
+                example_file: example_file.clone(),
+                compose_file: compose_file.clone(),
+                https_urls: vec!["http://localhost/not-https".to_string()],
+                timeout_seconds: 1.0,
+            },
+            &runner,
+        )
+        .await
+        .expect_err("duplicates and http URL should fail");
+        let message = error.to_string();
+        assert!(message.contains("port conflicts"));
+        assert!(message.contains("https certificate checks"));
+
+        fs::write(
+            &env_file,
+            "\
+NGINX_PORT=45671
+CORE_PORT=45672
+SA_PASSWORD=real-password
+CORE_JWT_SECRET=real-secret
+",
+        )
+        .expect("env");
+        run_deploy_validate_with_runner(
+            DeployValidateArgs {
+                env_file: env_file.clone(),
+                example_file: example_file.clone(),
+                compose_file: compose_file.clone(),
+                https_urls: vec![],
+                timeout_seconds: 1.0,
+            },
+            &runner,
+        )
+        .await
+        .expect("fake process runner and valid env should pass");
+
+        let failing_runner = |_program: &str, _args: &[&str], _working_directory: &Path| -> CliResult<String> {
+            Err(boxed_error("tool unavailable"))
+        };
+        let docker_error = run_deploy_validate_with_runner(
+            DeployValidateArgs {
+                env_file: env_file.clone(),
+                example_file: example_file.clone(),
+                compose_file: compose_file.clone(),
+                https_urls: vec![],
+                timeout_seconds: 1.0,
+            },
+            &failing_runner,
+        )
+        .await
+        .expect_err("docker checks should fail when process runner fails");
+        assert!(docker_error.to_string().contains("docker daemon"));
+
+        let missing = run_deploy(
+            DeployArgs {
+                command: DeployCommand::Validate(DeployValidateArgs {
+                    env_file: directory.path().join("missing.env"),
+                    example_file,
+                    compose_file,
+                    https_urls: vec![],
+                    timeout_seconds: 1.0,
+                }),
+            },
+            &AppContext::new(),
+        )
+        .await
+        .expect_err("missing env should fail through deploy dispatch");
+        assert!(missing.to_string().contains("Environment file does not exist"));
+    }
+
+    #[test]
+    fn port_checks_detect_listening_ports_and_invalid_values() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("address").port();
+        let mut env_map = EnvMap::new();
+        env_map.insert("CORE_PORT".to_string(), port.to_string());
+        env_map.insert("CONTENT_PORT".to_string(), "1".to_string());
+
+        let checks = build_port_checks(&env_map).expect("port checks");
+        let core = checks.iter().find(|check| check.key == "CORE_PORT").expect("core port");
+        let content = checks
+            .iter()
+            .find(|check| check.key == "CONTENT_PORT")
+            .expect("content port");
+        assert!(core.listening);
+        assert!(!content.listening);
+
+        env_map.insert("INTEL_PORT".to_string(), "not-a-port".to_string());
+        assert!(build_port_checks(&env_map).is_err());
+    }
+
+    #[tokio::test]
+    async fn benchmark_command_covers_success_failure_and_closed_semaphore_paths() {
+        let success_url = spawn_http_server(vec![
+            http_response(200, "OK", "one", "text/plain"),
+            http_response(200, "OK", "two", "text/plain"),
+            http_response(200, "OK", "three", "text/plain"),
+        ]);
+
+        run_benchmark(BenchmarkArgs {
+            url: success_url,
+            method: "GET".to_string(),
+            requests: 3,
+            concurrency: 2,
+            timeout_seconds: 1.0,
+        })
+        .await
+        .expect("successful benchmark");
+
+        let failure_url = spawn_http_server(vec![http_response(503, "Service Unavailable", "down", "text/plain")]);
+        let error = run_benchmark(BenchmarkArgs {
+            url: failure_url,
+            method: "GET".to_string(),
+            requests: 1,
+            concurrency: 5,
+            timeout_seconds: 1.0,
+        })
+        .await
+        .expect_err("failed benchmark");
+        assert!(error.to_string().contains("Benchmark completed with 1 failure"));
+
+        let error = run_benchmark(BenchmarkArgs {
+            url: "http://127.0.0.1:1/".to_string(),
+            method: "GET".to_string(),
+            requests: 1,
+            concurrency: 0,
+            timeout_seconds: 1.0,
+        })
+        .await
+        .expect_err("zero concurrency");
+        assert!(error.to_string().contains("--concurrency"));
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        semaphore.close();
+        let closed = execute_benchmark_request(
+            build_http_client(1.0).expect("client"),
+            Method::GET,
+            Url::parse("http://127.0.0.1:1/").expect("url"),
+            semaphore,
+        )
+        .await;
+        assert!(!closed.ok);
+        assert_eq!(closed.detail, "benchmark semaphore closed");
+
+        let request_error = execute_benchmark_request(
+            build_http_client(0.0).expect("client"),
+            Method::GET,
+            Url::parse("http://127.0.0.1:1/").expect("url"),
+            Arc::new(Semaphore::new(1)),
+        )
+        .await;
+        assert!(!request_error.ok);
+        assert_eq!(request_error.status_code, None);
+    }
+
+    #[tokio::test]
+    async fn env_command_covers_success_and_failure_reports() {
+        let directory = tempdir().expect("tempdir");
+        let env_file = directory.path().join(".env");
+        let example_file = directory.path().join(".env.example");
+        fs::write(&example_file, "A=1\nSA_PASSWORD=change-me\nOPTIONAL=\n").expect("example");
+        fs::write(&env_file, "A=2\nSA_PASSWORD=real-secret\n").expect("env");
+        let context = AppContext::new();
+
+        run_env(
+            EnvArgs {
+                command: EnvCommand::Check(EnvCheckArgs {
+                    env_file: env_file.clone(),
+                    example_file: example_file.clone(),
+                    strict_placeholders: true,
+                }),
+            },
+            &context,
+        )
+        .await
+        .expect("env check success");
+
+        fs::write(&env_file, "SA_PASSWORD=change-me\n").expect("env");
+        let error = run_env_check(
+            EnvCheckArgs {
+                env_file,
+                example_file,
+                strict_placeholders: true,
+            },
+            &context,
+        )
+        .await
+        .expect_err("missing and placeholder should fail");
+        assert!(error.to_string().contains("Environment contract check failed"));
+    }
+
+    #[test]
+    fn env_map_and_report_printing_cover_empty_and_populated_branches() {
+        let directory = tempdir().expect("tempdir");
+        let env_file = directory.path().join(".env");
+        fs::write(
+            &env_file,
+            "\
+# comment
+PLAIN=value
+DOUBLE=\"quoted\"
+SINGLE='quoted'
+=ignored
+NO_EQUALS
+",
+        )
+        .expect("env");
+        let values = load_env_map(&env_file, false).expect("env map");
+        assert_eq!(values.get("PLAIN"), Some(&"value".to_string()));
+        assert_eq!(values.get("DOUBLE"), Some(&"quoted".to_string()));
+        assert_eq!(values.get("SINGLE"), Some(&"quoted".to_string()));
+        assert!(!values.contains_key(""));
+        assert!(load_env_map(&directory.path().join("missing.env"), true).expect("missing ok").is_empty());
+        assert!(load_env_map(&directory.path().join("missing.env"), false).is_err());
+
+        let empty_report = EnvCheckReport {
+            env_file: env_file.clone(),
+            example_file: directory.path().join(".env.example"),
+            missing_required: vec![],
+            blank_required: vec![],
+            extra_keys: vec![],
+            placeholder_keys: vec![],
+            populated_keys: values.len(),
+        };
+        print_env_check_report(&empty_report, false);
+
+        let populated_report = EnvCheckReport {
+            env_file,
+            example_file: directory.path().join(".env.example"),
+            missing_required: vec!["A".to_string()],
+            blank_required: vec!["B".to_string()],
+            extra_keys: vec!["C".to_string()],
+            placeholder_keys: vec!["SA_PASSWORD".to_string()],
+            populated_keys: 3,
+        };
+        assert!(populated_report.has_failures(false));
+        assert!(populated_report.has_failures(true));
+        print_env_check_report(&populated_report, false);
+        print_env_check_report(&populated_report, true);
+    }
+
+    #[test]
+    fn resolving_values_http_clients_processes_and_formatters_cover_edges() {
+        let _guard = global_env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut env_map = EnvMap::new();
+        env_map.insert("FROM_MAP".to_string(), "map-value".to_string());
+        env_map.insert("BLANK".to_string(), " ".to_string());
+        env::remove_var("FROM_ENV");
+        assert_eq!(resolve_value(&["BLANK", "FROM_MAP"], &env_map), Some("map-value".to_string()));
+        env::set_var("FROM_ENV", " ");
+        assert_eq!(resolve_value(&["FROM_ENV", "FROM_MAP"], &env_map), Some("map-value".to_string()));
+        env::set_var("FROM_ENV", "env-value");
+        assert_eq!(resolve_value(&["FROM_ENV", "FROM_MAP"], &env_map), Some("env-value".to_string()));
+        env::remove_var("FROM_ENV");
+        assert_eq!(resolve_value(&["MISSING"], &env_map), None);
+
+        assert_eq!(env_or_default("MISSING_SCOPE_TEST_KEY", "fallback"), "fallback");
+        env::set_var("SCOPE_TEST_PATH_KEY", "custom-path");
+        assert_eq!(env_path_or_default("SCOPE_TEST_PATH_KEY", "fallback"), PathBuf::from("custom-path"));
+        env::remove_var("SCOPE_TEST_PATH_KEY");
+        assert_eq!(env_path_or_default("SCOPE_TEST_PATH_KEY", "fallback"), PathBuf::from("fallback"));
+
+        let client = build_http_client(-1.0).expect("client");
+        drop(client);
+
+        #[cfg(windows)]
+        {
+            let output = run_process("cmd", &["/C", "echo hello"], Path::new(".")).expect("cmd success");
+            assert_eq!(output, "hello");
+            assert!(run_process("cmd", &["/C", "exit 7"], Path::new(".")).is_err());
+            let stderr = run_process("cmd", &["/C", "echo noisy 1>&2 & exit 7"], Path::new("."))
+                .expect_err("cmd stderr failure");
+            assert!(stderr.to_string().contains("noisy"));
+        }
+        #[cfg(not(windows))]
+        {
+            let output = run_process("sh", &["-c", "printf hello"], Path::new(".")).expect("sh success");
+            assert_eq!(output, "hello");
+            assert!(run_process("sh", &["-c", "exit 7"], Path::new(".")).is_err());
+        }
+        assert!(run_process("definitely-not-a-scope-command", &[], Path::new(".")).is_err());
+
+        assert_eq!(truncate("short\nline", 20), "short line");
+        assert_eq!(truncate("abcdef", 3), "abc...");
+        print_banner("Unit Banner");
+        print_row("label", "value");
+        assert_eq!(boxed_error("boom").to_string(), "boom");
+
+        for value in [
+            "",
+            "change-me",
+            "change_in_prod",
+            "change-in-prod",
+            "your-mapbox-token",
+            "super-secret",
+            "django-insecure-key",
+            "CHANGE_ME_STRONG_PASSWORD!",
+        ] {
+            assert!(looks_like_placeholder(value));
+        }
+        assert!(!looks_like_placeholder("production-secret"));
     }
 }

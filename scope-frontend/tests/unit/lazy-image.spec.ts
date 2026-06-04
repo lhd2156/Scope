@@ -24,6 +24,7 @@ describe('LazyImage', () => {
   }
 
   afterEach(() => {
+    delete document.documentElement.dataset.scopeQa;
     if (originalObserver) {
       setIntersectionObserver(originalObserver);
     } else {
@@ -143,5 +144,100 @@ describe('LazyImage', () => {
     expect(wrapper.emitted('error')).toHaveLength(1);
     expect(wrapper.find('img').exists()).toBe(false);
     expect(wrapper.find('.lazy-image-placeholder.is-error').exists()).toBe(true);
+  });
+
+  it('marks eager images as loaded and resyncs when sources change', async () => {
+    removeIntersectionObserver();
+
+    const wrapper = mount(LazyImage, {
+      props: {
+        src: '  https://images.example.com/original.jpg  ',
+        fallbackSrc: 'https://images.example.com/fallback.jpg',
+        alt: 'Route preview',
+        eager: true,
+      },
+    });
+
+    await nextTick();
+
+    expect(wrapper.get('img').attributes('src')).toBe('https://images.example.com/original.jpg');
+    expect(wrapper.get('img').attributes('loading')).toBe('eager');
+    expect(wrapper.get('img').attributes('fetchpriority')).toBe('high');
+
+    await wrapper.get('img').trigger('load');
+    expect(wrapper.emitted('load')).toHaveLength(1);
+    expect(wrapper.get('img').classes()).toContain('is-loaded');
+
+    await wrapper.setProps({
+      src: '',
+      fallbackSrc: '  https://images.example.com/updated-fallback.jpg  ',
+    });
+    await nextTick();
+
+    expect(wrapper.get('img').attributes('src')).toBe('https://images.example.com/updated-fallback.jpg');
+    expect(wrapper.get('img').classes()).not.toContain('is-loaded');
+  });
+
+  it('uses the audit placeholder while Scope QA mode is active', async () => {
+    document.documentElement.dataset.scopeQa = 'true';
+    removeIntersectionObserver();
+
+    const wrapper = mount(LazyImage, {
+      props: {
+        src: 'https://images.example.com/audit-hidden.jpg',
+        fallbackSrc: 'https://images.example.com/audit-fallback.jpg',
+        alt: 'Hidden during QA',
+        eager: true,
+      },
+    });
+
+    await nextTick();
+
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.find('.lazy-image-placeholder').exists()).toBe(true);
+
+    delete document.documentElement.dataset.scopeQa;
+  });
+
+  it('disconnects pending observers on source changes and unmount', async () => {
+    let observerCallback: IntersectionObserverCallback | null = null;
+    const disconnect = vi.fn();
+
+    class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = disconnect;
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '240px 0px';
+      thresholds = [0.01];
+    }
+
+    setIntersectionObserver(MockIntersectionObserver as unknown as typeof IntersectionObserver);
+
+    const wrapper = mount(LazyImage, {
+      props: {
+        src: 'https://images.example.com/lazy-1.jpg',
+        alt: 'Lazy image',
+      },
+    });
+
+    await nextTick();
+    await wrapper.setProps({ src: 'https://images.example.com/lazy-2.jpg' });
+    await nextTick();
+
+    expect(disconnect).toHaveBeenCalled();
+    expect(wrapper.find('img').exists()).toBe(false);
+
+    observerCallback?.([{ isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await nextTick();
+    expect(wrapper.find('img').exists()).toBe(false);
+
+    wrapper.unmount();
+    expect(disconnect.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

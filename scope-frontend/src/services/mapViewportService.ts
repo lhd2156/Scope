@@ -16,6 +16,10 @@ export function getUnitedStatesMapViewport(): MapViewport {
   return cloneMapViewport(UNITED_STATES_MAP_VIEWPORT);
 }
 
+export function getDefaultDiscoveryMapViewport(): MapViewport {
+  return cloneMapViewport(UNITED_STATES_MAP_VIEWPORT);
+}
+
 export async function resolveHomeBaseMapViewport(homeBase: string): Promise<MapViewport | null> {
   const query = sanitizeSingleLineText(homeBase);
   if (!query) {

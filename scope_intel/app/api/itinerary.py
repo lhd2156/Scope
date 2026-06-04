@@ -14,6 +14,7 @@ itinerary_bp = Blueprint("itinerary", __name__)
 itinerary_schema = ItineraryRequestSchema()
 engine = ItineraryEngine(ContentServiceClient())
 weather_service = WeatherService()
+PRIVATE_ITINERARY_HEADERS = {"Cache-Control": "private, no-store", "Vary": "Authorization"}
 
 
 @itinerary_bp.post("/itinerary/generate")
@@ -25,12 +26,12 @@ def generate_itinerary():
     cached = IntelRepository.get_cached_itinerary_for_request(g.current_user["sub"], payload)
     if cached is not None:
         itinerary_id, itinerary = cached
-        return success_response({"id": itinerary_id, **itinerary})
+        return success_response({"id": itinerary_id, **itinerary}, headers=PRIVATE_ITINERARY_HEADERS)
 
     weather = weather_service.get_planning_snapshot(payload["startDate"])
     itinerary = engine.generate(payload, weather)
     itinerary_id = IntelRepository.cache_itinerary(g.current_user["sub"], payload, itinerary)
-    return success_response({"id": itinerary_id, **itinerary})
+    return success_response({"id": itinerary_id, **itinerary}, headers=PRIVATE_ITINERARY_HEADERS)
 
 
 @itinerary_bp.get("/itinerary/<itinerary_id>")
@@ -40,4 +41,4 @@ def get_itinerary(itinerary_id: str):
     itinerary = IntelRepository.get_itinerary(itinerary_id, g.current_user["sub"])
     if itinerary is None:
         return error_response(404, "NOT_FOUND", "Resource does not exist", trace_id=getattr(g, "trace_id", None))
-    return success_response({"id": itinerary_id, **itinerary})
+    return success_response({"id": itinerary_id, **itinerary}, headers=PRIVATE_ITINERARY_HEADERS)

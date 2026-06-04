@@ -4,14 +4,17 @@ import { trackItineraryGenerate, trackTripCreate } from '@/services/analyticsSer
 import { generateItinerary } from '@/services/intelService';
 import {
   addTripSpot as addTripSpotRequest,
+  createTripShareLink,
   createTrip as createTripRequest,
   deleteTrip as deleteTripRequest,
+  getTripByShareToken,
   getTripDetail,
   getTripMembers,
   inviteTripMember as inviteTripMemberRequest,
   listTrips,
   removeTripSpot as removeTripSpotRequest,
   reorderTripSpots as reorderTripSpotsRequest,
+  updateTripMemberRole as updateTripMemberRoleRequest,
   updateTrip as updateTripRequest,
   type ReorderTripSpotsInput,
   type TripMutationInput,
@@ -111,6 +114,23 @@ export const useTripsStore = defineStore('trips', () => {
       return response.data;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Scope could not load that trip right now.');
+      throw nextError;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function fetchSharedTrip(token: string) {
+    loading.value = true;
+    selectedTrip.value = null;
+    error.value = null;
+
+    try {
+      const response = await getTripByShareToken(token);
+      syncSelectedTrip(response.data);
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not load that shared trip right now.');
       throw nextError;
     } finally {
       loading.value = false;
@@ -263,6 +283,40 @@ export const useTripsStore = defineStore('trips', () => {
     }
   }
 
+  async function updateMemberRole(
+    tripId: string,
+    userId: string,
+    role: TripInviteInput['role'],
+  ): Promise<Trip> {
+    saving.value = true;
+    error.value = null;
+
+    try {
+      const response = await updateTripMemberRoleRequest(tripId, userId, role);
+      syncSelectedTrip(response.data);
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not update that traveler access right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function createShareLink(tripId: string) {
+    saving.value = true;
+    error.value = null;
+
+    try {
+      return await createTripShareLink(tripId);
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not create a share link right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
   async function buildItinerary(input: TripPlannerInput, options: BuildItineraryOptions = {}) {
     planning.value = true;
     error.value = null;
@@ -311,6 +365,7 @@ export const useTripsStore = defineStore('trips', () => {
     activeTrip,
     fetchTrips,
     fetchTrip,
+    fetchSharedTrip,
     fetchMembers,
     createTrip,
     updateTrip,
@@ -319,6 +374,8 @@ export const useTripsStore = defineStore('trips', () => {
     removeSpot,
     reorderSpots,
     inviteMember,
+    updateMemberRole,
+    createShareLink,
     buildItinerary,
   };
 });

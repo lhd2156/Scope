@@ -1,10 +1,10 @@
 """Fallback / test-only spot fixtures for the Intelligence service.
 
-These exist strictly for local development, offline tests, and graceful
-degradation when the Content service is unreachable. They must NEVER be the
-data source in production -- `ContentServiceClient` routes to
-`HttpContentServiceClient` whenever `CONTENT_SERVICE_URL` is configured and
-`TESTING` is False.
+These exist strictly for offline tests and explicit fixture-client injection.
+They must NEVER be the data source in production or normal local development:
+`ContentServiceClient` routes to `HttpContentServiceClient` whenever
+`TESTING` is False, and a missing `CONTENT_SERVICE_URL` is a configuration
+error.
 
 Intentionally kept tiny (six spots) so a test author cannot accidentally
 conflate "it returned 6 results" with "recommendations are working".

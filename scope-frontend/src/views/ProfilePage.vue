@@ -35,117 +35,109 @@
           </div>
         </section>
         <template v-else>
-          <article v-if="workspaceNotice" class="glass-panel inline-note" role="status">
+          <article v-if="workspaceNotice" class="inline-note" role="status">
             <p class="eyebrow">Partial refresh</p>
             <p class="section-copy">{{ workspaceNotice }}</p>
           </article>
 
           <section class="profile-hero">
-            <ProfileHeader
-              :user="profileUser"
-              :is-current-user="isCurrentUser"
-              :primary-action-label="primaryActionLabel"
-              :primary-action-to="primaryActionTo"
-              :secondary-action-label="secondaryActionLabel"
-              :secondary-action-to="secondaryActionTo"
-            />
+            <div class="profile-overview" aria-label="Profile summary">
+              <ProfileHeader
+                :user="profileUser"
+                :is-current-user="isCurrentUser"
+                :presence="profilePresence"
+                :primary-action-label="primaryActionLabel"
+                :primary-action-to="primaryActionTo"
+                :secondary-action-label="secondaryActionLabel"
+                :secondary-action-to="secondaryActionTo"
+              />
 
-            <ProfileStats
-              :user="profileUser"
-              :country-count="countryCount"
-              :city-count="cityCount"
-              :trip-count="collaborativeTrips.length"
-              :travel-days="daysTraveled"
-              :public-spot-count="authoredSpots.length"
-              :average-rating="averageRating"
-              :favorite-category="favoriteCategory"
-            />
+              <ProfileStats
+                :user="profileUser"
+                :country-count="countryCount"
+                :city-count="cityCount"
+                :trip-count="collaborativeTrips.length"
+                :travel-days="daysTraveled"
+                :public-spot-count="authoredSpots.length"
+                :average-rating="averageRating"
+                :favorite-category="favoriteCategory"
+              />
+            </div>
+
+            <div class="profile-map-shell">
+              <ProfileMap
+                :visited-spots="visitedMapSpots"
+                :pinned-spots="authoredSpots"
+                :wishlist-spots="dedupedSavedProfileSpots"
+                :show-wishlist="isCurrentUser"
+                :owner-name="profileUser.displayName"
+                :description="mapDescription"
+                :title="profileMapTitle"
+              />
+            </div>
           </section>
 
-          <div ref="profileMapViewport" class="profile-map-shell">
-            <ProfileMap v-if="showDeferredProfileMap" :spots="mapHighlights" :description="mapDescription" title="Global Footprint" />
-            <section v-else class="glass-panel profile-map-placeholder" aria-hidden="true" />
-          </div>
-          <section class="profile-section">
-            <SectionHeading
-              eyebrow="Recent adventures"
-              title="Recent Adventures"
-              description="A premium three-card grid of the collaborative routes shaping this explorer's latest Scope footprint."
-            />
+          <section class="profile-section profile-collection-section" data-test="profile-collection-section">
+            <div class="profile-section__heading profile-section__heading--inline">
+              <div>
+                <h2 class="profile-section__title">{{ activeCollectionMeta.title }}</h2>
+                <p class="profile-section__copy">{{ activeCollectionMeta.description }}</p>
+              </div>
 
-            <div v-if="visibleFeaturedTrips.length" class="adventure-grid" :data-adventure-layout="isMobileProfileLayout ? 'rail' : 'grid'">
-              <article
-                v-for="trip in visibleFeaturedTrips"
-                :key="trip.id"
-                class="glass-panel profile-summary-card profile-summary-card--trip"
-              >
-                <p class="eyebrow">Route</p>
-                <h3>{{ trip.title }}</h3>
-                <p class="section-copy">{{ trip.destination }} · {{ getTripDurationDays(trip) }} days</p>
-                <div class="profile-summary-meta">
-                  <span>{{ trip.spots.length }} stops</span>
-                  <span>{{ trip.members.length }} crew</span>
-                </div>
-              </article>
+              <div class="collection-tabs" aria-label="Profile collection filters">
+                <button
+                  v-for="tab in profileCollectionTabs"
+                  :key="tab.id"
+                  type="button"
+                  class="collection-tab"
+                  :class="{ 'is-active': activeProfileCollection === tab.id }"
+                  :aria-pressed="String(activeProfileCollection === tab.id)"
+                  @click="activeProfileCollection = tab.id"
+                >
+                  <ScopeIcon :name="tab.icon" :label="tab.label" />
+                  <span>{{ tab.label }}</span>
+                  <strong>{{ tab.count }}</strong>
+                </button>
+              </div>
             </div>
-            <EmptyStatePanel
-              v-else
-              eyebrow="Recent adventures"
-              title="No collaborative routes yet"
-              description="Once this explorer starts planning or joining shared trips, their recent adventures will appear here."
-              icon="route"
-              artwork="itinerary"
-              heading-level="h3"
-            />
-          </section>
 
-          <section class="profile-section">
-            <SectionHeading
-              eyebrow="Pinned highlights"
-              title="Public pins with the strongest visual payoff"
-              description="A curated strip of the places shaping this explorer's current public Scope identity."
-            />
-
-            <div v-if="visibleFeaturedSpots.length" class="pin-grid" :data-pin-layout="isMobileProfileLayout ? 'stacked' : 'grid'">
-              <article
-                v-for="spot in visibleFeaturedSpots"
-                :key="spot.id"
-                class="glass-panel profile-summary-card profile-summary-card--spot"
-              >
-                <p class="eyebrow">Pinned highlight</p>
-                <h3>{{ spot.title }}</h3>
-                <p class="section-copy">{{ spot.city || 'Scope city' }} · {{ formatCategoryLabel(spot.category) }}</p>
-                <div class="profile-summary-meta">
-                  <span>★ {{ spot.rating.toFixed(1) }}</span>
-                  <span>{{ spot.vibe ? formatVibeLabel(spot.vibe) : 'High signal payoff' }}</span>
-                </div>
-              </article>
+            <div
+              v-if="activeCollectionItems.length"
+              class="profile-collection-rail"
+              data-test="profile-collection-rail"
+              :data-active-collection="activeProfileCollection"
+            >
+              <template v-for="item in activeCollectionItems" :key="item.key">
+                <ProfileAdventureCard
+                  v-if="item.type === 'trip'"
+                  :trip="item.trip"
+                />
+                <SpotCard
+                  v-else
+                  :spot="item.spot"
+                />
+              </template>
             </div>
-            <EmptyStatePanel
-              v-else
-              eyebrow="Pinned highlights"
-              title="No public pins yet"
-              description="When this explorer publishes places to Scope, they will appear here first."
-              icon="map"
-              artwork="profile"
-              heading-level="h3"
-            />
+
+            <div v-else class="profile-empty-state" data-test="profile-collection-empty-state">
+              <p class="eyebrow">{{ activeCollectionMeta.title }}</p>
+              <h3>{{ activeCollectionMeta.emptyTitle }}</h3>
+              <p>{{ activeCollectionMeta.emptyDescription }}</p>
+            </div>
           </section>
         </template>
       </template>
 
-      <EmptyStatePanel
+      <div
         v-else
-        alignment="center"
-        eyebrow="Profile"
-        title="Profile unavailable"
-        description="Scope could not find that explorer yet. Try opening another profile from your network."
-        icon="user"
-        artwork="profile"
-        heading-level="h3"
+        class="profile-empty-state profile-empty-state--page"
+        data-test="profile-unavailable-empty-state"
       >
+        <p class="eyebrow">Profile</p>
+        <h3>Profile unavailable</h3>
+        <p>Scope could not find that explorer yet. Try opening another profile from your network.</p>
         <RouterLink class="button button-primary" to="/friends">Back to your network</RouterLink>
-      </EmptyStatePanel>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -154,24 +146,39 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
-import SectionHeading from '@/components/common/SectionHeading.vue';
+import ScopeIcon from '@/components/common/ScopeIcon.vue';
+import ProfileAdventureCard from '@/components/profile/ProfileAdventureCard.vue';
 import ProfileHeader from '@/components/profile/ProfileHeader.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
 import ProfileWorkspaceSkeleton from '@/components/profile/ProfileWorkspaceSkeleton.vue';
-import { listUserSpots } from '@/services/spotService';
+import SpotCard from '@/components/spots/SpotCard.vue';
+import { listFriends } from '@/services/friendService';
+import { listSavedSpots, listUserSpots } from '@/services/spotService';
 import { listPublicTrips } from '@/services/tripService';
 import { useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
-import type { SpotCategory, SpotSummary, Trip, TripSpot, UserProfile } from '@/types';
+import type { FriendPresence, SpotCategory, SpotSummary, Trip, TripSpot, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
-import { formatVibeLabel, getInclusiveDaySpan } from '@/utils/formatters';
+import { getInclusiveDaySpan } from '@/utils/formatters';
+import { getSpotDeduplicationKey, getSpotFingerprint } from '@/utils/spotIdentity';
 
 const PROFILE_MOBILE_BREAKPOINT = 640;
-const INITIAL_VISIBLE_PROFILE_TRIPS = 2;
-const INITIAL_VISIBLE_PROFILE_SPOTS = 3;
-const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test';
 const isProfileAuditMode = typeof window !== 'undefined' && window.location.search.includes('scopeQaSession=');
+
+type ProfileCollectionId = 'recent' | 'pinned' | 'wishlist';
+
+type ProfileCollectionItem =
+  | { key: string; type: 'trip'; trip: Trip }
+  | { key: string; type: 'spot'; spot: SpotSummary };
+
+interface ProfileCollectionMeta {
+  title: string;
+  description: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyIcon: string;
+  emptyArtwork: 'profile' | 'itinerary';
+}
 
 const ProfileMap = defineAsyncComponent(() => import('@/components/profile/ProfileMap.vue'));
 
@@ -181,26 +188,34 @@ const userStore = useUserStore();
 const profileUser = ref<UserProfile | null>(null);
 const isMobileProfileLayout = ref(resolveIsMobileProfileLayout());
 const profileSpots = ref<SpotSummary[]>([]);
+const savedProfileSpots = ref<SpotSummary[]>([]);
 const profileTrips = ref<Trip[]>([]);
+const profileFriendPresence = ref<FriendPresence | undefined>();
 const isLoading = ref(true);
 const profileError = ref('');
 const workspaceNotice = ref('');
-const showDeferredProfileMap = ref(shouldEagerlyRenderHeavyContent);
-const profileMapViewport = ref<HTMLElement | null>(null);
+const activeProfileCollection = ref<ProfileCollectionId>('recent');
 
 let loadRequestId = 0;
-let disconnectProfileMapObserver: (() => void) | null = null;
 
-function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfile): SpotSummary {
+const profilePresence = computed<FriendPresence | undefined>(() => {
+  if (!profileUser.value || isCurrentUser.value) {
+    return undefined;
+  }
+
+  return profileFriendPresence.value;
+});
+
+function buildSpotSummaryFromTripSpot(spot: TripSpot, fallbackAuthor: UserProfile, visitedAt: string): SpotSummary {
   return {
-    id: `${spot.spotId}-trip`,
+    id: spot.spotId,
     title: spot.title,
     latitude: spot.latitude,
     longitude: spot.longitude,
     category: spot.category,
     city: spot.city,
     rating: 4.5,
-    createdAt: new Date().toISOString(),
+    createdAt: visitedAt,
     author: fallbackAuthor,
     photoUrl: spot.photoUrl,
     vibe: spot.notes,
@@ -223,8 +238,24 @@ function syncMobileProfileLayout() {
   isMobileProfileLayout.value = resolveIsMobileProfileLayout();
 }
 
-function formatCategoryLabel(category: SpotCategory): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
+function dedupeSpotList(spots: SpotSummary[], excludedSpots: SpotSummary[] = []): SpotSummary[] {
+  const seenKeys = new Set<string>();
+  const excludedKeys = new Set<string>();
+
+  excludedSpots.forEach((spot) => {
+    excludedKeys.add(spot.id);
+    excludedKeys.add(getSpotFingerprint(spot));
+  });
+
+  return spots.filter((spot) => {
+    const key = getSpotDeduplicationKey(spot);
+    const fingerprint = getSpotFingerprint(spot);
+    const isDuplicate = seenKeys.has(key) || seenKeys.has(fingerprint) || excludedKeys.has(spot.id) || excludedKeys.has(fingerprint);
+
+    seenKeys.add(key);
+    seenKeys.add(fingerprint);
+    return !isDuplicate;
+  });
 }
 
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
@@ -238,16 +269,7 @@ const collaborativeTrips = computed(() =>
   [...profileTrips.value].sort((left, right) => new Date(right.startDate).getTime() - new Date(left.startDate).getTime()),
 );
 
-const featuredTrips = computed(() => collaborativeTrips.value.slice(0, INITIAL_VISIBLE_PROFILE_TRIPS));
-const featuredSpots = computed(() => authoredSpots.value.slice(0, INITIAL_VISIBLE_PROFILE_SPOTS));
-const visibleFeaturedTrips = computed(() => featuredTrips.value);
-const visibleFeaturedSpots = computed(() => featuredSpots.value);
-
-const mapHighlights = computed<SpotSummary[]>(() => {
-  if (authoredSpots.value.length) {
-    return authoredSpots.value;
-  }
-
+const visitedTripSpots = computed<SpotSummary[]>(() => {
   if (!profileUser.value) {
     return [];
   }
@@ -257,7 +279,7 @@ const mapHighlights = computed<SpotSummary[]>(() => {
   collaborativeTrips.value.forEach((trip) => {
     trip.spots.forEach((spot) => {
       if (!dedupedSpots.has(spot.spotId)) {
-        dedupedSpots.set(spot.spotId, buildSpotSummaryFromTripSpot(spot, profileUser.value!));
+        dedupedSpots.set(spot.spotId, buildSpotSummaryFromTripSpot(spot, profileUser.value!, trip.startDate));
       }
     });
   });
@@ -265,10 +287,24 @@ const mapHighlights = computed<SpotSummary[]>(() => {
   return [...dedupedSpots.values()];
 });
 
-const cityCount = computed(() => new Set(mapHighlights.value.map((spot) => spot.city).filter(Boolean)).size);
+const visitedMapSpots = computed(() => (visitedTripSpots.value.length ? visitedTripSpots.value : authoredSpots.value));
+const dedupedSavedProfileSpots = computed(() => (
+  isCurrentUser.value
+    ? dedupeSpotList(savedProfileSpots.value, authoredSpots.value)
+    : []
+));
+const profileFootprintSpots = computed(() => {
+  const uniqueSpots = new Map<string, SpotSummary>();
+  [...visitedMapSpots.value, ...authoredSpots.value, ...dedupedSavedProfileSpots.value].forEach((spot) => {
+    uniqueSpots.set(getSpotDeduplicationKey(spot), spot);
+  });
+
+  return [...uniqueSpots.values()];
+});
+const cityCount = computed(() => new Set(profileFootprintSpots.value.map((spot) => spot.city).filter(Boolean)).size);
 const countryCount = computed(() => {
-  const countries = new Set(mapHighlights.value.map((spot) => spot.country?.trim().toUpperCase()).filter(Boolean));
-  return countries.size || (mapHighlights.value.length ? 1 : 0);
+  const countries = new Set(profileFootprintSpots.value.map((spot) => spot.country?.trim().toUpperCase()).filter(Boolean));
+  return countries.size || (profileFootprintSpots.value.length ? 1 : 0);
 });
 const daysTraveled = computed(() => collaborativeTrips.value.reduce((total, trip) => total + getTripDurationDays(trip), 0));
 const averageRating = computed(() => {
@@ -302,20 +338,96 @@ const primaryActionLabel = computed(() => (isCurrentUser.value ? 'Edit preferenc
 const primaryActionTo = computed(() => (isCurrentUser.value ? '/settings' : { path: '/trips/new', query: { friend: routeUserId.value } }));
 const secondaryActionLabel = computed(() => (isCurrentUser.value ? 'View friends' : 'Open social graph'));
 const secondaryActionTo = computed(() => '/friends');
+const profileMapTitle = computed(() => (profileUser.value ? `${profileUser.value.displayName}'s Scope Map` : 'Scope Map'));
+const profileCollectionTabs = computed(() => {
+  const tabs: Array<{ id: ProfileCollectionId; label: string; icon: string; count: number }> = [
+    {
+      id: 'recent' as const,
+      label: 'Recent',
+      icon: 'route',
+      count: collaborativeTrips.value.length,
+    },
+    {
+      id: 'pinned' as const,
+      label: 'Pinned',
+      icon: 'pin',
+      count: authoredSpots.value.length,
+    },
+  ];
+
+  if (isCurrentUser.value) {
+    tabs.push({
+      id: 'wishlist',
+      label: 'Wishlist',
+      icon: 'heart-filled',
+      count: dedupedSavedProfileSpots.value.length,
+    });
+  }
+
+  return tabs;
+});
+const activeCollectionMeta = computed<ProfileCollectionMeta>(() => {
+  switch (activeProfileCollection.value) {
+    case 'pinned':
+      return {
+        title: 'Pinned highlights',
+        description: 'Public spots with the clearest taste signal.',
+        emptyTitle: 'No public pins yet',
+        emptyDescription: 'When this explorer publishes places to Scope, they will appear here first.',
+        emptyIcon: 'map',
+        emptyArtwork: 'profile',
+      };
+    case 'wishlist':
+      return {
+        title: 'Wishlist',
+        description: 'Saved places queued for the next route.',
+        emptyTitle: 'No saved spots yet',
+        emptyDescription: 'Like or save places from Explore and they will appear here for your next itinerary.',
+        emptyIcon: 'map',
+        emptyArtwork: 'profile',
+      };
+    case 'recent':
+    default:
+      return {
+        title: 'Recent adventures',
+        description: 'Recent routes, balanced with pins and saves.',
+        emptyTitle: 'No collaborative routes yet',
+        emptyDescription: 'Once this explorer starts planning or joining shared trips, their recent adventures will appear here.',
+        emptyIcon: 'route',
+        emptyArtwork: 'itinerary',
+      };
+  }
+});
+const activeCollectionItems = computed<ProfileCollectionItem[]>(() => {
+  switch (activeProfileCollection.value) {
+    case 'pinned':
+      return authoredSpots.value.map((spot): ProfileCollectionItem => ({ key: `pinned-${spot.id}`, type: 'spot', spot }));
+    case 'wishlist':
+      return dedupedSavedProfileSpots.value.map((spot): ProfileCollectionItem => ({ key: `wishlist-${spot.id}`, type: 'spot', spot }));
+    case 'recent':
+    default:
+      return collaborativeTrips.value.map((trip): ProfileCollectionItem => ({ key: `recent-${trip.id}`, type: 'trip', trip }));
+  }
+});
 
 const mapDescription = computed(() => {
   if (!profileUser.value) {
     return 'Scope map data is unavailable.';
   }
 
-  const visiblePins = mapHighlights.value.length;
-  const cities = cityCount.value;
+  const visitedStops = visitedMapSpots.value.length;
+  const publicPins = authoredSpots.value.length;
+  const wishlistSaves = isCurrentUser.value ? dedupedSavedProfileSpots.value.length : 0;
 
-  if (!visiblePins) {
-    return `${profileUser.value.displayName} has not published any public pins yet.`;
+  if (!visitedStops && !publicPins && !wishlistSaves) {
+    return `${profileUser.value.displayName} does not have mapped visits${isCurrentUser.value ? ', public pins, or wishlist saves' : ' or public pins'} yet.`;
   }
 
-  return `${profileUser.value.displayName} has ${visiblePins} visible pin${visiblePins === 1 ? '' : 's'} across ${cities} mapped cit${cities === 1 ? 'y' : 'ies'} and ${countryCount.value} countr${countryCount.value === 1 ? 'y' : 'ies'}.`;
+  const wishlistCopy = isCurrentUser.value
+    ? `, and ${wishlistSaves} wishlist save${wishlistSaves === 1 ? '' : 's'}`
+    : '';
+
+  return `${profileUser.value.displayName}'s map is built from ${visitedStops} visited stop${visitedStops === 1 ? '' : 's'}, ${publicPins} public pin${publicPins === 1 ? '' : 's'}${wishlistCopy}.`;
 });
 
 async function loadProfileWorkspace(userId: string) {
@@ -325,7 +437,9 @@ async function loadProfileWorkspace(userId: string) {
   workspaceNotice.value = '';
   profileUser.value = null;
   profileSpots.value = [];
+  savedProfileSpots.value = [];
   profileTrips.value = [];
+  profileFriendPresence.value = undefined;
 
   if (!userId) {
     profileError.value = 'Choose an Scope explorer to continue.';
@@ -349,8 +463,22 @@ async function loadProfileWorkspace(userId: string) {
 
   const spotRequest = listUserSpots(userId, 1, 9);
   const tripRequest = listPublicTrips(1, 12);
+  const savedSpotRequest = userId === authStore.currentUser?.id
+    ? listSavedSpots(1, 9)
+    : Promise.resolve({ data: [] as SpotSummary[] });
+  const friendPresenceRequest = userId === authStore.currentUser?.id
+    ? Promise.resolve(undefined)
+    : listFriends(1, 100).then((response) =>
+      response.data.find((connection) => connection.user.id === userId)?.presence,
+    );
 
-  const [profileResult, spotsResult, tripsResult] = await Promise.allSettled([profileRequest, spotRequest, tripRequest]);
+  const [profileResult, spotsResult, tripsResult, savedSpotsResult, friendPresenceResult] = await Promise.allSettled([
+    profileRequest,
+    spotRequest,
+    tripRequest,
+    savedSpotRequest,
+    friendPresenceRequest,
+  ]);
 
   if (requestId !== loadRequestId) {
     return;
@@ -372,7 +500,15 @@ async function loadProfileWorkspace(userId: string) {
     profileTrips.value = tripsResult.value.data.filter((trip) => trip.members.some((member) => member.id === profileResult.value.id));
   }
 
-  const partialIssues = [spotsResult, tripsResult]
+  if (savedSpotsResult.status === 'fulfilled') {
+    savedProfileSpots.value = savedSpotsResult.value.data;
+  }
+
+  if (friendPresenceResult.status === 'fulfilled') {
+    profileFriendPresence.value = friendPresenceResult.value;
+  }
+
+  const partialIssues = [spotsResult, tripsResult, savedSpotsResult, friendPresenceResult]
     .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
     .map((result) => toAsyncErrorMessage(result.reason, 'One part of the profile workspace is still catching up.'));
 
@@ -383,42 +519,9 @@ async function loadProfileWorkspace(userId: string) {
 onMounted(() => {
   syncMobileProfileLayout();
   window.addEventListener('resize', syncMobileProfileLayout, { passive: true });
-
-  if (isProfileAuditMode) {
-    return;
-  }
-
-  if (showDeferredProfileMap.value || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
-    showDeferredProfileMap.value = true;
-    return;
-  }
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) {
-        return;
-      }
-
-      showDeferredProfileMap.value = true;
-      observer.disconnect();
-      disconnectProfileMapObserver = null;
-    },
-    { rootMargin: '320px 0px' },
-  );
-
-  const target = profileMapViewport.value;
-  if (target) {
-    observer.observe(target);
-    disconnectProfileMapObserver = () => observer.disconnect();
-  } else {
-    showDeferredProfileMap.value = true;
-    observer.disconnect();
-  }
 });
 
 onBeforeUnmount(() => {
-  disconnectProfileMapObserver?.();
-  disconnectProfileMapObserver = null;
   window.removeEventListener('resize', syncMobileProfileLayout);
 });
 
@@ -429,42 +532,82 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => authStore.currentUser,
+  (currentUser) => {
+    if (!currentUser || profileUser.value?.id !== currentUser.id) {
+      return;
+    }
+
+    profileUser.value = {
+      ...profileUser.value,
+      ...currentUser,
+      interests: [...(currentUser.interests ?? [])],
+    };
+  },
+  { deep: true },
+);
+
+watch(
+  profileCollectionTabs,
+  (tabs) => {
+    if (!tabs.some((tab) => tab.id === activeProfileCollection.value)) {
+      activeProfileCollection.value = tabs[0]?.id ?? 'recent';
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
-.profile-page,
-.profile-hero,
+.profile-page {
+  width: min(100%, 94rem);
+  max-width: none;
+  margin: 0 auto;
+  gap: var(--space-6);
+}
+
 .profile-section,
 .state-panel,
 .inline-note,
 .profile-map-shell,
-.profile-audit-preview,
-.profile-audit-preview__copy,
-.profile-audit-preview__grid,
-.profile-audit-preview__card,
 .profile-audit-shell,
 .profile-audit-shell__copy,
-.profile-audit-shell__grid,
-.profile-audit-shell__card {
+.profile-audit-shell__grid {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
 .profile-section {
-  content-visibility: auto;
-  contain-intrinsic-size: 720px;
+  min-width: 0;
 }
 
-.profile-audit-shell,
-.profile-audit-preview {
+.profile-section__heading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.profile-section__title {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  letter-spacing: 0;
+}
+
+.profile-section__copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.profile-audit-shell {
   padding: clamp(var(--space-5), 3vw, var(--space-7));
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--accent-teal) 14%, transparent), transparent 42%),
     linear-gradient(135deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
 }
 
-.profile-audit-shell__copy,
-.profile-audit-preview__copy {
+.profile-audit-shell__copy {
   gap: var(--space-3);
   max-width: var(--copy-measure-wide);
 }
@@ -473,60 +616,241 @@ watch(
 .profile-audit-shell__copy h2,
 .profile-audit-shell__copy p,
 .profile-audit-shell__card h2,
-.profile-audit-shell__card p,
-.profile-audit-preview__copy h2,
-.profile-audit-preview__copy p,
-.profile-audit-preview__card h3,
-.profile-audit-preview__card p {
+.profile-audit-shell__card p {
   margin: 0;
 }
 
-.profile-audit-shell__grid,
-.profile-audit-preview__grid {
+.profile-audit-shell__grid {
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--space-4);
 }
 
-.profile-audit-shell__card,
-.profile-audit-preview__card {
+.profile-audit-shell__card {
   gap: var(--space-3);
   padding: var(--space-5);
 }
 
 .profile-map-placeholder {
-  min-height: clamp(25rem, 52vw, 33rem);
+  min-height: 22rem;
+  border-radius: var(--radius-xl);
+  border: 1px dashed color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, var(--bg-secondary));
 }
 
-.profile-summary-card {
-  display: grid;
-  gap: var(--space-3);
-  align-content: start;
-  padding: var(--space-5);
+.state-panel {
+  padding: var(--space-6);
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--glass-border));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--danger) 14%, transparent), transparent 38%),
+    linear-gradient(180deg, var(--bg-secondary), color-mix(in srgb, var(--bg-primary) 80%, var(--bg-secondary)));
+  box-shadow: var(--shadow-md);
 }
 
-.profile-summary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-.state-panel,
 .inline-note {
-  padding: var(--space-5);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 24%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-gold-light) 38%, var(--bg-secondary));
+}
+
+.state-panel .button {
+  width: fit-content;
 }
 
 .profile-hero {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-4);
-  padding-top: clamp(var(--space-6), 4vw, var(--space-8));
+  min-width: 0;
 }
 
-.adventure-grid,
-.pin-grid {
+.profile-overview {
   display: grid;
-  gap: var(--space-5);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.7fr);
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: clamp(var(--space-4), 2vw, var(--space-5));
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-secondary) 97%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent)),
+    color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-overview :deep(.profile-header) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.profile-overview :deep(.stats-strip) {
+  align-content: center;
+  padding-left: var(--space-4);
+  border-left: 1px solid color-mix(in srgb, var(--glass-border) 72%, transparent);
+}
+
+.profile-overview :deep(.stats-row) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-map-shell {
+  min-width: 0;
+  min-height: clamp(39rem, 74vh, 56rem);
+}
+
+.profile-collection-section {
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.profile-section__heading--inline {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4);
+}
+
+.collection-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: min(100%, 28rem);
+}
+
+.collection-tab {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 8.4rem;
+  min-height: 2.7rem;
+  padding: 0 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.collection-tab:hover,
+.collection-tab:focus-visible,
+.collection-tab.is-active {
+  border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
+  color: var(--text-primary);
+  outline: none;
+}
+
+.collection-tab:hover,
+.collection-tab:focus-visible {
+  transform: translateY(var(--motion-card-lift));
+}
+
+.collection-tab :deep(.scope-icon) {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--accent-teal);
+}
+
+.collection-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-tab strong {
+  color: inherit;
+  font-size: 0.84rem;
+}
+
+.profile-collection-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(20rem, 24rem);
+  gap: var(--space-4);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-1) var(--space-1) var(--space-3);
+  margin-inline: calc(var(--space-1) * -1);
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.profile-collection-rail > * {
+  min-width: 0;
+  height: 100%;
+  scroll-snap-align: start;
+}
+
+.profile-collection-rail :deep(.adventure-card),
+.profile-collection-rail :deep(.spot-card) {
+  height: 100%;
+}
+
+.profile-collection-rail :deep(.adventure-media),
+.profile-collection-rail :deep(.spot-media) {
+  aspect-ratio: 16 / 8.6;
+}
+
+.profile-collection-rail :deep(.adventure-body),
+.profile-collection-rail :deep(.spot-body) {
+  padding: var(--space-4);
+}
+
+.profile-collection-rail :deep(.spot-body) {
+  gap: 0.52rem;
+}
+
+.profile-collection-rail :deep(.copy-stack h3),
+.profile-collection-rail :deep(.spot-title) {
+  font-size: 1.06rem;
+  letter-spacing: 0;
+}
+
+.profile-collection-rail :deep(.adventure-body .description),
+.profile-collection-rail :deep(.spot-body .description) {
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.profile-collection-rail :deep(.spot-body .description),
+.profile-collection-rail :deep(.spot-title) {
+  -webkit-line-clamp: 1;
+}
+
+.profile-collection-rail :deep(.spot-footer) {
+  gap: 0.4rem;
+  margin-top: 0;
+  padding-top: var(--space-2);
+}
+
+.profile-collection-rail :deep(.rating-row) {
+  margin-bottom: 0;
+}
+
+.profile-collection-rail :deep(.destination-pill),
+.profile-collection-rail :deep(.meta-pill) {
+  padding: 0.38rem 0.62rem;
+  font-size: var(--font-size-caption);
+}
+
+.profile-collection-rail :deep(.cta-link) {
+  padding: 0.52rem 0.72rem;
 }
 
 .eyebrow,
@@ -543,14 +867,6 @@ p {
   font-weight: var(--font-weight-medium);
 }
 
-.state-panel .button {
-  width: fit-content;
-}
-
-.inline-note {
-  gap: var(--space-2);
-}
-
 .profile-page[data-profile-layout='mobile'] {
   gap: var(--space-4);
 }
@@ -559,38 +875,73 @@ p {
   gap: var(--space-4);
 }
 
-.profile-page[data-profile-layout='mobile'] .adventure-grid[data-adventure-layout='rail'] {
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(17.5rem, 84vw);
-  overflow-x: auto;
-  padding-inline: var(--space-1);
-  padding-bottom: 0.15rem;
-  margin-inline: calc(var(--space-1) * -1);
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
+.profile-empty-state {
+  min-height: clamp(14rem, 24vw, 22rem);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: clamp(var(--space-5), 4vw, var(--space-8));
+  text-align: center;
 }
 
-.profile-page[data-profile-layout='mobile'] .adventure-grid[data-adventure-layout='rail'] > * {
-  min-width: 0;
-  scroll-snap-align: start;
+.profile-empty-state--page {
+  min-height: clamp(24rem, 46vh, 34rem);
 }
 
-.profile-page[data-profile-layout='mobile'] .pin-grid[data-pin-layout='stacked'] {
-  grid-template-columns: 1fr;
+.profile-empty-state h3,
+.profile-empty-state p {
+  margin: 0;
 }
 
-@media (max-width: 1120px) {
-  .adventure-grid,
-  .pin-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.profile-empty-state h3 {
+  max-width: 30rem;
+  color: var(--text-primary);
+  font-size: clamp(1.25rem, 1.8vw, 1.7rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
 }
 
-@media (max-width: 640px) {
-  .pin-grid {
+.profile-empty-state p:not(.eyebrow) {
+  max-width: 38rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.profile-empty-state .button {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 980px) {
+  .profile-overview,
+  .profile-section__heading--inline {
     grid-template-columns: 1fr;
   }
+
+  .profile-overview :deep(.stats-strip) {
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--glass-border) 72%, transparent);
+  }
+
+  .collection-tabs {
+    justify-content: flex-start;
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    scrollbar-width: thin;
+  }
 }
+
+@media (max-width: 720px) {
+  .profile-map-shell {
+    min-height: clamp(33rem, 66vh, 40rem);
+  }
+
+  .profile-collection-rail {
+    grid-auto-columns: minmax(17.5rem, 86vw);
+  }
+}
+
 </style>

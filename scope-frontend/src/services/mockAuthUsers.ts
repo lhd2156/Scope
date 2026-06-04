@@ -9,7 +9,7 @@ const fallbackAuthUsers: UserProfile[] = [
     email: 'demo@scope.travel',
     // Anonymous demo persona used while the app is running in mock mode.
     // Swap out for the signed-in user once real accounts are wired up.
-    displayName: 'Local preview user',
+    displayName: 'Scope traveler',
     // Leave avatarUrl blank so the Avatar component renders its neutral
     // silhouette placeholder (Instagram-style) until the user uploads one.
     avatarUrl: '',

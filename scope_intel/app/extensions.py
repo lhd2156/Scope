@@ -43,7 +43,6 @@ limiter = (
     Limiter(
         key_func=get_remote_address,
         default_limits=["100/minute"],
-        storage_uri=_limiter_storage_uri(),
     )
     if Limiter is not None and get_remote_address is not None
     else _NoopLimiter()

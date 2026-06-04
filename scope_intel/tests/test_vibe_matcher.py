@@ -4,6 +4,9 @@ def test_vibe_matching(client, auth_header):
     matches = response.get_json()["data"]["matches"]
     assert len(matches) == 2
     assert matches[0]["score"] >= matches[1]["score"]
+    assert matches[0]["id"] == matches[0]["spotId"]
+    assert matches[0]["reason"]
+    assert 0 <= matches[0]["confidence"] <= 1
 
 def test_health_route(client):
     response = client.get("/api/intel/health")

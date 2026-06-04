@@ -14,11 +14,12 @@ const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
+      showActivityStatus: true,
     },
   },
   onboardingStoreMock: {
     hasCompleted: true,
-    totalSteps: 5,
+    totalSteps: 3,
     restart: vi.fn().mockReturnValue(true),
   },
   toastStoreMock: {
@@ -26,8 +27,20 @@ const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi
     showError: vi.fn(),
   },
   userStoreMock: {
+    profile: null as any,
     saving: false,
     error: null as string | null,
+    fetchCurrentProfile: vi.fn().mockResolvedValue({
+      id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
+      displayName: 'Louis Do',
+      avatarUrl: '',
+      bio: 'Collecting rooftop taco stops.',
+      homeBase: 'Fort Worth, TX',
+      interests: ['food', 'culture', 'adventure'],
+      showActivityStatus: true,
+    }),
     saveProfile: vi.fn().mockResolvedValue({
       id: 'user-1',
       displayName: 'Louis Do',
@@ -63,7 +76,22 @@ import SettingsPage from '@/views/SettingsPage.vue';
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    authStoreMock.currentUser = {
+      id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
+      displayName: 'Louis Do',
+      avatarUrl: '',
+      bio: 'Collecting rooftop taco stops.',
+      homeBase: 'Fort Worth, TX',
+      interests: ['food', 'culture', 'adventure'],
+      showActivityStatus: true,
+    };
+    userStoreMock.profile = authStoreMock.currentUser;
+    userStoreMock.saving = false;
     userStoreMock.error = null;
+    userStoreMock.fetchCurrentProfile.mockClear();
+    userStoreMock.fetchCurrentProfile.mockResolvedValue(userStoreMock.profile);
     userStoreMock.saveProfile.mockClear();
     onboardingStoreMock.restart.mockClear();
     onboardingStoreMock.restart.mockReturnValue(true);
@@ -82,8 +110,15 @@ describe('SettingsPage', () => {
           AppShell: { template: '<div><slot /></div>' },
           SettingsForm: {
             props: ['initialValue', 'submitting', 'errorMessage'],
-            emits: ['submit', 'update:errorMessage'],
-            template: '<button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button>',
+            emits: ['submit', 'update:errorMessage', 'delete-account'],
+            template: `
+              <div>
+                <button data-test="settings-submit" @click="$emit('submit', initialValue)">Save</button>
+                <button data-test="settings-form-error" @click="$emit('update:errorMessage', 'Inline settings issue')">Set error</button>
+                <button data-test="settings-delete-account" @click="$emit('delete-account')">Delete account</button>
+                <p>{{ errorMessage }}</p>
+              </div>
+            `,
           },
         },
       },
@@ -97,18 +132,130 @@ describe('SettingsPage', () => {
     await flushPromises();
 
     expect(userStoreMock.saveProfile).toHaveBeenCalledWith({
+      username: 'louisdo',
       displayName: 'Louis Do',
       avatarUrl: undefined,
       bio: 'Collecting rooftop taco stops.',
       homeBase: 'Fort Worth, TX',
-    });
+      interests: ['food', 'culture', 'adventure'],
+      showActivityStatus: true,
+    }, 'user-1');
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Settings saved',
       message: 'Profile details synced across your Scope account.',
     });
+
+    await wrapper.get('[data-test="settings-form-error"]').trigger('click');
+    await nextTick();
+    expect(wrapper.text()).toContain('Inline settings issue');
+
+    await wrapper.get('[data-test="settings-delete-account"]').trigger('click');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Delete request received',
+      message: 'Scope will email you to confirm the permanent deletion within 24 hours.',
+    });
   });
 
-  it('keeps the shell theme toggle synchronized with the appearance controls inside settings', async () => {
+  it('hydrates travel preferences from the live profile instead of the lean auth payload', async () => {
+    authStoreMock.currentUser = {
+      id: 'user-1',
+      username: 'louisdo',
+      email: 'louis@example.com',
+      displayName: 'Louis Do',
+      avatarUrl: '',
+      bio: '',
+      homeBase: '',
+      interests: [],
+      showActivityStatus: true,
+    };
+    userStoreMock.profile = {
+      ...authStoreMock.currentUser,
+      bio: 'Live profile biography.',
+      homeBase: 'Fort Worth, TX',
+      interests: ['food', 'scenic'],
+    };
+    userStoreMock.fetchCurrentProfile.mockResolvedValueOnce(userStoreMock.profile);
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(userStoreMock.fetchCurrentProfile).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('[data-test="preference-pill-food"]').classes()).toContain('is-active');
+    expect(wrapper.get('[data-test="preference-pill-scenic"]').classes()).toContain('is-active');
+  });
+
+  it('moves keyboard and scroll focus to the selected settings section', async () => {
+    const wrapper = mount(SettingsPage, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            template: '<section id="settings-profile" tabindex="-1">Profile target</section>',
+          },
+        },
+      },
+    });
+
+    const profileSection = wrapper.get('#settings-profile').element as HTMLElement;
+    const scrollIntoView = vi.fn();
+    const focus = vi.fn();
+    Object.defineProperty(profileSection, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    Object.defineProperty(profileSection, 'focus', {
+      configurable: true,
+      value: focus,
+    });
+
+    await wrapper.get('[data-test="settings-nav-settings-profile"]').trigger('click');
+
+    expect(wrapper.get('[data-test="settings-nav-settings-profile"]').classes()).toContain('is-active');
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'start',
+    });
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it('blocks settings saves when the authenticated session is missing', async () => {
+    authStoreMock.currentUser = null;
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            props: ['initialValue', 'errorMessage'],
+            emits: ['submit', 'update:errorMessage'],
+            template: '<div><button data-test="settings-submit" @click="$emit(\'submit\', initialValue)">Save</button><p>{{ errorMessage }}</p></div>',
+          },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Sign in again to update your Scope settings.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Settings not saved',
+      message: 'Sign in again to update your Scope settings.',
+    });
+  });
+
+  it('keeps the shell theme control dark-only while settings marks light mode coming soon', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -124,15 +271,17 @@ describe('SettingsPage', () => {
 
     const shellToggle = wrapper.get('button.theme-toggle');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(shellToggle.attributes('aria-label')).toBe('Switch to light mode');
+    expect(shellToggle.attributes('aria-label')).toBe('Light mode coming soon');
 
     await wrapper.get('[data-test="theme-option-light"]').trigger('click');
     await nextTick();
 
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-    expect(document.documentElement.style.colorScheme).toBe('light');
-    expect(localStorage.getItem('scope-theme')).toBe('light');
-    expect(shellToggle.attributes('aria-label')).toBe('Switch to dark mode');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+    expect(localStorage.getItem('scope-theme')).toBe('dark');
+    expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
+    expect(wrapper.get('[data-test="theme-option-light"]').text()).toContain('Coming soon');
+    expect(shellToggle.attributes('aria-label')).toBe('Light mode coming soon');
   });
 
   it('updates the analytics opt-out control locally without hitting the profile save contract', async () => {
@@ -173,7 +322,7 @@ describe('SettingsPage', () => {
     });
 
     expect(wrapper.text()).toContain('Replay tutorial');
-    expect(wrapper.text()).toContain('5-step guide');
+    expect(wrapper.text()).toContain('3-step guide');
 
     await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
     await nextTick();

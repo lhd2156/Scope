@@ -39,4 +39,43 @@ describe('UserCard', () => {
     expect(wrapper.emitted('secondary-action')?.[0]).toEqual(['user-1']);
     expect(wrapper.emitted('primary-action')?.[0]).toEqual(['user-1']);
   });
+
+  it('renders fallback identity copy, filtered tags, and compact cards without actions', () => {
+    const wrapper = mount(UserCard, {
+      props: {
+        user: {
+          ...user,
+          homeBase: undefined,
+          bio: undefined,
+          stats: undefined,
+        },
+        compact: true,
+        showStats: false,
+        tags: ['planner', '', 'food'],
+      },
+    });
+
+    expect(wrapper.classes()).toContain('compact');
+    expect(wrapper.text()).toContain('@louisdo');
+    expect(wrapper.text()).toContain('Building a stronger Scope adventure graph.');
+    expect(wrapper.text()).toContain('planner');
+    expect(wrapper.text()).toContain('food');
+    expect(wrapper.find('.stat-list').exists()).toBe(false);
+    expect(wrapper.find('.actions').exists()).toBe(false);
+    expect(wrapper.find('.presence-pill').exists()).toBe(false);
+  });
+
+  it.each([
+    ['online', 'Online'],
+    ['offline', 'Offline'],
+  ] as const)('labels %s presence states', (presence, label) => {
+    const wrapper = mount(UserCard, {
+      props: {
+        user,
+        presence,
+      },
+    });
+
+    expect(wrapper.text()).toContain(label);
+  });
 });

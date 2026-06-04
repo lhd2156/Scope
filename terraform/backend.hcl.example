@@ -4,5 +4,5 @@
 bucket         = "scope-staging-123456789012-tfstate"
 key            = "foundation/staging/terraform.tfstate"
 region         = "us-east-1"
-dynamodb_table = "scope-staging-terraform-locks"
 encrypt        = true
+use_lockfile   = true

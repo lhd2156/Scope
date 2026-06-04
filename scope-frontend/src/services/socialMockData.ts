@@ -1,4 +1,5 @@
 import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import rawUsers from '@/mock/users.json';
 import type { FriendConnection, FriendRequest, UserProfile } from '@/types';
 import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeUserProfile } from '@/utils/sanitizers';
 import { buildPravatarUrl } from '@/utils/demoPhotos';
@@ -9,6 +10,7 @@ import { buildPravatarUrl } from '@/utils/demoPhotos';
 const SOCIAL_MOCK_FALLBACK_ENABLED =
   DEMO_MODE_ENABLED ||
   import.meta.env.VITE_ENABLE_SOCIAL_MOCK_FALLBACK === 'true';
+const canonicalDemoUsers = new Map((rawUsers as UserProfile[]).map((user) => [user.id, user]));
 
 function buildUserProfile(input: Partial<UserProfile> & Pick<UserProfile, 'id' | 'username' | 'displayName'>): UserProfile {
   return sanitizeUserProfile(
@@ -24,19 +26,20 @@ function buildUserProfile(input: Partial<UserProfile> & Pick<UserProfile, 'id' |
   );
 }
 
-const mayaChen = buildUserProfile({
-  id: 'user-2',
-  username: 'maya-chen',
-  displayName: 'Maya Chen',
-  avatarUrl: buildPravatarUrl('user-2'),
-  homeBase: 'Dallas, TX',
-  interests: ['culture', 'shopping', 'scenic'],
-  stats: { spots: 28, trips: 6, friends: 73 },
-});
+function buildCanonicalDemoUser(userId: string): UserProfile {
+  const user = canonicalDemoUsers.get(userId);
+  if (!user) {
+    throw new Error(`Demo user ${userId} is missing from the mock catalog`);
+  }
+
+  return buildUserProfile(user);
+}
+
+const mayaChen = buildCanonicalDemoUser('demo-user-2');
 
 const theoAlvarez = buildUserProfile({
-  id: 'user-3',
-  username: 'theo-alvarez',
+  id: 'friend-theo-alvarez',
+  username: 'theo.alvarez',
   displayName: 'Theo Alvarez',
   avatarUrl: buildPravatarUrl('user-3'),
   homeBase: 'Austin, TX',
@@ -44,29 +47,13 @@ const theoAlvarez = buildUserProfile({
   stats: { spots: 35, trips: 7, friends: 64 },
 });
 
-const sofiaRamirez = buildUserProfile({
-  id: 'user-4',
-  username: 'sofia-ramirez',
-  displayName: 'Sofia Ramirez',
-  avatarUrl: buildPravatarUrl('user-4'),
-  homeBase: 'Fort Worth, TX',
-  interests: ['culture', 'food'],
-  stats: { spots: 17, trips: 3, friends: 26 },
-});
+const sofiaRamirez = buildCanonicalDemoUser('demo-user-4');
 
-const jordanReed = buildUserProfile({
-  id: 'user-5',
-  username: 'jordan-reed',
-  displayName: 'Jordan Reed',
-  avatarUrl: buildPravatarUrl('user-5'),
-  homeBase: 'San Antonio, TX',
-  interests: ['scenic', 'nature'],
-  stats: { spots: 20, trips: 5, friends: 29 },
-});
+const jordanReed = buildCanonicalDemoUser('demo-user-5');
 
 const priyaNair = buildUserProfile({
-  id: 'user-6',
-  username: 'priya-nair',
+  id: 'friend-priya-nair',
+  username: 'priya.nair',
   displayName: 'Priya Nair',
   avatarUrl: buildPravatarUrl('user-6'),
   homeBase: 'Houston, TX',
@@ -75,8 +62,8 @@ const priyaNair = buildUserProfile({
 });
 
 const noahKim = buildUserProfile({
-  id: 'user-7',
-  username: 'noah-kim',
+  id: 'friend-noah-kim',
+  username: 'noah.kim',
   displayName: 'Noah Kim',
   avatarUrl: buildPravatarUrl('user-7'),
   homeBase: 'Denver, CO',
@@ -85,18 +72,19 @@ const noahKim = buildUserProfile({
 });
 
 const rileyBrooks = buildUserProfile({
-  id: 'user-8',
-  username: 'riley-brooks',
+  id: 'friend-riley-brooks',
+  username: 'riley.brooks',
   displayName: 'Riley Brooks',
   avatarUrl: buildPravatarUrl('user-8'),
   homeBase: 'Nashville, TN',
   interests: ['nightlife', 'food', 'culture'],
   stats: { spots: 24, trips: 5, friends: 39 },
+  showActivityStatus: false,
 });
 
 const lenaOrtiz = buildUserProfile({
-  id: 'user-9',
-  username: 'lena-ortiz',
+  id: 'friend-lena-ortiz',
+  username: 'lena.ortiz',
   displayName: 'Lena Ortiz',
   avatarUrl: buildPravatarUrl('user-9'),
   homeBase: 'Phoenix, AZ',
@@ -113,7 +101,7 @@ export const demoFriendConnections: FriendConnection[] = [
     mutualFriends: 14,
     favoriteCategories: ['culture', 'shopping', 'scenic'],
     nextAdventure: 'Dallas design district sprint',
-    lastActiveAt: '2026-03-29T03:28:00Z',
+    lastActiveAt: '2026-05-20T05:24:00Z',
   },
   {
     id: 'friend-2',
@@ -123,7 +111,7 @@ export const demoFriendConnections: FriendConnection[] = [
     mutualFriends: 9,
     favoriteCategories: ['adventure', 'food', 'nature'],
     nextAdventure: 'Austin sunrise route',
-    lastActiveAt: '2026-03-29T02:54:00Z',
+    lastActiveAt: '2026-05-20T05:25:00Z',
   },
   {
     id: 'friend-3',
@@ -133,27 +121,27 @@ export const demoFriendConnections: FriendConnection[] = [
     mutualFriends: 12,
     favoriteCategories: ['food', 'nightlife', 'culture'],
     nextAdventure: 'Houston tasting crawl',
-    lastActiveAt: '2026-03-28T20:15:00Z',
+    lastActiveAt: '2026-05-20T05:23:00Z',
   },
   {
     id: 'friend-4',
     user: noahKim,
-    presence: 'offline',
+    presence: 'online',
     sharedTrips: 2,
     mutualFriends: 7,
     favoriteCategories: ['adventure', 'nature', 'scenic'],
     nextAdventure: 'Rocky Mountain overlook loop',
-    lastActiveAt: '2026-03-28T16:40:00Z',
+    lastActiveAt: '2026-05-20T05:20:00Z',
   },
   {
     id: 'friend-5',
     user: rileyBrooks,
-    presence: 'offline',
+    presence: 'hidden',
     sharedTrips: 3,
     mutualFriends: 10,
     favoriteCategories: ['nightlife', 'food', 'culture'],
     nextAdventure: 'Nashville live music sprint',
-    lastActiveAt: '2026-03-27T22:11:00Z',
+    lastActiveAt: '2026-05-20T05:21:00Z',
   },
   {
     id: 'friend-6',
@@ -188,7 +176,7 @@ export const demoFriendRequests: FriendRequest[] = [
     id: 'request-3',
     user: buildUserProfile({
       id: 'user-11',
-      username: 'ella-price',
+      username: 'ella.price',
       displayName: 'Ella Price',
       avatarUrl: buildPravatarUrl('user-11'),
       homeBase: 'Portland, OR',

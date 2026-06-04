@@ -1,10 +1,12 @@
 import { getMapboxToken } from '@/services/mapboxLoader';
 import type { MapPoint } from '@/types';
+import { calculateHaversineDistanceMeters } from '@/utils/geoDistance';
 
 export type RouteCoordinate = [number, number];
 
 export type RoadRouteProvider = 'mapbox-optimization' | 'mapbox-directions' | 'local-estimate';
 export type RoadRouteProfile = 'mapbox/driving-traffic' | 'mapbox/driving' | 'local';
+export type RoadRouteQuality = 'mapbox' | 'unavailable' | 'visual-fallback';
 
 export interface RoadRouteSummary {
   geometry: RouteCoordinate[];
@@ -13,6 +15,8 @@ export interface RoadRouteSummary {
   durationSeconds: number;
   provider: RoadRouteProvider;
   profile: RoadRouteProfile;
+  routeQuality?: RoadRouteQuality;
+  routeError?: string;
 }
 
 export interface RoadRouteOptions {
@@ -49,7 +53,6 @@ const MAPBOX_DIRECTIONS_URL = 'https://api.mapbox.com/directions/v5';
 const MAPBOX_OPTIMIZATION_MAX_WAYPOINTS = 12;
 const MAPBOX_DIRECTIONS_MAX_WAYPOINTS = 25;
 const ROUTE_CACHE_LIMIT = 24;
-const EARTH_RADIUS_METERS = 6_371_008.8;
 const ROAD_CIRCUITY_FACTOR = 1.24;
 const LOCAL_URBAN_SPEED_METERS_PER_SECOND = 12.5;
 const DRIVING_PROFILES: readonly Exclude<RoadRouteProfile, 'local'>[] = ['mapbox/driving-traffic', 'mapbox/driving'];
@@ -176,23 +179,14 @@ function orderPointsFromOptimization(points: MapPoint[], waypoints: MapboxWaypoi
 }
 
 function calculateHaversineMeters(first: MapPoint, second: MapPoint): number {
-  const firstLatitude = first.latitude * Math.PI / 180;
-  const secondLatitude = second.latitude * Math.PI / 180;
-  const deltaLatitude = (second.latitude - first.latitude) * Math.PI / 180;
-  const deltaLongitude = (second.longitude - first.longitude) * Math.PI / 180;
-  const haversine = Math.sin(deltaLatitude / 2) ** 2
-    + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(deltaLongitude / 2) ** 2;
-  return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return calculateHaversineDistanceMeters(first, second);
 }
 
 function calculateCoordinateDistanceMeters(first: RouteCoordinate, second: RouteCoordinate): number {
-  const firstLatitude = first[1] * Math.PI / 180;
-  const secondLatitude = second[1] * Math.PI / 180;
-  const deltaLatitude = (second[1] - first[1]) * Math.PI / 180;
-  const deltaLongitude = (second[0] - first[0]) * Math.PI / 180;
-  const haversine = Math.sin(deltaLatitude / 2) ** 2
-    + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(deltaLongitude / 2) ** 2;
-  return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return calculateHaversineDistanceMeters(
+    { latitude: first[1], longitude: first[0] },
+    { latitude: second[1], longitude: second[0] },
+  );
 }
 
 function calculateRouteDistanceMeters(points: MapPoint[]): number {
@@ -264,7 +258,26 @@ function buildLocalRoute(points: MapPoint[], optimizeOrder = true): RoadRouteSum
     durationSeconds: distanceMeters / LOCAL_URBAN_SPEED_METERS_PER_SECOND,
     provider: 'local-estimate',
     profile: 'local',
+    routeQuality: 'visual-fallback',
+    routeError: 'Mapbox route unavailable.',
   };
+}
+
+function buildUnavailableLocalRoute(points: MapPoint[], optimizeOrder: boolean, routeError: string): RoadRouteSummary {
+  return {
+    ...buildLocalRoute(points, optimizeOrder),
+    routeError,
+  };
+}
+
+function getSafeRouteError(error: unknown): string {
+  if (!(error instanceof Error) || !error.message.trim()) {
+    return 'Mapbox route unavailable.';
+  }
+
+  return error.message
+    .replace(/access_token=[^&\s]+/gi, 'access_token=[redacted]')
+    .slice(0, 160);
 }
 
 async function fetchOptimizationRoute(
@@ -298,6 +311,7 @@ async function fetchOptimizationRoute(
     durationSeconds: getRouteNumber(trip?.duration, fallbackDistance / LOCAL_URBAN_SPEED_METERS_PER_SECOND),
     provider: 'mapbox-optimization',
     profile,
+    routeQuality: 'mapbox',
   };
 }
 
@@ -327,15 +341,18 @@ async function fetchDirectionsRoute(
     durationSeconds: getRouteNumber(route?.duration, fallbackDistance / LOCAL_URBAN_SPEED_METERS_PER_SECOND),
     provider: 'mapbox-directions',
     profile,
+    routeQuality: 'mapbox',
   };
 }
 
 async function resolveRemoteRoute(points: MapPoint[], accessToken: string, optimizeOrder: boolean): Promise<RoadRouteSummary> {
+  let lastRouteError = 'Mapbox route unavailable.';
   if (optimizeOrder) {
     for (const profile of DRIVING_PROFILES) {
       try {
         return await fetchOptimizationRoute(points, accessToken, profile);
-      } catch {
+      } catch (error) {
+        lastRouteError = getSafeRouteError(error);
         // Try the next road-aware strategy before falling back to local math.
       }
     }
@@ -345,12 +362,13 @@ async function resolveRemoteRoute(points: MapPoint[], accessToken: string, optim
   for (const profile of DRIVING_PROFILES) {
     try {
       return await fetchDirectionsRoute(localOrder, accessToken, profile);
-    } catch {
+    } catch (error) {
+      lastRouteError = getSafeRouteError(error);
       // The local route keeps the map stable if Mapbox cannot route these coordinates.
     }
   }
 
-  return buildLocalRoute(points, optimizeOrder);
+  return buildUnavailableLocalRoute(points, optimizeOrder, lastRouteError);
 }
 
 function rememberRoute(signature: string, routePromise: Promise<RoadRouteSummary>): Promise<RoadRouteSummary> {
@@ -373,7 +391,7 @@ export async function resolveRoadRoute(points: MapPoint[], options: RoadRouteOpt
   const routePoints = normalizeRoutePoints(points);
   const optimizeOrder = options.optimizeOrder ?? true;
   if (routePoints.length < 2 || typeof fetch !== 'function') {
-    return buildLocalRoute(routePoints, optimizeOrder);
+    return buildUnavailableLocalRoute(routePoints, optimizeOrder, 'Mapbox route unavailable in this runtime.');
   }
 
   const accessToken = getMapboxToken();
@@ -385,6 +403,6 @@ export async function resolveRoadRoute(points: MapPoint[], options: RoadRouteOpt
 
   const routePromise = accessToken
     ? resolveRemoteRoute(routePoints, accessToken, optimizeOrder)
-    : Promise.resolve(buildLocalRoute(routePoints, optimizeOrder));
+    : Promise.resolve(buildUnavailableLocalRoute(routePoints, optimizeOrder, 'Mapbox token unavailable.'));
   return rememberRoute(signature, routePromise);
 }

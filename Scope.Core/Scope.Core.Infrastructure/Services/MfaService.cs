@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Scope.Core.Domain.Exceptions;
 using Scope.Core.Domain.Interfaces;
+using Scope.Core.Domain.Models;
 using Scope.Core.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ namespace Scope.Core.Infrastructure.Services;
 // plaintext list is only returned once during StartEnrollmentAsync.
 public sealed class MfaService(
     CoreDbContext dbContext,
+    INotificationService? notificationService = null,
     ILogger<MfaService>? logger = null) : IMfaService
 {
     private static readonly EventId AuditEvent = new(9004, "scope.security.audit");
@@ -34,6 +36,11 @@ public sealed class MfaService(
     {
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new NotFoundException("User not found");
+        if (user.MfaEnabled)
+        {
+            Audit("mfa_enroll_start", "failure", user.Id.ToString(), "already_enabled");
+            throw new ConflictException("MFA is already enabled. Disable MFA before starting a new enrollment.");
+        }
 
         var secretBytes = RandomNumberGenerator.GetBytes(SecretLengthBytes);
         var secret = Base32Encode(secretBytes);
@@ -66,6 +73,22 @@ public sealed class MfaService(
         }
         user.MfaEnabled = true;
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (notificationService is not null)
+        {
+            await notificationService.CreateAsync(new NotificationCreateRequest(
+                user.Id,
+                "security.mfa.enabled",
+                "security.mfa.enabled",
+                "security",
+                "urgent",
+                "Multi-factor authentication enabled",
+                "MFA is now protecting your Scope account.",
+                "/settings#settings-account",
+                null,
+                "user",
+                user.Id.ToString(),
+                $"security.mfa.enabled:{user.Id:N}:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}"), cancellationToken);
+        }
         Audit("mfa_enroll_confirm", "success", user.Id.ToString());
     }
 
@@ -87,6 +110,22 @@ public sealed class MfaService(
         user.MfaSecret = null;
         user.MfaRecoveryCodesHash = null;
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (notificationService is not null)
+        {
+            await notificationService.CreateAsync(new NotificationCreateRequest(
+                user.Id,
+                "security.mfa.disabled",
+                "security.mfa.disabled",
+                "security",
+                "urgent",
+                "Multi-factor authentication disabled",
+                "MFA was disabled for your Scope account.",
+                "/settings#settings-account",
+                null,
+                "user",
+                user.Id.ToString(),
+                $"security.mfa.disabled:{user.Id:N}:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}"), cancellationToken);
+        }
         Audit("mfa_disable", "success", user.Id.ToString());
     }
 

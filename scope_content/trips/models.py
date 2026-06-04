@@ -10,6 +10,7 @@ class Trip(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     creator_id = models.UUIDField()
     title = models.CharField(max_length=200)
+    destination = models.CharField(max_length=300, blank=True)
     description = models.TextField(max_length=2000, blank=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -18,6 +19,8 @@ class Trip(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planning')
     is_public = models.BooleanField(default=True)
     cover_photo_url = models.URLField(max_length=1000, blank=True)
+    share_token = models.UUIDField(null=True, blank=True, unique=True)
+    share_created_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ['-created_at']
@@ -29,12 +32,14 @@ class Trip(models.Model):
             models.Index(fields=['creator_id', '-created_at'], name='trip_creator_created_idx'),
         ]
 class TripSpot(models.Model):
+    SOURCE_CHOICES = [('saved_spot','saved_spot'),('planner_generated','planner_generated')]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trip = models.ForeignKey(Trip, related_name='trip_spots', on_delete=models.CASCADE)
     spot = models.ForeignKey(Spot, related_name='trip_references', on_delete=models.CASCADE)
     day_number = models.IntegerField(null=True, blank=True)
     sort_order = models.IntegerField(default=0)
     notes = models.CharField(max_length=500, blank=True)
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default='saved_spot')
     class Meta:
         ordering = ['day_number', 'sort_order', 'id']
         unique_together = ('trip', 'spot')
@@ -47,6 +52,9 @@ class TripMember(models.Model):
     joined_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         unique_together = ('trip', 'user_id')
+        indexes = [
+            models.Index(fields=['user_id', 'role'], name='tripmember_user_role_idx'),
+        ]
 class Like(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     spot = models.ForeignKey(Spot, related_name='likes', on_delete=models.CASCADE)

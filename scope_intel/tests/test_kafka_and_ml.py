@@ -3,6 +3,7 @@ import json
 from app.kafka import consumer as consumer_module
 from app.kafka import producer as producer_module
 from app.ml.feature_extraction import extract_feature_vector
+from app.models import UserInteraction
 from app.services.content_client import Spot
 
 
@@ -78,6 +79,7 @@ def test_kafka_consumer_start_subscribes_to_all_topics(monkeypatch):
         "bootstrap.servers": consumer_module.settings.kafka_bootstrap_servers,
         "group.id": "scope-intel",
         "auto.offset.reset": "earliest",
+        "enable.auto.commit": False,
     }
     assert consumer._consumer.subscribed_topics == consumer_module.KafkaSpotFeatureConsumer.topics
 
@@ -125,6 +127,47 @@ def test_kafka_consumer_handles_spot_created_event(monkeypatch):
     assert captured["upsert"] == ("spot-9", '{"vector": 1}', 73.0, 0.0)
 
 
+def test_kafka_consumer_handles_spot_updated_event(monkeypatch):
+    monkeypatch.setattr(consumer_module, "Consumer", FakeConsumer)
+
+    captured: dict[str, object] = {}
+
+    def fake_extract_feature_vector(spot: Spot) -> str:
+        captured["spot"] = spot
+        return '{"vector": 2}'
+
+    def fake_upsert_spot_feature(spot_id: str, feature_vector: str, popularity_score: float = 0.0, sentiment_score: float = 0.0) -> None:
+        captured["upsert"] = (spot_id, feature_vector, popularity_score, sentiment_score)
+
+    monkeypatch.setattr(consumer_module, "extract_feature_vector", fake_extract_feature_vector)
+    monkeypatch.setattr(consumer_module.IntelRepository, "upsert_spot_feature", fake_upsert_spot_feature)
+
+    consumer = consumer_module.KafkaSpotFeatureConsumer()
+    consumer.handle_message(
+        "spot.updated",
+        {
+            "spotId": "spot-10",
+            "title": "Updated Riverfront Picnic",
+            "description": "New skyline notes",
+            "category": "nature",
+            "vibe": "serene",
+            "rating": 4.8,
+            "popularityScore": 81,
+            "latitude": 32.75,
+            "longitude": -97.33,
+            "isOutdoor": True,
+            "photosCount": 12,
+            "likedByUsers": ["user-1"],
+        },
+    )
+
+    updated_spot = captured["spot"]
+    assert isinstance(updated_spot, Spot)
+    assert updated_spot.spot_id == "spot-10"
+    assert updated_spot.title == "Updated Riverfront Picnic"
+    assert captured["upsert"] == ("spot-10", '{"vector": 2}', 81.0, 0.0)
+
+
 def test_kafka_consumer_handles_spot_liked_event(monkeypatch):
     monkeypatch.setattr(consumer_module, "Consumer", FakeConsumer)
     captured: dict[str, tuple] = {}
@@ -132,15 +175,29 @@ def test_kafka_consumer_handles_spot_liked_event(monkeypatch):
     def fake_upsert_spot_feature(spot_id: str, feature_vector: str, popularity_score: float = 0.0, sentiment_score: float = 0.0) -> None:
         captured["upsert"] = (spot_id, feature_vector, popularity_score, sentiment_score)
 
+    def fake_record_interaction(user_id: str, spot_id: str, interaction_type: str, context=None, occurred_at=None, **_kwargs) -> None:
+        captured["interaction"] = (user_id, spot_id, interaction_type, context, occurred_at)
+
     monkeypatch.setattr(consumer_module.IntelRepository, "upsert_spot_feature", fake_upsert_spot_feature)
+    monkeypatch.setattr(consumer_module.IntelRepository, "record_interaction", fake_record_interaction)
 
     consumer = consumer_module.KafkaSpotFeatureConsumer()
     consumer.handle_message(
         "spot.liked",
-        {"spotId": "spot-2", "featureVector": '{"category":"culture"}', "popularityScore": 8, "sentimentScore": 0.4},
+        {
+            "spotId": "spot-2",
+            "userId": "user-1",
+            "featureVector": '{"category":"culture"}',
+            "popularityScore": 8,
+            "sentimentScore": 0.4,
+            "occurredAt": "2026-05-12T12:00:00Z",
+        },
     )
 
     assert captured["upsert"] == ("spot-2", '{"category":"culture"}', 8.0, 0.4)
+    user_id, spot_id, interaction_type, context, occurred_at = captured["interaction"]
+    assert (user_id, spot_id, interaction_type, context) == ("user-1", "spot-2", "like", {"source": "spot.liked"})
+    assert occurred_at is not None
 
 
 def test_kafka_consumer_handles_review_created_event(monkeypatch):
@@ -150,15 +207,118 @@ def test_kafka_consumer_handles_review_created_event(monkeypatch):
     def fake_upsert_spot_feature(spot_id: str, feature_vector: str, popularity_score: float = 0.0, sentiment_score: float = 0.0) -> None:
         captured["upsert"] = (spot_id, feature_vector, popularity_score, sentiment_score)
 
+    def fake_record_interaction(user_id: str, spot_id: str, interaction_type: str, context=None, occurred_at=None, **_kwargs) -> None:
+        captured["interaction"] = (user_id, spot_id, interaction_type, context, occurred_at)
+
     monkeypatch.setattr(consumer_module.IntelRepository, "upsert_spot_feature", fake_upsert_spot_feature)
+    monkeypatch.setattr(consumer_module.IntelRepository, "record_interaction", fake_record_interaction)
 
     consumer = consumer_module.KafkaSpotFeatureConsumer()
     consumer.handle_message(
         "review.created",
-        {"spotId": "spot-3", "featureVector": '{"category":"outdoors"}', "popularityScore": 5, "sentimentScore": 0.9},
+        {
+            "reviewId": "review-1",
+            "spotId": "spot-3",
+            "userId": "user-2",
+            "featureVector": '{"category":"outdoors"}',
+            "popularityScore": 5,
+            "sentimentScore": 0.9,
+            "occurredAt": "2026-05-12T12:00:00Z",
+        },
     )
 
     assert captured["upsert"] == ("spot-3", '{"category":"outdoors"}', 5.0, 0.9)
+    user_id, spot_id, interaction_type, context, occurred_at = captured["interaction"]
+    assert (user_id, spot_id, interaction_type, context) == (
+        "user-2",
+        "spot-3",
+        "review",
+        {"source": "review.created", "reviewId": "review-1"},
+    )
+    assert occurred_at is not None
+
+
+def test_kafka_consumer_handles_interaction_recorded_event(monkeypatch):
+    monkeypatch.setattr(consumer_module, "Consumer", FakeConsumer)
+    captured: dict[str, tuple] = {}
+
+    def fake_record_interaction(user_id: str, spot_id: str, interaction_type: str, context=None, occurred_at=None, **_kwargs) -> None:
+        captured["interaction"] = (user_id, spot_id, interaction_type, context, occurred_at)
+
+    monkeypatch.setattr(consumer_module.IntelRepository, "record_interaction", fake_record_interaction)
+
+    consumer = consumer_module.KafkaSpotFeatureConsumer()
+    consumer.handle_message(
+        "interaction.recorded",
+        {
+            "interactionId": "interaction-1",
+            "userId": "user-4",
+            "spotId": "spot-8",
+            "interactionType": "save",
+            "context": {"surface": "map"},
+            "occurredAt": "2026-05-12T12:01:00Z",
+        },
+    )
+
+    user_id, spot_id, interaction_type, context, occurred_at = captured["interaction"]
+    assert (user_id, spot_id, interaction_type, context) == (
+        "user-4",
+        "spot-8",
+        "save",
+        {"surface": "map"},
+    )
+    assert occurred_at is not None
+
+
+def test_kafka_consumer_deduplicates_replayed_interaction_envelope(app, monkeypatch):
+    monkeypatch.setattr(consumer_module, "Consumer", FakeConsumer)
+    consumer = consumer_module.KafkaSpotFeatureConsumer()
+    envelope = {
+        "eventId": "evt-interaction-1",
+        "source": "content-engine",
+        "data": {
+            "interactionId": "interaction-1",
+            "userId": "user-4",
+            "spotId": "spot-8",
+            "interactionType": "save",
+            "context": {"surface": "map"},
+            "occurredAt": "2026-05-12T12:01:00Z",
+        },
+    }
+
+    with app.app_context():
+        consumer.handle_event("interaction.recorded", envelope)
+        consumer.handle_event("interaction.recorded", envelope)
+
+        rows = UserInteraction.query.all()
+        assert len(rows) == 1
+        assert rows[0].source_event_id == "evt-interaction-1"
+
+
+def test_kafka_consumer_handles_friend_events(monkeypatch):
+    monkeypatch.setattr(consumer_module, "Consumer", FakeConsumer)
+    captured: list[tuple[str, str, str]] = []
+
+    def fake_record_friend_edge(user_id: str, friend_id: str) -> None:
+        captured.append(("record", user_id, friend_id))
+
+    def fake_remove_friend_edge(user_id: str, friend_id: str) -> None:
+        captured.append(("remove", user_id, friend_id))
+
+    monkeypatch.setattr(consumer_module.IntelRepository, "record_friend_edge", fake_record_friend_edge)
+    monkeypatch.setattr(consumer_module.IntelRepository, "remove_friend_edge", fake_remove_friend_edge)
+
+    consumer = consumer_module.KafkaSpotFeatureConsumer()
+    payload = {"requesterId": "user-a", "addresseeId": "user-b"}
+    consumer.handle_message("friend.accepted", payload)
+    consumer.handle_message("friend.removed", payload)
+    consumer.handle_message("friend.rejected", payload)
+
+    assert captured == [
+        ("record", "user-a", "user-b"),
+        ("remove", "user-a", "user-b"),
+        ("remove", "user-a", "user-b"),
+    ]
 
 
 def test_kafka_consumer_handles_user_registered_event(monkeypatch):

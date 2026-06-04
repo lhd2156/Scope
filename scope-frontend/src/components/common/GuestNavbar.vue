@@ -222,22 +222,18 @@ onBeforeUnmount(() => {
 }
 
 .guest-navbar__inner {
-  /*
-   * Public routes share the same centered rail as their page content so
-   * the nav, map, home, and explore surfaces line up on wide screens.
-   */
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-5);
   width: 100%;
-  max-width: var(--shell-max-width-with-safe-area);
+  max-width: none;
   min-height: 4.5rem;
   margin: 0 auto;
   padding-block: 0.5rem;
   padding-inline:
-    calc(var(--shell-side-padding) + var(--safe-area-left))
-    calc(var(--shell-side-padding) + var(--safe-area-right));
+    calc(var(--navbar-edge-padding, 1rem) + var(--safe-area-left))
+    calc(var(--navbar-edge-padding, 1rem) + var(--safe-area-right));
 }
 
 .guest-navbar__leading,

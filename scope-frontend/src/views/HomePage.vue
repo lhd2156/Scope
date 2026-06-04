@@ -34,12 +34,6 @@
         </div>
       </section>
 
-      <article v-if="loadErrorMessage" class="glass-panel error-panel" role="alert">
-        <p class="eyebrow">Temporary issue</p>
-        <h2>Part of the Scope home feed could not be loaded</h2>
-        <p class="section-copy">{{ loadErrorMessage }}</p>
-      </article>
-
       <section v-if="isScopeQaHomeMode" class="glass-panel home-audit-preview" aria-labelledby="home-audit-preview-title">
         <div class="home-audit-preview__copy">
           <p class="eyebrow">Scope preview</p>
@@ -73,15 +67,11 @@
               :style="{ '--scope-stagger-index': index }"
             />
           </div>
-          <EmptyStatePanel
-            v-else-if="!spotsStore.error"
-            eyebrow="Trending now"
-            title="Featured spots are waiting on the first pin drop"
-            description="Once travelers start surfacing standout places, Scope will spotlight them here first."
-            icon="map"
-            artwork="discovery"
-            heading-level="h3"
-          />
+          <div v-else class="plain-empty-state" data-test="home-featured-empty-state">
+            <p class="eyebrow">Trending now</p>
+            <h3>Featured spots are waiting on the first pin drop</h3>
+            <p>Once travelers start surfacing standout places, Scope will spotlight them here first.</p>
+          </div>
         </section>
 
         <section class="section-stack ai-discovery-section">
@@ -143,19 +133,6 @@
           </article>
 
           <div class="feed-activity-stage" data-onboarding-target="activity-feed-list">
-            <!--
-              Honest badge letting users know the feed is still running on
-              mock content. When real community data is wired up, this pill
-              should be removed (or gated behind DEMO_MODE_ENABLED).
-            -->
-            <p class="feed-mock-banner" role="note">
-              <span class="feed-mock-banner__dot" aria-hidden="true" />
-              <span class="feed-mock-banner__text">
-                <strong>Sample Scope activity</strong>
-                <span>Real community posts will replace this once the app is connected to live data.</span>
-              </span>
-            </p>
-
             <div v-if="showFeedSkeletons" class="feed-grid feed-grid--loading" role="status" aria-live="polite" aria-label="Loading Scope activity feed">
               <FeedItemSkeleton v-for="index in 4" :key="`feed-skeleton-${index}`" />
             </div>
@@ -175,15 +152,11 @@
                 <FeedItem :item="item" :preview="!authStore.isAuthenticated" />
               </div>
             </div>
-            <EmptyStatePanel
-              v-else-if="!feedStore.error"
-              eyebrow="Network activity"
-              title="No activity yet"
-              description="Once your network starts pinning spots and planning trips, the Scope feed will fill in here."
-              icon="sparkle"
-              artwork="activity"
-              heading-level="h3"
-            />
+            <div v-else class="plain-empty-state" data-test="home-feed-empty-state">
+              <p class="eyebrow">Network activity</p>
+              <h3>No activity yet</h3>
+              <p>Once your network starts pinning spots and planning trips, the Scope feed will fill in here.</p>
+            </div>
           </div>
         </section>
       </template>
@@ -196,7 +169,6 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import ForYouSection from '@/components/common/ForYouSection.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import FeedItemSkeleton from '@/components/social/FeedItemSkeleton.vue';
@@ -225,9 +197,8 @@ const feedSectionRef = ref<HTMLElement | null>(null);
 const hasResolvedFeatured = ref(false);
 const hasResolvedFeed = ref(false);
 const guidedTourLabel = computed(() => (onboardingStore.hasCompleted ? 'Replay tour' : 'Start tour'));
-const loadErrorMessage = computed(() => spotsStore.error || feedStore.error || '');
-const showFeaturedSkeletons = computed(() => !hasResolvedFeatured.value && !spotsStore.featuredSpots.length && !spotsStore.error);
-const showFeedSkeletons = computed(() => !hasResolvedFeed.value && !feedStore.items.length && !feedStore.error);
+const showFeaturedSkeletons = computed(() => !hasResolvedFeatured.value && !spotsStore.featuredSpots.length);
+const showFeedSkeletons = computed(() => !hasResolvedFeed.value && !feedStore.items.length);
 const sectionObservers: IntersectionObserver[] = [];
 
 function scrollToFeed() {
@@ -543,46 +514,6 @@ onBeforeUnmount(() => {
   }
 }
 
-.feed-mock-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  margin: 0;
-  align-self: flex-start;
-  width: min(100%, 34rem);
-  padding: 0.75rem 0.95rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--accent-gold) 40%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-gold) 10%, var(--glass-bg));
-  color: var(--text-primary);
-  font-size: var(--font-size-caption);
-  line-height: 1.45;
-  box-shadow: var(--shadow-sm);
-}
-
-.feed-mock-banner__dot {
-  margin-top: 0.3rem;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--accent-gold);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-gold) 30%, transparent);
-  flex-shrink: 0;
-}
-
-.feed-mock-banner__text {
-  display: grid;
-  gap: 0.15rem;
-  min-width: 0;
-  color: var(--text-secondary);
-}
-
-.feed-mock-banner__text strong {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.01em;
-}
-
 .hero-band {
   position: relative;
   isolation: isolate;
@@ -827,6 +758,35 @@ onBeforeUnmount(() => {
     padding: var(--feed-stage-pad-top) var(--feed-stage-pad-x) var(--feed-stage-pad-bottom);
     gap: var(--space-6);
   }
+}
+
+.plain-empty-state {
+  min-height: clamp(14rem, 24vw, 22rem);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: clamp(var(--space-5), 4vw, var(--space-8));
+  text-align: center;
+}
+
+.plain-empty-state h3,
+.plain-empty-state p {
+  margin: 0;
+}
+
+.plain-empty-state h3 {
+  max-width: 30rem;
+  color: var(--text-primary);
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.plain-empty-state p:not(.eyebrow) {
+  max-width: 36rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 @media (prefers-reduced-motion: reduce) {

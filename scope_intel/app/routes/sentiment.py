@@ -2,6 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
+from app.auth import require_auth
 from app.extensions import limiter
 from app.ml.inference.sentiment import analyze_batch, analyze_sentiment
 from app.rate_limit import rate_limited
@@ -12,6 +13,7 @@ bp = Blueprint("sentiment", __name__, url_prefix="/api/intel/sentiment")
 @bp.route("", methods=["POST"])
 @limiter.limit("20/minute")
 @rate_limited
+@require_auth
 def sentiment():
     """Analyze sentiment of text."""
     data = request.get_json(silent=True) or {}

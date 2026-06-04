@@ -58,29 +58,29 @@ font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 Every major panel/card uses this pattern:
 ```css
 .glass-panel {
-  background: var(--glass-bg);             /* rgba(26, 26, 46, 0.7) dark / rgba(255,255,255,0.7) light */
-  backdrop-filter: var(--glass-blur);      /* blur(12px) */
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);   /* rgba(255,255,255,0.08) dark / rgba(0,0,0,0.06) light */
-  border-radius: var(--radius-xl);         /* 16px */
-  box-shadow: var(--shadow-md);
+ background: var(--glass-bg);       /* rgba(26, 26, 46, 0.7) dark / rgba(255,255,255,0.7) light */
+ backdrop-filter: var(--glass-blur);   /* blur(12px) */
+ -webkit-backdrop-filter: var(--glass-blur);
+ border: 1px solid var(--glass-border);  /* rgba(255,255,255,0.08) dark / rgba(0,0,0,0.06) light */
+ border-radius: var(--radius-xl);     /* 16px */
+ box-shadow: var(--shadow-md);
 }
 ```
 
 ### Surface Cards (Non-glass opaque cards)
 ```css
 .surface-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+ background: var(--bg-secondary);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-xl);
+ box-shadow: var(--shadow-sm);
+ transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
 .surface-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-hover);
+ transform: translateY(-2px);
+ box-shadow: var(--shadow-md);
+ border-color: var(--border-hover);
 }
 ```
 
@@ -88,56 +88,56 @@ Every major panel/card uses this pattern:
 ```css
 /* Primary button — emerald teal with glow */
 .button-primary {
-  background: var(--accent-teal);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-full);
-  padding: 0.75rem 1.5rem;
-  font-weight: var(--font-weight-semibold);
-  box-shadow: var(--shadow-glow-teal);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+ background: var(--accent-teal);
+ color: #fff;
+ border: none;
+ border-radius: var(--radius-full);
+ padding: 0.75rem 1.5rem;
+ font-weight: var(--font-weight-semibold);
+ box-shadow: var(--shadow-glow-teal);
+ transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
 .button-primary:hover {
-  background: var(--accent-teal-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
+ background: var(--accent-teal-hover);
+ transform: translateY(-1px);
+ box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
 }
 
 /* Secondary button — outline */
 .button-secondary {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 0.75rem 1.5rem;
-  font-weight: var(--font-weight-semibold);
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+ background: transparent;
+ color: var(--text-primary);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-full);
+ padding: 0.75rem 1.5rem;
+ font-weight: var(--font-weight-semibold);
+ transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .button-secondary:hover {
-  border-color: var(--accent-teal);
-  background: var(--accent-teal-light);
+ border-color: var(--accent-teal);
+ background: var(--accent-teal-light);
 }
 ```
 
 ### Input Fields
 ```css
 input, textarea, select {
-  width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  padding: 0.85rem 1rem;
-  font-size: var(--font-size-body);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+ width: 100%;
+ background: var(--input-bg);
+ border: 1px solid var(--input-border);
+ border-radius: var(--radius-lg);
+ color: var(--text-primary);
+ padding: 0.85rem 1rem;
+ font-size: var(--font-size-body);
+ transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 input:focus, textarea:focus, select:focus {
-  border-color: var(--accent-teal);
-  box-shadow: 0 0 0 3px var(--accent-teal-light);
-  outline: none;
+ border-color: var(--accent-teal);
+ box-shadow: 0 0 0 3px var(--accent-teal-light);
+ outline: none;
 }
 ```
 
@@ -190,11 +190,11 @@ input:focus, textarea:focus, select:focus {
 **Card hover effect:**
 ```css
 .spot-card:hover .spot-card-image {
-  transform: scale(1.05);
+ transform: scale(1.05);
 }
 .spot-card:hover {
-  box-shadow: var(--shadow-lg);
-  border-color: var(--border-hover);
+ box-shadow: var(--shadow-lg);
+ border-color: var(--border-hover);
 }
 ```
 
@@ -234,15 +234,15 @@ input:focus, textarea:focus, select:focus {
 **Layout:**
 - Split-screen: left half is a full-height stunning travel hero photo with dark gradient overlay and Scope branding, right half is the login form
 - Right side: dark background, centered glassmorphism card with:
-  - "Welcome back" teal eyebrow
-  - "Sign in to Scope" heading
-  - Email input with mail icon
-  - Password input with eye toggle
-  - "Remember me" checkbox
-  - Full-width "Sign In" button (primary teal with glow)
-  - "Or continue with" divider
-  - Google OAuth button
-  - "New here? Create an account" link in teal
+ - "Welcome back" teal eyebrow
+ - "Sign in to Scope" heading
+ - Email input with mail icon
+ - Password input with eye toggle
+ - "Remember me" checkbox
+ - Full-width "Sign In" button (primary teal with glow)
+ - "Or continue with" divider
+ - Google OAuth button
+ - "New here? Create an account" link in teal
 
 ### 8. Register Page (`/register`)
 Same split-screen layout as Login. Right-side form has:
@@ -292,18 +292,18 @@ Already implemented via `route-fade` / `route-fade-reduced`. Keep these.
 ### Card Entry Animations
 ```css
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+ from {
+  opacity: 0;
+  transform: translateY(12px);
+ }
+ to {
+  opacity: 1;
+  transform: translateY(0);
+ }
 }
 
 .stagger-in > * {
-  animation: fadeInUp 0.4s ease both;
+ animation: fadeInUp 0.4s ease both;
 }
 .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
 .stagger-in > *:nth-child(2) { animation-delay: 80ms; }
@@ -311,9 +311,9 @@ Already implemented via `route-fade` / `route-fade-reduced`. Keep these.
 .stagger-in > *:nth-child(4) { animation-delay: 240ms; }
 
 @media (prefers-reduced-motion: reduce) {
-  .stagger-in > * {
-    animation: none;
-  }
+ .stagger-in > * {
+  animation: none;
+ }
 }
 ```
 
@@ -327,8 +327,8 @@ Already implemented via `route-fade` / `route-fade-reduced`. Keep these.
 ### Button Click Feedback
 ```css
 .button:active {
-  transform: translateY(0) scale(0.97);
-  transition-duration: 50ms;
+ transform: translateY(0) scale(0.97);
+ transition-duration: 50ms;
 }
 ```
 
@@ -366,13 +366,13 @@ Use high-quality Unsplash photos. Here are suggested URLs for demo data:
 
 ## What NOT To Do
 
-1. ❌ DO NOT use plain white or plain gray backgrounds — use the navy/dark design tokens
-2. ❌ DO NOT use default browser form controls without styling — use the input spec above
-3. ❌ DO NOT use flat cards without hover effects — every interactive card must transform on hover
-4. ❌ DO NOT use placeholder text like "Lorem ipsum" — use realistic travel content
-5. ❌ DO NOT skip the glassmorphism effect on major panels — it's the signature Scope look
-6. ❌ DO NOT use generic blue (#0000ff) or red (#ff0000) — use the design token colors
-7. ❌ DO NOT make text-heavy pages — lead with photos and visual hierarchy
-8. ❌ DO NOT skip animations — they are mandatory (but respect reduced-motion)
-9. ❌ DO NOT add new colors without using CSS custom properties
-10. ❌ DO NOT use inline styles — all styling goes in `<style scoped>` blocks
+1. MISSING DO NOT use plain white or plain gray backgrounds — use the navy/dark design tokens
+2. MISSING DO NOT use default browser form controls without styling — use the input spec above
+3. MISSING DO NOT use flat cards without hover effects — every interactive card must transform on hover
+4. MISSING DO NOT use placeholder text like "Lorem ipsum" — use realistic travel content
+5. MISSING DO NOT skip the glassmorphism effect on major panels — it's the signature Scope look
+6. MISSING DO NOT use generic blue (#0000ff) or red (#ff0000) — use the design token colors
+7. MISSING DO NOT make text-heavy pages — lead with photos and visual hierarchy
+8. MISSING DO NOT skip animations — they are mandatory (but respect reduced-motion)
+9. MISSING DO NOT add new colors without using CSS custom properties
+10. MISSING DO NOT use inline styles — all styling goes in `<style scoped>` blocks

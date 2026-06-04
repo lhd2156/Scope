@@ -33,4 +33,29 @@ describe('ProfileStats', () => {
     expect(wrapper.text()).toContain('Culture focus');
     expect(wrapper.findAll('.stat-card')).toHaveLength(4);
   });
+
+  it('uses launch-state copy when ratings and favorite category are not available yet', () => {
+    const wrapper = mount(ProfileStats, {
+      props: {
+        countryCount: 0,
+        cityCount: 0,
+        tripCount: 0,
+        travelDays: 0,
+        publicSpotCount: 1,
+        averageRating: 0,
+        favoriteCategory: null,
+      },
+      global: {
+        stubs: {
+          StarRatingDisplay: { template: '<span data-test="rating-stub" />' },
+        },
+      },
+    });
+
+    expect(wrapper.attributes('aria-label')).toBe('Traveler footprint stats');
+    expect(wrapper.text()).toContain('1 public pin');
+    expect(wrapper.text()).toContain('Freshly launched profile');
+    expect(wrapper.find('[data-test="rating-stub"]').exists()).toBe(false);
+    expect(wrapper.find('.support-pill--accent').exists()).toBe(false);
+  });
 });

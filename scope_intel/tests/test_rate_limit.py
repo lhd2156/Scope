@@ -16,6 +16,8 @@ def build_app(rate_limit_per_minute: int = 2):
             "JWT_AUDIENCE": TEST_JWT_AUDIENCE,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "RATE_LIMIT_PER_MINUTE": rate_limit_per_minute,
+            "FUEL_RATE_LIMIT_PER_MINUTE": rate_limit_per_minute,
+            "RATELIMIT_ENABLED": True,
         }
     )
 
@@ -41,4 +43,17 @@ def test_rate_limit_returns_429_with_retry_after_header():
     assert first_response.status_code == 200
     assert second_response.status_code == 429
     assert second_response.headers["Retry-After"] == "60"
+    assert second_response.get_json()["error"]["code"] == "RATE_LIMITED"
+
+
+def test_fuel_endpoint_uses_fuel_specific_rate_limit():
+    app = build_app(rate_limit_per_minute=1)
+    app.config["GOOGLE_PLACES_API_KEY"] = ""
+    client = app.test_client()
+
+    first_response = client.get("/api/intel/fuel/stations", query_string={"lat": 52.52, "lng": 13.405})
+    second_response = client.get("/api/intel/fuel/stations", query_string={"lat": 52.52, "lng": 13.405})
+
+    assert first_response.status_code == 401
+    assert second_response.status_code == 429
     assert second_response.get_json()["error"]["code"] == "RATE_LIMITED"

@@ -131,7 +131,7 @@ FRONTEND_ROUTES: list[dict[str, str | bool]] = [
         "path": "/explore",
         "name": "explore",
         "auth": False,
-        "description": "Public spot discovery page for browsing by category, city, search, and vibe.",
+        "description": "Public spot discovery page for browsing by category, city, search, and vibe, including entertainment activities.",
     },
     {
         "path": "/map",
@@ -149,7 +149,7 @@ FRONTEND_ROUTES: list[dict[str, str | bool]] = [
         "path": "/trips/new",
         "name": "trip-planner",
         "auth": True,
-        "description": "Private AI trip planner where users create a trip, choose destination, dates, budget, pace, vibes, and generate an itinerary.",
+        "description": "Private AI trip planner where users create a trip, choose destination, dates, budget, pace, vibes including entertainment, and generate an itinerary.",
     },
     {
         "path": "/trips/:id/edit",
@@ -173,7 +173,13 @@ FRONTEND_ROUTES: list[dict[str, str | bool]] = [
         "path": "/ai/ask",
         "name": "scope-ai",
         "auth": True,
-            "description": "Private Scope AI chat page backed by /api/rag/ask with Gemini or Ollama model routing.",
+        "description": "Redirects to /trips/new with the assistant panel open.",
+    },
+    {
+        "path": "/scope/ai",
+        "name": "scope-ai-redirect",
+        "auth": True,
+        "description": "Redirects to /trips/new with the assistant panel open.",
     },
     {
         "path": "/spots/new",
@@ -403,7 +409,7 @@ API_ENDPOINTS: list[dict[str, str]] = [
     {"method": "GET", "path": "/api/intel/weather", "service": "intel", "description": "Get weather for trip planning."},
     {"method": "GET", "path": "/api/intel/geocode", "service": "intel", "description": "Geocode an address or place query."},
     {"method": "GET", "path": "/api/intel/reverse-geocode", "service": "intel", "description": "Reverse geocode coordinates."},
-    {"method": "POST", "path": "/api/intel/agent/plan-trip", "service": "intel", "description": "Ask the Ollama trip-planning agent."},
+    {"method": "POST", "path": "/api/intel/agent/plan-trip", "service": "intel", "description": "Ask the Scope AI trip-planning agent with hosted/local model fallback."},
     {"method": "POST", "path": "/api/intel/classify-image", "service": "intel", "description": "Classify an uploaded image."},
     {"method": "POST", "path": "/api/intel/predict-trip", "service": "intel", "description": "Run trip prediction inference."},
     {"method": "POST", "path": "/api/intel/sentiment", "service": "intel", "description": "Analyze review sentiment."},

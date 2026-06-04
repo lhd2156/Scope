@@ -37,7 +37,32 @@ const CHUNK_ERROR_PATTERNS = [
   /failed to fetch dynamically imported module/i,
   /importing a module script failed/i,
   /dynamically imported module/i,
+  /module script/i,
+  /ns_binding_aborted/i,
+  /aborted/i,
 ];
+const CHUNK_RELOAD_STORAGE_PREFIX = 'scope-route-chunk-reload';
+const ROUTE_RECOVERY_STORAGE_PREFIX = 'scope-route-error-recovery';
+const TRIP_PLANNER_TRANSIENT_STORAGE_PREFIXES = [
+  'scope-trip-planner-packing-checklist:',
+  'scope-route-chunk-reload:',
+  'scope-route-error-recovery:',
+];
+const TRIP_PLANNER_TRANSIENT_STORAGE_KEYS = [
+  'scope.tripPlanner.mapStyleMode',
+];
+
+declare global {
+  interface Window {
+    __SCOPE_ROUTE_ERROR__?: {
+      message: string;
+      name: string;
+      resetKey: string;
+      stack?: string;
+      timestamp: string;
+    };
+  }
+}
 
 const props = defineProps<{
   resetKey: string;
@@ -61,6 +86,30 @@ function resolveErrorMessage(error: unknown): string {
   return '';
 }
 
+function resolveErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'Error';
+}
+
+function publishRouteError(error: unknown): void {
+  if (typeof window === 'undefined' || !import.meta.env.DEV) {
+    return;
+  }
+
+  const message = resolveErrorMessage(error) || 'Unknown route error';
+  const stack = error instanceof Error ? error.stack : undefined;
+  window.__SCOPE_ROUTE_ERROR__ = {
+    message,
+    name: resolveErrorName(error),
+    resetKey: props.resetKey,
+    stack,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (!import.meta.env.VITEST) {
+    console.error('[scope-route-boundary]', window.__SCOPE_ROUTE_ERROR__, error);
+  }
+}
+
 const fallbackMessage = computed(() => {
   const errorMessage = resolveErrorMessage(capturedError.value);
 
@@ -71,6 +120,107 @@ const fallbackMessage = computed(() => {
   return 'A page-level error interrupted this workspace. Try this view again or head back home while Scope recovers.';
 });
 
+const capturedChunkLoadError = computed(() => {
+  const errorMessage = resolveErrorMessage(capturedError.value);
+  return Boolean(errorMessage && CHUNK_ERROR_PATTERNS.some((pattern) => pattern.test(errorMessage)));
+});
+
+function buildChunkReloadStorageKey(): string {
+  return `${CHUNK_RELOAD_STORAGE_PREFIX}:${props.resetKey}`;
+}
+
+function buildRouteRecoveryStorageKey(): string {
+  return `${ROUTE_RECOVERY_STORAGE_PREFIX}:${props.resetKey}`;
+}
+
+function isTripPlannerRoute(): boolean {
+  const routePath = props.resetKey.split('?')[0] ?? props.resetKey;
+  return routePath === '/trips/new' || /^\/trips\/[^/]+\/edit$/.test(routePath);
+}
+
+function clearMatchingStorageItems(storage: Storage, predicate: (storageKey: string) => boolean): void {
+  const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter((key): key is string => Boolean(key));
+
+  keys.forEach((storageKey) => {
+    if (predicate(storageKey)) {
+      storage.removeItem(storageKey);
+    }
+  });
+}
+
+function clearTripPlannerTransientStorage(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const shouldClearStorageKey = (storageKey: string) =>
+    TRIP_PLANNER_TRANSIENT_STORAGE_KEYS.includes(storageKey) ||
+    TRIP_PLANNER_TRANSIENT_STORAGE_PREFIXES.some((prefix) => storageKey.startsWith(prefix));
+
+  try {
+    clearMatchingStorageItems(window.localStorage, shouldClearStorageKey);
+  } catch {
+    // Keep route recovery best-effort when storage access is blocked.
+  }
+
+  try {
+    clearMatchingStorageItems(window.sessionStorage, shouldClearStorageKey);
+  } catch {
+    // Keep route recovery best-effort when storage access is blocked.
+  }
+}
+
+function shouldAutoReloadChunkError(error: unknown): boolean {
+  const errorMessage = resolveErrorMessage(error);
+  return Boolean(errorMessage && CHUNK_ERROR_PATTERNS.some((pattern) => pattern.test(errorMessage)));
+}
+
+function requestRouteReload(): void {
+  if (typeof window === 'undefined' || import.meta.env.VITEST) {
+    return;
+  }
+
+  window.location.reload();
+}
+
+function autoReloadChunkErrorOnce(error: unknown): void {
+  if (!shouldAutoReloadChunkError(error) || typeof window === 'undefined') {
+    return;
+  }
+
+  const storageKey = buildChunkReloadStorageKey();
+  try {
+    if (window.sessionStorage.getItem(storageKey) === 'reloaded') {
+      return;
+    }
+    window.sessionStorage.setItem(storageKey, 'reloaded');
+  } catch {
+    // Storage can be unavailable in privacy modes; a single reload is still the
+    // cleanest recovery path for a stale lazy-route chunk.
+  }
+
+  requestRouteReload();
+}
+
+function autoRecoverTripPlannerRouteErrorOnce(error: unknown): void {
+  if (shouldAutoReloadChunkError(error) || !isTripPlannerRoute() || typeof window === 'undefined') {
+    return;
+  }
+
+  const storageKey = buildRouteRecoveryStorageKey();
+  try {
+    if (window.sessionStorage.getItem(storageKey) === 'recovered') {
+      return;
+    }
+    window.sessionStorage.setItem(storageKey, 'recovered');
+  } catch {
+    // A one-time reload is still worthwhile if session storage is blocked.
+  }
+
+  clearTripPlannerTransientStorage();
+  requestRouteReload();
+}
+
 function resetBoundary(): void {
   capturedError.value = null;
   hasError.value = false;
@@ -78,6 +228,11 @@ function resetBoundary(): void {
 }
 
 function retryView(): void {
+  if (capturedChunkLoadError.value && typeof window !== 'undefined') {
+    requestRouteReload();
+    return;
+  }
+
   resetBoundary();
 }
 
@@ -93,6 +248,9 @@ watch(
 onErrorCaptured((error) => {
   capturedError.value = error;
   hasError.value = true;
+  publishRouteError(error);
+  autoReloadChunkErrorOnce(error);
+  autoRecoverTripPlannerRouteErrorOnce(error);
   void nextTick(() => {
     fallbackRef.value?.focus();
   });

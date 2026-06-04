@@ -81,7 +81,7 @@
   --motion-press-scale: 0.97;
   --motion-image-zoom: 1.05;
   --motion-image-zoom-subtle: 1.02;
-  --motion-navbar-opacity-rest: 0.94;
+  --motion-navbar-opacity-rest: 1;
   --motion-navbar-opacity-scrolled: 1;
   --motion-toast-slide-x: 1rem;
   --motion-toast-slide-y: 0.45rem;
@@ -100,8 +100,9 @@
   --z-navbar: 30;
   --z-modal-backdrop: 40;
   --z-modal: 50;
-  --z-toast: 60;
-  --z-tooltip: 70;
+  --z-notification: 1000;
+  --z-toast: 1100;
+  --z-tooltip: 1200;
   --z-fixed: var(--z-navbar);
 }
 

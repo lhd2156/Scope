@@ -1,7 +1,9 @@
 <template>
   <main class="section padded-top">
     <div class="section-heading">
-      <p class="eyebrow">About</p>
+      <p class="eyebrow">
+        About
+      </p>
       <h1>Scope turns local knowledge into adventure infrastructure.</h1>
       <p>
         The platform is built for the moment between inspiration and action: save a place,

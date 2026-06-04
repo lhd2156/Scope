@@ -117,8 +117,8 @@ describe('router auth guards', () => {
       .sort();
 
     expect(protectedRoutes).toEqual([
-      'scope-ai',
       'friends',
+      'notifications',
       'onboarding-preferences',
       'profile',
       'settings',

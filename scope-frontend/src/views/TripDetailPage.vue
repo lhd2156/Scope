@@ -35,18 +35,16 @@
         <TripDetail :trip="tripsStore.selectedTrip" />
       </div>
 
-      <EmptyStatePanel
+      <div
         v-else
-        alignment="center"
-        eyebrow="Trip detail"
-        :title="tripsStore.error ? 'Trip unavailable' : 'Trip not found'"
-        :description="tripsStore.error || 'The requested trip could not be loaded. It may have been deleted or the route has not been synced into Scope yet.'"
-        icon="route"
-        artwork="itinerary"
-        heading-level="h1"
+        class="trip-detail-empty-state"
+        data-test="trip-detail-empty-state"
       >
+        <p class="eyebrow">Trip detail</p>
+        <h1>{{ tripsStore.error ? 'Trip unavailable' : 'Trip not found' }}</h1>
+        <p>{{ tripsStore.error || 'The requested trip could not be loaded. It may have been deleted or the route has not been synced into Scope yet.' }}</p>
         <RouterLink class="button button-secondary" to="/trips/new">Open planner</RouterLink>
-      </EmptyStatePanel>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -55,7 +53,6 @@
 import { watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import TripDetail from '@/components/trips/TripDetail.vue';
 import { useTripsStore } from '@/stores/trips';
 import { isScopeQaMode } from '@/utils/qaMode';
@@ -65,8 +62,21 @@ const tripsStore = useTripsStore();
 const isTripDetailAuditMode = isScopeQaMode();
 
 watch(
-  () => route.params.id,
-  async (tripId) => {
+  () => [route.name, route.params.id, route.params.token],
+  async ([routeName, tripId, shareToken]) => {
+    if (routeName === 'trip-share') {
+      if (!shareToken) {
+        return;
+      }
+
+      try {
+        await tripsStore.fetchSharedTrip(String(shareToken));
+      } catch {
+        // The store already captures the error state used by this page.
+      }
+      return;
+    }
+
     if (!tripId) {
       return;
     }
@@ -129,5 +139,38 @@ h2,
 .section-copy,
 .trip-audit-preview__card p {
   margin: 0;
+}
+
+.trip-detail-empty-state {
+  min-height: clamp(24rem, 48vh, 36rem);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: clamp(var(--space-6), 5vw, var(--space-10));
+  text-align: center;
+}
+
+.trip-detail-empty-state h1,
+.trip-detail-empty-state p {
+  margin: 0;
+}
+
+.trip-detail-empty-state h1 {
+  max-width: 32rem;
+  color: var(--text-primary);
+  font-size: clamp(1.7rem, 3vw, 3rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.trip-detail-empty-state p:not(.eyebrow) {
+  max-width: 42rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.trip-detail-empty-state .button {
+  margin-top: var(--space-2);
 }
 </style>

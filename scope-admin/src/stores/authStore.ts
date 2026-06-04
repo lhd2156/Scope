@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { getCurrentUser, loginAdmin } from '@/api/core';
-import { setStoredToken } from '@/api/client';
+import { getStoredToken, setStoredToken } from '@/api/client';
 import type { UserProfile } from '@/types/user';
-import { ADMIN_STORAGE_REFRESH_KEY, ADMIN_STORAGE_TOKEN_KEY } from '@/utils/constants';
+import { ADMIN_STORAGE_REFRESH_KEY } from '@/utils/constants';
 
 interface AuthState {
   token: string | null;
@@ -32,22 +32,31 @@ function isAdmin(user: UserProfile): boolean {
 
 function persistTokens(token: string | null, refreshToken: string | null): void {
   setStoredToken(token);
+  localStorage.removeItem(ADMIN_STORAGE_REFRESH_KEY);
   if (refreshToken) {
-    localStorage.setItem(ADMIN_STORAGE_REFRESH_KEY, refreshToken);
+    sessionStorage.setItem(ADMIN_STORAGE_REFRESH_KEY, refreshToken);
     return;
   }
+  sessionStorage.removeItem(ADMIN_STORAGE_REFRESH_KEY);
+}
+
+function readRefreshToken(): string | null {
   localStorage.removeItem(ADMIN_STORAGE_REFRESH_KEY);
+  return sessionStorage.getItem(ADMIN_STORAGE_REFRESH_KEY);
 }
 
 export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    token: localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY),
-    refreshToken: localStorage.getItem(ADMIN_STORAGE_REFRESH_KEY),
-    currentUser: null,
-    loading: false,
-    error: null,
-    isAuthenticated: Boolean(localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY)),
-  }),
+  state: (): AuthState => {
+    const token = getStoredToken();
+    return {
+      token,
+      refreshToken: readRefreshToken(),
+      currentUser: null,
+      loading: false,
+      error: null,
+      isAuthenticated: Boolean(token),
+    };
+  },
   actions: {
     async login(email: string, password: string) {
       this.loading = true;
@@ -72,7 +81,14 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('Access Denied');
         }
 
-        this.$patch({ token, refreshToken, currentUser: user, isAuthenticated: true, loading: false, error: null });
+        this.$patch({
+          token,
+          refreshToken,
+          currentUser: user,
+          isAuthenticated: true,
+          loading: false,
+          error: null,
+        });
       } catch (error) {
         if ((error as Error).message !== 'Access Denied') {
           this.$patch({
@@ -90,7 +106,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async hydrate() {
-      const token = localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY);
+      const token = getStoredToken();
       if (!token) {
         this.$patch({ isAuthenticated: false, currentUser: null, token: null });
         return;
@@ -112,14 +128,20 @@ export const useAuthStore = defineStore('auth', {
     },
 
     refreshFromStorage() {
-      const token = localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY);
-      const refreshToken = localStorage.getItem(ADMIN_STORAGE_REFRESH_KEY);
+      const token = getStoredToken();
+      const refreshToken = readRefreshToken();
       this.$patch({ token, refreshToken, isAuthenticated: Boolean(token) });
     },
 
     logout() {
       persistTokens(null, null);
-      this.$patch({ token: null, refreshToken: null, currentUser: null, isAuthenticated: false, loading: false });
+      this.$patch({
+        token: null,
+        refreshToken: null,
+        currentUser: null,
+        isAuthenticated: false,
+        loading: false,
+      });
     },
 
     clearError() {

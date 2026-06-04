@@ -55,7 +55,6 @@ const footerGroups: FooterGroup[] = [
       { label: 'Live Map', to: { name: 'map' } },
       { label: 'Discover Spots', to: { name: 'explore' } },
       { label: 'Trip Planner', to: { name: 'trip-planner' } },
-      { label: 'Scope AI', to: { name: 'scope-ai' } },
     ],
   },
   {

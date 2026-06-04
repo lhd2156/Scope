@@ -71,3 +71,37 @@ resource "aws_iam_role_policy_attachment" "eks_ssm_managed" {
   role       = aws_iam_role.eks_node_group[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
+
+data "aws_iam_policy_document" "eks_node_photos_bucket" {
+  count = local.deploy_eks ? 1 : 0
+
+  statement {
+    sid = "ListScopePhotosBucket"
+    actions = [
+      "s3:ListBucket"
+    ]
+    resources = [
+      aws_s3_bucket.photos.arn
+    ]
+  }
+
+  statement {
+    sid = "ReadWriteScopePhotosObjects"
+    actions = [
+      "s3:AbortMultipartUpload",
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+    resources = [
+      "${aws_s3_bucket.photos.arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "eks_node_photos_bucket" {
+  count  = local.deploy_eks ? 1 : 0
+  name   = "${local.name_prefix}-eks-photos-bucket"
+  role   = aws_iam_role.eks_node_group[0].id
+  policy = data.aws_iam_policy_document.eks_node_photos_bucket[0].json
+}

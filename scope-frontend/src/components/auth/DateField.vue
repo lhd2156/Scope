@@ -643,10 +643,10 @@ onBeforeUnmount(() => {
 .date-field__shell {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 1.1rem minmax(10ch, 1fr) 1.65rem;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 1rem;
+  gap: 0.6rem;
+  padding: 0 0.85rem;
   min-height: 3.2rem;
   border: 1px solid color-mix(in srgb, var(--glass-border) 90%, var(--input-border));
   border-radius: var(--radius-xl);
@@ -686,11 +686,13 @@ onBeforeUnmount(() => {
 
 .date-field__input {
   width: 100%;
+  min-width: 0;
   padding: 0.85rem 0;
   border: 0;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
+  line-height: 1.2;
   cursor: text;
   caret-color: var(--accent-teal);
 }
@@ -706,8 +708,8 @@ onBeforeUnmount(() => {
 .date-field__toggle {
   display: inline-grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 1.65rem;
+  height: 1.65rem;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
@@ -720,8 +722,8 @@ onBeforeUnmount(() => {
 }
 
 .date-field__toggle :deep(.scope-icon) {
-  width: 1rem;
-  height: 1rem;
+  width: 0.94rem;
+  height: 0.94rem;
   transition: transform var(--transition-fast);
 }
 
@@ -755,14 +757,15 @@ onBeforeUnmount(() => {
 
 .date-field__popover {
   position: absolute;
-  top: calc(100% - 0.35rem);
-  left: auto;
-  right: 0;
-  width: min(24rem, calc(100vw - 2rem));
+  top: calc(100% - 2.2rem);
+  left: 50%;
+  width: min(20rem, calc(100vw - 2rem));
+  max-height: min(22.5rem, calc(100dvh - 2rem));
+  box-sizing: border-box;
   z-index: 80;
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: 0.72rem;
+  padding: 0.85rem;
   border-radius: var(--radius-xl);
   border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, var(--border));
   background:
@@ -776,13 +779,17 @@ onBeforeUnmount(() => {
   box-shadow:
     0 1.5rem 3rem color-mix(in srgb, var(--bg-primary) 48%, transparent),
     0 0 0 1px color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  transform: translateX(-50%);
 }
 
 .date-popover__header {
   display: grid;
-  grid-template-columns: 2.35rem minmax(0, 1fr) 2.35rem;
+  grid-template-columns: 2.18rem minmax(0, 1fr) 2.18rem;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.45rem;
 }
 
 .date-popover__title {
@@ -827,8 +834,8 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: 0;
   max-width: none;
-  min-height: 2.58rem;
-  padding: 0.35rem 0.6rem;
+  min-height: 2.3rem;
+  padding: 0.3rem 0.55rem;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -957,8 +964,8 @@ onBeforeUnmount(() => {
 .date-popover__nav {
   display: inline-grid;
   place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.18rem;
+  height: 2.18rem;
   border: 1px solid color-mix(in srgb, var(--glass-border) 90%, var(--border));
   border-radius: var(--radius-full);
   background:
@@ -999,7 +1006,7 @@ onBeforeUnmount(() => {
 .date-popover__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.15rem;
+  gap: 0.1rem;
   color: var(--text-muted);
   font-size: var(--font-size-caption);
   letter-spacing: 0.1em;
@@ -1010,13 +1017,13 @@ onBeforeUnmount(() => {
 .date-popover__grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.2rem;
+  gap: 0.16rem;
 }
 
 .date-popover__day {
   display: inline-grid;
   place-items: center;
-  height: 2.1rem;
+  height: 1.92rem;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
@@ -1061,7 +1068,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
-  padding-top: var(--space-2);
+  padding-top: 0.55rem;
   border-top: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
 }
 
@@ -1069,7 +1076,7 @@ onBeforeUnmount(() => {
 .date-popover__primary {
   border: 0;
   border-radius: var(--radius-full);
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.85rem;
   font: inherit;
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
@@ -1129,6 +1136,8 @@ onBeforeUnmount(() => {
     left: 0;
     right: 0;
     width: auto;
+    max-height: min(22rem, calc(100dvh - 1.5rem));
+    transform: none;
   }
 }
 

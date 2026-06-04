@@ -26,13 +26,13 @@ def run_ml_with_timeout(operation: str, fn: Callable[..., ResultT], *args: Any, 
     # Flask's app context is thread-local. Worker threads from our executor
     # therefore can't read `current_app`, hit `db.session`, or run any code
     # that depends on Flask config (e.g. the recommendation engine's audit
-    # write path or dismissal filter). Capture the real app instance here and
-    # re-bind it inside the worker so ML functions keep the same runtime
-    # guarantees as code running on the request thread.
-    app = current_app._get_current_object()  # type: ignore[attr-defined]
+    # write path or dismissal filter). Capture the concrete app_context factory
+    # here and re-bind it inside the worker so ML functions keep the same
+    # runtime guarantees as code running on the request thread.
+    app_context = current_app.app_context
 
     def _runner() -> ResultT:
-        with app.app_context():
+        with app_context():
             return fn(*args, **kwargs)
 
     future = _ML_EXECUTOR.submit(_runner)

@@ -33,6 +33,7 @@ It covers:
 Before any real deployment, replace all development/example values for:
 
 - `CORE_JWT_SECRET`
+- `GRPC_INTERNAL_TOKEN`
 - `DJANGO_SECRET_KEY`
 - `FLASK_SECRET_KEY`
 - SQL Server passwords
@@ -57,6 +58,7 @@ Recommended options:
 At minimum, define rotation policy for:
 
 - JWT signing secret
+- internal gRPC token
 - database credentials
 - AWS IAM credentials (if any long-lived keys still exist)
 - Cognito app secrets if introduced later
@@ -222,6 +224,10 @@ Verify:
 - S3 bucket name is globally unique
 - Cognito domain prefix is unique
 - ECR repository names match deploy workflow expectations
+- Lightsail production SSH is not open at rest; prefer `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true` or exact `/32` admin CIDRs
+- Medium single-host deploys use explicit memory caps for SQL Server, Ollama, Intel, and RAG; SQL Server should stay at 2048 MB or higher with container headroom
+- Lightsail single-host deploys mount the attached data disk at `/opt/scope/shared` and route durable Compose data there with the production data-volume override
+- Lightsail photo storage uses GitHub secrets from a scoped IAM user limited to the production photos bucket; rotate those keys if the deploy host is replaced or credentials are exposed
 
 ---
 
@@ -242,6 +248,7 @@ Recommended minimum behavior:
 - structured JSON logs
 - request correlation IDs
 - error-level alerting
+- release-tagged Sentry events for server and browser surfaces
 - retention policy defined by environment
 
 ### Metrics and alerting
@@ -277,7 +284,7 @@ Before calling Scope production-ready, verify:
 - [ ] secrets are managed outside local `.env` files
 - [ ] public ingress is HTTPS-only
 - [ ] DB backup/restore path is documented and tested
-- [ ] observability/alerting is configured
+- [ ] observability/alerting is configured, including Sentry DSNs and release/environment tags
 - [ ] Playwright critical-flow smoke passes against the deployed environment
 - [ ] rollback procedure is documented
 

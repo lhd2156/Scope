@@ -61,9 +61,30 @@ TEST(ViewportClusteringTest, TreatsTheMaximumViewportEdgeAsInclusive) {
     EXPECT_EQ(clusters.front().point_ids, (std::vector<std::string> {"edge"}));
 }
 
+TEST(ViewportClusteringTest, HandlesDegenerateViewportAndValidationHelpers) {
+    const Viewport single_point_viewport {5.0, 5.0, 5.0, 5.0};
+    EXPECT_TRUE(is_viewport_valid(single_point_viewport));
+    EXPECT_TRUE(viewport_contains(single_point_viewport, {5.0, 5.0}));
+    EXPECT_FALSE(viewport_contains(single_point_viewport, {5.0, 5.1}));
+    EXPECT_FALSE(viewport_contains({-95.0, 0.0, 5.0, 5.0}, {5.0, 5.0}));
+    EXPECT_FALSE(viewport_contains(single_point_viewport, {95.0, 5.0}));
+
+    const auto clusters = cluster_points_in_viewport(
+        {{"only", {5.0, 5.0}}},
+        single_point_viewport,
+        {3, 3});
+
+    ASSERT_EQ(clusters.size(), 1U);
+    EXPECT_EQ(clusters.front().latitude_bucket, 0U);
+    EXPECT_EQ(clusters.front().longitude_bucket, 0U);
+    EXPECT_EQ(clusters.front().centroid.latitude, 5.0);
+    EXPECT_EQ(clusters.front().centroid.longitude, 5.0);
+}
+
 TEST(ViewportClusteringTest, RejectsInvalidViewportDefinitionsAndPointSets) {
     EXPECT_THROW(cluster_points_in_viewport({}, {8.0, 0.0, 2.0, 10.0}), std::invalid_argument);
     EXPECT_THROW(cluster_points_in_viewport({}, {0.0, 0.0, 10.0, 10.0}, {0, 2}), std::invalid_argument);
+    EXPECT_THROW(cluster_points_in_viewport({}, {0.0, 0.0, 10.0, 10.0}, {2, 0}), std::invalid_argument);
     EXPECT_THROW(
         cluster_points_in_viewport({{"", {1.0, 1.0}}}, {0.0, 0.0, 10.0, 10.0}),
         std::invalid_argument);

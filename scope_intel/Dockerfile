@@ -18,7 +18,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 COPY . .
-RUN chown -R scope:scope /app
+RUN mkdir -p /app/data \
+    && chown -R scope:scope /app
 
 USER scope
 EXPOSE 5000

@@ -1,5 +1,7 @@
 import api from '@/services/api';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
+import { isScopeQaMode } from '@/utils/qaMode';
 
 export interface SearchResult {
   id: string;
@@ -32,6 +34,13 @@ export interface GeoSearchResponse {
 }
 
 type SearchContentType = 'spots' | 'reviews' | 'trips';
+
+export function shouldUseLocalSearchFallback(): boolean {
+  return (
+    DEMO_MODE_ENABLED ||
+    isScopeQaMode()
+  );
+}
 
 interface LocalSearchSeed {
   id: string;
@@ -172,7 +181,11 @@ export async function searchContent(
       params: { q: query, type, limit, offset },
     });
     return data;
-  } catch {
+  } catch (error) {
+    if (!shouldUseLocalSearchFallback()) {
+      throw error;
+    }
+
     return buildLocalSearchResponse(query, type, limit, offset);
   }
 }

@@ -1,6 +1,7 @@
 import api from '@/services/api';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, unwrapApiData } from '@/services/serviceUtils';
+import { getSpotDetail } from '@/services/spotService';
 import type {
   ApiEnvelope,
   Itinerary,
@@ -26,6 +27,27 @@ export interface SpotRecommendationInput {
   limit?: number;
 }
 
+export interface RecommendedSpotSummary extends SpotSummary {
+  recommendationReason?: string;
+  recommendationScore?: number;
+  recommendationSignalBreakdown?: Record<string, number>;
+}
+
+interface SpotRecommendationWireItem {
+  id?: string;
+  spotId?: string;
+  title?: string;
+  name?: string;
+  category?: string;
+  score?: number;
+  reason?: string;
+  signalBreakdown?: Record<string, number>;
+}
+
+interface SpotRecommendationWireEnvelope {
+  recommendations?: SpotRecommendationWireItem[];
+}
+
 export interface VibeMatchInput {
   vibe: string;
   limit?: number;
@@ -45,14 +67,17 @@ interface IntelRouteOptimizationResponse {
   estimatedDistance?: number;
 }
 
+interface IntelVibeMatchResponse {
+  matches?: SpotSummary[];
+}
+
 // Fallback gate: production and unit tests should surface Intel failures, but
 // local Vite work needs a useful planner even when the Python/Ollama stack is
 // not running. QA / demo sessions keep the same fixture-backed behavior.
 function shouldUseMockFallback(): boolean {
   return (
     isScopeQaMode() ||
-    import.meta.env.VITE_ENABLE_INTEL_MOCK_FALLBACK === 'true' ||
-    (import.meta.env.DEV && !import.meta.env.VITEST)
+    import.meta.env.VITE_ENABLE_INTEL_MOCK_FALLBACK === 'true'
   );
 }
 
@@ -72,13 +97,110 @@ function sanitizeItineraryEnvelope(response: ApiEnvelope<Itinerary>): ApiEnvelop
 function sanitizeSpotEnvelope(
   response: ApiEnvelope<SpotSummary[]>,
   options: { allowGeneratedAuthorAvatar?: boolean } = {},
-): ApiEnvelope<SpotSummary[]> {
+): ApiEnvelope<RecommendedSpotSummary[]> {
   return {
     ...response,
     data: normalizeArrayEnvelopeData(response).map((spot) =>
-      sanitizeSpotSummary(spot, { allowGeneratedAuthorAvatar: options.allowGeneratedAuthorAvatar }),
+      sanitizeSpotSummary(spot, { allowGeneratedAuthorAvatar: options.allowGeneratedAuthorAvatar }) as RecommendedSpotSummary,
     ),
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isRecommendationWireItem(value: unknown): value is SpotRecommendationWireItem {
+  return isRecord(value) && (
+    typeof value.spotId === 'string' ||
+    typeof value.spotId === 'number' ||
+    typeof value.reason === 'string' ||
+    isRecord(value.signalBreakdown)
+  );
+}
+
+function extractRecommendationWireItems(payload: unknown): SpotRecommendationWireItem[] | null {
+  const unwrapped = unwrapApiData(payload as SpotRecommendationWireEnvelope | SpotRecommendationWireItem[] | unknown);
+
+  if (Array.isArray(unwrapped)) {
+    return unwrapped.some(isRecommendationWireItem)
+      ? unwrapped.filter(isRecommendationWireItem)
+      : null;
+  }
+
+  if (isRecord(unwrapped) && Array.isArray(unwrapped.recommendations)) {
+    return unwrapped.recommendations.filter(isRecommendationWireItem);
+  }
+
+  return null;
+}
+
+function normalizeRecommendationSignalBreakdown(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value)
+    .map(([key, rawValue]) => [sanitizeSingleLineText(key), Number(rawValue)] as const)
+    .filter(([key, numericValue]) => Boolean(key) && Number.isFinite(numericValue));
+
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+function buildRecommendationFallbackSpot(item: SpotRecommendationWireItem): RecommendedSpotSummary | null {
+  const spotId = sanitizeSingleLineText(item.spotId ?? item.id);
+
+  if (!spotId) {
+    return null;
+  }
+
+  return sanitizeSpotSummary({
+    id: spotId,
+    title: sanitizeSingleLineText(item.title ?? item.name) || 'Recommended spot',
+    latitude: 0,
+    longitude: 0,
+    category: (sanitizeSingleLineText(item.category) || 'other') as SpotCategory,
+    rating: 0,
+    createdAt: '',
+    recommendationReason: sanitizeSingleLineText(item.reason) || undefined,
+    recommendationScore: Number.isFinite(Number(item.score)) ? Number(item.score) : undefined,
+    recommendationSignalBreakdown: normalizeRecommendationSignalBreakdown(item.signalBreakdown),
+  } as RecommendedSpotSummary) as RecommendedSpotSummary;
+}
+
+function attachRecommendationMetadata(
+  spot: SpotSummary,
+  item: SpotRecommendationWireItem,
+): RecommendedSpotSummary {
+  return sanitizeSpotSummary({
+    ...spot,
+    recommendationReason: sanitizeSingleLineText(item.reason) || undefined,
+    recommendationScore: Number.isFinite(Number(item.score)) ? Number(item.score) : undefined,
+    recommendationSignalBreakdown: normalizeRecommendationSignalBreakdown(item.signalBreakdown),
+  } as RecommendedSpotSummary) as RecommendedSpotSummary;
+}
+
+async function hydrateRecommendationItems(
+  items: SpotRecommendationWireItem[],
+): Promise<RecommendedSpotSummary[]> {
+  const hydratedItems = await Promise.all(
+    items.map(async (item) => {
+      const spotId = sanitizeSingleLineText(item.spotId ?? item.id);
+
+      if (!spotId) {
+        return null;
+      }
+
+      try {
+        const response = await getSpotDetail(spotId);
+        return attachRecommendationMetadata(response.data, item);
+      } catch {
+        return buildRecommendationFallbackSpot(item);
+      }
+    }),
+  );
+
+  return hydratedItems.filter((spot): spot is RecommendedSpotSummary => spot !== null);
 }
 
 function sanitizeMapPointEnvelope(response: ApiEnvelope<MapPoint[]>): ApiEnvelope<MapPoint[]> {
@@ -140,7 +262,7 @@ export async function getCachedItinerary(itineraryId: string): Promise<ApiEnvelo
   }
 }
 
-export async function recommendSpots(input: SpotRecommendationInput): Promise<ApiEnvelope<SpotSummary[]>> {
+export async function recommendSpots(input: SpotRecommendationInput): Promise<ApiEnvelope<RecommendedSpotSummary[]>> {
   const sanitizedInput = {
     ...input,
     destination: sanitizeSingleLineText(input.destination),
@@ -151,8 +273,17 @@ export async function recommendSpots(input: SpotRecommendationInput): Promise<Ap
   };
 
   try {
-    const { data } = await api.post<ApiEnvelope<SpotSummary[]> | SpotSummary[]>(`${INTEL_BASE_PATH}/recommend/spots`, requestPayload);
-    return sanitizeSpotEnvelope('data' in data ? data : { data });
+    const { data } = await api.post<ApiEnvelope<SpotSummary[] | SpotRecommendationWireEnvelope> | SpotSummary[] | SpotRecommendationWireEnvelope>(
+      `${INTEL_BASE_PATH}/recommend/spots`,
+      requestPayload,
+    );
+    const recommendationItems = extractRecommendationWireItems(data);
+
+    if (recommendationItems) {
+      return { data: await hydrateRecommendationItems(recommendationItems) };
+    }
+
+    return sanitizeSpotEnvelope('data' in data ? data as ApiEnvelope<SpotSummary[]> : { data: data as SpotSummary[] });
   } catch (error) {
     rethrowIfNotQa(error);
     const { mockSpots } = await loadMockData();
@@ -207,11 +338,13 @@ export async function vibeMatch(input: VibeMatchInput): Promise<ApiEnvelope<Spot
   };
 
   try {
-    const { data } = await api.post<ApiEnvelope<SpotSummary[]> | SpotSummary[]>(`${INTEL_BASE_PATH}/vibe-match`, {
+    const { data } = await api.post<ApiEnvelope<SpotSummary[] | IntelVibeMatchResponse> | SpotSummary[] | IntelVibeMatchResponse>(`${INTEL_BASE_PATH}/vibe-match`, {
       description: sanitizedInput.vibe,
       limit: sanitizedInput.limit ?? 4,
     });
-    return sanitizeSpotEnvelope('data' in data ? data : { data });
+    const payload = unwrapApiData(data);
+    const matches = Array.isArray(payload) ? payload : payload.matches ?? [];
+    return sanitizeSpotEnvelope({ data: matches });
   } catch (error) {
     rethrowIfNotQa(error);
     const { mockSpots } = await loadMockData();

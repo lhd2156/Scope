@@ -1,8 +1,10 @@
-import { computed, ref } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { clearApiSession, configureApiSessionHandlers, setAccessToken } from '@/services/api';
+import { AUTH_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
+import { clearApiSession, configureApiSessionHandlers, isApiClientError, setAccessToken } from '@/services/api';
 import type { AuthForm, AuthPayload, RegisterForm, UserProfile } from '@/types';
 import {
+  AUTH_SESSION_HINT_CHANGE_EVENT,
   clearStoredAuthSessionHint,
   hasStoredAuthSessionHint,
   persistAuthSessionHint,
@@ -14,6 +16,10 @@ import {
 import { toAsyncErrorMessage } from '@/utils/errors';
 import { getScopeQaSession } from '@/utils/qaMode';
 import { sanitizeAuthPayload, sanitizeUserProfile } from '@/utils/sanitizers';
+
+const INVALID_LOGIN_MESSAGE = 'Invalid username or password.';
+const LOGIN_SERVICE_UNAVAILABLE_MESSAGE = 'Sign-in service is unavailable right now. Try again in a moment.';
+const INVALID_LOGIN_STATUSES = new Set([400, 401, 403, 404, 422]);
 
 async function resolveCurrentUser(payload: AuthPayload): Promise<UserProfile> {
   const sanitizedPayload = sanitizeAuthPayload(payload);
@@ -38,12 +44,45 @@ async function resolveCurrentUser(payload: AuthPayload): Promise<UserProfile> {
     username: sanitizedPayload.username,
     email: sanitizedPayload.email ?? '',
     displayName: sanitizedPayload.displayName ?? sanitizedPayload.username,
-    interests: [],
+    avatarUrl: sanitizedPayload.avatarUrl,
+    homeBase: sanitizedPayload.homeBase,
+    interests: sanitizedPayload.interests ?? [],
+    showActivityStatus: sanitizedPayload.showActivityStatus,
   });
 }
 
 async function loadAuthService() {
   return import('@/services/authService');
+}
+
+function resolveLoginErrorMessage(error: unknown): string {
+  if (isApiClientError(error)) {
+    if (error.status && INVALID_LOGIN_STATUSES.has(error.status)) {
+      return INVALID_LOGIN_MESSAGE;
+    }
+
+    if (error.isNetworkError || (error.status && error.status >= 500)) {
+      return LOGIN_SERVICE_UNAVAILABLE_MESSAGE;
+    }
+
+    return error.message || INVALID_LOGIN_MESSAGE;
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.trim();
+
+    if (/status code (400|401|403|404|422)\b/i.test(message) || /invalid|credential|password|user/i.test(message)) {
+      return message.includes('demo@scope.travel') ? message : INVALID_LOGIN_MESSAGE;
+    }
+
+    if (/status code 5\d\d\b|network|timeout|failed/i.test(message)) {
+      return LOGIN_SERVICE_UNAVAILABLE_MESSAGE;
+    }
+
+    return message || INVALID_LOGIN_MESSAGE;
+  }
+
+  return INVALID_LOGIN_MESSAGE;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -58,6 +97,28 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionExpiredMessage = ref<string | null>(null);
   const isAuthenticated = computed(() => Boolean(token.value) && Boolean(currentUser.value));
   let hydrationPromise: Promise<boolean> | null = null;
+
+  function syncStoredSessionHint() {
+    const nextHasSessionHint = hasStoredAuthSessionHint() || getScopeQaSession() === 'authenticated';
+    hasSessionHint.value = nextHasSessionHint;
+
+    if (isAuthenticated.value) {
+      return;
+    }
+
+    hasHydratedSession.value = !nextHasSessionHint;
+    if (nextHasSessionHint) {
+      error.value = null;
+      sessionExpiredMessage.value = null;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncStoredSessionHint);
+    onScopeDispose(() => {
+      window.removeEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncStoredSessionHint);
+    });
+  }
 
   function applyQaAuthenticatedSession(): string {
     const nextToken = token.value || (() => {
@@ -75,7 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
       id: currentUser.value?.id ?? 'user-1',
       username: currentUser.value?.username ?? 'scopedemo',
       email: currentUser.value?.email ?? 'demo@scope.travel',
-      displayName: currentUser.value?.displayName ?? 'Local preview user',
+      displayName: currentUser.value?.displayName ?? 'Scope traveler',
       avatarUrl: currentUser.value?.avatarUrl,
       bio: currentUser.value?.bio,
       homeBase: currentUser.value?.homeBase,
@@ -172,7 +233,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       try {
         const restoredAccessToken = await refreshSession({
-          allowMockFallback: getScopeQaSession() === 'authenticated',
+          allowMockFallback: AUTH_MOCK_FALLBACK_ENABLED || getScopeQaSession() === 'authenticated',
           captureError: false,
         });
         return Boolean(restoredAccessToken);
@@ -205,7 +266,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { login: loginRequest } = await loadAuthService();
       await applyAuthPayload(await loginRequest(payload), payload.rememberMe ? 'local' : 'session');
     } catch (nextError) {
-      error.value = toAsyncErrorMessage(nextError, 'Scope could not sign you in right now.');
+      error.value = resolveLoginErrorMessage(nextError);
       throw nextError;
     }
   }

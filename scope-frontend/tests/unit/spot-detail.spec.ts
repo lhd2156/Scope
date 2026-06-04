@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { authStoreMock, listNearbySpotsMock } = vi.hoisted(() => ({
+const { authStoreMock, createSpotReviewMock, fetchSpotMock, listNearbySpotsMock, listSpotReviewsMock, toggleLikeMock } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
     currentUser: {
@@ -12,15 +12,28 @@ const { authStoreMock, listNearbySpotsMock } = vi.hoisted(() => ({
       avatarUrl: 'https://i.pravatar.cc/150?img=18',
     },
   },
+  createSpotReviewMock: vi.fn(),
+  fetchSpotMock: vi.fn(),
   listNearbySpotsMock: vi.fn(),
+  listSpotReviewsMock: vi.fn(),
+  toggleLikeMock: vi.fn(),
 }));
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.mock('@/stores/spots', () => ({
+  useSpotsStore: () => ({
+    fetchSpot: fetchSpotMock,
+    toggleLike: toggleLikeMock,
+  }),
+}));
+
 vi.mock('@/services/spotService', () => ({
+  createSpotReview: createSpotReviewMock,
   listNearbySpots: listNearbySpotsMock,
+  listSpotReviews: listSpotReviewsMock,
 }));
 
 import SpotDetail from '@/components/spots/SpotDetail.vue';
@@ -68,9 +81,31 @@ const spot: SpotDetailModel = {
   ],
 };
 
+const spotDetailStubs = {
+  MapView: {
+    template: '<div data-test="mini-map">Mini map stub</div>',
+  },
+  ReviewForm: {
+    emits: ['submit'],
+    template: '<button type="button" data-test="submit-review" @click="$emit(\'submit\', { rating: 5, comment: \'Perfect quiet reset.\' })">Submit review</button>',
+  },
+  ReviewList: {
+    props: ['reviews'],
+    template: '<div data-test="review-list">{{ reviews.map((review) => review.comment).join(" | ") }}</div>',
+  },
+};
+
 describe('SpotDetail', () => {
   beforeEach(() => {
     authStoreMock.isAuthenticated = true;
+    authStoreMock.currentUser = {
+      id: 'user-auth',
+      username: 'scopefan',
+      email: 'scopefan@example.com',
+      displayName: 'Scope Fan',
+      interests: ['food', 'culture'],
+      avatarUrl: 'https://i.pravatar.cc/150?img=18',
+    };
     listNearbySpotsMock.mockResolvedValue({
       data: [
         {
@@ -87,6 +122,21 @@ describe('SpotDetail', () => {
         },
       ],
     });
+    createSpotReviewMock.mockReset();
+    createSpotReviewMock.mockResolvedValue({
+      id: 'review-new',
+      spotId: 'spot-1',
+      rating: 5,
+      comment: 'Fresh Scope review.',
+      createdAt: '2026-03-28T10:00:00Z',
+    });
+    fetchSpotMock.mockReset();
+    fetchSpotMock.mockResolvedValue(undefined);
+    listSpotReviewsMock.mockReset();
+    listSpotReviewsMock.mockImplementation(async (spotId: string) => ({
+      data: spotId === 'spot-1' ? spot.reviews : [],
+    }));
+    toggleLikeMock.mockReset();
   });
 
   it('renders the premium gallery, action row, embedded map, and similar spots rail', async () => {
@@ -95,11 +145,7 @@ describe('SpotDetail', () => {
         spot,
       },
       global: {
-        stubs: {
-          MapView: {
-            template: '<div data-test="mini-map">Mini map stub</div>',
-          },
-        },
+        stubs: spotDetailStubs,
       },
     });
 
@@ -110,6 +156,11 @@ describe('SpotDetail', () => {
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('5 photos');
     expect(wrapper.find('[data-test="spot-photo-curation"]').text()).toContain('Curated travel angles');
     expect(wrapper.find('.hero-gallery__copy').text()).not.toContain('·');
+    await wrapper.findAll('[data-test="gallery-thumb"]')[0].trigger('click');
+    expect(wrapper.find('.hero-gallery__copy').text()).toContain('Golden hour detail');
+    await wrapper.get('.hero-gallery__button').trigger('click');
+    expect(wrapper.find('.hero-gallery__copy').text()).toContain('Golden hour detail');
+
     expect(wrapper.find('[data-test="spot-actions"]').text()).toContain('Add to Trip');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('Mini-map');
@@ -137,16 +188,104 @@ describe('SpotDetail', () => {
         spot,
       },
       global: {
-        stubs: {
-          MapView: {
-            template: '<div data-test="mini-map">Mini map stub</div>',
-          },
-        },
+        stubs: spotDetailStubs,
       },
     });
 
     await flushPromises();
 
     expect(wrapper.text()).toContain('Log in to review');
+  });
+
+  it('handles sparse media, local reviews, save toggles, sharing, and similar spot failures', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    (authStoreMock as any).currentUser = null;
+    listNearbySpotsMock.mockRejectedValueOnce(new Error('nearby unavailable'));
+    const sparseSpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-sparse',
+      title: 'Quiet Garden Stop',
+      category: 'nature',
+      rating: 4.4,
+      likesCount: 0,
+      liked: false,
+      photoUrl: undefined,
+      photos: [
+        { id: 'garden-photo', url: 'https://images.example.com/garden.jpg' },
+      ],
+      reviews: [],
+      address: '',
+      city: '',
+      country: '',
+      vibe: '',
+    };
+    const submittedReview = {
+      id: 'review-new',
+      spotId: sparseSpot.id,
+      rating: 5,
+      comment: 'Perfect quiet reset.',
+      createdAt: '2026-03-28T10:00:00Z',
+      user: authStoreMock.currentUser,
+    };
+    listSpotReviewsMock
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: [submittedReview] });
+    createSpotReviewMock.mockResolvedValueOnce(submittedReview);
+    toggleLikeMock
+      .mockResolvedValueOnce({ ...sparseSpot, liked: true, likesCount: 1 })
+      .mockResolvedValueOnce({ ...sparseSpot, liked: false, likesCount: 0 });
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: sparseSpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(4);
+    expect(wrapper.text()).toContain('Scope location pending');
+    expect(wrapper.text()).toContain('No similar spots yet');
+    expect(wrapper.text()).toContain('Fresh saves');
+    expect(wrapper.text()).toContain('Flexible discovery stop');
+
+    await wrapper.get('[data-test="submit-review"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Perfect quiet reset.');
+    expect(wrapper.text()).toContain('Review added');
+    await wrapper.get('.toast-close').trigger('click');
+    expect(wrapper.text()).not.toContain('Review added');
+
+    const saveButton = wrapper.get('button[aria-label="Save Quiet Garden Stop"]');
+    await saveButton.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('1 saves');
+    expect(saveButton.attributes('aria-pressed')).toBe('true');
+    expect(toggleLikeMock).toHaveBeenCalledWith('spot-sparse');
+
+    await wrapper.get('button[aria-label="Remove Quiet Garden Stop from saved spots"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Fresh saves');
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click');
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/spots/spot-sparse'));
+    expect(wrapper.text()).toContain('Link copied');
+    await wrapper.get('.toast-close').trigger('click');
+    expect(wrapper.text()).not.toContain('Link copied');
+
+    await wrapper.setProps({ spot: null });
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-gallery"]').exists()).toBe(false);
   });
 });

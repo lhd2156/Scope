@@ -3,13 +3,55 @@ import { getMapboxToken } from '@/services/mapboxLoader';
 import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope } from '@/types';
-import { sanitizeSingleLineText } from '@/utils/sanitizers';
+import { calculateHaversineDistanceKm, degreesToRadians } from '@/utils/geoDistance';
+import { sanitizeImageUrl, sanitizeSingleLineText } from '@/utils/sanitizers';
 
 const INTEL_BASE_PATH = '/api/intel';
 const MAPBOX_GEOCODE_BASE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 const MAPBOX_SEARCHBOX_BASE_URL = 'https://api.mapbox.com/search/searchbox/v1';
 const MAPBOX_SEARCHBOX_LOCATION_TYPES = 'poi,address,street,place,city,locality,neighborhood,postcode';
 const MAPBOX_GEOCODE_LOCATION_TYPES = 'poi,address,place,locality,neighborhood,postcode';
+const MAPBOX_MAP_TARGET_TYPES = 'country,region,district,place,locality,neighborhood,address,poi,postcode';
+const MAPBOX_NEARBY_PLACE_DEFAULT_LIMIT = 72;
+const MAPBOX_NEARBY_PLACE_MAX_LIMIT = 160;
+const MAPBOX_NEARBY_PLACE_CATEGORY_CONCURRENCY = 5;
+const ENABLE_MAP_MOCK_FALLBACK = String(import.meta.env.VITE_ENABLE_MAP_MOCK_FALLBACK ?? '').trim().toLowerCase() === 'true';
+const PREFER_CLIENT_REVERSE_GEOCODE = import.meta.env.MODE !== 'test';
+const PLACE_PHOTO_LOOKUP_CACHE_LIMIT = 96;
+const REVERSE_GEOCODE_CACHE_LIMIT = 160;
+const MAPBOX_GEOCODE_FETCH_TIMEOUT_MS = 4500;
+
+const NEARBY_PLACE_CATEGORIES = [
+  { id: 'restaurant', label: 'Restaurant' },
+  { id: 'food_and_drink', label: 'Food & drink' },
+  { id: 'cafe', label: 'Cafe' },
+  { id: 'coffee', label: 'Coffee' },
+  { id: 'bar', label: 'Bar' },
+  { id: 'grocery', label: 'Grocery' },
+  { id: 'supermarket', label: 'Supermarket' },
+  { id: 'tourist_attraction', label: 'Landmark' },
+  { id: 'museum', label: 'Museum' },
+  { id: 'park', label: 'Park' },
+  { id: 'shopping', label: 'Shopping' },
+  { id: 'amusement_park', label: 'Amusement park' },
+  { id: 'bowling_alley', label: 'Bowling' },
+  { id: 'movie_theater', label: 'Movie theater' },
+  { id: 'hotel', label: 'Hotel' },
+  { id: 'gas_station', label: 'Gas station' },
+  { id: 'parking', label: 'Parking' },
+  { id: 'pharmacy', label: 'Pharmacy' },
+  { id: 'hospital', label: 'Hospital' },
+  { id: 'bank', label: 'Bank' },
+  { id: 'atm', label: 'ATM' },
+  { id: 'school', label: 'School' },
+] as const;
+
+const NEARBY_PLACE_CATEGORY_LABELS = new Map(
+  NEARBY_PLACE_CATEGORIES.map((category) => [category.id, category.label]),
+);
+
+const placePhotoLookupCache = new Map<string, Promise<PlacePhotoLookupResult>>();
+const reverseGeocodeLookupCache = new Map<string, Promise<GeocodeResult>>();
 
 export interface GeocodeResult {
   latitude: number;
@@ -19,6 +61,9 @@ export interface GeocodeResult {
   address?: string;
   city?: string;
   country?: string;
+  countryCode?: string;
+  postalCode?: string;
+  providerPlaceId?: string;
   precision?: string;
 }
 
@@ -26,7 +71,48 @@ export interface PlaceSearchResult extends GeocodeResult {
   id?: string;
   category?: string;
   distanceKm?: number;
+  photoUrl?: string;
+  photoAttribution?: string;
+  photoAttributionUrl?: string;
   source: 'mapbox' | 'mock';
+}
+
+export interface PlacePhotoLookupOptions {
+  title: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  maxWidthPx?: number;
+}
+
+export interface PlacePhotoLookupResult {
+  configured: boolean;
+  coverage: string;
+  photoUrl?: string;
+  photoAttribution?: string;
+  photoAttributionUrl?: string;
+  source: string;
+  license?: string;
+}
+
+export interface NearbyPlaceBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+export interface NearbyPlaceSearchOptions {
+  center: CoordinatePair;
+  bounds?: NearbyPlaceBounds | null;
+  categories?: readonly string[];
+  limit?: number;
+}
+
+export interface NearbyPlaceResult extends PlaceSearchResult {
+  categoryId?: string;
+  categoryLabel?: string;
+  photoUrl?: string;
 }
 
 export interface PlaceSearchOptions {
@@ -84,6 +170,17 @@ interface MapboxSearchBoxFeature {
   properties?: unknown;
 }
 
+interface MapboxSearchBoxCategoryResponse {
+  features?: unknown;
+}
+
+interface MapboxSearchBoxCategoryFeature {
+  geometry?: {
+    coordinates?: unknown;
+  };
+  properties?: unknown;
+}
+
 interface CoordinatePair {
   latitude: number;
   longitude: number;
@@ -104,6 +201,9 @@ function sanitizeGeocodeResult(result: GeocodeResult): GeocodeResult {
     address: address || undefined,
     city: sanitizeSingleLineText(result.city) || undefined,
     country: sanitizeSingleLineText(result.country) || undefined,
+    countryCode: sanitizeSingleLineText(result.countryCode)?.toLowerCase() || undefined,
+    postalCode: sanitizeSingleLineText(result.postalCode) || undefined,
+    providerPlaceId: sanitizeSingleLineText(result.providerPlaceId) || undefined,
     precision: sanitizeSingleLineText(result.precision) || undefined,
   };
 }
@@ -130,20 +230,42 @@ function sanitizeGeocodeEnvelope(
   };
 }
 
+function sanitizeExternalUrl(value: unknown): string | undefined {
+  const text = sanitizeSingleLineText(value as string | null | undefined);
+  if (!text) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(text, 'https://scope.local');
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function sanitizePlacePhotoLookup(
+  response: ApiEnvelope<PlacePhotoLookupResult> | PlacePhotoLookupResult,
+): PlacePhotoLookupResult {
+  const payload = unwrapApiData(response) as Partial<PlacePhotoLookupResult>;
+
+  return {
+    configured: Boolean(payload.configured),
+    coverage: sanitizeSingleLineText(payload.coverage) || '',
+    photoUrl: sanitizeImageUrl(payload.photoUrl ?? undefined),
+    photoAttribution: sanitizeSingleLineText(payload.photoAttribution) || undefined,
+    photoAttributionUrl: sanitizeExternalUrl(payload.photoAttributionUrl),
+    source: sanitizeSingleLineText(payload.source) || 'Google Places',
+    license: sanitizeSingleLineText(payload.license) || undefined,
+  };
+}
+
 function formatCoordinateLabel(latitude: number, longitude: number): string {
   return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
 }
 
 function calculateDistanceKm(origin: CoordinatePair, destination: CoordinatePair): number {
-  const earthRadiusKm = 6371;
-  const latitudeDelta = toRadians(destination.latitude - origin.latitude);
-  const longitudeDelta = toRadians(destination.longitude - origin.longitude);
-  const originLatitude = toRadians(origin.latitude);
-  const destinationLatitude = toRadians(destination.latitude);
-  const haversine = Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(originLatitude) * Math.cos(destinationLatitude) * Math.sin(longitudeDelta / 2) ** 2;
-
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return calculateHaversineDistanceKm(origin, destination);
 }
 
 function clampCoordinate(value: number, minimum: number, maximum: number): number {
@@ -151,7 +273,55 @@ function clampCoordinate(value: number, minimum: number, maximum: number): numbe
 }
 
 function toRadians(value: number): number {
-  return (value * Math.PI) / 180;
+  return degreesToRadians(value);
+}
+
+function lookupCoordinateKey(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(5) : String(value);
+}
+
+function getCachedLookup<T>(cache: Map<string, Promise<T>>, key: string): Promise<T> | null {
+  const cached = cache.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  cache.delete(key);
+  cache.set(key, cached);
+  return cached;
+}
+
+function setCachedLookup<T>(
+  cache: Map<string, Promise<T>>,
+  key: string,
+  lookup: Promise<T>,
+  limit: number,
+): Promise<T> {
+  cache.set(key, lookup);
+
+  while (cache.size > limit) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
+    }
+    cache.delete(oldestKey);
+  }
+
+  return lookup;
+}
+
+function buildPlacePhotoLookupCacheKey(options: Required<PlacePhotoLookupOptions>): string {
+  return [
+    normalizeSearchText(options.title),
+    normalizeSearchText(options.address),
+    lookupCoordinateKey(options.latitude),
+    lookupCoordinateKey(options.longitude),
+    String(options.maxWidthPx),
+  ].join('|');
+}
+
+function buildReverseGeocodeCacheKey(latitude: number, longitude: number): string {
+  return `${lookupCoordinateKey(latitude)}|${lookupCoordinateKey(longitude)}`;
 }
 
 function buildCoordinateResult(latitude: number, longitude: number): GeocodeResult {
@@ -205,6 +375,31 @@ function readMapboxContextValue(context: unknown, prefixes: string[]): string | 
   return undefined;
 }
 
+function readMapboxContextShortCode(context: unknown, prefixes: string[]): string | undefined {
+  if (!Array.isArray(context)) {
+    return undefined;
+  }
+
+  for (const item of context) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const candidate = item as { id?: unknown; short_code?: unknown };
+    const identifier = sanitizeSingleLineText(candidate.id);
+    if (!prefixes.some((prefix) => identifier.startsWith(`${prefix}.`))) {
+      continue;
+    }
+
+    const value = sanitizeSingleLineText(candidate.short_code);
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function readMapboxPrecision(feature: MapboxFeature): string | undefined {
   if (!Array.isArray(feature.place_type)) {
     return undefined;
@@ -243,6 +438,47 @@ function readFlexibleTextList(value: unknown): string[] {
   return text ? [text] : [];
 }
 
+function readFlexibleImageUrl(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return sanitizeImageUrl(value);
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const imageUrl = readFlexibleImageUrl(item);
+      if (imageUrl) {
+        return imageUrl;
+      }
+    }
+
+    return undefined;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  for (const propertyName of ['url', 'uri', 'href', 'photoUrl', 'photo_url', 'imageUrl', 'image_url', 'thumbnail']) {
+    const imageUrl = readFlexibleImageUrl((value as Record<string, unknown>)[propertyName]);
+    if (imageUrl) {
+      return imageUrl;
+    }
+  }
+
+  return undefined;
+}
+
+function readMapboxFeaturePhotoUrl(properties: unknown): string | undefined {
+  for (const propertyName of ['photoUrl', 'photo_url', 'imageUrl', 'image_url', 'thumbnail', 'photo', 'image', 'photos', 'images']) {
+    const imageUrl = readFlexibleImageUrl(readFlexibleProperty(properties, propertyName));
+    if (imageUrl) {
+      return imageUrl;
+    }
+  }
+
+  return undefined;
+}
+
 function mapboxFeatureToGeocodeResult(
   feature: MapboxFeature,
   fallback?: CoordinatePair,
@@ -268,6 +504,11 @@ function mapboxFeatureToGeocodeResult(
     address,
     city: readMapboxContextValue(feature.context, ['place', 'locality', 'neighborhood']),
     country: readMapboxContextValue(feature.context, ['country']),
+    countryCode: readMapboxContextShortCode(feature.context, ['country']),
+    postalCode: readMapboxProperty(feature, 'postcode') ||
+      readMapboxProperty(feature, 'postal_code') ||
+      readMapboxContextValue(feature.context, ['postcode']),
+    providerPlaceId: sanitizeSingleLineText(feature.id) || undefined,
     precision: readMapboxPrecision(feature),
   });
 }
@@ -293,6 +534,7 @@ function mapboxFeatureToPlaceSearchResult(
     ...geocodeResult,
     id: sanitizeSingleLineText(feature.id) || undefined,
     category: readMapboxProperty(feature, 'category') || readMapboxProperty(feature, 'maki'),
+    photoUrl: readMapboxFeaturePhotoUrl(feature.properties),
     distanceKm: distanceKm === undefined ? undefined : Number(distanceKm.toFixed(2)),
     source: 'mapbox',
   };
@@ -404,6 +646,99 @@ function buildBoundingBox(proximity: CoordinatePair, radiusKm: number): string |
   return [minLongitude, minLatitude, maxLongitude, maxLatitude].map((coordinate) => coordinate.toFixed(6)).join(',');
 }
 
+function hasValidNearbyBounds(bounds: NearbyPlaceBounds | null | undefined): bounds is NearbyPlaceBounds {
+  return Boolean(
+    bounds &&
+    Number.isFinite(bounds.west) &&
+    Number.isFinite(bounds.south) &&
+    Number.isFinite(bounds.east) &&
+    Number.isFinite(bounds.north) &&
+    bounds.south >= -90 &&
+    bounds.north <= 90 &&
+    bounds.south < bounds.north &&
+    bounds.west >= -180 &&
+    bounds.east <= 180 &&
+    bounds.west < bounds.east,
+  );
+}
+
+function buildNearbyPlaceBoundingBox(bounds: NearbyPlaceBounds | null | undefined): string | null {
+  if (!hasValidNearbyBounds(bounds)) {
+    return null;
+  }
+
+  return [bounds.west, bounds.south, bounds.east, bounds.north]
+    .map((coordinate) => coordinate.toFixed(6))
+    .join(',');
+}
+
+function isCoordinateInsideBounds(coordinate: CoordinatePair, bounds: NearbyPlaceBounds | null | undefined): boolean {
+  if (!hasValidNearbyBounds(bounds)) {
+    return true;
+  }
+
+  return coordinate.longitude >= bounds.west &&
+    coordinate.longitude <= bounds.east &&
+    coordinate.latitude >= bounds.south &&
+    coordinate.latitude <= bounds.north;
+}
+
+function sanitizeNearbyPlaceCategoryId(categoryId: string): string {
+  return sanitizeSingleLineText(categoryId).toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
+function getNearbyPlaceCategoryLabel(categoryId: string): string {
+  return NEARBY_PLACE_CATEGORY_LABELS.get(categoryId) ?? categoryId
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function normalizeNearbyPlaceCategoryIds(categoryIds: readonly string[] | undefined): string[] {
+  const requestedCategoryIds = categoryIds?.length
+    ? categoryIds
+    : NEARBY_PLACE_CATEGORIES.map((category) => category.id);
+  return [...new Set(requestedCategoryIds.map(sanitizeNearbyPlaceCategoryId).filter(Boolean))];
+}
+
+function clampNearbyPlaceLimit(limit: number | undefined): number {
+  return Math.max(1, Math.min(Math.round(limit ?? MAPBOX_NEARBY_PLACE_DEFAULT_LIMIT), MAPBOX_NEARBY_PLACE_MAX_LIMIT));
+}
+
+function chunkItems<T>(items: readonly T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+function buildMapboxCategorySearchUrl(
+  categoryId: string,
+  options: NearbyPlaceSearchOptions,
+  limit: number,
+): URL | null {
+  const token = getMapboxToken();
+  if (!token || !isFiniteCoordinatePair(options.center.latitude, options.center.longitude)) {
+    return null;
+  }
+
+  const url = new URL(`${MAPBOX_SEARCHBOX_BASE_URL}/category/${encodeURIComponent(categoryId)}`);
+  url.searchParams.set('access_token', token);
+  url.searchParams.set('language', 'en');
+  url.searchParams.set('limit', String(Math.max(1, Math.min(limit, 25))));
+  url.searchParams.set('proximity', `${options.center.longitude},${options.center.latitude}`);
+
+  const boundingBox = buildNearbyPlaceBoundingBox(options.bounds);
+  if (boundingBox) {
+    url.searchParams.set('bbox', boundingBox);
+  }
+
+  return url;
+}
+
 function buildMapboxSearchSessionToken(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -428,9 +763,11 @@ function buildMapboxSearchBoxSuggestUrl(query: string, limit: number, sessionTok
 
   if (options.proximity && isFiniteCoordinatePair(options.proximity.latitude, options.proximity.longitude)) {
     url.searchParams.set('proximity', `${options.proximity.longitude},${options.proximity.latitude}`);
-    const boundingBox = buildBoundingBox(options.proximity, options.bboxRadiusKm ?? 80);
-    if (boundingBox) {
-      url.searchParams.set('bbox', boundingBox);
+    if (options.bboxRadiusKm !== null) {
+      const boundingBox = buildBoundingBox(options.proximity, options.bboxRadiusKm ?? 80);
+      if (boundingBox) {
+        url.searchParams.set('bbox', boundingBox);
+      }
     }
   }
 
@@ -463,9 +800,11 @@ function buildMapboxGeocodeUrl(query: string, limit: number, options: PlaceSearc
   url.searchParams.set('language', 'en');
   if (options.proximity && isFiniteCoordinatePair(options.proximity.latitude, options.proximity.longitude)) {
     url.searchParams.set('proximity', `${options.proximity.longitude},${options.proximity.latitude}`);
-    const boundingBox = buildBoundingBox(options.proximity, options.bboxRadiusKm ?? 80);
-    if (boundingBox) {
-      url.searchParams.set('bbox', boundingBox);
+    if (options.bboxRadiusKm !== null) {
+      const boundingBox = buildBoundingBox(options.proximity, options.bboxRadiusKm ?? 80);
+      if (boundingBox) {
+        url.searchParams.set('bbox', boundingBox);
+      }
     }
   }
   return url;
@@ -490,13 +829,26 @@ async function fetchMapboxFeatures(url: URL | null): Promise<MapboxFeature[]> {
     return [];
   }
 
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    return [];
-  }
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), MAPBOX_GEOCODE_FETCH_TIMEOUT_MS)
+    : null;
 
-  const payload = await response.json().catch(() => null) as MapboxGeocodeResponse | null;
-  return Array.isArray(payload?.features) ? payload.features as MapboxFeature[] : [];
+  try {
+    const response = await fetch(url.toString(), controller ? { signal: controller.signal } : undefined);
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json().catch(() => null) as MapboxGeocodeResponse | null;
+    return Array.isArray(payload?.features) ? payload.features as MapboxFeature[] : [];
+  } catch {
+    return [];
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
 }
 
 async function fetchMapboxSearchBoxSuggestions(url: URL | null): Promise<MapboxSearchBoxSuggestion[]> {
@@ -528,8 +880,22 @@ async function fetchMapboxSearchBoxFeature(url: URL | null): Promise<MapboxSearc
   return features[0] ?? null;
 }
 
-async function geocodeWithMapbox(query: string, limit: number): Promise<GeocodeResult[]> {
-  const features = await fetchMapboxFeatures(buildMapboxGeocodeUrl(query, limit));
+async function fetchMapboxSearchBoxCategoryFeatures(url: URL | null): Promise<MapboxSearchBoxCategoryFeature[]> {
+  if (!url || typeof fetch !== 'function') {
+    return [];
+  }
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json().catch(() => null) as MapboxSearchBoxCategoryResponse | null;
+  return Array.isArray(payload?.features) ? payload.features as MapboxSearchBoxCategoryFeature[] : [];
+}
+
+async function geocodeWithMapbox(query: string, limit: number, options: PlaceSearchOptions = {}): Promise<GeocodeResult[]> {
+  const features = await fetchMapboxFeatures(buildMapboxGeocodeUrl(query, limit, options));
   return features
     .map((feature) => mapboxFeatureToGeocodeResult(feature))
     .filter((result): result is GeocodeResult => Boolean(result))
@@ -563,6 +929,9 @@ function mapboxSearchBoxFeatureToPlaceSearchResult(
     sanitizeSingleLineText(suggestion.address as string | null | undefined) ||
     undefined;
   const context = readFlexibleProperty(properties, 'context');
+  const postalCode = readFlexibleText(properties, 'postcode') ||
+    readFlexibleText(properties, 'postal_code') ||
+    readFlexibleText(readFlexibleProperty(context, 'postcode'), 'name');
   const featureType = readFlexibleText(properties, 'feature_type') ||
     sanitizeSingleLineText(suggestion.feature_type as string | null | undefined) ||
     'poi';
@@ -588,10 +957,76 @@ function mapboxSearchBoxFeatureToPlaceSearchResult(
       readFlexibleText(readFlexibleProperty(context, 'locality'), 'name') ||
       readFlexibleText(readFlexibleProperty(context, 'neighborhood'), 'name'),
     country: readFlexibleText(readFlexibleProperty(context, 'country'), 'name'),
+    countryCode: readFlexibleText(readFlexibleProperty(context, 'country'), 'country_code') ||
+      readFlexibleText(readFlexibleProperty(context, 'country'), 'short_code'),
+    postalCode,
+    providerPlaceId: sanitizeSingleLineText(suggestion.mapbox_id as string | null | undefined) || readFlexibleText(properties, 'mapbox_id'),
     precision: featureType,
     id: sanitizeSingleLineText(suggestion.mapbox_id as string | null | undefined) || readFlexibleText(properties, 'mapbox_id'),
     category,
+    photoUrl: readMapboxFeaturePhotoUrl(properties) || readMapboxFeaturePhotoUrl(suggestion),
     distanceKm: distanceKm === undefined ? undefined : Number(distanceKm.toFixed(2)),
+    source: 'mapbox',
+  };
+}
+
+function isProviderFallbackResult(result: GeocodeResult): boolean {
+  return normalizeSearchText(result.precision ?? '') === 'fallback';
+}
+
+function mapboxSearchBoxCategoryFeatureToNearbyPlaceResult(
+  categoryId: string,
+  feature: MapboxSearchBoxCategoryFeature,
+  proximity: CoordinatePair,
+): NearbyPlaceResult | null {
+  const coordinate = readSearchBoxFeatureCoordinate(feature as MapboxSearchBoxFeature);
+  if (!coordinate) {
+    return null;
+  }
+
+  const properties = feature.properties ?? {};
+  const context = readFlexibleProperty(properties, 'context');
+  const postalCode = readFlexibleText(properties, 'postcode') ||
+    readFlexibleText(properties, 'postal_code') ||
+    readFlexibleText(readFlexibleProperty(context, 'postcode'), 'name');
+  const categoryLabel = getNearbyPlaceCategoryLabel(categoryId);
+  const placeName = readFlexibleText(properties, 'name') ||
+    readFlexibleText(properties, 'name_preferred') ||
+    categoryLabel ||
+    'Nearby place';
+  const formattedAddress = readFlexibleText(properties, 'full_address') ||
+    [
+      readFlexibleText(properties, 'address'),
+      readFlexibleText(properties, 'place_formatted'),
+    ].filter(Boolean).join(', ') ||
+    undefined;
+  const category = [
+    ...readFlexibleTextList(readFlexibleProperty(properties, 'poi_category')),
+    readFlexibleText(properties, 'maki'),
+    categoryLabel,
+  ].filter(Boolean)[0];
+  const distanceKm = calculateDistanceKm(proximity, coordinate);
+
+  return {
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+    placeName,
+    formattedAddress,
+    address: readFlexibleText(properties, 'address') || undefined,
+    city: readFlexibleText(readFlexibleProperty(context, 'place'), 'name') ||
+      readFlexibleText(readFlexibleProperty(context, 'city'), 'name') ||
+      readFlexibleText(readFlexibleProperty(context, 'locality'), 'name') ||
+      readFlexibleText(readFlexibleProperty(context, 'neighborhood'), 'name'),
+    country: readFlexibleText(readFlexibleProperty(context, 'country'), 'name'),
+    postalCode,
+    providerPlaceId: readFlexibleText(properties, 'mapbox_id') || undefined,
+    precision: readFlexibleText(properties, 'feature_type') || 'poi',
+    id: readFlexibleText(properties, 'mapbox_id') || undefined,
+    category,
+    categoryId,
+    categoryLabel,
+    photoUrl: readMapboxFeaturePhotoUrl(properties),
+    distanceKm: Number(distanceKm.toFixed(2)),
     source: 'mapbox',
   };
 }
@@ -708,13 +1143,21 @@ export async function geocode(query: string, limit = 5): Promise<ApiEnvelope<Geo
     const { data } = await api.get<ApiEnvelope<GeocodeResult[] | GeocodeResult> | GeocodeResult[] | GeocodeResult>(`${INTEL_BASE_PATH}/geocode`, {
       params: { q: sanitizedQuery, limit },
     });
-    return sanitizeGeocodeEnvelope(data);
-  } catch {
-    const mapboxResults = await geocodeWithMapbox(sanitizedQuery, limit).catch(() => []);
-    if (mapboxResults.length) {
-      return { data: mapboxResults };
+    const envelope = sanitizeGeocodeEnvelope(data);
+    const providerResults = envelope.data.filter((result) => !isProviderFallbackResult(result));
+    if (providerResults.length || !envelope.data.length) {
+      return { ...envelope, data: providerResults };
     }
+  } catch {
+    // Retry against Mapbox below so provider outages never fall into mocked pins.
+  }
 
+  const mapboxResults = await geocodeWithMapbox(sanitizedQuery, limit).catch(() => []);
+  if (mapboxResults.length) {
+    return { data: mapboxResults };
+  }
+
+  if (ENABLE_MAP_MOCK_FALLBACK) {
     const { mockSpots } = await loadMockData();
     const normalizedQuery = sanitizedQuery.toLowerCase();
     const matchedSpots = mockSpots
@@ -729,6 +1172,25 @@ export async function geocode(query: string, limit = 5): Promise<ApiEnvelope<Geo
 
     return sanitizeGeocodeEnvelope(paginateItems(matchedSpots.slice(0, limit), 1, limit));
   }
+
+  return { data: [] };
+}
+
+export async function geocodeMapTarget(query: string, limit = 5): Promise<ApiEnvelope<GeocodeResult[]>> {
+  const sanitizedQuery = sanitizeSingleLineText(query);
+  if (!sanitizedQuery) {
+    return { data: [] };
+  }
+
+  const mapboxResults = await geocodeWithMapbox(sanitizedQuery, limit, {
+    types: MAPBOX_MAP_TARGET_TYPES,
+    sortByDistance: false,
+  }).catch(() => []);
+  if (mapboxResults.length) {
+    return { data: mapboxResults };
+  }
+
+  return geocode(sanitizedQuery, limit);
 }
 
 export async function searchPlaces(query: string, options: PlaceSearchOptions = {}): Promise<ApiEnvelope<PlaceSearchResult[]>> {
@@ -745,30 +1207,216 @@ export async function searchPlaces(query: string, options: PlaceSearchOptions = 
     return { data: mapboxResults };
   }
 
-  const normalizedQuery = sanitizedQuery.toLowerCase();
-  const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
-  const { mockSpots } = await loadMockData();
-  const matchedSpots = mockSpots
-    .map((spot) => {
-      const haystack = [
-        spot.title,
-        spot.address,
-        spot.city,
-        spot.country,
-        spot.category,
-        spot.vibe,
-      ].filter(Boolean).join(' ').toLowerCase();
-      const matchesQuery = queryTokens.every((token) => haystack.includes(token));
-      const distanceKm = options.proximity && isFiniteCoordinatePair(options.proximity.latitude, options.proximity.longitude)
-        ? calculateDistanceKm(options.proximity, { latitude: spot.latitude, longitude: spot.longitude })
-        : undefined;
+  if (ENABLE_MAP_MOCK_FALLBACK) {
+    const normalizedQuery = sanitizedQuery.toLowerCase();
+    const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    const { mockSpots } = await loadMockData();
+    const matchedSpots = mockSpots
+      .map((spot) => {
+        const haystack = [
+          spot.title,
+          spot.address,
+          spot.city,
+          spot.country,
+          spot.category,
+          spot.vibe,
+        ].filter(Boolean).join(' ').toLowerCase();
+        const matchesQuery = queryTokens.every((token) => haystack.includes(token));
+        const distanceKm = options.proximity && isFiniteCoordinatePair(options.proximity.latitude, options.proximity.longitude)
+          ? calculateDistanceKm(options.proximity, { latitude: spot.latitude, longitude: spot.longitude })
+          : undefined;
 
-      return { spot, matchesQuery, distanceKm };
-    })
-    .filter((candidate) => candidate.matchesQuery)
-    .sort((left, right) => (left.distanceKm ?? Number.MAX_SAFE_INTEGER) - (right.distanceKm ?? Number.MAX_SAFE_INTEGER))
-    .slice(0, limit)
-    .map<PlaceSearchResult>(({ spot, distanceKm }) => ({
+        return { spot, matchesQuery, distanceKm };
+      })
+      .filter((candidate) => candidate.matchesQuery)
+      .sort((left, right) => (left.distanceKm ?? Number.MAX_SAFE_INTEGER) - (right.distanceKm ?? Number.MAX_SAFE_INTEGER))
+      .slice(0, limit)
+      .map<PlaceSearchResult>(({ spot, distanceKm }) => ({
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        placeName: spot.title,
+        formattedAddress: [spot.address, spot.city, spot.country].filter(Boolean).join(', ') || undefined,
+        address: spot.address,
+        city: spot.city,
+        country: spot.country,
+        precision: 'mock',
+        id: spot.id,
+        category: spot.category,
+        photoUrl: spot.photoUrl,
+        distanceKm: distanceKm === undefined ? undefined : Number(distanceKm.toFixed(2)),
+        source: 'mock',
+      }));
+
+    return { data: matchedSpots };
+  }
+
+  return { data: [] };
+}
+
+function buildDevPlacePhotoUrl(options: Required<PlacePhotoLookupOptions>): URL | null {
+  if (!import.meta.env.DEV || import.meta.env.MODE === 'test' || typeof window === 'undefined') {
+    return null;
+  }
+
+  const url = new URL('/__scope-dev/place-photo', window.location.origin);
+  url.searchParams.set('q', options.title);
+  url.searchParams.set('lat', String(options.latitude));
+  url.searchParams.set('lng', String(options.longitude));
+  url.searchParams.set('maxWidthPx', String(options.maxWidthPx));
+  if (options.address) {
+    url.searchParams.set('address', options.address);
+  }
+
+  return url;
+}
+
+async function getDevGooglePlacePhoto(options: Required<PlacePhotoLookupOptions>): Promise<PlacePhotoLookupResult | null> {
+  const url = buildDevPlacePhotoUrl(options);
+  if (!url || typeof fetch !== 'function') {
+    return null;
+  }
+
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    return sanitizePlacePhotoLookup(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+export async function getPlacePhoto(options: PlacePhotoLookupOptions): Promise<PlacePhotoLookupResult> {
+  const requestedMaxWidth = Number(options.maxWidthPx ?? 640);
+  const normalizedOptions: Required<PlacePhotoLookupOptions> = {
+    title: sanitizeSingleLineText(options.title),
+    address: sanitizeSingleLineText(options.address) || '',
+    latitude: Number(options.latitude),
+    longitude: Number(options.longitude),
+    maxWidthPx: Number.isFinite(requestedMaxWidth) ? Math.max(128, Math.min(requestedMaxWidth, 1600)) : 640,
+  };
+
+  if (!normalizedOptions.title || !isFiniteCoordinatePair(normalizedOptions.latitude, normalizedOptions.longitude)) {
+    return sanitizePlacePhotoLookup({
+      configured: false,
+      coverage: 'A place name and coordinates are required before loading a photo.',
+      source: 'Google Places',
+    });
+  }
+
+  const cacheKey = buildPlacePhotoLookupCacheKey(normalizedOptions);
+  const cachedLookup = getCachedLookup(placePhotoLookupCache, cacheKey);
+  if (cachedLookup) {
+    return cachedLookup;
+  }
+
+  const lookup = (async () => {
+    const devPlacePhoto = await getDevGooglePlacePhoto(normalizedOptions);
+    if (devPlacePhoto) {
+      return devPlacePhoto;
+    }
+
+    try {
+      const { data } = await api.get<ApiEnvelope<PlacePhotoLookupResult> | PlacePhotoLookupResult>(`${INTEL_BASE_PATH}/place-photo`, {
+        params: {
+          q: normalizedOptions.title,
+          address: normalizedOptions.address || undefined,
+          lat: normalizedOptions.latitude,
+          lng: normalizedOptions.longitude,
+          maxWidthPx: normalizedOptions.maxWidthPx,
+        },
+      });
+
+      return sanitizePlacePhotoLookup(data);
+    } catch {
+      return sanitizePlacePhotoLookup({
+        configured: false,
+        coverage: 'Google Places photo lookup is unavailable right now.',
+        source: 'Google Places',
+      });
+    }
+  })();
+
+  return setCachedLookup(placePhotoLookupCache, cacheKey, lookup, PLACE_PHOTO_LOOKUP_CACHE_LIMIT);
+}
+
+function buildNearbyPlaceDedupeKey(place: NearbyPlaceResult): string {
+  const identifier = sanitizeSingleLineText(place.id);
+  if (identifier) {
+    return identifier;
+  }
+
+  return [
+    normalizeSearchText(place.placeName),
+    place.latitude.toFixed(5),
+    place.longitude.toFixed(5),
+  ].join(':');
+}
+
+function normalizeNearbyPlaceResults(
+  results: NearbyPlaceResult[],
+  options: NearbyPlaceSearchOptions,
+  limit: number,
+): NearbyPlaceResult[] {
+  const uniqueResults = new Map<string, NearbyPlaceResult>();
+
+  results
+    .filter((place) => hasUsableCoordinates(place))
+    .filter((place) => isCoordinateInsideBounds(place, options.bounds))
+    .forEach((place) => {
+      const dedupeKey = buildNearbyPlaceDedupeKey(place);
+      const existingPlace = uniqueResults.get(dedupeKey);
+      if (!existingPlace || (place.distanceKm ?? Number.MAX_SAFE_INTEGER) < (existingPlace.distanceKm ?? Number.MAX_SAFE_INTEGER)) {
+        uniqueResults.set(dedupeKey, place);
+      }
+    });
+
+  return [...uniqueResults.values()]
+    .sort((left, right) => (
+      (left.distanceKm ?? Number.MAX_SAFE_INTEGER) - (right.distanceKm ?? Number.MAX_SAFE_INTEGER)
+    ))
+    .slice(0, limit);
+}
+
+async function searchNearbyPlacesWithMapbox(options: NearbyPlaceSearchOptions, limit: number): Promise<NearbyPlaceResult[]> {
+  const categoryIds = normalizeNearbyPlaceCategoryIds(options.categories);
+  if (!categoryIds.length || !isFiniteCoordinatePair(options.center.latitude, options.center.longitude)) {
+    return [];
+  }
+
+  const perCategoryLimit = Math.max(8, Math.min(25, Math.ceil(limit / Math.min(categoryIds.length, 6)) + 2));
+  const categoryResults: NearbyPlaceResult[] = [];
+  const categoryBatches = chunkItems(categoryIds, MAPBOX_NEARBY_PLACE_CATEGORY_CONCURRENCY);
+
+  for (const categoryBatch of categoryBatches) {
+    const batchResults = await Promise.all(categoryBatch.map(async (categoryId) => {
+      const features = await fetchMapboxSearchBoxCategoryFeatures(
+        buildMapboxCategorySearchUrl(categoryId, options, perCategoryLimit),
+      ).catch(() => []);
+
+      return features
+        .map((feature) => mapboxSearchBoxCategoryFeatureToNearbyPlaceResult(categoryId, feature, options.center))
+        .filter((place): place is NearbyPlaceResult => Boolean(place));
+    }));
+
+    categoryResults.push(...batchResults.flat());
+  }
+
+  return normalizeNearbyPlaceResults(categoryResults, options, limit);
+}
+
+async function searchNearbyPlacesWithMockData(options: NearbyPlaceSearchOptions, limit: number): Promise<NearbyPlaceResult[]> {
+  const { mockSpots } = await loadMockData();
+  const nearbyPlaces = mockSpots
+    .filter((spot) => isFiniteCoordinatePair(spot.latitude, spot.longitude))
+    .map<NearbyPlaceResult>((spot) => ({
       latitude: spot.latitude,
       longitude: spot.longitude,
       placeName: spot.title,
@@ -779,11 +1427,32 @@ export async function searchPlaces(query: string, options: PlaceSearchOptions = 
       precision: 'mock',
       id: spot.id,
       category: spot.category,
-      distanceKm: distanceKm === undefined ? undefined : Number(distanceKm.toFixed(2)),
+      categoryId: spot.category,
+      categoryLabel: spot.category.charAt(0).toUpperCase() + spot.category.slice(1),
+      photoUrl: spot.photoUrl,
+      distanceKm: Number(calculateDistanceKm(options.center, { latitude: spot.latitude, longitude: spot.longitude }).toFixed(2)),
       source: 'mock',
     }));
 
-  return { data: matchedSpots };
+  return normalizeNearbyPlaceResults(nearbyPlaces, options, limit);
+}
+
+export async function searchNearbyPlaces(options: NearbyPlaceSearchOptions): Promise<ApiEnvelope<NearbyPlaceResult[]>> {
+  if (!isFiniteCoordinatePair(options.center.latitude, options.center.longitude)) {
+    return { data: [] };
+  }
+
+  const limit = clampNearbyPlaceLimit(options.limit);
+  const mapboxResults = await searchNearbyPlacesWithMapbox(options, limit).catch(() => []);
+  if (mapboxResults.length) {
+    return { data: mapboxResults };
+  }
+
+  if (ENABLE_MAP_MOCK_FALLBACK) {
+    return { data: await searchNearbyPlacesWithMockData(options, limit).catch(() => []) };
+  }
+
+  return { data: [] };
 }
 
 export async function searchLocations(query: string, options: LocationSearchOptions = {}): Promise<ApiEnvelope<PlaceSearchResult[]>> {
@@ -829,17 +1498,103 @@ export async function searchLocations(query: string, options: LocationSearchOpti
 }
 
 export async function reverseGeocode(latitude: number, longitude: number): Promise<GeocodeResult> {
-  try {
-    const { data } = await api.get<ApiEnvelope<GeocodeResult> | GeocodeResult>(`${INTEL_BASE_PATH}/reverse-geocode`, {
-      params: { lat: latitude, lng: longitude },
-    });
-    const result = preserveClickedCoordinates(sanitizeGeocodeResult(unwrapApiData(data)), latitude, longitude);
-    if (result.precision === 'fallback') {
-      return resolveReverseFallback(latitude, longitude);
+  const cacheKey = buildReverseGeocodeCacheKey(latitude, longitude);
+  const cachedLookup = getCachedLookup(reverseGeocodeLookupCache, cacheKey);
+  if (cachedLookup) {
+    return cachedLookup;
+  }
+
+  const lookup = (async () => {
+    let triedClientMapbox = false;
+    if (PREFER_CLIENT_REVERSE_GEOCODE) {
+      triedClientMapbox = true;
+      const mapboxResult = await reverseGeocodeWithMapbox(latitude, longitude).catch(() => null);
+      if (mapboxResult) {
+        return mapboxResult;
+      }
     }
 
-    return result;
-  } catch {
-    return resolveReverseFallback(latitude, longitude);
-  }
+    try {
+      const { data } = await api.get<ApiEnvelope<GeocodeResult> | GeocodeResult>(`${INTEL_BASE_PATH}/reverse-geocode`, {
+        params: { lat: latitude, lng: longitude },
+      });
+      const result = preserveClickedCoordinates(sanitizeGeocodeResult(unwrapApiData(data)), latitude, longitude);
+      if (result.precision === 'fallback') {
+        return triedClientMapbox ? buildCoordinateResult(latitude, longitude) : resolveReverseFallback(latitude, longitude);
+      }
+
+      return result;
+    } catch {
+      return triedClientMapbox ? buildCoordinateResult(latitude, longitude) : resolveReverseFallback(latitude, longitude);
+    }
+  })();
+
+  return setCachedLookup(reverseGeocodeLookupCache, cacheKey, lookup, REVERSE_GEOCODE_CACHE_LIMIT);
 }
+
+export const __mapServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      buildBoundingBox,
+      buildCoordinateResult,
+      buildDevPlacePhotoUrl,
+      buildMapboxCategorySearchUrl,
+      buildMapboxGeocodeUrl,
+      buildMapboxReverseGeocodeUrl,
+      buildMapboxSearchBoxRetrieveUrl,
+      buildMapboxSearchBoxSuggestUrl,
+      buildMapboxSearchSessionToken,
+      buildNearbyPlaceBoundingBox,
+      buildNearbyPlaceDedupeKey,
+      buildPlacePhotoLookupCacheKey,
+      buildReverseGeocodeCacheKey,
+      calculateDistanceKm,
+      chunkItems,
+      clampCoordinate,
+      clampNearbyPlaceLimit,
+      fetchMapboxFeatures,
+      fetchMapboxSearchBoxCategoryFeatures,
+      fetchMapboxSearchBoxFeature,
+      fetchMapboxSearchBoxSuggestions,
+      formatCoordinateLabel,
+      getCachedLookup,
+      getDevGooglePlacePhoto,
+      getNearbyPlaceCategoryLabel,
+      hasUsableCoordinates,
+      hasValidNearbyBounds,
+      isCoordinateInsideBounds,
+      isExactLocationNameMatch,
+      isFiniteCoordinatePair,
+      isPoiPrecision,
+      isProviderFallbackResult,
+      isRelevantPlaceSearchResult,
+      lookupCoordinateKey,
+      mapboxFeatureToGeocodeResult,
+      mapboxFeatureToPlaceSearchResult,
+      mapboxSearchBoxCategoryFeatureToNearbyPlaceResult,
+      mapboxSearchBoxFeatureToPlaceSearchResult,
+      normalizeNearbyPlaceCategoryIds,
+      normalizeNearbyPlaceResults,
+      normalizeSearchText,
+      preserveClickedCoordinates,
+      rankLocationSearchResults,
+      readFlexibleImageUrl,
+      readFlexibleProperty,
+      readFlexibleText,
+      readFlexibleTextList,
+      readMapboxContextShortCode,
+      readMapboxContextValue,
+      readMapboxCoordinate,
+      readMapboxFeaturePhotoUrl,
+      readMapboxPrecision,
+      readMapboxProperty,
+      readSearchBoxFeatureCoordinate,
+      sanitizeExternalUrl,
+      sanitizeGeocodeEnvelope,
+      sanitizeGeocodeResult,
+      sanitizeNearbyPlaceCategoryId,
+      sanitizePlacePhotoLookup,
+      setCachedLookup,
+      sortPlaceResultsByDistance,
+      toRadians,
+    }
+  : undefined;

@@ -13,11 +13,51 @@ auth-profiles.json
 **/*.pfx
 .openclaw/auth/
 .clawhub/credentials/
+/.scope-google-places-usage.json
+
+# Agent / editor workspace artifacts
+/.cursor/
+/.codex-artifacts/
+/.codex-logs/
+/.clawhub/
+/.openclaw/
+/models.json
+
+# Legacy agent orchestration / task artifacts
+/memory/
+/foundation/
+/polish/
+/content/
+/core/
+/intel/
+/frontend/
+/skills/
+/specs/
+/AGENTS.md
+/ADMIN_DASHBOARD.md
+/BOOTSTRAP.md
+/CODEX_PROMPTS.md
+/EXPANSION_BLUEPRINT.md
+/HEARTBEAT.md
+/IDENTITY.md
+/PHASE_TRACKING.md
+/PROGRESS.md
+/RESEARCH.md
+/SOUL.md
+/TOOLS.md
+/USER.md
+/scope_architecture.tex
+/docs/PREDEPLOY-HANDOFF.md
+/scope-frontend/QA-REPORT.md
+/scripts/complete-task.ps1
+/scripts/load-lessons.ps1
+**/CLAUDE.md
 
 # Dependencies
 node_modules/
 **/node_modules/
 .npm-cache/
+/.ms-playwright/
 
 # Build outputs
 .scope-stale-generated/
@@ -29,6 +69,9 @@ obj/
 **/bin/
 **/obj/
 coverage/
+*.cover
+.coverage
+.coverage.*
 artifacts/
 TestResults/
 test-results/
@@ -37,13 +80,19 @@ playwright-report/
 .playwright-mcp/
 **/.playwright-cli/
 **/.playwright-mcp/
+**/.playwright-browsers/
 output/
 **/output/
 **/snaps/
+**/build-cov/
+**/target/
+**/emsdk/
 .terraform/
 .pytest_cache/
 .mypy_cache/
 __pycache__/
+*.profraw
+*.profdata
 *.py[cod]
 *.pyo
 *.pyd
@@ -70,11 +119,13 @@ dotnet-*.log
 Thumbs.db
 
 # Local databases / volumes
+.scope-data/
 .mssql/
 .kafka/
 .zookeeper/
 scope_intel/instance/
 scope_content/db.sqlite3
+/scope_content/media/
 
 # Python virtual environments
 .venv/
@@ -94,6 +145,10 @@ docker-compose.override.yml
 **/.terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
+tfplan
+tfplan.txt
+terraform-artifacts/
 crash.log
 crash.*.log
 override.tf
@@ -101,3 +156,12 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 terraform/backend.hcl
+
+# Local QA screenshots / one-off browser captures
+/spot-composer-*.png
+/weather-provider-hidden-check.png
+/scope-frontend/coverage-summary-saved.json
+/scope-metrics/coverage
+/scope-metrics/alerts
+/scope-metrics/all
+/scope-metrics/server

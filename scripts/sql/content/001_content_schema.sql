@@ -23,7 +23,7 @@ BEGIN
         IsPublic BIT NOT NULL CONSTRAINT DF_content_Spots_IsPublic DEFAULT 1,
         CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_content_Spots_CreatedAt DEFAULT GETUTCDATE(),
         UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_content_Spots_UpdatedAt DEFAULT GETUTCDATE(),
-        CONSTRAINT CK_content_Spots_Category CHECK (Category IN ('food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other')),
+        CONSTRAINT CK_content_Spots_Category CHECK (Category IN ('food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other')),
         CONSTRAINT CK_content_Spots_Rating CHECK (Rating BETWEEN 1.0 AND 5.0)
     );
 END;

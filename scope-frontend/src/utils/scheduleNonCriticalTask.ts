@@ -23,9 +23,9 @@ export function isUiTestEnvironment(): boolean {
 
 export function scheduleNonCriticalTask(
   task: NonCriticalTask,
-  options: { delayMs?: number; timeoutMs?: number } = {},
+  options: { delayMs?: number; timeoutMs?: number; forceSchedule?: boolean } = {},
 ): CancelScheduledTask {
-  if (typeof window === 'undefined' || isUiTestEnvironment()) {
+  if (typeof window === 'undefined' || (!options.forceSchedule && isUiTestEnvironment())) {
     void task();
     return () => undefined;
   }

@@ -52,10 +52,12 @@ EXPECTED_CONTENT_ROUTE_CONTRACT = {
     'GET /api/content/search/nearby',
     'GET /api/content/spots/',
     'POST /api/content/spots/',
+    'POST /api/content/spots/compose',
     'GET /api/content/spots/{}',
     'PUT /api/content/spots/{}',
     'DELETE /api/content/spots/{}',
     'GET /api/content/spots/nearby',
+    'GET /api/content/spots/saved',
     'GET /api/content/spots/user/{}',
     'GET /api/content/spots/explore',
     'POST /api/content/spots/{}/like',
@@ -66,6 +68,8 @@ EXPECTED_CONTENT_ROUTE_CONTRACT = {
     'GET /api/content/trips/{}',
     'PUT /api/content/trips/{}',
     'DELETE /api/content/trips/{}',
+    'GET /api/content/trips/share/{}',
+    'POST /api/content/trips/{}/share',
     'POST /api/content/trips/{}/spots',
     'DELETE /api/content/trips/{}/spots/{}',
     'PUT /api/content/trips/{}/spots/reorder',
@@ -84,6 +88,11 @@ EXPECTED_CONTENT_ROUTE_CONTRACT = {
     'GET /api/content/feed/',
     'GET /api/content/feed/trending',
     'POST /api/content/interactions/',
+    'GET /api/content/comments/',
+    'POST /api/content/comments/',
+    'PUT /api/content/comments/{}/',
+    'DELETE /api/content/comments/{}/',
+    'POST /api/content/comments/{}/replies/',
 }
 
 

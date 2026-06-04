@@ -3,13 +3,22 @@ import {
   calculateHaversineDistance,
   clusterViewportPoints,
   getScopeWasmModuleInfo,
+  lexScopeAiCommandText,
+  lexScopeAiCommandTextFallbackForTests,
+  lexScopeAiCommandTextWithRuntime,
   pingScopeWasmRuntime,
+  preloadScopeWasmRuntime,
   resetScopeWasmRuntimeForTests,
 } from '@/services/wasmService';
 
 describe('wasmService', () => {
   beforeEach(() => {
     resetScopeWasmRuntimeForTests();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it('falls back cleanly when compiled wasm assets are unavailable', async () => {
@@ -97,5 +106,317 @@ describe('wasmService', () => {
     expect(hull.hull.length).toBe(hull.hullPointCount);
     expect(hull.areaSquarePx).toBeGreaterThan(0);
     expect(hull.perimeterPx).toBeGreaterThan(0);
+  });
+
+  it('handles invalid distance inputs, offscreen clusters, and antimeridian viewports', async () => {
+    const invalidDistance = await calculateHaversineDistance(
+      { id: 'origin', latitude: Number.NaN, longitude: -97.7431 },
+      { id: 'target', latitude: 30.2747, longitude: undefined },
+    );
+
+    expect(invalidDistance).toEqual({
+      valid: false,
+      fromId: 'origin',
+      toId: 'target',
+      kilometers: 0,
+      miles: 0,
+      meters: 0,
+    });
+
+    const zeroSizedViewportClusters = await clusterViewportPoints(
+      [{ id: 'hidden', latitude: 10, longitude: 10 }],
+      { west: 0, south: 0, east: 20, north: 20, width: 0, height: 400, zoom: 5 },
+    );
+
+    expect(zeroSizedViewportClusters).toEqual([]);
+
+    const antimeridianClusters = await clusterViewportPoints(
+      [
+        { id: 'west-edge', latitude: 0, longitude: 179.8 },
+        { id: 'east-edge', latitude: 0.01, longitude: -179.9 },
+        { id: 'invalid-row', latitude: undefined, longitude: 181 },
+      ],
+      { west: 170, south: -10, east: -170, north: 10, width: 1000, height: 500, zoom: 3 },
+      { radiusPx: 128, minPoints: 2, includeSingles: false },
+    );
+
+    expect(antimeridianClusters).toHaveLength(1);
+    expect(antimeridianClusters[0]).toMatchObject({
+      clustered: true,
+      pointCount: 2,
+      pointIds: ['east-edge', 'west-edge'],
+    });
+  });
+
+  it('normalizes null coordinate inputs and wraps longitudes across repeated worlds', async () => {
+    const nullDistance = await calculateHaversineDistance(
+      null as never,
+      { id: 'target', latitude: 30.2747, longitude: -97.7404 },
+    );
+
+    expect(nullDistance).toMatchObject({
+      valid: false,
+      fromId: 'origin',
+      toId: 'target',
+      meters: 0,
+    });
+
+    const wrappedClusters = await clusterViewportPoints(
+      [
+        { id: 'wrapped-west', lat: 0, lon: 540.1 },
+        { id: 'wrapped-east', lat: 0.01, lng: -540.2 },
+        { latitude: 0.02, longitude: 179.95 },
+      ],
+      { west: 170, south: -10, east: -170, north: 10, width: 1000, height: 500, zoom: 3 },
+      { radiusPx: 160, minPoints: 2, includeSingles: true },
+    );
+
+    expect(wrappedClusters.flatMap((entry) => entry.pointIds)).toEqual(
+      expect.arrayContaining(['wrapped-west', 'wrapped-east', 'point-2']),
+    );
+  });
+
+  it('records unavailable wasm asset responses before falling back to JavaScript bindings', async () => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    }));
+
+    const wasmService = await import('@/services/wasmService');
+    wasmService.resetScopeWasmRuntimeForTests();
+
+    const moduleInfo = await wasmService.getScopeWasmModuleInfo();
+
+    expect(moduleInfo.runtimeMode).toBe('js-fallback');
+    expect(moduleInfo.fallbackReason).toContain('404');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back when wasm is disabled or asset probing is unavailable', async () => {
+    vi.stubEnv('VITE_ENABLE_SCOPE_WASM', 'false');
+
+    await preloadScopeWasmRuntime();
+    const disabledInfo = await getScopeWasmModuleInfo();
+
+    expect(disabledInfo.runtimeMode).toBe('js-fallback');
+    expect(disabledInfo.fallbackReason).toContain('disabled');
+
+    resetScopeWasmRuntimeForTests();
+    vi.stubEnv('VITE_ENABLE_SCOPE_WASM', 'true');
+    vi.stubGlobal('fetch', undefined);
+
+    const noFetchInfo = await getScopeWasmModuleInfo();
+
+    expect(noFetchInfo.runtimeMode).toBe('js-fallback');
+    expect(noFetchInfo.algorithmsReady).toBe(true);
+  });
+
+  it('keeps projected point ordering stable for shared rows, columns, and wrapped worlds', async () => {
+    const viewport = {
+      west: -98,
+      south: 30,
+      east: -97,
+      north: 31,
+      width: 1000,
+      height: 600,
+      zoom: 8,
+    };
+
+    const rowOrderedClusters = await clusterViewportPoints(
+      [
+        { id: 'east', latitude: 30.5, longitude: -97.2 },
+        { id: 'west', latitude: 30.5, longitude: -97.8 },
+        { id: 'middle', latitude: 30.5, longitude: -97.5 },
+      ],
+      viewport,
+      { radiusPx: 1, minPoints: 2, includeSingles: true },
+    );
+
+    expect(rowOrderedClusters.map((entry) => entry.id)).toEqual(['west', 'middle', 'east']);
+
+    const wrappedWorldClusters = await clusterViewportPoints(
+      [
+        { id: 'wrapped-east', latitude: 0, longitude: 540.25 },
+        { id: 'date-line', latitude: 0, longitude: 180.1 },
+      ],
+      { west: 170, south: -10, east: -170, north: 10, width: 1000, height: 500, zoom: 3 },
+      { radiusPx: 1, minPoints: 2, includeSingles: true },
+    );
+
+    expect(wrappedWorldClusters.flatMap((entry) => entry.pointIds)).toEqual(
+      expect.arrayContaining(['wrapped-east', 'date-line']),
+    );
+
+    const verticalHull = await buildViewportConvexHull(
+      [
+        { id: 'column-top', latitude: 30.82, longitude: -97.5 },
+        { id: 'column-bottom', latitude: 30.18, longitude: -97.5 },
+        { id: 'left', latitude: 30.48, longitude: -97.86 },
+        { id: 'right', latitude: 30.56, longitude: -97.14 },
+        { id: 'interior', latitude: 30.5, longitude: -97.5 },
+      ],
+      viewport,
+    );
+
+    expect(verticalHull.valid).toBe(true);
+    expect(verticalHull.hullPointIds).toEqual(expect.arrayContaining(['column-top', 'column-bottom', 'left', 'right']));
+    expect(verticalHull.hullPointCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('returns empty and line-style hulls for sparse visible point sets', async () => {
+    const emptyHull = await buildViewportConvexHull(
+      [
+        { id: 'outside', latitude: 50, longitude: -120 },
+        { id: 'invalid', latitude: undefined, longitude: -97 },
+      ],
+      { west: -98, south: 30, east: -97, north: 31, width: 1200, height: 800, zoom: 8 },
+    );
+
+    expect(emptyHull).toMatchObject({
+      valid: false,
+      pointCount: 0,
+      hullPointCount: 0,
+      pointIds: [],
+      hull: [],
+    });
+
+    const lineHull = await buildViewportConvexHull(
+      [
+        { id: 'line-a', latitude: 30.1, longitude: -97.9 },
+        { id: 'line-b', latitude: 30.2, longitude: -97.8 },
+        { id: 'line-b-duplicate', latitude: 30.2, longitude: -97.8 },
+      ],
+      { west: -98, south: 30, east: -97, north: 31, width: 1200, height: 800, zoom: 8 },
+    );
+
+    expect(lineHull.valid).toBe(true);
+    expect(lineHull.hullPointCount).toBeLessThanOrEqual(2);
+    expect(lineHull.areaSquarePx).toBe(0);
+    expect(lineHull.perimeterPx).toBeGreaterThan(0);
+  });
+
+  it('lexes Scope AI map commands into compiler-style command tokens', () => {
+    const tokens = lexScopeAiCommandText('map dallas tx zoom in');
+
+    expect(tokens).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'map_keyword', normalized: 'map' }),
+      expect.objectContaining({ type: 'zoom_keyword', normalized: 'zoom' }),
+      expect.objectContaining({ type: 'zoom_direction', normalized: 'in' }),
+      expect.objectContaining({ type: 'place_span', normalized: 'dallas tx' }),
+    ]));
+  });
+
+  it('lexes sharing, invite, visibility, endpoint, and delete command vocabulary', () => {
+    const tokens = lexScopeAiCommandText('share with john@example.com viewer and delete destination');
+
+    expect(tokens).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'document_action', normalized: 'share' }),
+      expect.objectContaining({ type: 'email', normalized: 'john@example.com' }),
+      expect.objectContaining({ type: 'role', normalized: 'viewer' }),
+      expect.objectContaining({ type: 'document_action', normalized: 'delete' }),
+      expect.objectContaining({ type: 'endpoint_keyword', normalized: 'destination' }),
+    ]));
+  });
+
+  it('uses the same lexer contract through the runtime fallback when wasm is unavailable', async () => {
+    const message = 'invite @maya editor then switch map dark';
+    const syncTokens = lexScopeAiCommandText(message);
+    const runtimeTokens = await lexScopeAiCommandTextWithRuntime(message);
+
+    expect(runtimeTokens).toEqual(syncTokens);
+    expect(runtimeTokens).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'handle', normalized: '@maya' }),
+      expect.objectContaining({ type: 'role', normalized: 'editor' }),
+      expect.objectContaining({ type: 'map_style', normalized: 'dark' }),
+    ]));
+  });
+
+  it.each([
+    ['map dallas tx zoom in', [
+      ['map_keyword', 'map'],
+      ['zoom_keyword', 'zoom'],
+      ['zoom_direction', 'in'],
+      ['place_span', 'dallas tx'],
+    ]],
+    ['switch map dark', [
+      ['map_control', 'switch'],
+      ['map_keyword', 'map'],
+      ['map_style', 'dark'],
+    ]],
+    ['share with john@example.com viewer and delete destination', [
+      ['document_action', 'share'],
+      ['email', 'john@example.com'],
+      ['role', 'viewer'],
+      ['document_action', 'delete'],
+      ['endpoint_keyword', 'destination'],
+    ]],
+    ['nvm remove start then invite @maya editor', [
+      ['document_action', 'remove'],
+      ['endpoint_keyword', 'start'],
+      ['document_action', 'invite'],
+      ['handle', '@maya'],
+      ['role', 'editor'],
+    ]],
+    ['rename this trip to Tokyo food crawl', [
+      ['document_action', 'rename'],
+      ['word', 'tokyo'],
+      ['place_span', 'tokyo food crawl'],
+    ]],
+    ['make this trip private and fit route', [
+      ['document_action', 'private'],
+      ['map_control', 'fit'],
+    ]],
+    ['zoomigng into dallas tx and remvoe strt', [
+      ['zoom_keyword', 'zooming'],
+      ['place_span', 'dallas tx'],
+      ['document_action', 'remove'],
+      ['endpoint_keyword', 'start'],
+    ]],
+    ['sahre with john@example.com viewer then make it privte', [
+      ['document_action', 'share'],
+      ['email', 'john@example.com'],
+      ['role', 'viewer'],
+      ['document_action', 'private'],
+    ]],
+    ['mpa route fitt then cnfirm delte', [
+      ['map_keyword', 'map'],
+      ['word', 'route'],
+      ['map_control', 'fit'],
+      ['document_action', 'confirm'],
+      ['document_action', 'delete'],
+    ]],
+    ['shre with @maya viewer and make it brite map', [
+      ['document_action', 'share'],
+      ['handle', '@maya'],
+      ['role', 'viewer'],
+      ['map_style', 'bright'],
+      ['map_keyword', 'map'],
+    ]],
+    ['swtich map drak and shre with @maya viwer', [
+      ['map_control', 'switch'],
+      ['map_keyword', 'map'],
+      ['map_style', 'dark'],
+      ['document_action', 'share'],
+      ['handle', '@maya'],
+      ['role', 'viewer'],
+    ]],
+    ['toggel map lite then invite @maya edtor', [
+      ['map_control', 'toggle'],
+      ['map_keyword', 'map'],
+      ['map_style', 'light'],
+      ['document_action', 'invite'],
+      ['handle', '@maya'],
+      ['role', 'editor'],
+    ]],
+  ] as const)('keeps the Scope AI lexer golden corpus stable for "%s"', (message, expectedTokens) => {
+    const tokens = lexScopeAiCommandTextFallbackForTests(message);
+
+    for (const [type, normalized] of expectedTokens) {
+      expect(tokens).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type, normalized }),
+      ]));
+    }
   });
 });

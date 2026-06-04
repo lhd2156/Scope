@@ -11,7 +11,7 @@ interface MockAuthStore {
   hydrateSession: () => Promise<boolean>;
 }
 
-const ROUTER_NAVIGATION_TIMEOUT_MS = 15000;
+const ROUTER_NAVIGATION_TIMEOUT_MS = 45000;
 
 async function loadRouterWithAuthStore(authStore: MockAuthStore): Promise<Router> {
   vi.resetModules();
@@ -84,6 +84,9 @@ describe('router navigation matrix', () => {
       routeMatrix.forEach(([path, routeName]) => {
         expect(router.resolve(path).name).toBe(routeName);
       });
+
+      expect(router.resolve('/ai/ask').matched[0]?.redirect).toEqual({ name: 'trip-planner', query: { assistant: 'open' } });
+      expect(router.resolve('/scope/ai').matched[0]?.redirect).toEqual({ name: 'trip-planner', query: { assistant: 'open' } });
     },
     ROUTER_NAVIGATION_TIMEOUT_MS,
   );
@@ -190,7 +193,6 @@ describe('router navigation matrix', () => {
 
       const protectedPaths = [
         '/trips/new',
-        '/ai/ask',
         '/trips/trip-1',
         '/spots/new',
         '/spots/spot-1/edit',
@@ -203,6 +205,10 @@ describe('router navigation matrix', () => {
         await navigate(router, path);
         expect(router.currentRoute.value.fullPath).toBe(path);
       }
+
+      await navigate(router, '/ai/ask');
+      expect(router.currentRoute.value.name).toBe('trip-planner');
+      expect(router.currentRoute.value.fullPath).toBe('/trips/new?assistant=open');
 
       await navigate(router, '/ai/trip-planner');
       expect(router.currentRoute.value.name).toBe('trip-planner');

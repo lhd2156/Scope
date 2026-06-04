@@ -17,6 +17,13 @@ public sealed class PasswordPolicyTests
         Assert.False(result.IsValid);
     }
 
+    [Fact]
+    public void Validate_RejectsMissingAndCommonPasswords()
+    {
+        Assert.False(sut.Validate("").IsValid);
+        Assert.False(sut.Validate("scope_dev_2026!").IsValid);
+    }
+
     [Theory]
     [InlineData("SecurePass123!")]
     [InlineData("Long-Enough-Passphrase-42")]
@@ -38,5 +45,11 @@ public sealed class PasswordPolicyTests
     {
         var result = sut.Validate("louisIsGreat9!", email: "louis@example.com");
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task NullPasswordBreachChecker_AlwaysAllows()
+    {
+        Assert.False(await new NullPasswordBreachChecker().IsBreachedAsync("anything"));
     }
 }

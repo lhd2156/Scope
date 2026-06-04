@@ -1,12 +1,16 @@
 EXPECTED_INTEL_ENDPOINTS = {
     "/api/intel/classify-image": {"POST"},
+    "/api/intel/fuel/stations": {"GET"},
     "/api/intel/geocode": {"GET"},
     "/api/intel/health": {"GET"},
     "/api/intel/itinerary/<itinerary_id>": {"GET"},
     "/api/intel/itinerary/generate": {"POST"},
     "/api/intel/agent/plan-trip": {"POST"},
+    "/api/intel/agent/trip-chat": {"POST"},
     "/api/intel/metrics": {"GET"},
     "/api/intel/ml/info": {"GET"},
+    "/api/intel/place-photo": {"GET"},
+    "/api/intel/place/verify": {"POST"},
     "/api/intel/predict-trip": {"POST"},
     "/api/intel/recommend/feedback": {"POST"},
     "/api/intel/recommend/ncf": {"POST"},
@@ -15,17 +19,16 @@ EXPECTED_INTEL_ENDPOINTS = {
     "/api/intel/reverse-geocode": {"GET"},
     "/api/intel/route/optimize": {"POST"},
     "/api/intel/sentiment": {"POST"},
+    "/api/intel/travel/nearby": {"POST"},
     "/api/intel/vibe-match": {"POST"},
     "/api/intel/weather": {"GET"},
+    "/api/intel/weather/current": {"GET"},
 }
 
 PUBLIC_INTEL_ENDPOINTS = {
-    "/api/intel/classify-image",
     "/api/intel/health",
     "/api/intel/metrics",
     "/api/intel/ml/info",
-    "/api/intel/predict-trip",
-    "/api/intel/sentiment",
 }
 
 

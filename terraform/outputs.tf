@@ -100,6 +100,61 @@ output "lightsail_blueprint_id" {
   value       = local.deploy_lightsail ? aws_lightsail_instance.scope[0].blueprint_id : null
 }
 
+output "lightsail_data_disk_size_gib" {
+  description = "Attached Lightsail block storage size for durable Compose data."
+  value       = local.lightsail_manage_data_disk ? aws_lightsail_disk.scope_data[0].size_in_gb : 0
+}
+
+output "lightsail_data_disk_name" {
+  description = "Attached Lightsail block storage disk name for durable Compose data."
+  value       = local.lightsail_manage_data_disk ? aws_lightsail_disk.scope_data[0].name : null
+}
+
+output "ec2_compose_instance_id" {
+  description = "EC2 instance ID for the Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? aws_instance.ec2_compose[0].id : null
+}
+
+output "ec2_compose_public_ip" {
+  description = "Public IP for the EC2 Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? local.ec2_compose_public_ip : null
+}
+
+output "ec2_compose_private_ip" {
+  description = "Private IP for the EC2 Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? aws_instance.ec2_compose[0].private_ip : null
+}
+
+output "ec2_compose_username" {
+  description = "Default SSH username for the EC2 Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? "ec2-user" : null
+}
+
+output "ec2_compose_instance_type" {
+  description = "EC2 instance type for the Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? aws_instance.ec2_compose[0].instance_type : null
+}
+
+output "ec2_compose_root_volume_size_gib" {
+  description = "Root gp3 EBS volume size for the EC2 Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? var.ec2_compose_root_volume_size_gib : null
+}
+
+output "ec2_compose_root_snapshot_policy_id" {
+  description = "AWS DLM policy ID for EC2 Compose root volume snapshots."
+  value       = local.ec2_compose_enable_snapshots ? aws_dlm_lifecycle_policy.ec2_compose_root[0].id : null
+}
+
+output "compose_host_public_ip" {
+  description = "Public IP for the selected single-host Compose runtime."
+  value       = local.deploy_lightsail ? aws_lightsail_static_ip.scope[0].ip_address : local.deploy_ec2_compose ? local.ec2_compose_public_ip : null
+}
+
+output "compose_host_username" {
+  description = "SSH username for the selected single-host Compose runtime."
+  value       = local.deploy_lightsail ? aws_lightsail_instance.scope[0].username : local.deploy_ec2_compose ? "ec2-user" : null
+}
+
 output "high_cost_resources_enabled" {
   description = "Whether the profile currently includes EKS, NAT, and RDS resources."
   value       = local.deploy_full_stack
@@ -107,5 +162,45 @@ output "high_cost_resources_enabled" {
 
 output "always_on_compute_enabled" {
   description = "Whether the selected profile includes an always-on Scope runtime."
-  value       = local.deploy_lightsail || local.deploy_full_stack
+  value       = local.deploy_lightsail || local.deploy_ec2_compose || local.deploy_full_stack
+}
+
+output "credit_guard_estimated_runtime_cost_usd" {
+  description = "Estimated cost for the selected profile across the configured credit window."
+  value       = local.credit_guard_estimated_runtime_cost_usd
+}
+
+output "credit_guard_profile_monthly_estimate_usd" {
+  description = "Monthly cost estimate used by the credit guard for the selected profile."
+  value       = lookup(local.credit_guard_profile_monthly_usd, local.stack_profile, var.credit_guard_full_monthly_usd)
+}
+
+output "credit_guard_addon_monthly_estimate_usd" {
+  description = "Optional monthly add-on reserve included in the credit guard."
+  value       = var.credit_guard_addon_monthly_usd
+}
+
+output "credit_guard_addon_name" {
+  description = "Label for the optional monthly add-on reserve."
+  value       = var.credit_guard_addon_name
+}
+
+output "credit_guard_total_monthly_estimate_usd" {
+  description = "Total monthly estimate used by the credit guard after add-on reserves."
+  value       = local.credit_guard_total_monthly_usd
+}
+
+output "credit_guard_limit_usd" {
+  description = "Credit guard ceiling configured for this stack."
+  value       = var.credit_guard_limit_usd
+}
+
+output "credit_guard_remaining_runtime_budget_usd" {
+  description = "Estimated budget remaining inside the credit guard after the selected profile and add-on reserve."
+  value       = floor((var.credit_guard_limit_usd - local.credit_guard_estimated_runtime_cost_usd) * 100) / 100
+}
+
+output "credit_guard_expires_on" {
+  description = "UTC date after which Terraform refuses credit-guarded applies."
+  value       = var.credit_guard_expires_on
 }

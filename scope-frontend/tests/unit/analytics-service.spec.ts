@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AnalyticsRecord } from '@/services/analyticsService';
 import {
+  attachAnalyticsPageEngagementTracker,
+  beginRoutePageEngagement,
   createAnalyticsPageEngagementTracker,
   createAnalyticsService,
   trackScopeAiInteraction,
@@ -493,5 +495,220 @@ describe('analyticsService', () => {
     analytics.flushProviders();
 
     expect(providerFlush).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps provider registration, removal, and queued replay explicit', () => {
+    const firstProviderTrack = vi.fn();
+    const secondProviderTrack = vi.fn();
+    const analytics = createAnalyticsService({
+      consent: 'granted',
+      providers: [
+        { id: 'first', track: firstProviderTrack },
+        { id: 'second', track: secondProviderTrack },
+      ],
+      now: () => new Date('2026-04-01T08:00:00.000Z'),
+    });
+
+    expect(analytics.isEnabled()).toBe(true);
+    expect(analytics.getConsent()).toBe('granted');
+
+    analytics.trackEvent({ name: 'initial_dispatch', path: '/map' });
+    analytics.unregisterProvider('first');
+    analytics.trackEvent({ name: 'after_unregister', path: '/map' });
+    analytics.clearProviders();
+    analytics.trackEvent({ name: 'queued_without_provider', path: '/map' });
+
+    expect(firstProviderTrack).toHaveBeenCalledTimes(1);
+    expect(secondProviderTrack).toHaveBeenCalledTimes(2);
+    expect(analytics.getQueuedRecords()).toHaveLength(1);
+
+    analytics.registerProvider({ id: 'first', track: firstProviderTrack });
+
+    expect(analytics.getQueuedRecords()).toHaveLength(0);
+    expect(firstProviderTrack).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'event',
+      name: 'queued_without_provider',
+      timestamp: '2026-04-01T08:00:00.000Z',
+    }));
+  });
+
+  it('updates an active page session and flushes pagehide sessions from attached listeners', () => {
+    const trackEngagement = vi.fn();
+    let nowMs = 0;
+    let hidden = false;
+    let scrollY = 0;
+    const originalHiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+    const originalScrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
+    const originalDocumentClientHeightDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, 'clientHeight');
+    const originalDocumentScrollHeightDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, 'scrollHeight');
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    });
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      get: () => scrollY,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      configurable: true,
+      get: () => 500,
+    });
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => 1000,
+    });
+
+    try {
+      const pageTracker = createAnalyticsPageEngagementTracker({
+        tracker: { trackEngagement },
+        now: () => nowMs,
+        win: window,
+        doc: document,
+      });
+
+      pageTracker.recordMapInteraction('ignored-before-session');
+      pageTracker.attach();
+      pageTracker.attach();
+      pageTracker.beginPage({
+        path: '/planner',
+        fullPath: '/planner?draft=1',
+        routeName: 'planner',
+        metadata: { requiresAuth: true },
+      });
+      pageTracker.beginPage({
+        path: '/planner',
+        fullPath: '/planner?draft=1',
+        title: 'Updated planner title',
+        routeName: 'planner',
+        metadata: { guestOnly: false },
+      });
+
+      nowMs = 2_000;
+      hidden = true;
+      scrollY = 250;
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      nowMs = 3_000;
+      window.dispatchEvent(new Event('pagehide'));
+      pageTracker.detach();
+      pageTracker.detach();
+
+      expect(trackEngagement).toHaveBeenCalledTimes(2);
+      expect(trackEngagement).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        metric: 'time_on_page',
+        title: 'Updated planner title',
+        durationMs: 2000,
+        metadata: expect.objectContaining({
+          pageKey: '/planner?draft=1',
+          flushReason: 'pagehide',
+          requiresAuth: true,
+          guestOnly: false,
+        }),
+      }));
+      expect(trackEngagement).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        metric: 'scroll_depth',
+        value: 50,
+      }));
+    } finally {
+      restoreProperty(document, 'hidden', originalHiddenDescriptor);
+      restoreProperty(window, 'scrollY', originalScrollYDescriptor);
+      restoreProperty(document.documentElement, 'clientHeight', originalDocumentClientHeightDescriptor);
+      restoreProperty(document.documentElement, 'scrollHeight', originalDocumentScrollHeightDescriptor);
+    }
+  });
+
+  it('supports functional route meta and hash-trimmed query strings', () => {
+    const tracker = {
+      trackPageView: vi.fn(),
+    };
+
+    trackRoutePageView({
+      path: '/explore',
+      fullPath: '/explore?city=austin#spots',
+      name: Symbol('explore'),
+      meta: {
+        title: (route) => route.path === '/explore' ? 'Dynamic Explore' : false,
+        robots: () => false,
+        requiresAuth: false,
+        guestOnly: true,
+      },
+    } as Parameters<typeof trackRoutePageView>[0], tracker);
+
+    expect(tracker.trackPageView).toHaveBeenCalledWith({
+      path: '/explore',
+      title: 'Dynamic Explore',
+      routeName: undefined,
+      search: '?city=austin',
+      metadata: {
+        requiresAuth: false,
+        guestOnly: true,
+        robots: undefined,
+      },
+    });
+  });
+
+  it('trims Scope AI samples without requiring an assistant response', () => {
+    const tracker = {
+      trackEvent: vi.fn(),
+    };
+
+    trackScopeAiInteraction({
+      interactionId: 'turn-without-assistant',
+      source: 'suggestion',
+      prompt: `\n        ${'Keep this trip affordable and outdoors. '.repeat(30)}\n      `,
+      responseKind: 'error',
+      conversationTurnCount: 4,
+      hasStart: false,
+      hasEnd: true,
+      stopCount: 0,
+      interestCount: 1,
+    }, tracker);
+
+    const payload = tracker.trackEvent.mock.calls[0]?.[0];
+
+    expect(payload).toMatchObject({
+      name: 'scope_ai_interaction',
+      label: 'suggestion',
+      value: 4,
+      metadata: expect.objectContaining({
+        interactionId: 'turn-without-assistant',
+        assistantSample: undefined,
+        assistantLength: undefined,
+        responseKind: 'error',
+      }),
+    });
+    expect(payload.metadata.promptSample).toHaveLength(600);
+    expect(payload.metadata.promptSample).not.toContain('\n');
+  });
+
+  it('delegates attach and route engagement helpers to their supplied trackers', () => {
+    const attach = vi.fn();
+    const beginPage = vi.fn();
+
+    attachAnalyticsPageEngagementTracker({ attach });
+    beginRoutePageEngagement({
+      path: '/map',
+      fullPath: '/map',
+      name: 'map',
+      meta: {
+        title: 'Map | Scope',
+        requiresAuth: false,
+      },
+    } as Parameters<typeof beginRoutePageEngagement>[0], { beginPage });
+
+    expect(attach).toHaveBeenCalledTimes(1);
+    expect(beginPage).toHaveBeenCalledWith({
+      path: '/map',
+      fullPath: '/map',
+      title: 'Map | Scope',
+      routeName: 'map',
+      search: undefined,
+      metadata: {
+        requiresAuth: false,
+        guestOnly: false,
+        robots: undefined,
+      },
+    });
   });
 });

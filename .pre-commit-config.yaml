@@ -21,7 +21,7 @@ repos:
     rev: v8.21.2
     hooks:
       - id: gitleaks
-        args: ['protect', '--verbose', '--redact', '--staged']
+        args: ['protect', '--verbose', '--redact', '--staged', '--config', '.gitleaks.toml']
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
@@ -41,6 +41,6 @@ repos:
     hooks:
       - id: forbid-hardcoded-scope-dev-password
         name: Forbid legacy Scope_Dev_2026! literal
-        entry: bash -c 'if git diff --cached | grep -E "Scope_Dev_[0-9]+!" >/dev/null; then echo "Refusing to commit Scope_Dev_... password literal. Rotate the secret and use CHANGE_ME_* in examples."; exit 1; fi'
+        entry: bash -c 'if git diff --cached -U0 | grep -E "^\+.*Scope_Dev_[0-9]+!" >/dev/null; then echo "Refusing to commit Scope_Dev_... password literal. Rotate the secret and use CHANGE_ME_* in examples."; exit 1; fi'
         language: system
         pass_filenames: false

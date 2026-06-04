@@ -1,8 +1,21 @@
 # Pull request
 
-## Summary
+## SDLC summary
 
-<!-- What changed and why. Link issues with `Fixes #123` or `Refs #123`. -->
+- Change type:
+- Scope / services:
+- Requirement / issue:
+- User or operator impact:
+
+## Design / contract notes
+
+<!-- API/schema/env/config/migration notes, or "None". -->
+
+## Implementation checklist
+
+- [ ] Change stays within documented service boundaries or explains cross-service impact.
+- [ ] API contracts, env vars, migrations, and runbooks updated when behavior changed.
+- [ ] No unrelated files staged.
 
 ## Security checklist
 
@@ -13,13 +26,21 @@
 - [ ] New HTTP clients set explicit timeouts and obey the service's allow-list for outbound hosts.
 - [ ] New dependencies pass `pip-audit` / `npm audit` / `dotnet list package --vulnerable` locally.
 - [ ] Threat model impact considered (auth, trust boundary, PII, privileges). Describe below if yes.
+- [ ] Data retention/privacy impact considered if user data, uploads, logs, or analytics changed.
 
-## Test plan
+## Verification plan
 
-- [ ] Unit / service tests added or updated.
-- [ ] Manual verification steps documented here.
-- [ ] CI green (`ci.yml`, CodeQL, gitleaks, Trivy).
+| Area | Command / evidence | Result |
+|---|---|---|
+| Unit/service |  |  |
+| Integration/e2e |  |  |
+| Coverage |  |  |
+| Security/static scan |  |  |
+| Manual/smoke |  |  |
 
-## Rollout / rollback
+## Release / rollback
 
-<!-- Deployment notes, feature flags, data migrations, rollback steps. -->
+- Rollout:
+- Rollback:
+- Migration/data impact:
+- Observability:

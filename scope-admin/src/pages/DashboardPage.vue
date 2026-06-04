@@ -39,19 +39,31 @@ onMounted(() => {
       <article class="glass-panel admin-card">
         <h2>User signups</h2>
         <div class="bar-row">
-          <span v-for="item in dashboard.userGrowth" :key="item.label" :style="{ height: `${20 + (item.users ?? 0)}px` }" />
+          <span
+            v-for="item in dashboard.userGrowth"
+            :key="item.label"
+            :style="{ height: `${20 + (item.users ?? 0)}px` }"
+          />
         </div>
       </article>
       <article class="glass-panel admin-card">
         <h2>Spots created</h2>
         <div class="bar-row teal">
-          <span v-for="item in dashboard.spotGrowth" :key="item.label" :style="{ height: `${20 + (item.spots ?? 0)}px` }" />
+          <span
+            v-for="item in dashboard.spotGrowth"
+            :key="item.label"
+            :style="{ height: `${20 + (item.spots ?? 0)}px` }"
+          />
         </div>
       </article>
       <article class="glass-panel admin-card">
         <h2>Engagement</h2>
         <div class="bar-row amber">
-          <span v-for="item in dashboard.engagement" :key="item.label" :style="{ height: `${20 + ((item.likes ?? 0) / 8)}px` }" />
+          <span
+            v-for="item in dashboard.engagement"
+            :key="item.label"
+            :style="{ height: `${20 + (item.likes ?? 0) / 8}px` }"
+          />
         </div>
       </article>
     </section>

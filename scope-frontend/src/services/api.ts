@@ -4,12 +4,14 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import type { ApiErrorDetail, ApiErrorResponse } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '/';
 const API_TIMEOUT_MS = 10_000;
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
+const TRANSIENT_RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const MAX_TRANSIENT_IDEMPOTENT_RETRIES = 2;
 const REFRESH_ENDPOINT_PATH = '/api/core/auth/refresh';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 const CSRF_BOOTSTRAP_ENDPOINT = import.meta.env.VITE_CSRF_ENDPOINT?.trim() || '';
@@ -18,11 +20,13 @@ const CSRF_COOKIE_NAMES = ['XSRF-TOKEN', 'csrftoken', 'csrf-token', 'csrfToken']
 let accessToken = '';
 let csrfToken = '';
 let csrfBootstrapPromise: Promise<string | null> | null = null;
+let accessTokenRefreshPromise: Promise<string | null> | null = null;
 let refreshAccessTokenHandler: (() => Promise<string | null>) | null = null;
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _transientRetryCount?: number;
   scopeSkipAuthRefresh?: boolean;
   scopeSkipCsrfBootstrap?: boolean;
 }
@@ -195,9 +199,17 @@ function isMutatingRequest(requestConfig: InternalAxiosRequestConfig): boolean {
   return MUTATING_METHODS.has((requestConfig.method ?? 'get').toLowerCase());
 }
 
+function isIdempotentRequest(requestConfig: InternalAxiosRequestConfig): boolean {
+  return IDEMPOTENT_METHODS.has((requestConfig.method ?? 'get').toLowerCase());
+}
+
 function isRefreshRequest(requestConfig: InternalAxiosRequestConfig | undefined): boolean {
   const url = requestConfig?.url ?? '';
   return url.includes(REFRESH_ENDPOINT_PATH);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
 async function bootstrapCsrfToken(): Promise<string> {
@@ -245,6 +257,20 @@ async function bootstrapCsrfToken(): Promise<string> {
 
 async function runUnauthorizedHandler(): Promise<void> {
   await unauthorizedHandler?.();
+}
+
+async function refreshAccessTokenOnce(): Promise<string | null> {
+  if (!refreshAccessTokenHandler) {
+    return null;
+  }
+
+  if (!accessTokenRefreshPromise) {
+    accessTokenRefreshPromise = refreshAccessTokenHandler().finally(() => {
+      accessTokenRefreshPromise = null;
+    });
+  }
+
+  return accessTokenRefreshPromise;
 }
 
 function getNetworkFailureMessage(error: AxiosError<ApiErrorResponse>): string {
@@ -301,13 +327,6 @@ function normalizeApiError(error: unknown): ApiClientError {
 }
 
 async function applyRequestHeaders(config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> {
-  if (DEMO_MODE_ENABLED) {
-    throw new ApiClientError({
-      message: 'Scope demo mode routes API requests to local fixture data.',
-      code: 'demo_mode',
-    });
-  }
-
   const requestConfig = config as RetriableRequestConfig;
   const headers = AxiosHeaders.from(requestConfig.headers);
 
@@ -358,7 +377,7 @@ async function retryUnauthorizedRequest(error: AxiosError<ApiErrorResponse>): Pr
   requestConfig._retry = true;
 
   try {
-    const refreshedToken = await refreshAccessTokenHandler();
+    const refreshedToken = await refreshAccessTokenOnce();
 
     if (!refreshedToken) {
       await runUnauthorizedHandler();
@@ -379,6 +398,27 @@ async function retryUnauthorizedRequest(error: AxiosError<ApiErrorResponse>): Pr
   }
 }
 
+async function retryTransientIdempotentRequest(error: AxiosError<ApiErrorResponse>): Promise<AxiosResponse | null> {
+  const requestConfig = error.config as RetriableRequestConfig | undefined;
+  if (!requestConfig || !isIdempotentRequest(requestConfig) || isRefreshRequest(requestConfig)) {
+    return null;
+  }
+
+  const status = error.response?.status;
+  if (status && !TRANSIENT_RETRY_STATUS_CODES.has(status)) {
+    return null;
+  }
+
+  const retryCount = requestConfig._transientRetryCount ?? 0;
+  if (retryCount >= MAX_TRANSIENT_IDEMPOTENT_RETRIES) {
+    return null;
+  }
+
+  requestConfig._transientRetryCount = retryCount + 1;
+  await delay(250 * requestConfig._transientRetryCount);
+  return api(requestConfig);
+}
+
 export const setAccessToken = (token: string): void => {
   const trimmed = token.trim();
   // Defensive guard so that a malformed token (ex: accidentally wrapped
@@ -397,9 +437,11 @@ export const clearApiSession = (): void => {
   accessToken = '';
   csrfToken = '';
   csrfBootstrapPromise = null;
+  accessTokenRefreshPromise = null;
 };
 
 export const configureApiSessionHandlers = (handlers: ApiSessionLifecycleHandlers): void => {
+  accessTokenRefreshPromise = null;
   refreshAccessTokenHandler = handlers.refreshAccessToken ?? null;
   unauthorizedHandler = handlers.handleUnauthorized ?? null;
 };
@@ -409,7 +451,9 @@ export const isApiClientError = (error: unknown): error is ApiClientError => err
 api.interceptors.request.use((config) => applyRequestHeaders(config));
 api.interceptors.response.use(
   (response) => captureResponseSessionHeaders(response),
-  async (error: AxiosError<ApiErrorResponse>) => retryUnauthorizedRequest(error),
+  async (error: AxiosError<ApiErrorResponse>) => (
+    await retryTransientIdempotentRequest(error) ?? retryUnauthorizedRequest(error)
+  ),
 );
 
 export default api;

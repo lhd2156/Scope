@@ -1,4 +1,4 @@
-import { createPinia, setActivePinia } from 'pinia';
+﻿import { createPinia, setActivePinia } from 'pinia';
 import { useMapStore } from '@/stores/map';
 
 describe('map store', () => {
@@ -13,7 +13,7 @@ describe('map store', () => {
     expect(mapStore.viewport.zoom).toBe(18);
 
     mapStore.setZoom(1);
-    expect(mapStore.viewport.zoom).toBe(2);
+    expect(mapStore.viewport.zoom).toBe(1.5);
 
     mapStore.activeCategories = ['food'];
     mapStore.toggleCategory('food');
@@ -47,6 +47,7 @@ describe('map store', () => {
       'culture',
       'adventure',
       'shopping',
+      'entertainment',
       'scenic',
       'other',
     ]);

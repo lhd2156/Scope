@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from math import asin, cos, radians, sin, sqrt
+from math import cos, radians
 
 from rest_framework import serializers
 
+from common.geo import haversine_distance_km
+from common.serializer_utils import copy_with_aliases, normalize_text
 from spots.models import Spot
 
 ANNOTATED_PHOTO_FIELDS = ('list_photo_storage_url', 'list_photo_thumbnail_url')
 ANNOTATED_FIELDS_MISSING = object()
+SPOT_INPUT_ALIASES = {
+    'visitedAt': 'visited_at',
+    'isPublic': 'is_public',
+    'postal_code': 'postalCode',
+}
 
 
 def _ordered_prefetched_related(obj, relation_name: str, ordering: tuple[str, ...]):
@@ -26,8 +33,19 @@ def _annotated_photo_urls(obj):
 
 class SpotSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
+    liked = serializers.SerializerMethodField()
     likes_count = serializers.IntegerField(read_only=True)
     average_rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
+    verificationStatus = serializers.CharField(source='verification_status', read_only=True)
+    verificationSource = serializers.CharField(source='verification_source', read_only=True)
+    providerPlaceId = serializers.CharField(source='provider_place_id', read_only=True)
+    providerPlaceName = serializers.CharField(source='provider_place_name', read_only=True)
+    providerPlaceAddress = serializers.CharField(source='provider_place_address', read_only=True)
+    verificationDistanceMeters = serializers.FloatField(source='verification_distance_meters', read_only=True)
+    verifiedAt = serializers.DateTimeField(source='verified_at', read_only=True)
+    safetyStatus = serializers.CharField(source='safety_status', read_only=True)
+    safetyReason = serializers.CharField(source='safety_reason', read_only=True)
+    postalCode = serializers.CharField(source='postal_code', required=False, allow_blank=True)
     rating = serializers.DecimalField(
         max_digits=2,
         decimal_places=1,
@@ -49,53 +67,116 @@ class SpotSerializer(serializers.ModelSerializer):
             'address',
             'city',
             'country',
+            'postalCode',
             'category',
             'vibe',
+            'pillars',
             'rating',
             'visited_at',
             'is_public',
+            'verification_status',
+            'verification_source',
+            'provider_place_id',
+            'provider_place_name',
+            'provider_place_address',
+            'verification_distance_meters',
+            'verified_at',
+            'safety_status',
+            'safety_reason',
+            'verificationStatus',
+            'verificationSource',
+            'providerPlaceId',
+            'providerPlaceName',
+            'providerPlaceAddress',
+            'verificationDistanceMeters',
+            'verifiedAt',
+            'safetyStatus',
+            'safetyReason',
             'created_at',
             'updated_at',
             'photo_url',
+            'liked',
             'likes_count',
             'average_rating',
         ]
-        read_only_fields = ['id', 'user_id', 'created_at', 'updated_at', 'photo_url', 'likes_count', 'average_rating']
-
-    @staticmethod
-    def _normalize_text(value: str) -> str:
-        return value.strip()
+        read_only_fields = [
+            'id',
+            'user_id',
+            'created_at',
+            'updated_at',
+            'photo_url',
+            'liked',
+            'likes_count',
+            'average_rating',
+            'verification_status',
+            'verification_source',
+            'provider_place_id',
+            'provider_place_name',
+            'provider_place_address',
+            'verification_distance_meters',
+            'verified_at',
+            'safety_status',
+            'safety_reason',
+            'verificationStatus',
+            'verificationSource',
+            'providerPlaceId',
+            'providerPlaceName',
+            'providerPlaceAddress',
+            'verificationDistanceMeters',
+            'verifiedAt',
+            'safetyStatus',
+            'safetyReason',
+        ]
 
     def to_internal_value(self, data):
-        if hasattr(data, 'copy'):
-            normalized_data = data.copy()
-            if 'visitedAt' in normalized_data and 'visited_at' not in normalized_data:
-                normalized_data['visited_at'] = normalized_data['visitedAt']
-            if 'isPublic' in normalized_data and 'is_public' not in normalized_data:
-                normalized_data['is_public'] = normalized_data['isPublic']
-            data = normalized_data
-        return super().to_internal_value(data)
+        return super().to_internal_value(copy_with_aliases(data, SPOT_INPUT_ALIASES))
 
     def validate_title(self, value: str) -> str:
-        normalized = self._normalize_text(value)
+        normalized = normalize_text(value)
         if not normalized:
             raise serializers.ValidationError('Title cannot be blank')
         return normalized
 
     def validate_description(self, value: str) -> str:
-        return self._normalize_text(value)
+        return normalize_text(value)
 
     def validate_address(self, value: str) -> str:
-        return self._normalize_text(value)
+        return normalize_text(value)
 
     def validate_city(self, value: str) -> str:
-        return self._normalize_text(value)
+        return normalize_text(value)
 
     def validate_country(self, value: str) -> str:
-        return self._normalize_text(value)
+        return normalize_text(value)
+
+    def validate_postal_code(self, value: str) -> str:
+        return normalize_text(value)
+
+    def validate_postalCode(self, value: str) -> str:  # noqa: N802 - serializer exposes camelCase API field
+        return normalize_text(value)
 
     def validate_vibe(self, value: str) -> str:
-        return self._normalize_text(value)
+        return normalize_text(value)
+
+    def validate_pillars(self, value) -> list[str]:
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Pillars must be a list')
+
+        normalized: list[str] = []
+        for item in value:
+            pillar = normalize_text(str(item))
+            if not pillar:
+                continue
+            if pillar not in Spot.ALLOWED_PILLARS:
+                raise serializers.ValidationError('Unsupported pillar selected')
+            if pillar not in normalized:
+                normalized.append(pillar)
+
+        if len(normalized) > 4:
+            raise serializers.ValidationError('Choose up to 4 pillars')
+        return normalized
 
     def validate_latitude(self, value: float) -> float:
         if not -90 <= value <= 90:
@@ -123,6 +204,9 @@ class SpotSerializer(serializers.ModelSerializer):
         first = photos[0] if photos else None
         return first.storage_url if first else None
 
+    def get_liked(self, obj) -> bool:
+        return bool(getattr(obj, 'liked', False))
+
 
 class SpotDetailSerializer(SpotSerializer):
     photos = serializers.SerializerMethodField()
@@ -148,11 +232,14 @@ class SpotDetailSerializer(SpotSerializer):
 
 class AppendixBSpotCreateResponseSerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    isPublic = serializers.BooleanField(source='is_public', read_only=True)
+    verificationStatus = serializers.CharField(source='verification_status', read_only=True)
+    safetyStatus = serializers.CharField(source='safety_status', read_only=True)
     rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Spot
-        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'rating', 'createdAt']
+        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'pillars', 'rating', 'isPublic', 'verificationStatus', 'safetyStatus', 'createdAt']
 
     @staticmethod
     def get_rating(obj) -> float | None:
@@ -162,11 +249,14 @@ class AppendixBSpotCreateResponseSerializer(serializers.ModelSerializer):
 class AppendixBSpotListItemSerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     photoUrl = serializers.SerializerMethodField()
+    isPublic = serializers.BooleanField(source='is_public', read_only=True)
+    verificationStatus = serializers.CharField(source='verification_status', read_only=True)
+    safetyStatus = serializers.CharField(source='safety_status', read_only=True)
     rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Spot
-        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'rating', 'photoUrl', 'createdAt']
+        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'pillars', 'rating', 'photoUrl', 'isPublic', 'verificationStatus', 'safetyStatus', 'createdAt']
 
     @staticmethod
     def get_rating(obj) -> float | None:
@@ -225,12 +315,7 @@ class NearbyQuerySerializer(serializers.Serializer):
 
     @staticmethod
     def _distance_km(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
-        return 6371 * 2 * asin(
-            sqrt(
-                sin(radians(lat_b - lat_a) / 2) ** 2
-                + cos(radians(lat_a)) * cos(radians(lat_b)) * sin(radians(lng_b - lng_a) / 2) ** 2
-            )
-        )
+        return haversine_distance_km(lat_a, lng_a, lat_b, lng_b)
 
     def _apply_bounding_box(self, queryset, lat: float, lng: float, radius: float):
         latitude_delta = self._latitude_delta(radius)

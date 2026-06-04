@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+from collections import namedtuple
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from PIL import Image
 
 from photos.models import Photo
 from photos.services.thumbnail_worker import ThumbnailWorker
 from spots.models import Spot
+
+FakePartition = namedtuple('FakePartition', ['topic', 'partition'])
 
 
 def _png_bytes(size: tuple[int, int] = (4, 4)) -> bytes:
@@ -96,6 +98,22 @@ def test_handle_payload_rejects_invalid_payload():
     assert worker.handle_payload({'storageKey': 'photos/x.png'}) is False
 
 
+@pytest.mark.django_db
+def test_handle_payload_rejects_storage_key_mismatch(photo_without_thumb):
+    storage = MagicMock()
+    producer = SimpleNamespace(publish=MagicMock(), flush=MagicMock())
+    worker = ThumbnailWorker(storage_service=storage, producer=producer)
+
+    ok = worker.handle_payload({
+        'photoId': str(photo_without_thumb.id),
+        'storageKey': 'photos/other.png',
+    })
+
+    assert ok is False
+    storage.generate_thumbnail_for_storage_key.assert_not_called()
+    producer.publish.assert_not_called()
+
+
 def test_handle_payload_skips_unknown_photo(db):
     """When a photo is deleted between upload and worker consumption, the
     worker should no-op rather than raising or retrying forever."""
@@ -159,6 +177,31 @@ def test_dead_letter_publish_failures_do_not_crash_worker():
     # Should not raise.
     worker._publish_dead_letter(record, ValueError('upstream bad'))
     producer.publish.assert_called_once()
+
+
+def test_process_records_seeks_and_skips_commit_on_retryable_failure(monkeypatch):
+    """A retryable thumbnail failure must not advance the committed offset.
+    The worker seeks back to the failed record so the same process can retry
+    before eventually DLQing a poison event.
+    """
+    partition = FakePartition('photo.thumbnail.requested', 0)
+    record = _make_record(offset=7)
+    consumer = SimpleNamespace(
+        seek=MagicMock(),
+        highwater=MagicMock(return_value=8),
+        position=MagicMock(return_value=7),
+    )
+    worker = ThumbnailWorker(
+        storage_service=MagicMock(),
+        producer=SimpleNamespace(publish=MagicMock(), flush=MagicMock()),
+    )
+    monkeypatch.setattr(worker, 'handle_payload', MagicMock(side_effect=RuntimeError('storage down')))
+
+    should_commit = worker._process_records(consumer, {partition: [record]})
+
+    assert should_commit is False
+    consumer.seek.assert_called_once_with(partition, record.offset)
+    assert worker._attempt_counts[worker._record_key(record)] == 1
 
 
 def test_handle_payload_is_idempotent_when_already_thumbed(db, spot):

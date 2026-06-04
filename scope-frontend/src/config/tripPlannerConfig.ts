@@ -7,6 +7,7 @@ export const TRIP_PLANNER_CATEGORIES: SpotCategory[] = [
   'culture',
   'adventure',
   'shopping',
+  'entertainment',
   'scenic',
   'other',
 ];
@@ -18,6 +19,7 @@ export const TRIP_PLANNER_CATEGORY_LABELS: Record<SpotCategory, string> = {
   culture: 'Culture',
   adventure: 'Adventure',
   shopping: 'Shopping',
+  entertainment: 'Entertainment',
   scenic: 'Scenic',
   other: 'Other',
 };
@@ -29,9 +31,9 @@ export interface TripPaceOption {
 }
 
 export const TRIP_PLANNER_PACE_OPTIONS: TripPaceOption[] = [
-  { value: 'relaxed', label: 'Relaxed', copy: 'Longer meals, softer pacing, and more breathing room.' },
-  { value: 'moderate', label: 'Moderate', copy: 'Balance marquee moments with scenic pauses.' },
-  { value: 'packed', label: 'Packed', copy: 'Stack the route with high-density adventure energy.' },
+  { value: 'relaxed', label: 'Relaxed', copy: 'Easy days.' },
+  { value: 'moderate', label: 'Moderate', copy: 'Balanced stops.' },
+  { value: 'packed', label: 'Packed', copy: 'Full days.' },
 ];
 
 export const TRIP_PLANNER_BUDGET_BOUNDS = {

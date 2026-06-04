@@ -1,5 +1,12 @@
 <template>
-  <header class="navbar" :class="{ 'navbar--scrolled': isScrolled, 'navbar--mobile-open': isMobileMenuOpen }">
+  <header
+    class="navbar"
+    :class="{
+      'navbar--scrolled': isScrolled,
+      'navbar--mobile-open': isMobileMenuOpen,
+      'navbar--notifications-open': isNotificationMenuOpen,
+    }"
+  >
     <div class="navbar__inner">
       <div class="navbar__leading">
         <RouterLink to="/" class="brand" @click="closeMobileMenu()">
@@ -82,16 +89,16 @@
               role="region"
               aria-label="Quick search results"
             >
-              <p class="quick-search-dropdown__eyebrow">Quick search</p>
-              <div v-if="quickSearchLoading" class="quick-search-state" role="status" aria-live="polite">
+              <p class="quick-search-dropdown__eyebrow">{{ quickSearchPanelEyebrow }}</p>
+              <div v-if="quickSearchLoading && hasQuickSearchQuery" class="quick-search-state" role="status" aria-live="polite">
                 Searching Scope...
               </div>
               <div v-else-if="quickSearchError" class="quick-search-state quick-search-state--error" role="alert">
                 {{ quickSearchError }}
               </div>
-              <div v-else-if="quickSearchResults.length" class="quick-search-results" role="list">
+              <div v-else-if="quickSearchPlaceResults.length" class="quick-search-results" role="list" aria-label="Search matches">
                 <button
-                  v-for="result in quickSearchResults"
+                  v-for="result in quickSearchPlaceResults"
                   :key="result.id"
                   type="button"
                   class="quick-search-result"
@@ -103,7 +110,7 @@
                     <ScopeIcon name="pin" />
                   </span>
                   <span class="quick-search-result__copy">
-                    <strong>{{ result.name }}</strong>
+                    <strong>{{ result.title }}</strong>
                     <small>{{ formatQuickSearchResultMeta(result) }}</small>
                     <span v-if="result.description">{{ result.description }}</span>
                   </span>
@@ -112,6 +119,38 @@
               <div v-else-if="hasQuickSearchQuery" class="quick-search-state" role="status">
                 No quick matches yet.
               </div>
+              <section v-if="showQuickSearchRecommendations" class="quick-search-section" aria-labelledby="quick-search-recommendations-title">
+                <div class="quick-search-section__header">
+                  <strong id="quick-search-recommendations-title">{{ quickSearchRecommendationTitle }}</strong>
+                  <span v-if="quickSearchRecommendationPlaces.length">{{ quickSearchRecommendationPlaces.length }} places</span>
+                </div>
+                <div v-if="quickSearchRecommendationsLoading" class="quick-search-state" role="status" aria-live="polite">
+                  Loading recommended places...
+                </div>
+                <div v-else-if="quickSearchRecommendationsError" class="quick-search-state quick-search-state--error" role="alert">
+                  {{ quickSearchRecommendationsError }}
+                </div>
+                <div v-else-if="quickSearchRecommendationPlaces.length" class="quick-search-results quick-search-results--recommendations" role="list">
+                  <button
+                    v-for="result in quickSearchRecommendationPlaces"
+                    :key="`recommended-${result.id}`"
+                    type="button"
+                    class="quick-search-result"
+                    data-test="quick-search-recommendation"
+                    role="listitem"
+                    @click="openQuickSearchResult(result)"
+                  >
+                    <span class="quick-search-result__icon" aria-hidden="true">
+                      <ScopeIcon name="sparkle" />
+                    </span>
+                    <span class="quick-search-result__copy">
+                      <strong>{{ result.title }}</strong>
+                      <small>{{ formatQuickSearchResultMeta(result) }}</small>
+                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope places.' }}</span>
+                    </span>
+                  </button>
+                </div>
+              </section>
             </div>
           </Transition>
         </div>
@@ -132,7 +171,7 @@
           </span>
         </RouterLink>
 
-        <NotificationDropdown v-if="authStore.isAuthenticated" />
+        <NotificationDropdown v-if="authStore.isAuthenticated" @open-change="isNotificationMenuOpen = $event" />
 
         <ThemeToggle />
 
@@ -296,16 +335,16 @@
               role="region"
               aria-label="Quick search results"
             >
-              <p class="quick-search-dropdown__eyebrow">Quick search</p>
-              <div v-if="quickSearchLoading" class="quick-search-state" role="status" aria-live="polite">
+              <p class="quick-search-dropdown__eyebrow">{{ quickSearchPanelEyebrow }}</p>
+              <div v-if="quickSearchLoading && hasQuickSearchQuery" class="quick-search-state" role="status" aria-live="polite">
                 Searching Scope...
               </div>
               <div v-else-if="quickSearchError" class="quick-search-state quick-search-state--error" role="alert">
                 {{ quickSearchError }}
               </div>
-              <div v-else-if="quickSearchResults.length" class="quick-search-results" role="list">
+              <div v-else-if="quickSearchPlaceResults.length" class="quick-search-results" role="list" aria-label="Search matches">
                 <button
-                  v-for="result in quickSearchResults"
+                  v-for="result in quickSearchPlaceResults"
                   :key="`mobile-${result.id}`"
                   type="button"
                   class="quick-search-result"
@@ -317,7 +356,7 @@
                     <ScopeIcon name="pin" />
                   </span>
                   <span class="quick-search-result__copy">
-                    <strong>{{ result.name }}</strong>
+                    <strong>{{ result.title }}</strong>
                     <small>{{ formatQuickSearchResultMeta(result) }}</small>
                     <span v-if="result.description">{{ result.description }}</span>
                   </span>
@@ -326,6 +365,38 @@
               <div v-else-if="hasQuickSearchQuery" class="quick-search-state" role="status">
                 No quick matches yet.
               </div>
+              <section v-if="showQuickSearchRecommendations" class="quick-search-section" aria-labelledby="mobile-quick-search-recommendations-title">
+                <div class="quick-search-section__header">
+                  <strong id="mobile-quick-search-recommendations-title">{{ quickSearchRecommendationTitle }}</strong>
+                  <span v-if="quickSearchRecommendationPlaces.length">{{ quickSearchRecommendationPlaces.length }} places</span>
+                </div>
+                <div v-if="quickSearchRecommendationsLoading" class="quick-search-state" role="status" aria-live="polite">
+                  Loading recommended places...
+                </div>
+                <div v-else-if="quickSearchRecommendationsError" class="quick-search-state quick-search-state--error" role="alert">
+                  {{ quickSearchRecommendationsError }}
+                </div>
+                <div v-else-if="quickSearchRecommendationPlaces.length" class="quick-search-results quick-search-results--recommendations" role="list">
+                  <button
+                    v-for="result in quickSearchRecommendationPlaces"
+                    :key="`mobile-recommended-${result.id}`"
+                    type="button"
+                    class="quick-search-result"
+                    data-test="quick-search-recommendation"
+                    role="listitem"
+                    @click="openQuickSearchResult(result)"
+                  >
+                    <span class="quick-search-result__icon" aria-hidden="true">
+                      <ScopeIcon name="sparkle" />
+                    </span>
+                    <span class="quick-search-result__copy">
+                      <strong>{{ result.title }}</strong>
+                      <small>{{ formatQuickSearchResultMeta(result) }}</small>
+                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope places.' }}</span>
+                    </span>
+                  </button>
+                </div>
+              </section>
             </div>
           </Transition>
         </div>
@@ -374,6 +445,11 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 import { MOBILE_NAV_BREAKPOINT, buildMobileNavLinks } from '@/config/navbarLinks';
+import {
+  loadSearchPlaceRecommendations,
+  recordSearchPlaceSuggestionClick,
+  type SearchPlaceSuggestion,
+} from '@/services/searchDiscoveryService';
 import { searchContent, type SearchResult } from '@/services/searchService';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
@@ -381,11 +457,11 @@ import { focusFirstElement, focusLastElement, getFocusableElements, moveFocus } 
 
 const NotificationDropdown = defineAsyncComponent(() => import('@/components/social/NotificationDropdown.vue'));
 const QUICK_SEARCH_RESULT_LIMIT = 6;
+const QUICK_SEARCH_RECOMMENDATION_LIMIT = 6;
 
 const featureLinks = [
   { label: 'Trips', to: '/trips', icon: 'route' },
   { label: 'New trip', to: '/trips/new', icon: 'plus' },
-  { label: 'Scope AI', to: '/ai/ask', icon: 'sparkle' },
   { label: 'Friends', to: '/friends', icon: 'friends' },
 ] as const;
 
@@ -395,12 +471,16 @@ const route = useRoute();
 const router = useRouter();
 const searchQuery = ref('');
 const quickSearchResults = ref<SearchResult[]>([]);
+const quickSearchRecommendations = ref<SearchPlaceSuggestion[]>([]);
 const quickSearchLoading = ref(false);
+const quickSearchRecommendationsLoading = ref(false);
 const quickSearchError = ref<string | null>(null);
+const quickSearchRecommendationsError = ref<string | null>(null);
 const isQuickSearchOpen = ref(false);
 const isFeatureMenuOpen = ref(false);
 const isMenuOpen = ref(false);
 const isMobileMenuOpen = ref(false);
+const isNotificationMenuOpen = ref(false);
 const isScrolled = ref(false);
 const featureMenuRef = ref<HTMLElement | null>(null);
 const featureMenuButtonRef = ref<HTMLElement | null>(null);
@@ -420,6 +500,23 @@ const mobileMenuId = `navbar-mobile-menu-${useId()}`;
 const mobileMenuTitleId = `navbar-mobile-menu-title-${useId()}`;
 const bodyOverflowBeforeMobileMenu = ref<string | null>(null);
 let quickSearchRequestId = 0;
+let quickSearchRecommendationRequestId = 0;
+
+interface QuickSearchPlace {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  rating?: number;
+  reviewCount?: number;
+  likesCount?: number;
+  city?: string;
+  country?: string;
+  vibe?: string;
+  source: 'search' | SearchPlaceSuggestion['searchSuggestionSource'];
+  recommendationReason?: string;
+}
 
 function formatProfileHandle(username: string): string {
   return `@${username.trim().toLocaleLowerCase()}`;
@@ -454,12 +551,32 @@ const mobileDrawerStatus = computed(() => {
 });
 const normalizedSearchQuery = computed(() => searchQuery.value.trim());
 const hasQuickSearchQuery = computed(() => Boolean(normalizedSearchQuery.value));
+const quickSearchPlaceResults = computed<QuickSearchPlace[]>(() =>
+  quickSearchResults.value.map(mapSearchResultToQuickPlace),
+);
+const quickSearchRecommendationPlaces = computed<QuickSearchPlace[]>(() =>
+  quickSearchRecommendations.value.map(mapSuggestionToQuickPlace),
+);
+const showQuickSearchRecommendations = computed(() =>
+  quickSearchRecommendationsLoading.value ||
+  Boolean(quickSearchRecommendationsError.value) ||
+  Boolean(quickSearchRecommendationPlaces.value.length),
+);
+const quickSearchPanelEyebrow = computed(() =>
+  hasQuickSearchQuery.value ? 'Quick search' : 'Recommended places',
+);
+const quickSearchRecommendationTitle = computed(() =>
+  hasQuickSearchQuery.value ? 'Recommended instead' : 'Recommended for you',
+);
 const showQuickSearchPanel = computed(() =>
   isQuickSearchOpen.value && (
     hasQuickSearchQuery.value ||
     quickSearchLoading.value ||
+    quickSearchRecommendationsLoading.value ||
     Boolean(quickSearchError.value) ||
-    Boolean(quickSearchResults.value.length)
+    Boolean(quickSearchRecommendationsError.value) ||
+    Boolean(quickSearchResults.value.length) ||
+    Boolean(quickSearchRecommendations.value.length)
   ),
 );
 
@@ -479,29 +596,126 @@ function closeQuickSearch(): void {
 }
 
 function handleQuickSearchFocus(): void {
-  if (hasQuickSearchQuery.value || quickSearchResults.value.length || quickSearchLoading.value || quickSearchError.value) {
-    isQuickSearchOpen.value = true;
+  isQuickSearchOpen.value = true;
+
+  if (!hasQuickSearchQuery.value) {
+    void loadQuickSearchRecommendations();
   }
 }
 
-function formatQuickSearchResultMeta(result: SearchResult): string {
+function mapSearchResultToQuickPlace(result: SearchResult): QuickSearchPlace {
+  return {
+    id: result.id.trim(),
+    title: result.name,
+    description: result.description,
+    category: result.category,
+    tags: result.tags,
+    rating: result.avg_rating,
+    reviewCount: result.review_count,
+    source: 'search',
+  };
+}
+
+function mapSuggestionToQuickPlace(spot: SearchPlaceSuggestion): QuickSearchPlace {
+  return {
+    id: spot.id,
+    title: spot.title,
+    description: spot.description,
+    category: spot.category,
+    rating: spot.rating,
+    likesCount: spot.likesCount,
+    city: spot.city,
+    country: spot.country,
+    vibe: spot.vibe,
+    source: spot.searchSuggestionSource,
+    recommendationReason: spot.recommendationReason,
+  };
+}
+
+function normalizeQuickSearchTarget(result: SearchResult | QuickSearchPlace): QuickSearchPlace {
+  if ('name' in result) {
+    return mapSearchResultToQuickPlace(result);
+  }
+
+  return result;
+}
+
+function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): string {
+  if ('name' in result) {
+    const metaParts = [
+      result.category,
+      result.avg_rating ? `${result.avg_rating.toFixed(1)} rating` : '',
+      result.review_count ? `${result.review_count} review${result.review_count === 1 ? '' : 's'}` : '',
+      result.tags?.find((tag) => tag.trim()),
+    ].filter(Boolean);
+
+    return metaParts.length ? metaParts.join(' / ') : 'Scope spot';
+  }
+
   const metaParts = [
     result.category,
-    result.avg_rating ? `${result.avg_rating.toFixed(1)} rating` : '',
-    result.review_count ? `${result.review_count} review${result.review_count === 1 ? '' : 's'}` : '',
+    result.city,
+    result.rating ? `${result.rating.toFixed(1)} rating` : '',
+    result.reviewCount ? `${result.reviewCount} review${result.reviewCount === 1 ? '' : 's'}` : '',
+    result.likesCount ? `${result.likesCount} saves` : '',
+    result.vibe,
     result.tags?.find((tag) => tag.trim()),
   ].filter(Boolean);
 
   return metaParts.length ? metaParts.join(' / ') : 'Scope spot';
 }
 
-async function openQuickSearchResult(result: SearchResult): Promise<void> {
-  const resultId = result.id.trim();
+async function loadQuickSearchRecommendations(options: { force?: boolean } = {}): Promise<void> {
+  if (!options.force && (quickSearchRecommendations.value.length || quickSearchRecommendationsLoading.value)) {
+    return;
+  }
+
+  const requestId = quickSearchRecommendationRequestId + 1;
+  quickSearchRecommendationRequestId = requestId;
+  quickSearchRecommendationsLoading.value = true;
+  quickSearchRecommendationsError.value = null;
+
+  try {
+    const recommendations = await loadSearchPlaceRecommendations({
+      isAuthenticated: authStore.isAuthenticated,
+      currentUser: authStore.currentUser,
+      limit: QUICK_SEARCH_RECOMMENDATION_LIMIT,
+    });
+
+    if (requestId !== quickSearchRecommendationRequestId) {
+      return;
+    }
+
+    quickSearchRecommendations.value = recommendations;
+  } catch {
+    if (requestId !== quickSearchRecommendationRequestId) {
+      return;
+    }
+
+    quickSearchRecommendations.value = [];
+    quickSearchRecommendationsError.value = 'Recommended places are temporarily unavailable.';
+  } finally {
+    if (requestId === quickSearchRecommendationRequestId) {
+      quickSearchRecommendationsLoading.value = false;
+    }
+  }
+}
+
+async function openQuickSearchResult(result: SearchResult | QuickSearchPlace): Promise<void> {
+  const place = normalizeQuickSearchTarget(result);
+  const resultId = place.id.trim();
   closeQuickSearch();
   closeMobileMenu();
 
   if (!resultId) {
     return;
+  }
+
+  if (place.source === 'recommendation') {
+    const matchingSuggestion = quickSearchRecommendations.value.find((spot) => spot.id === resultId);
+    if (matchingSuggestion) {
+      void recordSearchPlaceSuggestionClick(matchingSuggestion);
+    }
   }
 
   await router.push(`/spots/${encodeURIComponent(resultId)}`);
@@ -980,7 +1194,8 @@ async function handleSearch(query: string): Promise<void> {
 
   if (!normalizedQuery) {
     resetQuickSearchState();
-    closeQuickSearch();
+    isQuickSearchOpen.value = true;
+    void loadQuickSearchRecommendations();
     return;
   }
 
@@ -1011,6 +1226,50 @@ async function handleSearch(query: string): Promise<void> {
     }
   }
 }
+
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          closeFeatureMenu,
+          closeMenu,
+          closeMobileMenu,
+          closeQuickSearch,
+          focusFeatureMenuBoundary,
+          focusMenuBoundary,
+          focusMobileDrawerBoundary,
+          formatProfileHandle,
+          formatQuickSearchResultMeta,
+          getFeatureMenuItems,
+          getMenuItems,
+          handleFeatureMenuButtonKeydown,
+          handleFeatureMenuFocusOut,
+          handleFeatureMenuKeydown,
+          handleGlobalMenuKeydown,
+          handleMenuButtonKeydown,
+          handleMenuFocusOut,
+          handleMenuKeydown,
+          handleMobileDrawerKeydown,
+          handleQuickSearchFocus,
+          handleSearch,
+          handleViewportResize,
+          moveFeatureMenuFocus,
+          moveMenuFocus,
+          openFeatureMenu,
+          openMenu,
+          openMobileMenu,
+          openQuickSearchResult,
+          resetQuickSearchState,
+          setMobileScrollLock,
+          syncSearchFromRoute,
+          toggleFeatureMenu,
+          toggleMenu,
+          toggleMobileMenu,
+          updateScrollState,
+        },
+      }
+    : {}),
+});
 
 watch(
   () => route.fullPath,
@@ -1052,6 +1311,24 @@ watch(
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => [
+    authStore.isAuthenticated,
+    authStore.currentUser?.id ?? '',
+    authStore.currentUser?.interests?.join('|') ?? '',
+  ] as const,
+  () => {
+    quickSearchRecommendationRequestId += 1;
+    quickSearchRecommendations.value = [];
+    quickSearchRecommendationsLoading.value = false;
+    quickSearchRecommendationsError.value = null;
+
+    if (isQuickSearchOpen.value && !hasQuickSearchQuery.value) {
+      void loadQuickSearchRecommendations({ force: true });
+    }
+  },
 );
 
 onClickOutside(menuRef, () => {
@@ -1098,25 +1375,28 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .navbar {
+  --navbar-edge-padding: 1rem;
+
   position: fixed;
   inset: 0 0 auto;
   z-index: var(--z-navbar);
   isolation: isolate;
   padding: calc(var(--safe-area-top) + 0.85rem) 0 0.7rem;
   border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 65%, transparent);
-  background:
+  background-color: var(--bg-primary);
+  background-image:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--bg-primary) 72%, transparent) 0%,
-      color-mix(in srgb, var(--bg-primary) 28%, transparent) 76%,
-      transparent 100%
+      color-mix(in srgb, var(--bg-primary) 94%, var(--bg-secondary)) 0%,
+      color-mix(in srgb, var(--bg-primary) 98%, var(--bg-secondary)) 76%,
+      var(--bg-primary) 100%
     );
   opacity: var(--motion-navbar-opacity-rest);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition:
-    opacity var(--transition-normal),
-    background var(--transition-normal),
+    background-color var(--transition-normal),
+    background-image var(--transition-normal),
     border-color var(--transition-normal),
     box-shadow var(--transition-normal),
     padding var(--transition-normal);
@@ -1127,7 +1407,7 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: min(var(--shell-max-width-with-safe-area), 100vw);
+  width: calc(100vw - (var(--navbar-edge-padding) * 2));
   height: 1px;
   border-radius: var(--radius-full);
   background: linear-gradient(
@@ -1143,14 +1423,14 @@ onBeforeUnmount(() => {
 }
 
 .navbar--scrolled {
-  padding: calc(var(--safe-area-top) + 0.65rem) 0 0.55rem;
   border-bottom-color: var(--glass-border);
   opacity: var(--motion-navbar-opacity-scrolled);
-  background:
+  background-color: var(--bg-primary);
+  background-image:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--glass-bg) 95%, transparent) 0%,
-      color-mix(in srgb, var(--bg-primary) 92%, transparent) 100%
+      color-mix(in srgb, var(--bg-primary) 90%, var(--bg-secondary)) 0%,
+      var(--bg-primary) 100%
     );
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--bg-primary) 34%, transparent);
 }
@@ -1163,11 +1443,12 @@ onBeforeUnmount(() => {
 .navbar--mobile-open {
   border-bottom-color: var(--glass-border);
   opacity: var(--motion-navbar-opacity-scrolled);
-  background:
+  background-color: var(--bg-primary);
+  background-image:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--glass-bg) 97%, transparent) 0%,
-      color-mix(in srgb, var(--bg-primary) 94%, transparent) 100%
+      color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary)) 0%,
+      var(--bg-primary) 100%
     );
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--bg-primary) 34%, transparent);
 }
@@ -1177,21 +1458,25 @@ onBeforeUnmount(() => {
   transform: translateX(-50%) scaleX(1);
 }
 
+.navbar--notifications-open {
+  z-index: var(--z-notification);
+}
+
 .navbar__inner {
   width: 100%;
-  max-width: var(--shell-max-width-with-safe-area);
+  max-width: none;
   margin: 0 auto;
-  padding: 0 calc(var(--shell-side-padding) + var(--safe-area-right)) 0 calc(var(--shell-side-padding) + var(--safe-area-left));
+  padding: 0 calc(var(--navbar-edge-padding) + var(--safe-area-right)) 0 calc(var(--navbar-edge-padding) + var(--safe-area-left));
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas: 'leading actions mobile';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'leading actions';
   align-items: center;
   gap: var(--space-5);
   transition: transform var(--transition-normal), gap var(--transition-normal);
 }
 
 .navbar--scrolled .navbar__inner {
-  transform: translateY(var(--motion-button-lift));
+  transform: none;
 }
 
 .brand,
@@ -1387,8 +1672,8 @@ onBeforeUnmount(() => {
 
 .navbar-search {
   width: 100%;
-  min-width: clamp(13rem, 22vw, 18rem);
-  max-width: 20rem;
+  min-width: clamp(18rem, 28vw, 31rem);
+  max-width: 31rem;
   border-color: color-mix(in srgb, var(--glass-border) 92%, transparent);
   background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
   box-shadow:
@@ -1417,10 +1702,10 @@ onBeforeUnmount(() => {
   top: calc(100% + var(--space-2));
   right: 0;
   z-index: var(--z-dropdown);
-  width: min(28rem, calc(100vw - 2rem));
+  width: min(38rem, calc(100vw - 2rem));
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
   background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
   box-shadow:
@@ -1458,9 +1743,43 @@ onBeforeUnmount(() => {
   scrollbar-gutter: stable;
 }
 
+.quick-search-section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.quick-search-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.quick-search-section__header strong {
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-search-section__header span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.quick-search-results--recommendations {
+  max-height: min(21rem, calc(100vh - 13rem));
+}
+
 .quick-search-result {
   width: 100%;
-  min-height: 4.9rem;
+  min-height: 5.35rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3);
@@ -1489,8 +1808,8 @@ onBeforeUnmount(() => {
 }
 
 .quick-search-result__icon {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.35rem;
+  height: 2.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1507,7 +1826,7 @@ onBeforeUnmount(() => {
 .quick-search-result__copy {
   min-width: 0;
   display: grid;
-  gap: 0.24rem;
+  gap: 0.3rem;
 }
 
 .quick-search-result__copy strong,
@@ -1519,7 +1838,7 @@ onBeforeUnmount(() => {
 
 .quick-search-result__copy strong {
   color: var(--text-primary);
-  font-size: var(--font-size-small);
+  font-size: 0.95rem;
   white-space: nowrap;
 }
 
@@ -2321,9 +2640,13 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1440px) {
+  .navbar {
+    --navbar-edge-padding: 1rem;
+  }
+
   .navbar__inner {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-areas: 'leading actions mobile';
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'leading actions';
     gap: var(--space-3);
   }
 
@@ -2332,8 +2655,8 @@ onBeforeUnmount(() => {
   }
 
   .navbar-search {
-    min-width: 12rem;
-    max-width: 15rem;
+    min-width: 16rem;
+    max-width: 22rem;
   }
 
   .actions {
@@ -2365,6 +2688,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1024px) {
+  .navbar {
+    --navbar-edge-padding: var(--shell-side-padding);
+  }
+
   .navbar {
     padding-top: calc(var(--safe-area-top) + 0.75rem);
   }

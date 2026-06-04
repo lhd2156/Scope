@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -28,7 +29,7 @@ Answer the user's question using ONLY the context provided below. The context ma
 
 Rules:
 1. Only cite information present in the context. Do not fabricate or hallucinate.
-2. If the context doesn't contain enough information, say so honestly.
+2. If the context doesn't contain enough information, say that directly.
 3. Be specific. Mention route paths, HTTP methods, service names, spot names, ratings, and review details when present.
 4. Keep answers concise but helpful (2-4 paragraphs max).
 5. If asked for recommendations, rank them and explain why.
@@ -248,7 +249,7 @@ def _is_scope_domain_question(normalized: str) -> bool:
         re.search(
             r"\b(scope|app|screen|button|click|tap|ui|interface|api|endpoint|route path|planner|map|"
             r"trip|travel|route|road trip|itinerary|spot|spots|place|places|experience|experiences|destination|destinations|city|visit|go to|"
-            r"stay in|drive|flight|hotel|restaurant|food|budget|pace|timing|schedule|start|"
+            r"stay in|drive|flight|hotel|restaurant|food|entertainment|bowling|arcade|theme park|amusement park|budget|pace|timing|schedule|start|"
             r"end|stop|midpoint|address|street|road|avenue|county road|farm to market|photo|"
             r"photos|image|images|review|reviews|friend|friends|notification|notifications|profile|search|weather|safe|safety|group|"
             r"weekend|vacation|ollama|rag|service|frontend|backend)\b",
@@ -576,3 +577,96 @@ def ask(
         "model": model_name,
         "context_docs_used": len(results),
     }
+
+
+def scope_ai_chat(
+    system_prompt: str,
+    planner_state: dict,
+    session_history: list[dict],
+    preferences: dict,
+    message: str,
+    images: list[ImageAttachment] | None = None,
+) -> dict:
+    """Generate a Scope AI route copilot response using the custom system prompt."""
+    image_list = images or []
+    context_lines = [
+        "[CURRENT PLANNER STATE]",
+        json.dumps(planner_state, indent=2),
+        "[/CURRENT PLANNER STATE]",
+        "",
+        "[SESSION PREFERENCES]",
+        json.dumps(preferences, indent=2),
+        "[/SESSION PREFERENCES]",
+    ]
+    context = "\n".join(context_lines)
+
+    recent_lines = []
+    for entry in session_history[-8:]:
+        role = "Scope AI" if entry.get("role") == "assistant" else "User"
+        content = str(entry.get("content") or "").strip()
+        if content:
+            recent_lines.append(f"{role}: {content[:1000]}")
+    recent_chat = "\n".join(recent_lines) or "No prior chat."
+
+    full_system = system_prompt
+    if "{context}" in full_system:
+        full_system = full_system.replace("{context}", context)
+    else:
+        full_system = full_system + "\n\nCurrent planner state:\n" + context
+    if "{recent_chat}" in full_system:
+        full_system = full_system.replace("{recent_chat}", recent_chat)
+    else:
+        full_system = full_system + "\n\nRecent chat:\n" + recent_chat
+
+    if _should_use_gemini():
+        try:
+            for gemini_model in _gemini_model_names():
+                try:
+                    response = httpx.post(
+                        _gemini_endpoint(gemini_model),
+                        params={"key": settings.gemini_api_key},
+                        json={
+                            "systemInstruction": {"parts": [{"text": full_system}]},
+                            "contents": [
+                                {"role": "user", "parts": _gemini_content_parts(message, image_list)}
+                            ],
+                            "generationConfig": {
+                                "temperature": 0.4,
+                                "maxOutputTokens": max(settings.gemini_max_output_tokens, 1024),
+                            },
+                        },
+                        timeout=settings.gemini_timeout_seconds,
+                    )
+                    response.raise_for_status()
+                    answer = _extract_gemini_text(response.json())
+                    return {"response": answer, "model": gemini_model}
+                except (httpx.HTTPStatusError, httpx.TimeoutException):
+                    logger.warning("Scope AI Gemini model %s failed; trying next", gemini_model)
+                    continue
+            raise RuntimeError("All Gemini models failed")
+        except Exception:
+            if _configured_provider() == "gemini":
+                raise
+            logger.warning("Scope AI Gemini failed; falling back to Ollama", exc_info=True)
+
+    if image_list:
+        return {
+            "response": (
+                "I can inspect images for Scope trips when Gemini vision is configured. "
+                "Right now Scope AI is on the local text fallback, so describe what is visible in the photo and I will still help with the route."
+            ),
+            "model": active_model_name(),
+        }
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", full_system),
+        ("human", "{question}"),
+    ])
+    llm_chain = (
+        {"question": RunnablePassthrough()}
+        | prompt
+        | get_llm()
+        | StrOutputParser()
+    )
+    answer = llm_chain.invoke(message)
+    return {"response": answer, "model": settings.ollama_model}

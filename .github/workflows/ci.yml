@@ -73,7 +73,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.15.5
 
       - name: Validate YAML assets
         run: |
@@ -168,6 +168,7 @@ jobs:
         run: |
           echo "django=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
           echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "db=CI_$(openssl rand -base64 18 | tr -d '=+/' )" >> "$GITHUB_OUTPUT"
 
       - name: Django system check
         env:
@@ -188,12 +189,26 @@ jobs:
           DEBUG: 'false'
           ALLOWED_HOSTS: scope.example.com
           FRONTEND_ORIGIN: https://scope.example.com
+          DJANGO_DATABASE_URL: mssql://scope_app:${{ steps.content-secrets.outputs.db }}@localhost:1433/scope_content?driver=ODBC+Driver+18+for+SQL+Server
           CORE_JWT_SECRET: ${{ steps.content-secrets.outputs.jwt }}
           CORE_JWT_ISSUER: scope-core
           CORE_JWT_AUDIENCE: scope-frontend
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           KAFKA_ENABLED: 'false'
-        run: python manage.py check --deploy --fail-level WARNING || true
+        run: python manage.py check --deploy --fail-level WARNING
+
+      - name: Django migration drift check
+        env:
+          DJANGO_SECRET_KEY: ${{ steps.content-secrets.outputs.django }}
+          DEBUG: 'true'
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          FRONTEND_ORIGIN: http://localhost:5173
+          CORE_JWT_SECRET: ${{ steps.content-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_ENABLED: 'false'
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Pytest
         env:
@@ -256,6 +271,92 @@ jobs:
           python -m pip install pip-audit
           pip-audit --strict -r requirements.txt || echo "::warning::pip-audit flagged vulnerabilities"
 
+  rag:
+    name: RAG tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scope-rag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scope-rag/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Generate ephemeral test secret
+        id: rag-secrets
+        run: echo "jwt=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
+      - name: Pytest
+        env:
+          CORE_JWT_SECRET: ${{ steps.rag-secrets.outputs.jwt }}
+          CORE_JWT_ISSUER: scope-core
+          CORE_JWT_AUDIENCE: scope-frontend
+          FRONTEND_ORIGIN: http://localhost:5173
+          KAFKA_ENABLED: 'false'
+          RAG_RATE_LIMIT_REDIS_URL: ''
+          CHROMA_PERSIST_DIR: /tmp/scope-rag-chroma
+        run: pytest
+
+      - name: pip-audit (known CVEs)
+        run: |
+          python -m pip install pip-audit
+          pip-audit --strict -r requirements.txt || echo "::warning::pip-audit flagged vulnerabilities"
+
+  metrics:
+    name: Metrics build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scope-metrics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: scope-metrics/go.sum
+
+      - name: Test
+        run: go test -cover ./...
+
+      - name: Build
+        run: go build -trimpath ./cmd/scope-metrics
+
+  cli:
+    name: CLI build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scope-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: scope-cli
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Test
+        run: cargo test --locked
+
   frontend:
     name: Frontend build and test
     runs-on: ubuntu-latest
@@ -288,7 +389,81 @@ jobs:
           VITE_API_BASE_URL: /
           VITE_MAPBOX_TOKEN: pk.test-ci-token
           VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
-        run: npm run test
+        run: npm run test:coverage
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high || echo "::warning::npm audit flagged vulnerabilities"
+
+  admin:
+    name: Admin build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scope-admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scope-admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: /
+          VITE_CORE_API_BASE_URL: /api/core
+          VITE_CONTENT_API_BASE_URL: /api/content
+          VITE_INTEL_API_BASE_URL: /api/intel
+        run: npm run build
+
+      - name: Unit tests with coverage
+        run: npm test -- --coverage
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high || echo "::warning::npm audit flagged vulnerabilities"
+
+  site:
+    name: Site build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scope-site
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scope-site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          VITE_SITE_BASE_PATH: /
+        run: npm run build
+
+      - name: Unit tests with coverage
+        run: npm test
 
       - name: npm audit (high+)
         run: npm audit --audit-level=high || echo "::warning::npm audit flagged vulnerabilities"
@@ -461,9 +636,24 @@ jobs:
           - name: intel
             context: scope_intel
             image: scope-intel
+          - name: metrics
+            context: scope-metrics
+            image: scope-metrics
+          - name: cli
+            context: scope-cli
+            image: scope-cli
+          - name: rag
+            context: scope-rag
+            image: scope-rag
           - name: frontend
             context: scope-frontend
             image: scope-frontend
+          - name: site
+            context: scope-site
+            image: scope-site
+          - name: admin
+            context: scope-admin
+            image: scope-admin
     steps:
       - name: Checkout
         uses: actions/checkout@v4

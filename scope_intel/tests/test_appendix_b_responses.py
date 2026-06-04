@@ -40,8 +40,12 @@ def test_itinerary_generate_response_matches_appendix_b_exact_shape(client, auth
         "longitude",
         "category",
         "estimatedCost",
+        "reason",
+        "confidence",
     ]
     assert isinstance(first_spot["estimatedCost"], float)
+    assert isinstance(first_spot["reason"], str)
+    assert 0 <= first_spot["confidence"] <= 1
 
 
 def test_itinerary_fetch_response_matches_cached_appendix_b_shape(client, auth_header):

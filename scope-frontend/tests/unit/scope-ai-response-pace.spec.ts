@@ -6,12 +6,13 @@ import {
 
 describe('scopeAiResponsePace', () => {
   beforeEach(() => {
-    vi.unstubAllEnvs();
+    vi.stubEnv('VITE_SCOPE_AI_MIN_REPLY_MS', '');
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
 
@@ -43,5 +44,24 @@ describe('scopeAiResponsePace', () => {
 
     vi.stubEnv('VITE_SCOPE_AI_MIN_REPLY_MS', '-50');
     expect(getScopeAiMinimumReplyMs()).toBe(0);
+  });
+
+  it('ignores invalid delays and returns immediately when no wait remains', async () => {
+    vi.stubEnv('VITE_SCOPE_AI_MIN_REPLY_MS', 'later');
+    expect(getScopeAiMinimumReplyMs()).toBe(0);
+
+    await expect(waitForScopeAiResponsePace(100, 0)).resolves.toBeUndefined();
+
+    vi.spyOn(performance, 'now').mockReturnValue(250);
+    await expect(waitForScopeAiResponsePace(100, 100)).resolves.toBeUndefined();
+  });
+
+  it('falls back to Date.now when the Performance API is unavailable', () => {
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(12_345);
+    vi.stubGlobal('performance', undefined);
+
+    expect(getScopeAiResponseStartedAt()).toBe(12_345);
+
+    dateNowSpy.mockRestore();
   });
 });

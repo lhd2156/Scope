@@ -1,10 +1,16 @@
 """LangChain tools the trip planner agent can call."""
 
-import math
 import os
 
 import requests
-from langchain_core.tools import tool
+
+from app.services.geo_math import haversine_distance_km
+
+try:
+    from langchain_core.tools import tool
+except ImportError:
+    def tool(func):
+        return func
 
 CONTENT_URL = os.environ.get("CONTENT_SERVICE_URL", "http://content:8000/api/content")
 ES_URL = os.environ.get("ELASTICSEARCH_URL", "http://elasticsearch:9200")
@@ -58,12 +64,7 @@ def get_weather(location: str, date: str) -> dict:
 @tool
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> dict:
     """Calculate distance in km between two geographic points."""
-    radius_km = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return {"distance_km": round(radius_km * c, 2)}
+    return {"distance_km": round(haversine_distance_km(lat1, lon1, lat2, lon2, earth_radius_km=6371.0), 2)}
 
 
 @tool

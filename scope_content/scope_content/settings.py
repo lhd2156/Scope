@@ -41,6 +41,14 @@ def _required_env(name: str) -> str:
     )
 
 
+def _float_env(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return min(max(value, 0.0), 1.0)
+
+
 def _normalize_origin(origin: str | None) -> str | None:
     if origin is None:
         return None
@@ -86,9 +94,10 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 if SENTRY_DSN and sentry_sdk is not None:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=0.1,
-        profiles_sample_rate=0.1,
-        environment=os.environ.get('DJANGO_ENV', 'development'),
+        traces_sample_rate=_float_env('SENTRY_TRACES_SAMPLE_RATE', 0.1),
+        profiles_sample_rate=_float_env('SENTRY_PROFILES_SAMPLE_RATE', 0.1),
+        environment=os.environ.get('SENTRY_ENVIRONMENT') or os.environ.get('DJANGO_ENV', 'development'),
+        release=os.environ.get('SENTRY_RELEASE') or None,
         send_default_pii=False,
     )
 
@@ -151,6 +160,7 @@ INSTALLED_APPS = [
     'trips',
     'photos',
     'reviews',
+    'comments',
     'feed',
     'interactions',
 ]
@@ -381,14 +391,20 @@ AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_S3_BUCKET', '')
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
-SERVE_LOCAL_MEDIA = not bool(AWS_STORAGE_BUCKET_NAME and AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+AWS_USE_IAM_ROLE = os.getenv('AWS_USE_IAM_ROLE', 'false').lower() == 'true'
+AWS_STORAGE_ENABLED = bool(AWS_STORAGE_BUCKET_NAME and ((AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) or AWS_USE_IAM_ROLE))
+SERVE_LOCAL_MEDIA = not AWS_STORAGE_ENABLED
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
 KAFKA_ENABLED = os.getenv('KAFKA_ENABLED', 'false').lower() == 'true'
+KAFKA_PUBLISH_FLUSH_TIMEOUT_SECONDS = float(os.getenv('KAFKA_PUBLISH_FLUSH_TIMEOUT_SECONDS', '5'))
 
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('RATE_LIMIT_WINDOW_SECONDS', '60'))
-RATE_LIMIT_GLOBAL_PER_IP = int(os.getenv('RATE_LIMIT_GLOBAL_PER_IP', '100'))
+RATE_LIMIT_GLOBAL_PER_IP = int(os.getenv('RATE_LIMIT_GLOBAL_PER_IP', '600'))
+RATE_LIMIT_AUTH_PER_IP = int(os.getenv('RATE_LIMIT_AUTH_PER_IP', '10'))
+RATE_LIMIT_SEARCH_PER_IP = int(os.getenv('RATE_LIMIT_SEARCH_PER_IP', '120'))
 RATE_LIMIT_UPLOAD_PER_USER = int(os.getenv('RATE_LIMIT_UPLOAD_PER_USER', '20'))
+RATE_LIMIT_COMMENTS_PER_USER = int(os.getenv('RATE_LIMIT_COMMENTS_PER_USER', '30'))
 
 # Cache backend.
 #

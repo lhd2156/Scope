@@ -11,7 +11,14 @@ function isRetryableChunkError(error: unknown): boolean {
   }
 
   const message = error.message.toLowerCase();
-  return message.includes('fetch') || message.includes('import') || message.includes('chunk');
+  return (
+    message.includes('fetch') ||
+    message.includes('import') ||
+    message.includes('chunk') ||
+    message.includes('aborted') ||
+    message.includes('ns_binding_aborted') ||
+    message.includes('module script')
+  );
 }
 
 async function loadWithRetry(loader: AsyncViewLoader, attempt = 0): Promise<AsyncViewModule> {

@@ -64,6 +64,10 @@ function countRoutePathSegments(path: string | undefined): number {
   return path?.match(/\sL\s/g)?.length ?? 0;
 }
 
+function getMapCoverage(wrapper: ReturnType<typeof mount>) {
+  return (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+}
+
 describe('MapView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -84,7 +88,7 @@ describe('MapView', () => {
 
     expect(wrapper.text()).toContain('Interactive map offline');
     expect(wrapper.text()).toContain('2 pins in view');
-    expect(wrapper.text()).toContain('8 filters active');
+    expect(wrapper.text()).toContain('9 filters active');
     expect(wrapper.text()).not.toContain('trip stops');
     expect(wrapper.find('[data-test="map-summary-pins"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="map-summary-filters"]').exists()).toBe(true);
@@ -93,6 +97,50 @@ describe('MapView', () => {
     expect(wrapper.findAll('g[data-test^="map-fallback-marker-"]')).toHaveLength(2);
     expect(mapStore.visibleSpotIds).toEqual(['spot-1', 'spot-2']);
     expect(mapStore.visibleSpotIdsMeasured).toBe(true);
+  });
+
+  it('fans out same-coordinate fallback markers so live pins remain clickable', async () => {
+    const duplicateSpots: MapPoint[] = Array.from({ length: 18 }, (_, index) => ({
+      ...spots[0]!,
+      id: `duplicate-${index}`,
+      title: `Duplicate Water Gardens ${index}`,
+      category: 'scenic',
+    }));
+
+    const wrapper = mount(MapView, {
+      props: {
+        spots: duplicateSpots,
+        routePoints: [duplicateSpots[0]!],
+      },
+    });
+
+    await nextTick();
+
+    const hitAreas = wrapper.findAll('.map-fallback__marker-hit-area');
+    const positions = hitAreas.map((marker) => `${marker.attributes('cx')}:${marker.attributes('cy')}`);
+    const markerGroups = wrapper.findAll('g.map-fallback__marker');
+
+    expect(hitAreas).toHaveLength(duplicateSpots.length);
+    expect(new Set(positions).size).toBe(duplicateSpots.length);
+    expect(markerGroups.at(-1)?.attributes('data-test')).toBe('map-fallback-marker-duplicate-0');
+  });
+
+  it('honors planner map presentation props before the Mapbox runtime is available', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots: [],
+        labelMode: 'states',
+        mapPresentation: 'native',
+        showMapStyleToggle: true,
+        showTraffic: true,
+        showSummary: false,
+      },
+    });
+
+    await nextTick();
+
+    expect(wrapper.attributes('data-map-presentation')).toBe('native');
+    expect(wrapper.attributes('data-map-style')).toBe('mapbox://styles/mapbox/outdoors-v12');
   });
 
   it('numbers planner route markers from the full route sequence instead of stale labels', async () => {
@@ -301,6 +349,59 @@ describe('MapView', () => {
     ]]);
   });
 
+  it('supports keyboard fallback marker selection and fallback canvas map picks', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        clickToSelect: true,
+      },
+    });
+
+    await nextTick();
+
+    await wrapper.get('[data-test="map-fallback-marker-hit-spot-1"]').trigger('keydown.space');
+    await nextTick();
+
+    expect(wrapper.emitted('map-click')?.[0]).toEqual([{
+      latitude: spots[0]?.latitude,
+      longitude: spots[0]?.longitude,
+    }]);
+
+    const fallbackCanvas = wrapper.get('svg.map-fallback__canvas');
+    Object.defineProperty(fallbackCanvas.element, 'getScreenCTM', {
+      configurable: true,
+      value: () => ({
+        inverse: () => ({}),
+      }),
+    });
+    Object.defineProperty(fallbackCanvas.element, 'createSVGPoint', {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        matrixTransform: () => ({
+          x: 600,
+          y: 450,
+        }),
+      }),
+    });
+
+    await fallbackCanvas.trigger('click', {
+      clientX: 480,
+      clientY: 320,
+    });
+    await nextTick();
+
+    expect(wrapper.emitted('map-click')?.[1]?.[0]).toEqual({
+      latitude: expect.any(Number),
+      longitude: expect.any(Number),
+    });
+    expect(wrapper.emitted('interaction')).toEqual([
+      [{ type: 'map_click' }],
+      [{ type: 'map_click' }],
+    ]);
+  });
+
   it('resets filters, selection, and viewport from the map controls', async () => {
     const wrapper = mount(MapView, {
       props: {
@@ -327,10 +428,330 @@ describe('MapView', () => {
       'culture',
       'adventure',
       'shopping',
+      'entertainment',
       'scenic',
       'other',
     ]);
     expect(mapStore.selectedSpotId).toBe('spot-1');
     expect(wrapper.emitted('interaction')).toEqual([[{ type: 'reset_map' }]]);
+  });
+
+  it('resets planner starts to the provided base viewport without clearing the start', async () => {
+    const baseViewport = {
+      center: [2.3522, 48.8566] as [number, number],
+      zoom: 2.8,
+    };
+    const startPoint: MapPoint = {
+      id: 'route-start',
+      title: 'Paris start',
+      latitude: 48.8566,
+      longitude: 2.3522,
+      category: 'culture',
+      routeRole: 'start',
+      routeLabel: 'S',
+    };
+    const wrapper = mount(MapView, {
+      props: {
+        spots: [startPoint],
+        routePoints: [startPoint],
+        initialViewport: baseViewport,
+        routeVariant: 'planner',
+        markerVariant: 'sequence',
+      },
+    });
+    const mapStore = useMapStore();
+    mapStore.setCenter([2.3522, 48.8566]);
+    mapStore.setZoom(7.2);
+    mapStore.setSelectedSpotId('route-start');
+
+    await wrapper.get('button[aria-label="Reset map"]').trigger('click');
+    await nextTick();
+    await flushPromises();
+
+    expect(mapStore.viewport.center).toEqual(baseViewport.center);
+    expect(mapStore.viewport.zoom).toBe(baseViewport.zoom);
+    expect(mapStore.selectedSpotId).toBe('route-start');
+    expect(wrapper.find('[data-test="map-fallback-marker-route-start"]').exists()).toBe(true);
+  });
+
+  it('reports that planner map commands cannot move the live map while Mapbox is offline', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        routePoints: spots,
+        routeVariant: 'planner',
+      },
+    });
+    const exposed = wrapper.vm as unknown as {
+      runPlannerMapCommand: (command: unknown) => Promise<{ ok: boolean; message: string }>;
+    };
+
+    await nextTick();
+
+    await expect(exposed.runPlannerMapCommand('zoom_in')).resolves.toEqual({
+      ok: false,
+      message: 'The live planner map is offline right now, so I could not move the Mapbox view.',
+    });
+  });
+
+  it('normalizes rendered map features into enriched nearby place pins', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        showNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const poiFeature = {
+      id: 'qt-fort-worth',
+      layer: {
+        id: 'poi-label',
+        type: 'symbol',
+        'source-layer': 'poi_label',
+      },
+      properties: {
+        name: 'QT Travel Center',
+        maki: 'fuel',
+        house_num: '100',
+        street: 'Main Street',
+        city: 'Fort Worth',
+        state: 'TX',
+        postcode: '76102',
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [-97.3308, 32.7555],
+      },
+    };
+    const fallbackLngLat = { lng: -96.8, lat: 32.7 };
+
+    expect(coverage.getMapFeatureCoordinates(poiFeature, fallbackLngLat)).toEqual({
+      latitude: 32.7555,
+      longitude: -97.3308,
+    });
+    expect(coverage.buildAddressFromMapFeatureParts(poiFeature)).toBe('100 Main Street, Fort Worth, TX, 76102');
+    expect(coverage.getMapFeatureCategory(poiFeature, 'QT Travel Center')).toBe('gas_station');
+    expect(coverage.getMapFeatureCategoryLabel(poiFeature, 'QT Travel Center')).toBe('Gas station');
+
+    const pin = coverage.mapRenderedFeatureToNearbyPlacePin(poiFeature, fallbackLngLat);
+
+    expect(pin).toMatchObject({
+      id: 'map-feature-qt-fort-worth',
+      title: 'QT Travel Center',
+      kind: 'fuel',
+      category: 'gas_station',
+      categoryLabel: 'Gas station',
+      address: '100 Main Street, Fort Worth, TX, 76102',
+      photoLookupStatus: 'pending',
+      sourceLabel: 'Mapbox',
+    });
+    expect(coverage.mapRenderedFeatureToNearbyPlacePin({
+      ...poiFeature,
+      layer: { id: 'road-label', type: 'symbol', 'source-layer': 'road_label' },
+    }, fallbackLngLat)).toBeNull();
+
+    const cacheKey = coverage.buildMapFeaturePlaceEnrichmentKey(pin);
+    coverage.cacheMapFeaturePlaceEnrichment(cacheKey, {
+      address: '  100 Main Street, Fort Worth, TX 76102  ',
+      subtitle: '  Fort Worth, TX  ',
+      photoUrl: '  https://images.example.com/qt.jpg  ',
+      photoLookupStatus: 'complete',
+      sourceLabel: ' Google Places ',
+    });
+
+    const enrichedPin = coverage.applyCachedMapFeaturePlaceEnrichment(pin);
+    expect(enrichedPin).toMatchObject({
+      address: '100 Main Street, Fort Worth, TX 76102',
+      subtitle: 'Fort Worth, TX',
+      photoUrl: 'https://images.example.com/qt.jpg',
+      sourceLabel: 'Google Places',
+    });
+    expect(coverage.hasRealMapFeaturePlacePhoto(pin)).toBe(true);
+    expect(coverage.hasSettledMapFeaturePlacePhotoLookup(pin)).toBe(true);
+    expect(coverage.hasWarmMapFeaturePlaceEnrichment(pin)).toBe(true);
+    expect(coverage.isCoordinateLikeAddress('32.7555, -97.3308')).toBe(true);
+    expect(coverage.isUsableMapFeatureAddress('100 Main Street')).toBe(true);
+    expect(coverage.isUsableMapFeatureGeocodeResult({
+      precision: 'rooftop',
+      formattedAddress: '100 Main Street',
+    })).toBe(true);
+    expect(coverage.isUsableMapFeatureGeocodeResult({
+      precision: 'coordinate',
+      formattedAddress: '32.7555, -97.3308',
+    })).toBe(false);
+    expect(coverage.isSameMapFeaturePlacePin(pin, {
+      ...pin,
+      id: 'different-id-same-place',
+    })).toBe(true);
+  });
+
+  it('deduplicates nearby places and derives category, photo, and attribution metadata', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        showNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const coffeePlace = {
+      id: 'coffee-1',
+      title: 'Starbucks Coffee',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      kind: 'place',
+      category: 'restaurant',
+      categoryLabel: 'coffee shop',
+      address: '100 Main Street',
+      distanceLabel: '250 m from center',
+    };
+    const fuelPlace = {
+      id: 'fuel-1',
+      title: 'Shell Fuel',
+      latitude: 32.756,
+      longitude: -97.331,
+      kind: 'fuel',
+      category: 'fuel',
+      categoryLabel: 'Gas station',
+      priceLabel: '$3.12',
+    };
+
+    expect(coverage.normalizePlaceCategoryText('coffee_shop', 'Fast-Food')).toBe('coffee shop fast food');
+    expect(coverage.getPlaceCategoryOverride('ev charging station', 'ChargePoint')).toMatchObject({
+      label: 'Gas station',
+      kind: 'fuel',
+    });
+    expect(coverage.formatNearbyPlaceCategory(coffeePlace)).toBe('Coffee');
+    expect(coverage.formatNearbyPlaceAddress(coffeePlace)).toBe('100 Main Street');
+    expect(coverage.formatNearbyPlaceDistance(coffeePlace)).toBe('250 m from center');
+    expect(coverage.getNearbyPlaceKind(coffeePlace)).toBe('food');
+    expect(coverage.getNearbyPlaceIconName(coffeePlace)).toBe('food');
+    expect(coverage.getNearbyPlaceFallbackPhotoCategory(coffeePlace)).toBe('food');
+    expect(coverage.getNearbyPlaceFallbackPhotoCategory(fuelPlace)).toBe('other');
+    expect(coverage.getNearbyPlaceInstantFallbackPhotoUrl(coffeePlace)).toContain('images.unsplash.com');
+    expect(coverage.normalizeNearbyPlaceAttributionUrl('//maps.google.com/contrib/123')).toMatch(/^http/);
+    expect(coverage.normalizeNearbyPlaceAttributionUrl('javascript:alert(1)')).toBeUndefined();
+    expect(coverage.buildGoogleMapsAddressUrl(coffeePlace, coffeePlace.address)).toContain('google.com/maps/search');
+    expect(coverage.buildNearbyPlaceMarkerSignature(fuelPlace)).toContain('$3.12');
+    expect(coverage.mergeNearbyPlacePins([
+      coffeePlace,
+      { ...coffeePlace },
+      fuelPlace,
+    ])).toHaveLength(2);
+
+    const searchPin = coverage.mapNearbySearchResultToPin({
+      id: 'nearby-live',
+      placeName: 'Costco Wholesale',
+      latitude: 32.8,
+      longitude: -97.4,
+      categoryId: 'shopping',
+      category: 'wholesale store',
+      categoryLabel: 'Retail',
+      formattedAddress: '200 Warehouse Way',
+      source: 'scope',
+      distanceKm: 0.42,
+    });
+
+    expect(searchPin).toMatchObject({
+      id: 'nearby-live',
+      title: 'Costco Wholesale',
+      kind: 'place',
+      categoryLabel: 'Shopping',
+      address: '200 Warehouse Way',
+      distanceLabel: '425 m from center',
+    });
+  });
+
+  it('projects fallback coordinates and builds live viewport marker models', async () => {
+    const wrapper = mount(MapView, {
+      attachTo: document.body,
+      props: {
+        spots: [
+          ...spots,
+          {
+            id: 'spot-3',
+            title: 'Museum Stop',
+            latitude: 32.7557,
+            longitude: -97.331,
+            category: 'culture',
+          },
+        ],
+        routePoints: spots,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const mapStore = useMapStore();
+    mapStore.setCenter([-97.33, 32.7555]);
+    mapStore.setZoom(12);
+
+    const projectionBounds = coverage.buildFallbackViewportBounds();
+    const projected = coverage.projectFallbackCoordinate([-97.3308, 32.7555], projectionBounds);
+    const unprojected = coverage.unprojectFallbackCoordinate(projected, projectionBounds);
+
+    expect(coverage.clampNumber(20, 1, 10)).toBe(10);
+    expect(projected.x).toBeGreaterThan(0);
+    expect(projected.y).toBeGreaterThan(0);
+    expect(unprojected[0]).toBeCloseTo(-97.3308, 2);
+    expect(unprojected[1]).toBeCloseTo(32.7555, 2);
+    expect(coverage.buildRouteCoordinateRenderKey([-97.3308123, 32.7555456])).toBe('-97.33081,32.75555');
+    expect(coverage.distanceBetweenFallbackPoints({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+    expect(coverage.roundMapWeatherCoordinate(32.7555456)).toBe(32.76);
+    expect(coverage.mergeUniqueMapPoints(
+      [spots[0]!, { ...spots[0]!, title: 'Duplicate ignored' }],
+      [spots[1]!, { ...spots[1]!, id: 'invalid-spot', latitude: Number.NaN }],
+    ).map((point: MapPoint) => point.id)).toEqual(['spot-1', 'spot-2']);
+
+    const mapCanvas = wrapper.get('.map-canvas').element as HTMLElement;
+    Object.defineProperty(mapCanvas, 'clientWidth', {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(mapCanvas, 'clientHeight', {
+      configurable: true,
+      value: 600,
+    });
+    const fakeMap = {
+      getContainer: () => mapCanvas,
+      getZoom: () => 12,
+      getBounds: () => ({
+        contains: () => true,
+      }),
+      unproject: ([x, y]: [number, number]) => ({
+        lng: -97.36 + x * 0.0001,
+        lat: 32.78 - y * 0.0001,
+      }),
+      project: ([longitude, latitude]: [number, number]) => ({
+        x: (longitude + 97.36) / 0.0001,
+        y: (32.78 - latitude) / 0.0001,
+      }),
+    };
+
+    const viewport = coverage.buildViewport(fakeMap);
+    expect(viewport).toMatchObject({
+      zoom: 12,
+      width: expect.any(Number),
+      height: expect.any(Number),
+    });
+    expect(coverage.getVisibleSpotsFromViewport(fakeMap).map((point: MapPoint) => point.id)).toEqual(
+      expect.arrayContaining(['spot-1', 'spot-2']),
+    );
+
+    const markerState = await coverage.buildViewportMarkerModels(fakeMap);
+    expect(markerState.visibleSpotIds).toEqual(expect.arrayContaining(['spot-1', 'spot-2']));
+    expect(markerState.visiblePinCount).toBeGreaterThan(0);
+    expect(markerState.markers.length).toBeGreaterThan(0);
+
+    const offscreenMarker = {
+      kind: 'spot',
+      id: 'offscreen',
+      spot: { ...spots[0]!, longitude: -120, latitude: 45 },
+      distanceLabel: null,
+    };
+    expect(coverage.isMarkerCoordinateInsideViewport(offscreenMarker, fakeMap, 800, 600)).toBe(false);
   });
 });

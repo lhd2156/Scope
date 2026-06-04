@@ -1,5 +1,13 @@
 import api from '@/services/api';
 import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
+import {
+  findLocalPreviewUser,
+  readCurrentLocalPreviewUser,
+  readLocalPreviewUsers,
+  removeLocalPreviewUser,
+  toLocalPreviewUserProfile,
+  updateLocalPreviewUserProfile,
+} from '@/services/localPreviewUserStorage';
 import { loadMockData } from '@/services/mockDataLoader';
 import { catalogMockUsers, getCatalogMockUserById } from '@/services/mockUserCatalog';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
@@ -22,6 +30,7 @@ export interface UpdateUserProfileInput {
   bio?: string;
   homeBase?: string;
   interests?: string[];
+  showActivityStatus?: boolean;
 }
 
 function sanitizeUserEnvelope(response: ApiEnvelope<UserProfile>): ApiEnvelope<UserProfile> {
@@ -39,9 +48,7 @@ function isUserProfilePayload(value: unknown): value is UserProfile {
   const candidate = value as Partial<UserProfile>;
   return typeof candidate.id === 'string'
     && typeof candidate.username === 'string'
-    && typeof candidate.email === 'string'
-    && typeof candidate.displayName === 'string'
-    && Array.isArray(candidate.interests);
+    && typeof candidate.displayName === 'string';
 }
 
 function unwrapUserProfilePayload(payload: ApiEnvelope<UserProfile> | UserProfile): UserProfile {
@@ -51,23 +58,46 @@ function unwrapUserProfilePayload(payload: ApiEnvelope<UserProfile> | UserProfil
     throw new Error('Invalid user profile payload');
   }
 
-  return unwrappedPayload;
+  return normalizeUserProfilePayload(unwrappedPayload);
 }
 
-function sanitizeUserListEnvelope(response: ApiEnvelope<UserProfile[]>): ApiEnvelope<UserProfile[]> {
+function normalizeUserProfilePayload(payload: Partial<UserProfile> & Pick<UserProfile, 'id' | 'username' | 'displayName'>): UserProfile {
+  return {
+    id: payload.id,
+    username: payload.username,
+    email: typeof payload.email === 'string' ? payload.email : '',
+    displayName: payload.displayName,
+    avatarUrl: payload.avatarUrl,
+    bio: payload.bio,
+    homeBase: payload.homeBase,
+    interests: Array.isArray(payload.interests) ? payload.interests : [],
+    stats: payload.stats,
+    showActivityStatus: payload.showActivityStatus ?? true,
+  };
+}
+
+function sanitizeUserListEnvelope(
+  response: ApiEnvelope<UserProfile[]>,
+  options: { allowGeneratedAvatar?: boolean } = {},
+): ApiEnvelope<UserProfile[]> {
   return {
     ...response,
-    data: normalizeArrayEnvelopeData(response).map((user) => sanitizeUserProfile(user)),
+    data: normalizeArrayEnvelopeData(response).map((user) => sanitizeUserProfile(normalizeUserProfilePayload(user), options)),
   };
 }
 
 function sanitizeStatsEnvelope(response: ApiEnvelope<UserStats>): ApiEnvelope<UserStats> {
+  const rawStats = response.data as UserStats & {
+    friendsCount?: number;
+    spotsCount?: number;
+    tripsCount?: number;
+  };
   return {
     ...response,
     data: {
-      spots: Math.max(0, response.data.spots ?? 0),
-      trips: Math.max(0, response.data.trips ?? 0),
-      friends: Math.max(0, response.data.friends ?? 0),
+      spots: Math.max(0, rawStats.spots ?? rawStats.spotsCount ?? 0),
+      trips: Math.max(0, rawStats.trips ?? rawStats.tripsCount ?? 0),
+      friends: Math.max(0, rawStats.friends ?? rawStats.friendsCount ?? 0),
     },
   };
 }
@@ -77,13 +107,18 @@ function resolveUserIndex(userId: string): number {
 }
 
 function getMockUserOrThrow(userId: string): UserProfile {
+  const localPreviewUser = findLocalPreviewUser({ id: userId });
+  if (localPreviewUser) {
+    return toLocalPreviewUserProfile(localPreviewUser);
+  }
+
   const user = getCatalogMockUserById(userId);
 
   if (!user) {
     throw new Error(`User ${userId} not found`);
   }
 
-  return sanitizeUserProfile(user);
+  return sanitizeUserProfile(user, { allowGeneratedAvatar: true });
 }
 
 async function buildFallbackStats(userId: string): Promise<UserStats> {
@@ -98,7 +133,7 @@ async function buildFallbackStats(userId: string): Promise<UserStats> {
 }
 
 function sanitizeUpdateInput(input: UpdateUserProfileInput): UpdateUserProfileInput {
-  return {
+  const sanitizedInput: UpdateUserProfileInput = {
     username: input.username ? sanitizeSingleLineText(input.username) : undefined,
     email: input.email ? sanitizeSingleLineText(input.email).toLowerCase() : undefined,
     displayName: input.displayName ? sanitizeSingleLineText(input.displayName) : undefined,
@@ -106,13 +141,23 @@ function sanitizeUpdateInput(input: UpdateUserProfileInput): UpdateUserProfileIn
     bio: input.bio ? sanitizeMultilineText(input.bio) : undefined,
     homeBase: input.homeBase ? sanitizeSingleLineText(input.homeBase) : undefined,
     interests: input.interests?.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean),
+    showActivityStatus: input.showActivityStatus,
   };
+
+  return Object.fromEntries(
+    Object.entries(sanitizedInput).filter(([, value]) => value !== undefined),
+  ) as UpdateUserProfileInput;
 }
 
 function updateMockUser(userId: string, updates: UpdateUserProfileInput): UserProfile {
   const userIndex = resolveUserIndex(userId);
 
   if (userIndex === -1) {
+    const localPreviewProfile = updateLocalPreviewUserProfile(userId, sanitizeUpdateInput(updates) as Partial<UserProfile>);
+    if (localPreviewProfile) {
+      return localPreviewProfile;
+    }
+
     throw new Error(`User ${userId} not found`);
   }
 
@@ -134,7 +179,12 @@ export async function getCurrentUserProfile(fallbackUserId?: string): Promise<Ap
       throw error;
     }
 
-    const user = getMockUserOrThrow(fallbackUserId ?? catalogMockUsers[0]?.id ?? 'user-1');
+    const currentLocalPreviewUser = readCurrentLocalPreviewUser();
+    const user = fallbackUserId
+      ? getMockUserOrThrow(fallbackUserId)
+      : currentLocalPreviewUser
+        ? toLocalPreviewUserProfile(currentLocalPreviewUser)
+        : getMockUserOrThrow(catalogMockUsers[0]?.id ?? 'user-1');
     return sanitizeUserEnvelope({ data: user });
   }
 }
@@ -157,7 +207,7 @@ export async function updateUserProfile(userId: string, updates: UpdateUserProfi
 
   try {
     const { data } = await api.put<ApiEnvelope<UserProfile> | UserProfile>(`${USERS_BASE_PATH}/${userId}`, sanitizedInput);
-    return sanitizeUserEnvelope({ data: unwrapApiData(data) });
+    return sanitizeUserEnvelope({ data: normalizeUserProfilePayload(unwrapApiData(data) as UserProfile) });
   } catch (error) {
     if (!USER_MOCK_FALLBACK_ENABLED) {
       throw error;
@@ -180,33 +230,44 @@ export async function deactivateUserProfile(userId: string): Promise<void> {
     if (userIndex >= 0) {
       catalogMockUsers.splice(userIndex, 1);
     }
+    removeLocalPreviewUser(userId);
   }
+}
+
+export async function searchUsersLive(query: string, page = 1, pageSize = 10): Promise<ApiEnvelope<UserProfile[]>> {
+  const sanitizedQuery = sanitizeSingleLineText(query);
+  const normalizedSearchQuery = sanitizedQuery.startsWith('@') ? sanitizedQuery.slice(1) : sanitizedQuery;
+  const { data } = await api.get<ApiEnvelope<UserProfile[]>>(`${USERS_BASE_PATH}/search`, {
+    params: {
+      q: normalizedSearchQuery,
+      page,
+      pageSize,
+    },
+  });
+  return sanitizeUserListEnvelope(data);
 }
 
 export async function searchUsers(query: string, page = 1, pageSize = 10): Promise<ApiEnvelope<UserProfile[]>> {
   const sanitizedQuery = sanitizeSingleLineText(query);
 
   try {
-    const { data } = await api.get<ApiEnvelope<UserProfile[]>>(`${USERS_BASE_PATH}/search`, {
-      params: {
-        q: sanitizedQuery,
-        page,
-        pageSize,
-      },
-    });
-    return sanitizeUserListEnvelope(data);
+    return await searchUsersLive(sanitizedQuery, page, pageSize);
   } catch (error) {
     if (!USER_MOCK_FALLBACK_ENABLED) {
       throw error;
     }
 
-    const normalizedQuery = sanitizedQuery.toLowerCase();
-    const matchingUsers = catalogMockUsers.filter((user) => {
+    const normalizedQuery = (sanitizedQuery.startsWith('@') ? sanitizedQuery.slice(1) : sanitizedQuery).toLowerCase();
+    const dedupedUsers = new Map<string, UserProfile>();
+    [...readLocalPreviewUsers().map(toLocalPreviewUserProfile), ...catalogMockUsers].forEach((user) => {
+      dedupedUsers.set(user.id, user);
+    });
+    const matchingUsers = [...dedupedUsers.values()].filter((user) => {
       const searchableContent = [user.username, user.displayName, user.email, user.homeBase].filter(Boolean).join(' ').toLowerCase();
       return searchableContent.includes(normalizedQuery);
     });
 
-    return sanitizeUserListEnvelope(paginateItems(matchingUsers, page, pageSize));
+    return sanitizeUserListEnvelope(paginateItems(matchingUsers, page, pageSize), { allowGeneratedAvatar: true });
   }
 }
 

@@ -28,6 +28,7 @@
             class="discover-search"
             label="Search spots"
             placeholder="Search spots, cities, vibes..."
+            @focusin="handleExploreSearchFocus"
           />
 
           <div class="view-toggle" aria-label="Explore layout switch">
@@ -35,6 +36,43 @@
             <RouterLink class="view-toggle__button" to="/map">Map</RouterLink>
           </div>
         </div>
+
+        <section
+          v-if="showExploreSearchRecommendations"
+          class="search-recommendations"
+          data-test="explore-search-recommendations"
+          aria-labelledby="explore-search-recommendations-title"
+        >
+          <div class="search-recommendations__header">
+            <div>
+              <p class="chip-label">Search picks</p>
+              <h2 id="explore-search-recommendations-title">{{ exploreSearchRecommendationTitle }}</h2>
+            </div>
+            <span v-if="exploreSearchRecommendations.length">{{ exploreSearchRecommendations.length }} places</span>
+          </div>
+
+          <div v-if="exploreSearchRecommendationsLoading" class="search-recommendations__state" role="status" aria-live="polite">
+            Loading recommended places...
+          </div>
+          <div v-else-if="exploreSearchRecommendationsError" class="search-recommendations__state search-recommendations__state--error" role="alert">
+            {{ exploreSearchRecommendationsError }}
+          </div>
+          <div v-else class="search-recommendations__grid" role="list">
+            <button
+              v-for="spot in exploreSearchRecommendations"
+              :key="`explore-recommended-${spot.id}`"
+              type="button"
+              class="search-recommendation"
+              data-test="explore-search-recommendation"
+              role="listitem"
+              @click="openExploreRecommendation(spot)"
+            >
+              <span class="search-recommendation__rank">{{ formatCategory(spot.category) }}</span>
+              <strong>{{ spot.title }}</strong>
+              <span>{{ formatRecommendationMeta(spot) }}</span>
+            </button>
+          </div>
+        </section>
 
         <div class="category-strip" role="toolbar" aria-label="Spot categories">
           <button
@@ -65,8 +103,8 @@
           <section class="quick-filter-group" aria-label="City quick filters">
             <div class="quick-filter-group__header">
               <div class="quick-filter-group__title">
-                <p class="chip-label">Cities</p>
-                <span class="quick-filter-group__meta">{{ visibleExploreCityOptions.length }} in {{ selectedRegionLabel }}</span>
+                <p class="chip-label">{{ locationFilterTitle }}</p>
+                <span class="quick-filter-group__meta">{{ cityFilterMetaCopy }}</span>
               </div>
 
               <div class="quick-filter-actions">
@@ -85,7 +123,11 @@
                 <div
                   ref="stateFilterRef"
                   class="state-filter"
-                  :class="{ 'is-active': selectedRegion, 'is-open': isRegionMenuOpen }"
+                  :class="{
+                    'is-active': selectedRegion,
+                    'is-open': isRegionMenuOpen,
+                    'is-disabled': !availableExploreRegions.length,
+                  }"
                   data-test="state-filter"
                 >
                   <button
@@ -94,6 +136,7 @@
                     class="state-filter__button"
                     data-test="state-filter-button"
                     aria-haspopup="listbox"
+                    :disabled="!availableExploreRegions.length"
                     :aria-expanded="String(isRegionMenuOpen)"
                     :aria-controls="isRegionMenuOpen ? regionMenuId : undefined"
                     @click="toggleRegionMenu"
@@ -108,11 +151,11 @@
                   </button>
 
                   <div
-                    v-if="isRegionMenuOpen"
+                  v-if="isRegionMenuOpen && availableExploreRegions.length"
                     :id="regionMenuId"
                     class="state-filter__menu"
                     role="listbox"
-                    aria-label="Filter cities by state"
+                    aria-label="Filter cities by region"
                     data-test="state-filter-menu"
                   >
                     <button
@@ -124,8 +167,7 @@
                       data-test="state-filter-option"
                       @click="selectRegion('')"
                     >
-                      <span>All states</span>
-                      <span class="state-filter__option-count">{{ availableExploreRegionTotal }}</span>
+                      <span>All regions</span>
                     </button>
                     <button
                       v-for="region in availableExploreRegions"
@@ -139,14 +181,18 @@
                       @click="selectRegion(region.value)"
                     >
                       <span>{{ formatRegionLabel(region.value) }}</span>
-                      <span class="state-filter__option-count">{{ region.count }}</span>
                     </button>
                   </div>
                 </div>
               </div>
             </div>
             <div class="quick-filter-row quick-filter-row--cities">
-              <button type="button" class="quick-filter-chip" :class="{ active: !selectedCityKey }" @click="selectedCityKey = ''">All cities</button>
+              <span v-if="!availableCityFilterOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
+                Cities appear after spots sync.
+              </span>
+              <span v-else-if="!visibleExploreCityOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
+                No cities with spots yet.
+              </span>
               <button
                 v-for="city in visibleExploreCityOptions"
                 :key="city.key"
@@ -159,25 +205,66 @@
               >
                 {{ city.label }}
               </button>
+              <button
+                v-if="cityOverflowButtonLabel"
+                type="button"
+                class="quick-filter-chip quick-filter-chip--more"
+                data-test="city-chip-more"
+                :aria-expanded="String(isCityFilterExpanded)"
+                :aria-label="cityOverflowButtonAriaLabel"
+                @click="toggleCityFilterExpanded"
+              >
+                {{ cityOverflowButtonLabel }}
+              </button>
             </div>
           </section>
 
           <section class="quick-filter-group" aria-label="Vibe quick filters">
             <div class="quick-filter-group__header">
-              <p class="chip-label">Vibes</p>
-              <button v-if="selectedVibe" type="button" class="text-reset" @click="selectedVibe = ''">Reset</button>
+              <div class="quick-filter-group__title">
+                <p class="chip-label">Vibes</p>
+                <span class="quick-filter-group__meta">{{ vibeFilterMetaCopy }}</span>
+              </div>
+
+              <div class="quick-filter-actions quick-filter-actions--vibes">
+                <input
+                  v-if="availableExploreVibes.length > MAX_VISIBLE_VIBE_FILTERS"
+                  v-model="vibeSearchQuery"
+                  type="search"
+                  class="vibe-filter-input"
+                  aria-label="Filter vibes"
+                  placeholder="Filter vibes"
+                  data-test="vibe-search"
+                >
+                <button v-if="selectedVibe || vibeSearchQuery" type="button" class="text-reset" @click="clearVibeFilters">Reset</button>
+              </div>
             </div>
             <div class="quick-filter-row">
               <button type="button" class="quick-filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
+              <span v-if="vibeSearchQuery && !visibleExploreVibes.length" class="quick-filter-chip quick-filter-chip--empty" data-test="vibe-chip-empty">
+                No matching vibes.
+              </span>
               <button
-                v-for="vibe in availableExploreVibes"
+                v-for="vibe in visibleExploreVibes"
                 :key="vibe"
                 type="button"
                 class="quick-filter-chip"
                 :class="{ active: selectedVibe === vibe }"
+                data-test="vibe-chip"
                 @click="toggleVibe(vibe)"
               >
                 {{ formatVibeLabel(vibe) }}
+              </button>
+              <button
+                v-if="vibeOverflowButtonLabel"
+                type="button"
+                class="quick-filter-chip quick-filter-chip--more"
+                data-test="vibe-chip-more"
+                :aria-expanded="String(isVibeFilterExpanded)"
+                :aria-label="vibeOverflowButtonAriaLabel"
+                @click="toggleVibeFilterExpanded"
+              >
+                {{ vibeOverflowButtonLabel }}
               </button>
             </div>
           </section>
@@ -192,12 +279,6 @@
           <button type="button" class="button button-secondary clear-filters" @click="clearFilters">Clear filters</button>
         </div>
       </section>
-
-      <article v-if="spotsStore.error" class="glass-panel error-panel" role="alert">
-        <p class="eyebrow">Temporary issue</p>
-        <h2>Explore results could not be refreshed</h2>
-        <p class="section-copy">{{ spotsStore.error }}</p>
-      </article>
 
       <section v-if="isScopeQaExploreMode" class="explore-audit-preview" aria-labelledby="explore-audit-title">
         <div class="explore-audit-preview__header">
@@ -225,7 +306,7 @@
                 Results for "{{ searchStore.results.query }}" - {{ searchStore.results.total }} matches
               </p>
             </div>
-            <p class="results-note">Rich cover imagery, soft gradient overlays, and hover motion tuned to the explore mockup.</p>
+            <p class="results-note">Rich cover imagery, soft overlays, and hover motion tuned for fast visual scanning.</p>
           </div>
 
           <div v-if="showResultsSkeleton" class="results-masonry" role="status" aria-live="polite" aria-label="Loading explore results">
@@ -259,7 +340,7 @@
 
                 <div class="explore-card__overlay">
                   <h3>{{ spot.title }}</h3>
-                  <p v-if="spot.searchSnippet" class="explore-card__snippet" v-html="spot.searchSnippet" />
+                  <p v-if="spot.searchSnippet" class="explore-card__snippet" v-html="toTrustedSanitizedHtml(spot.searchSnippet)" />
                   <p class="explore-card__location">
                     <ScopeIcon name="pin" />
                     <span>{{ formatLocation(spot) }}</span>
@@ -277,17 +358,14 @@
               </div>
             </RouterLink>
           </div>
-          <EmptyStatePanel
-            v-else-if="!spotsStore.error"
-            eyebrow="Discovery results"
-            :title="emptyStateTitle"
-            :description="emptyStateDescription"
-            icon="search"
-            artwork="discovery"
-            heading-level="h3"
-          >
-            <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">Reset discovery filters</button>
-          </EmptyStatePanel>
+          <div v-else class="explore-empty-state" data-test="explore-empty-state">
+            <p class="eyebrow">Discovery results</p>
+            <h3>{{ emptyStateTitle }}</h3>
+            <p>{{ emptyStateDescription }}</p>
+            <button v-if="hasActiveFilters" type="button" class="button button-secondary" @click="clearFilters">
+              Reset discovery filters
+            </button>
+          </div>
         </div>
 
         <aside
@@ -328,18 +406,11 @@
               </RouterLink>
             </li>
           </ol>
-          <EmptyStatePanel
-            v-else
-            compact
-            tone="surface"
-            alignment="center"
-            eyebrow="Trending"
-            title="Trending spots are still syncing"
-            description="As soon as the first community saves and remixes land, this rail will surface the strongest movers here."
-            icon="sparkle"
-            artwork="activity"
-            heading-level="h3"
-          />
+          <div v-else class="explore-empty-state explore-empty-state--trending" data-test="trending-empty-state">
+            <p class="eyebrow">Trending</p>
+            <h3>Trending spots are still syncing</h3>
+            <p>As soon as the first community saves and remixes land, this rail will surface the strongest movers here.</p>
+          </div>
         </aside>
       </section>
     </div>
@@ -351,26 +422,39 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import SpotCardSkeleton from '@/components/spots/SpotCardSkeleton.vue';
+import {
+  loadSearchPlaceRecommendations,
+  recordSearchPlaceSuggestionClick,
+  type SearchPlaceSuggestion,
+} from '@/services/searchDiscoveryService';
 import type { SearchResult } from '@/services/searchService';
+import { useAuthStore } from '@/stores/auth';
 import { useMapStore } from '@/stores/map';
 import { useSearchStore } from '@/stores/search';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
-import { formatVibeLabel } from '@/utils/formatters';
+import {
+  formatCityRegionLocation,
+  formatLocationRegionLabel,
+  formatVibeLabel,
+  resolveLocationRegion,
+} from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { rankTrendingSpots } from '@/utils/spotRanking';
+import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
 
 const EXPLORE_MOBILE_BREAKPOINT = 640;
 const EXPLORE_RESULT_SKELETON_COUNT = 12;
 const TRENDING_SKELETON_COUNT = 8;
 const EXPLORE_AUDIT_RESULT_LIMIT = 6;
 const EXPLORE_AUDIT_TRENDING_LIMIT = 4;
+const MAX_VISIBLE_CITY_FILTERS = 6;
+const MAX_VISIBLE_VIBE_FILTERS = 10;
 const EXPLORE_AUDIT_PREVIEW_SPOTS = [
   {
     title: 'Lakefront Sunrise Loop',
@@ -396,29 +480,31 @@ const EXPLORE_AUDIT_PREVIEW_VIBES = ['golden hour', 'after dark', 'food crawl'] 
 const spotsStore = useSpotsStore();
 const mapStore = useMapStore();
 const searchStore = useSearchStore();
+const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const isScopeQaExploreMode = isScopeQaMode();
-const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const searchQuery = ref('');
 const selectedCityKey = ref('');
 const selectedRegion = ref('');
 const selectedVibe = ref('');
+const vibeSearchQuery = ref('');
+const isCityFilterExpanded = ref(false);
+const isVibeFilterExpanded = ref(false);
 const isFetchingInitialResults = ref(true);
 const isMobileExploreLayout = ref(false);
 const isRegionMenuOpen = ref(false);
+const hasFocusedExploreSearch = ref(false);
+const exploreSearchRecommendations = ref<SearchPlaceSuggestion[]>([]);
+const exploreSearchRecommendationsLoading = ref(false);
+const exploreSearchRecommendationsError = ref<string | null>(null);
 const stateFilterRef = ref<HTMLElement | null>(null);
 const regionMenuId = 'explore-state-filter-menu';
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let exploreSearchRecommendationRequestId = 0;
 
 type DisplaySpot = SpotSummary & { searchSnippet?: string };
-type RegionAwareSpot = SpotSummary & {
-  adminArea?: string;
-  province?: string;
-  region?: string;
-  state?: string;
-  stateCode?: string;
-};
 type RegionOption = {
   value: string;
   count: number;
@@ -431,47 +517,8 @@ type CityFilterOption = {
   count: number;
 };
 
-const CITY_REGION_FALLBACKS = new Map(
-  Object.entries({
-    arlington: 'TX',
-    austin: 'TX',
-    chicago: 'IL',
-    dallas: 'TX',
-    'fort worth': 'TX',
-    houston: 'TX',
-    lisbon: 'Lisbon',
-    'mexico city': 'CDMX',
-    tokyo: 'Tokyo',
-    vancouver: 'BC',
-  }),
-);
-
-function normalizeRegion(value: string | undefined): string {
-  const normalized = value?.trim() ?? '';
-  if (!normalized) return '';
-  return normalized.length <= 3 ? normalized.toUpperCase() : normalized;
-}
-
 function resolveSpotRegion(spot: SpotSummary): string {
-  const regionAwareSpot = spot as RegionAwareSpot;
-  const explicitRegion = normalizeRegion(
-    regionAwareSpot.stateCode ||
-      regionAwareSpot.state ||
-      regionAwareSpot.region ||
-      regionAwareSpot.province ||
-      regionAwareSpot.adminArea,
-  );
-
-  if (explicitRegion) {
-    return explicitRegion;
-  }
-
-  const cityFallback = CITY_REGION_FALLBACKS.get((spot.city ?? '').trim().toLowerCase());
-  if (cityFallback) {
-    return cityFallback;
-  }
-
-  return normalizeRegion(spot.country) || 'Global';
+  return resolveLocationRegion(spot, { allowCountryFallback: true }) || 'Global';
 }
 
 function buildCityFilterKey(city: string, region: string): string {
@@ -479,7 +526,7 @@ function buildCityFilterKey(city: string, region: string): string {
 }
 
 function formatRegionLabel(region: string): string {
-  return region.length <= 3 ? region.toUpperCase() : region;
+  return formatLocationRegionLabel(region);
 }
 
 function formatCityOptionLabel(city: string, region: string): string {
@@ -491,8 +538,7 @@ function formatCategory(category: SpotCategory): string {
 }
 
 function formatLocation(spot: SpotSummary): string {
-  const parts = [spot.city, spot.country].filter((value): value is string => Boolean(value?.trim()));
-  return parts.length ? parts.join(', ') : 'Scope community pin';
+  return formatCityRegionLocation(spot);
 }
 
 function formatSaves(likesCount?: number): string {
@@ -614,7 +660,25 @@ function toggleVibe(vibe: string) {
   selectedVibe.value = selectedVibe.value === vibe ? '' : vibe;
 }
 
+function toggleCityFilterExpanded() {
+  isCityFilterExpanded.value = !isCityFilterExpanded.value;
+}
+
+function toggleVibeFilterExpanded() {
+  isVibeFilterExpanded.value = !isVibeFilterExpanded.value;
+}
+
+function clearVibeFilters() {
+  selectedVibe.value = '';
+  vibeSearchQuery.value = '';
+  isVibeFilterExpanded.value = false;
+}
+
 function openRegionMenu() {
+  if (!availableExploreRegions.value.length) {
+    return;
+  }
+
   isRegionMenuOpen.value = true;
 }
 
@@ -623,11 +687,18 @@ function closeRegionMenu() {
 }
 
 function toggleRegionMenu() {
+  if (!availableExploreRegions.value.length) {
+    isRegionMenuOpen.value = false;
+    return;
+  }
+
   isRegionMenuOpen.value = !isRegionMenuOpen.value;
 }
 
 function selectRegion(region: string) {
   selectedRegion.value = region;
+  selectedCityKey.value = '';
+  isCityFilterExpanded.value = false;
   closeRegionMenu();
 }
 
@@ -657,13 +728,72 @@ function clearFilters() {
   mapStore.resetCategories();
   selectedCityKey.value = '';
   selectedRegion.value = '';
-  selectedVibe.value = '';
+  isCityFilterExpanded.value = false;
+  clearVibeFilters();
   void router.replace({ query: {} });
+}
+
+async function loadExploreSearchRecommendations(options: { force?: boolean } = {}): Promise<void> {
+  if (!options.force && (exploreSearchRecommendations.value.length || exploreSearchRecommendationsLoading.value)) {
+    return;
+  }
+
+  const requestId = exploreSearchRecommendationRequestId + 1;
+  exploreSearchRecommendationRequestId = requestId;
+  exploreSearchRecommendationsLoading.value = true;
+  exploreSearchRecommendationsError.value = null;
+
+  try {
+    const recommendations = await loadSearchPlaceRecommendations({
+      isAuthenticated: authStore.isAuthenticated,
+      currentUser: authStore.currentUser,
+      limit: 6,
+    });
+
+    if (requestId !== exploreSearchRecommendationRequestId) {
+      return;
+    }
+
+    exploreSearchRecommendations.value = recommendations;
+  } catch {
+    if (requestId !== exploreSearchRecommendationRequestId) {
+      return;
+    }
+
+    exploreSearchRecommendations.value = [];
+    exploreSearchRecommendationsError.value = 'Recommended places are temporarily unavailable.';
+  } finally {
+    if (requestId === exploreSearchRecommendationRequestId) {
+      exploreSearchRecommendationsLoading.value = false;
+    }
+  }
+}
+
+function handleExploreSearchFocus() {
+  hasFocusedExploreSearch.value = true;
+  void loadExploreSearchRecommendations();
+}
+
+function formatRecommendationMeta(spot: SearchPlaceSuggestion): string {
+  const meta = [
+    formatLocation(spot),
+    spot.rating ? `${spot.rating.toFixed(1)} rating` : '',
+    spot.recommendationReason,
+    spot.vibe ? formatVibeLabel(spot.vibe) : '',
+  ].filter(Boolean);
+
+  return meta.length ? meta.join(' / ') : 'Scope place';
+}
+
+async function openExploreRecommendation(spot: SearchPlaceSuggestion): Promise<void> {
+  void recordSearchPlaceSuggestionClick(spot);
+  await router.push(`/spots/${encodeURIComponent(spot.id)}`);
 }
 
 function clearLocationFilters() {
   selectedCityKey.value = '';
   selectedRegion.value = '';
+  isCityFilterExpanded.value = false;
 }
 
 function matchesSearch(spot: SpotSummary, query: string): boolean {
@@ -672,11 +802,26 @@ function matchesSearch(spot: SpotSummary, query: string): boolean {
     return true;
   }
 
-  const searchableFields = [spot.title, spot.description, spot.city, spot.country, spot.vibe, spot.author?.displayName]
+  const searchableFields = [
+    spot.title,
+    spot.description,
+    spot.city,
+    spot.country,
+    ...resolveSpotVibes(spot),
+    spot.author?.displayName,
+  ]
     .filter((value): value is string => Boolean(value?.trim()))
     .map((value) => value.toLowerCase());
 
   return searchableFields.some((value) => value.includes(normalizedQuery));
+}
+
+function resolveSpotVibes(spot: SpotSummary): string[] {
+  const values = [spot.vibe, ...(spot.pillars ?? [])]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+
+  return [...new Set(values)];
 }
 
 const baseSpots = computed(() => spotsStore.items);
@@ -726,17 +871,66 @@ const availableRegionOptions = computed<RegionOption[]>(() => {
 });
 
 const availableVibes = computed(() =>
-  [...new Set(baseSpots.value.map((spot) => spot.vibe).filter((vibe): vibe is string => Boolean(vibe?.trim())))].sort((left, right) =>
+  [...new Set(baseSpots.value.flatMap((spot) => resolveSpotVibes(spot)))].sort((left, right) =>
     left.localeCompare(right),
   ),
 );
 
 const availableExploreVibes = computed(() => (isScopeQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_VIBES] : availableVibes.value));
-const availableExploreRegions = computed(() => availableRegionOptions.value);
-const availableExploreRegionTotal = computed(() =>
-  availableExploreRegions.value.reduce((total, region) => total + region.count, 0),
+const filteredExploreVibes = computed(() => {
+  const query = vibeSearchQuery.value.trim().toLowerCase();
+  if (!query) {
+    return availableExploreVibes.value;
+  }
+
+  return availableExploreVibes.value.filter((vibe) => {
+    const formattedVibe = formatVibeLabel(vibe).toLowerCase();
+    return vibe.toLowerCase().includes(query) || formattedVibe.includes(query);
+  });
+});
+const visibleExploreVibes = computed(() => {
+  if (vibeSearchQuery.value.trim()) {
+    return filteredExploreVibes.value;
+  }
+
+  if (isVibeFilterExpanded.value) {
+    return filteredExploreVibes.value;
+  }
+
+  const visibleVibes = filteredExploreVibes.value.slice(0, MAX_VISIBLE_VIBE_FILTERS);
+  if (selectedVibe.value && filteredExploreVibes.value.includes(selectedVibe.value) && !visibleVibes.includes(selectedVibe.value)) {
+    return [selectedVibe.value, ...visibleVibes.slice(0, MAX_VISIBLE_VIBE_FILTERS - 1)];
+  }
+
+  return visibleVibes;
+});
+const hiddenVibeCount = computed(() => Math.max(0, filteredExploreVibes.value.length - new Set(visibleExploreVibes.value).size));
+const vibeOverflowButtonLabel = computed(() => {
+  if (vibeSearchQuery.value.trim()) {
+    return '';
+  }
+
+  if (isVibeFilterExpanded.value && filteredExploreVibes.value.length > MAX_VISIBLE_VIBE_FILTERS) {
+    return 'Show fewer';
+  }
+
+  return hiddenVibeCount.value ? `+${hiddenVibeCount.value} more` : '';
+});
+const vibeOverflowButtonAriaLabel = computed(() =>
+  isVibeFilterExpanded.value
+    ? 'Show fewer vibes'
+    : `Show ${hiddenVibeCount.value} more ${hiddenVibeCount.value === 1 ? 'vibe' : 'vibes'}`,
 );
-const visibleExploreCityOptions = computed(() =>
+const vibeFilterMetaCopy = computed(() => {
+  const vibeCount = availableExploreVibes.value.length;
+  if (!vibeCount) {
+    return 'No vibes yet';
+  }
+
+  return `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'}`;
+});
+const availableExploreRegions = computed(() => availableRegionOptions.value);
+const filteredExploreCityOptions = computed(() =>
   selectedRegion.value
     ? availableCityFilterOptions.value.filter((city) => city.region === selectedRegion.value)
     : availableCityFilterOptions.value,
@@ -744,8 +938,53 @@ const visibleExploreCityOptions = computed(() =>
 const selectedCityOption = computed(() =>
   availableCityFilterOptions.value.find((city) => city.key === selectedCityKey.value) ?? null,
 );
-const selectedRegionLabel = computed(() => (selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'all states'));
-const regionFilterButtonLabel = computed(() => (selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'All states'));
+const visibleExploreCityOptions = computed(() => {
+  if (isCityFilterExpanded.value) {
+    return filteredExploreCityOptions.value;
+  }
+
+  const visibleCities = filteredExploreCityOptions.value.slice(0, MAX_VISIBLE_CITY_FILTERS);
+  const selectedCity = selectedCityOption.value;
+  if (selectedCity && filteredExploreCityOptions.value.some((city) => city.key === selectedCity.key) && !visibleCities.some((city) => city.key === selectedCity.key)) {
+    return [selectedCity, ...visibleCities.slice(0, MAX_VISIBLE_CITY_FILTERS - 1)];
+  }
+
+  return visibleCities;
+});
+const hiddenCityCount = computed(() =>
+  Math.max(0, filteredExploreCityOptions.value.length - new Set(visibleExploreCityOptions.value.map((city) => city.key)).size),
+);
+const cityOverflowButtonLabel = computed(() => {
+  if (isCityFilterExpanded.value && filteredExploreCityOptions.value.length > MAX_VISIBLE_CITY_FILTERS) {
+    return 'Show fewer';
+  }
+
+  return hiddenCityCount.value ? `+${hiddenCityCount.value} more` : '';
+});
+const cityOverflowButtonAriaLabel = computed(() =>
+  isCityFilterExpanded.value
+    ? 'Show fewer cities'
+    : `Show ${hiddenCityCount.value} more ${hiddenCityCount.value === 1 ? 'city' : 'cities'}`,
+);
+const selectedRegionLabel = computed(() => (selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'all regions'));
+const locationFilterTitle = 'Cities';
+const cityFilterMetaCopy = computed(() => {
+  if (!availableCityFilterOptions.value.length) {
+    return 'No cities yet';
+  }
+
+  const cityCount = filteredExploreCityOptions.value.length;
+  return selectedRegion.value
+    ? `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} in ${selectedRegionLabel.value}`
+    : `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} across ${selectedRegionLabel.value}`;
+});
+const regionFilterButtonLabel = computed(() => {
+  if (!availableExploreRegions.value.length) {
+    return 'No regions yet';
+  }
+
+  return selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'All regions';
+});
 
 const filteredSpots = computed(() =>
   baseSpots.value.filter((spot) => {
@@ -755,7 +994,7 @@ const filteredSpots = computed(() =>
     const matchesCity =
       !selectedCityOption.value ||
       (spot.city === selectedCityOption.value.city && spotRegion === selectedCityOption.value.region);
-    const matchesVibe = !selectedVibe.value || spot.vibe === selectedVibe.value;
+    const matchesVibe = !selectedVibe.value || resolveSpotVibes(spot).includes(selectedVibe.value);
     return matchesCategory && matchesRegion && matchesCity && matchesVibe && matchesSearch(spot, searchQuery.value);
   }),
 );
@@ -788,6 +1027,32 @@ const displayedResultCount = computed(() => {
   return displayedSpots.value.length;
 });
 
+const showExploreSearchRecommendations = computed(() => {
+  if (isScopeQaExploreMode) {
+    return false;
+  }
+
+  const hasRecommendationState = (
+    exploreSearchRecommendationsLoading.value ||
+    Boolean(exploreSearchRecommendationsError.value) ||
+    Boolean(exploreSearchRecommendations.value.length)
+  );
+
+  if (!hasRecommendationState) {
+    return false;
+  }
+
+  if (!searchQuery.value.trim()) {
+    return hasFocusedExploreSearch.value;
+  }
+
+  return !searchStore.loading && displayedSpots.value.length === 0;
+});
+
+const exploreSearchRecommendationTitle = computed(() =>
+  searchQuery.value.trim() ? 'Recommended instead' : 'Recommended places',
+);
+
 const activeFilterPills = computed(() => {
   const pills: string[] = [];
 
@@ -813,7 +1078,7 @@ const activeFilterPills = computed(() => {
 });
 
 const showResultsSkeleton = computed(() =>
-  (isFetchingInitialResults.value && !baseSpots.value.length && !spotsStore.error) || (searchStore.loading && !baseSpots.value.length),
+  (isFetchingInitialResults.value && !baseSpots.value.length) || (searchStore.loading && !baseSpots.value.length),
 );
 const emptyStateTitle = computed(() => (hasActiveFilters.value ? 'No spots match the current filters' : 'No community spots yet'));
 const emptyStateDescription = computed(() =>
@@ -890,6 +1155,24 @@ watch(
     }, 300);
   },
   { immediate: true },
+);
+
+watch(
+  () => [
+    authStore.isAuthenticated,
+    authStore.currentUser?.id ?? '',
+    authStore.currentUser?.interests?.join('|') ?? '',
+  ] as const,
+  () => {
+    exploreSearchRecommendationRequestId += 1;
+    exploreSearchRecommendations.value = [];
+    exploreSearchRecommendationsLoading.value = false;
+    exploreSearchRecommendationsError.value = null;
+
+    if (hasFocusedExploreSearch.value) {
+      void loadExploreSearchRecommendations({ force: true });
+    }
+  },
 );
 
 watch(searchQuery, (query) => {
@@ -1307,6 +1590,23 @@ h2 {
   outline: none;
 }
 
+.state-filter.is-disabled .state-filter__button,
+.state-filter__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.state-filter.is-disabled:hover .state-filter__button {
+  color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--accent-teal) 14%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent)),
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 58%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--bg-primary) 18%, transparent);
+}
+
 .state-filter.is-active .state-filter__button {
   color: var(--text-primary);
   border-color: color-mix(in srgb, var(--accent-teal) 45%, transparent);
@@ -1430,13 +1730,6 @@ h2 {
   background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-secondary));
 }
 
-.state-filter__option-count {
-  min-width: 1.35rem;
-  color: color-mix(in srgb, var(--text-secondary) 74%, var(--accent-teal) 26%);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 .state-reset-button {
   display: inline-flex;
   align-items: center;
@@ -1485,6 +1778,39 @@ h2 {
   transform: translateY(0) scale(var(--motion-press-scale));
 }
 
+.quick-filter-actions--vibes {
+  flex: 1 1 auto;
+  min-width: min(100%, 13rem);
+}
+
+.vibe-filter-input {
+  width: min(13rem, 100%);
+  min-height: 2.5rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-primary));
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  line-height: 1.2;
+  outline: none;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.vibe-filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.vibe-filter-input:focus {
+  border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--glass-border));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
+}
+
 .filter-chip:hover,
 .filter-chip:focus-visible,
 .quick-filter-chip:hover,
@@ -1514,6 +1840,37 @@ h2 {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-teal) 55%, transparent);
 }
 
+.quick-filter-chip--empty {
+  cursor: default;
+  border-style: dashed;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+}
+
+.quick-filter-chip--more {
+  border: 1px dashed color-mix(in srgb, var(--text-secondary) 42%, var(--glass-border));
+  box-shadow: none;
+  color: color-mix(in srgb, var(--text-secondary) 82%, var(--accent-teal));
+  font-weight: var(--font-weight-semibold);
+}
+
+.quick-filter-chip--more:hover,
+.quick-filter-chip--more:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
+}
+
+.quick-filter-chip--empty:hover,
+.quick-filter-chip--empty:focus-visible,
+.quick-filter-chip--empty:active {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+  box-shadow: none;
+  transform: none;
+}
+
 .filter-chip.active:hover,
 .filter-chip.active:focus-visible,
 .quick-filter-chip.active:hover,
@@ -1528,6 +1885,115 @@ h2 {
 .quick-filter-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
+}
+
+.search-recommendations {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+}
+
+.search-recommendations__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.search-recommendations__header h2 {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+}
+
+.search-recommendations__header span,
+.search-recommendations__state,
+.search-recommendation span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.search-recommendations__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.search-recommendation {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 7.25rem;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 88%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 44%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.search-recommendation:hover,
+.search-recommendation:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 9%, var(--bg-secondary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
+  outline: none;
+  transform: translateY(var(--motion-button-lift));
+}
+
+.search-recommendation strong,
+.search-recommendation span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-recommendation strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+.search-recommendation span:not(.search-recommendation__rank) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: var(--line-height-normal);
+}
+
+.search-recommendation__rank {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 24%, var(--border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 10%, transparent);
+  color: var(--accent-teal);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.search-recommendations__state {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 42%, transparent);
+}
+
+.search-recommendations__state--error {
+  color: var(--danger);
 }
 
 .quick-filter-group {
@@ -1665,6 +2131,44 @@ h2 {
 
 .results-masonry[data-results-layout='single-column'] {
   grid-template-columns: 1fr;
+}
+
+.explore-empty-state {
+  min-height: clamp(16rem, 28vw, 24rem);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: clamp(var(--space-5), 4vw, var(--space-8));
+  text-align: center;
+}
+
+.explore-empty-state--trending {
+  min-height: 18rem;
+  padding: var(--space-4) var(--space-2);
+}
+
+.explore-empty-state h3,
+.explore-empty-state p {
+  margin: 0;
+}
+
+.explore-empty-state h3 {
+  max-width: 27rem;
+  color: var(--text-primary);
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.explore-empty-state p:not(.eyebrow) {
+  max-width: 34rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.explore-empty-state .button {
+  margin-top: var(--space-2);
 }
 
 .explore-card {
@@ -1938,9 +2442,14 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .search-recommendations__grid {
+    grid-template-columns: 1fr;
+  }
+
   .discovery-shell__header,
   .discovery-shell__toolbar,
   .discovery-shell__footer,
+  .search-recommendations__header,
   .results-header,
   .quick-filter-group__header {
     flex-direction: column;
@@ -2083,9 +2592,10 @@ h2 {
   }
 
   .filter-chip,
-  .quick-filter-chip,
-  .view-toggle__button,
-  .explore-card,
+    .quick-filter-chip,
+    .view-toggle__button,
+    .search-recommendation,
+    .explore-card,
   .explore-card__image,
   .trending-item,
   .trending-item__thumb,
@@ -2099,11 +2609,13 @@ h2 {
   .filter-chip:active,
   .quick-filter-chip:hover,
   .quick-filter-chip:focus-visible,
-  .quick-filter-chip:active,
-  .view-toggle__button:hover,
-  .view-toggle__button:focus-visible,
-  .view-toggle__button:active,
-  .explore-card:hover,
+    .quick-filter-chip:active,
+    .view-toggle__button:hover,
+    .view-toggle__button:focus-visible,
+    .view-toggle__button:active,
+    .search-recommendation:hover,
+    .search-recommendation:focus-visible,
+    .explore-card:hover,
   .explore-card:focus-visible,
   .explore-card:hover .explore-card__image,
   .explore-card:focus-visible .explore-card__image,

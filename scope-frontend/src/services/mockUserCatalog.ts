@@ -1,4 +1,5 @@
 import rawUsers from '@/mock/users.json';
+import { demoFriendConnections, demoFriendRequests } from '@/services/socialMockData';
 import type { UserProfile } from '@/types';
 import { sanitizeUserProfile } from '@/utils/sanitizers';
 
@@ -9,7 +10,7 @@ const fallbackCatalogUsers: UserProfile[] = [
     email: 'demo@scope.travel',
     // Anonymous demo persona used for mock mode. Once real accounts land,
     // this fallback should simply never surface to the UI.
-    displayName: 'Local preview user',
+    displayName: 'Scope traveler',
     // Intentionally blank so the Avatar component falls back to its
     // neutral silhouette placeholder instead of a seeded stock face.
     avatarUrl: '',
@@ -22,8 +23,12 @@ const fallbackCatalogUsers: UserProfile[] = [
 const rawCatalogUsers = (rawUsers as UserProfile[]).map((user) =>
   sanitizeUserProfile(user, { allowGeneratedAvatar: true }),
 );
+const socialCatalogUsers = [
+  ...demoFriendConnections.map((connection) => connection.user),
+  ...demoFriendRequests.map((request) => request.user),
+].map((user) => sanitizeUserProfile(user, { allowGeneratedAvatar: true }));
 
-const mergedCatalogUsers = [...fallbackCatalogUsers, ...rawCatalogUsers];
+const mergedCatalogUsers = [...fallbackCatalogUsers, ...rawCatalogUsers, ...socialCatalogUsers];
 const uniqueCatalogUsers = new Map<string, UserProfile>();
 
 for (const user of mergedCatalogUsers) {
@@ -32,8 +37,24 @@ for (const user of mergedCatalogUsers) {
 
 export const catalogMockUsers: UserProfile[] = [...uniqueCatalogUsers.values()];
 
+function getMockUserIdVariants(userId: string): string[] {
+  const variants = [userId];
+  const numericLegacyMatch = /^user-(\d+)$/i.exec(userId);
+  if (numericLegacyMatch) {
+    variants.push(`demo-user-${numericLegacyMatch[1]}`);
+  }
+
+  return variants;
+}
+
 export function getCatalogMockUserById(userId: string): UserProfile | undefined {
-  return catalogMockUsers.find((user) => user.id === userId);
+  const exactMatch = catalogMockUsers.find((user) => user.id === userId);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const variants = getMockUserIdVariants(userId);
+  return catalogMockUsers.find((user) => variants.includes(user.id));
 }
 
 export function findCatalogMockUser(criteria: Partial<Pick<UserProfile, 'id' | 'email' | 'username'>>): UserProfile | undefined {

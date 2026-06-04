@@ -29,7 +29,7 @@ import {
   sanitizeTripPlannerInput,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
-import { addCalendarDays } from '@/utils/formatters';
+import { addCalendarDays, getInclusiveDaySpan } from '@/utils/formatters';
 import { buildPravatarAvatarUrl } from '@/utils/demoMedia';
 import { demoFeed, demoNotifications, demoSpotDetails, demoSpots, demoTrips, demoUsers, demoViewport } from '@/mock';
 import { DEMO_MODE_ENABLED } from '@/services/demoMode';
@@ -40,7 +40,7 @@ const users: UserProfile[] = [
     id: 'user-1',
     username: 'scopedemo',
     email: 'demo@scope.travel',
-    displayName: 'Local preview user',
+    displayName: 'Scope traveler',
     avatarUrl: buildPravatarAvatarUrl(12),
     bio: 'Sample demo profile used until a real account connects.',
     interests: ['food', 'culture', 'nightlife'],
@@ -1007,6 +1007,7 @@ function toSpotSummary(spot: SpotDetail): SpotSummary {
     city: spot.city,
     country: spot.country,
     category: spot.category,
+    pillars: spot.pillars,
     vibe: spot.vibe,
     rating: spot.rating,
     photoUrl: spot.photoUrl ?? spot.photos[0]?.url,
@@ -1045,6 +1046,7 @@ export function createMockSpot(submission: SpotFormSubmission, author?: UserProf
     city: sanitizedSubmission.spot.city,
     country: sanitizedSubmission.spot.country,
     category: sanitizedSubmission.spot.category,
+    pillars: sanitizedSubmission.spot.pillars,
     vibe: sanitizedSubmission.spot.vibe,
     rating: sanitizedSubmission.spot.rating,
     photoUrl: photos[0]?.url,
@@ -1078,6 +1080,7 @@ export function updateMockSpot(spotId: string, submission: SpotFormSubmission, a
     city: sanitizedSubmission.spot.city,
     country: sanitizedSubmission.spot.country,
     category: sanitizedSubmission.spot.category,
+    pillars: sanitizedSubmission.spot.pillars,
     vibe: sanitizedSubmission.spot.vibe,
     rating: sanitizedSubmission.spot.rating,
     photoUrl: photos[0]?.url,
@@ -1144,25 +1147,27 @@ export function buildItineraryPreview(input: TripPlannerInput): Itinerary {
     .slice(0, Math.max(2, Math.min(6, sanitizedInput.groupSize + 2)));
 
   const dailyPace = sanitizedInput.pace === 'relaxed' ? 2 : sanitizedInput.pace === 'packed' ? 4 : 3;
-  const days: Itinerary['days'] = [];
+  const totalDays = getInclusiveDaySpan(sanitizedInput.startDate, sanitizedInput.endDate);
+  const days: Itinerary['days'] = Array.from({ length: totalDays }, (_, index) => ({
+    dayNumber: index + 1,
+    date: addCalendarDays(sanitizedInput.startDate, index),
+    spots: [],
+  }));
 
   scoredSpots.forEach(({ spot }, index) => {
-    const dayIndex = Math.floor(index / dailyPace);
-    if (!days[dayIndex]) {
-      days[dayIndex] = {
-        dayNumber: dayIndex + 1,
-        date: addCalendarDays(sanitizedInput.startDate, dayIndex),
-        spots: [],
-      };
+    const dayIndex = Math.min(Math.floor(index / dailyPace), Math.max(0, totalDays - 1));
+    const day = days[dayIndex];
+    if (!day) {
+      return;
     }
 
-    days[dayIndex].spots.push({
+    day.spots.push({
       spotId: spot.id,
       title: spot.title,
       latitude: spot.latitude,
       longitude: spot.longitude,
       category: spot.category,
-      timeSlot: ['09:00', '12:00', '15:00', '19:00'][days[dayIndex].spots.length] ?? '20:00',
+      timeSlot: ['09:00', '12:00', '15:00', '19:00'][day.spots.length] ?? '20:00',
       duration: 90,
       estimatedCost: 20 + index * 8,
       photoUrl: spot.photoUrl,

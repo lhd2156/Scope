@@ -4,12 +4,13 @@ import {
   sanitizeImageUrl,
   sanitizeMultilineText,
   sanitizeSpotFormSubmission,
+  sanitizeSpotDetail,
   sanitizeSpotSummary,
   sanitizeTrip,
   sanitizeTripMember,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
-import type { FeedItem, SpotFormSubmission, SpotSummary, Trip, TripMember, UserProfile } from '@/types';
+import type { FeedItem, SpotDetail, SpotFormSubmission, SpotSummary, Trip, TripMember, UserProfile } from '@/types';
 import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/demoPhotos';
 
 describe('sanitizers', () => {
@@ -123,6 +124,36 @@ describe('sanitizers', () => {
     }).avatarUrl).toBe('https://images.example.com/louis.jpg');
   });
 
+  it('keeps partial saved trips renderable instead of dropping the draft', () => {
+    const sanitized = sanitizeTrip({
+      id: 'enw',
+      title: '  Evening North West route  ',
+      destination: ' Dallas ',
+      isPublic: false,
+      startDate: '2026-05-07',
+      endDate: '2026-05-07',
+      spots: [
+        {
+          spotId: 'stop-1',
+          title: '  First stop  ',
+          latitude: 32.7767,
+          longitude: -96.797,
+          category: 'unknown-category' as never,
+          reason: '  Matches\u0000 scenic   preference  ',
+          confidence: 1.4,
+        },
+      ],
+    } as Trip);
+
+    expect(sanitized.id).toBe('enw');
+    expect(sanitized.title).toBe('Evening North West route');
+    expect(sanitized.destination).toBe('Dallas');
+    expect(sanitized.members).toEqual([]);
+    expect(sanitized.spots[0]?.category).toBe('other');
+    expect(sanitized.spots[0]?.reason).toBe('Matches scenic preference');
+    expect(sanitized.spots[0]?.confidence).toBe(1);
+  });
+
   it('allows generated avatars only for explicit demo/mock people', () => {
     const user: UserProfile = {
       id: 'demo-user-1',
@@ -195,5 +226,48 @@ describe('sanitizers', () => {
     expect(sanitized.existingPhotos[0]?.caption).toBe('hero');
     expect(sanitized.newPhotos[0]?.previewUrl).toBe('blob:scope-upload');
     expect(sanitized.newPhotos[0]?.caption).toBe('cover shot');
+  });
+
+  it('hydrates real content review rows without requiring mocked nested users', () => {
+    const sanitized = sanitizeSpotDetail({
+      id: 'spot-live-1',
+      title: 'Live Water Garden',
+      latitude: 32.7477,
+      longitude: -97.3268,
+      category: 'scenic',
+      rating: '4.6',
+      created_at: '2026-05-21T16:20:00Z',
+      user_id: 'owner-live-user',
+      liked: true,
+      photos: [],
+      reviews: [
+        {
+          id: 'review-live-1',
+          spot_id: 'spot-live-1',
+          user_id: '6f86f77d-aaaa-bbbb-cccc-123456789abc',
+          rating: '4.6',
+          comment: '  Real review from content API.  ',
+          created_at: '2026-05-21T16:30:00Z',
+        },
+      ],
+    } as unknown as SpotDetail);
+
+    expect(sanitized.rating).toBe(4.6);
+    expect(sanitized.createdAt).toBe('2026-05-21T16:20:00Z');
+    expect(sanitized.userId).toBe('owner-live-user');
+    expect(sanitized.liked).toBe(true);
+    expect(sanitized.reviews[0]).toMatchObject({
+      id: 'review-live-1',
+      spotId: 'spot-live-1',
+      rating: 4.6,
+      comment: 'Real review from content API.',
+      createdAt: '2026-05-21T16:30:00Z',
+    });
+    expect(sanitized.reviews[0]?.user).toMatchObject({
+      id: '6f86f77d-aaaa-bbbb-cccc-123456789abc',
+      username: 'traveler-6f86f77d',
+      displayName: 'Traveler 6f86f77d',
+      interests: [],
+    });
   });
 });

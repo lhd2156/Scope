@@ -103,10 +103,11 @@ def test_vibe_matcher_uses_model_loader_for_similarity_model():
     assert loader.build_calls == 1
     assert loader.model.fit_documents == [
         "quiet sunset walk",
-        "chill Scenic river walk outdoors",
-        "social Late-night tacos food",
+        "Trail chill Scenic river walk outdoors",
+        "Tacos social Late-night tacos food",
     ]
     assert matches[0]["spotId"] == "spot-1"
+    assert matches[0]["reason"]
 
 
 def test_health_service_ml_model_ready_uses_shared_loader_verification():

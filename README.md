@@ -1,4 +1,4 @@
-# Scope
+﻿# Scope
 
 Scope is a real-world adventure platform where people document, discover, and plan experiences on an interactive map.
 
@@ -25,16 +25,21 @@ This repository now includes:
 
 ## Architecture
 
-Scope is a polyglot microservice system with six app surfaces:
+Scope is a polyglot microservice system with multiple service surfaces:
 
 | Service | Stack | Directory | Responsibility |
 |---|---|---|---|
 | Core API | ASP.NET Core 8 / C# | `Scope.Core/` | auth, users, friendships, notifications, live sessions |
 | Content API | Django 5 / Python | `scope_content/` | spots, trips, photos, reviews, social feed |
 | Intel API | Flask 3 / Python | `scope_intel/` | itinerary generation, recommendations, vibe matching |
+| RAG API | Python | `scope-rag/` | Scope AI chat grounding, retrieval, app catalog context |
 | Metrics Agent | Go | `scope-metrics/` | Prometheus exporter, dependency probes, alert rules |
 | CLI Toolkit | Rust | `scope-cli/` | health checks, seeding, deploy validation, benchmarking |
 | Frontend | Vue 3 / TypeScript | `scope-frontend/` | map UX, social/product UI, trip planning flows |
+| Admin | Vue 3 / TypeScript | `scope-admin/` | operational/admin UI |
+| Site | Vue 3 / TypeScript | `scope-site/` | public web surface |
+| Geo | C++ / Python | `scope_geo/` | geospatial primitives and bindings |
+| Media | C / Python | `scope_media/` | image and media processing helpers |
 
 Supporting infrastructure in-repo:
 
@@ -50,12 +55,17 @@ Supporting infrastructure in-repo:
 Scope.Core/          Core backend (.NET)
 scope_content/       Content backend (Django)
 scope_intel/         Intelligence backend (Flask)
+scope-rag/           Retrieval/chat grounding API
 scope-metrics/       Metrics exporter + alerting (Go)
 scope-cli/           Ops toolkit (Rust)
 scope-frontend/      Frontend (Vue + Vite)
+scope-admin/         Admin UI (Vue + Vite)
+scope-site/          Public site (Vue + Vite)
+scope_geo/           Geospatial primitives + Python bindings
+scope_media/         Media helpers + Python bindings
 scope-assets/        Design tokens, icons, mockups
 scripts/sql/         SQL schema + seed scripts
-docs/                Deployment/integration documentation
+docs/                SDLC, deployment, integration, and release documentation
 k8s/                 Kubernetes manifests
 terraform/           Terraform baseline
 ```
@@ -125,6 +135,13 @@ cd scope_intel
 python -m pytest tests
 ```
 
+#### RAG
+
+```powershell
+cd scope-rag
+python -m pytest tests
+```
+
 #### Metrics Agent
 
 ```powershell
@@ -149,6 +166,39 @@ npm run test
 npm run test:e2e -- --project=chromium
 ```
 
+#### Admin
+
+```powershell
+cd scope-admin
+npm run build
+npm run test
+```
+
+#### Site
+
+```powershell
+cd scope-site
+npm run build
+npm run test
+```
+
+#### Geo
+
+```powershell
+cd scope_geo
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build
+python -m pytest tests
+```
+
+#### Media
+
+```powershell
+cd scope_media
+python -m pytest tests
+```
+
 ## Browser smoke coverage
 
 The repository includes a Playwright critical-flow smoke test covering:
@@ -168,13 +218,15 @@ Files:
 
 See:
 
-- `docs/API-REFERENCE.md` — current API route reference across Core, Content, and Intel
-- `docs/DEPLOYMENT.md` — current local/staging deployment runbook
-- `docs/PRODUCTION-HARDENING.md` — production hardening and readiness guidance
-- `docs/RELEASE-RUNBOOK.md` — release, verification, and rollback procedure
-- `scripts/smoke-test.ps1` — post-deploy edge + service + metrics smoke validation
-- `scripts/sql/README.md` — schema + seed execution order
-- `terraform/README.md` — Terraform baseline usage notes
+- `docs/SDLC.md` - software development life cycle policy for Scope
+- `docs/SDLC-CONTROLS.md` - control matrix and per-service validation checklist
+- `docs/API-REFERENCE.md` - current API route reference across Core, Content, and Intel
+- `docs/DEPLOYMENT.md` - current local/staging deployment runbook
+- `docs/PRODUCTION-HARDENING.md` - production hardening and readiness guidance
+- `docs/RELEASE-RUNBOOK.md` - release, verification, and rollback procedure
+- `scripts/smoke-test.ps1` - post-deploy edge + service + metrics smoke validation
+- `scripts/sql/README.md` - schema + seed execution order
+- `terraform/README.md` - Terraform baseline usage notes
 
 ## Automation in repo
 
@@ -182,7 +234,8 @@ See:
 
 - `.github/workflows/ci.yml`
 
-Runs build/test validation for Core, Content, Intel, Frontend, and Docker Compose config.
+Runs build/test validation for the core application surfaces and Docker Compose
+config. Use `docs/SDLC-CONTROLS.md` for the full per-service validation matrix.
 
 ### Deploy automation
 
@@ -208,11 +261,14 @@ The repository has strong integration scaffolding, but some production-hardening
 
 ## Related docs
 
-- `AGENTS.md`
-- `SOUL.md`
-- `USER.md`
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `docs/SDLC.md`
+- `docs/SDLC-CONTROLS.md`
+- `docs/API-REFERENCE.md`
 - `docs/DEPLOYMENT.md`
 - `scripts/sql/README.md`
+- `terraform/README.md`
 
 ## License
 

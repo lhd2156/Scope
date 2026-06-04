@@ -10,7 +10,8 @@ import UserDetailPage from '@/pages/UserDetailPage.vue';
 import UsersPage from '@/pages/UsersPage.vue';
 import { useAuthStore } from '@/stores/authStore';
 
-const configuredBase = import.meta.env.VITE_ADMIN_BASENAME ?? import.meta.env.VITE_ADMIN_BASE_PATH ?? '/admin';
+const configuredBase =
+  import.meta.env.VITE_ADMIN_BASENAME ?? import.meta.env.VITE_ADMIN_BASE_PATH ?? '/admin';
 const basename = `/${configuredBase.replace(/^\/+|\/+$/g, '')}`;
 
 const routes: RouteRecordRaw[] = [
@@ -25,11 +26,23 @@ const routes: RouteRecordRaw[] = [
       { path: 'users', component: UsersPage },
       { path: 'users/:id', component: UserDetailPage },
       { path: 'spots', component: SpotsPage },
-      { path: 'trips', component: SimplePage, props: { title: 'Trips', description: 'Trip planning and itinerary moderation.' } },
+      {
+        path: 'trips',
+        component: SimplePage,
+        props: { title: 'Trips', description: 'Trip planning and itinerary moderation.' },
+      },
       { path: 'reviews', component: ReviewsPage },
       { path: 'photos', component: PhotosPage },
-      { path: 'analytics', component: SimplePage, props: { title: 'Analytics', description: 'Operational metrics and discovery trends.' } },
-      { path: 'settings', component: SimplePage, props: { title: 'Settings', description: 'Admin environment and platform controls.' } },
+      {
+        path: 'analytics',
+        component: SimplePage,
+        props: { title: 'Analytics', description: 'Operational metrics and discovery trends.' },
+      },
+      {
+        path: 'settings',
+        component: SimplePage,
+        props: { title: 'Settings', description: 'Admin environment and platform controls.' },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

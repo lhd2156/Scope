@@ -3,9 +3,9 @@
     "id": "demo-user-1",
     "username": "scopedemo",
     "email": "demo@scope.travel",
-    "displayName": "Local preview user",
+    "displayName": "Alex Morgan",
     "avatarUrl": "https://i.pravatar.cc/300?img=12",
-    "bio": "Demo profile for previewing saved spots, routes, and account menus without assuming a real home base.",
+    "bio": "Food-first traveler collecting memorable pins, routes, and late-night finds across every city I visit.",
     "homeBase": "",
     "interests": [
       "food",

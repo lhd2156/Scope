@@ -29,7 +29,7 @@ target_link_options(scope_wasm PRIVATE
   "-sMODULARIZE=1"
   "-sEXPORT_ES6=1"
   "-sEXPORT_NAME=createScopeWasmModule"
-  "-sENVIRONMENT=web,worker"
+  "-sENVIRONMENT=web,worker,node"
   "-sALLOW_MEMORY_GROWTH=1"
   "-sFILESYSTEM=0"
   "-sINITIAL_MEMORY=16777216"

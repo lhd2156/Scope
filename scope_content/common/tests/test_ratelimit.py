@@ -85,3 +85,25 @@ class TestRateLimitMiddleware:
 
         assert response.status_code == 200
         assert response["X-RateLimit-Limit"] == "30"
+
+    @override_settings(RATE_LIMIT_COMMENTS_PER_USER=1)
+    def test_comment_mutations_have_comment_limit(self):
+        factory = RequestFactory()
+        request = factory.post("/api/content/comments/", {"body": "Nice stop"})
+        request.META["REMOTE_ADDR"] = "127.0.0.1"
+
+        mock_redis = MagicMock()
+        mock_pipe = MagicMock()
+        mock_pipe.execute.side_effect = [
+            [None, 0, None, None],
+            [None, 1, None, None],
+        ]
+        mock_redis.pipeline.return_value = mock_pipe
+
+        middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
+        middleware._redis = mock_redis
+
+        response = middleware(request)
+
+        assert response.status_code == 429
+        assert response["Retry-After"] == "60"

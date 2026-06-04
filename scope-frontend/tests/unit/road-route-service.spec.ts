@@ -19,6 +19,14 @@ function jsonResponse(payload: unknown): Response {
   } as unknown as Response;
 }
 
+function failingResponse(status: number, payload: unknown = null): Response {
+  return {
+    ok: false,
+    status,
+    json: vi.fn(async () => payload),
+  } as unknown as Response;
+}
+
 describe('roadRouteService', () => {
   beforeEach(() => {
     clearRoadRouteCache();
@@ -182,5 +190,82 @@ describe('roadRouteService', () => {
     expect(result.distanceMeters).not.toBe(routePoints.length);
     expect(result.distanceMeters).toBeGreaterThan(2800);
     expect(result.distanceMeters).toBeLessThan(3600);
+  });
+
+  it('falls back across Mapbox optimization profiles before using directions', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test-token');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ code: 'NoRoute', message: 'No traffic route' }))
+      .mockResolvedValueOnce(jsonResponse({ trips: [{ geometry: { coordinates: [] } }] }))
+      .mockResolvedValueOnce(jsonResponse({
+        routes: [{
+          geometry: {
+            coordinates: [
+              [-97.3308, 32.7555],
+              [-97.34, 32.75],
+              [-97.3623, 32.7489],
+            ],
+          },
+          distance: 5000,
+          duration: 1000,
+        }],
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveRoadRoute(routePoints);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/optimized-trips/v1/mapbox/driving-traffic/');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/optimized-trips/v1/mapbox/driving/');
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/directions/v5/mapbox/driving-traffic/');
+    expect(result.provider).toBe('mapbox-directions');
+    expect(result.routeQuality).toBe('mapbox');
+  });
+
+  it('returns a redacted local fallback when all remote road strategies fail', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.secret-token');
+    const fetchMock = vi.fn(async () => failingResponse(500, null));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveRoadRoute(routePoints);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(result.provider).toBe('local-estimate');
+    expect(result.routeQuality).toBe('visual-fallback');
+    expect(result.routeError).toContain('Route request failed with status 500');
+    expect(result.routeError).not.toContain('pk.secret-token');
+  });
+
+  it('handles runtime, cache, and waypoint-limit fallbacks deterministically', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+    vi.stubGlobal('fetch', undefined);
+
+    const emptyRuntimeRoute = await resolveRoadRoute([routePoints[0]!]);
+    expect(emptyRuntimeRoute.provider).toBe('local-estimate');
+    expect(emptyRuntimeRoute.routeError).toBe('Mapbox route unavailable in this runtime.');
+
+    vi.stubGlobal('fetch', vi.fn());
+    const uniqueRoutes = await Promise.all(Array.from({ length: 26 }, (_, index) => resolveRoadRoute([
+      { id: `start-${index}`, title: 'Start', latitude: 32 + index * 0.001, longitude: -97, category: 'food' },
+      { id: `end-${index}`, title: 'End', latitude: 32.5 + index * 0.001, longitude: -97.5, category: 'culture' },
+    ])));
+    expect(uniqueRoutes.every((route) => route.provider === 'local-estimate')).toBe(true);
+
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test-token');
+    const tooManyPoints = Array.from({ length: 26 }, (_, index): MapPoint => ({
+      id: `point-${index}`,
+      title: `Point ${index}`,
+      latitude: 30 + index * 0.01,
+      longitude: -100 + index * 0.01,
+      category: 'other',
+    }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveRoadRoute(tooManyPoints, { optimizeOrder: false });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.provider).toBe('local-estimate');
+    expect(result.routeError).toBe('Too many points for Mapbox Directions API.');
   });
 });

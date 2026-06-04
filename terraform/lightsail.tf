@@ -1,16 +1,17 @@
 locals {
-  lightsail_availability_zone = coalesce(var.lightsail_availability_zone, data.aws_availability_zones.available.names[0])
-  lightsail_web_ipv4_cidrs    = var.lightsail_ip_address_type == "ipv6" ? [] : ["0.0.0.0/0"]
-  lightsail_web_ipv6_cidrs    = var.lightsail_ip_address_type == "ipv4" ? [] : ["::/0"]
-  lightsail_ssh_ipv4_cidrs    = var.lightsail_ip_address_type == "ipv6" ? [] : var.lightsail_admin_ipv4_cidrs
-  lightsail_ssh_ipv6_cidrs    = var.lightsail_ip_address_type == "ipv4" ? [] : var.lightsail_admin_ipv6_cidrs
-  lightsail_public_key            = trimspace(coalesce(var.lightsail_public_key, ""))
-  lightsail_key_pair_name         = trimspace(coalesce(var.lightsail_key_pair_name, ""))
-  lightsail_manage_key_pair       = local.deploy_lightsail && local.lightsail_public_key != ""
-  lightsail_effective_key_pair_name = local.lightsail_manage_key_pair ? (
-    local.lightsail_key_pair_name != "" ? local.lightsail_key_pair_name : "${local.name_prefix}-ssh"
-  ) : (
-    local.lightsail_key_pair_name != "" ? local.lightsail_key_pair_name : null
+  lightsail_availability_zone      = coalesce(var.lightsail_availability_zone, data.aws_availability_zones.available.names[0])
+  lightsail_web_ipv4_cidrs         = var.lightsail_ip_address_type == "ipv6" ? [] : ["0.0.0.0/0"]
+  lightsail_web_ipv6_cidrs         = var.lightsail_ip_address_type == "ipv4" ? [] : ["::/0"]
+  lightsail_ssh_ipv4_cidrs         = var.lightsail_ip_address_type == "ipv6" ? [] : var.lightsail_admin_ipv4_cidrs
+  lightsail_ssh_ipv6_cidrs         = var.lightsail_ip_address_type == "ipv4" ? [] : var.lightsail_admin_ipv6_cidrs
+  lightsail_public_key             = var.lightsail_public_key != null ? trimspace(var.lightsail_public_key) : ""
+  lightsail_key_pair_name          = var.lightsail_key_pair_name != null ? trimspace(var.lightsail_key_pair_name) : ""
+  lightsail_manage_key_pair        = local.deploy_lightsail && local.lightsail_public_key != ""
+  lightsail_manage_data_disk       = local.deploy_lightsail && var.lightsail_data_disk_size_gib > 0
+  lightsail_managed_key_pair_name  = local.lightsail_key_pair_name != "" ? local.lightsail_key_pair_name : "${local.name_prefix}-ssh"
+  lightsail_existing_key_pair_name = local.lightsail_key_pair_name != "" ? local.lightsail_key_pair_name : null
+  lightsail_effective_key_pair_name = (
+    local.lightsail_manage_key_pair ? local.lightsail_managed_key_pair_name : local.lightsail_existing_key_pair_name
   )
   lightsail_instance_key_pair_name = (
     local.lightsail_manage_key_pair ?
@@ -20,13 +21,21 @@ locals {
   lightsail_bootstrap_commands = [
     "set -eux",
     "dnf update -y",
-    "dnf install -y curl docker docker-compose-plugin git tar",
+    "dnf install -y curl docker git tar",
+    "mkdir -p /usr/local/lib/docker/cli-plugins",
+    "curl -fsSL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose",
+    "curl -fsSL https://github.com/docker/buildx/releases/download/${var.docker_buildx_version}/buildx-${var.docker_buildx_version}.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx",
+    "chmod +x /usr/local/lib/docker/cli-plugins/docker-compose",
+    "chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx",
+    "if [ ! -f /swapfile ]; then fallocate -l ${var.lightsail_swap_size_gib}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=${var.lightsail_swap_size_gib * 1024}; chmod 600 /swapfile; mkswap /swapfile; fi",
+    "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
+    "swapon --show | grep -q '/swapfile' || swapon /swapfile",
     "systemctl enable --now docker",
     "usermod -aG docker ec2-user",
     "mkdir -p /opt/scope/releases /opt/scope/shared /opt/scope/shared/media /opt/scope/shared/sqlserver /opt/scope/shared/config",
     "chown -R ec2-user:ec2-user /opt/scope"
   ]
-  lightsail_user_data = join(" && ", local.lightsail_bootstrap_commands)
+  lightsail_user_data = join("\n", concat(["#!/bin/bash"], local.lightsail_bootstrap_commands))
   lightsail_public_ports = concat(
     [
       {
@@ -95,6 +104,26 @@ resource "aws_lightsail_static_ip_attachment" "scope" {
 
   static_ip_name = aws_lightsail_static_ip.scope[0].name
   instance_name  = aws_lightsail_instance.scope[0].name
+}
+
+resource "aws_lightsail_disk" "scope_data" {
+  count = local.lightsail_manage_data_disk ? 1 : 0
+
+  name              = "${local.name_prefix}-data"
+  availability_zone = local.lightsail_availability_zone
+  size_in_gb        = var.lightsail_data_disk_size_gib
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-data"
+  })
+}
+
+resource "aws_lightsail_disk_attachment" "scope_data" {
+  count = local.lightsail_manage_data_disk ? 1 : 0
+
+  disk_name     = aws_lightsail_disk.scope_data[0].name
+  instance_name = aws_lightsail_instance.scope[0].name
+  disk_path     = "/dev/xvdf"
 }
 
 resource "aws_lightsail_instance_public_ports" "scope" {

@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { formatMapPinCityLine, formatVibeLabel } from '@/utils/formatters';
+import {
+  addCalendarDays,
+  formatCategoryLabel,
+  formatCityRegionLocation,
+  formatCountryLabel,
+  formatMapPinCityLine,
+  formatMonthDay,
+  formatRelativeTime,
+  formatVibeLabel,
+  formatWeekdayMonthDay,
+  getInclusiveDaySpan,
+  getInitials,
+  resolveLocationRegion,
+} from '@/utils/formatters';
 
 describe('formatVibeLabel', () => {
   it('title-cases single words and normalizes case', () => {
@@ -33,5 +46,38 @@ describe('formatMapPinCityLine', () => {
   it('uses fallback when city is empty', () => {
     expect(formatMapPinCityLine('')).toBe('Scope spot');
     expect(formatMapPinCityLine(undefined)).toBe('Scope spot');
+  });
+});
+
+describe('date and identity formatters', () => {
+  it('formats relative time, month/day labels, and inclusive day spans', () => {
+    expect(formatRelativeTime('2026-05-20T12:01:00Z', '2026-05-20T12:00:00Z')).toContain('in 1 minute');
+    expect(formatRelativeTime('not-a-date', '2026-05-20T12:00:00Z')).toBe('');
+    expect(formatMonthDay('2026-05-20')).toContain('May');
+    expect(formatMonthDay('not-a-date')).toBe('');
+    expect(formatWeekdayMonthDay('2026-05-20')).toContain('May');
+    expect(getInclusiveDaySpan('2026-05-20', '2026-05-22')).toBe(3);
+    expect(getInclusiveDaySpan('bad', '2026-05-22')).toBe(1);
+    expect(addCalendarDays('2026-05-20', 2)).toBe('2026-05-22');
+    expect(addCalendarDays('bad', 2)).toBe('');
+  });
+
+  it('formats initials and region-aware locations', () => {
+    expect(getInitials('Louis Do')).toBe('LD');
+    expect(getInitials('   ')).toBe('AT');
+    expect(formatCategoryLabel('nightlife')).toBe('Nightlife');
+    expect(formatCategoryLabel('')).toBe('');
+    expect(formatCategoryLabel(undefined)).toBe('');
+    expect(formatCountryLabel('us')).toBe('USA');
+    expect(formatCountryLabel('prt')).toBe('PRT');
+    expect(formatCountryLabel('Portugal')).toBe('Portugal');
+    expect(formatCountryLabel(undefined)).toBe('');
+    expect(resolveLocationRegion({ city: 'Chicago' })).toBe('IL');
+    expect(resolveLocationRegion({ city: 'Lisbon', country: 'Portugal' })).toBe('Lisbon');
+    expect(resolveLocationRegion({ country: 'Canada' }, { allowCountryFallback: true })).toBe('Canada');
+    expect(formatCityRegionLocation({ city: 'Dallas', country: 'US' })).toBe('Dallas, TX');
+    expect(formatCityRegionLocation({ city: 'Porto', country: 'Portugal' })).toBe('Porto, Portugal');
+    expect(formatCityRegionLocation({ country: 'mx' })).toBe('MX');
+    expect(formatCityRegionLocation({}, 'Unknown pin')).toBe('Unknown pin');
   });
 });

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent
 BUILD_DIR = ROOT / 'build'
 INCLUDE_DIR = ROOT / 'include'
 SRC_DIR = ROOT / 'src'
+COMPILER_CANDIDATES = ('cl', 'clang', 'gcc')
 
 
 def _source_files() -> list[Path]:
@@ -20,10 +21,11 @@ def _source_files() -> list[Path]:
 
 
 def _compiler() -> str:
-    compiler = shutil.which('cl') or shutil.which('gcc')
-    if compiler is None:
-        raise SystemExit('No C compiler found in PATH (expected cl or gcc).')
-    return Path(compiler).name.lower()
+    for compiler_name in COMPILER_CANDIDATES:
+        compiler = shutil.which(compiler_name)
+        if compiler is not None:
+            return Path(compiler).name.lower()
+    raise SystemExit('No C compiler found in PATH (expected cl, clang, or gcc).')
 
 
 def _build_with_cl(sources: list[Path]) -> Path:
@@ -47,13 +49,18 @@ def _build_with_cl(sources: list[Path]) -> Path:
     return output
 
 
-def _build_with_gcc(sources: list[Path]) -> Path:
+def _native_library_output() -> Path:
+    return BUILD_DIR / ('scope_media.dll' if os.name == 'nt' else 'libscope_media.so')
+
+
+def _build_with_c_compiler(compiler: str, sources: list[Path]) -> Path:
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    if os.name == 'nt':
-        output = BUILD_DIR / 'scope_media.dll'
-        command = [
-            'gcc',
-            '-shared',
+    output = _native_library_output()
+    command = [compiler, '-shared']
+    if os.name != 'nt':
+        command.append('-fPIC')
+    command.extend(
+        [
             '-std=c99',
             '-O2',
             '-Wall',
@@ -63,33 +70,34 @@ def _build_with_gcc(sources: list[Path]) -> Path:
             '-o',
             str(output),
             *[str(path) for path in sources],
-            '-lm',
         ]
-    else:
-        output = BUILD_DIR / 'libscope_media.so'
-        command = [
-            'gcc',
-            '-shared',
-            '-fPIC',
-            '-std=c99',
-            '-O2',
-            '-Wall',
-            '-Wextra',
-            '-DSCOPE_MEDIA_BUILD',
-            f'-I{INCLUDE_DIR}',
-            '-o',
-            str(output),
-            *[str(path) for path in sources],
-            '-lm',
-        ]
+    )
+    if os.name != 'nt' or compiler == 'gcc':
+        command.append('-lm')
     subprocess.run(command, cwd=ROOT, check=True)
     return output
 
 
+def _build_with_gcc(sources: list[Path]) -> Path:
+    return _build_with_c_compiler('gcc', sources)
+
+
+def _build_with_clang(sources: list[Path]) -> Path:
+    return _build_with_c_compiler('clang', sources)
+
+
 def build() -> Path:
     sources = _source_files()
+    output = _native_library_output()
+    if output.exists():
+        newest_source = max([path.stat().st_mtime for path in sources] + [(INCLUDE_DIR / 'scope_media.h').stat().st_mtime])
+        if output.stat().st_mtime >= newest_source:
+            return output
+
     compiler_name = _compiler()
-    if compiler_name.startswith('cl'):
+    if compiler_name.startswith('clang'):
+        return _build_with_clang(sources)
+    if compiler_name in {'cl', 'cl.exe'}:
         return _build_with_cl(sources)
     return _build_with_gcc(sources)
 

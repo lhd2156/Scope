@@ -31,10 +31,78 @@ def test_module_exposes_version_and_haversine_distance(scope_geo_module):
     chicago = scope_geo_module.Coordinate(41.8781, -87.6298)
     new_york = scope_geo_module.Coordinate(40.7128, -74.0060)
 
+    assert repr(chicago) == "Coordinate(latitude=41.8781, longitude=-87.6298)"
     assert scope_geo_module.version() == "0.1.0"
     assert scope_geo_module.is_coordinate_valid(chicago) is True
     assert scope_geo_module.haversine_distance_km(chicago, new_york) == pytest.approx(1144.291, abs=0.5)
     assert scope_geo_module.haversine_distance_meters(chicago, chicago) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_binding_default_constructors_repr_len_and_bool(scope_geo_module):
+    origin = scope_geo_module.Coordinate()
+    assert origin.latitude == 0.0
+    assert origin.longitude == 0.0
+    assert repr(origin) == "Coordinate(latitude=0, longitude=0)"
+
+    point = scope_geo_module.SpatialPoint("origin", origin)
+    assert repr(point) == "SpatialPoint(id='origin', coordinate=Coordinate(latitude=0, longitude=0))"
+
+    neighbor = scope_geo_module.NearestNeighbor(point, 12.5)
+    assert neighbor.point.id == "origin"
+    assert neighbor.distance_km == pytest.approx(12.5)
+    assert scope_geo_module.NearestNeighbor().distance_km == pytest.approx(0.0)
+
+    empty_index = scope_geo_module.RTreeIndex()
+    assert len(empty_index) == 0
+    assert bool(empty_index) is False
+
+    node = scope_geo_module.GraphNode("node", origin)
+    assert repr(node) == "GraphNode(id='node', coordinate=Coordinate(latitude=0, longitude=0))"
+    edge = scope_geo_module.GraphEdge("node", "node", 0.0, False)
+    assert repr(edge) == "GraphEdge(from_id='node', to_id='node', cost_km=0, bidirectional=False)"
+
+    path = scope_geo_module.PathResult(["node"], 0.0)
+    assert path.node_ids == ["node"]
+    assert path.total_cost_km == pytest.approx(0.0)
+
+    empty_graph = scope_geo_module.PathGraph()
+    assert len(empty_graph) == 0
+    assert bool(empty_graph) is False
+    empty_graph.rebuild([node], [])
+    assert len(empty_graph) == 1
+    assert bool(empty_graph) is True
+
+    viewport = scope_geo_module.Viewport()
+    assert repr(viewport) == (
+        "Viewport(min_latitude=0, min_longitude=0, max_latitude=0, max_longitude=0)"
+    )
+
+    options = scope_geo_module.ViewportClusteringOptions()
+    assert options.latitude_buckets == 8
+    assert options.longitude_buckets == 8
+
+    cluster = scope_geo_module.ViewportCluster()
+    cluster.latitude_bucket = 2
+    cluster.longitude_bucket = 3
+    cluster.centroid = origin
+    cluster.bounds = viewport
+    cluster.point_ids = ["origin"]
+    cluster.point_count = 1
+    assert cluster.latitude_bucket == 2
+    assert cluster.longitude_bucket == 3
+    assert cluster.point_ids == ["origin"]
+    assert cluster.point_count == 1
+
+    for exported_name in [
+        "Coordinate",
+        "SpatialPoint",
+        "NearestNeighbor",
+        "RTreeIndex",
+        "PathGraph",
+        "ViewportCluster",
+        "cluster_points_in_viewport",
+    ]:
+        assert exported_name in scope_geo_module.__all__
 
 
 def test_rtree_bindings_support_nearest_neighbor_queries(scope_geo_module):
@@ -46,6 +114,9 @@ def test_rtree_bindings_support_nearest_neighbor_queries(scope_geo_module):
         ],
         2,
     )
+
+    assert len(index) == 3
+    assert bool(index) is True
 
     nearest = index.nearest_neighbor(scope_geo_module.Coordinate(42.0451, -87.6877))
     assert nearest is not None

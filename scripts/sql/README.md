@@ -7,11 +7,14 @@ This directory contains SQL Server scripts for creating and seeding the logical 
 Run the files in this order:
 
 1. `core/001_core_schema.sql`
-2. `content/001_content_schema.sql`
-3. `intel/001_intel_schema.sql`
-4. `core/002_core_seed_data.sql`
-5. `content/002_content_seed_data.sql`
-6. `intel/002_intel_seed_data.sql`
+2. `core/003_security_enhancements.sql`
+3. `core/004_notifications_platform.sql`
+4. `core/005_datetimeoffset_alignment.sql`
+5. `content/001_content_schema.sql`
+6. `intel/001_intel_schema.sql`
+7. `core/002_core_seed_data.sql`
+8. `content/002_content_seed_data.sql`
+9. `intel/002_intel_seed_data.sql`
 
 ## What the seed data provides
 
@@ -38,6 +41,9 @@ All `002_*_seed_data.sql` scripts are idempotent and use fixed GUIDs with `IF NO
 ```powershell
 sqlcmd -S localhost,1433 -U sa -P "$env:SA_PASSWORD" -d Scope \
   -i scripts/sql/core/001_core_schema.sql \
+  -i scripts/sql/core/003_security_enhancements.sql \
+  -i scripts/sql/core/004_notifications_platform.sql \
+  -i scripts/sql/core/005_datetimeoffset_alignment.sql \
   -i scripts/sql/content/001_content_schema.sql \
   -i scripts/sql/intel/001_intel_schema.sql \
   -i scripts/sql/core/002_core_seed_data.sql \

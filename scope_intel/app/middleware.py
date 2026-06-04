@@ -38,26 +38,36 @@ def register_middleware(app: Flask) -> None:
 
     @app.after_request
     def after_request(response):
-        duration_ms = round((time.perf_counter() - g.started_at) * 1000, 2)
+        started_at = getattr(g, "started_at", time.perf_counter())
+        trace_id = getattr(g, "trace_id", _correlation_id())
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
         route = normalize_route(request.url_rule.rule if request.url_rule else request.path)
         record_request_metrics(request.method, route, response.status_code, duration_ms / 1000)
-        finish_request_span(
-            g.request_span,
-            g.request_span_token,
-            route=route,
-            status_code=response.status_code,
-            duration_seconds=duration_ms / 1000,
-        )
+        if hasattr(g, "request_span") and hasattr(g, "request_span_token"):
+            finish_request_span(
+                g.request_span,
+                g.request_span_token,
+                route=route,
+                status_code=response.status_code,
+                duration_seconds=duration_ms / 1000,
+            )
         app.logger.info(
             "request_complete",
             extra={
                 "service": settings.service_name,
-                "correlation_id": g.trace_id,
+                "correlation_id": trace_id,
                 "method": request.method,
                 "path": request.path,
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
             },
         )
-        response.headers["X-Correlation-Id"] = g.trace_id
+        response.headers["X-Correlation-Id"] = trace_id
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
+        response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
         return response

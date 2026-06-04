@@ -12,6 +12,7 @@ SCOPE_MEDIA_ROOT = Path(__file__).resolve().parent
 BUILD_DIR = SCOPE_MEDIA_ROOT / 'build'
 BUILD_SCRIPT = SCOPE_MEDIA_ROOT / 'build.py'
 LIBRARY_NAME = 'scope_media.dll' if sys.platform.startswith('win') else 'libscope_media.so'
+COMPILER_CANDIDATES = ('cl', 'clang', 'gcc')
 
 STATUS_OK = 0
 STATUS_INVALID_ARGUMENT = 1
@@ -143,7 +144,7 @@ def _configured_library(path: str) -> ctypes.CDLL:
 
 
 def compiler_available() -> bool:
-    return shutil.which('cl') is not None or shutil.which('gcc') is not None
+    return any(shutil.which(compiler_name) is not None for compiler_name in COMPILER_CANDIDATES)
 
 
 def library_path() -> Path:
@@ -156,7 +157,7 @@ def load_library(*, allow_build: bool = True) -> ctypes.CDLL:
         if not allow_build:
             raise ScopeMediaUnavailable(f'Compiled scope_media library not found at {output}')
         if not compiler_available():
-            raise ScopeMediaUnavailable('No C compiler found in PATH (expected cl or gcc).')
+            raise ScopeMediaUnavailable('No C compiler found in PATH (expected cl, clang, or gcc).')
         try:
             subprocess.run([sys.executable, str(BUILD_SCRIPT)], cwd=SCOPE_MEDIA_ROOT, check=True)
         except subprocess.CalledProcessError as exc:  # pragma: no cover - depends on host toolchain

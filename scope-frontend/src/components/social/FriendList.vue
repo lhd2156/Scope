@@ -56,17 +56,15 @@
       </article>
     </div>
 
-    <EmptyStatePanel
+    <div
       v-else
-      tone="surface"
-      compact
-      :eyebrow="eyebrow"
-      title="Your Scope circle is still forming"
-      description="As you accept requests and invite collaborators, your core travel crew will appear here."
-      icon="friends"
-      artwork="community"
-      heading-level="h3"
-    />
+      class="friend-list-empty-state"
+      data-test="friend-list-empty-state"
+    >
+      <p class="eyebrow">{{ eyebrow }}</p>
+      <h3>Your Scope circle is still forming</h3>
+      <p>As you accept requests and invite collaborators, your core travel crew will appear here.</p>
+    </div>
   </section>
 </template>
 
@@ -74,7 +72,6 @@
 import { computed } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import Avatar from '@/components/common/Avatar.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import type { FriendConnection, FriendPresence } from '@/types';
 
 interface FriendConnectionCard {
@@ -383,6 +380,35 @@ function formatSharedTrips(sharedTrips?: number): string {
 
 .friend-card__button:active {
   transform: translateY(0) scale(0.97);
+}
+
+.friend-list-empty-state {
+  min-height: 14rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.friend-list-empty-state h3,
+.friend-list-empty-state p {
+  margin: 0;
+}
+
+.friend-list-empty-state h3 {
+  max-width: 28rem;
+  color: var(--text-primary);
+  font-size: clamp(1.1rem, 1.5vw, 1.35rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.friend-list-empty-state p:not(.eyebrow) {
+  max-width: 34rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 @media (max-width: 1180px) {

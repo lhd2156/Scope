@@ -9,37 +9,45 @@ const activeTheme = ref<ThemeMode>('dark');
 export interface ApplyThemeOptions {
   track?: boolean;
   source?: 'navbar' | 'settings';
+  animate?: boolean;
 }
 
 export function getStoredTheme(): ThemeMode {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
-  } catch {
-    return 'dark';
-  }
+  return 'dark';
 }
 
-export function applyTheme(theme: ThemeMode, options: ApplyThemeOptions = {}): void {
-  const previousTheme = activeTheme.value;
-  const themeChanged = previousTheme !== theme;
+function commitThemeToDocument(theme: ThemeMode): void {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.style.colorScheme = theme;
+  syncThemeColorMeta(theme);
+}
 
-  activeTheme.value = theme;
-
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.style.colorScheme = theme;
-    syncThemeColorMeta(theme);
+function applyDocumentTheme(theme: ThemeMode): void {
+  if (typeof document === 'undefined') {
+    return;
   }
 
+  commitThemeToDocument(theme);
+}
+
+export function applyTheme(_theme: ThemeMode, options: ApplyThemeOptions = {}): void {
+  const nextTheme: ThemeMode = 'dark';
+  const previousTheme = activeTheme.value;
+  const themeChanged = previousTheme !== nextTheme;
+
+  activeTheme.value = nextTheme;
+
+  applyDocumentTheme(nextTheme);
+
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(STORAGE_KEY, nextTheme);
   } catch {
     // Ignore storage write failures and keep the live document theme in sync.
   }
 
   if (options.track && options.source && themeChanged) {
     trackThemeToggle({
-      theme,
+      theme: nextTheme,
       previousTheme,
       source: options.source,
       routeName: options.source === 'settings' ? 'settings' : undefined,
@@ -54,9 +62,8 @@ export function initializeTheme(): ThemeMode {
 }
 
 export function toggleTheme(source: 'navbar' | 'settings' = 'navbar'): ThemeMode {
-  const nextTheme: ThemeMode = activeTheme.value === 'dark' ? 'light' : 'dark';
-  applyTheme(nextTheme, { track: true, source });
-  return nextTheme;
+  applyTheme('dark', { animate: true, track: false, source });
+  return 'dark';
 }
 
 export function useTheme() {

@@ -15,21 +15,24 @@ public sealed class TripMembershipValidator(
     private const string HttpClientName = "content";
     private const string DefaultContentServiceUrl = "http://content:8000/api/content";
 
-    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ContentTimeout = TimeSpan.FromSeconds(3);
     private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new();
 
     public async Task<bool> IsMemberAsync(Guid tripId, Guid userId, string bearerToken, CancellationToken cancellationToken = default)
+        => await GetRoleAsync(tripId, userId, bearerToken, cancellationToken) is not null;
+
+    public async Task<string?> GetRoleAsync(Guid tripId, Guid userId, string bearerToken, CancellationToken cancellationToken = default)
     {
         var cacheKey = $"{tripId}:{userId}";
         if (Cache.TryGetValue(cacheKey, out var entry) && entry.Expires > DateTimeOffset.UtcNow)
         {
-            return entry.IsMember;
+            return entry.Role;
         }
 
         if (string.IsNullOrWhiteSpace(bearerToken))
         {
-            return false;
+            return null;
         }
 
         var baseUrl = configuration["CONTENT_SERVICE_URL"] ?? DefaultContentServiceUrl;
@@ -43,8 +46,7 @@ public sealed class TripMembershipValidator(
             using var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                CacheResult(cacheKey, isMember: false);
-                return false;
+                return null;
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -53,8 +55,7 @@ public sealed class TripMembershipValidator(
             var members = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) ? data : root;
             if (members.ValueKind != JsonValueKind.Array)
             {
-                CacheResult(cacheKey, isMember: false);
-                return false;
+                return null;
             }
 
             var idString = userId.ToString();
@@ -62,22 +63,26 @@ public sealed class TripMembershipValidator(
             {
                 if (member.TryGetProperty("user_id", out var uid) && string.Equals(uid.GetString(), idString, StringComparison.OrdinalIgnoreCase))
                 {
-                    CacheResult(cacheKey, isMember: true);
-                    return true;
+                    var role = member.TryGetProperty("role", out var roleElement)
+                        ? roleElement.GetString()
+                        : member.TryGetProperty("status", out var statusElement)
+                            ? statusElement.GetString()
+                            : "viewer";
+                    CacheResult(cacheKey, role);
+                    return role;
                 }
             }
-            CacheResult(cacheKey, isMember: false);
-            return false;
+            return null;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Membership lookup failed for trip {TripId}", tripId);
-            return false;
+            return null;
         }
     }
 
-    private static void CacheResult(string key, bool isMember)
-        => Cache[key] = new CacheEntry(isMember, DateTimeOffset.UtcNow.Add(CacheLifetime));
+    private static void CacheResult(string key, string? role)
+        => Cache[key] = new CacheEntry(role, DateTimeOffset.UtcNow.Add(CacheLifetime));
 
-    private readonly record struct CacheEntry(bool IsMember, DateTimeOffset Expires);
+    private readonly record struct CacheEntry(string? Role, DateTimeOffset Expires);
 }

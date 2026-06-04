@@ -21,36 +21,65 @@ public sealed class TripHub(ITripMembershipValidator membershipValidator, ILogge
 
     public async Task SpotAdded(Guid tripId, object spot)
     {
-        if (!await EnsureMemberAsync(tripId)) throw new HubException("Not a member of this trip");
+        if (!await EnsureEditorAsync(tripId)) throw new HubException("Edit access is required for this trip");
         await Clients.Group($"trip:{tripId}").SendAsync("SpotAdded", spot);
     }
 
     public async Task TripUpdated(Guid tripId, object changes)
     {
-        if (!await EnsureMemberAsync(tripId)) throw new HubException("Not a member of this trip");
+        if (!await EnsureEditorAsync(tripId)) throw new HubException("Edit access is required for this trip");
         await Clients.Group($"trip:{tripId}").SendAsync("TripUpdated", changes);
     }
 
     public async Task MemberJoined(Guid tripId, object user)
     {
-        if (!await EnsureMemberAsync(tripId)) throw new HubException("Not a member of this trip");
+        if (!await EnsureOwnerAsync(tripId)) throw new HubException("Owner access is required for this trip");
         await Clients.Group($"trip:{tripId}").SendAsync("MemberJoined", user);
     }
 
     private async Task<bool> EnsureMemberAsync(Guid tripId)
     {
         var userId = Context.GetRequiredUserId();
-        var authHeader = Context.GetHttpContext()?.Request.Headers["Authorization"].ToString();
-        var bearer = string.Empty;
-        if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            bearer = authHeader["Bearer ".Length..].Trim();
-        }
-        var ok = await membershipValidator.IsMemberAsync(tripId, userId, bearer, Context.ConnectionAborted);
+        var ok = await membershipValidator.IsMemberAsync(tripId, userId, GetBearerToken(), Context.ConnectionAborted);
         if (!ok)
         {
             logger.LogWarning("Rejected TripHub join: user {UserId} is not a member of trip {TripId}", userId, tripId);
         }
         return ok;
+    }
+
+    private async Task<bool> EnsureEditorAsync(Guid tripId)
+    {
+        var role = await GetRoleAsync(tripId);
+        var ok = role is "owner" or "editor";
+        if (!ok)
+        {
+            logger.LogWarning("Rejected TripHub edit: role {Role} cannot edit trip {TripId}", role ?? "none", tripId);
+        }
+        return ok;
+    }
+
+    private async Task<bool> EnsureOwnerAsync(Guid tripId)
+    {
+        var role = await GetRoleAsync(tripId);
+        var ok = role is "owner";
+        if (!ok)
+        {
+            logger.LogWarning("Rejected TripHub owner action: role {Role} cannot manage trip {TripId}", role ?? "none", tripId);
+        }
+        return ok;
+    }
+
+    private async Task<string?> GetRoleAsync(Guid tripId)
+    {
+        var userId = Context.GetRequiredUserId();
+        var bearer = GetBearerToken();
+        return await membershipValidator.GetRoleAsync(tripId, userId, bearer, Context.ConnectionAborted);
+    }
+
+    private string GetBearerToken()
+    {
+        var authHeader = Context.GetHttpContext()?.Request.Headers["Authorization"].ToString();
+        return BearerTokens.FromAuthorizationHeader(authHeader);
     }
 }

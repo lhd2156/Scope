@@ -122,7 +122,23 @@ spec:
           configMap:
             name: prometheus-config
         - name: prometheus-storage
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -228,4 +244,20 @@ spec:
           configMap:
             name: grafana-datasources
         - name: grafana-storage
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: grafana-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

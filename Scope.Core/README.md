@@ -18,4 +18,4 @@ Expected env vars:
 - KAFKA_BOOTSTRAP_SERVERS
 
 ## Notes
-This workspace was scaffolded to match `scope_architecture.tex` sections for the core service, but local build/test execution depends on a .NET 8 SDK being installed and available on PATH.
+Local build/test execution depends on a .NET 8 SDK being installed and available on PATH.

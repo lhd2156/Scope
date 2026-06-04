@@ -1,19 +1,21 @@
 """Agentic trip planner API routes."""
 
+import json
 import re
 from datetime import date
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, Response, current_app, g, jsonify, request, stream_with_context
 
 from app.auth import require_auth
 from app.extensions import limiter
 from app.rate_limit import rate_limited
 from app.responses import error_response
-from app.schemas import AgentPlanTripRequestSchema
+from app.schemas import AgentPlanTripRequestSchema, AgentTripChatRequestSchema
 from app.services.geocoding_service import GeocodingService
 
 bp = Blueprint("agent", __name__, url_prefix="/api/intel/agent")
 schema = AgentPlanTripRequestSchema()
+trip_chat_schema = AgentTripChatRequestSchema()
 LOCATION_LOOKUP_PATTERN = re.compile(
     r"^(?:where is|where's|where are|locate|what(?:'s| is) the address(?: for| of)?|address(?: for| of)|directions to|how do i get to)\s+(.+)$",
     flags=re.IGNORECASE,
@@ -100,7 +102,7 @@ def _missing_itinerary_brief_questions(prompt: str, start: str, end: str, dates:
     if not duration_days or duration_days <= 1:
         questions.append("How many days is the trip?")
     if not interests.strip():
-        questions.append("What are your interests: food, nightlife, nature, culture, shopping, adventure, or something else?")
+        questions.append("What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?")
     if not pace.strip():
         questions.append("Do you want the pace packed, balanced, or relaxed?")
     if not _has_travel_party_brief(prompt):
@@ -117,7 +119,7 @@ def _is_vague_brief_reply(value: str) -> bool:
     normalized = re.sub(r"[^\w'\s]+", " ", value.strip().lower().replace("’", "'"))
     normalized = re.sub(r"\s+", " ", normalized).strip()
     if re.search(
-        r"\b(?:\d{1,2}\s*(?:day|days|d)|weekend|food|restaurants?|coffee|cafes?|culture|museums?|art|history|nature|parks?|trails?|hikes?|adventure|nightlife|bars?|shopping|scenic|views?|relaxed|chill|balanced|moderate|packed|busy|solo|alone|couple|partner|family|kids?|children|group|friends?)\b",
+        r"\b(?:\d{1,2}\s*(?:day|days|d)|weekend|food|restaurants?|coffee|cafes?|culture|museums?|art|history|nature|parks?|trails?|hikes?|adventure|nightlife|bars?|shopping|entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|scenic|views?|relaxed|chill|balanced|moderate|packed|busy|solo|alone|couple|partner|family|kids?|children|group|friends?)\b",
         normalized,
     ):
         return False
@@ -142,6 +144,21 @@ def _has_pending_itinerary_brief(prompt: str, recent_chat: str) -> bool:
     )
 
 
+def _has_pending_duration_brief(prompt: str, recent_chat: str) -> bool:
+    text = f"{recent_chat}\n{prompt}"
+    return bool(re.search(r"Scope AI:\s*.*how many days", text, flags=re.IGNORECASE | re.DOTALL))
+
+
+def _parse_pending_duration_reply(value: str) -> int | None:
+    normalized = value.strip()
+    matched = re.search(r"\b(\d{1,2})\s*(?:day|days|d)?\b", normalized, flags=re.IGNORECASE)
+    if not matched:
+        return None
+
+    parsed = int(matched.group(1))
+    return parsed if 1 <= parsed <= 30 else None
+
+
 def _smart_default_itinerary_response(route: str, budget: str, pace: str) -> str:
     return "\n".join(
         [
@@ -161,6 +178,24 @@ def _smart_default_itinerary_response(route: str, budget: str, pace: str) -> str
             "- Evening: finish near the destination with dinner or a relaxed walkable stop.",
         ]
     )
+
+
+def _duration_reply_itinerary_response(route: str, budget: str, pace: str, duration_days: int) -> str:
+    lines = [
+        f"Got it. I will treat that as {duration_days} day{'s' if duration_days != 1 else ''} for {route}.",
+        "Build guardrails:",
+        f"- Length: {duration_days} day{'s' if duration_days != 1 else ''}.",
+        f"- Pace: {pace or 'balanced'}, with sparse route days kept grounded instead of collapsed.",
+        f"- Budget guardrail: {budget}.",
+    ]
+
+    for day_number in range(1, duration_days + 1):
+        lines.extend([
+            f"Day {day_number}:",
+            "- Keep the route practical and add only stops the live route can support.",
+        ])
+
+    return "\n".join(lines)
 
 
 def _complete_result(itinerary: str, model: str = "scope-local-copilot") -> dict:
@@ -233,6 +268,10 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> dict:
     recent_chat = _read_recent_chat(prompt)
     route = f"{start} to {end}" if start and end else start or end or "this draft route"
     normalized_request = request_text.lower()
+    pending_duration_days = _parse_pending_duration_reply(request_text) if _has_pending_duration_brief(prompt, recent_chat) else None
+
+    if pending_duration_days:
+        return _complete_result(_duration_reply_itinerary_response(route, budget, pace, pending_duration_days))
 
     if _is_vague_brief_reply(request_text) and _has_pending_itinerary_brief(prompt, recent_chat):
         return _complete_result(_smart_default_itinerary_response(route, budget, pace))
@@ -346,3 +385,40 @@ def plan():
         result = _fallback_plan(data["prompt"], data.get("start_date").isoformat() if data.get("start_date") else None)
 
     return jsonify(result)
+
+
+@bp.route("/trip-chat", methods=["POST"])
+@limiter.limit("10/minute")
+@rate_limited
+@require_auth
+def trip_chat():
+    """Enterprise Scope AI trip planner chat contract."""
+    data = trip_chat_schema.load(request.get_json() or {})
+    subject = str((g.current_user or {}).get("sub") or "")
+    if not subject:
+        return error_response(401, "UNAUTHORIZED", "Missing or expired token", trace_id=getattr(g, "trace_id", None))
+
+    if data.get("user_id") and data["user_id"] != subject:
+        return error_response(
+            403,
+            "FORBIDDEN",
+            "Insufficient permissions",
+            [{"field": "user_id", "message": "Must match authenticated user"}],
+            getattr(g, "trace_id", None),
+        )
+
+    from app.agents.trip_ai_orchestrator import TripAiOrchestrator
+
+    orchestrator = TripAiOrchestrator()
+    if data.get("responseMode") == "stream":
+        def generate():
+            for event in orchestrator.stream_events(data, user_id=subject):
+                yield json.dumps(event, separators=(",", ":")) + "\n"
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="application/x-ndjson",
+            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+        )
+
+    return jsonify(orchestrator.chat(data, user_id=subject))

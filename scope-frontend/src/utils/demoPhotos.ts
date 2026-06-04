@@ -11,6 +11,7 @@ const categoryPhotoIds: Record<SpotCategory, string> = {
   culture: 'photo-1493976040374-85c8e12f0c0e',
   adventure: 'photo-1527004013197-933c4bb611b3',
   shopping: 'photo-1441986300917-64674bd600d8',
+  entertainment: 'photo-1501281668745-f7f57925c3b4',
   scenic: 'photo-1506929562872-bb421503ef21',
   other: 'photo-1488646953014-85cb44e25828',
 };
@@ -74,6 +75,21 @@ export function resolveAvatarUrl(source: string | null | undefined, _seed: strin
 
 export function getSpotPhotoFallback(category: SpotCategory, width = DEFAULT_PHOTO_WIDTH): string {
   return buildUnsplashUrl(categoryPhotoIds[category] ?? categoryPhotoIds.other, width);
+}
+
+export function isSpotPhotoFallbackUrl(source?: string | null): boolean {
+  const normalizedSource = normalizeSource(source);
+  if (!normalizedSource) {
+    return false;
+  }
+
+  const fallbackPhotoIds = Object.values(categoryPhotoIds);
+  try {
+    const url = new URL(normalizedSource);
+    return url.hostname === 'images.unsplash.com' && fallbackPhotoIds.some((photoId) => url.pathname.includes(photoId));
+  } catch {
+    return fallbackPhotoIds.some((photoId) => normalizedSource.includes(photoId));
+  }
 }
 
 export function resolveSpotPhotoUrl(category: SpotCategory, source?: string | null, width = DEFAULT_PHOTO_WIDTH): string {

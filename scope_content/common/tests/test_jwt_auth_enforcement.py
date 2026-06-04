@@ -40,6 +40,7 @@ PROTECTED_CASES = [
     ('put', lambda ctx: f"/api/content/spots/{ctx['spot'].id}", lambda ctx: {'title': 'Updated Spot', 'latitude': 32.75, 'longitude': -97.33, 'category': 'food'}, 'json'),
     ('delete', lambda ctx: f"/api/content/spots/{ctx['spot'].id}", lambda ctx: None, None),
     ('post', lambda ctx: f"/api/content/spots/{ctx['spot'].id}/like", lambda ctx: None, None),
+    ('delete', lambda ctx: f"/api/content/spots/{ctx['spot'].id}/like", lambda ctx: None, None),
     ('get', lambda ctx: '/api/content/trips/', lambda ctx: None, None),
     ('post', lambda ctx: '/api/content/trips/', lambda ctx: {'title': 'Weekend Trip', 'status': 'planning'}, 'json'),
     ('put', lambda ctx: f"/api/content/trips/{ctx['trip'].id}", lambda ctx: {'title': 'Updated Trip', 'status': 'planning'}, 'json'),
@@ -58,6 +59,7 @@ PROTECTED_CASES = [
     ('put', lambda ctx: f"/api/content/reviews/{ctx['review'].id}", lambda ctx: {'comment': 'Updated'}, 'json'),
     ('delete', lambda ctx: f"/api/content/reviews/{ctx['review'].id}", lambda ctx: None, None),
     ('get', lambda ctx: '/api/content/feed/', lambda ctx: None, None),
+    ('post', lambda ctx: '/api/content/interactions/', lambda ctx: {'spotId': str(ctx['spot'].id), 'interactionType': 'view', 'context': {'surface': 'test'}}, 'json'),
 ]
 
 PUBLIC_CASES = [

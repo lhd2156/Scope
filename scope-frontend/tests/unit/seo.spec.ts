@@ -19,6 +19,10 @@ describe('seo shell metadata', () => {
     document.documentElement.style.setProperty('--bg-primary', 'rgb(15 15 26)');
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('applies route metadata, public shell tags, and canonical urls for indexable pages', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
@@ -112,5 +116,58 @@ describe('seo shell metadata', () => {
     expect(getMetaByName('theme-color')).toBe('rgb(250 250 250)');
     expect(getMetaByName('msapplication-TileColor')).toBe('rgb(250 250 250)');
     expect(getMetaByName('apple-mobile-web-app-status-bar-style')).toBe('default');
+  });
+
+  it('falls back from false or empty route metadata and derives social urls from full paths', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/dynamic/:id',
+          name: 'dynamic',
+          component: StubPage,
+          meta: {
+            title: () => false,
+            description: '',
+            robots: '',
+            canonicalPath: '',
+            image: false,
+            type: '',
+          },
+        },
+      ],
+    });
+
+    initializeSeo(router);
+    await router.push('/dynamic/42?tab=spots');
+    await router.isReady();
+    await Promise.resolve();
+
+    expect(document.title).toContain('Discover spots, map stories, and plan smarter trips');
+    expect(getMetaByName('description')).toBe('Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends.');
+    expect(getMetaByName('robots')).toBe('index,follow');
+    expect(getMetaByProperty('og:type')).toBe('website');
+    expect(getMetaByProperty('og:url')).toBe(new URL('/dynamic/42?tab=spots', window.location.origin).toString());
+    expect(getMetaByProperty('og:image')).toBe(new URL('/social-preview.png', window.location.origin).toString());
+    expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
+  });
+
+  it('no-ops safely when document metadata APIs are unavailable', () => {
+    const router = {
+      afterEach: vi.fn(),
+      currentRoute: {
+        value: {
+          path: '/',
+          fullPath: '/',
+          meta: {},
+        },
+      },
+    };
+
+    vi.stubGlobal('document', undefined);
+
+    expect(() => initializeSeo(router as never)).not.toThrow();
+    expect(() => syncThemeColorMeta('dark')).not.toThrow();
+    expect(router.afterEach).not.toHaveBeenCalled();
   });
 });

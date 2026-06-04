@@ -156,6 +156,32 @@ func TestAlertDispatchEndpointReportsDisabledWebhook(t *testing.T) {
 	}
 }
 
+func TestActiveAlertsEndpointReturnsCurrentFiringAlerts(t *testing.T) {
+	t.Parallel()
+
+	targetServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer targetServer.Close()
+
+	cfg := newTestConfig(t, []config.Target{{Name: "core", URL: targetServer.URL}})
+	app := New(cfg)
+	request := httptest.NewRequest(http.MethodGet, "/alerts/active", nil)
+	recorder := httptest.NewRecorder()
+
+	app.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	body := recorder.Body.String()
+	for _, expected := range []string{"activeAlerts", "core-service-down", "lastDispatch"} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected active alerts body to contain %q, got %s", expected, body)
+		}
+	}
+}
+
 func TestAlertRulesEndpointHandlesLoadErrors(t *testing.T) {
 	t.Parallel()
 
