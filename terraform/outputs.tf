@@ -160,6 +160,32 @@ output "compose_host_username" {
   value       = local.deploy_lightsail ? aws_lightsail_instance.scope[0].username : local.deploy_ec2_compose ? "ec2-user" : null
 }
 
+output "public_dns_zone_id" {
+  description = "Route53 public hosted zone ID when Terraform manages public DNS."
+  value       = local.manage_public_dns ? aws_route53_zone.scope_public[0].zone_id : null
+}
+
+output "public_dns_name_servers" {
+  description = "Route53 nameservers for the Terraform-managed public DNS zone."
+  value       = local.manage_public_dns ? aws_route53_zone.scope_public[0].name_servers : []
+}
+
+output "public_dns_apex_record" {
+  description = "Apex hostname and IP address managed in Route53."
+  value = local.manage_public_dns ? {
+    name    = aws_route53_record.scope_apex[0].fqdn
+    records = aws_route53_record.scope_apex[0].records
+  } : null
+}
+
+output "public_dns_www_record" {
+  description = "www hostname and IP address managed in Route53."
+  value = local.manage_public_dns ? {
+    name    = aws_route53_record.scope_www[0].fqdn
+    records = aws_route53_record.scope_www[0].records
+  } : null
+}
+
 output "high_cost_resources_enabled" {
   description = "Whether the profile currently includes EKS, NAT, and RDS resources."
   value       = local.deploy_full_stack

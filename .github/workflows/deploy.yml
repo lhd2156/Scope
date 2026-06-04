@@ -269,6 +269,8 @@ jobs:
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
+      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || vars.SCOPE_TLS_HOSTNAME || '' }}
+      TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
       TF_VAR_sqlserver_engine: ${{ vars.SQLSERVER_ENGINE || 'sqlserver-se' }}
@@ -428,6 +430,8 @@ jobs:
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
+      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || vars.SCOPE_TLS_HOSTNAME || '' }}
+      TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
       TF_VAR_sqlserver_engine: ${{ vars.SQLSERVER_ENGINE || 'sqlserver-se' }}

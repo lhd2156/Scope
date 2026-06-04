@@ -350,6 +350,23 @@ variable "ec2_compose_snapshot_retain_count" {
   }
 }
 
+variable "public_dns_zone_name" {
+  description = "Optional public DNS zone name to manage in Route53 for the selected single-host runtime."
+  type        = string
+  default     = null
+}
+
+variable "public_dns_ttl_seconds" {
+  description = "TTL for Terraform-managed public DNS records."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.public_dns_ttl_seconds >= 30 && var.public_dns_ttl_seconds <= 3600
+    error_message = "public_dns_ttl_seconds must be between 30 and 3600 seconds."
+  }
+}
+
 variable "environment" {
   description = "Environment name appended to provisioned resources."
   type        = string
