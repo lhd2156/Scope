@@ -306,10 +306,20 @@ try {
             Test-GitHubName "variable" @("EC2_COMPOSE_KEY_PAIR_NAME", "LIGHTSAIL_KEY_PAIR_NAME") "required when terraform_profile=ec2-compose"
             Test-GitHubName "variable" @("EC2_COMPOSE_SSH_PUBLIC_KEY", "LIGHTSAIL_SSH_PUBLIC_KEY") "required when terraform_profile=ec2-compose"
             if ($DeployComposeHost) {
-                Test-GitHubName "variable" @("EC2_COMPOSE_ADMIN_IPV4_CIDRS") "required so SSH is explicitly allowlisted for EC2 Compose deploy"
-                $ec2ComposeCidrs = Get-GitHubVariableValue @("EC2_COMPOSE_ADMIN_IPV4_CIDRS")
-                if (Test-EmptyCidrListValue $ec2ComposeCidrs) {
-                    Write-Check "FAIL" "variable-value" "EC2_COMPOSE_ADMIN_IPV4_CIDRS" "EC2 Compose SSH allowlist cannot be empty when deploy_lightsail_app=true"
+                $ec2DynamicRunnerSsh = Get-GitHubVariableValue @("EC2_COMPOSE_DYNAMIC_RUNNER_SSH")
+                if ([string]::IsNullOrWhiteSpace($ec2DynamicRunnerSsh)) {
+                    $ec2DynamicRunnerSsh = "true"
+                }
+
+                if ($ec2DynamicRunnerSsh.Trim().ToLowerInvariant() -eq "true") {
+                    Write-Check "PASS" "variable" "EC2_COMPOSE_DYNAMIC_RUNNER_SSH" "dynamic runner SSH is enabled; Terraform can keep EC2 SSH closed at rest"
+                }
+                else {
+                    Test-GitHubName "variable" @("EC2_COMPOSE_ADMIN_IPV4_CIDRS") "required so SSH is explicitly allowlisted for EC2 Compose deploy when dynamic runner SSH is disabled"
+                    $ec2ComposeCidrs = Get-GitHubVariableValue @("EC2_COMPOSE_ADMIN_IPV4_CIDRS")
+                    if (Test-EmptyCidrListValue $ec2ComposeCidrs) {
+                        Write-Check "FAIL" "variable-value" "EC2_COMPOSE_ADMIN_IPV4_CIDRS" "EC2 Compose SSH allowlist cannot be empty when EC2_COMPOSE_DYNAMIC_RUNNER_SSH is disabled"
+                    }
                 }
             }
         }

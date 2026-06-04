@@ -93,7 +93,7 @@ locals {
   ec2_compose_bootstrap_commands = [
     "set -eux",
     "dnf update -y",
-    "dnf install -y curl docker git tar",
+    "dnf install -y docker git tar",
     "mkdir -p /usr/local/lib/docker/cli-plugins",
     "curl -fsSL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose",
     "curl -fsSL https://github.com/docker/buildx/releases/download/${var.docker_buildx_version}/buildx-${var.docker_buildx_version}.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx",
