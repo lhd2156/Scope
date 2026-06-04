@@ -105,6 +105,8 @@ jobs:
           echo "django=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
           echo "flask=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
           echo "rabbitmq=CI_$(openssl rand -base64 24 | tr -d '=+/' )" >> "$GITHUB_OUTPUT"
+          echo "grpc=$(openssl rand -base64 48 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "grafana=CI_$(openssl rand -base64 24 | tr -d '=+/' )" >> "$GITHUB_OUTPUT"
 
       - name: Validate docker-compose bundle
         env:
@@ -119,6 +121,8 @@ jobs:
           FLASK_ENV: production
           KAFKA_BOOTSTRAP_SERVERS: kafka:9092
           RABBITMQ_PASS: ${{ steps.preflight.outputs.rabbitmq }}
+          GRPC_INTERNAL_TOKEN: ${{ steps.preflight.outputs.grpc }}
+          GRAFANA_ADMIN_PASSWORD: ${{ steps.preflight.outputs.grafana }}
           AWS_REGION: us-east-1
           AWS_S3_BUCKET: scope-photos-deploy
           VITE_MAPBOX_TOKEN: pk.deploy-token
@@ -972,6 +976,8 @@ jobs:
       SCOPE_DJANGO_SECRET_KEY: ${{ secrets.SCOPE_DJANGO_SECRET_KEY || secrets.DJANGO_SECRET_KEY || secrets.ATLAS_DJANGO_SECRET_KEY }}
       SCOPE_FLASK_SECRET_KEY: ${{ secrets.SCOPE_FLASK_SECRET_KEY || secrets.FLASK_SECRET_KEY || secrets.ATLAS_FLASK_SECRET_KEY }}
       SCOPE_RABBITMQ_PASS: ${{ secrets.SCOPE_RABBITMQ_PASS || secrets.RABBITMQ_PASS }}
+      SCOPE_GRAFANA_ADMIN_USER: ${{ secrets.SCOPE_GRAFANA_ADMIN_USER || vars.GRAFANA_ADMIN_USER || 'admin' }}
+      SCOPE_GRAFANA_ADMIN_PASSWORD: ${{ secrets.SCOPE_GRAFANA_ADMIN_PASSWORD || secrets.GRAFANA_ADMIN_PASSWORD }}
       SCOPE_SENTRY_DSN: ${{ secrets.SCOPE_SENTRY_DSN || secrets.SENTRY_DSN }}
       SCOPE_CONTENT_SENTRY_DSN: ${{ secrets.SCOPE_CONTENT_SENTRY_DSN || secrets.CONTENT_SENTRY_DSN || secrets.SCOPE_SENTRY_DSN || secrets.SENTRY_DSN }}
       SCOPE_AWS_ACCESS_KEY_ID: ${{ secrets.SCOPE_AWS_ACCESS_KEY_ID || secrets.AWS_ACCESS_KEY_ID }}
@@ -1009,7 +1015,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET SCOPE_SA_PASSWORD SCOPE_CORE_JWT_SECRET SCOPE_GRPC_INTERNAL_TOKEN SCOPE_DJANGO_SECRET_KEY SCOPE_FLASK_SECRET_KEY SCOPE_RABBITMQ_PASS COMPOSE_HOST_SSH_PRIVATE_KEY VITE_MAPBOX_TOKEN; do
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET SCOPE_SA_PASSWORD SCOPE_CORE_JWT_SECRET SCOPE_GRPC_INTERNAL_TOKEN SCOPE_DJANGO_SECRET_KEY SCOPE_FLASK_SECRET_KEY SCOPE_RABBITMQ_PASS SCOPE_GRAFANA_ADMIN_PASSWORD COMPOSE_HOST_SSH_PRIVATE_KEY VITE_MAPBOX_TOKEN; do
             if [ -z "${!variable}" ]; then
               echo "::error::$variable is required for Compose host application deployment."
               missing=1
@@ -1198,6 +1204,8 @@ jobs:
           RABBITMQ_VHOST=scope
           CELERY_BROKER_URL=amqp://scope:${SCOPE_RABBITMQ_PASS}@rabbitmq:5672/scope
           CELERY_RESULT_BACKEND=redis://redis:6379/2
+          GRAFANA_ADMIN_USER=${SCOPE_GRAFANA_ADMIN_USER}
+          GRAFANA_ADMIN_PASSWORD=${SCOPE_GRAFANA_ADMIN_PASSWORD}
           PHOTO_UPLOAD_ASYNC_THUMBNAILS=true
           RUN_MIGRATIONS_ON_STARTUP=true
           AWS_USE_IAM_ROLE=${aws_use_iam_role}
