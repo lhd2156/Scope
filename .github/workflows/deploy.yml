@@ -261,6 +261,7 @@ jobs:
       TF_VAR_ec2_compose_key_pair_name: ${{ vars.EC2_COMPOSE_KEY_PAIR_NAME || vars.LIGHTSAIL_KEY_PAIR_NAME }}
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
+      EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
       TF_VAR_sqlserver_engine: ${{ vars.SQLSERVER_ENGINE || 'sqlserver-se' }}
@@ -324,8 +325,8 @@ jobs:
               fi
             done
 
-            if [ "${{ github.event.inputs.deploy_lightsail_app }}" = "true" ] && [ "${TF_VAR_ec2_compose_admin_ipv4_cidrs}" = "[]" ]; then
-              echo "::error::EC2_COMPOSE_ADMIN_IPV4_CIDRS must allow the deployment runner/VPN when deploy_lightsail_app=true."
+            if [ "${{ github.event.inputs.deploy_lightsail_app }}" = "true" ] && [ "${TF_VAR_ec2_compose_admin_ipv4_cidrs}" = "[]" ] && [ "${EC2_COMPOSE_DYNAMIC_RUNNER_SSH}" != "true" ]; then
+              echo "::error::EC2_COMPOSE_ADMIN_IPV4_CIDRS must allow the deployment runner/VPN when deploy_lightsail_app=true, unless EC2_COMPOSE_DYNAMIC_RUNNER_SSH=true."
               missing=1
             fi
           fi
@@ -418,6 +419,7 @@ jobs:
       TF_VAR_ec2_compose_key_pair_name: ${{ vars.EC2_COMPOSE_KEY_PAIR_NAME || vars.LIGHTSAIL_KEY_PAIR_NAME }}
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
+      EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
       TF_VAR_sqlserver_engine: ${{ vars.SQLSERVER_ENGINE || 'sqlserver-se' }}
@@ -471,8 +473,8 @@ jobs:
               fi
             done
 
-            if [ "${{ github.event.inputs.deploy_lightsail_app }}" = "true" ] && [ "${TF_VAR_ec2_compose_admin_ipv4_cidrs}" = "[]" ]; then
-              echo "::error::EC2_COMPOSE_ADMIN_IPV4_CIDRS must allow the deployment runner/VPN when deploy_lightsail_app=true."
+            if [ "${{ github.event.inputs.deploy_lightsail_app }}" = "true" ] && [ "${TF_VAR_ec2_compose_admin_ipv4_cidrs}" = "[]" ] && [ "${EC2_COMPOSE_DYNAMIC_RUNNER_SSH}" != "true" ]; then
+              echo "::error::EC2_COMPOSE_ADMIN_IPV4_CIDRS must allow the deployment runner/VPN when deploy_lightsail_app=true, unless EC2_COMPOSE_DYNAMIC_RUNNER_SSH=true."
               missing=1
             fi
           fi
@@ -978,6 +980,7 @@ jobs:
       LIGHTSAIL_SSH_PRIVATE_KEY: ${{ secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}
       LIGHTSAIL_SSH_PUBLIC_KEY: ${{ vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       LIGHTSAIL_DYNAMIC_RUNNER_SSH: ${{ vars.LIGHTSAIL_DYNAMIC_RUNNER_SSH || 'true' }}
+      EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       COMPOSE_HOST_SSH_PRIVATE_KEY: ${{ secrets.COMPOSE_HOST_SSH_PRIVATE_KEY || secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}
       VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
       VITE_OPENWEATHERMAP_API_KEY: ${{ secrets.VITE_OPENWEATHERMAP_API_KEY || secrets.OPENWEATHERMAP_API_KEY }}
@@ -1102,8 +1105,11 @@ jobs:
           cognito_pool_id="$(terraform output -raw cognito_user_pool_id)"
           cognito_client_id="$(terraform output -raw cognito_user_pool_client_id)"
           compose_host_instance_name=""
+          ec2_compose_security_group_id=""
           if [ "${{ github.event.inputs.terraform_profile }}" = "lightsail" ]; then
             compose_host_instance_name="$(terraform output -raw lightsail_instance_name)"
+          elif [ "${{ github.event.inputs.terraform_profile }}" = "ec2-compose" ]; then
+            ec2_compose_security_group_id="$(terraform output -raw ec2_compose_security_group_id)"
           fi
 
           if [ -z "${SCOPE_PUBLIC_BASE_URL}" ]; then
@@ -1112,7 +1118,7 @@ jobs:
             scope_public_base_url="${SCOPE_PUBLIC_BASE_URL}"
           fi
 
-          export public_ip username photos_bucket cognito_pool_id cognito_client_id compose_host_instance_name scope_public_base_url SCOPE_SA_PASSWORD
+          export public_ip username photos_bucket cognito_pool_id cognito_client_id compose_host_instance_name ec2_compose_security_group_id scope_public_base_url SCOPE_SA_PASSWORD
 
           python - <<'PY' >> "$GITHUB_ENV"
           from urllib.parse import quote, urlparse
@@ -1130,6 +1136,7 @@ jobs:
           print(f"COMPOSE_HOST_PUBLIC_IP={public_ip}")
           print(f"COMPOSE_HOST_USERNAME={os.environ['username']}")
           print(f"LIGHTSAIL_INSTANCE_NAME={os.environ['compose_host_instance_name']}")
+          print(f"EC2_COMPOSE_SECURITY_GROUP_ID={os.environ['ec2_compose_security_group_id']}")
           print(f"SCOPE_PUBLIC_BASE_URL={scope_public_base_url}")
           print(f"SCOPE_PUBLIC_HOST={host}")
           print(f"DJANGO_DB_PASSWORD_ENCODED={encoded_password}")
@@ -1261,6 +1268,30 @@ jobs:
             --instance-name "${LIGHTSAIL_INSTANCE_NAME}" \
             --port-info "fromPort=22,toPort=22,protocol=tcp,cidrs=${runner_cidr}"
 
+      - name: Open runner SSH on EC2 Compose
+        if: github.event.inputs.terraform_profile == 'ec2-compose' && env.EC2_COMPOSE_DYNAMIC_RUNNER_SSH == 'true'
+        shell: bash
+        run: |
+          if [ -z "${EC2_COMPOSE_SECURITY_GROUP_ID}" ]; then
+            echo "::error::EC2_COMPOSE_SECURITY_GROUP_ID was not exported from Terraform outputs."
+            exit 1
+          fi
+          runner_ip="$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')"
+          if ! [[ "${runner_ip}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo "::error::Unable to determine a valid GitHub runner IPv4 address."
+            exit 1
+          fi
+          runner_cidr="${runner_ip}/32"
+          echo "RUNNER_SSH_CIDR=${runner_cidr}" >> "$GITHUB_ENV"
+          if ! output="$(aws ec2 authorize-security-group-ingress --group-id "${EC2_COMPOSE_SECURITY_GROUP_ID}" --protocol tcp --port 22 --cidr "${runner_cidr}" 2>&1)"; then
+            if grep -q "InvalidPermission.Duplicate" <<<"${output}"; then
+              echo "EC2 SSH ingress already allowed for ${runner_cidr}."
+            else
+              echo "${output}"
+              exit 1
+            fi
+          fi
+
       - name: Configure SSH access
         shell: bash
         run: |
@@ -1309,6 +1340,21 @@ jobs:
           aws lightsail close-instance-public-ports \
             --instance-name "${LIGHTSAIL_INSTANCE_NAME}" \
             --port-info "fromPort=22,toPort=22,protocol=tcp,cidrs=${RUNNER_SSH_CIDR}"
+
+      - name: Close runner SSH on EC2 Compose
+        if: always() && github.event.inputs.terraform_profile == 'ec2-compose' && env.EC2_COMPOSE_DYNAMIC_RUNNER_SSH == 'true'
+        shell: bash
+        run: |
+          if [ -z "${EC2_COMPOSE_SECURITY_GROUP_ID:-}" ] || [ -z "${RUNNER_SSH_CIDR:-}" ]; then
+            exit 0
+          fi
+          if ! output="$(aws ec2 revoke-security-group-ingress --group-id "${EC2_COMPOSE_SECURITY_GROUP_ID}" --protocol tcp --port 22 --cidr "${RUNNER_SSH_CIDR}" 2>&1)"; then
+            if grep -q "InvalidPermission.NotFound" <<<"${output}"; then
+              exit 0
+            fi
+            echo "${output}"
+            exit 1
+          fi
 
   deployment-bundle:
     name: Publish deployment bundle artifact

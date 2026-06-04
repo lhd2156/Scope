@@ -135,6 +135,11 @@ output "ec2_compose_instance_type" {
   value       = local.deploy_ec2_compose ? aws_instance.ec2_compose[0].instance_type : null
 }
 
+output "ec2_compose_security_group_id" {
+  description = "Security group ID for the EC2 Compose fallback runtime."
+  value       = local.deploy_ec2_compose ? aws_security_group.ec2_compose[0].id : null
+}
+
 output "ec2_compose_root_volume_size_gib" {
   description = "Root gp3 EBS volume size for the EC2 Compose fallback runtime."
   value       = local.deploy_ec2_compose ? var.ec2_compose_root_volume_size_gib : null

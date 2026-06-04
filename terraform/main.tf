@@ -53,6 +53,22 @@ locals {
     ManagedBy   = "terraform"
     Repository  = "lhd2156/scope"
   }, var.tags)
+  lightsail_bundle_monthly_usd = {
+    nano_3_0        = 5
+    micro_3_0       = 7
+    small_3_0       = 12
+    medium_3_0      = 24
+    large_3_0       = 44
+    xlarge_3_0      = 84
+    "2xlarge_3_0"   = 164
+    nano_ipv6_3_0   = 3.5
+    micro_ipv6_3_0  = 5
+    small_ipv6_3_0  = 10
+    medium_ipv6_3_0 = 20
+    large_ipv6_3_0  = 40
+    xlarge_ipv6_3_0 = 80
+  }
+  lightsail_expected_bundle_monthly_usd = lookup(local.lightsail_bundle_monthly_usd, var.lightsail_bundle_id, null)
 }
 
 check "single_host_profiles_require_explicit_ssh_key" {
@@ -85,10 +101,16 @@ check "lightsail_cost_estimate_matches_bundle" {
   assert {
     condition = (
       !local.deploy_lightsail ||
-      var.lightsail_bundle_id == "medium_3_0" ||
-      var.credit_guard_lightsail_monthly_usd > 24
+      (
+        local.lightsail_expected_bundle_monthly_usd != null &&
+        var.credit_guard_lightsail_monthly_usd >= local.lightsail_expected_bundle_monthly_usd
+      ) ||
+      (
+        local.lightsail_expected_bundle_monthly_usd == null &&
+        var.credit_guard_lightsail_monthly_usd > 24
+      )
     )
-    error_message = "If lightsail_bundle_id is larger than medium_3_0, raise credit_guard_lightsail_monthly_usd so the credit guard remains accurate."
+    error_message = "credit_guard_lightsail_monthly_usd must be at least the selected Lightsail bundle price, or greater than 24 for an unknown bundle ID."
   }
 }
 
