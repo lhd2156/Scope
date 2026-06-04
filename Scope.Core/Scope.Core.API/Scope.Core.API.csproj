@@ -26,22 +26,22 @@
     <ProjectReference Include="..\Scope.Core.Infrastructure\Scope.Core.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.22" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.22" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.27" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.27" />
     <!--
       IDistributedCache backed by Redis. Used for cross-replica caching of hot
       read paths (e.g. membership lookups, user profile reads). The package
       uses the same StackExchange.Redis multiplexer instance we register in
       Program.cs so there is no second connection pool.
     -->
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.22" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.27" />
     <!--
       Redis backplane for SignalR is required whenever Core is run with more than
       one replica; without it, clients connected to different instances cannot
       receive each other's hub messages. The dependency itself is harmless when
       REDIS_URL is unset (the backplane is only wired conditionally).
     -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.22" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.27" />
     <!--
       Standard resilience handler (Polly v8) wraps every named HttpClient with a
       retry pipeline + circuit breaker + per-attempt timeout. Without this, a
@@ -50,19 +50,19 @@
       in Program.cs) so it only wraps the clients we configure it for.
     -->
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.10.0" />
-    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
-    <PackageReference Include="Grpc.Net.Client" Version="2.67.0" />
-    <PackageReference Include="Grpc.Tools" Version="2.72.0" PrivateAssets="All" />
+    <PackageReference Include="Google.Protobuf" Version="3.35.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.81.0" PrivateAssets="All" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.77.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Ollama" Version="1.77.0-alpha" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
-    <PackageReference Include="Sentry.AspNetCore" Version="5.6.0" />
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
+    <PackageReference Include="Sentry.AspNetCore" Version="5.16.3" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="Serilog.Formatting.Compact" Version="2.0.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     <PackageReference Include="WebPush" Version="1.0.13" />
   </ItemGroup>
   <ItemGroup>
