@@ -12,7 +12,6 @@
             <h1>{{ trip.title }}</h1>
             <p class="hero-meta">{{ trip.destination }} · {{ dateRangeLabel }}</p>
           </div>
-          <span class="status-pill">{{ statusLabel }}</span>
         </div>
 
         <p class="section-copy">{{ trip.description }}</p>
@@ -137,10 +136,6 @@ const dateRangeLabel = computed(() => {
   return start === end ? start : `${start} → ${end}`;
 });
 
-const statusLabel = computed(() => {
-  const status = props.trip?.status ?? 'planning';
-  return status.charAt(0).toUpperCase() + status.slice(1);
-});
 const TRIP_DETAIL_HERO_IMAGE_WIDTH = 1200;
 
 const heroImageFallback = computed(() => (props.trip ? getTripCoverFallback(props.trip, TRIP_DETAIL_HERO_IMAGE_WIDTH) : ''));
@@ -174,8 +169,25 @@ const routeIntensityLabel = computed(() => {
   return 'Relaxed';
 });
 
+function flattenItineraryStops(itinerary: Itinerary | undefined): Trip['spots'] {
+  return itinerary?.days.flatMap((day) =>
+    day.spots.map((spot) => ({
+      ...spot,
+      dayNumber: spot.dayNumber ?? day.dayNumber,
+    })),
+  ) ?? [];
+}
+
+const routeStops = computed(() => {
+  if (!props.trip) {
+    return [];
+  }
+
+  return props.trip.spots.length ? props.trip.spots : flattenItineraryStops(props.trip.itinerary);
+});
+
 const mapSpots = computed<MapPoint[]>(() =>
-  props.trip?.spots.map((spot) => ({
+  routeStops.value.map((spot, index, stops) => ({
     id: spot.spotId,
     title: spot.title,
     latitude: spot.latitude,
@@ -183,6 +195,7 @@ const mapSpots = computed<MapPoint[]>(() =>
     category: spot.category,
     city: spot.city,
     photoUrl: resolveTripStopPhotoUrl(spot, 1200),
+    routeRole: index === 0 ? 'start' : index === stops.length - 1 ? 'end' : 'stop',
   })) ?? [],
 );
 </script>
@@ -260,7 +273,6 @@ const mapSpots = computed<MapPoint[]>(() =>
   color: var(--text-secondary);
 }
 
-.status-pill,
 .detail-chip,
 .meta-pill {
   display: inline-flex;
@@ -272,10 +284,6 @@ const mapSpots = computed<MapPoint[]>(() =>
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-blur);
-}
-
-.status-pill {
-  color: var(--accent-gold);
 }
 
 .chip-row {

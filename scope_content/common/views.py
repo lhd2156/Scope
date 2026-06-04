@@ -49,8 +49,8 @@ def health_view(request):
     try:
         connection.ensure_connection()
 
-        # Validate storage connectivity as part of the health check, while
-        # keeping the response contract aligned with scope_architecture.tex.
+        # Validate storage connectivity as part of the health check while
+        # keeping the response contract stable for callers.
         S3StorageService().health_status()
     except Exception:
         record_service_health('content', False)

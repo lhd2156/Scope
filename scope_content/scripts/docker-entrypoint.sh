@@ -36,10 +36,12 @@ fi
 #     they don't touch disk on every beat; avoids EBS IOPS pressure and, more
 #     importantly, avoids the well-known "worker killed" false positives when
 #     a laggy disk misses the heartbeat window.
-#   * --max-requests / --max-requests-jitter: recycle workers on a cadence so
-#     any slow memory leak (e.g. in third-party ODBC drivers) bleeds off
-#     before it forces an OOM kill. Jitter prevents synchronized recycles
-#     across workers from causing a coordinated latency dip.
+#   * --max-requests / --max-requests-jitter: recycle workers on a long cadence
+#     so any slow memory leak (e.g. in third-party ODBC drivers) bleeds off
+#     before it forces an OOM kill. Keep the default high enough that normal
+#     traffic spikes and overnight E2E runs do not hit worker recycling mid-flow.
+#     Jitter prevents synchronized recycles across workers from causing a
+#     coordinated latency dip.
 exec gunicorn scope_content.wsgi:application \
     --bind 0.0.0.0:8000 \
     --worker-class "${GUNICORN_WORKER_CLASS:-gthread}" \
@@ -50,8 +52,8 @@ exec gunicorn scope_content.wsgi:application \
     --keep-alive "${GUNICORN_KEEPALIVE:-5}" \
     --worker-connections "${GUNICORN_WORKER_CONNECTIONS:-1000}" \
     --worker-tmp-dir "${GUNICORN_WORKER_TMP_DIR:-/dev/shm}" \
-    --max-requests "${GUNICORN_MAX_REQUESTS:-1000}" \
-    --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-100}" \
+    --max-requests "${GUNICORN_MAX_REQUESTS:-10000}" \
+    --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-2000}" \
     ${GUNICORN_PRELOAD:+--preload} \
     --access-logfile - \
     --error-logfile - \

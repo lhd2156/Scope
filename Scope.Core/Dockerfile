@@ -4,7 +4,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY . .
-RUN dotnet restore Scope.Core/Scope.Core.sln
+RUN dotnet restore Scope.Core/Scope.Core.API/Scope.Core.API.csproj
 # PublishReadyToRun performs AOT compilation of framework + app IL to native
 # code during publish. Startup is cut by ~30–50% (JIT cost moves to build),
 # and first-request latency improves because hot methods are pre-compiled.

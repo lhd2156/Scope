@@ -52,6 +52,23 @@ async function setDateFieldValue(field: Locator, value: string): Promise<void> {
   );
 }
 
+function isRetryableNavigationAbort(error: unknown): boolean {
+  return error instanceof Error && /NS_BINDING_ABORTED|NS_ERROR_FAILURE|ERR_ABORTED|interrupted/i.test(error.message);
+}
+
+async function gotoAuthRoute(page: Page, path: string): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      return;
+    } catch (error) {
+      if (!isRetryableNavigationAbort(error) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
+}
+
 async function fillRegisterForm(page: Page, overrides: Partial<typeof REGISTERED_ACCOUNT> = {}): Promise<void> {
   const account = { ...REGISTERED_ACCOUNT, ...overrides };
   const form = registerForm(page);
@@ -102,7 +119,7 @@ test.describe('Scope auth flow', () => {
   test('registers with validation, logs in with a redirect target, persists the session across reload, and logs out cleanly', async ({ page }) => {
     test.setTimeout(4 * 60 * 1000);
 
-    await page.goto('/register?redirect=/settings', { waitUntil: 'domcontentloaded' });
+    await gotoAuthRoute(page, '/register?redirect=/settings');
     await expect(page.getByRole('heading', { name: 'Create your Scope account' })).toBeVisible();
 
     await fillRegisterForm(page, {
@@ -144,7 +161,7 @@ test.describe('Scope auth flow', () => {
     await expect(page).toHaveURL(/\/$/);
     await expectSessionHint(page, false);
 
-    await page.goto('/login?redirect=/settings', { waitUntil: 'domcontentloaded' });
+    await gotoAuthRoute(page, '/login?redirect=/settings');
     await expect(page).toHaveURL(/\/login\?redirect=(?:%2F|\/)settings$/);
     await expect(page.getByRole('heading', { name: 'Sign in to Scope' })).toBeVisible();
 
@@ -166,7 +183,7 @@ test.describe('Scope auth flow', () => {
     await expect(page).toHaveURL(/\/$/);
     await expectSessionHint(page, false);
 
-    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await gotoAuthRoute(page, '/settings');
     await expect(page).toHaveURL(/\/login\?redirect=(?:%2F|\/)settings$/);
     await expect(page.getByRole('heading', { name: 'Sign in to Scope' })).toBeVisible();
     await expectSessionHint(page, false);

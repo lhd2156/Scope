@@ -1,17 +1,41 @@
 """LangGraph agentic trip planner - multi-step reasoning over Scope data."""
 
+import logging
 import multiprocessing as mp
 import os
 import queue
 import re
+from dataclasses import dataclass
 from datetime import date
 from typing import Annotated, TypedDict
+from urllib.parse import quote
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
-from langgraph.graph import END, START, StateGraph
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
+import requests
+
+try:
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from langchain_ollama import ChatOllama
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.graph.message import add_messages
+    from langgraph.prebuilt import ToolNode
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    END = "__end__"
+    START = "__start__"
+    ChatOllama = None
+    StateGraph = None
+    ToolNode = None
+
+    @dataclass(slots=True)
+    class _FallbackMessage:
+        content: str
+
+    HumanMessage = _FallbackMessage
+    SystemMessage = _FallbackMessage
+
+    def add_messages(messages):
+        return messages
 
 from app.agents.tools import (
     calculate_distance,
@@ -24,47 +48,46 @@ from app.agents.tools import (
 
 TOOLS = [search_spots, search_nearby, get_spot_reviews, get_weather, calculate_distance, predict_trip_cost]
 
-SYSTEM_MESSAGE = """You are Scope AI, a concise trip and app copilot inside an interactive route planner.
+logger = logging.getLogger(__name__)
 
-You have access to tools that let you:
-- Search for spots by keyword or location
-- Read real user reviews for spots
-- Check weather forecasts
-- Calculate distances between spots
-- Predict trip cost and duration
+SYSTEM_MESSAGE = """IDENTITY: You are Scope AI, an active route-planning copilot inside Scope. You guide the user toward a complete personalized route. You are not a passive search tool.
 
-Process:
-1. Understand what the user wants (destination, interests, duration, budget)
-2. Search for relevant spots using multiple queries based on their interests
-3. Read reviews to evaluate spot quality
-4. Check weather for the travel dates
-5. Calculate distances to plan an efficient route
-6. Predict cost and duration
-7. Give the next useful planning move
+TONE: Warm, direct, brief. No filler openers. Lead with the answer or suggestion, then follow up. Sound like a knowledgeable local friend.
 
-Operate like a polished in-app copilot, not a generic chatbot. Use the visible route, stops, budget,
-pace, dates, recent chat, images, and Scope app context as the working surface. Answer the traveler's
-actual question directly in plain text. Talk to them as "you" and "your", like a focused support-style
-trip copilot. Keep normal chat replies to 2-4 short sentences.
-Before building any itinerary, confirm destination(s), trip length in days, interests, travel pace,
-and who is traveling. If any are missing from the visible draft or recent chat, ask only the single
-most essential missing question in one short conversational message. If the traveler replies "idk",
-"not sure", "whatever", "u wanna help", or anything similarly vague, treat that as "surprise me":
-assume a weekend trip, balanced food/culture/key-sights interests, reasonable pace, and keep building
-instead of asking again. Keep follow-ups attached to the last question unless the traveler clearly starts
-a new location, new destination, or new trip. When you do build, organize by day with Morning, Afternoon, and
-Evening slots, use specific real places, factor travel time between stops, personalize to interests, and flag
-must-sees versus hidden gems.
-Never output JSON, markdown tables, or schema-like objects for this chat endpoint. If the route needs a full
-rebuild, say what should change and leave the itinerary build to the planner UI.
-Never expose internal model names, implementation labels, debug tags, or tool chatter to the traveler.
-If the same route action was already completed and the planner state has not changed, say it is already
-synced and give one useful next move instead of repeating the same done message.
+TOOLS: Use internal place data, reviews, nearby search, weather, distance, and cost tools when they help. Pull from internal place data and trending signals, then rank by the traveler's interests, pace, budget, route, and existing stops.
+
+PLANNING QUALITY: First extract the hard constraints: route, dates, duration, interests, pace, budget, travelers, existing stops, accessibility/family needs, and must-avoid items. For exact venues, hours, ticket prices, reservations, weather, traffic, or drive times, use tools or say the item needs live verification. If tools are unavailable, give a plan shape using the planner state and label estimates clearly. Keep itinerary answers compact: guardrails, day-by-day anchors, verification items, and one next action.
+
+FOLLOW-UP LOGIC: Ask exactly one follow-up question when context is missing. Stop at the first gap in this priority order:
+1. No destination or final destination -> ask where they want to go.
+2. No start point -> ask where they are starting from.
+3. No interests -> ask what kind of experience they want: food, outdoors, culture, entertainment, or nightlife.
+4. Duration unknown -> ask how many days.
+5. Budget unclear -> check the injected planner context before asking.
+Never ask something already answered in Planner context or Recent chat. Never ask the same question twice. Never end a response with only a question.
+
+SUGGESTIONS: Surface the top 3-5 places when enough context exists. Always explain why each place fits this specific trip. Do not suggest over-budget places without flagging the budget risk. Do not re-suggest stops already on the map.
+
+ANSWER EVERYTHING: Answer travel questions directly: transit, weather by season, dietary options, safety, accommodation, what is near a stop, what locals eat, timing, budget, and Scope app flow. If data is missing, answer from knowledge and note the gap. For unrelated general trivia, homework, code, news, medical, legal, financial, or emergency questions, do not pretend to be a general assistant; redirect to trusted/professional sources and connect back to Scope planning if useful.
+
+MAP ACTIONS: Add, remove, or reorder map markers only after explicit user confirmation. When the user confirms adding a place, emit one structured JSON block at the very end of the response wrapped in [SCOPE_ACTION]...[/SCOPE_ACTION]. Supported action values are add_marker, remove_marker, and reorder_stops. Include place_name, address, stop_type (start, stop, or destination), day, order, and note. Omit coordinates if unsure; Scope will geocode from address. Never emit this block without user confirmation. When unsure, ask: "Want me to drop that on your map?"
+
+CHIPS: After every response, emit 2-3 contextual follow-up prompts wrapped in [CHIPS]...[/CHIPS]. Make them specific to the current conversation state, not generic.
+
+ITINERARY MODE: When 3+ stops are on the map, proactively offer to organize them day-by-day. On confirmation, output readable itinerary text and emit a reorder_stops action. When writing itinerary text, use Morning, Afternoon, and Evening slots, real places, practical travel time, and notes for must-sees versus hidden gems.
+
+Before building any itinerary, confirm destination(s), trip length in days, interests, travel pace, and who is traveling. Treat details as answered when they appear in Planner context, Recent chat, or the user request. If the traveler replies "idk", "not sure", "whatever", "u wanna help", or anything similarly vague after a route brief question, treat that as "surprise me": choose smart defaults and keep moving.
+
+NEVER:
+- Add a marker without explicit user confirmation.
+- Give a generic place list without destination plus at least one preference.
+- Re-suggest stops already on the map.
+- Expose internal model names, implementation labels, debug tags, or tool chatter.
+- Output JSON except inside a confirmed [SCOPE_ACTION] block.
 
 Professional boundary rules:
 - If the user asks personal identity questions about you, say those labels or relationships do not apply because you are Scope AI, then redirect to Scope trip/app help.
 - If the user sends romantic, sexual, or abusive prompts, stay calm, set a short professional boundary, and ask what Scope trip/app issue should be fixed.
-- If the user asks unrelated general trivia, homework, code, news, medical, legal, financial, or emergency questions, do not pretend to be a general assistant. Redirect to trusted/professional sources and offer to help with the Scope planning context.
 - For unclear one- or two-word prompts, ask one concise clarifying question instead of guessing."""
 
 
@@ -78,6 +101,55 @@ def _env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+def _env_float(name: str, default: float) -> float:
+    """Parse optional float tuning values from the environment."""
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _configured_provider() -> str:
+    provider = os.environ.get("SCOPE_AI_PROVIDER", "auto").strip().lower()
+    return provider if provider in {"auto", "gemini", "ollama"} else "auto"
+
+
+def _should_use_gemini() -> bool:
+    provider = _configured_provider()
+    return provider in {"auto", "gemini"} and bool(os.environ.get("GEMINI_API_KEY", "").strip())
+
+
+def _gemini_model_names() -> list[str]:
+    configured = [
+        os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        *os.environ.get(
+            "GEMINI_FALLBACK_MODELS",
+            "gemini-2.5-flash-lite,gemini-2.0-flash",
+        ).split(","),
+    ]
+    models: list[str] = []
+    for model in configured:
+        clean_model = model.strip()
+        if clean_model and clean_model not in models:
+            models.append(clean_model)
+    return models or ["gemini-2.5-flash"]
+
+
+def _gemini_endpoint(model_name: str) -> str:
+    model = model_name.removeprefix("models/")
+    encoded_model = quote(model, safe="")
+    base_url = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+    return f"{base_url}/models/{encoded_model}:generateContent"
+
+
+def _extract_gemini_text(payload: dict) -> str:
+    parts = payload.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    text = "\n".join(str(part.get("text") or "").strip() for part in parts).strip()
+    if not text:
+        raise RuntimeError("Gemini returned no text")
+    return text
 
 
 def _read_prompt_line(prompt: str, label: str) -> str:
@@ -109,6 +181,15 @@ def _parse_trip_duration_days(prompt: str, dates: str) -> int | None:
         parsed = int(duration_match.group(1))
         return parsed if parsed > 0 else None
 
+    traveler_request = _read_traveler_request(prompt)
+    if re.search(r"\bweekend\b", traveler_request, flags=re.IGNORECASE):
+        return 2
+
+    request_duration_match = re.search(r"\b(\d{1,2})\s*(?:day|days|d)\b", traveler_request, flags=re.IGNORECASE)
+    if request_duration_match:
+        parsed = int(request_duration_match.group(1))
+        return parsed if parsed > 0 else None
+
     date_match = re.search(r"(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})", dates, flags=re.IGNORECASE)
     if not date_match:
         return None
@@ -128,13 +209,17 @@ def _parse_trip_duration_days(prompt: str, dates: str) -> int | None:
 def _has_travel_party_brief(prompt: str) -> bool:
     travelers = _read_prompt_line(prompt, "Travelers")
     travel_party = _read_prompt_line(prompt, "Travel party")
+    traveler_request = _read_traveler_request(prompt)
     try:
         if int(travelers) > 0:
             return True
     except (TypeError, ValueError):
         pass
 
-    return bool(re.search(r"\b(solo|couple|pair|group|family|friends?|travelers?)\b", travel_party, flags=re.IGNORECASE))
+    return bool(
+        re.search(r"\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b", travel_party, flags=re.IGNORECASE)
+        or re.search(r"\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b", traveler_request, flags=re.IGNORECASE)
+    )
 
 
 def _missing_itinerary_brief_questions(prompt: str, start: str, end: str, dates: str, pace: str, interests: str) -> list[str]:
@@ -146,7 +231,7 @@ def _missing_itinerary_brief_questions(prompt: str, start: str, end: str, dates:
     if not duration_days or duration_days <= 1:
         questions.append("How many days is the trip?")
     if not interests.strip():
-        questions.append("What are your interests: food, nightlife, nature, culture, shopping, adventure, or something else?")
+        questions.append("What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?")
     if not pace.strip():
         questions.append("Do you want the pace packed, balanced, or relaxed?")
     if not _has_travel_party_brief(prompt):
@@ -159,11 +244,44 @@ def _missing_itinerary_brief_response(questions: list[str]) -> str:
     return f"I can build that. {questions[0] if questions else 'What kind of trip should this feel like?'}"
 
 
+def _infer_interests_from_text(value: str) -> str:
+    normalized = value.lower()
+    interests: list[str] = []
+
+    def add(interest: str, pattern: str) -> None:
+        if re.search(pattern, normalized) and interest not in interests:
+            interests.append(interest)
+
+    add("food", r"\b(food|restaurants?|coffee|cafes?|lunch|dinner|breakfast|eat|drink)\b")
+    add("culture", r"\b(culture|museums?|art|history|historic)\b")
+    add("nature", r"\b(nature|parks?|trails?|hikes?|outdoors?)\b")
+    add("scenic", r"\b(scenic|views?|overlooks?|photo)\b")
+    add("adventure", r"\b(adventure|active|activities|zipline|rafting|climb)\b")
+    add("nightlife", r"\b(nightlife|bars?|clubs?|live music)\b")
+    add("shopping", r"\b(shopping|markets?|malls?|boutiques?)\b")
+    add("entertainment", r"\b(entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b")
+
+    if re.search(r"\b(?:balanced\s+(?:vibes?|interests?|mix)|mix|variety)\b", normalized) and not interests:
+        interests.extend(["food", "culture", "scenic"])
+
+    return ", ".join(interests)
+
+
+def _infer_pace_from_text(value: str) -> str:
+    if re.search(r"\b(relaxed|slow|chill|easy)\b", value, flags=re.IGNORECASE):
+        return "relaxed"
+    if re.search(r"\b(packed|busy|full|fast)\b", value, flags=re.IGNORECASE):
+        return "packed"
+    if re.search(r"\b(balanced|moderate|standard|normal)\b", value, flags=re.IGNORECASE):
+        return "balanced"
+    return ""
+
+
 def _is_vague_brief_reply(value: str) -> bool:
     normalized = re.sub(r"[^\w'\s]+", " ", value.strip().lower().replace("’", "'"))
     normalized = re.sub(r"\s+", " ", normalized).strip()
     if re.search(
-        r"\b(?:\d{1,2}\s*(?:day|days|d)|weekend|food|restaurants?|coffee|cafes?|culture|museums?|art|history|nature|parks?|trails?|hikes?|adventure|nightlife|bars?|shopping|scenic|views?|relaxed|chill|balanced|moderate|packed|busy|solo|alone|couple|partner|family|kids?|children|group|friends?)\b",
+        r"\b(?:\d{1,2}\s*(?:day|days|d)|weekend|food|restaurants?|coffee|cafes?|culture|museums?|art|history|nature|parks?|trails?|hikes?|adventure|nightlife|bars?|shopping|entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|scenic|views?|relaxed|chill|balanced|moderate|packed|busy|solo|alone|couple|partner|family|kids?|children|group|friends?)\b",
         normalized,
     ):
         return False
@@ -188,6 +306,21 @@ def _has_pending_itinerary_brief(prompt: str, recent_chat: str) -> bool:
     )
 
 
+def _has_pending_duration_brief(prompt: str, recent_chat: str) -> bool:
+    text = f"{recent_chat}\n{prompt}"
+    return bool(re.search(r"Scope AI:\s*.*how many days", text, flags=re.IGNORECASE | re.DOTALL))
+
+
+def _parse_pending_duration_reply(value: str) -> int | None:
+    normalized = value.strip()
+    matched = re.search(r"\b(\d{1,2})\s*(?:day|days|d)?\b", normalized, flags=re.IGNORECASE)
+    if not matched:
+        return None
+
+    parsed = int(matched.group(1))
+    return parsed if 1 <= parsed <= 30 else None
+
+
 def _smart_default_itinerary_response(route: str, budget: str, pace: str) -> str:
     return "\n".join(
         [
@@ -209,6 +342,167 @@ def _smart_default_itinerary_response(route: str, budget: str, pace: str) -> str
     )
 
 
+def _format_interest_phrase(interests: str) -> str:
+    cleaned = (interests or "").strip()
+    if not cleaned or cleaned == "the selected trip vibes":
+        return "good-fit"
+    return re.sub(r",\s*([^,]+)$", r" or \1", cleaned)
+
+
+def _parse_planner_stop_names(prompt: str) -> list[str]:
+    matched = re.search(r"^Stops:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|$)", prompt, flags=re.IGNORECASE | re.MULTILINE)
+    if not matched:
+        return []
+
+    stops: list[str] = []
+    for raw_line in matched.group(1).splitlines():
+        cleaned = re.sub(r"^\d+\.\s*", "", raw_line).strip()
+        cleaned = re.sub(r"\s+\([^)]*\)\s*$", "", cleaned).strip()
+        if cleaned:
+            stops.append(cleaned)
+    return stops[:12]
+
+
+def _travelers_label(prompt: str) -> str:
+    travel_party = _read_prompt_line(prompt, "Travel party")
+    if travel_party:
+        return travel_party
+
+    travelers = _read_prompt_line(prompt, "Travelers")
+    try:
+        count = int(travelers)
+    except (TypeError, ValueError):
+        count = 0
+
+    if count > 0:
+        return "solo traveler" if count == 1 else f"{count} travelers"
+
+    request_text = _read_traveler_request(prompt)
+    if re.search(r"\b(family|kids?|children)\b", request_text, flags=re.IGNORECASE):
+        return "family"
+    if re.search(r"\b(couple|pair|partner)\b", request_text, flags=re.IGNORECASE):
+        return "couple"
+    if re.search(r"\b(solo|alone)\b", request_text, flags=re.IGNORECASE):
+        return "solo traveler"
+    if re.search(r"\b(group|friends?)\b", request_text, flags=re.IGNORECASE):
+        return "group"
+
+    return "travel party not locked"
+
+
+def _concise_plan_day_count(prompt: str, dates: str) -> int:
+    parsed = _parse_trip_duration_days(prompt, dates)
+    return min(parsed, 14) if parsed and parsed > 0 else 2
+
+
+def _pace_stop_target(pace: str) -> str:
+    if re.search(r"packed|busy|fast|full", pace or "", flags=re.IGNORECASE):
+        return "up to 3 meaningful stops per full day, with drive time checked before adding more"
+    if re.search(r"relaxed|slow|chill|easy", pace or "", flags=re.IGNORECASE):
+        return "1 main anchor plus 1 flexible backup per day"
+    return "2 main anchors per full day, with one practical break folded in"
+
+
+def _interest_anchor(interests: str, day_number: int) -> str:
+    normalized = (interests or "").lower()
+    anchors: list[str] = []
+
+    if re.search(r"\b(entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b", normalized):
+        anchors.append("one verified entertainment anchor such as bowling, an arcade, a theater, or a theme park")
+    if re.search(r"\b(food|restaurant|coffee|cafe|lunch|dinner|breakfast)\b", normalized):
+        anchors.append("one food stop that also works as the real break")
+    if re.search(r"\b(culture|museum|art|history|historic)\b", normalized):
+        anchors.append("one culture or history stop with enough time to actually enjoy it")
+    if re.search(r"\b(nature|scenic|view|park|trail|hike|outdoor)\b", normalized):
+        anchors.append("one scenic or outdoor stop close to the route")
+    if re.search(r"\b(shopping|market|mall|boutique)\b", normalized):
+        anchors.append("one shopping district or market stop with easy parking")
+    if re.search(r"\b(nightlife|bar|club|music)\b", normalized):
+        anchors.append("one nightlife option only after arrival timing is comfortable")
+    if re.search(r"\b(adventure|activity|activities)\b", normalized):
+        anchors.append("one active stop that does not overload the drive day")
+
+    if not anchors:
+        anchors.append("one good-fit stop close to the route")
+    return anchors[(day_number - 1) % len(anchors)]
+
+
+def _should_return_concise_itinerary(request_text: str, normalized_request: str) -> bool:
+    if not _is_itinerary_build_request(request_text):
+        return False
+    if not re.search(r"\b(weekend|simple|easy)\b", normalized_request):
+        return True
+    return bool(re.search(r"\b(itinerary|plan|route|draft)\b", normalized_request))
+
+
+def _concise_itinerary_response(prompt: str, route: str, dates: str, budget: str, pace: str, interests: str) -> str:
+    day_count = _concise_plan_day_count(prompt, dates)
+    visible_day_count = min(day_count, 5)
+    stop_names = _parse_planner_stop_names(prompt)
+    interest_phrase = _format_interest_phrase(interests)
+    travelers = _travelers_label(prompt)
+    lines = [
+        f"For you: I can turn {route} into a concise {day_count}-day plan from the context you gave me.",
+        "Plan guardrails:",
+        f"- Dates: {dates}.",
+        f"- Pace: {pace}; target {_pace_stop_target(pace)}.",
+        f"- Budget: {budget}; treat this as a cap, not a goal to spend.",
+        f"- Vibes: {interest_phrase}.",
+        f"- Travelers: {travelers}.",
+    ]
+
+    for day_number in range(1, visible_day_count + 1):
+        existing_stop = stop_names[day_number - 1] if day_number - 1 < len(stop_names) else ""
+        if day_number == 1:
+            travel_shape = "Start with the cleanest travel leg, then add only one optional stop after timing is known."
+        elif day_number == visible_day_count:
+            travel_shape = "Protect the arrival window and keep the final leg easy to finish."
+        else:
+            travel_shape = "Use this as the main experience day, not another overloaded travel day."
+
+        lines.extend([
+            f"Day {day_number}:",
+            f"- Anchor: {existing_stop or _interest_anchor(interests, day_number)}.",
+            f"- {travel_shape}",
+            "- Fold food, restrooms, fuel, or charging into the same area whenever possible.",
+        ])
+
+    if day_count > visible_day_count:
+        lines.extend([
+            "Later days:",
+            f"- Repeat the same pattern for days {visible_day_count + 1}-{day_count}: one main anchor, one practical break, and one flexible backup.",
+        ])
+
+    lines.extend([
+        "Verify before commit:",
+        "- Use live route timing before locking optional stops.",
+        "- Verify hours, tickets, reservations, parking, and weather for exact venues.",
+        "- Use the stops already on the canvas first; replace weak ones instead of stacking more." if stop_names else "- Search live places before adding exact stop names, so Scope does not fake venues.",
+        "Next action:",
+        "- Build the live itinerary from this shape, then tighten any day that has too much drive time, cost, or backtracking.",
+    ])
+
+    return "\n".join(lines)
+
+
+def _duration_reply_itinerary_response(route: str, budget: str, pace: str, duration_days: int) -> str:
+    lines = [
+        f"Got it. I will treat that as {duration_days} day{'s' if duration_days != 1 else ''} for {route}.",
+        "Build guardrails:",
+        f"- Length: {duration_days} day{'s' if duration_days != 1 else ''}.",
+        f"- Pace: {pace or 'balanced'}, with sparse route days kept grounded instead of collapsed.",
+        f"- Budget guardrail: {budget}.",
+    ]
+
+    for day_number in range(1, duration_days + 1):
+        lines.extend([
+            f"Day {day_number}:",
+            "- Keep the route practical and add only stops the live route can support.",
+        ])
+
+    return "\n".join(lines)
+
+
 def _normalize_request(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s']", " ", value.lower())).strip()
 
@@ -218,7 +512,7 @@ def _is_scope_domain_request(normalized: str) -> bool:
         re.search(
             r"\b(scope|app|screen|button|click|tap|ui|planner|map|trip|travel|route|road trip|"
             r"itinerary|spot|spots|place|places|experience|experiences|destination|destinations|city|visit|go to|stay in|drive|flight|hotel|"
-            r"restaurant|food|budget|pace|timing|schedule|start|end|stop|midpoint|address|"
+            r"restaurant|food|entertainment|bowling|arcade|theme park|amusement park|budget|pace|timing|schedule|start|end|stop|midpoint|address|"
             r"street|road|avenue|county road|farm to market|photo|photos|image|images|review|reviews|friend|friends|"
             r"notification|notifications|profile|search|weather|safe|safety|group|weekend|vacation)\b",
             normalized,
@@ -288,6 +582,9 @@ def _professional_boundary_response(request_text: str) -> str | None:
 
 def create_trip_planner():
     """Create and return the LangGraph trip planner agent."""
+    if not LANGGRAPH_AVAILABLE or ChatOllama is None or StateGraph is None or ToolNode is None:
+        raise RuntimeError("LangGraph planner dependencies are not installed")
+
     llm = ChatOllama(
         model=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
         temperature=0.3,
@@ -326,10 +623,12 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
     dates = _read_prompt_line(prompt, "Dates") or start_date or "the selected dates"
     budget = _read_prompt_line(prompt, "Budget") or "the current budget"
     raw_pace = _read_prompt_line(prompt, "Pace")
-    pace = raw_pace or "balanced"
     raw_interests = _read_prompt_line(prompt, "Interests")
-    interests = raw_interests or "the selected trip vibes"
     request_text = _read_traveler_request(prompt)
+    effective_pace = raw_pace or _infer_pace_from_text(request_text)
+    pace = effective_pace or "balanced"
+    effective_interests = raw_interests or _infer_interests_from_text(request_text)
+    interests = effective_interests or "the selected trip vibes"
     recent_chat = _read_recent_chat(prompt)
     route = f"{start} to {end}" if start and end else start or end or "this draft route"
     normalized_request = request_text.lower()
@@ -337,13 +636,19 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
     if boundary_response:
         return boundary_response
 
+    pending_duration_days = _parse_pending_duration_reply(request_text) if _has_pending_duration_brief(prompt, recent_chat) else None
+    if pending_duration_days:
+        return _duration_reply_itinerary_response(route, budget, pace, pending_duration_days)
+
     if _is_vague_brief_reply(request_text) and _has_pending_itinerary_brief(prompt, recent_chat):
         return _smart_default_itinerary_response(route, budget, pace)
 
     if _is_itinerary_build_request(request_text):
-        missing_questions = _missing_itinerary_brief_questions(prompt, start, end, dates, raw_pace, raw_interests)
+        missing_questions = _missing_itinerary_brief_questions(prompt, start, end, dates, effective_pace, effective_interests)
         if missing_questions:
             return _missing_itinerary_brief_response(missing_questions)
+        if _should_return_concise_itinerary(request_text, normalized_request):
+            return _concise_itinerary_response(prompt, route, dates, budget, pace, interests)
 
     if re.search(r"\b(budget|inside|under|cap|\$|cost|spend)\b", normalized_request):
         return "\n".join(
@@ -420,19 +725,104 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
     )
 
 
+def _agent_context_parts(prompt: str, user_id: str | None = None, start_date: str | None = None) -> list[str]:
+    parts = [prompt]
+    parts.append(
+        "Response style: plain conversational text, speak directly to the traveler as you/your. "
+        "For normal answers use 2-4 short sentences; for itinerary builds use compact sections with "
+        "guardrails, day anchors, verification items, and one next action. Only use JSON inside "
+        "confirmed [SCOPE_ACTION] blocks."
+    )
+    if start_date:
+        parts.append(f"Travel dates starting: {start_date}")
+    if user_id:
+        parts.append(f"User ID for personalization: {user_id}")
+    return parts
+
+
+def _looks_invalid_itinerary(value: str) -> bool:
+    stripped = (value or "").strip()
+    return not stripped or stripped.startswith(("{", "["))
+
+
+def _fallback_result(prompt: str, start_date: str | None = None, model: str = "scope-local-copilot") -> dict:
+    return {
+        "itinerary": _fallback_plan(prompt, start_date),
+        "steps": 0,
+        "model": model,
+    }
+
+
+def _generate_with_gemini_model(
+    model_name: str,
+    prompt: str,
+    user_id: str | None = None,
+    start_date: str | None = None,
+) -> str:
+    response = requests.post(
+        _gemini_endpoint(model_name),
+        params={"key": os.environ.get("GEMINI_API_KEY", "").strip()},
+        json={
+            "systemInstruction": {"parts": [{"text": SYSTEM_MESSAGE}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": "\n".join(_agent_context_parts(prompt, user_id, start_date))}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": _env_float("GEMINI_TEMPERATURE", 0.25),
+                "maxOutputTokens": _env_int("GEMINI_MAX_OUTPUT_TOKENS", 1536),
+            },
+        },
+        timeout=_env_float("GEMINI_TIMEOUT_SECONDS", 30.0),
+    )
+    response.raise_for_status()
+    return _extract_gemini_text(response.json())
+
+
+def _generate_with_gemini(
+    prompt: str,
+    user_id: str | None = None,
+    start_date: str | None = None,
+) -> tuple[str, str]:
+    retryable_statuses = {408, 429, 500, 502, 503, 504}
+    failures: list[str] = []
+
+    for model_name in _gemini_model_names():
+        try:
+            return _generate_with_gemini_model(model_name, prompt, user_id, start_date), model_name
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else 0
+            failures.append(f"{model_name}:{status_code}")
+            if status_code not in retryable_statuses:
+                raise
+            logger.warning("Gemini trip-planner model %s failed with HTTP %s; trying fallback", model_name, status_code)
+        except (requests.Timeout, requests.ConnectionError):
+            failures.append(f"{model_name}:network")
+            logger.warning("Gemini trip-planner model %s failed on network/timeout; trying fallback", model_name)
+
+    raise RuntimeError(f"Gemini trip generation failed for configured models: {', '.join(failures)}")
+
+
+def _plan_trip_with_gemini(prompt: str, user_id: str | None = None, start_date: str | None = None) -> dict:
+    itinerary, model_name = _generate_with_gemini(prompt, user_id=user_id, start_date=start_date)
+    if _looks_invalid_itinerary(itinerary):
+        return _fallback_result(prompt, start_date)
+
+    return {
+        "itinerary": itinerary,
+        "steps": 1,
+        "model": model_name,
+    }
+
+
 def _run_agent_process(prompt: str, user_id: str | None, start_date: str | None, result_queue) -> None:
     """Run LangGraph planning in an isolated process so timeouts can terminate it."""
-    context_parts = [prompt]
-    context_parts.append("Response style: plain conversational text, speak directly to the traveler as you/your, 2-4 short sentences, no JSON.")
-    if start_date:
-        context_parts.append(f"Travel dates starting: {start_date}")
-    if user_id:
-        context_parts.append(f"User ID for personalization: {user_id}")
-
     initial_state = {
         "messages": [
             SystemMessage(content=SYSTEM_MESSAGE),
-            HumanMessage(content="\n".join(context_parts)),
+            HumanMessage(content="\n".join(_agent_context_parts(prompt, user_id, start_date))),
         ]
     }
 
@@ -450,13 +840,22 @@ def _run_agent_process(prompt: str, user_id: str | None, start_date: str | None,
 
 def plan_trip(prompt: str, user_id: str | None = None, start_date: str | None = None) -> dict:
     """Plan a trip using the agentic workflow."""
+    provider = _configured_provider()
+    if _should_use_gemini():
+        try:
+            return _plan_trip_with_gemini(prompt, user_id=user_id, start_date=start_date)
+        except Exception:
+            if provider == "gemini":
+                logger.warning("Gemini trip planner failed with provider=gemini; using deterministic fallback", exc_info=True)
+                return _fallback_result(prompt, start_date)
+            logger.warning("Gemini trip planner failed; falling back to Ollama/local planner", exc_info=True)
+    elif provider == "gemini":
+        logger.warning("SCOPE_AI_PROVIDER=gemini but GEMINI_API_KEY is missing; using deterministic fallback")
+        return _fallback_result(prompt, start_date)
+
     timeout_seconds = _env_int("AGENT_PLANNER_TIMEOUT_SECONDS", 45)
     if timeout_seconds <= 0:
-        return {
-            "itinerary": _fallback_plan(prompt, start_date),
-            "steps": 0,
-            "model": os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
-        }
+        return _fallback_result(prompt, start_date)
 
     result_queue = mp.Queue(maxsize=1)
     process = mp.Process(
@@ -479,7 +878,7 @@ def plan_trip(prompt: str, user_id: str | None = None, start_date: str | None = 
 
         itinerary = result["itinerary"]
         steps = result["steps"]
-        if not itinerary.strip() or itinerary.lstrip().startswith(("{", "[")):
+        if _looks_invalid_itinerary(itinerary):
             itinerary = _fallback_plan(prompt, start_date)
             steps = 0
     except (Exception, queue.Empty):
@@ -489,5 +888,5 @@ def plan_trip(prompt: str, user_id: str | None = None, start_date: str | None = 
     return {
         "itinerary": itinerary,
         "steps": steps,
-        "model": os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
+        "model": os.environ.get("OLLAMA_MODEL", "llama3.2:3b") if steps else "scope-local-copilot",
     }

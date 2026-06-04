@@ -18,6 +18,8 @@ const createdSpot = {
   vibe: 'electric skyline',
   rating: '4.6',
   visitedAt: '2026-03-31',
+  latitude: '32.7561',
+  longitude: '-97.3314',
 };
 
 const updatedSpot = {
@@ -34,15 +36,17 @@ async function fillCreateSpotForm(page: Page): Promise<void> {
   await form.locator('[data-test="photo-upload-input"]').setInputFiles(SPOT_PHOTO);
   await expect(form.locator('[data-test="photo-preview-card"]')).toHaveCount(1);
 
-  await form.getByLabel('Title').fill(createdSpot.title);
+  await form.getByRole('textbox', { name: 'Place' }).fill(createdSpot.title);
   await form.getByLabel('Description').fill(createdSpot.description);
   await form.getByLabel('Address').fill(createdSpot.address);
   await form.getByLabel('City').fill(createdSpot.city);
   await form.getByLabel('Country').fill(createdSpot.country);
-  await form.getByLabel('Category').selectOption(createdSpot.category);
-  await form.getByLabel('Vibe').fill(createdSpot.vibe);
+  await form.getByLabel('Spot category').selectOption(createdSpot.category);
+  await form.getByLabel('Optional vibe').fill(createdSpot.vibe);
   await form.getByLabel('Rating').fill(createdSpot.rating);
   await form.getByLabel('Visited at').fill(createdSpot.visitedAt);
+  await form.getByLabel('Latitude').fill(createdSpot.latitude);
+  await form.getByLabel('Longitude').fill(createdSpot.longitude);
 }
 
 test.describe('spot CRUD flow', () => {
@@ -53,7 +57,7 @@ test.describe('spot CRUD flow', () => {
     });
 
     await page.goto('/spots/new');
-    await expect(page.getByRole('heading', { name: 'Drop a new adventure pin' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'New spot' })).toBeVisible();
 
     await fillCreateSpotForm(page);
     await page.locator('[data-test="spot-submit"]').click();
@@ -68,13 +72,13 @@ test.describe('spot CRUD flow', () => {
 
     const editForm = page.locator('[data-test="spot-form"]');
     await expect(page).toHaveURL(/\/spots\/spot-\d+\/edit$/);
-    await expect(page.getByRole('heading', { name: 'Refine a community pin' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Edit spot' })).toBeVisible();
     await expect(editForm).toBeVisible();
-    await expect(editForm.getByLabel('Title')).toHaveValue(createdSpot.title);
+    await expect(editForm.getByRole('textbox', { name: 'Place' })).toHaveValue(createdSpot.title);
 
-    await editForm.getByLabel('Title').fill(updatedSpot.title);
+    await editForm.getByRole('textbox', { name: 'Place' }).fill(updatedSpot.title);
     await editForm.getByLabel('Description').fill(updatedSpot.description);
-    await editForm.getByLabel('Vibe').fill(updatedSpot.vibe);
+    await editForm.getByLabel('Optional vibe').fill(updatedSpot.vibe);
     await editForm.getByLabel('Rating').fill(updatedSpot.rating);
     await editForm.locator('[data-test="spot-submit"]').click();
 

@@ -103,6 +103,7 @@ const categoryLabels: Record<SpotCategory, string> = {
   culture: 'Culture',
   adventure: 'Adventure',
   shopping: 'Shopping',
+  entertainment: 'Entertainment',
   scenic: 'Scenic',
   other: 'Other',
 };
@@ -154,7 +155,16 @@ const statusCopy = computed(() => {
 
 .control-stack {
   display: grid;
-  gap: var(--space-3);
+  gap: 0.55rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 8%, var(--glass-border) 92%);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  box-shadow:
+    0 1rem 2.4rem color-mix(in srgb, var(--bg-primary) 30%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .control-stack[data-onboarding-active='true'] {
@@ -186,15 +196,17 @@ const statusCopy = computed(() => {
 }
 
 .control-button {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 2.85rem;
+  height: 2.85rem;
   border-radius: var(--radius-full);
-  background: var(--glass-bg);
+  background: color-mix(in srgb, var(--bg-tertiary) 84%, var(--glass-bg) 16%);
   color: var(--text-primary);
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 0.45rem 1.1rem color-mix(in srgb, var(--bg-primary) 24%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
 }
 
 .control-button:hover:not(:disabled),
@@ -231,8 +243,8 @@ const statusCopy = computed(() => {
 }
 
 .control-button :deep(.scope-icon) {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.08rem;
+  height: 1.08rem;
 }
 
 .filter-panel {
@@ -325,8 +337,8 @@ const statusCopy = computed(() => {
   }
 
   .control-button {
-    width: 3.25rem;
-    height: 3.25rem;
+    width: 2.75rem;
+    height: 2.75rem;
   }
 
   .filter-panel {
@@ -340,12 +352,13 @@ const statusCopy = computed(() => {
   }
 
   .control-stack {
-    gap: 0.65rem;
+    gap: 0.5rem;
+    padding: 0.45rem;
   }
 
   .control-button {
-    width: 2.9rem;
-    height: 2.9rem;
+    width: 2.65rem;
+    height: 2.65rem;
     background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
     box-shadow:
       0 0.8rem 1.6rem color-mix(in srgb, var(--bg-primary) 24%, transparent),

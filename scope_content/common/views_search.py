@@ -20,6 +20,20 @@ def _bounded_int(value: str | None, default: int, maximum: int) -> int:
     return min(max(parsed, 0), maximum)
 
 
+def _visibility_filter_for(doc_type: str) -> dict:
+    if doc_type == 'reviews':
+        return {'term': {'spot_is_public': True}}
+
+    return {'term': {'is_public': True}}
+
+
+def _is_visible_search_hit(doc_type: str, entry: dict) -> bool:
+    if doc_type == 'reviews':
+        return entry.get('spot_is_public') is True
+
+    return entry.get('is_public') is True
+
+
 class SearchView(APIView):
     """Full-text search across spots, reviews, and trips."""
 
@@ -43,11 +57,18 @@ class SearchView(APIView):
 
         body = {
             'query': {
-                'multi_match': {
-                    'query': q,
-                    'fields': self._fields_for(doc_type),
-                    'fuzziness': 'AUTO',
-                    'type': 'best_fields',
+                'bool': {
+                    'must': [
+                        {
+                            'multi_match': {
+                                'query': q,
+                                'fields': self._fields_for(doc_type),
+                                'fuzziness': 'AUTO',
+                                'type': 'best_fields',
+                            }
+                        }
+                    ],
+                    'filter': [_visibility_filter_for(doc_type)],
                 }
             },
             'from': offset,
@@ -68,6 +89,8 @@ class SearchView(APIView):
         hits = []
         for hit in result['hits']['hits']:
             entry = hit['_source']
+            if not _is_visible_search_hit(doc_type, entry):
+                continue
             entry['_score'] = hit['_score']
             entry['_highlights'] = hit.get('highlight', {})
             hits.append(entry)
@@ -76,7 +99,7 @@ class SearchView(APIView):
             {
                 'query': q,
                 'type': doc_type,
-                'total': result['hits']['total']['value'],
+                'total': len(hits),
                 'offset': offset,
                 'limit': limit,
                 'results': hits,
@@ -114,12 +137,15 @@ class GeoSearchView(APIView):
         body = {
             'query': {
                 'bool': {
-                    'filter': {
-                        'geo_distance': {
-                            'distance': radius,
-                            'location': {'lat': lat, 'lon': lon},
-                        }
-                    }
+                    'filter': [
+                        {
+                            'geo_distance': {
+                                'distance': radius,
+                                'location': {'lat': lat, 'lon': lon},
+                            }
+                        },
+                        {'term': {'is_public': True}},
+                    ]
                 }
             },
             'sort': [
@@ -143,6 +169,8 @@ class GeoSearchView(APIView):
         hits = []
         for hit in result['hits']['hits']:
             entry = hit['_source']
+            if not _is_visible_search_hit('spots', entry):
+                continue
             entry['_distance_km'] = hit['sort'][0] if hit.get('sort') else None
             hits.append(entry)
 
@@ -150,7 +178,7 @@ class GeoSearchView(APIView):
             {
                 'center': {'lat': lat, 'lon': lon},
                 'radius': radius,
-                'total': result['hits']['total']['value'],
+                'total': len(hits),
                 'results': hits,
             }
         )

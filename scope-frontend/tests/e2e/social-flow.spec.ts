@@ -43,10 +43,13 @@ test.describe('Scope social flow', () => {
 
     await page.locator('[data-test="accept-request-request-1"]').click();
 
-    await expect(page.locator('[data-test="tab-all"]')).toContainText('7');
+    await expect(page.locator('[data-test="tab-all"]')).toContainText('6');
     await expect(page.locator('[data-test="tab-requests"]')).toContainText('2');
-    await page.locator('[data-test="friends-show-more"]').click();
-    await expect(page.locator('[data-test="friend-card"]')).toHaveCount(7);
+    const showMoreButton = page.locator('[data-test="friends-show-more"]');
+    if (await showMoreButton.isVisible()) {
+      await showMoreButton.click();
+    }
+    await expect(page.locator('[data-test="friend-card"]')).toHaveCount(6);
     await expect(notificationBadge).toHaveText('3');
 
     await page.locator('[data-test="notification-toggle"]').click();

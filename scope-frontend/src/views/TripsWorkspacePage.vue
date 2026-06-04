@@ -26,8 +26,10 @@
           :aria-pressed="activeWorkspaceView === view.id"
           @click="activeWorkspaceView = view.id"
         >
-          <ScopeIcon :name="view.icon" aria-hidden="true" />
-          <span>{{ view.label }}</span>
+          <span class="metric-card__meta">
+            <ScopeIcon :name="view.icon" aria-hidden="true" />
+            <span>{{ view.label }}</span>
+          </span>
           <strong>{{ view.count }}</strong>
         </button>
       </section>
@@ -43,17 +45,7 @@
 
         <div v-if="activeWorkspaceTrips.length" class="trip-document-stack">
           <article v-for="trip in activeWorkspaceTrips" :key="trip.id" class="trip-document glass-panel">
-            <div class="document-visual" aria-hidden="true">
-              <div class="document-icon">
-                <ScopeIcon name="route" />
-              </div>
-              <span class="route-node route-node--start" />
-              <span class="route-line" />
-              <span class="route-node route-node--end" />
-            </div>
-
             <div class="document-copy">
-              <p class="eyebrow">{{ tripEyebrow(trip) }}</p>
               <h3>{{ trip.title }}</h3>
               <p>{{ trip.destination }}</p>
               <div class="document-meta" aria-label="Trip details">
@@ -67,7 +59,7 @@
                 </span>
                 <span>
                   <ScopeIcon name="globe" aria-hidden="true" />
-                  {{ tripVisibilityLabel(trip) }}
+                  {{ tripAccessLabel(trip) }}
                 </span>
               </div>
             </div>
@@ -124,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
@@ -208,6 +200,33 @@ function isReferenceTrip(trip: Trip): boolean {
   return /^(?:demo-)?trip-[123]$/.test(trip.id);
 }
 
+function firstPopulatedWorkspaceView(): WorkspaceView | null {
+  if (draftTrips.value.length) {
+    return 'drafts';
+  }
+
+  if (sharedTrips.value.length) {
+    return 'shared';
+  }
+
+  if (upcomingTrips.value.length) {
+    return 'upcoming';
+  }
+
+  return null;
+}
+
+function syncActiveWorkspaceViewWithTrips(): void {
+  if (activeWorkspaceTrips.value.length) {
+    return;
+  }
+
+  const populatedView = firstPopulatedWorkspaceView();
+  if (populatedView) {
+    activeWorkspaceView.value = populatedView;
+  }
+}
+
 function isSharedWithCurrentUser(trip: Trip): boolean {
   if (!currentUserId.value) {
     return false;
@@ -228,27 +247,19 @@ function formatTripWindow(trip: Trip): string {
 }
 
 function tripStopLabel(trip: Trip): string {
-  return `${trip.spots.length} stop${trip.spots.length === 1 ? '' : 's'}`;
+  return `${trip.spots.length} route stop${trip.spots.length === 1 ? '' : 's'}`;
 }
 
 function tripMemberLabel(trip: Trip): string {
   return `${trip.members.length} traveler${trip.members.length === 1 ? '' : 's'}`;
 }
 
-function tripVisibilityLabel(trip: Trip): string {
-  return trip.isPublic ? 'Public' : 'Private';
-}
-
-function tripEyebrow(trip: Trip): string {
-  if (activeWorkspaceView.value === 'shared') {
+function tripAccessLabel(trip: Trip): string {
+  if (isSharedWithCurrentUser(trip)) {
     return 'Shared';
   }
 
-  if (activeWorkspaceView.value === 'upcoming') {
-    return trip.status === 'planning' ? 'Upcoming draft' : 'Upcoming';
-  }
-
-  return trip.status ?? 'Planning';
+  return trip.isPublic ? 'Public' : 'Private';
 }
 
 async function handleDeleteDraft(trip: Trip): Promise<void> {
@@ -276,10 +287,13 @@ async function handleDeleteDraft(trip: Trip): Promise<void> {
 onMounted(async () => {
   try {
     await tripsStore.fetchTrips();
+    syncActiveWorkspaceViewWithTrips();
   } catch {
     // The workspace can still render local drafts or the store-level error.
   }
 });
+
+watch([draftTrips, sharedTrips, upcomingTrips], syncActiveWorkspaceViewWithTrips, { flush: 'post' });
 </script>
 
 <style scoped>
@@ -374,78 +388,107 @@ onMounted(async () => {
   color: var(--bg-primary);
   background: var(--accent-teal);
   border: 1px solid color-mix(in srgb, var(--accent-teal) 70%, transparent);
-  box-shadow: var(--shadow-md), var(--shadow-glow-teal);
+  box-shadow: var(--shadow-md);
 }
 
 .workspace-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(var(--space-3), 1.4vw, var(--space-4));
+  gap: clamp(var(--space-2), 1vw, var(--space-3));
 }
 
 .metric-card {
   appearance: none;
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  min-height: 5.9rem;
-  padding: clamp(var(--space-4), 2vw, var(--space-5));
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 14%, var(--glass-border));
-  border-radius: var(--radius-xl);
-  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-primary));
+  min-height: 4.35rem;
+  padding: 0.9rem 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, transparent);
+  border-radius: calc(var(--radius-xl) - 0.15rem);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-secondary) 92%, transparent),
+    color-mix(in srgb, var(--bg-primary) 94%, transparent)
+  );
   color: var(--text-primary);
   font: inherit;
-  box-shadow: var(--shadow-md);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
   cursor: pointer;
   text-align: left;
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
     background var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.metric-card__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
 }
 
 .metric-card :deep(.scope-icon) {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0.55rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0.4rem;
   border-radius: var(--radius-full);
-  color: var(--accent-teal);
-  background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-primary));
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, transparent);
+  color: color-mix(in srgb, var(--text-secondary) 80%, var(--accent-teal));
+  background: color-mix(in srgb, var(--bg-primary) 76%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--glass-border) 86%, transparent);
 }
 
 .metric-card:hover,
 .metric-card:focus-visible {
-  transform: translateY(var(--motion-button-lift));
-  border-color: color-mix(in srgb, var(--accent-teal) 58%, var(--glass-border));
-  background: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-teal) 8%);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 34%, var(--glass-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-secondary) 89%, var(--accent-teal) 4%),
+    color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary))
+  );
   box-shadow:
-    var(--shadow-md),
-    0 0 0 3px color-mix(in srgb, var(--accent-teal) 18%, transparent);
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-teal) 10%, transparent);
   outline: none;
 }
 
 .metric-card--active {
-  border-color: color-mix(in srgb, var(--accent-teal) 72%, var(--glass-border));
-  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-teal) 10%);
+  border-color: color-mix(in srgb, var(--accent-teal) 58%, var(--glass-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-secondary) 84%, var(--accent-teal) 8%),
+    color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary))
+  );
   box-shadow:
-    var(--shadow-md),
-    inset 0 0 0 2px color-mix(in srgb, var(--accent-teal) 58%, transparent),
-    inset 0.32rem 0 0 var(--accent-teal);
+    inset 0 0 0 2px color-mix(in srgb, var(--accent-teal) 58%, transparent);
+}
+
+.metric-card--active :deep(.scope-icon) {
+  color: var(--accent-teal);
+  border-color: color-mix(in srgb, var(--accent-teal) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-primary));
 }
 
 .metric-card span {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  color: color-mix(in srgb, var(--text-secondary) 82%, var(--text-primary));
+  font-size: 0.84rem;
   font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
 }
 
 .metric-card strong {
+  width: 2.3rem;
   justify-self: end;
-  font-size: clamp(1.55rem, 1.5vw + 1rem, 2rem);
+  text-align: right;
+  font-size: clamp(1.34rem, 1vw + 0.92rem, 1.72rem);
   line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .workspace-section {
@@ -499,11 +542,11 @@ onMounted(async () => {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(var(--space-4), 1.2vw, var(--space-5));
   align-items: center;
-  min-height: 9rem;
-  padding: var(--space-5);
+  min-height: 9.4rem;
+  padding: clamp(var(--space-5), 1.2vw, var(--space-6));
   border-radius: var(--radius-xl);
   border-color: color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
   background:
@@ -513,7 +556,8 @@ onMounted(async () => {
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .trip-document::before {
@@ -528,103 +572,55 @@ onMounted(async () => {
 .trip-document:focus-within {
   transform: translateY(var(--motion-card-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
-  box-shadow: var(--shadow-lg), var(--shadow-glow-teal);
-}
-
-.document-visual {
-  position: relative;
-  width: 6.5rem;
-  height: 5.5rem;
-  display: grid;
-  place-items: center;
-}
-
-.document-icon {
-  position: relative;
-  z-index: 1;
-  width: 3.7rem;
-  height: 3.7rem;
-  display: inline-grid;
-  place-items: center;
-  border-radius: var(--radius-full);
-  color: var(--accent-teal);
-  background: color-mix(in srgb, var(--accent-teal) 15%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 34%, var(--glass-border));
-}
-
-.document-icon--shared {
-  color: var(--accent-gold);
-  background: color-mix(in srgb, var(--accent-gold) 16%, var(--bg-secondary));
-  border-color: color-mix(in srgb, var(--accent-gold) 38%, var(--glass-border));
-}
-
-.route-node,
-.route-line {
-  position: absolute;
-  display: block;
-}
-
-.route-node {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: var(--radius-full);
-  background: var(--accent-teal);
-  box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--accent-teal) 12%, transparent);
-}
-
-.route-node--start {
-  left: 0.45rem;
-  bottom: 0.7rem;
-}
-
-.route-node--end {
-  right: 0.45rem;
-  top: 0.7rem;
-  background: var(--accent-gold);
-  box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--accent-gold) 12%, transparent);
-}
-
-.route-line {
-  inset: 1.15rem 1.05rem;
-  border-top: 2px solid color-mix(in srgb, var(--accent-teal) 55%, transparent);
-  border-right: 2px solid color-mix(in srgb, var(--accent-gold) 50%, transparent);
-  border-radius: var(--radius-xl);
-  transform: skewX(-18deg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-secondary) 84%, var(--accent-teal) 16%), color-mix(in srgb, var(--bg-primary) 90%, var(--bg-secondary))),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-teal) 16%, transparent), transparent 50%);
+  box-shadow: var(--shadow-lg);
 }
 
 .document-copy {
   min-width: 0;
+  padding-left: 0.2rem;
 }
 
 .document-copy h3 {
   color: var(--text-primary);
-  font-size: clamp(1.25rem, 1vw + 1rem, 1.7rem);
-  line-height: var(--line-height-tight);
-  overflow-wrap: anywhere;
+  font-size: clamp(1.42rem, 1.15vw + 1rem, 1.92rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  overflow-wrap: normal;
+  text-wrap: balance;
 }
 
 .document-copy > p {
-  margin-top: var(--space-1);
+  margin-top: 0.5rem;
+  line-height: 1.45;
+  max-width: 68ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .document-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
+  gap: 0.55rem;
+  margin-top: var(--space-4);
 }
 
 .document-meta span {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 2rem;
-  padding: 0.38rem 0.62rem;
+  min-height: 1.8rem;
+  padding: 0.3rem 0.54rem;
   border: 1px solid color-mix(in srgb, var(--glass-border) 86%, transparent);
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-primary) 34%, var(--glass-bg));
   color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  font-size: 0.78rem;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -637,7 +633,9 @@ onMounted(async () => {
 .document-side {
   display: grid;
   justify-items: end;
-  gap: var(--space-2);
+  gap: 0.55rem;
+  align-content: center;
+  min-width: 6.6rem;
 }
 
 .document-side small {
@@ -656,12 +654,13 @@ onMounted(async () => {
 
 .document-action {
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.72rem 1rem;
+  min-height: 2rem;
+  padding: 0.42rem 0.78rem;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
   border: 1px solid color-mix(in srgb, var(--accent-teal) 34%, var(--border));
   cursor: pointer;
+  font-size: 0.8rem;
 }
 
 .document-action--danger {
@@ -677,8 +676,7 @@ onMounted(async () => {
   border-color: var(--accent-teal);
   box-shadow:
     var(--shadow-md),
-    0 0 0 3px color-mix(in srgb, var(--accent-teal) 22%, transparent),
-    0 0.85rem 1.6rem color-mix(in srgb, var(--accent-teal) 16%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--accent-teal) 22%, transparent);
   outline: none;
 }
 
@@ -695,7 +693,7 @@ onMounted(async () => {
 .document-action--danger:hover,
 .document-action--danger:focus-visible {
   border-color: color-mix(in srgb, var(--danger) 66%, var(--border));
-  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--danger) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
 .document-action:disabled {
@@ -769,9 +767,7 @@ onMounted(async () => {
 
 .empty-action:hover,
 .empty-action:focus-visible {
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent-teal) 22%, transparent),
-    0 0.8rem 1.4rem color-mix(in srgb, var(--accent-teal) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 22%, transparent);
 }
 
 @media (max-width: 1080px) {
@@ -808,12 +804,6 @@ onMounted(async () => {
 
   .section-heading {
     display: grid;
-  }
-
-  .document-visual {
-    width: 100%;
-    height: 4rem;
-    place-items: start;
   }
 
   .document-side {

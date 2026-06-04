@@ -99,6 +99,7 @@
           type="button"
           class="button action-button save-button"
           :class="isSaved ? 'save-button--active' : 'save-button--idle'"
+          :disabled="savingSavedState"
           :aria-pressed="String(isSaved)"
           :aria-label="isSaved ? `Remove ${spot.title} from saved spots` : `Save ${spot.title}`"
           @click="toggleSaved"
@@ -151,11 +152,12 @@
             </div>
           </div>
 
+          <p v-if="reviewErrorMessage" class="review-error" role="alert">{{ reviewErrorMessage }}</p>
           <ReviewList :reviews="displayReviews" />
 
           <article class="glass-panel review-form-panel">
             <div v-if="authStore.isAuthenticated" class="review-form-stack">
-              <ReviewForm @submit="handleReviewSubmit" />
+              <ReviewForm :submitting="submittingReview" @submit="handleReviewSubmit" />
             </div>
             <div v-else class="review-cta">
               <h3>Want to leave a review?</h3>
@@ -294,7 +296,7 @@
     <Toast
       v-if="showReviewToast"
       title="Review added"
-      message="Your review was added to the local spot detail shell while the live review endpoint finishes wiring up."
+      message="Your review was saved and synced to the live spot detail."
       tone="success"
       @close="showReviewToast = false"
     />
@@ -316,8 +318,9 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import Toast from '@/components/common/Toast.vue';
-import { listNearbySpots } from '@/services/spotService';
+import { createSpotReview, listNearbySpots, listSpotReviews } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
+import { useSpotsStore } from '@/stores/spots';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
@@ -338,13 +341,17 @@ const ReviewForm = defineAsyncComponent(() => import('@/components/spots/ReviewF
 const ReviewList = defineAsyncComponent(() => import('@/components/spots/ReviewList.vue'));
 
 const authStore = useAuthStore();
-const localReviews = ref<Review[]>([]);
+const spotsStore = useSpotsStore();
+const persistedReviews = ref<Review[]>([]);
 const isSaved = ref(false);
+const savingSavedState = ref(false);
+const submittingReview = ref(false);
 const selectedPhotoId = ref('');
 const similarSpots = ref<SpotSummary[]>([]);
 const loadingSimilar = ref(false);
 const showReviewToast = ref(false);
 const showShareToast = ref(false);
+const reviewErrorMessage = ref('');
 let cancelSimilarSpotsLoad: CancelScheduledTask = () => undefined;
 
 function formatCategory(category: string): string {
@@ -444,7 +451,7 @@ const photoCountLabel = computed(() => {
   const totalPhotos = galleryPhotos.value.length;
   return `${totalPhotos} photo${totalPhotos === 1 ? '' : 's'}`;
 });
-const displayReviews = computed(() => [...localReviews.value, ...(props.spot?.reviews ?? [])]);
+const displayReviews = computed(() => persistedReviews.value.length ? persistedReviews.value : props.spot?.reviews ?? []);
 const reviewCountLabel = computed(() => {
   const totalReviews = displayReviews.value.length;
   return `${totalReviews} review${totalReviews === 1 ? '' : 's'}`;
@@ -454,15 +461,7 @@ const averageRatingNumber = computed(() => {
     return 0;
   }
 
-  const serverReviewCount = props.spot.reviews.length;
-  const serverRatingTotal = props.spot.rating * Math.max(serverReviewCount, 1);
-
-  if (!localReviews.value.length) {
-    return props.spot.rating;
-  }
-
-  const localRatingTotal = localReviews.value.reduce((sum, review) => sum + review.rating, 0);
-  return (serverRatingTotal + localRatingTotal) / (serverReviewCount + localReviews.value.length);
+  return props.spot.rating;
 });
 const averageRating = computed(() => averageRatingNumber.value.toFixed(1));
 const publishedLabel = computed(() => (props.spot ? formatDate(props.spot.createdAt) : ''));
@@ -606,29 +605,35 @@ async function loadSimilarSpots(spot: SpotDetailModel | null): Promise<void> {
   }
 }
 
-function handleReviewSubmit(payload: { rating: number; comment: string }) {
+async function loadPersistedReviews(spotId: string): Promise<void> {
+  try {
+    const response = await listSpotReviews(spotId);
+    persistedReviews.value = response.data;
+    reviewErrorMessage.value = '';
+  } catch {
+    persistedReviews.value = props.spot?.reviews ?? [];
+    reviewErrorMessage.value = 'Scope could not refresh live reviews right now.';
+  }
+}
+
+async function handleReviewSubmit(payload: { rating: number; comment: string }) {
   if (!props.spot) {
     return;
   }
 
-  localReviews.value = [
-    {
-      id: `local-review-${Date.now()}`,
-      spotId: props.spot.id,
-      rating: payload.rating,
-      comment: payload.comment,
-      createdAt: new Date().toISOString(),
-      user: authStore.currentUser ?? {
-        id: 'guest-reviewer',
-        username: 'guest-reviewer',
-        email: '',
-        displayName: 'Scope traveler',
-        interests: [],
-      },
-    },
-    ...localReviews.value,
-  ];
-  showReviewToast.value = true;
+  submittingReview.value = true;
+  reviewErrorMessage.value = '';
+
+  try {
+    await createSpotReview(props.spot.id, payload);
+    await loadPersistedReviews(props.spot.id);
+    await spotsStore.fetchSpot(props.spot.id).catch(() => undefined);
+    showReviewToast.value = true;
+  } catch {
+    reviewErrorMessage.value = 'Scope could not publish that review right now.';
+  } finally {
+    submittingReview.value = false;
+  }
 }
 
 async function handleShare(): Promise<void> {
@@ -649,8 +654,27 @@ async function handleShare(): Promise<void> {
   }
 }
 
-function toggleSaved(): void {
-  isSaved.value = !isSaved.value;
+async function toggleSaved(): Promise<void> {
+  if (!props.spot || savingSavedState.value) {
+    return;
+  }
+
+  if (!authStore.isAuthenticated) {
+    return;
+  }
+
+  const previousSavedState = isSaved.value;
+  isSaved.value = !previousSavedState;
+  savingSavedState.value = true;
+
+  try {
+    const updatedSpot = await spotsStore.toggleLike(props.spot.id);
+    isSaved.value = Boolean(updatedSpot.liked);
+  } catch {
+    isSaved.value = previousSavedState;
+  } finally {
+    savingSavedState.value = false;
+  }
 }
 
 watch(
@@ -658,7 +682,10 @@ watch(
   (spot) => {
     cancelSimilarSpotsLoad();
     isSaved.value = Boolean(spot?.liked);
-    localReviews.value = [];
+    savingSavedState.value = false;
+    persistedReviews.value = spot?.reviews ?? [];
+    submittingReview.value = false;
+    reviewErrorMessage.value = '';
     showReviewToast.value = false;
     showShareToast.value = false;
     selectedPhotoId.value = galleryPhotos.value[0]?.id ?? '';
@@ -672,6 +699,7 @@ watch(
       delayMs: 220,
       timeoutMs: 1_200,
     });
+    void loadPersistedReviews(spot.id);
   },
   { immediate: true },
 );
@@ -1307,6 +1335,12 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-full);
   pointer-events: none;
   opacity: 0.9;
+}
+
+.review-error {
+  margin: 0;
+  color: var(--danger);
+  line-height: var(--line-height-normal);
 }
 
 .review-cta {

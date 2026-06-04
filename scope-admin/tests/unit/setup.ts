@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   setActivePinia(createPinia());
   history.pushState({}, '', '/admin/login');
 });

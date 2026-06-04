@@ -27,10 +27,13 @@ def main() -> int:
     _load_env_file(Path(__file__).resolve().parents[1] / ".env")
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
     fallback_models = [
         item.strip()
-        for item in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.0-flash-lite,gemini-2.0-flash").split(",")
+        for item in os.getenv(
+            "GEMINI_FALLBACK_MODELS",
+            "gemini-2.5-flash-lite,gemini-2.0-flash",
+        ).split(",")
         if item.strip()
     ]
     base_url = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")

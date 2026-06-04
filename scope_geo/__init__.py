@@ -5,30 +5,34 @@ import os
 import sys
 from pathlib import Path
 
+BUILD_CONFIGURATIONS = ("Debug", "Release", "RelWithDebInfo", "MinSizeRel")
+
+
+def _build_output_candidates(build_dir: Path) -> list[Path]:
+    return [
+        build_dir / "python",
+        *[build_dir / "python" / configuration for configuration in BUILD_CONFIGURATIONS],
+        build_dir,
+        *[build_dir / configuration for configuration in BUILD_CONFIGURATIONS],
+    ]
+
 
 def _candidate_paths() -> list[Path]:
     package_dir = Path(__file__).resolve().parent
+    configured_build_directories = [
+        Path(path).expanduser()
+        for path in os.environ.get("SCOPE_GEO_BUILD_DIR", "").split(os.pathsep)
+        if path
+    ]
     build_directories = [
+        *configured_build_directories,
         package_dir / "build",
         package_dir.parent / "build",
     ]
 
     candidates = [package_dir]
     for build_dir in build_directories:
-        candidates.extend(
-            [
-                build_dir / "python",
-                build_dir / "python" / "Debug",
-                build_dir / "python" / "Release",
-                build_dir / "python" / "RelWithDebInfo",
-                build_dir / "python" / "MinSizeRel",
-                build_dir,
-                build_dir / "Debug",
-                build_dir / "Release",
-                build_dir / "RelWithDebInfo",
-                build_dir / "MinSizeRel",
-            ]
-        )
+        candidates.extend(_build_output_candidates(build_dir))
 
     return candidates
 

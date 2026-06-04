@@ -13,6 +13,10 @@ const photos: PhotoGalleryItem[] = [
 ];
 
 describe('PhotoGallery', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
   it('supports editable captions and remove actions for uploads', async () => {
     const wrapper = mount(PhotoGallery, {
       props: {
@@ -49,6 +53,12 @@ describe('PhotoGallery', () => {
 
     expect(document.body.textContent).toContain('Photo lightbox');
     expect(document.body.textContent).toContain('Golden hour hero shot');
+
+    const closeButton = document.body.querySelector<HTMLButtonElement>('.modal-close');
+    expect(closeButton).not.toBeNull();
+    closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent({ name: 'Modal' }).props('open')).toBe(false);
   });
 
   it('renders the empty state when no photos are available', () => {
@@ -62,5 +72,33 @@ describe('PhotoGallery', () => {
 
     expect(wrapper.text()).toContain('No photos yet');
     expect(wrapper.text()).toContain('Upload a hero image to get started.');
+  });
+
+  it('uses gallery fallbacks for existing photos without captions or metadata', async () => {
+    const wrapper = mount(PhotoGallery, {
+      props: {
+        photos: [
+          {
+            id: 'photo-2',
+            url: 'https://images.example.com/existing.jpg',
+            source: 'existing',
+          },
+        ],
+        removable: true,
+      },
+      attachTo: document.body,
+    });
+
+    expect(wrapper.text()).toContain('Community upload');
+    expect(wrapper.text()).toContain('Existing photo');
+
+    await wrapper.get('button[aria-label="Remove photo"]').trigger('click');
+    expect(wrapper.emitted('remove')?.[0]?.[0]).toEqual({
+      id: 'photo-2',
+      source: 'existing',
+    });
+
+    await wrapper.get('button[aria-label="Open photo preview"]').trigger('click');
+    expect(document.body.textContent).toContain('Existing gallery image');
   });
 });

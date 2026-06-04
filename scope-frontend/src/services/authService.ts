@@ -6,19 +6,18 @@ import {
   DEMO_LOGIN_PASSWORD,
   DEMO_MODE_ENABLED,
 } from '@/services/demoMode';
+import {
+  findLocalPreviewUser,
+  readCurrentLocalPreviewUser,
+  rememberLocalPreviewUser,
+  type LocalPreviewStoredUser,
+} from '@/services/localPreviewUserStorage';
 import { unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, AuthForm, AuthPayload, RegisterForm, RegisterPayload, UserProfile } from '@/types';
 import { readStoredRefreshToken } from '@/utils/authSessionStorage';
 import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/utils/sanitizers';
 
 const AUTH_BASE_PATH = '/api/core/auth';
-const LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY = 'scope-local-preview-auth-users-v1';
-const LOCAL_PREVIEW_AUTH_CURRENT_USER_STORAGE_KEY = 'scope-local-preview-auth-current-user-v1';
-
-interface LocalPreviewAuthUser extends Pick<AuthPayload, 'id' | 'username' | 'displayName'> {
-  email?: string;
-  phoneNumber?: string;
-}
 
 function randomDemoToken(prefix: string): string {
   // Demo tokens must be unpredictable so they cannot be reused across sessions
@@ -32,35 +31,16 @@ function randomDemoToken(prefix: string): string {
 
 const DEFAULT_DEMO_ACCESS_TOKEN = randomDemoToken('demo-access');
 const DEFAULT_DEMO_REFRESH_TOKEN = randomDemoToken('demo-refresh');
+const LIVE_REFRESH_SESSION_REUSE_MS = 5_000;
 const FALLBACK_USER = {
   id: 'user-1',
   username: 'scopedemo',
   email: 'demo@scope.travel',
-  displayName: 'Local preview user',
+  displayName: 'Scope traveler',
 };
 
 const EMAIL_IDENTIFIER_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_IDENTIFIER_REGEX = /^[+\d().\-\s]+$/;
-
-function getLocalPreviewStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeComparableText(value: string | null | undefined): string {
-  return String(value ?? '').trim().toLowerCase();
-}
-
-function normalizePhoneDigits(value: string | null | undefined): string {
-  return String(value ?? '').replace(/\D/g, '');
-}
 
 function slugifyIdentifier(identifier: string): string {
   return identifier
@@ -84,133 +64,32 @@ function titleizeIdentifier(identifier: string): string {
     .join(' ');
 }
 
-function isLocalPreviewAuthUser(value: unknown): value is LocalPreviewAuthUser {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-
-  const candidate = value as Partial<LocalPreviewAuthUser>;
-  return Boolean(
-    candidate.id?.trim() &&
-    candidate.username?.trim() &&
-    candidate.displayName?.trim(),
-  );
-}
-
-function readLocalPreviewAuthUsers(): LocalPreviewAuthUser[] {
-  const storage = getLocalPreviewStorage();
-  const rawValue = storage?.getItem(LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY);
-
-  if (!rawValue) {
-    return [];
-  }
-
-  try {
-    const parsedValue = JSON.parse(rawValue) as unknown;
-    return Array.isArray(parsedValue) ? parsedValue.filter(isLocalPreviewAuthUser) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalPreviewAuthUsers(users: LocalPreviewAuthUser[], currentUserId?: string): void {
-  const storage = getLocalPreviewStorage();
-
-  if (!storage) {
-    return;
-  }
-
-  try {
-    storage.setItem(LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY, JSON.stringify(users));
-
-    if (currentUserId) {
-      storage.setItem(LOCAL_PREVIEW_AUTH_CURRENT_USER_STORAGE_KEY, currentUserId);
-    }
-  } catch {
-    // Local preview mode should never block auth because storage is unavailable.
-  }
-}
-
-function matchesLocalPreviewUser(
-  user: LocalPreviewAuthUser,
-  criteria: Partial<Pick<LocalPreviewAuthUser, 'id' | 'email' | 'username' | 'displayName' | 'phoneNumber'>>,
-): boolean {
-  const expectedPhoneDigits = normalizePhoneDigits(criteria.phoneNumber);
-
-  return Boolean(
-    (criteria.id && user.id === criteria.id) ||
-    (criteria.email && normalizeComparableText(user.email) === normalizeComparableText(criteria.email)) ||
-    (criteria.username && normalizeComparableText(user.username) === normalizeComparableText(criteria.username)) ||
-    (criteria.displayName && normalizeComparableText(user.displayName) === normalizeComparableText(criteria.displayName)) ||
-    (expectedPhoneDigits && normalizePhoneDigits(user.phoneNumber) === expectedPhoneDigits),
-  );
-}
-
-function findLocalPreviewAuthUser(
-  criteria: Partial<Pick<LocalPreviewAuthUser, 'id' | 'email' | 'username' | 'displayName' | 'phoneNumber'>>,
-): LocalPreviewAuthUser | undefined {
-  return readLocalPreviewAuthUsers().find((user) => matchesLocalPreviewUser(user, criteria));
-}
-
-function readCurrentLocalPreviewAuthUser(): LocalPreviewAuthUser | undefined {
-  const storage = getLocalPreviewStorage();
-  const currentUserId = storage?.getItem(LOCAL_PREVIEW_AUTH_CURRENT_USER_STORAGE_KEY)?.trim();
-  const users = readLocalPreviewAuthUsers();
-
-  return users.find((user) => user.id === currentUserId) ?? users[users.length - 1];
-}
-
-function rememberLocalPreviewAuthUser(user: LocalPreviewAuthUser): LocalPreviewAuthUser {
-  const users = readLocalPreviewAuthUsers();
-  const existingIndex = users.findIndex((candidate) => matchesLocalPreviewUser(candidate, {
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    phoneNumber: user.phoneNumber,
-  }));
-  const nextUser: LocalPreviewAuthUser = {
-    id: user.id.trim(),
-    username: user.username.trim(),
-    email: user.email?.trim() || undefined,
-    displayName: user.displayName.trim(),
-    phoneNumber: user.phoneNumber?.trim() || undefined,
-  };
-
-  if (existingIndex >= 0) {
-    users.splice(existingIndex, 1, {
-      ...users[existingIndex],
-      ...nextUser,
-    });
-  } else {
-    users.push(nextUser);
-  }
-
-  writeLocalPreviewAuthUsers(users.slice(-12), nextUser.id);
-  return nextUser;
-}
-
 function rememberLocalPreviewAuthPayload(payload: AuthPayload): AuthPayload {
   const sanitizedPayload = sanitizeAuthPayload(payload);
 
-  rememberLocalPreviewAuthUser({
+  rememberLocalPreviewUser({
     id: sanitizedPayload.id,
     username: sanitizedPayload.username,
     email: sanitizedPayload.email,
     displayName: sanitizedPayload.displayName ?? sanitizedPayload.username,
+    avatarUrl: sanitizedPayload.avatarUrl,
+    homeBase: sanitizedPayload.homeBase,
+    interests: Array.isArray(payload.interests) ? sanitizedPayload.interests : undefined,
+    showActivityStatus: payload.showActivityStatus,
   });
 
   return sanitizedPayload;
 }
 
-function buildLocalPreviewUserFromRegistration(payload: RegisterPayload): LocalPreviewAuthUser {
+function buildLocalPreviewUserFromRegistration(payload: RegisterPayload): LocalPreviewStoredUser {
   const username = payload.username.trim() || slugifyIdentifier(payload.email.split('@')[0] ?? 'account');
-  const existingUser = findLocalPreviewAuthUser({
+  const existingUser = findLocalPreviewUser({
     username,
     email: payload.email,
     phoneNumber: payload.phoneNumber,
   });
 
-  return rememberLocalPreviewAuthUser({
+  return rememberLocalPreviewUser({
     id: existingUser?.id ?? `local-${username}`,
     username,
     email: payload.email,
@@ -223,6 +102,9 @@ export interface RefreshSessionOptions {
   allowMockFallback?: boolean;
 }
 
+const liveRefreshSessionPromises = new Map<string, Promise<AuthPayload>>();
+const recentLiveRefreshSessions = new Map<string, { payload: AuthPayload; expiresAt: number }>();
+
 async function findMatchingMockUser(
   criteria: Partial<Pick<UserProfile, 'id' | 'email' | 'username' | 'displayName'>>,
 ): Promise<UserProfile | undefined> {
@@ -230,10 +112,57 @@ async function findMatchingMockUser(
   return findAuthMockUser(criteria);
 }
 
+function pruneRecentLiveRefreshSessions(now = Date.now()): void {
+  for (const [refreshToken, cachedSession] of recentLiveRefreshSessions) {
+    if (cachedSession.expiresAt <= now) {
+      recentLiveRefreshSessions.delete(refreshToken);
+    }
+  }
+}
+
+async function requestLiveRefreshSession(): Promise<AuthPayload> {
+  const refreshToken = readStoredRefreshToken();
+  const now = Date.now();
+  pruneRecentLiveRefreshSessions(now);
+
+  const recentSession = refreshToken ? recentLiveRefreshSessions.get(refreshToken) : undefined;
+  if (recentSession && recentSession.expiresAt > now) {
+    return recentSession.payload;
+  }
+
+  const inFlightRefresh = refreshToken ? liveRefreshSessionPromises.get(refreshToken) : undefined;
+  if (inFlightRefresh) {
+    return inFlightRefresh;
+  }
+
+  const refreshPromise = api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, {
+    refreshToken,
+  }).then(({ data }) => {
+    const payload = sanitizeAuthPayload(unwrapApiData(data));
+    if (refreshToken) {
+      recentLiveRefreshSessions.set(refreshToken, {
+        payload,
+        expiresAt: Date.now() + LIVE_REFRESH_SESSION_REUSE_MS,
+      });
+    }
+    return payload;
+  }).finally(() => {
+    if (refreshToken) {
+      liveRefreshSessionPromises.delete(refreshToken);
+    }
+  });
+
+  if (refreshToken) {
+    liveRefreshSessionPromises.set(refreshToken, refreshPromise);
+  }
+
+  return refreshPromise;
+}
+
 async function findMatchingAuthUser(
-  criteria: Partial<Pick<LocalPreviewAuthUser, 'id' | 'email' | 'username' | 'displayName' | 'phoneNumber'>>,
-): Promise<LocalPreviewAuthUser | UserProfile | undefined> {
-  return findLocalPreviewAuthUser(criteria) ?? findMatchingMockUser(criteria);
+  criteria: Partial<Pick<LocalPreviewStoredUser, 'id' | 'email' | 'username' | 'displayName' | 'phoneNumber'>>,
+): Promise<LocalPreviewStoredUser | UserProfile | undefined> {
+  return findLocalPreviewUser(criteria) ?? findMatchingMockUser(criteria);
 }
 
 async function buildLoginFallbackIdentity(identifier: string): Promise<Partial<AuthPayload>> {
@@ -279,7 +208,7 @@ async function buildLoginFallbackIdentity(identifier: string): Promise<Partial<A
     return {
       id: `local-phone-${phoneDigits.slice(-4)}`,
       username: `phone-${phoneDigits.slice(-4)}`,
-      displayName: 'Local preview user',
+      displayName: 'Scope traveler',
     };
   }
 
@@ -304,6 +233,10 @@ async function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): P
     username: overrides.username ?? matchingUser?.username ?? FALLBACK_USER.username,
     email: overrides.email ?? matchingUser?.email ?? FALLBACK_USER.email,
     displayName: overrides.displayName ?? matchingUser?.displayName ?? FALLBACK_USER.displayName,
+    avatarUrl: overrides.avatarUrl ?? matchingUser?.avatarUrl,
+    homeBase: overrides.homeBase ?? matchingUser?.homeBase,
+    interests: overrides.interests ?? matchingUser?.interests,
+    showActivityStatus: overrides.showActivityStatus ?? matchingUser?.showActivityStatus,
     accessToken: overrides.accessToken ?? DEFAULT_DEMO_ACCESS_TOKEN,
     refreshToken: overrides.refreshToken ?? DEFAULT_DEMO_REFRESH_TOKEN,
   });
@@ -402,14 +335,11 @@ export async function refreshSession(options: RefreshSessionOptions = {}): Promi
   }
 
   try {
-    const { data } = await api.post<ApiEnvelope<AuthPayload> | AuthPayload>(`${AUTH_BASE_PATH}/refresh`, {
-      refreshToken: readStoredRefreshToken(),
-    });
-    return sanitizeAuthPayload(unwrapApiData(data));
+    return await requestLiveRefreshSession();
   } catch (error) {
     if (options.allowMockFallback && AUTH_MOCK_FALLBACK_ENABLED) {
       return buildFallbackAuthPayload({
-        ...readCurrentLocalPreviewAuthUser(),
+        ...readCurrentLocalPreviewUser(),
         accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
         refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
       });

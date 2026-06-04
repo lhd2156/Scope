@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 
+import jwt
 import requests
 from celery import shared_task
+from django.conf import settings
 
 from common.indexing import index_review, index_spot, index_trip
 from common.search import ensure_indexes
@@ -38,6 +41,7 @@ def analyze_review_sentiment_task(self, review_id: str) -> dict:
         response = requests.post(
             f'{_intel_url()}/api/intel/sentiment',
             json={'text': getattr(review, 'text', getattr(review, 'comment', '')), 'review_id': str(review.id)},
+            headers=_intel_auth_headers(),
             timeout=30,
         )
         if response.ok:
@@ -63,6 +67,7 @@ def classify_photo_task(self, photo_id: str) -> dict:
         response = requests.post(
             f'{_intel_url()}/api/intel/classify-image',
             json={'photo_id': str(photo.id), 'url': getattr(photo, 'url', getattr(photo, 'storage_url', ''))},
+            headers=_intel_auth_headers(),
             timeout=60,
         )
         if response.ok:
@@ -114,3 +119,20 @@ def bulk_reindex_task(doc_type: str) -> dict:
 
 def _intel_url() -> str:
     return os.environ.get('CONTENT_SERVICE_URL', 'http://intel:5000').rsplit('/api', 1)[0]
+
+
+def _intel_auth_headers() -> dict[str, str]:
+    now = datetime.now(timezone.utc)
+    token = jwt.encode(
+        {
+            'sub': os.environ.get('CONTENT_INTEL_SERVICE_SUBJECT', 'scope-content-worker'),
+            'roles': ['service'],
+            'iss': settings.JWT_ISSUER,
+            'aud': settings.JWT_AUDIENCE,
+            'iat': now,
+            'exp': now + timedelta(minutes=5),
+        },
+        settings.JWT_SECRET,
+        algorithm='HS256',
+    )
+    return {'Authorization': f'Bearer {token}'}

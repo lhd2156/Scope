@@ -29,17 +29,17 @@ defineEmits<{
 
 <style scoped>
 .cluster-marker {
-  min-width: 3.4rem;
-  min-height: 3.4rem;
-  padding: 0.45rem 0.7rem;
+  min-width: 3.05rem;
+  min-height: 3.05rem;
+  padding: 0.38rem 0.64rem;
   border: 1px solid color-mix(in srgb, var(--accent-teal) 48%, var(--glass-border));
   border-radius: 999px;
   background:
     radial-gradient(circle at top, color-mix(in srgb, var(--accent-gold) 28%, transparent), transparent 58%),
     color-mix(in srgb, var(--glass-bg) 94%, transparent);
   box-shadow:
-    var(--shadow-lg),
-    0 0 1.2rem color-mix(in srgb, var(--accent-teal) 18%, transparent);
+    0 0.7rem 1.6rem color-mix(in srgb, var(--bg-primary) 28%, transparent),
+    0 0 1rem color-mix(in srgb, var(--accent-teal) 16%, transparent);
   color: var(--text-primary);
   display: grid;
   justify-items: center;
@@ -68,13 +68,13 @@ defineEmits<{
 }
 
 .cluster-marker__count {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: var(--font-weight-bold);
   line-height: 1;
 }
 
 .cluster-marker__caption {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-secondary);

@@ -2,13 +2,19 @@ import json
 import logging
 from datetime import datetime
 
-from confluent_kafka import Consumer
+try:
+    from confluent_kafka import Consumer
+except ImportError:
+    class Consumer:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("confluent_kafka is not installed; Kafka consumer is unavailable")
 
 from app.ml.feature_extraction import extract_feature_vector
 from app.repositories import IntelRepository
-from app.services.content_client import Spot
+from app.services.content_client import ContentServiceClient, Spot
 from config import settings
 import contextlib
+from flask import has_app_context
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +27,7 @@ POLL_TIMEOUT_SECONDS = 1.0
 class KafkaSpotFeatureConsumer:
     topics = [
         "spot.created",
+        "spot.updated",
         "spot.liked",
         "review.created",
         "user.registered",
@@ -42,6 +49,7 @@ class KafkaSpotFeatureConsumer:
                 "bootstrap.servers": settings.kafka_bootstrap_servers,
                 "group.id": "scope-intel",
                 "auto.offset.reset": "earliest",
+                "enable.auto.commit": False,
             }
         )
         self._running = False
@@ -71,15 +79,11 @@ class KafkaSpotFeatureConsumer:
             try:
                 raw = message.value() or b""
                 envelope = json.loads(raw.decode("utf-8") or "{}")
-                # Content publishes envelope-shaped events (`eventId`, `source`,
-                # `data`, ...). We unwrap `data` if present so downstream code
-                # only ever handles the domain payload.
-                payload = envelope.get("data", envelope) if isinstance(envelope, dict) else {}
-                self.handle_message(topic, payload)
+                self.handle_event(topic, envelope)
             except Exception:
                 logger.exception("kafka_handler_failed", extra={"topic": topic})
                 # Keep going; Kafka will move the offset forward on the next poll.
-                # A dead-letter topic is the next iteration (see RESEARCH.md §6.2).
+                # A dead-letter topic is the next reliability improvement.
             else:
                 # Explicitly advance the committed offset only after a successful
                 # handler so a crash mid-process means the next pod replays.
@@ -93,38 +97,88 @@ class KafkaSpotFeatureConsumer:
         with contextlib.suppress(Exception):
             self._consumer.close()
 
-    def handle_message(self, topic: str, payload: dict) -> None:
-        if topic == "spot.created":
-            spot = Spot(
-                payload["spotId"],
-                payload.get("title", "Spot"),
-                payload.get("description", ""),
-                payload.get("category", "unknown"),
-                payload.get("vibe", "neutral"),
-                float(payload.get("rating", 0)),
-                float(payload.get("popularity", 0)),
-                float(payload.get("estimatedCost", 0)),
-                float(payload.get("latitude", 0)),
-                float(payload.get("longitude", 0)),
-                bool(payload.get("isOutdoor", False)),
-                int(payload.get("photosCount", 0)),
-                tuple(payload.get("likedByUsers", [])),
-            )
-            IntelRepository.upsert_spot_feature(spot.spot_id, extract_feature_vector(spot), popularity_score=spot.popularity)
+    def handle_event(self, topic: str, envelope: dict) -> None:
+        """Handle a Kafka envelope without losing replay identity.
+
+        Content publishes `eventId` + `data`. Core currently publishes raw
+        domain payloads. This accepts both shapes and passes the event id down
+        only when one is present.
+        """
+        if not isinstance(envelope, dict):
+            self.handle_message(topic, {})
+            return
+
+        payload = envelope.get("data", envelope)
+        if not isinstance(payload, dict):
+            payload = {}
+        event_id = envelope.get("eventId") or payload.get("eventId")
+        self.handle_message(topic, payload, event_id=str(event_id) if event_id else None)
+
+    def handle_message(self, topic: str, payload: dict, event_id: str | None = None) -> None:
+        if topic in ("spot.created", "spot.updated"):
+            spot = _spot_from_payload_or_content(payload)
+            if spot is None:
+                logger.warning("kafka_spot_event_missing_spot", extra={"topic": topic, "payload_keys": list(payload.keys())})
+            else:
+                IntelRepository.upsert_spot_feature(
+                    spot.spot_id,
+                    extract_feature_vector(spot),
+                    popularity_score=_payload_float(payload, "popularityScore", spot.popularity),
+                    sentiment_score=_payload_float(payload, "sentimentScore", 0.0),
+                )
         elif topic == "spot.liked":
-            IntelRepository.upsert_spot_feature(
-                payload["spotId"],
-                payload.get("featureVector", "{}"),
-                popularity_score=float(payload.get("popularityScore", 1.0)),
-                sentiment_score=float(payload.get("sentimentScore", 0.0)),
-            )
+            spot_id = _payload_spot_id(payload)
+            user_id = payload.get("userId")
+            spot = _spot_from_payload_or_content(payload)
+            if payload.get("featureVector"):
+                feature_vector = payload.get("featureVector", "{}")
+                popularity_score = _payload_float(payload, "popularityScore", 1.0)
+            elif spot is not None:
+                feature_vector = extract_feature_vector(spot)
+                popularity_score = _payload_float(payload, "popularityScore", max(spot.popularity, 1.0))
+            else:
+                feature_vector = payload.get("featureVector", "{}")
+                popularity_score = _payload_float(payload, "popularityScore", 1.0)
+            if spot_id:
+                IntelRepository.upsert_spot_feature(
+                    spot_id,
+                    feature_vector,
+                    popularity_score=popularity_score,
+                    sentiment_score=_payload_float(payload, "sentimentScore", 0.0),
+                )
+            if user_id and spot_id:
+                _record_interaction(
+                    user_id=str(user_id),
+                    spot_id=str(spot_id),
+                    interaction_type="like",
+                    context={"source": "spot.liked"},
+                    occurred_at=_parse_iso_datetime(payload.get("occurredAt")),
+                    source_event_id=event_id,
+                )
         elif topic == "review.created":
-            IntelRepository.upsert_spot_feature(
-                payload["spotId"],
-                payload.get("featureVector", "{}"),
-                popularity_score=float(payload.get("popularityScore", 0.0)),
-                sentiment_score=float(payload.get("sentimentScore", 0.5)),
-            )
+            spot_id = _payload_spot_id(payload)
+            if not spot_id:
+                logger.warning("kafka_review_missing_spot_id", extra={"payload_keys": list(payload.keys())})
+                spot_id = ""
+            spot = _spot_from_payload_or_content(payload)
+            feature_vector = payload.get("featureVector") or (extract_feature_vector(spot) if spot is not None else "{}")
+            if spot_id:
+                IntelRepository.upsert_spot_feature(
+                    spot_id,
+                    feature_vector,
+                    popularity_score=float(payload.get("popularityScore", 0.0)),
+                    sentiment_score=float(payload.get("sentimentScore", 0.5)),
+                )
+            user_id = payload.get("userId")
+            if user_id and spot_id:
+                _record_interaction(
+                    user_id=str(user_id),
+                    spot_id=str(spot_id),
+                    interaction_type="review",
+                    context={"source": "review.created", "reviewId": payload.get("reviewId")},
+                    occurred_at=_parse_iso_datetime(payload.get("occurredAt")),
+                    source_event_id=event_id or payload.get("reviewId"),
+                )
         elif topic == "user.registered":
             IntelRepository.upsert_preference(payload["userId"], ["culture", "food"], "medium", "moderate")
         elif topic == "friend.accepted":
@@ -158,12 +212,13 @@ class KafkaSpotFeatureConsumer:
                     extra={"payload_keys": list(payload.keys())},
                 )
             else:
-                IntelRepository.record_interaction(
+                _record_interaction(
                     user_id=str(user_id),
                     spot_id=str(spot_id),
                     interaction_type=str(interaction_type),
                     context=payload.get("context"),
                     occurred_at=occurred_at,
+                    source_event_id=event_id or payload.get("interactionId"),
                 )
 
         logger.info(
@@ -184,3 +239,73 @@ def _parse_iso_datetime(raw: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
+
+
+def _payload_spot_id(payload: dict) -> str:
+    return str(payload.get("spotId") or payload.get("spot_id") or payload.get("id") or "").strip()
+
+
+def _payload_float(payload: dict, key: str, default: float = 0.0) -> float:
+    try:
+        return float(payload.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _payload_int(payload: dict, key: str, default: int = 0) -> int:
+    try:
+        return int(float(payload.get(key, default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _spot_from_payload_or_content(payload: dict) -> Spot | None:
+    spot_id = _payload_spot_id(payload)
+    if not spot_id:
+        return None
+
+    if has_app_context():
+        try:
+            hydrated = ContentServiceClient().get_spot(spot_id)
+        except Exception:
+            logger.warning("kafka_spot_hydration_failed", extra={"spot_id": spot_id})
+            hydrated = None
+        if hydrated is not None:
+            return hydrated
+
+    return Spot(
+        spot_id,
+        str(payload.get("title") or "Spot"),
+        str(payload.get("description") or ""),
+        str(payload.get("category") or "unknown"),
+        str(payload.get("vibe") or "neutral"),
+        _payload_float(payload, "rating", 0.0),
+        _payload_float(payload, "popularity", _payload_float(payload, "popularityScore", 0.0)),
+        _payload_float(payload, "estimatedCost", 0.0),
+        _payload_float(payload, "latitude", 0.0),
+        _payload_float(payload, "longitude", 0.0),
+        bool(payload.get("isOutdoor", False)),
+        _payload_int(payload, "photosCount", 0),
+        tuple(str(user_id) for user_id in payload.get("likedByUsers", []) or ()),
+    )
+
+
+def _record_interaction(
+    *,
+    user_id: str,
+    spot_id: str,
+    interaction_type: str,
+    context: dict | None = None,
+    occurred_at: datetime | None = None,
+    source_event_id: str | None = None,
+) -> None:
+    kwargs = {
+        "user_id": user_id,
+        "spot_id": spot_id,
+        "interaction_type": interaction_type,
+        "context": context,
+        "occurred_at": occurred_at,
+    }
+    if source_event_id:
+        kwargs["source_event_id"] = str(source_event_id)
+    IntelRepository.record_interaction(**kwargs)

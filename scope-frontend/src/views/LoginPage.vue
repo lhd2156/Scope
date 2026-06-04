@@ -86,6 +86,7 @@ import { DEMO_LOGIN_EMAIL, DEMO_LOGIN_PASSWORD, DEMO_MODE_ENABLED } from '@/serv
 import { useAuthStore } from '@/stores/auth';
 import { validateLoginForm, type LoginFormErrors } from '@/utils/authValidators';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
+import { sanitizeInternalRouteTarget } from '@/utils/navigationSafety';
 
 const loginHighlights = [
   'Saved spots stay synced',
@@ -106,8 +107,7 @@ const route = useRoute();
 const router = useRouter();
 
 function resolveRedirectTarget() {
-  const redirectTarget = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-  return redirectTarget || '/map';
+  return sanitizeInternalRouteTarget(route.query.redirect, '/map');
 }
 
 async function submit() {

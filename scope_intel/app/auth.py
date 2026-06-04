@@ -1,22 +1,30 @@
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, ParamSpec
 
 import jwt
 from flask import current_app, g, request
 
 from app.responses import error_response
 
-RouteHandler = TypeVar("RouteHandler", bound=Callable[..., Any])
+RouteParams = ParamSpec("RouteParams")
 
 
-def require_auth(handler: RouteHandler) -> RouteHandler:
+def extract_bearer_token(header_value: str | None) -> str | None:
+    if not header_value:
+        return None
+    scheme, _, credentials = header_value.partition(" ")
+    if scheme.lower() != "bearer" or not credentials.strip():
+        return None
+    return credentials.strip()
+
+
+def require_auth(handler: Callable[RouteParams, Any]) -> Callable[RouteParams, Any]:
     @wraps(handler)
-    def wrapper(*args: Any, **kwargs: Any):
-        authorization = request.headers.get("Authorization", "")
-        if not authorization.startswith("Bearer "):
+    def wrapper(*args: RouteParams.args, **kwargs: RouteParams.kwargs) -> Any:
+        token = extract_bearer_token(request.headers.get("Authorization", ""))
+        if token is None:
             return error_response(401, "UNAUTHORIZED", "Missing or expired token", trace_id=getattr(g, "trace_id", None))
-        token = authorization.replace("Bearer ", "", 1)
         try:
             payload = jwt.decode(
                 token,
@@ -31,4 +39,4 @@ def require_auth(handler: RouteHandler) -> RouteHandler:
         return handler(*args, **kwargs)
 
     wrapper._scope_require_auth = True
-    return wrapper  # type: ignore[return-value]
+    return wrapper

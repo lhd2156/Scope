@@ -39,4 +39,47 @@ describe('SpotMarker', () => {
 
     expect(wrapper.emitted('select')).toHaveLength(1);
   });
+
+  it('emits select when the visible label is clicked', async () => {
+    const wrapper = mount(SpotMarker, {
+      props: {
+        spot,
+        active: true,
+      },
+    });
+
+    await wrapper.get('.spot-marker__label').trigger('click');
+
+    expect(wrapper.emitted('select')).toHaveLength(1);
+  });
+
+  it('emits remove from the route label action', async () => {
+    const wrapper = mount(SpotMarker, {
+      props: {
+        spot: { ...spot, routeRole: 'start', routeLabel: 'S' },
+        variant: 'sequence',
+        sequence: 'S',
+        removable: true,
+      },
+    });
+
+    await wrapper.get('[data-test="map-route-point-remove"]').trigger('click');
+
+    expect(wrapper.emitted('remove')).toHaveLength(1);
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('renders a plain green pin without a category icon when pin-only', () => {
+    const wrapper = mount(SpotMarker, {
+      props: {
+        spot,
+        pinOnly: true,
+        showLabel: false,
+      },
+    });
+
+    expect(wrapper.classes()).toContain('spot-marker--pin-only');
+    expect(wrapper.find('use').exists()).toBe(false);
+    expect(wrapper.find('.spot-marker__label').exists()).toBe(false);
+  });
 });

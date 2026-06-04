@@ -1,6 +1,7 @@
 import pytest
 
 from app.agents.trip_planner import SYSTEM_MESSAGE, _fallback_plan
+from app.ml.runtime import MlComputationTimeoutError
 
 
 def test_itinerary_rejects_blank_destination_input(client, auth_header):
@@ -70,6 +71,34 @@ def test_recommend_spots_accepts_authenticated_subject_without_user_id(client, a
 
     assert response.status_code == 200
     assert len(response.get_json()["data"]["recommendations"]) == 2
+
+
+def test_recommend_spots_timeout_returns_empty_best_effort_list(client, auth_header, monkeypatch):
+    def timeout(*_args, **_kwargs):
+        raise MlComputationTimeoutError("recommend_spots", 5.0)
+
+    monkeypatch.setattr("app.api.recommendations.run_ml_with_timeout", timeout)
+
+    response = client.post(
+        "/api/intel/recommend/spots",
+        json={"likedSpotIds": ["spot-1"], "interests": ["culture"], "limit": 2},
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["recommendations"] == []
+
+
+def test_similar_spots_timeout_returns_empty_best_effort_list(client, auth_header, monkeypatch):
+    def timeout(*_args, **_kwargs):
+        raise MlComputationTimeoutError("similar_spots", 5.0)
+
+    monkeypatch.setattr("app.api.recommendations.run_ml_with_timeout", timeout)
+
+    response = client.post("/api/intel/recommend/similar/spot-1", json={"limit": 2}, headers=auth_header)
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["recommendations"] == []
 
 
 def test_recommend_spots_rejects_user_id_spoofing(client, auth_header):
@@ -223,6 +252,32 @@ def test_agent_fallback_treats_vague_help_reply_as_surprise_me_after_brief_quest
     assert "Say that a little more specifically" not in answer
 
 
+def test_agent_fallback_treats_bare_duration_reply_as_exact_days():
+    answer = _fallback_plan(
+        "\n".join(
+            [
+                "Current draft:",
+                "Start: 5673 Jamaica Circle, North Richland Hills",
+                "End: 1205 Oriental Avenue, Arlington",
+                "Dates: 2026-05-08 to 2026-05-08",
+                "Budget: $500 - $1,500",
+                "Pace: relaxed",
+                "",
+                "Recent chat:",
+                "User: Build the itinerary from 5673 Jamaica Circle, North Richland Hills to 1205 Oriental Avenue, Arlington",
+                "Scope AI: I can build that. How many days should I plan for?",
+                "",
+                "Traveler request: 4",
+            ]
+        )
+    )
+
+    assert "4 days" in answer
+    assert "Day 4" in answer
+    assert "surprise me" not in answer
+    assert "2 days" not in answer
+
+
 def test_agent_endpoint_short_circuits_personal_questions_before_llm(client, auth_header, monkeypatch):
     monkeypatch.setattr("app.agents.trip_planner.plan_trip", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("plan_trip should not run")))
 
@@ -302,6 +357,41 @@ def test_agent_endpoint_fallback_treats_vague_help_reply_as_surprise_me(client, 
     assert payload["model"] == "scope-local-copilot"
     assert "surprise me" in payload["itinerary"]
     assert "Day 1" in payload["itinerary"]
+    assert payload["steps"] == 0
+
+
+def test_agent_endpoint_fallback_treats_bare_duration_reply_as_exact_days(client, auth_header, monkeypatch):
+    monkeypatch.setattr("app.agents.trip_planner.plan_trip", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("offline")))
+
+    response = client.post(
+        "/api/intel/agent/plan-trip",
+        json={
+            "prompt": "\n".join(
+                [
+                    "Current draft:",
+                    "Start: 5673 Jamaica Circle, North Richland Hills",
+                    "End: 1205 Oriental Avenue, Arlington",
+                    "Dates: 2026-05-08 to 2026-05-08",
+                    "Budget: $500 - $1,500",
+                    "Pace: relaxed",
+                    "",
+                    "Recent chat:",
+                    "User: Build the itinerary from 5673 Jamaica Circle, North Richland Hills to 1205 Oriental Avenue, Arlington",
+                    "Scope AI: I can build that. How many days should I plan for?",
+                    "",
+                    "Traveler request: 4",
+                ]
+            )
+        },
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["model"] == "scope-local-copilot"
+    assert "4 days" in payload["itinerary"]
+    assert "Day 4" in payload["itinerary"]
+    assert "surprise me" not in payload["itinerary"]
     assert payload["steps"] == 0
 
 

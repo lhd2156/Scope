@@ -102,6 +102,11 @@ export const posts = [
   },
 ];
 
+export function findPostBySlug(slug: string | string[] | undefined) {
+  const normalizedSlug = Array.isArray(slug) ? slug[0] : slug;
+  return posts.find((post) => post.slug === normalizedSlug) ?? posts[0];
+}
+
 export function assetPath(path: string): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   return `${base}${path}`;

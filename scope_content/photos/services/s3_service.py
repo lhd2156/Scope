@@ -17,15 +17,19 @@ from photos.services.image_processor import (
 
 class S3StorageService:
     def __init__(self):
-        self.enabled = bool(settings.AWS_STORAGE_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
+        credential_pair_available = bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
+        self.enabled = bool(settings.AWS_STORAGE_BUCKET_NAME and (credential_pair_available or settings.AWS_USE_IAM_ROLE))
         self.client = None
         if self.enabled:
-            self.client = boto3.client(
-                's3',
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            )
+            client_options = {'region_name': settings.AWS_REGION}
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                client_options.update(
+                    {
+                        'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
+                        'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
+                    }
+                )
+            self.client = boto3.client('s3', **client_options)
 
     def store(self, uploaded_file, prefix='photos'):
         """Legacy sync path: processes the upload and uploads BOTH original and

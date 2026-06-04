@@ -127,8 +127,24 @@ function Get-HeaderValue {
     return $null
 }
 
+function ConvertTo-ResponseText {
+    param($Content)
+
+    if ($Content -is [byte[]]) {
+        return [System.Text.Encoding]::UTF8.GetString($Content)
+    }
+
+    if ($null -eq $Content) {
+        return $null
+    }
+
+    return [string]$Content
+}
+
 function ConvertFrom-JsonSafe {
-    param([string]$Content)
+    param($Content)
+
+    $Content = ConvertTo-ResponseText -Content $Content
 
     if ([string]::IsNullOrWhiteSpace($Content)) {
         throw 'Response body was empty.'
@@ -149,7 +165,28 @@ function Enable-InsecureTlsIfRequested {
     }
 
     $script:OriginalCertificateCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
-    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+    if ($null -eq ('ScopeSmokeCertificatePolicy' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+
+public static class ScopeSmokeCertificatePolicy
+{
+    public static bool AcceptAll(
+        object sender,
+        X509Certificate certificate,
+        X509Chain chain,
+        SslPolicyErrors sslPolicyErrors)
+    {
+        return true;
+    }
+}
+'@
+    }
+
+    $method = [ScopeSmokeCertificatePolicy].GetMethod('AcceptAll')
+    $callback = [System.Delegate]::CreateDelegate([System.Net.Security.RemoteCertificateValidationCallback], $method)
+    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $callback
     $script:UsedLegacyCertificateBypass = $true
 }
 
@@ -235,7 +272,8 @@ function Assert-FrontendHtml {
         throw "Expected a text/html response but received '$contentType'."
     }
 
-    if ([string]::IsNullOrWhiteSpace($Response.Content)) {
+    $body = ConvertTo-ResponseText -Content $Response.Content
+    if ([string]::IsNullOrWhiteSpace($body)) {
         throw 'Frontend response body was empty.'
     }
 
@@ -250,7 +288,7 @@ function Assert-MetricsPayload {
         throw "Expected a Prometheus text response but received '$contentType'."
     }
 
-    $body = [string]$Response.Content
+    $body = ConvertTo-ResponseText -Content $Response.Content
     $requiredPatterns = @(
         'scope_metrics_last_refresh_success\s+1(?:\.0+)?',
         'scope_service_up\{service="core"',

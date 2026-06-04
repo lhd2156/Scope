@@ -1,9 +1,10 @@
 """Content service client for the Intelligence API.
 
-In production this talks HTTP to the Django Content Engine. In tests (or when
-`CONTENT_SERVICE_URL` is unset), it falls back to `content_fixtures.SAMPLE_SPOTS`
-so the existing test suite -- which doesn't have a live Content service -- keeps
-passing with no changes.
+In production this talks HTTP to the Django Content Engine. In tests, it falls
+back to `content_fixtures.SAMPLE_SPOTS` so the existing test suite -- which
+doesn't have a live Content service -- keeps passing with no changes. Outside
+TESTING, a missing `CONTENT_SERVICE_URL` is a configuration error rather than a
+silent sample-data fallback.
 
 The module preserves the legacy public surface:
 
@@ -25,9 +26,10 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from flask import current_app, has_app_context
+from flask import current_app, has_app_context, has_request_context, request
 
 from app.services.content_fixtures import SAMPLE_SPOTS
+from app.services.geo_math import haversine_distance_km
 from app.services.spot import Spot
 
 __all__ = [
@@ -77,12 +79,18 @@ def _coordinate(value: Any, minimum: float, maximum: float) -> float:
     return parsed
 
 
+def _distance_km(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
+    return haversine_distance_km(lat_a, lng_a, lat_b, lng_b)
+
+
 class _ContentServiceBackend(Protocol):
     def get_all_spots(self) -> list[Spot]: ...
 
     def get_spot(self, spot_id: str) -> Spot | None: ...
 
     def search_spots(self, destination: str, interests: list[str]) -> list[Spot]: ...
+
+    def nearby_spots(self, lat: float, lng: float, radius_km: float, limit: int = 50) -> list[Spot]: ...
 
 
 class FixtureContentServiceClient:
@@ -115,6 +123,15 @@ class FixtureContentServiceClient:
             return matched or list(self._spots)
         return list(self._spots)
 
+    def nearby_spots(self, lat: float, lng: float, radius_km: float, limit: int = 50) -> list[Spot]:
+        matches = [
+            spot
+            for spot in self._spots
+            if _distance_km(lat, lng, spot.latitude, spot.longitude) <= radius_km
+        ]
+        matches.sort(key=lambda spot: _distance_km(lat, lng, spot.latitude, spot.longitude))
+        return matches[: max(1, limit)]
+
 
 def _map_content_row(row: dict[str, Any]) -> Spot:
     """Map a Content API spot row onto the Intel `Spot` dataclass.
@@ -127,7 +144,7 @@ def _map_content_row(row: dict[str, Any]) -> Spot:
       - is_outdoor derived from category
 
     These are starter heuristics; once `intel.SpotFeatures` is actually read
-    back in the ranker (see RESEARCH.md §3.4), popularity/cost come from there.
+    back in the ranker, popularity/cost can come from there.
     """
 
     spot_id = str(row.get("id") or row.get("spotId") or row.get("spot_id") or "").strip()
@@ -172,6 +189,7 @@ _DEFAULT_COST_BY_CATEGORY: dict[str, float] = {
     "nightlife": 40.0,
     "culture": 20.0,
     "shopping": 35.0,
+    "entertainment": 45.0,
     "adventure": 30.0,
     "nature": 5.0,
     "outdoors": 5.0,
@@ -292,7 +310,7 @@ class HttpContentServiceClient:
     def search_spots(self, destination: str, interests: list[str]) -> list[Spot]:
         # Content does not have a destination-query endpoint; we approximate
         # with category filtering + a client-side text match on city/title.
-        # Step 1 of RESEARCH.md §5.4 upgrades this to a geocode -> nearby call.
+        # A future endpoint can replace this with geocode -> nearby lookup.
         params: dict[str, Any] = {"pageSize": self._fetch_limit}
         if interests:
             params["category"] = interests[0]
@@ -310,8 +328,22 @@ class HttpContentServiceClient:
         filtered = [spot for spot in spots if matches(spot)]
         return filtered or spots
 
-    def _fetch_spots(self, params: dict[str, Any]) -> list[Spot]:
-        url = f"{self._base_url}/spots/"
+    def nearby_spots(self, lat: float, lng: float, radius_km: float, limit: int = 50) -> list[Spot]:
+        spots = self._fetch_spots(
+            params={
+                "lat": lat,
+                "lng": lng,
+                "radius": radius_km,
+                "pageSize": min(max(int(limit), 1), self._fetch_limit),
+                "page": 1,
+            },
+            path="/spots/nearby",
+        )
+        spots.sort(key=lambda spot: _distance_km(lat, lng, spot.latitude, spot.longitude))
+        return spots[: max(1, limit)]
+
+    def _fetch_spots(self, params: dict[str, Any], path: str = "/spots/") -> list[Spot]:
+        url = f"{self._base_url}{path}"
         try:
             response = self._session.get(
                 url,
@@ -358,6 +390,10 @@ class HttpContentServiceClient:
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {"Accept": "application/json"}
         headers.update(self._service_token_header)
+        if has_request_context():
+            authorization = request.headers.get("Authorization", "")
+            if authorization:
+                headers["Authorization"] = authorization
         return headers
 
 
@@ -370,7 +406,8 @@ def build_content_service_client() -> _ContentServiceBackend:
     Rules:
       - If there is no app context (e.g., module import before `create_app`),
         return a fixture client so module-level singletons keep working.
-      - If `TESTING` is set or `CONTENT_SERVICE_URL` is empty, return fixtures.
+      - If `TESTING` is set, return fixtures.
+      - If `CONTENT_SERVICE_URL` is empty outside tests, fail fast.
       - Otherwise, return an HTTP client pointed at `CONTENT_SERVICE_URL`.
 
     The HTTP client is cached on `current_app.extensions` so every request in
@@ -389,11 +426,7 @@ def build_content_service_client() -> _ContentServiceBackend:
 
     base_url = config.get("CONTENT_SERVICE_URL")
     if not base_url:
-        logger.warning(
-            "content_client_no_url_configured_using_fixtures",
-            extra={"service": "scope-intel"},
-        )
-        return FixtureContentServiceClient()
+        raise RuntimeError("CONTENT_SERVICE_URL must be configured for scope-intel outside tests")
 
     extensions = current_app.extensions
     cached = extensions.get(_CONTENT_CLIENT_EXTENSION_KEY)

@@ -1,7 +1,7 @@
 import api from '@/services/api';
 import { isScopeQaMode } from '@/utils/qaMode';
 
-const INTERACTIONS_PATH = '/api/content/interactions';
+const INTERACTIONS_PATH = '/api/content/interactions/';
 
 export type InteractionType =
   | 'view'

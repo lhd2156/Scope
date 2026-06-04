@@ -14,7 +14,7 @@ from app.models import (
 from config import settings
 
 # Per-signal weight for the interaction ledger. Tune these in one place so
-# offline replays stay consistent with live scoring. See RESEARCH.md §5.2.
+# offline replays stay consistent with live scoring.
 # "dismiss" is negative and strong enough that three dismissals of the same
 # category visibly suppress that category in the next session.
 INTERACTION_WEIGHTS: dict[str, float] = {
@@ -125,11 +125,18 @@ class IntelRepository:
         interaction_type: str,
         context: dict | None = None,
         occurred_at: datetime | None = None,
+        source_event_id: str | None = None,
     ) -> None:
         """Append a single user<->spot interaction. Called by the Kafka consumer
         on `interaction.recorded`. Unknown interaction_types are still stored
-        (with weight 0) so we don't silently drop novel signals.
+        (with weight 0) so we don't silently drop novel signals. When Kafka
+        redelivers an already-seen envelope, `source_event_id` makes the write
+        idempotent so replay does not inflate the user's affinity profile.
         """
+        if source_event_id:
+            existing = UserInteraction.query.filter_by(source_event_id=source_event_id).first()
+            if existing is not None:
+                return
         weight = INTERACTION_WEIGHTS.get(interaction_type, 0.0)
         record = UserInteraction(
             user_id=user_id,
@@ -138,6 +145,7 @@ class IntelRepository:
             weight=weight,
             context=json.dumps(context) if context else None,
             occurred_at=occurred_at or utcnow(),
+            source_event_id=source_event_id,
         )
         db.session.add(record)
         db.session.commit()

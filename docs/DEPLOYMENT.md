@@ -99,9 +99,16 @@ Minimum variables that should be reviewed before launch:
 ### Infrastructure
 
 - `SA_PASSWORD`
+- `GRPC_INTERNAL_TOKEN`
 - `KAFKA_BOOTSTRAP_SERVERS`
 - `NGINX_PORT`
 - `SCOPE_METRICS_PORT`
+
+### Observability
+
+- `SENTRY_DSN`
+- `CONTENT_SENTRY_DSN` when Content should report to a separate Sentry project
+- `VITE_SENTRY_DSN`
 
 > For local development, `.env.example` already contains safe-ish development defaults. These **must be replaced** for any shared or production-like environment.
 
@@ -347,6 +354,15 @@ Optional `lightsail` profile:
 - public port rules for SSH/HTTP/HTTPS
 - bootstrap user data that installs Docker + Compose on the host
 
+Optional `ec2-compose` profile:
+
+- everything from `credit-saver`
+- 1 EC2 instance using Amazon Linux 2023 by default
+- encrypted gp3 root storage
+- optional Elastic IP, disabled by default
+- public port rules for SSH/HTTP/HTTPS
+- bootstrap user data that installs Docker + Compose on the host
+
 Optional `full` profile:
 
 - NAT gateway
@@ -379,7 +395,7 @@ Current automation coverage:
 - Kubernetes YAML syntax checks in CI
 - Terraform `fmt` / `init -backend=false` / `validate` checks in CI
 - optional manual Terraform plan/apply via `.github/workflows/deploy.yml` when AWS OIDC + Terraform vars/secrets are configured
-- optional manual Lightsail runtime deployment after `terraform_profile=lightsail` + `terraform_action=apply`
+- optional manual single-host runtime deployment after `terraform_profile=lightsail` or `ec2-compose` + `terraform_action=apply`
 - GHCR image publishing for Core, Content, Intel, Frontend, Scope Metrics, and Scope CLI on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts, Lightsail helper scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
@@ -405,30 +421,60 @@ Required GitHub configuration (repository-level or environment-level for `stagin
 - Variable: `AWS_ROLE_TO_ASSUME`
 - Variable: `TF_AWS_REGION` (optional, defaults to `us-east-1`)
 - Variable: `TF_STATE_BUCKET`
-- Variable: `TF_STATE_LOCK_TABLE`
+- Variable: `TF_STATE_LOCK_TABLE` (legacy only; current workflow uses S3 `use_lockfile`)
 - Variable: `TF_STATE_KEY` (optional, defaults to `foundation/<environment>/terraform.tfstate`)
 - Variable: `TF_PHOTOS_BUCKET_NAME`
 - Variable: `TF_COGNITO_DOMAIN_PREFIX`
+- Variables: `CREDIT_GUARD_ADDON_MONTHLY_USD` and `CREDIT_GUARD_ADDON_NAME` when reserving budget for reviewed add-ons such as edge/CDN/sweeper work
 - Secret: `TF_SQLSERVER_MASTER_PASSWORD` only when `terraform_profile = full`
+- Variable: `ALLOW_FULL_PRODUCTION_INFRA=true` only when intentionally allowing the high-cost `full` profile in production
+- Variable: `LIGHTSAIL_KEY_PAIR_NAME` when `terraform_profile = lightsail`
+- Variable: `LIGHTSAIL_SSH_PUBLIC_KEY` when `terraform_profile = lightsail`
+- Variable: `LIGHTSAIL_DYNAMIC_RUNNER_SSH` (optional; defaults to `true`) for GitHub-hosted deploys. The deploy job opens SSH only to the current runner `/32` and closes it after the upload/deploy steps.
+- Variable: `LIGHTSAIL_ADMIN_IPV4_CIDRS` or `LIGHTSAIL_ADMIN_IPV6_CIDRS` when `terraform_profile = lightsail` and `deploy_lightsail_app = true` only if dynamic runner SSH is disabled
+- Variable: `LIGHTSAIL_BUNDLE_ID` (optional; defaults to `medium_3_0`)
+- Variable: `LIGHTSAIL_MONTHLY_ESTIMATE_USD` (optional; defaults to `24`)
+- Variable: `LIGHTSAIL_DATA_DISK_SIZE_GIB` (optional; defaults to `160`; set `0` to disable the attached data disk)
+- Variables: `SQLSERVER_MEMORY_LIMIT_MB`, `OLLAMA_MEM_LIMIT`, `INTEL_MEM_LIMIT`, and `RAG_MEM_LIMIT` for the medium-host runtime profile. Keep `SQLSERVER_MEMORY_LIMIT_MB` at `2048` or higher; SQL Server on Linux needs at least 2 GB to start.
+- Variable: `EC2_COMPOSE_KEY_PAIR_NAME` when `terraform_profile = ec2-compose` (falls back to `LIGHTSAIL_KEY_PAIR_NAME`)
+- Variable: `EC2_COMPOSE_SSH_PUBLIC_KEY` when `terraform_profile = ec2-compose` (falls back to `LIGHTSAIL_SSH_PUBLIC_KEY`)
+- Variable: `EC2_COMPOSE_ADMIN_IPV4_CIDRS` when `terraform_profile = ec2-compose` and `deploy_lightsail_app = true`
 - Secret: `LIGHTSAIL_SSH_PRIVATE_KEY` when `deploy_lightsail_app = true`
+- Secret: `COMPOSE_HOST_SSH_PRIVATE_KEY` when `deploy_lightsail_app = true` (falls back to `LIGHTSAIL_SSH_PRIVATE_KEY`)
 - Secret: `SCOPE_SA_PASSWORD` when `deploy_lightsail_app = true`
 - Secret: `SCOPE_CORE_JWT_SECRET` when `deploy_lightsail_app = true`
+- Secret: `SCOPE_GRPC_INTERNAL_TOKEN` or `GRPC_INTERNAL_TOKEN` when `deploy_lightsail_app = true` in production; use at least 32 random characters
 - Secret: `SCOPE_DJANGO_SECRET_KEY` when `deploy_lightsail_app = true`
 - Secret: `SCOPE_FLASK_SECRET_KEY` when `deploy_lightsail_app = true`
+- Secrets: `SCOPE_AWS_ACCESS_KEY_ID` and `SCOPE_AWS_SECRET_ACCESS_KEY` when `terraform_profile = lightsail` and `deploy_lightsail_app = true`; use a scoped IAM user limited to the photos bucket because Lightsail cannot attach the EC2 instance profile used by `ec2-compose`
+- Secret: `SCOPE_SENTRY_DSN` or `SENTRY_DSN` for production server-side Sentry coverage
+- Secret: `SCOPE_CONTENT_SENTRY_DSN` or `CONTENT_SENTRY_DSN` when Content should use a separate Sentry project
 - Variable: `VITE_MAPBOX_TOKEN` when `deploy_lightsail_app = true`
+- Variable or secret: `VITE_SENTRY_DSN` for production browser-side Sentry coverage
+- Variable: `SENTRY_DSN_MODE=temporary-placeholder` only when intentionally using temporary placeholder DSNs before rotating to real free Sentry project DSNs
 - Variable: `SCOPE_PUBLIC_BASE_URL` (optional)
 - Variable: `SCOPE_TLS_HOSTNAME` (optional)
+
+Before dispatching a production single-host plan/apply, run the local GitHub readiness gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile lightsail -DeployComposeHost
+```
+
+Use `-TerraformProfile ec2-compose -DeployComposeHost` for the EC2 fallback, or omit `-DeployComposeHost` when checking a Terraform-only foundation plan.
 
 Then run the `Scope Deploy` workflow manually with:
 
 - `publish_images = false` or `true` as needed
 - `terraform_action = plan` to generate and upload a reviewed plan artifact, or `terraform_action = apply` to plan and then apply
 - `terraform_environment = staging` or `production`
-- `terraform_profile = credit-saver` for the low-cost default, `lightsail` for the always-on single-box runtime, or `full` for the original EKS/RDS stack
+- `terraform_profile = credit-saver` for the low-cost default, `lightsail` for the preferred always-on single-box runtime, `ec2-compose` for the Terraform-managed AWS fallback while Lightsail approval is pending, or `full` for the original EKS/RDS stack
 - `terraform_registry = ghcr` to skip ECR, or `ecr` if AWS-hosted repositories are required
-- `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied Lightsail host
+- `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied single host
 
-The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to Lightsail with `scripts/lightsail/deploy-remote.sh`.
+The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to the selected Compose host with `scripts/lightsail/deploy-remote.sh`. Production applies and Compose-host deploys must run from `main`. Production Lightsail deploys should keep Terraform SSH ingress empty and use `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true`; if that is disabled, use exact runner, VPN, or admin `/32` CIDRs. Terraform refuses world-open SSH for `production`, and the high-cost `full` profile is blocked in production unless `ALLOW_FULL_PRODUCTION_INFRA=true`.
+
+The current production environment uses temporary Sentry placeholder DSNs so the deployment path can be exercised before the real free Sentry projects are created. Keep `SENTRY_TRACES_SAMPLE_RATE=0` and `SENTRY_PROFILES_SAMPLE_RATE=0` while placeholders are active, then rotate `SCOPE_SENTRY_DSN` and `VITE_SENTRY_DSN` to real Sentry DSNs and restore the desired sample rates.
 
 ## 9. Operational notes
 

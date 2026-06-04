@@ -1,47 +1,20 @@
 import type mapboxgl from 'mapbox-gl';
-import type { StyleSpecification } from 'mapbox-gl';
 
 export type MapboxRuntime = typeof mapboxgl;
-export type MapStyleValue = string | StyleSpecification;
 export const DEFAULT_MAP_STYLE = 'mapbox://styles/mapbox/dark-v11';
-export const TOKENLESS_MAP_STYLE_ID = 'tokenless-openstreetmap';
-const TOKENLESS_MAP_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    openstreetmap: {
-      type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    {
-      id: 'openstreetmap',
-      type: 'raster',
-      source: 'openstreetmap',
-      minzoom: 0,
-      maxzoom: 19,
-      paint: {
-        'raster-brightness-min': 0.18,
-        'raster-brightness-max': 0.82,
-        'raster-contrast': 0.08,
-        'raster-saturation': -0.12,
-      },
-    },
-  ],
-};
-
-export function createTokenlessMapStyle(): StyleSpecification {
-  return structuredClone(TOKENLESS_MAP_STYLE);
-}
+export const LIGHT_MAP_STYLE = 'mapbox://styles/mapbox/outdoors-v12';
+export const STREETS_MAP_STYLE = 'mapbox://styles/mapbox/streets-v12';
+export const SATELLITE_STREETS_MAP_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12';
 
 let mapboxRuntimePromise: Promise<MapboxRuntime> | null = null;
 let mapboxStylesPromise: Promise<unknown> | null = null;
+let mapboxWorkerPolicy: TrustedTypePolicy | null = null;
+
+type TunableMapboxRuntime = MapboxRuntime & {
+  prewarm?: () => void;
+  workerCount?: number;
+  workerUrl?: string | TrustedScriptURL;
+};
 
 export function getMapboxToken(tokenValue: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN): string {
   return String(tokenValue ?? '').trim();
@@ -66,29 +39,18 @@ export function resolveMapboxStyle(
   return configuredStyle || fallback;
 }
 
-export function resolveConfiguredMapStyle(
-  tokenValue: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN,
-  fallback = DEFAULT_MAP_STYLE,
-  root: Element | null = typeof document === 'undefined' ? null : document.documentElement,
-): MapStyleValue {
-  return hasMapboxToken(tokenValue) ? resolveMapboxStyle(fallback, root) : createTokenlessMapStyle();
-}
-
-export function resolveConfiguredMapStyleKey(
-  tokenValue: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN,
-  fallback = DEFAULT_MAP_STYLE,
-  root: Element | null = typeof document === 'undefined' ? null : document.documentElement,
-): string {
-  return hasMapboxToken(tokenValue) ? resolveMapboxStyle(fallback, root) : TOKENLESS_MAP_STYLE_ID;
-}
-
 export async function loadMapboxRuntime(): Promise<MapboxRuntime> {
   if (!mapboxRuntimePromise) {
     mapboxStylesPromise ??= import('mapbox-gl/dist/mapbox-gl.css');
     mapboxRuntimePromise = Promise.all([
       mapboxStylesPromise,
-      import('mapbox-gl'),
-    ]).then(([, mapboxModule]) => mapboxModule.default as MapboxRuntime);
+      import('mapbox-gl/dist/mapbox-gl-csp'),
+      import('mapbox-gl/dist/mapbox-gl-csp-worker.js?url'),
+    ]).then(([, mapboxModule, workerUrlModule]) => {
+      const runtime = mapboxModule.default as TunableMapboxRuntime;
+      runtime.workerUrl = createTrustedMapboxWorkerUrl(workerUrlModule.default);
+      return runtime as MapboxRuntime;
+    });
   }
 
   return mapboxRuntimePromise;
@@ -98,6 +60,61 @@ export async function loadConfiguredMapboxRuntime(
   tokenValue: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN,
 ): Promise<MapboxRuntime> {
   const runtime = await loadMapboxRuntime();
+  tuneMapboxRuntimeForDevice(runtime);
   runtime.accessToken = getMapboxToken(tokenValue);
   return runtime;
+}
+
+export async function prewarmConfiguredMapboxRuntime(
+  tokenValue: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN,
+): Promise<MapboxRuntime | null> {
+  if (!hasMapboxToken(tokenValue)) {
+    return null;
+  }
+
+  const runtime = await loadConfiguredMapboxRuntime(tokenValue);
+  try {
+    (runtime as TunableMapboxRuntime).prewarm?.();
+  } catch {
+    // Prewarming is opportunistic; Mapbox will still initialize normally on mount.
+  }
+
+  return runtime;
+}
+
+function tuneMapboxRuntimeForDevice(runtime: MapboxRuntime): void {
+  const tunableRuntime = runtime as TunableMapboxRuntime;
+  if (typeof tunableRuntime.workerCount !== 'number') {
+    return;
+  }
+
+  tunableRuntime.workerCount = resolveMapboxWorkerCount();
+}
+
+function createTrustedMapboxWorkerUrl(workerUrl: string): string | TrustedScriptURL {
+  if (typeof window === 'undefined' || !window.trustedTypes) {
+    return workerUrl;
+  }
+
+  mapboxWorkerPolicy ??= window.trustedTypes.createPolicy('scope-mapbox', {
+    createScriptURL: (url) => url,
+  });
+
+  return mapboxWorkerPolicy.createScriptURL(workerUrl);
+}
+
+function resolveMapboxWorkerCount(): number {
+  const hardwareConcurrency = typeof navigator === 'undefined'
+    ? 0
+    : Number(navigator.hardwareConcurrency ?? 0);
+
+  if (!Number.isFinite(hardwareConcurrency) || hardwareConcurrency <= 4) {
+    return 2;
+  }
+
+  if (hardwareConcurrency <= 8) {
+    return 3;
+  }
+
+  return 4;
 }

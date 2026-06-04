@@ -1,4 +1,4 @@
-# Root .dockerignore — applies to any build with context=. (currently: scope-frontend).
+# Root .dockerignore - applies to any build with context=. (currently: scope-frontend).
 # Per-service .dockerignore files cover builds whose context is their own directory.
 
 # VCS / IDE / OS
@@ -52,6 +52,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .npm-cache
+.ms-playwright
 
 # Python
 .venv
@@ -96,6 +97,7 @@ scope-site/coverage
 
 # Backends we don't need when building the frontend container
 scope_content
+scope_content/media
 scope_intel
 scope_geo
 scope_media
@@ -110,6 +112,7 @@ scope-proto/gen
 # Local tool caches
 .docker-config
 .docker-tmp
+.scope-data
 .gocache
 .gomodcache
 .tooling

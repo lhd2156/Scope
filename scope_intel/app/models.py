@@ -51,6 +51,10 @@ class UserInteraction(db.Model):
     user_id = db.Column(db.String(36), nullable=False, index=True)
     spot_id = db.Column(db.String(36), nullable=False, index=True)
     interaction_type = db.Column(db.String(32), nullable=False, index=True)
+    # Source event id from the Kafka envelope. Nullable so historical/local
+    # fixture writes still work, unique so at-least-once replay does not double
+    # count user affinity.
+    source_event_id = db.Column(db.String(64), nullable=True, unique=True)
     # Precomputed per-signal weight (see IntelRepository.INTERACTION_WEIGHTS).
     # Stored on the row so replay with updated weights is as simple as a SELECT.
     weight = db.Column(db.Float, nullable=False, default=0.0)
@@ -61,6 +65,7 @@ class UserInteraction(db.Model):
     __table_args__ = (
         db.Index("ix_user_interaction_user_time", "user_id", "occurred_at"),
         db.Index("ix_user_interaction_spot_time", "spot_id", "occurred_at"),
+        db.Index("ix_user_interaction_event", "source_event_id"),
     )
 
 

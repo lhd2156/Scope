@@ -235,6 +235,33 @@ class WeatherQuerySchema(Schema):
     date = fields.Date(required=True, error_messages={"required": QUERY_REQUIRED_ERROR})
 
 
+class CurrentWeatherQuerySchema(Schema):
+    lat = fields.Float(load_default=None, allow_none=True, validate=LATITUDE_RANGE)
+    lng = fields.Float(load_default=None, allow_none=True, validate=LONGITUDE_RANGE)
+    q = fields.String(load_default=None, allow_none=True, validate=_non_blank_string(2, 255))
+
+    @pre_load
+    def normalize_payload(self, data, **kwargs):
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        if "q" in normalized:
+            normalized["q"] = _trim_text(normalized["q"])
+        return normalized
+
+    @validates_schema
+    def validate_location(self, data, **kwargs):
+        has_latitude = data.get("lat") is not None
+        has_longitude = data.get("lng") is not None
+        has_query = bool(data.get("q"))
+
+        if has_latitude != has_longitude:
+            raise ValidationError({"lng": ["lat and lng must be provided together"]})
+        if not ((has_latitude and has_longitude) or has_query):
+            raise ValidationError({"weather": ["Provide lat/lng or q"]})
+
+
 class GeocodeQuerySchema(Schema):
     q = fields.String(required=True, validate=_non_blank_string(2, 255), error_messages={"required": QUERY_REQUIRED_ERROR})
     limit = fields.Integer(load_default=5, validate=validate.Range(min=1, max=10))
@@ -260,3 +287,35 @@ class AgentPlanTripRequestSchema(Schema):
             if key in normalized:
                 normalized[key] = _trim_text(normalized[key])
         return normalized
+
+
+class AgentTripChatRequestSchema(Schema):
+    message = fields.String(load_default="", validate=validate.Length(max=4000))
+    prompt = fields.String(load_default="", validate=validate.Length(max=MAX_AGENT_PROMPT_LENGTH))
+    user_id = fields.String(load_default=None, allow_none=True, validate=_non_blank_string(1, 64))
+    start_date = fields.Date(load_default=None, allow_none=True)
+    plannerState = fields.Dict(load_default=dict)
+    planner_state = fields.Dict(load_default=dict)
+    sessionHistory = fields.List(fields.Dict(), load_default=list)
+    session_history = fields.List(fields.Dict(), load_default=list)
+    preferences = fields.Dict(load_default=dict)
+    locationContext = fields.Dict(load_default=dict)
+    location_context = fields.Dict(load_default=dict)
+    images = fields.List(fields.Dict(), load_default=list)
+    responseMode = fields.String(load_default="json", validate=validate.OneOf(["json", "stream"]))
+
+    @pre_load
+    def normalize_payload(self, data, **kwargs):
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        for key in ("message", "prompt", "user_id", "responseMode"):
+            if key in normalized:
+                normalized[key] = _trim_text(normalized[key])
+        return normalized
+
+    @validates_schema
+    def validate_message_or_prompt(self, data, **kwargs):
+        if not (str(data.get("message") or "").strip() or str(data.get("prompt") or "").strip()):
+            raise ValidationError({"message": ["Provide message or prompt"]})

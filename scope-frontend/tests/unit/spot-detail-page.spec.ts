@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
+    hasHydratedSession: true,
     currentUser: {
       id: 'user-1',
     },
@@ -51,10 +52,75 @@ vi.mock('@/stores/toasts', () => ({
 
 import SpotDetailPage from '@/views/SpotDetailPage.vue';
 
+function buildSpot(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'spot-1',
+    title: 'Sunset Rooftop Tacos',
+    description: 'Skyline tacos and late-night energy.',
+    latitude: 32.7555,
+    longitude: -97.3308,
+    category: 'food',
+    city: 'Fort Worth',
+    country: 'US',
+    rating: 4.8,
+    createdAt: '2026-03-29T00:00:00Z',
+    author: {
+      id: 'user-1',
+    },
+    photos: [],
+    userId: 'user-1',
+    ...overrides,
+  };
+}
+
+async function mountSpotDetailPage(path = '/spots/spot-1') {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/spots', component: SpotDetailPage },
+      { path: '/spots/:id', component: SpotDetailPage },
+      { path: '/explore', component: { template: '<div>Explore target</div>' } },
+    ],
+  });
+
+  await router.push(path);
+  await router.isReady();
+
+  const wrapper = mount(SpotDetailPage, {
+    global: {
+      plugins: [router],
+      stubs: {
+        AppShell: { template: '<div><slot /></div>' },
+        LoadingSpinner: { template: '<div>Loading</div>' },
+        Modal: {
+          props: ['open'],
+          emits: ['close'],
+          template: '<div v-if="open" data-test="spot-delete-modal-shell"><button type="button" data-test="modal-close" @click="$emit(\'close\')">Close modal</button><slot /></div>',
+        },
+        SpotDetail: {
+          props: ['spot'],
+          template: '<div data-test="spot-detail-stub">{{ spot?.title }}</div>',
+        },
+      },
+    },
+  });
+
+  await flushPromises();
+
+  return { router, wrapper };
+}
+
 describe('SpotDetailPage', () => {
   beforeEach(() => {
+    authStoreMock.isAuthenticated = true;
+    authStoreMock.hasHydratedSession = true;
+    authStoreMock.currentUser = {
+      id: 'user-1',
+    };
+    spotsStoreMock.loading = false;
     spotsStoreMock.error = '';
     spotsStoreMock.saving = false;
+    spotsStoreMock.selectedSpot = buildSpot();
     spotsStoreMock.fetchSpot.mockReset();
     spotsStoreMock.fetchSpot.mockResolvedValue(undefined);
     spotsStoreMock.deleteSpot.mockReset();
@@ -178,5 +244,84 @@ describe('SpotDetailPage', () => {
 
     expect(wrapper.text()).toContain('That pin is temporarily unavailable');
     expect(wrapper.text()).toContain('Scope could not load that spot right now.');
+  });
+
+  it('renders the loading state while the detail request is still in flight', async () => {
+    spotsStoreMock.loading = true;
+    spotsStoreMock.selectedSpot = null;
+
+    const { wrapper } = await mountSpotDetailPage();
+
+    expect(wrapper.text()).toContain('Pulling the full spot profile');
+    expect(wrapper.text()).toContain('Scope is syncing gallery, review, and location data for this stop.');
+    expect(wrapper.text()).toContain('Loading');
+  });
+
+  it('hides creator tools for signed-out visitors while keeping the detail readable', async () => {
+    authStoreMock.isAuthenticated = false;
+
+    const { wrapper } = await mountSpotDetailPage();
+
+    expect(wrapper.find('[data-test="spot-detail-creator-tools"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="spot-detail-stub"]').text()).toContain('Sunset Rooftop Tacos');
+  });
+
+  it('hides creator tools when live spot payloads omit the owner identity', async () => {
+    spotsStoreMock.selectedSpot = buildSpot({ author: undefined, userId: undefined });
+
+    const { wrapper } = await mountSpotDetailPage();
+
+    expect(wrapper.find('[data-test="spot-detail-creator-tools"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="spot-detail-stub"]').text()).toContain('Sunset Rooftop Tacos');
+  });
+
+  it('keeps the delete confirmation open while saving and closes it once saving finishes', async () => {
+    const { wrapper } = await mountSpotDetailPage();
+
+    await wrapper.get('button.action-link--danger').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-delete-modal"]').exists()).toBe(true);
+
+    spotsStoreMock.saving = true;
+    await wrapper.get('[data-test="modal-close"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-delete-modal"]').exists()).toBe(true);
+
+    spotsStoreMock.saving = false;
+    await wrapper.get('[data-test="modal-close"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-delete-modal"]').exists()).toBe(false);
+  });
+
+  it('shows delete failure feedback without routing away from the spot', async () => {
+    spotsStoreMock.deleteSpot.mockImplementation(async () => {
+      spotsStoreMock.error = 'Scope could not remove that spot right now.';
+      throw new Error('Delete failed');
+    });
+
+    const { router, wrapper } = await mountSpotDetailPage();
+
+    await wrapper.get('button.action-link--danger').trigger('click');
+    await flushPromises();
+    await wrapper.get('button.delete-button').trigger('click');
+    await flushPromises();
+
+    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-1');
+    expect(wrapper.text()).toContain('Scope could not remove that spot right now.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Delete failed',
+      message: 'Scope could not remove that spot right now.',
+    });
+  });
+
+  it('shows the missing spot state when the route has no spot id', async () => {
+    const { wrapper } = await mountSpotDetailPage('/spots');
+
+    expect(spotsStoreMock.fetchSpot).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('That pin could not be found');
+    expect(wrapper.text()).toContain('The requested spot may have moved, been removed, or not synced yet.');
   });
 });

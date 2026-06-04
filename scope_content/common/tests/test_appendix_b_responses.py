@@ -22,7 +22,7 @@ def test_post_spots_response_matches_appendix_b_exact_shape(authenticated_client
             'vibe': 'chill',
             'rating': 4.5,
             'visitedAt': '2026-03-20',
-            'isPublic': True,
+            'isPublic': False,
         },
         format='json',
     )
@@ -32,12 +32,27 @@ def test_post_spots_response_matches_appendix_b_exact_shape(authenticated_client
     assert set(body.keys()) == {'data'}
 
     spot = body['data']
-    assert set(spot.keys()) == {'id', 'title', 'latitude', 'longitude', 'category', 'rating', 'createdAt'}
+    assert set(spot.keys()) == {
+        'id',
+        'title',
+        'latitude',
+        'longitude',
+        'category',
+        'pillars',
+        'rating',
+        'isPublic',
+        'verificationStatus',
+        'safetyStatus',
+        'createdAt',
+    }
     assert spot['title'] == 'Best Tacos in Fort Worth'
     assert spot['latitude'] == 32.7555
     assert spot['longitude'] == -97.3308
     assert spot['category'] == 'food'
     assert spot['rating'] == 4.5
+    assert spot['isPublic'] is False
+    assert spot['verificationStatus'] == 'unverified'
+    assert spot['safetyStatus'] == 'clean'
     assert spot['createdAt'].endswith('Z')
 
 
@@ -60,7 +75,20 @@ def test_get_spots_response_matches_appendix_b_exact_shape(api_client, spot):
     assert len(body['data']) == 1
 
     spot_item = body['data'][0]
-    assert set(spot_item.keys()) == {'id', 'title', 'latitude', 'longitude', 'category', 'rating', 'photoUrl', 'createdAt'}
+    assert set(spot_item.keys()) == {
+        'id',
+        'title',
+        'latitude',
+        'longitude',
+        'category',
+        'pillars',
+        'rating',
+        'photoUrl',
+        'isPublic',
+        'verificationStatus',
+        'safetyStatus',
+        'createdAt',
+    }
     assert spot_item['id'] == str(spot.id)
     assert spot_item['title'] == 'Fort Worth Tacos'
     assert spot_item['latitude'] == 32.75
@@ -68,6 +96,9 @@ def test_get_spots_response_matches_appendix_b_exact_shape(api_client, spot):
     assert spot_item['category'] == 'food'
     assert spot_item['rating'] == 4.5
     assert spot_item['photoUrl'] == 'https://example.com/photos/test_thumb.png'
+    assert spot_item['isPublic'] is True
+    assert spot_item['verificationStatus'] == 'unverified'
+    assert spot_item['safetyStatus'] == 'clean'
     assert spot_item['createdAt'].endswith('Z')
 
     assert body['meta'] == {

@@ -53,7 +53,45 @@ describe('FriendList', () => {
       },
     });
 
-    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="friend-list-empty-state"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('Your Scope circle is still forming');
+  });
+
+  it('normalizes friend connection records and uses friendly fallback copy', () => {
+    const wrapper = mount(FriendList, {
+      props: {
+        title: 'Crew',
+        description: 'People ready for the route.',
+        friends: [
+          {
+            user: {
+              id: 'friend-connection-1',
+              displayName: 'Ari Lane',
+              email: 'ari@example.com',
+              username: '',
+              interests: [],
+            },
+            presence: undefined,
+            sharedTrips: 1,
+            mutualFriends: 1,
+          },
+        ] as never,
+      },
+      global: {
+        stubs: {
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Crew');
+    expect(wrapper.text()).toContain('People ready for the route.');
+    expect(wrapper.text()).toContain('@scopetraveler');
+    expect(wrapper.text()).toContain('Scope traveler');
+    expect(wrapper.text()).toContain('Offline');
+    expect(wrapper.text()).toContain('1 mutual friend');
+    expect(wrapper.text()).toContain('1 shared trip');
+    expect(wrapper.text()).toContain('Ready for the next Scope route.');
   });
 });

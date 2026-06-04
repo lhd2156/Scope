@@ -28,5 +28,17 @@ export default defineConfig({
     globals: true,
     setupFiles: './tests/unit/setup.ts',
     include: ['tests/unit/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.{ts,vue}'],
+      exclude: ['src/assets/**', 'src/main.ts', 'src/types/**'],
+      thresholds: {
+        lines: 95,
+        statements: 95,
+        functions: 95,
+        branches: 80,
+      },
+    },
   },
 } as unknown as UserConfig);

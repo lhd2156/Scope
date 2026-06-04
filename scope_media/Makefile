@@ -14,7 +14,7 @@ BUILD_SCRIPT := build.py
 all: build
 
 compiler-check:
-	$(PYTHON) -c "import shutil, sys; compiler = shutil.which('cl') or shutil.which('gcc'); print(compiler or 'No C compiler found in PATH'); sys.exit(0 if compiler else 1)"
+	$(PYTHON) -c "import shutil, sys; compiler = shutil.which('cl') or shutil.which('clang') or shutil.which('gcc'); print(compiler or 'No C compiler found in PATH'); sys.exit(0 if compiler else 1)"
 
 build: compiler-check
 	$(PYTHON) $(BUILD_SCRIPT)

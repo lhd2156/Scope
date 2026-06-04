@@ -1,403 +1,331 @@
 <template>
   <AppShell>
-    <div class="page-container page-stack friends-page">
-      <section class="glass-panel network-shell">
-        <div class="network-shell__top">
-          <div class="network-shell__copy">
-            <p class="eyebrow">Community</p>
-            <h1>Build your Scope travel circle.</h1>
-            <p class="section-copy">
-              Search your crew, accept incoming requests, and discover travelers whose routes match the way you already explore.
-            </p>
+    <div class="page-container page-stack friends-page" :data-friends-layout="isMobileFriendsLayout ? 'mobile' : 'desktop'">
+      <PageHero
+        eyebrow="Community"
+        title="Build your Scope travel circle."
+        description="Search your crew, accept incoming requests, and discover travelers whose routes match the way you already explore."
+      >
+        <template #toolbar>
+          <SearchBar
+            v-model="searchQuery"
+            class="friends-search"
+            aria-label="Search friends and Scope members"
+            label="Search friends and Scope members"
+            placeholder="Search @handle, name, city, or vibe..."
+            data-test="main-people-search"
+          />
+        </template>
+      </PageHero>
+
+      <section
+        v-if="onlineConnectionsForRail.length && !isSearchingPeople"
+        class="online-rail active-friends-rail"
+        data-test="friends-online-rail"
+        aria-labelledby="active-friends-heading"
+      >
+        <header class="online-rail__header">
+          <div>
+            <p class="eyebrow">Active friends</p>
+            <h2 id="active-friends-heading">Online or planning</h2>
           </div>
+          <span class="online-rail__summary">{{ onlineRailSummary }}</span>
+        </header>
 
-          <div class="network-shell__stats" aria-label="Friendship metrics">
-            <div class="network-stat">
-              <strong>{{ friendConnections.length }}</strong>
-              <span>Friends connected</span>
-            </div>
-            <div class="network-stat">
-              <strong>{{ onlineCount }}</strong>
-              <span>Online right now</span>
-            </div>
-            <div class="network-stat">
-              <strong>{{ friendRequests.length }}</strong>
-              <span>Pending requests</span>
-            </div>
-          </div>
-        </div>
-
-        <SearchBar
-          v-model="searchQuery"
-          class="friends-search"
-          aria-label="Search friends"
-          label="Search friends"
-          placeholder="Search friends, cities, or shared vibes..."
-        />
-
-        <div class="tab-row" role="tablist" aria-label="Friend network views">
+        <div class="online-rail__scroll">
           <button
-            v-for="tab in tabItems"
-            :key="tab.id"
-            :data-test="`tab-${tab.id}`"
+            v-for="connection in onlineConnectionsForRail"
+            :key="`rail-${connection.id}`"
             type="button"
-            class="network-tab"
-            :class="{ 'is-active': activeTab === tab.id }"
-            role="tab"
-            :aria-selected="activeTab === tab.id"
-            @click="activeTab = tab.id"
+            class="online-rail__item"
+            :data-test="`online-rail-${connection.user.id}`"
+            @click="openProfile(connection.user.id)"
           >
-            <span>{{ tab.label }}</span>
-            <span class="network-tab__count">{{ tab.count }}</span>
+            <span class="online-rail__avatar-ring" :class="`is-${connection.presence}`">
+              <Avatar :name="connection.user.displayName" :src="connection.user.avatarUrl" :size="64" />
+            </span>
+            <span class="online-rail__label">{{ firstName(connection.user.displayName) }}</span>
+            <span class="online-rail__status">{{ railPresenceLabel(connection.presence) }}</span>
           </button>
         </div>
       </section>
 
-      <div class="friends-layout">
-        <section class="glass-panel network-panel" data-test="network-panel">
-          <header class="panel-header">
-            <div>
-              <p class="eyebrow">{{ activePanelEyebrow }}</p>
-              <h2>{{ activePanelTitle }}</h2>
-            </div>
-            <p class="section-copy">{{ activePanelDescription }}</p>
-          </header>
+      <div class="friends-tab-row">
+        <TabBar
+          v-model="activeTab"
+          :tabs="tabItems"
+          aria-label="Friend network views"
+          variant="pills"
+        />
+      </div>
 
-          <div v-if="activeTab === 'requests' && filteredFriendRequests.length" class="request-grid stagger-in" data-test="requests-grid">
-            <article
-              v-for="request in filteredFriendRequests"
-              :key="request.id"
-              class="surface-card request-card"
-              data-test="request-card"
-            >
-              <div class="request-card__cover">
-                <LazyImage
-                  :src="coverPhotoForCategories(categoriesForUser(request.user))"
-                  :alt="`${request.user.displayName} request cover`"
-                  class="request-card__cover-image"
-                />
-                <span class="request-card__badge">Incoming request</span>
-              </div>
+      <p v-if="findPeopleError" class="form-error" role="alert" data-test="find-people-error">
+        {{ findPeopleError }}
+      </p>
 
-              <div class="request-card__body">
-                <div class="request-card__avatar-shell">
-                  <Avatar :name="request.user.displayName" :src="request.user.avatarUrl" :size="64" class="request-card__avatar" />
-                </div>
-
-                <div class="request-card__identity">
-                  <h3>{{ request.user.displayName }}</h3>
-                  <p class="request-card__username">@{{ request.user.username }}</p>
-                  <p class="request-card__meta">
-                    <ScopeIcon name="pin" />
-                    <span>{{ formatLocation(request.user) }}</span>
-                  </p>
-                </div>
-
-                <p class="request-card__note">{{ request.note || 'Ready to plan a route together.' }}</p>
-
-                <div class="request-card__summary">
-                  <span>{{ pluralize(request.mutualFriends, 'mutual friend') }}</span>
-                  <span>{{ formatMonthDay(request.createdAt) }}</span>
-                </div>
-
-                <div class="request-card__tags">
-                  <span
-                    v-for="category in categoriesForUser(request.user).slice(0, 2)"
-                    :key="`${request.id}-${category}`"
-                    class="category-pill"
-                    :class="`badge-${category}`"
-                  >
-                    {{ formatCategory(category) }}
-                  </span>
-                </div>
-
-                <div class="request-card__actions">
-                  <button
-                    :data-test="`decline-request-${request.id}`"
-                    type="button"
-                    class="button button-secondary"
-                    @click="declineRequest(request.id)"
-                  >
-                    Decline
-                  </button>
-                  <button
-                    :data-test="`accept-request-${request.id}`"
-                    type="button"
-                    class="button button-primary"
-                    @click="acceptRequest(request.id)"
-                  >
-                    Accept
-                  </button>
-                </div>
-              </div>
-            </article>
+      <section class="network-panel" :class="{ 'network-panel--plain-empty': showPlainEmptyState }" data-test="network-panel">
+        <header class="panel-title-row">
+          <div class="panel-title-row__copy">
+            <p class="eyebrow">{{ activePanelEyebrow }}</p>
+            <h2>{{ activePanelTitle }}</h2>
+            <p class="panel-title-row__description">{{ activePanelDescription }}</p>
           </div>
+          <span v-if="activeTabCount > 0" class="panel-title-row__count">{{ activeTabCountLabel }}</span>
+        </header>
 
-          <template v-else-if="activeTab !== 'requests' && visibleFriendConnections.length">
-            <div class="friend-grid stagger-in" data-test="friends-grid">
-              <article
-                v-for="connection in visibleFriendConnections"
-                :key="connection.id"
-                class="surface-card friend-card"
-                data-test="friend-card"
-              >
-              <div class="friend-card__cover">
-                <LazyImage
-                  :src="coverPhotoForCategories(connection.favoriteCategories)"
-                  :alt="`${connection.user.displayName} travel cover`"
-                  class="friend-card__cover-image"
-                />
-                <span class="friend-card__presence-pill" :class="`is-${connection.presence}`">
-                  <span class="friend-card__presence-dot" />
-                  {{ formatPresence(connection.presence) }}
-                </span>
-              </div>
-
-              <div class="friend-card__body">
-                <div class="friend-card__avatar-shell">
-                  <Avatar :name="connection.user.displayName" :src="connection.user.avatarUrl" :size="72" class="friend-card__avatar" />
-                  <span class="friend-card__avatar-dot" :class="`is-${connection.presence}`" />
-                </div>
-
-                <div class="friend-card__identity">
-                  <h3>{{ connection.user.displayName }}</h3>
-                  <p class="friend-card__username">@{{ connection.user.username }}</p>
-                </div>
-
-                <p class="friend-card__location">
-                  <ScopeIcon name="pin" />
-                  <span>{{ formatLocation(connection.user) }}</span>
-                </p>
-
-                <div class="friend-card__stats">
-                  <div>
-                    <strong>{{ connection.mutualFriends }}</strong>
-                    <span>Mutual friends</span>
-                  </div>
-                  <div>
-                    <strong>{{ connection.sharedTrips }}</strong>
-                    <span>Shared trips</span>
-                  </div>
-                </div>
-
-                <p class="friend-card__adventure">{{ connection.nextAdventure || 'Ready for the next itinerary.' }}</p>
-
-                <div class="friend-card__tags">
-                  <span
-                    v-for="category in connection.favoriteCategories.slice(0, 2)"
-                    :key="`${connection.id}-${category}`"
-                    class="category-pill"
-                    :class="`badge-${category}`"
-                  >
-                    {{ formatCategory(category) }}
-                  </span>
-                </div>
-
-                <button
-                  :data-test="`view-profile-${connection.user.id}`"
-                  type="button"
-                  class="button button-secondary friend-card__action"
-                  @click="openProfile(connection.user.id)"
-                >
-                  View Profile
-                </button>
-              </div>
-            </article>
-          </div>
-
+        <div v-if="activeTab === 'discover' && !isSearchingPeople" class="discover-mode-row" role="group" aria-label="Discover ranking mode">
           <button
-            v-if="hasMoreVisibleFriends"
+            v-for="mode in discoverModes"
+            :key="mode.id"
             type="button"
-            class="button button-secondary network-show-more"
-            data-test="friends-show-more"
-            @click="showAllVisibleFriends = true"
+            class="discover-mode-row__button"
+            :class="{ 'is-active': discoverMode === mode.id }"
+            :aria-pressed="discoverMode === mode.id"
+            :disabled="friendsStore.loading"
+            @click="selectDiscoverMode(mode.id)"
           >
-            Show all friends
+            {{ mode.label }}
           </button>
-        </template>
+        </div>
 
-          <EmptyStatePanel
-            v-else
-            tone="surface"
-            eyebrow="Community"
-            :title="emptyStateTitle"
-            :description="emptyStateDescription"
-            icon="friends"
-            artwork="community"
-            heading-level="h3"
-          >
-            <button v-if="searchQuery" type="button" class="button button-secondary" @click="searchQuery = ''">Clear search</button>
-          </EmptyStatePanel>
-        </section>
+        <div v-if="isSearchingPeople" class="search-workspace stagger-in" data-test="main-search-results">
+          <section v-if="searchFriendMatches.length" class="search-section" aria-labelledby="friend-search-heading">
+            <header class="search-section__header">
+              <div>
+                <p class="eyebrow">Your circle</p>
+                <h3 id="friend-search-heading">Friends matching this search</h3>
+              </div>
+              <span>{{ pluralize(searchFriendMatches.length, 'match') }}</span>
+            </header>
 
-        <aside class="glass-panel suggestions-panel" data-test="suggestions-panel">
-          <header class="panel-header suggestions-panel__header">
-            <div>
-              <p class="eyebrow">Find people</p>
-              <h2>Add real Scope members</h2>
+            <div class="friend-grid" data-test="friend-search-results">
+              <FriendCard
+                v-for="connection in searchFriendMatches"
+                :key="`search-${connection.id}`"
+                :connection="connection"
+                @open="openProfile"
+                @remove="removeConnection"
+              />
             </div>
-            <p class="section-copy">Search by @handle, display name, city, or email to send a friend request to anyone on Scope.</p>
-          </header>
+          </section>
 
-          <SearchBar
-            v-model="findPeopleQuery"
-            class="find-people-search"
-            aria-label="Find Scope members"
-            label="Find Scope members"
-            placeholder="Search @handle, name, or city..."
-            data-test="find-people-search"
-          />
+          <section v-if="visibleFindPeopleResults.length" class="search-section" aria-labelledby="member-search-heading">
+            <header class="search-section__header">
+              <div>
+                <p class="eyebrow">Find people</p>
+                <h3 id="member-search-heading">Scope members to add</h3>
+              </div>
+              <span>{{ pluralize(visibleFindPeopleResults.length, 'result') }}</span>
+            </header>
 
-          <p v-if="findPeopleError" class="form-error" role="alert" data-test="find-people-error">
-            {{ findPeopleError }}
-          </p>
+            <div class="discover-grid" data-test="find-people-results">
+              <SuggestionCard
+                v-for="candidate in visibleFindPeopleResults"
+                :key="candidate.id"
+                :user="candidate"
+                :reason="suggestionReasonForUser(candidate.id)"
+                :categories="categoriesForUser(candidate)"
+                :action-disabled="isFriendActionDisabled(candidate.id)"
+                :action-label="friendActionLabel(candidate.id)"
+                :view-test-id="`view-candidate-${candidate.id}`"
+                :send-test-id="`send-request-${candidate.id}`"
+                @open="openProfile"
+                @send="sendFriendRequest"
+              />
+            </div>
+          </section>
 
           <div v-if="isFindPeopleLoading" class="find-people-status" data-test="find-people-loading">
-            Searching Scope members...
+            Searching friends and Scope members...
           </div>
 
-          <div v-else-if="visibleFindPeopleResults.length" class="suggestions-stack stagger-in" data-test="find-people-results">
-            <article
-              v-for="candidate in visibleFindPeopleResults"
-              :key="candidate.id"
-              class="surface-card suggestion-card"
-              data-test="suggestion-card"
+          <div
+            v-if="!isFindPeopleLoading && !searchFriendMatches.length && !visibleFindPeopleResults.length"
+            class="friends-empty-state friends-empty-state--compact"
+            data-test="friends-search-empty"
+          >
+            <p class="eyebrow">Search</p>
+            <h3>No Scope members matched</h3>
+            <p>Try another @handle, display name, city, email, or vibe.</p>
+          </div>
+        </div>
+
+        <div v-else-if="activeTab === 'discover' && visibleDiscoverSuggestions.length" class="discover-grid stagger-in" data-test="discover-grid">
+          <SuggestionCard
+            v-for="suggestion in visibleDiscoverSuggestions"
+            :key="suggestion.id"
+            :user="suggestion.user"
+            :reason="suggestion.reason"
+            :categories="suggestion.favoriteCategories"
+            :mutual-friends="suggestion.mutualFriends"
+            :shared-interests="suggestion.sharedInterests"
+            :action-disabled="isFriendActionDisabled(suggestion.user.id)"
+            :action-label="friendActionLabel(suggestion.user.id)"
+            :view-test-id="`view-discover-${suggestion.user.id}`"
+            :send-test-id="`send-request-${suggestion.user.id}`"
+            test-id="discover-card"
+            variant="discover"
+            @open="openProfile"
+            @send="(user) => sendFriendRequest(user)"
+          />
+        </div>
+
+        <div v-else-if="activeTab === 'requests' && filteredFriendRequests.length" class="request-grid stagger-in" data-test="requests-grid">
+          <RequestCard
+            v-for="request in filteredFriendRequests"
+            :key="request.id"
+            :request="request"
+            :categories="categoriesForUser(request.user)"
+            :cover-photo="coverPhotoForCategories(categoriesForUser(request.user))"
+            :saving="friendsStore.saving"
+            @open="openProfile"
+            @accept="acceptRequest"
+            @decline="declineRequest"
+          />
+        </div>
+
+        <template v-else-if="activeTab !== 'requests' && activeTab !== 'discover' && visibleFriendConnections.length">
+          <div class="friend-grid stagger-in" data-test="friends-grid">
+            <FriendCard
+              v-for="connection in visibleFriendConnections"
+              :key="connection.id"
+              :connection="connection"
+              @open="openProfile"
+              @remove="removeConnection"
+            />
+          </div>
+
+          <nav
+            v-if="friendPagination.totalPages > 1"
+            class="network-pagination"
+            data-test="friends-pagination"
+            aria-label="Friends pages"
+          >
+            <button
+              type="button"
+              class="network-pagination__button"
+              data-test="friends-page-prev"
+              :disabled="friendPagination.page <= 1"
+              aria-label="Previous friends page"
+              @click="goToFriendsPage(friendPagination.page - 1)"
             >
-              <div class="suggestion-card__identity">
-                <div class="suggestion-card__avatar-shell">
-                  <Avatar :name="candidate.displayName" :src="candidate.avatarUrl" :size="56" class="suggestion-card__avatar" />
-                </div>
+              <ScopeIcon name="arrow-left" />
+            </button>
+            <span class="network-pagination__status" data-test="friends-page-status">
+              Page {{ friendPagination.page }} of {{ friendPagination.totalPages }}
+            </span>
+            <button
+              type="button"
+              class="network-pagination__button"
+              data-test="friends-page-next"
+              :disabled="friendPagination.page >= friendPagination.totalPages"
+              aria-label="Next friends page"
+              @click="goToFriendsPage(friendPagination.page + 1)"
+            >
+              <ScopeIcon name="arrow-right" />
+            </button>
+          </nav>
+        </template>
 
-                <div class="suggestion-card__copy">
-                  <strong>{{ candidate.displayName }}</strong>
-                  <p>@{{ candidate.username }}</p>
-                  <p class="suggestion-card__location">
-                    <ScopeIcon name="pin" />
-                    <span>{{ formatLocation(candidate) }}</span>
-                  </p>
-                </div>
-              </div>
-
-              <div class="suggestion-card__tags">
-                <span
-                  v-for="category in categoriesForUser(candidate).slice(0, 2)"
-                  :key="`${candidate.id}-${category}`"
-                  class="category-pill"
-                  :class="`badge-${category}`"
-                >
-                  {{ formatCategory(category) }}
-                </span>
-              </div>
-
-              <div class="suggestion-card__footer">
-                <button
-                  :data-test="`view-candidate-${candidate.id}`"
-                  type="button"
-                  class="button button-secondary suggestion-card__action"
-                  @click="openProfile(candidate.id)"
-                >
-                  View
-                </button>
-                <button
-                  :data-test="`send-request-${candidate.id}`"
-                  type="button"
-                  class="button button-primary suggestion-card__action"
-                  :disabled="hasSentRequestTo(candidate.id) || isAlreadyFriend(candidate.id)"
-                  @click="sendFriendRequest(candidate)"
-                >
-                  {{ friendActionLabel(candidate.id) }}
-                </button>
-              </div>
-            </article>
-          </div>
-
-          <EmptyStatePanel
-            v-else-if="findPeopleQuery.trim().length >= MIN_FIND_QUERY_LENGTH"
-            compact
-            tone="surface"
-            eyebrow="Find people"
-            title="No Scope members matched"
-            description="Try a different @handle, city, or email — people can only be found once they've registered."
-            icon="search"
-            artwork="community"
-            heading-level="h3"
-          />
-
-          <EmptyStatePanel
-            v-else
-            compact
-            tone="surface"
-            eyebrow="Find people"
-            title="Your circle starts here"
-            description="Type at least 2 characters to find real travelers on Scope and send them a friend request."
-            icon="friends"
-            artwork="community"
-            heading-level="h3"
-          />
-        </aside>
-      </div>
+        <div
+          v-else
+          class="friends-empty-state"
+          data-test="friends-empty-state"
+        >
+          <p class="eyebrow">Community</p>
+          <h3>{{ emptyStateTitle }}</h3>
+          <p>{{ emptyStateDescription }}</p>
+          <button v-if="searchQuery" type="button" class="button button-secondary" @click="searchQuery = ''">Clear search</button>
+        </div>
+      </section>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
-import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import Avatar from '@/components/common/Avatar.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
-import LazyImage from '@/components/common/LazyImage.vue';
+import PageHero from '@/components/common/PageHero.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
+import ScopeIcon from '@/components/common/ScopeIcon.vue';
+import TabBar, { type TabBarItem } from '@/components/common/TabBar.vue';
+import FriendCard from '@/components/friends/FriendCard.vue';
+import RequestCard from '@/components/friends/RequestCard.vue';
+import SuggestionCard from '@/components/friends/SuggestionCard.vue';
 import { trackFriendAdd } from '@/services/analyticsService';
-import { mockFriendConnections, mockFriendRequests } from '@/services/socialMockData';
-import { searchUsers } from '@/services/userService';
+import { useFriendsStore } from '@/stores/friends';
 import { useNotificationsStore } from '@/stores/notifications';
-import type { FriendConnection, FriendPresence, FriendRequest, SpotCategory, UserProfile } from '@/types';
+import type { FriendPresence, FriendSuggestion, SpotCategory, UserProfile } from '@/types';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
-import { formatMonthDay } from '@/utils/formatters';
 
-type FriendTab = 'all' | 'online' | 'requests';
+type FriendTab = 'all' | 'online' | 'requests' | 'discover';
+type DiscoverMode = 'best' | 'mutuals' | 'vibes' | 'random';
 
-const SPOT_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
-const INITIAL_VISIBLE_FRIENDS = 4;
+const FRIENDS_MOBILE_BREAKPOINT = 720;
+const SPOT_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
+const FRIENDS_PAGE_SIZE = 6;
 const MAX_FIND_RESULTS = 6;
 const MIN_FIND_QUERY_LENGTH = 2;
 const FIND_DEBOUNCE_MS = 280;
-const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test';
+const MAX_ONLINE_RAIL = 10;
+const PRESENCE_REFRESH_MS = 45_000;
+function shouldAutoRefreshFriends(): boolean {
+  const testOverride = typeof window !== 'undefined'
+    && (window as Window & { __SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__?: boolean }).__SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__ === true;
+
+  return testOverride || (import.meta.env.MODE !== 'test' && !import.meta.env.VITEST);
+}
+const discoverModes: Array<{ id: DiscoverMode; label: string }> = [
+  { id: 'best', label: 'Best' },
+  { id: 'mutuals', label: 'Mutuals' },
+  { id: 'vibes', label: 'Vibes' },
+  { id: 'random', label: 'Fresh' },
+];
+const discoverModeDescriptions: Record<DiscoverMode, string> = {
+  best: 'Ranked by mutual friends, shared interests, home-base overlap, and recent activity.',
+  mutuals: 'Prioritizes people already connected through your existing travel circle.',
+  vibes: 'Prioritizes travelers with overlapping interests, categories, and trip energy.',
+  random: 'A fresh pass through available Scope members outside the default ranking.',
+};
 
 const router = useRouter();
+const route = useRoute();
+const friendsStore = useFriendsStore();
 const notificationsStore = useNotificationsStore();
 const activeTab = ref<FriendTab>('all');
+const discoverMode = ref<DiscoverMode>('best');
 const searchQuery = ref('');
-const friendConnections = ref<FriendConnection[]>([...mockFriendConnections]);
-const friendRequests = ref<FriendRequest[]>([...mockFriendRequests.filter((request) => request.direction === 'incoming')]);
-const sentRequestUserIds = ref<Set<string>>(new Set());
-const findPeopleQuery = ref('');
-const findPeopleResults = ref<UserProfile[]>([]);
-const isFindPeopleLoading = ref(false);
 const findPeopleError = ref('');
-const showAllVisibleFriends = ref(shouldEagerlyRenderHeavyContent);
+const currentFriendsPage = ref(1);
+const isMobileFriendsLayout = ref(false);
 let findPeopleDebounce: ReturnType<typeof setTimeout> | undefined;
+let friendPresenceRefreshTimer: ReturnType<typeof setInterval> | undefined;
 let findPeopleRequestId = 0;
 
-const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase());
-const onlineCount = computed(() => friendConnections.value.filter((connection) => connection.presence === 'online').length);
-const tabItems = computed(() => [
-  { id: 'all' as const, label: 'All Friends', count: friendConnections.value.length },
-  { id: 'online' as const, label: 'Online', count: onlineCount.value },
-  { id: 'requests' as const, label: 'Requests', count: friendRequests.value.length },
+const friendConnections = computed(() => friendsStore.rankedConnections);
+const friendRequests = computed(() => friendsStore.requests);
+const normalizedSearchQuery = computed(() => normalizePeopleQuery(searchQuery.value));
+const isSearchingPeople = computed(() => normalizedSearchQuery.value.length >= MIN_FIND_QUERY_LENGTH);
+const onlineCount = computed(() => friendsStore.onlineConnections.length);
+const tabItems = computed<TabBarItem<FriendTab>[]>(() => [
+  { id: 'all', label: 'All Friends', count: friendConnections.value.length },
+  { id: 'online', label: 'Online', count: onlineCount.value },
+  { id: 'requests', label: 'Requests', count: friendRequests.value.length },
+  { id: 'discover', label: 'Discover', count: friendsStore.suggestions.length },
 ]);
 
 const filteredFriendConnections = computed(() => {
   const connections = activeTab.value === 'online'
-    ? friendConnections.value.filter((connection) => connection.presence === 'online')
+    ? friendsStore.onlineConnections
     : friendConnections.value;
 
   return connections.filter((connection) =>
     matchesSearch([
       connection.user.displayName,
       connection.user.username,
+      connection.user.email,
       connection.user.homeBase,
       connection.nextAdventure,
       ...connection.favoriteCategories,
@@ -410,6 +338,7 @@ const filteredFriendRequests = computed(() =>
     matchesSearch([
       request.user.displayName,
       request.user.username,
+      request.user.email,
       request.user.homeBase,
       request.note,
       ...categoriesForUser(request.user),
@@ -417,36 +346,164 @@ const filteredFriendRequests = computed(() =>
   ),
 );
 
+const friendPagination = computed(() => {
+  const total = filteredFriendConnections.value.length;
+  const totalPages = Math.max(1, Math.ceil(total / FRIENDS_PAGE_SIZE));
+  const page = Math.min(Math.max(currentFriendsPage.value, 1), totalPages);
+  const start = (page - 1) * FRIENDS_PAGE_SIZE;
+
+  return {
+    page,
+    total,
+    totalPages,
+    start,
+    end: start + FRIENDS_PAGE_SIZE,
+  };
+});
+
 const visibleFriendConnections = computed(() =>
-  showAllVisibleFriends.value ? filteredFriendConnections.value : filteredFriendConnections.value.slice(0, INITIAL_VISIBLE_FRIENDS),
+  filteredFriendConnections.value.slice(friendPagination.value.start, friendPagination.value.end),
 );
 
-const hasMoreVisibleFriends = computed(() => filteredFriendConnections.value.length > visibleFriendConnections.value.length);
+const onlineConnectionsForRail = computed(() => friendsStore.onlineConnections.slice(0, MAX_ONLINE_RAIL));
+const onlineRailSummary = computed(() => {
+  const shownCount = onlineConnectionsForRail.value.length;
+  const totalCount = friendsStore.onlineConnections.length;
+  return shownCount < totalCount
+    ? `${shownCount} of ${pluralize(totalCount, 'active friend')}`
+    : pluralize(totalCount, 'active friend');
+});
 
-const visibleFindPeopleResults = computed(() => findPeopleResults.value.slice(0, MAX_FIND_RESULTS));
+const visibleDiscoverSuggestions = computed(() =>
+  friendsStore.suggestions
+    .filter((suggestion) => !isAlreadyFriend(suggestion.user.id) && !hasSentRequestTo(suggestion.user.id))
+    .slice(0, MAX_FIND_RESULTS),
+);
+const suggestionByUserId = computed(() => new Map(friendsStore.suggestions.map((suggestion) => [suggestion.user.id, suggestion])));
+const searchFriendMatches = computed(() =>
+  friendConnections.value
+    .filter((connection) =>
+      matchesSearch([
+        connection.user.displayName,
+        connection.user.username,
+        connection.user.email,
+        connection.user.homeBase,
+        connection.nextAdventure,
+        ...connection.favoriteCategories,
+      ]),
+    )
+    .slice(0, MAX_FIND_RESULTS),
+);
+const visibleFindPeopleResults = computed(() => {
+  if (!isSearchingPeople.value) {
+    return [];
+  }
 
-const activePanelEyebrow = computed(() => (activeTab.value === 'requests' ? 'Requests' : 'Friends grid'));
+  const candidates = friendsStore.searchResults.length
+    ? friendsStore.searchResults
+    : visibleDiscoverSuggestions.value
+      .map((suggestion) => suggestion.user)
+      .filter((candidate) =>
+        matchesSearch([
+          candidate.displayName,
+          candidate.username,
+          candidate.email,
+          candidate.homeBase,
+          ...candidate.interests,
+        ]),
+      );
+
+  return candidates
+    .filter((candidate) => !isAlreadyFriend(candidate.id))
+    .slice(0, MAX_FIND_RESULTS);
+});
+
+const activeTabCount = computed(() => {
+  if (isSearchingPeople.value) {
+    return searchFriendMatches.value.length + visibleFindPeopleResults.value.length;
+  }
+  switch (activeTab.value) {
+    case 'online':
+      return visibleFriendConnections.value.length;
+    case 'requests':
+      return filteredFriendRequests.value.length;
+    case 'discover':
+      return visibleDiscoverSuggestions.value.length;
+    default:
+      return visibleFriendConnections.value.length;
+  }
+});
+const activeTabCountLabel = computed(() => {
+  const count = activeTabCount.value;
+
+  if (isSearchingPeople.value) {
+    return pluralize(count, 'result');
+  }
+
+  switch (activeTab.value) {
+    case 'online':
+      return friendPagination.value.totalPages > 1
+        ? `${count} of ${filteredFriendConnections.value.length} active friends - page ${friendPagination.value.page} of ${friendPagination.value.totalPages}`
+        : pluralize(count, 'active friend');
+    case 'requests':
+      return pluralize(count, 'request');
+    case 'discover':
+      return pluralize(count, 'suggestion');
+    default:
+      return friendPagination.value.totalPages > 1
+        ? `${count} of ${filteredFriendConnections.value.length} friends shown - page ${friendPagination.value.page} of ${friendPagination.value.totalPages}`
+        : `${count} of ${filteredFriendConnections.value.length} friends shown`;
+  }
+});
+
+const activePanelEyebrow = computed(() => {
+  if (isSearchingPeople.value) {
+    return 'People search';
+  }
+
+  if (activeTab.value === 'requests') {
+    return 'Requests';
+  }
+
+  return activeTab.value === 'discover' ? 'Discover' : 'Friends grid';
+});
 const activePanelTitle = computed(() => {
+  if (isSearchingPeople.value) {
+    return 'Search friends and Scope members';
+  }
+
   switch (activeTab.value) {
     case 'online':
       return 'Friends online now';
     case 'requests':
       return 'Pending requests';
+    case 'discover':
+      return `${discoverModes.find((mode) => mode.id === discoverMode.value)?.label ?? 'Best'} suggested travelers`;
     default:
       return 'Your travel circle';
   }
 });
 const activePanelDescription = computed(() => {
+  if (isSearchingPeople.value) {
+    return 'Results combine your current friends, real Scope members, and suggested travelers from the same main search bar.';
+  }
+
   switch (activeTab.value) {
     case 'online':
       return 'Jump straight into the friends who are active on Scope right now and likely to respond fast.';
     case 'requests':
       return 'Review new travelers, scan their overlap, and accept the ones who fit your next route.';
+    case 'discover':
+      return discoverModeDescriptions[discoverMode.value];
     default:
-      return 'A premium grid of the people who already shape your trips, city guides, and shared itineraries.';
+      return 'People already connected to your shared trips, saved places, and city guides.';
   }
 });
 const emptyStateTitle = computed(() => {
+  if (activeTab.value === 'discover') {
+    return friendsStore.loading ? 'Loading suggested travelers' : 'No suggestions yet';
+  }
+
   if (activeTab.value === 'requests') {
     return friendRequests.value.length
       ? 'No requests match that search'
@@ -461,6 +518,12 @@ const emptyStateTitle = computed(() => {
 });
 
 const emptyStateDescription = computed(() => {
+  if (activeTab.value === 'discover') {
+    return friendsStore.loading
+      ? 'Scope is checking mutuals, shared interests, and nearby route overlap.'
+      : 'Try searching by @handle, display name, city, or email to find specific Scope members.';
+  }
+
   if (activeTab.value === 'requests') {
     return friendRequests.value.length
       ? 'Try another city, name, or vibe to surface the right incoming requests.'
@@ -468,41 +531,54 @@ const emptyStateDescription = computed(() => {
   }
 
   if (!friendConnections.value.length) {
-    return 'Find real Scope members with the Find people panel on the right and send them a friend request.';
+    return 'Use the main search bar to find real Scope members by @handle, display name, city, email, or shared vibe.';
   }
 
   return 'Adjust the search or switch tabs to reveal more of your Scope network.';
 });
+
+function normalizePeopleQuery(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase().replace(/^@+/, '');
+}
 
 function matchesSearch(values: Array<string | undefined>): boolean {
   if (!normalizedSearchQuery.value) {
     return true;
   }
 
-  return values.some((value) => value?.toLowerCase().includes(normalizedSearchQuery.value));
+  return values.some((value) => normalizePeopleQuery(value).includes(normalizedSearchQuery.value));
 }
 
-function formatCategory(category: SpotCategory): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
-}
-
-function formatLocation(user: UserProfile): string {
-  return user.homeBase || 'Scope traveler';
-}
-
-function formatPresence(presence: FriendPresence): string {
-  switch (presence) {
-    case 'online':
-      return 'Online';
-    case 'planning':
-      return 'Planning';
-    default:
-      return 'Offline';
-  }
+function firstName(displayName: string): string {
+  return displayName.split(/\s+/)[0] ?? displayName;
 }
 
 function pluralize(count: number, label: string): string {
   return `${count} ${label}${count === 1 ? '' : 's'}`;
+}
+
+function goToFriendsPage(page: number): void {
+  currentFriendsPage.value = Math.min(Math.max(page, 1), friendPagination.value.totalPages);
+}
+
+function parseRouteTab(value: unknown): FriendTab | undefined {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return rawValue === 'all' || rawValue === 'online' || rawValue === 'requests' || rawValue === 'discover'
+    ? rawValue
+    : undefined;
+}
+
+function railPresenceLabel(presence: FriendPresence): string {
+  switch (presence) {
+    case 'planning':
+      return 'Planning';
+    case 'online':
+      return 'Online';
+    case 'idle':
+      return 'Idle';
+    default:
+      return 'Active';
+  }
 }
 
 function isSpotCategory(value: string): value is SpotCategory {
@@ -535,11 +611,15 @@ function recordFriendAddAnalytics(payload: {
 }
 
 function hasSentRequestTo(userId: string): boolean {
-  return sentRequestUserIds.value.has(userId);
+  return friendsStore.hasSentRequestTo(userId);
 }
 
 function isAlreadyFriend(userId: string): boolean {
-  return friendConnections.value.some((connection) => connection.user.id === userId);
+  return friendsStore.isAlreadyFriend(userId);
+}
+
+function isFriendActionDisabled(userId: string): boolean {
+  return friendsStore.saving || hasSentRequestTo(userId) || isAlreadyFriend(userId);
 }
 
 function friendActionLabel(userId: string): string {
@@ -554,60 +634,113 @@ function friendActionLabel(userId: string): string {
   return 'Send request';
 }
 
-function sendFriendRequest(candidate: UserProfile): void {
+function suggestionForUser(userId: string): FriendSuggestion | undefined {
+  return suggestionByUserId.value.get(userId);
+}
+
+function suggestionReasonForUser(userId: string): string {
+  return suggestionForUser(userId)?.reason ?? 'Suggested by shared Scope vibes';
+}
+
+async function sendFriendRequest(candidate: UserProfile): Promise<void> {
   if (hasSentRequestTo(candidate.id) || isAlreadyFriend(candidate.id)) {
     return;
   }
 
-  const nextSent = new Set(sentRequestUserIds.value);
-  nextSent.add(candidate.id);
-  sentRequestUserIds.value = nextSent;
+  findPeopleError.value = '';
 
   recordFriendAddAnalytics({
     routeName: 'friends',
     source: 'search',
     requestId: `outgoing-${candidate.id}`,
     userId: candidate.id,
-    mutualFriends: 0,
+    mutualFriends: suggestionForUser(candidate.id)?.mutualFriends ?? 0,
   });
+
+  try {
+    await friendsStore.sendRequest(candidate);
+  } catch {
+    findPeopleError.value = friendsStore.error ?? 'Scope could not send that request right now.';
+    return;
+  }
+}
+
+async function selectDiscoverMode(mode: DiscoverMode): Promise<void> {
+  if (discoverMode.value === mode && friendsStore.suggestions.length) {
+    return;
+  }
+
+  discoverMode.value = mode;
+  findPeopleError.value = '';
+  await friendsStore.refreshSuggestions(mode);
+
+  if (friendsStore.error) {
+    findPeopleError.value = friendsStore.error;
+  }
 }
 
 async function runFindPeopleSearch(rawQuery: string): Promise<void> {
   const query = rawQuery.trim();
 
   if (query.length < MIN_FIND_QUERY_LENGTH) {
-    findPeopleResults.value = [];
-    isFindPeopleLoading.value = false;
+    friendsStore.searchResults = [];
     findPeopleError.value = '';
     return;
   }
 
   const requestId = ++findPeopleRequestId;
-  isFindPeopleLoading.value = true;
   findPeopleError.value = '';
 
   try {
-    const response = await searchUsers(query, 1, MAX_FIND_RESULTS * 2);
+    await friendsStore.search(query);
     if (requestId !== findPeopleRequestId) {
       return;
     }
-
-    findPeopleResults.value = response.data.filter((candidate) => !isAlreadyFriend(candidate.id));
   } catch {
     if (requestId !== findPeopleRequestId) {
       return;
     }
 
-    findPeopleResults.value = [];
     findPeopleError.value = 'Scope could not reach member search right now. Try again in a moment.';
-  } finally {
-    if (requestId === findPeopleRequestId) {
-      isFindPeopleLoading.value = false;
-    }
   }
 }
 
-watch(findPeopleQuery, (nextQuery) => {
+const isFindPeopleLoading = computed(() => friendsStore.searching);
+const showPlainEmptyState = computed(() => {
+  if (isSearchingPeople.value) {
+    return !isFindPeopleLoading.value && !searchFriendMatches.value.length && !visibleFindPeopleResults.value.length;
+  }
+
+  if (activeTab.value === 'discover') {
+    return !visibleDiscoverSuggestions.value.length;
+  }
+
+  if (activeTab.value === 'requests') {
+    return !filteredFriendRequests.value.length;
+  }
+
+  return !visibleFriendConnections.value.length;
+});
+
+function syncMobileFriendsLayout() {
+  isMobileFriendsLayout.value = typeof window !== 'undefined' && window.innerWidth <= FRIENDS_MOBILE_BREAKPOINT;
+}
+
+function refreshFriendPresenceQuietly(): void {
+  void friendsStore.refreshConnections().catch(() => {
+    // The foreground error area is reserved for user actions; presence refresh retries on the next tick.
+  });
+}
+
+function syncVisibleFriendPresence(): void {
+  if (!shouldAutoRefreshFriends() || typeof document === 'undefined' || document.visibilityState === 'hidden') {
+    return;
+  }
+
+  refreshFriendPresenceQuietly();
+}
+
+watch(searchQuery, (nextQuery) => {
   if (findPeopleDebounce) {
     clearTimeout(findPeopleDebounce);
   }
@@ -617,25 +750,78 @@ watch(findPeopleQuery, (nextQuery) => {
   }, FIND_DEBOUNCE_MS);
 });
 
-function acceptRequest(requestId: string): void {
-  const requestIndex = friendRequests.value.findIndex((request) => request.id === requestId);
+watch([activeTab, searchQuery], () => {
+  currentFriendsPage.value = 1;
+});
 
-  if (requestIndex === -1) {
+watch(
+  () => friendPagination.value.totalPages,
+  (totalPages) => {
+    if (currentFriendsPage.value > totalPages) {
+      currentFriendsPage.value = totalPages;
+    }
+  },
+);
+
+watch(
+  () => filteredFriendConnections.value.length,
+  () => {
+    if (currentFriendsPage.value > friendPagination.value.totalPages) {
+      currentFriendsPage.value = friendPagination.value.totalPages;
+    }
+  },
+);
+
+function handleVisibilityChange(): void {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    syncVisibleFriendPresence();
+  }
+}
+
+function startFriendPresenceRefresh(): void {
+  if (!shouldAutoRefreshFriends() || typeof window === 'undefined') {
     return;
   }
 
-  const [acceptedRequest] = friendRequests.value.splice(requestIndex, 1);
+  friendPresenceRefreshTimer = window.setInterval(syncVisibleFriendPresence, PRESENCE_REFRESH_MS);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+}
 
-  friendConnections.value.unshift({
-    id: `connection-${acceptedRequest.user.id}`,
-    user: acceptedRequest.user,
-    presence: 'online',
-    sharedTrips: 0,
-    mutualFriends: acceptedRequest.mutualFriends,
-    favoriteCategories: categoriesForUser(acceptedRequest.user),
-    nextAdventure: acceptedRequest.note || 'Ready to map a first route together.',
-    lastActiveAt: new Date().toISOString(),
-  });
+function stopFriendPresenceRefresh(): void {
+  if (friendPresenceRefreshTimer) {
+    clearInterval(friendPresenceRefreshTimer);
+    friendPresenceRefreshTimer = undefined;
+  }
+
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }
+}
+
+watch(
+  () => route.query.tab,
+  (nextTab) => {
+    const routeTab = parseRouteTab(nextTab);
+    if (routeTab) {
+      activeTab.value = routeTab;
+    }
+  },
+  { immediate: true },
+);
+
+async function acceptRequest(requestId: string): Promise<void> {
+  const acceptedRequest = friendRequests.value.find((request) => request.id === requestId);
+
+  if (!acceptedRequest) {
+    return;
+  }
+
+  try {
+    await friendsStore.acceptRequest(requestId);
+  } catch {
+    findPeopleError.value = friendsStore.error ?? 'Scope could not accept that request right now.';
+    return;
+  }
 
   notificationsStore.addNotification({
     id: `notification-friend-${acceptedRequest.id}`,
@@ -657,13 +843,48 @@ function acceptRequest(requestId: string): void {
   activeTab.value = 'all';
 }
 
-function declineRequest(requestId: string): void {
-  friendRequests.value = friendRequests.value.filter((request) => request.id !== requestId);
+async function declineRequest(requestId: string): Promise<void> {
+  try {
+    await friendsStore.rejectRequest(requestId);
+  } catch {
+    findPeopleError.value = friendsStore.error ?? 'Scope could not decline that request right now.';
+    return;
+  }
 
   if (activeTab.value === 'requests' && !friendRequests.value.length) {
     activeTab.value = 'all';
   }
 }
+
+async function removeConnection(connectionId: string): Promise<void> {
+  try {
+    await friendsStore.removeConnection(connectionId);
+  } catch {
+    findPeopleError.value = friendsStore.error ?? 'Scope could not remove that friend right now.';
+  }
+}
+
+onMounted(() => {
+  syncMobileFriendsLayout();
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', syncMobileFriendsLayout, { passive: true });
+  }
+
+  void friendsStore.fetchAll().catch(() => {
+    findPeopleError.value = friendsStore.error ?? '';
+  });
+  startFriendPresenceRefresh();
+});
+
+onBeforeUnmount(() => {
+  if (findPeopleDebounce) {
+    clearTimeout(findPeopleDebounce);
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', syncMobileFriendsLayout);
+  }
+  stopFriendPresenceRefresh();
+});
 </script>
 
 <style scoped>
@@ -671,537 +892,344 @@ function declineRequest(requestId: string): void {
   gap: var(--section-gap);
 }
 
-.network-shell,
-.network-panel,
-.suggestions-panel,
-.panel-header,
-.network-shell__copy,
-.network-stat,
-.friend-card,
-.friend-card__body,
-.friend-card__identity,
-.request-card,
-.request-card__body,
-.request-card__identity,
-.suggestion-card,
-.suggestion-card__copy,
-.suggestions-stack,
-.friend-grid,
-.request-grid {
-  display: grid;
-}
-
-.network-shell,
-.network-panel,
-.suggestions-panel {
-  gap: var(--space-5);
-  padding: clamp(var(--space-5), 3vw, var(--space-8));
-}
-
-.network-shell__top,
-.network-shell__stats,
-.tab-row,
-.friend-card__tags,
-.request-card__tags,
-.suggestion-card__tags,
-.request-card__summary,
-.suggestion-card__footer {
-  display: flex;
-}
-
-.network-shell__top,
-.friends-layout {
-  gap: var(--space-6);
-}
-
-.network-shell__top {
-  justify-content: space-between;
-  align-items: end;
-}
-
-.network-show-more {
-  justify-self: start;
-}
-
-.friends-layout,
-.network-panel,
-.suggestions-panel {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 1080px;
-}
-
-.network-shell__copy {
-  gap: var(--space-3);
-  max-width: var(--copy-measure-wide);
-}
-
-.eyebrow,
-.network-shell__copy h1,
-.panel-header h2,
-.section-copy,
-.friend-card__identity h3,
-.friend-card__username,
-.friend-card__location,
-.friend-card__adventure,
-.request-card__identity h3,
-.request-card__username,
-.request-card__meta,
-.request-card__note,
-.request-card__summary,
-.suggestion-card__copy strong,
-.suggestion-card__copy p,
-.suggestion-card__reason,
-.suggestion-card__meta {
-  margin: 0;
-}
-
-.eyebrow {
-  color: var(--accent-teal);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-eyebrow);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-}
-
-.network-shell__copy h1 {
+.friends-page :deep(.page-hero h1) {
   font-size: var(--font-size-h1);
   line-height: var(--line-height-tight);
   letter-spacing: var(--letter-spacing-display);
 }
 
-.panel-header {
-  gap: var(--space-2);
-}
-
-.panel-header h2 {
-  font-size: var(--font-size-h2);
-  line-height: var(--line-height-tight);
-}
-
-.section-copy,
-.friend-card__username,
-.friend-card__location,
-.friend-card__adventure,
-.request-card__username,
-.request-card__meta,
-.request-card__note,
-.request-card__summary,
-.suggestion-card__copy p,
-.suggestion-card__reason,
-.suggestion-card__meta {
-  color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
-}
-
-.network-shell__stats {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-3);
-}
-
-.network-stat {
-  gap: var(--space-1);
-  min-width: 9.25rem;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--glass-border);
-  background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
-  box-shadow: var(--shadow-sm);
-}
-
-.network-stat strong {
-  font-size: var(--font-size-h3);
-  line-height: var(--line-height-tight);
-}
-
-.network-stat span {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
 .friends-search {
   width: 100%;
-  min-height: 4.25rem;
-  padding-inline: var(--space-5);
+  min-height: 3.75rem;
+  flex: 1 1 22rem;
+  padding-inline: var(--space-4);
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--glass-border) 80%, transparent);
 }
 
 .friends-search:focus-within {
-  box-shadow: var(--shadow-glow-teal);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-teal) 45%, var(--glass-border)), var(--shadow-glow-teal);
 }
 
-.tab-row {
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--glass-border);
+.friends-tab-row {
+  position: sticky;
+  top: calc(var(--shell-content-top) + var(--space-2));
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-2) 0;
 }
 
-.network-tab {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0.4rem 0 0.75rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-weight: var(--font-weight-semibold);
-  transition: color var(--transition-fast), transform var(--transition-fast);
-}
-
-.network-tab:hover,
-.network-tab:focus-visible {
-  color: var(--text-primary);
-  transform: translateY(-1px);
-  outline: none;
-}
-
-.network-tab:active {
-  transform: translateY(0) scale(0.97);
-}
-
-.network-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  border-radius: var(--radius-full);
-  background: var(--accent-teal);
-  opacity: 0;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.network-tab.is-active {
-  color: var(--text-primary);
-}
-
-.network-tab.is-active::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.network-tab__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.75rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal-light) 100%, transparent);
-  color: var(--accent-teal);
-  font-size: var(--font-size-caption);
-}
-
-.friends-layout {
+.network-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
-  align-items: start;
-}
-
-.friend-grid,
-.request-grid {
   gap: var(--space-4);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.friend-card,
-.request-card,
-.suggestion-card {
-  gap: var(--space-4);
-  overflow: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: 420px;
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.friend-card:hover,
-.friend-card:focus-within,
-.request-card:hover,
-.request-card:focus-within,
-.suggestion-card:hover,
-.suggestion-card:focus-within {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--border-hover);
-}
-
-.friend-card__cover,
-.request-card__cover {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-}
-
-.friend-card__cover::after,
-.request-card__cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-primary) 12%, transparent) 0%,
-    color-mix(in srgb, var(--bg-primary) 82%, transparent) 100%
-  );
-  pointer-events: none;
-}
-
-.friend-card__cover-image,
-.request-card__cover-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--transition-slow);
-}
-
-.friend-card:hover .friend-card__cover-image,
-.friend-card:focus-within .friend-card__cover-image,
-.request-card:hover .request-card__cover-image,
-.request-card:focus-within .request-card__cover-image {
-  transform: scale(1.05);
-}
-
-.friend-card__presence-pill,
-.request-card__badge {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0.45rem 0.8rem;
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--glass-bg) 92%, transparent);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: var(--glass-blur);
-  font-size: var(--font-size-small);
-}
-
-.friend-card__presence-pill {
-  color: var(--text-primary);
-}
-
-.friend-card__presence-pill.is-online {
-  color: var(--success);
-}
-
-.friend-card__presence-pill.is-planning {
-  color: var(--accent-gold);
-}
-
-.friend-card__presence-pill.is-offline {
-  color: var(--text-secondary);
-}
-
-.friend-card__presence-dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: var(--radius-full);
-  background: currentColor;
-}
-
-.request-card__badge {
-  left: var(--space-3);
-  right: auto;
-  color: var(--text-primary);
-}
-
-.friend-card__body,
-.request-card__body {
-  gap: var(--space-4);
-  padding: 0 var(--space-5) var(--space-5);
-}
-
-.friend-card__avatar-shell,
-.request-card__avatar-shell,
-.suggestion-card__avatar-shell {
-  position: relative;
-  width: fit-content;
-  overflow: hidden;
-  border-radius: var(--radius-full);
-}
-
-.friend-card__avatar-shell,
-.request-card__avatar-shell {
-  margin-top: calc(var(--space-10) * -0.9);
-}
-
-.friend-card__avatar,
-.request-card__avatar,
-.suggestion-card__avatar {
-  border-radius: var(--radius-full);
-  border: 2px solid color-mix(in srgb, var(--bg-secondary) 72%, var(--glass-border) 28%);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-md);
-}
-
-.friend-card__avatar-shell :deep(img),
-.request-card__avatar-shell :deep(img),
-.suggestion-card__avatar-shell :deep(img) {
-  transition: transform var(--transition-slow);
-}
-
-.friend-card:hover .friend-card__avatar-shell :deep(img),
-.friend-card:focus-within .friend-card__avatar-shell :deep(img),
-.request-card:hover .request-card__avatar-shell :deep(img),
-.request-card:focus-within .request-card__avatar-shell :deep(img),
-.suggestion-card:hover .suggestion-card__avatar-shell :deep(img),
-.suggestion-card:focus-within .suggestion-card__avatar-shell :deep(img) {
-  transform: scale(1.06);
-}
-
-.friend-card__avatar-dot {
-  position: absolute;
-  right: 0.25rem;
-  bottom: 0.25rem;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: var(--radius-full);
-  border: 2px solid var(--bg-secondary);
-  background: var(--text-muted);
-}
-
-.friend-card__avatar-dot.is-online {
-  background: var(--success);
-}
-
-.friend-card__avatar-dot.is-planning {
-  background: var(--accent-gold);
-}
-
-.friend-card__avatar-dot.is-offline {
-  background: var(--text-muted);
-}
-
-.friend-card__identity,
-.request-card__identity,
-.suggestion-card__copy {
-  gap: var(--space-1);
-}
-
-.friend-card__identity h3,
-.request-card__identity h3 {
-  font-size: var(--font-size-h3);
-  line-height: var(--line-height-tight);
-}
-
-.friend-card__location,
-.request-card__meta,
-.suggestion-card__location {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.friend-card__stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.friend-card__stats div {
-  padding: var(--space-3);
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, var(--border) 28%);
-  background: color-mix(in srgb, var(--bg-primary) 76%, transparent);
-}
-
-.friend-card__stats strong {
-  display: block;
-  margin-bottom: var(--space-1);
-  font-size: var(--font-size-h3);
-  line-height: var(--line-height-tight);
-}
-
-.friend-card__stats span {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.friend-card__tags,
-.request-card__tags,
-.suggestion-card__tags {
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.category-pill {
-  display: inline-flex;
-  align-items: center;
+.network-panel--plain-empty .panel-title-row {
   justify-content: center;
-  padding: 0.45rem 0.8rem;
-  border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.06em;
+  text-align: center;
 }
 
-.friend-card__action,
-.suggestion-card__action {
-  width: 100%;
+.network-panel--plain-empty .panel-title-row__description {
+  margin-inline: auto;
 }
 
-.request-card__summary,
-.suggestion-card__footer {
-  align-items: center;
+.panel-title-row {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.request-card__summary {
-  font-size: var(--font-size-small);
+.panel-title-row__copy {
+  display: grid;
+  gap: var(--space-1);
 }
 
-.request-card__actions {
+.panel-title-row h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
+.panel-title-row__description {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.panel-title-row__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: max-content;
+  padding: 0.28rem 0.65rem;
+  min-height: 1.6rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-tertiary));
+  color: var(--accent-teal);
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-bold);
+}
+
+.friend-grid {
   display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+
+.request-grid,
+.discover-grid {
+  display: grid;
+  gap: var(--space-5);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
 }
 
-.request-card__actions .button {
-  width: 100%;
-}
-
-.suggestions-stack {
-  gap: var(--space-4);
-}
-
-.suggestion-card {
-  padding: var(--space-4);
-}
-
-.suggestion-card__identity {
+.search-workspace,
+.search-section {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: center;
+  gap: var(--space-5);
 }
 
-.suggestion-card__meta {
+.search-section__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+}
+
+.search-section__header h3 {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  line-height: var(--line-height-tight);
+}
+
+.search-section__header > span {
+  color: var(--text-secondary);
   font-size: var(--font-size-small);
 }
 
-.suggestion-card__action {
-  min-width: 5.5rem;
+.online-rail {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
 }
 
-.find-people-search {
-  width: 100%;
-  min-height: 3.4rem;
-  padding-inline: var(--space-4);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+.active-friends-rail {
+  margin-top: calc(var(--section-gap) * -0.45);
+}
+
+.online-rail__header {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+}
+
+.online-rail__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.online-rail__summary {
+  color: var(--accent-teal);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.online-rail__scroll {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-block: 0;
+  scrollbar-width: thin;
+}
+
+.online-rail__scroll::-webkit-scrollbar {
+  height: 0.35rem;
+}
+
+.online-rail__item {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  flex: 0 0 6.35rem;
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.online-rail__item:hover,
+.online-rail__item:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  border-color: transparent;
+  background: transparent;
+}
+
+.online-rail__avatar-ring {
+  display: inline-grid;
+  place-items: center;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--success), var(--accent-teal));
+  transition:
+    outline-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.online-rail__item:hover .online-rail__avatar-ring {
+  transform: scale(1.04);
+}
+
+.online-rail__item:focus-visible .online-rail__avatar-ring {
+  outline: 2px solid color-mix(in srgb, var(--accent-teal) 58%, transparent);
+  outline-offset: 4px;
+}
+
+.online-rail__avatar-ring.is-planning {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-teal));
+}
+
+.online-rail__avatar-ring.is-idle {
+  background: linear-gradient(135deg, var(--warning), var(--accent-teal));
+}
+
+.online-rail__avatar-ring.is-offline,
+.online-rail__avatar-ring.is-hidden {
+  background: color-mix(in srgb, var(--text-secondary) 35%, transparent);
+}
+
+.online-rail__label {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-rail__status {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.discover-mode-row__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.2rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 68%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.discover-mode-row__button:hover,
+.discover-mode-row__button:focus-visible,
+.discover-mode-row__button.is-active {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 15%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.discover-mode-row__button[disabled] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.network-pagination {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: var(--space-2);
+  padding: 0.35rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, transparent);
+}
+
+.network-pagination__button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 11%, transparent);
+  color: var(--accent-teal);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.network-pagination__button:hover,
+.network-pagination__button:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
+.network-pagination__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
+.network-pagination__button :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.network-pagination__status {
+  min-width: 5.8rem;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
 }
 
 .find-people-status {
@@ -1209,6 +1237,43 @@ function declineRequest(requestId: string): void {
   font-size: var(--font-size-small);
   text-align: center;
   padding: var(--space-3) 0;
+}
+
+.friends-empty-state {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  min-height: clamp(13rem, 22vw, 18rem);
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.friends-empty-state--compact {
+  min-height: 9rem;
+  padding-block: var(--space-4);
+}
+
+.friends-empty-state h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.friends-empty-state p:not(.eyebrow) {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+}
+
+.friends-empty-state .button {
+  margin-top: var(--space-2);
 }
 
 .form-error {
@@ -1221,121 +1286,57 @@ function declineRequest(requestId: string): void {
   font-size: var(--font-size-small);
 }
 
-.suggestion-card__footer {
-  flex-wrap: wrap;
-}
-
-.suggestion-card__action[disabled] {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .stagger-in > * {
   opacity: 0;
-  transform: translateY(var(--space-4));
-  animation: fadeInUp 0.4s ease both;
+  transform: translateY(var(--space-3));
+  animation: friendsFadeInUp 0.4s ease both;
 }
 
-.stagger-in > *:nth-child(1) {
-  animation-delay: 0ms;
-}
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-in > *:nth-child(n + 5) { animation-delay: 320ms; }
 
-.stagger-in > *:nth-child(2) {
-  animation-delay: 100ms;
-}
-
-.stagger-in > *:nth-child(3) {
-  animation-delay: 200ms;
-}
-
-.stagger-in > *:nth-child(4) {
-  animation-delay: 300ms;
-}
-
-.stagger-in > *:nth-child(n + 5) {
-  animation-delay: 400ms;
-}
-
-@keyframes fadeInUp {
+@keyframes friendsFadeInUp {
   from {
     opacity: 0;
-    transform: translateY(var(--space-4));
+    transform: translateY(var(--space-3));
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-@media (max-width: 1180px) {
-  .friends-layout,
-  .network-shell__top {
-    grid-template-columns: 1fr;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .network-shell__stats {
-    justify-content: flex-start;
-  }
-
+@media (max-width: 1080px) {
   .friend-grid,
-  .request-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .request-grid,
+  .discover-grid {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 760px) {
-  .friend-grid,
-  .request-grid,
-  .request-card__actions {
+@media (max-width: 720px) {
+  .friends-page[data-friends-layout='mobile'] {
+    gap: var(--space-5);
+  }
+
+  .friends-search {
+    min-height: 3.25rem;
+  }
+
+  .online-rail {
     grid-template-columns: 1fr;
+    padding: var(--space-4);
   }
 
-  .tab-row,
-  .request-card__summary,
-  .suggestion-card__footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .network-stat,
-  .network-tab,
-  .suggestion-card__action,
-  .friend-card__action {
-    width: 100%;
-  }
-
-  .network-tab {
-    justify-content: space-between;
+  .online-rail__header {
+    align-items: flex-start;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .network-tab,
-  .friend-card,
-  .request-card,
-  .suggestion-card,
-  .friend-card__cover-image,
-  .request-card__cover-image,
-  .friend-card__avatar-shell :deep(img),
-  .request-card__avatar-shell :deep(img),
-  .suggestion-card__avatar-shell :deep(img) {
-    transition-duration: 1ms;
-  }
-
-  .network-tab:hover,
-  .network-tab:active,
-  .friend-card:hover,
-  .friend-card:focus-within,
-  .request-card:hover,
-  .request-card:focus-within,
-  .suggestion-card:hover,
-  .suggestion-card:focus-within {
-    transform: none;
-  }
-
   .stagger-in > * {
     animation: none;
     opacity: 1;

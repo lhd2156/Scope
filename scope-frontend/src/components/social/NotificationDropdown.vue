@@ -36,9 +36,14 @@
           <p class="eyebrow">Inbox</p>
           <h3 :id="panelHeadingId">Recent updates</h3>
         </div>
-        <button v-if="notificationsStore.unreadCount" class="link-button" data-test="notification-mark-all-read" type="button" @click="void notificationsStore.markAllRead()">
-          Mark all read
-        </button>
+        <div class="notification-menu__actions">
+          <button v-if="notificationsStore.unreadCount" class="link-button" data-test="notification-mark-all-read" type="button" @click="markAllRead">
+            Mark all read
+          </button>
+          <button class="inbox-link-button" data-test="notification-open-inbox" type="button" @click="openInbox">
+            Open inbox
+          </button>
+        </div>
       </header>
 
       <p :id="panelDescriptionId" class="notification-menu__sr-only">
@@ -62,17 +67,15 @@
         </article>
       </div>
 
-      <EmptyStatePanel
+      <div
         v-else-if="showEmptyState"
-        tone="surface"
-        compact
-        eyebrow="Inbox"
-        title="No new Scope updates yet"
-        description="Trip invites, comments, and route changes will land here as soon as they happen."
-        icon="bell"
-        artwork="notification"
-        heading-level="h4"
-      />
+        class="notification-dropdown-empty-state"
+        data-test="notification-dropdown-empty-state"
+      >
+        <p class="eyebrow">Inbox</p>
+        <h4>No new Scope updates yet</h4>
+        <p>Trip invites, comments, and route changes will land here as soon as they happen.</p>
+      </div>
 
       <VirtualList
         v-else
@@ -82,16 +85,26 @@
         list-label="Notifications"
       >
         <template #default="{ item }">
-          <button :data-test="`notification-row-${toNotification(item).id}`" class="notification-row surface-card" type="button" @click="void markRead(toNotification(item))">
-            <div class="notification-row__copy">
-              <strong>{{ toNotification(item).title }}</strong>
-              <p>{{ toNotification(item).body || 'Scope update' }}</p>
+          <article :data-test="`notification-row-${toNotification(item).id}`" class="notification-row surface-card">
+            <button class="notification-row__main" type="button" @click="void openNotification(toNotification(item))">
+              <div class="notification-row__copy">
+                <strong>{{ toNotification(item).title }}</strong>
+                <p>{{ toNotification(item).body || 'Scope update' }}</p>
+              </div>
+              <span class="notification-row__meta">
+                <span v-if="!toNotification(item).isRead" class="notification-row__dot" />
+                <span>{{ formatRelativeDate(toNotification(item).createdAt) }}</span>
+              </span>
+            </button>
+            <div v-if="isFriendRequest(toNotification(item))" class="notification-row__actions">
+              <button type="button" class="notification-action notification-action--primary" @click.stop="void performRequestAction(toNotification(item), 'accept_friend_request')">
+                Accept
+              </button>
+              <button type="button" class="notification-action" @click.stop="void performRequestAction(toNotification(item), 'decline_friend_request')">
+                Decline
+              </button>
             </div>
-            <span class="notification-row__meta">
-              <span v-if="!toNotification(item).isRead" class="notification-row__dot" />
-              <span>{{ formatRelativeDate(toNotification(item).createdAt) }}</span>
-            </span>
-          </button>
+          </article>
         </template>
       </VirtualList>
     </div>
@@ -100,17 +113,22 @@
 
 <script setup lang="ts">
 import { onClickOutside } from '@vueuse/core';
-import { computed, nextTick, ref, useId } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue';
+import { useRouter } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import SkeletonBlock from '@/components/common/SkeletonBlock.vue';
 import VirtualList from '@/components/common/VirtualList.vue';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { NotificationItem } from '@/types';
 import { focusFirstElement, focusLastElement, moveFocus } from '@/utils/a11y';
+import { sanitizeInternalRouteTarget } from '@/utils/navigationSafety';
 
 const notificationsStore = useNotificationsStore();
-const NOTIFICATION_ROW_HEIGHT = 116;
+const router = useRouter();
+const emit = defineEmits<{
+  (event: 'open-change', isOpen: boolean): void;
+}>();
+const NOTIFICATION_ROW_HEIGHT = 136;
 const NOTIFICATION_VIEWPORT_HEIGHT = 384;
 const isOpen = ref(false);
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -140,8 +158,9 @@ function focusPanelBoundary(position: 'first' | 'last'): void {
 async function openMenu(position: 'none' | 'first' | 'last' = 'none'): Promise<void> {
   if (!isOpen.value) {
     isOpen.value = true;
+    emit('open-change', true);
     if (!notificationsStore.hasLoaded && !notificationsStore.loading) {
-      void notificationsStore.fetchNotifications();
+      void notificationsStore.fetchNotifications().catch(() => undefined);
     }
     await nextTick();
   }
@@ -157,6 +176,7 @@ function closeMenu(options: { restoreFocus?: boolean } = {}): void {
   }
 
   isOpen.value = false;
+  emit('open-change', false);
 
   if (options.restoreFocus) {
     void nextTick(() => {
@@ -238,12 +258,45 @@ function toNotification(value: unknown): NotificationItem {
   return value as NotificationItem;
 }
 
-async function markRead(notification: NotificationItem) {
-  if (notification.isRead) {
-    return;
-  }
+function openInbox(): void {
+  closeMenu();
+  router.push('/notifications').catch(() => undefined);
+}
 
-  await notificationsStore.markRead(notification.id);
+async function markAllRead(): Promise<void> {
+  try {
+    await notificationsStore.markAllRead();
+  } catch {
+    // Store state exposes the user-facing error; keep async click handlers contained.
+  }
+}
+
+async function openNotification(notification: NotificationItem) {
+  try {
+    const updatedNotification = notification.isRead
+      ? notification
+      : (await notificationsStore.markRead(notification.id)) ?? notification;
+
+    const actionUrl = sanitizeInternalRouteTarget(updatedNotification.actionUrl || notification.actionUrl, '');
+    if (actionUrl) {
+      closeMenu();
+      await router.push(actionUrl).catch(() => undefined);
+    }
+  } catch {
+    // Store state exposes the user-facing error; keep async click handlers contained.
+  }
+}
+
+function isFriendRequest(notification: NotificationItem): boolean {
+  return notification.type === 'friend.request' || notification.templateKey === 'friend.request';
+}
+
+async function performRequestAction(notification: NotificationItem, action: 'accept_friend_request' | 'decline_friend_request') {
+  try {
+    await notificationsStore.performAction(notification.id, action);
+  } catch {
+    // Store state exposes the user-facing error; keep async click handlers contained.
+  }
 }
 
 function formatRelativeDate(value: string): string {
@@ -264,11 +317,18 @@ function formatRelativeDate(value: string): string {
 onClickOutside(dropdownRef, () => {
   closeMenu();
 });
+
+onBeforeUnmount(() => {
+  if (isOpen.value) {
+    emit('open-change', false);
+  }
+});
 </script>
 
 <style scoped>
 .notification-dropdown {
   position: relative;
+  z-index: var(--z-notification);
 }
 
 .notification-toggle {
@@ -352,7 +412,7 @@ onClickOutside(dropdownRef, () => {
   padding: var(--space-5);
   display: grid;
   gap: var(--space-4);
-  z-index: var(--z-dropdown);
+  z-index: var(--z-notification);
 }
 
 .notification-menu:focus-visible {
@@ -369,6 +429,13 @@ onClickOutside(dropdownRef, () => {
 
 .notification-menu__header > div {
   min-width: 0;
+}
+
+.notification-menu__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .eyebrow {
@@ -398,7 +465,8 @@ onClickOutside(dropdownRef, () => {
   border: 0;
 }
 
-.link-button {
+.link-button,
+.inbox-link-button {
   border: 0;
   background: transparent;
   color: var(--accent-teal);
@@ -407,7 +475,8 @@ onClickOutside(dropdownRef, () => {
   white-space: nowrap;
 }
 
-.link-button:focus-visible {
+.link-button:focus-visible,
+.inbox-link-button:focus-visible {
   outline: 2px solid var(--input-focus);
   outline-offset: 3px;
   border-radius: var(--radius-md);
@@ -427,30 +496,51 @@ onClickOutside(dropdownRef, () => {
 .notification-row,
 .notification-skeleton-row {
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  column-gap: var(--space-4);
-  align-items: flex-start;
   padding: var(--space-4);
-  border: 0;
   background: var(--bg-secondary);
   text-align: left;
 }
 
 .notification-row {
   height: calc(100% - var(--space-2));
-  cursor: pointer;
+  display: grid;
+  gap: var(--space-3);
 }
 
 .notification-skeleton-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: var(--space-4);
+  align-items: flex-start;
   min-height: calc(116px - var(--space-2));
 }
 
 .notification-row:hover,
-.notification-row:focus-visible {
+.notification-row:focus-within {
   border-color: var(--accent-teal);
   box-shadow: var(--shadow-glow-teal);
   outline: none;
+}
+
+.notification-row__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: var(--space-4);
+  align-items: flex-start;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-row__main:focus-visible,
+.notification-action:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
 }
 
 .notification-row__copy,
@@ -495,6 +585,59 @@ onClickOutside(dropdownRef, () => {
   height: 0.55rem;
   border-radius: var(--radius-full);
   background: var(--accent-teal);
+}
+
+.notification-row__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.notification-action {
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  padding: 0.45rem 0.75rem;
+}
+
+.notification-action--primary {
+  border-color: var(--accent-teal);
+  background: var(--accent-teal);
+  color: var(--text-inverse);
+}
+
+.notification-dropdown-empty-state {
+  min-height: 12rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+}
+
+.notification-dropdown-empty-state h4,
+.notification-dropdown-empty-state p {
+  margin: 0;
+}
+
+.notification-dropdown-empty-state h4 {
+  max-width: 22rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.notification-dropdown-empty-state p:not(.eyebrow) {
+  max-width: 24rem;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-relaxed);
 }
 
 @media (max-width: 34rem) {

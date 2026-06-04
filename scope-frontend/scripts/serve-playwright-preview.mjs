@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 const workspaceRoot = resolve(import.meta.dirname, '..');
 const vueTscCliPath = resolve(workspaceRoot, 'node_modules', 'vue-tsc', 'bin', 'vue-tsc.js');
 const viteCliPath = resolve(workspaceRoot, 'node_modules', 'vite', 'bin', 'vite.js');
+process.env.VITE_SKIP_OPTIONAL_WASM_COPY = process.env.VITE_SKIP_OPTIONAL_WASM_COPY ?? 'true';
 
 function runNodeCommand(scriptPath, argumentsToForward) {
   return new Promise((resolveExit, reject) => {
@@ -28,7 +29,7 @@ async function runBuildStep() {
     process.exit(typecheckResult.code);
   }
 
-  const buildResult = await runNodeCommand(viteCliPath, ['build']);
+  const buildResult = await runNodeCommand(viteCliPath, ['build', '--configLoader', 'runner']);
 
   if (buildResult.code !== 0) {
     process.exit(buildResult.code);
@@ -36,13 +37,18 @@ async function runBuildStep() {
 }
 
 function startPreviewServer() {
-  const previewProcess = spawn(process.execPath, [viteCliPath, 'preview', '--host', '127.0.0.1', '--port', '4173'], {
+  const previewPort = process.env.PLAYWRIGHT_BASE_URL
+    ? new URL(process.env.PLAYWRIGHT_BASE_URL).port || '4173'
+    : '4173';
+  const previewProcess = spawn(process.execPath, [viteCliPath, 'preview', '--configLoader', 'runner', '--host', '127.0.0.1', '--port', previewPort], {
     cwd: workspaceRoot,
     env: process.env,
     stdio: 'inherit',
   });
 
+  let shutdownSignal = null;
   const forwardSignal = (signal) => {
+    shutdownSignal = signal;
     if (!previewProcess.killed) {
       previewProcess.kill(signal);
     }
@@ -54,7 +60,7 @@ function startPreviewServer() {
 
   return new Promise((resolveExit, reject) => {
     previewProcess.on('exit', (code, signal) => {
-      resolveExit({ code: signal ? 1 : code ?? 1, signal });
+      resolveExit({ code: shutdownSignal ? 0 : signal ? 1 : code ?? 1, signal: shutdownSignal ?? signal });
     });
 
     previewProcess.on('error', reject);
@@ -63,9 +69,5 @@ function startPreviewServer() {
 
 await runBuildStep();
 const previewResult = await startPreviewServer();
-
-if (previewResult.signal) {
-  process.kill(process.pid, previewResult.signal);
-}
 
 process.exit(previewResult.code);

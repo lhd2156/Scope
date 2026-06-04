@@ -7,13 +7,18 @@ import type {
   Itinerary,
   MapPoint,
   NotificationItem,
+  NotificationPreference,
   Photo,
   RegisterForm,
   RegisterPayload,
   Review,
+  SpotCategory,
   SpotDetail,
   SpotFormSubmission,
+  SpotPillar,
+  SpotSafetyStatus,
   SpotSummary,
+  SpotVerificationStatus,
   Trip,
   TripMember,
   TripPlannerInput,
@@ -27,8 +32,14 @@ import {
   resolveTripCoverImageUrl,
 } from '@/utils/demoPhotos';
 
-// eslint-disable-next-line no-control-regex
-const CONTROL_CHARACTERS_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
+const CONTROL_CHARACTER_CLASS = [
+  `${String.fromCharCode(0)}-${String.fromCharCode(8)}`,
+  String.fromCharCode(11),
+  String.fromCharCode(12),
+  `${String.fromCharCode(14)}-${String.fromCharCode(31)}`,
+  `${String.fromCharCode(127)}-${String.fromCharCode(159)}`,
+].join('');
+const CONTROL_CHARACTERS_REGEX = new RegExp(`[${CONTROL_CHARACTER_CLASS}]`, 'g');
 const INLINE_WHITESPACE_REGEX = /[^\S\n]+/g;
 const MULTIPLE_NEWLINES_REGEX = /\n{3,}/g;
 const RELATIVE_URL_REGEX = /^(?:\.{1,2}\/|\/)[^\s]*$/;
@@ -44,6 +55,34 @@ const DEFAULT_FEED_TITLE = 'Scope activity';
 const DEFAULT_NOTIFICATION_TITLE = 'Scope update';
 const DEFAULT_NOTIFICATION_BODY = 'A new Scope update is available.';
 const DEFAULT_WEATHER_FORECAST = 'Forecast pending.';
+const DEFAULT_SPOT_CATEGORY: SpotCategory = 'other';
+const SPOT_CATEGORIES = new Set<SpotCategory>([
+  'food',
+  'nature',
+  'nightlife',
+  'culture',
+  'adventure',
+  'shopping',
+  'entertainment',
+  'scenic',
+  'other',
+]);
+const SPOT_PILLARS = new Set<SpotPillar>([
+  'hidden-gem',
+  'photo-worthy',
+  'date-night',
+  'group-friendly',
+  'solo-friendly',
+  'family-friendly',
+  'budget-friendly',
+  'worth-the-drive',
+  'quick-stop',
+  'calm',
+  'lively',
+  'luxury-feel',
+]);
+const SPOT_VERIFICATION_STATUSES = new Set<SpotVerificationStatus>(['legacy', 'unverified', 'verified', 'rejected']);
+const SPOT_SAFETY_STATUSES = new Set<SpotSafetyStatus>(['legacy', 'clean', 'blocked']);
 const HANDLE_DISPLAY_NAME_REPAIRS: Record<string, string> = {
   louisdo: 'Louis Do',
 };
@@ -57,9 +96,87 @@ interface SpotSanitizerOptions {
   allowGeneratedReviewAvatars?: boolean;
 }
 
+type SpotWireVisibility = {
+  isPublic?: unknown;
+  is_public?: unknown;
+};
+
+type SpotWireFields = SpotWireVisibility & {
+  average_rating?: unknown;
+  created_at?: unknown;
+  likes_count?: unknown;
+  photo_url?: unknown;
+  provider_place_address?: unknown;
+  provider_place_id?: unknown;
+  provider_place_name?: unknown;
+  postal_code?: unknown;
+  safety_reason?: unknown;
+  safety_status?: unknown;
+  user_id?: unknown;
+  userId?: unknown;
+  verified_at?: unknown;
+  verification_distance_meters?: unknown;
+  verification_source?: unknown;
+  verification_status?: unknown;
+};
+
+type UserWireFields = Partial<UserProfile> & {
+  avatar_url?: unknown;
+  display_name?: unknown;
+  home_base?: unknown;
+  show_activity_status?: unknown;
+};
+
+type ReviewWireFields = {
+  id?: unknown;
+  spotId?: unknown;
+  spot_id?: unknown;
+  user?: unknown;
+  userId?: unknown;
+  user_id?: unknown;
+  username?: unknown;
+  displayName?: unknown;
+  display_name?: unknown;
+  email?: unknown;
+  avatarUrl?: unknown;
+  avatar_url?: unknown;
+  rating?: unknown;
+  comment?: unknown;
+  createdAt?: unknown;
+  created_at?: unknown;
+  sentimentScore?: unknown;
+  sentiment_score?: unknown;
+};
+
 interface TripSanitizerOptions {
   allowGeneratedMemberAvatars?: boolean;
 }
+
+type TripSpotWireFields = Partial<TripSpot> & {
+  spot?: unknown;
+  spot_id?: unknown;
+  spot_title?: unknown;
+  day_number?: unknown;
+  sort_order?: unknown;
+  ai_reason?: unknown;
+  match_confidence?: unknown;
+};
+
+type TripMemberWireFields = Partial<TripMember> & {
+  user_id?: unknown;
+  userId?: unknown;
+  role?: unknown;
+  display_name?: unknown;
+};
+
+type TripWireFields = Partial<Trip> & {
+  is_public?: unknown;
+  start_date?: unknown;
+  end_date?: unknown;
+  cover_photo_url?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+};
 
 interface FeedSanitizerOptions {
   allowGeneratedActorAvatar?: boolean;
@@ -83,6 +200,10 @@ function optionalSingleLineText(value: string | null | undefined): string | unde
 function optionalMultilineText(value: string | null | undefined): string | undefined {
   const sanitized = sanitizeMultilineText(value);
   return sanitized || undefined;
+}
+
+function optionalWireString(value: unknown): string | undefined {
+  return typeof value === 'string' ? optionalSingleLineText(value) : undefined;
 }
 
 function sanitizeCompactText(value: string | null | undefined): string {
@@ -176,6 +297,18 @@ function sanitizeNonNegativeNumber(value: number | null | undefined, fallback = 
   return Number.isFinite(numericValue) ? Math.max(0, numericValue) : fallback;
 }
 
+function sanitizeOptionalNumber(value: unknown): number | undefined {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+}
+
+function sanitizeOptionalConfidence(value: unknown): number | undefined {
+  const numericValue = sanitizeOptionalNumber(value);
+  return typeof numericValue === 'number'
+    ? Math.min(1, Math.max(0, numericValue))
+    : undefined;
+}
+
 function sanitizeOptionalCoordinate(value: number | null | undefined, minimum: number, maximum: number): number | undefined {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue < minimum || numericValue > maximum) {
@@ -183,6 +316,48 @@ function sanitizeOptionalCoordinate(value: number | null | undefined, minimum: n
   }
 
   return numericValue;
+}
+
+function sanitizeSpotCategory(value: SpotCategory | string | null | undefined): SpotCategory {
+  const category = value as SpotCategory;
+  return SPOT_CATEGORIES.has(category) ? category : DEFAULT_SPOT_CATEGORY;
+}
+
+function sanitizeSpotPillars(value: unknown): SpotPillar[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const pillars: SpotPillar[] = [];
+  value.forEach((item) => {
+    const pillar = sanitizeSingleLineText(item as string | null | undefined) as SpotPillar;
+    if (SPOT_PILLARS.has(pillar) && !pillars.includes(pillar)) {
+      pillars.push(pillar);
+    }
+  });
+  return pillars.slice(0, 4);
+}
+
+function sanitizeSpotVerificationStatus(value: unknown): SpotVerificationStatus | undefined {
+  const status = sanitizeSingleLineText(value as string | null | undefined) as SpotVerificationStatus;
+  return SPOT_VERIFICATION_STATUSES.has(status) ? status : undefined;
+}
+
+function sanitizeSpotSafetyStatus(value: unknown): SpotSafetyStatus | undefined {
+  const status = sanitizeSingleLineText(value as string | null | undefined) as SpotSafetyStatus;
+  return SPOT_SAFETY_STATUSES.has(status) ? status : undefined;
+}
+
+function sanitizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return fallback;
+}
+
+function sanitizeSpotVisibility(spot: SpotWireVisibility): boolean {
+  return sanitizeBoolean(spot.isPublic, sanitizeBoolean(spot.is_public, true));
 }
 
 function sanitizeDisplayName(
@@ -252,6 +427,12 @@ export function sanitizeAuthPayload(payload: AuthPayload): AuthPayload {
     username: username || 'scope-user',
     email: sanitizeEmail(payload.email),
     displayName: sanitizeDisplayName(payload.displayName, { username, email: payload.email }),
+    avatarUrl: sanitizeAvatarUrl(payload.avatarUrl),
+    homeBase: optionalSingleLineText(payload.homeBase),
+    interests: Array.isArray(payload.interests)
+      ? payload.interests.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean)
+      : undefined,
+    showActivityStatus: sanitizeBoolean(payload.showActivityStatus, true),
     accessToken: String(payload.accessToken ?? '').trim(),
     refreshToken: String(payload.refreshToken ?? '').trim(),
   };
@@ -275,13 +456,32 @@ export function sanitizeUserProfile(
     homeBase: optionalSingleLineText(user.homeBase),
     interests: (user.interests ?? []).map((interest) => sanitizeSingleLineText(interest)).filter(Boolean),
     stats: user.stats ? { ...user.stats } : undefined,
+    showActivityStatus: sanitizeBoolean(user.showActivityStatus, true),
   };
 }
 
 export function sanitizePhoto(photo: Photo): Photo {
+  const wirePhoto = photo as Photo & {
+    storageUrl?: unknown;
+    storage_url?: unknown;
+    thumbnailUrl?: unknown;
+    thumbnail_url?: unknown;
+  };
+  const url = typeof photo.url === 'string'
+    ? photo.url
+    : typeof wirePhoto.storageUrl === 'string'
+      ? wirePhoto.storageUrl
+      : typeof wirePhoto.storage_url === 'string'
+        ? wirePhoto.storage_url
+        : typeof wirePhoto.thumbnailUrl === 'string'
+          ? wirePhoto.thumbnailUrl
+          : typeof wirePhoto.thumbnail_url === 'string'
+            ? wirePhoto.thumbnail_url
+            : undefined;
+
   return {
     ...photo,
-    url: sanitizeImageUrl(photo.url) ?? '',
+    url: sanitizeImageUrl(url) ?? '',
     caption: optionalSingleLineText(photo.caption),
   };
 }
@@ -290,10 +490,64 @@ export function sanitizeReview(
   review: Review,
   options: AvatarSanitizerOptions = {},
 ): Review {
+  const source = (review ?? {}) as Partial<Review>;
+  const wireReview = source as ReviewWireFields;
+  const wireUser = wireReview.user && typeof wireReview.user === 'object'
+    ? wireReview.user as UserWireFields
+    : undefined;
+  const userId =
+    optionalWireString(wireUser?.id) ??
+    optionalWireString(wireReview.userId) ??
+    optionalWireString(wireReview.user_id) ??
+    'unknown-reviewer';
+  const username =
+    optionalWireString(wireUser?.username) ??
+    optionalWireString(wireReview.username) ??
+    `traveler-${userId.slice(0, 8)}`;
+  const displayName =
+    optionalWireString(wireUser?.displayName) ??
+    optionalWireString(wireUser?.display_name) ??
+    optionalWireString(wireReview.displayName) ??
+    optionalWireString(wireReview.display_name) ??
+    `Traveler ${userId.slice(0, 8)}`;
+  const email = sanitizeEmail(optionalWireString(wireUser?.email) ?? optionalWireString(wireReview.email)) ?? '';
+  const avatarUrl =
+    optionalWireString(wireUser?.avatarUrl) ??
+    optionalWireString(wireUser?.avatar_url) ??
+    optionalWireString(wireReview.avatarUrl) ??
+    optionalWireString(wireReview.avatar_url);
+  const reviewer: UserProfile = {
+    id: userId,
+    username,
+    email,
+    displayName,
+    avatarUrl,
+    bio: optionalMultilineText(optionalWireString(wireUser?.bio)),
+    homeBase: optionalWireString(wireUser?.homeBase) ?? optionalWireString(wireUser?.home_base),
+    interests: Array.isArray(wireUser?.interests)
+      ? wireUser.interests.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean)
+      : [],
+    stats: wireUser?.stats ? { ...wireUser.stats } : undefined,
+    showActivityStatus: sanitizeBoolean(
+      wireUser?.showActivityStatus,
+      sanitizeBoolean(wireUser?.show_activity_status, true),
+    ),
+  };
+  const createdAt =
+    optionalWireString(wireReview.createdAt) ??
+    optionalWireString(wireReview.created_at) ??
+    '';
+  const sentimentScore = sanitizeOptionalNumber(wireReview.sentimentScore ?? wireReview.sentiment_score);
+
   return {
-    ...review,
-    user: sanitizeUserProfile(review.user, options),
-    comment: sanitizeMultilineText(review.comment),
+    ...source,
+    id: optionalWireString(wireReview.id) ?? '',
+    spotId: optionalWireString(wireReview.spotId) ?? optionalWireString(wireReview.spot_id) ?? '',
+    user: sanitizeUserProfile(reviewer, options),
+    rating: sanitizeOptionalNumber(wireReview.rating) ?? 0,
+    comment: sanitizeMultilineText(optionalWireString(wireReview.comment)),
+    createdAt,
+    sentiment_score: sentimentScore ?? null,
   };
 }
 
@@ -301,6 +555,25 @@ export function sanitizeSpotSummary(
   spot: SpotSummary,
   options: SpotSanitizerOptions = {},
 ): SpotSummary {
+  const wireSpot = spot as SpotSummary & SpotWireFields;
+  const rating = sanitizeOptionalNumber(spot.rating) ?? sanitizeOptionalNumber(wireSpot.average_rating) ?? 0;
+  const likesCount = sanitizeOptionalNumber(spot.likesCount) ?? sanitizeOptionalNumber(wireSpot.likes_count);
+  const category = sanitizeSpotCategory(spot.category);
+  const pillars = sanitizeSpotPillars((spot as SpotSummary & { pillars?: unknown }).pillars);
+  const createdAt = typeof spot.createdAt === 'string'
+    ? spot.createdAt
+    : typeof wireSpot.created_at === 'string'
+      ? wireSpot.created_at
+      : '';
+  const userId = optionalWireString(spot.userId) ?? optionalWireString(wireSpot.user_id);
+  const photoUrl = typeof spot.photoUrl === 'string'
+    ? spot.photoUrl
+    : typeof wireSpot.photo_url === 'string'
+      ? wireSpot.photo_url
+      : undefined;
+  const verificationStatus = sanitizeSpotVerificationStatus(spot.verificationStatus ?? wireSpot.verification_status);
+  const safetyStatus = sanitizeSpotSafetyStatus(spot.safetyStatus ?? wireSpot.safety_status);
+
   return {
     ...spot,
     title: sanitizeSingleLineText(spot.title) || DEFAULT_SPOT_TITLE,
@@ -308,8 +581,29 @@ export function sanitizeSpotSummary(
     address: optionalSingleLineText(spot.address),
     city: optionalSingleLineText(spot.city),
     country: optionalSingleLineText(spot.country),
+    postalCode: optionalSingleLineText(spot.postalCode ?? (typeof wireSpot.postal_code === 'string' ? wireSpot.postal_code : undefined)),
     vibe: optionalSingleLineText(spot.vibe),
-    photoUrl: resolveSpotPhotoUrl(spot.category, sanitizeImageUrl(spot.photoUrl)),
+    category,
+    pillars,
+    rating,
+    createdAt,
+    isPublic: sanitizeSpotVisibility(wireSpot),
+    userId,
+    photoUrl: resolveSpotPhotoUrl(category, sanitizeImageUrl(photoUrl)),
+    likesCount,
+    verificationStatus,
+    verificationSource: optionalSingleLineText(spot.verificationSource ?? (typeof wireSpot.verification_source === 'string' ? wireSpot.verification_source : undefined)),
+    providerPlaceId: optionalSingleLineText(spot.providerPlaceId ?? (typeof wireSpot.provider_place_id === 'string' ? wireSpot.provider_place_id : undefined)),
+    providerPlaceName: optionalSingleLineText(spot.providerPlaceName ?? (typeof wireSpot.provider_place_name === 'string' ? wireSpot.provider_place_name : undefined)),
+    providerPlaceAddress: optionalSingleLineText(spot.providerPlaceAddress ?? (typeof wireSpot.provider_place_address === 'string' ? wireSpot.provider_place_address : undefined)),
+    verificationDistanceMeters: sanitizeOptionalNumber(spot.verificationDistanceMeters ?? wireSpot.verification_distance_meters) ?? null,
+    verifiedAt: typeof spot.verifiedAt === 'string'
+      ? spot.verifiedAt
+      : typeof wireSpot.verified_at === 'string'
+        ? wireSpot.verified_at
+        : null,
+    safetyStatus,
+    safetyReason: optionalSingleLineText(spot.safetyReason ?? (typeof wireSpot.safety_reason === 'string' ? wireSpot.safety_reason : undefined)),
     author: spot.author
       ? sanitizeUserProfile(spot.author, { allowGeneratedAvatar: options.allowGeneratedAuthorAvatar })
       : undefined,
@@ -320,10 +614,13 @@ export function sanitizeSpotDetail(
   spot: SpotDetail,
   options: SpotSanitizerOptions = {},
 ): SpotDetail {
+  const photos = Array.isArray(spot.photos) ? spot.photos : [];
+  const reviews = Array.isArray(spot.reviews) ? spot.reviews : [];
+
   return {
     ...sanitizeSpotSummary(spot, options),
-    photos: spot.photos.map((photo) => sanitizePhoto(photo)),
-    reviews: spot.reviews.map((review) =>
+    photos: photos.map((photo) => sanitizePhoto(photo)),
+    reviews: reviews.map((review) =>
       sanitizeReview(review, { allowGeneratedAvatar: options.allowGeneratedReviewAvatars }),
     ),
   };
@@ -340,13 +637,35 @@ export function sanitizeMapPoint(point: MapPoint): MapPoint {
 }
 
 export function sanitizeTripSpot(spot: TripSpot): TripSpot {
+  const wireSpot = spot as TripSpotWireFields;
+  const spotId = typeof spot.spotId === 'string'
+    ? spot.spotId
+    : typeof wireSpot.spotId === 'string'
+      ? wireSpot.spotId
+      : typeof wireSpot.spot === 'string'
+        ? wireSpot.spot
+        : typeof wireSpot.spot_id === 'string'
+          ? wireSpot.spot_id
+          : '';
+  const latitude = sanitizeOptionalNumber(spot.latitude) ?? sanitizeOptionalNumber(wireSpot.latitude) ?? 0;
+  const longitude = sanitizeOptionalNumber(spot.longitude) ?? sanitizeOptionalNumber(wireSpot.longitude) ?? 0;
+
   return {
     ...spot,
-    title: sanitizeSingleLineText(spot.title) || DEFAULT_SPOT_TITLE,
+    spotId,
+    title: sanitizeSingleLineText(spot.title) || sanitizeSingleLineText(String(wireSpot.spot_title ?? '')) || DEFAULT_SPOT_TITLE,
     timeSlot: optionalSingleLineText(spot.timeSlot),
+    duration: sanitizeOptionalNumber(spot.duration),
+    estimatedCost: sanitizeOptionalNumber(spot.estimatedCost),
     photoUrl: resolveSpotPhotoUrl(spot.category, sanitizeImageUrl(spot.photoUrl)),
     city: optionalSingleLineText(spot.city),
+    latitude,
+    longitude,
+    dayNumber: sanitizeOptionalNumber(spot.dayNumber) ?? sanitizeOptionalNumber(wireSpot.day_number),
     notes: optionalMultilineText(spot.notes),
+    reason: optionalMultilineText(spot.reason) ?? optionalMultilineText(String(wireSpot.ai_reason ?? '')),
+    confidence: sanitizeOptionalConfidence(spot.confidence) ?? sanitizeOptionalConfidence(wireSpot.match_confidence),
+    category: sanitizeSpotCategory(spot.category),
   };
 }
 
@@ -354,17 +673,27 @@ export function sanitizeTripMember(
   member: TripMember,
   options: AvatarSanitizerOptions = {},
 ): TripMember {
+  const wireMember = member as TripMemberWireFields;
+  const memberId = typeof wireMember.user_id === 'string'
+    ? wireMember.user_id
+    : typeof wireMember.userId === 'string'
+      ? wireMember.userId
+      : member.id;
+  const role = optionalSingleLineText(member.status) ?? optionalSingleLineText(String(wireMember.role ?? ''));
   const displayName = sanitizeDisplayName(member.displayName);
   const avatarSeed = member.id || displayName || DEFAULT_DISPLAY_NAME;
 
   return {
     ...member,
-    displayName,
+    id: memberId,
+    displayName: displayName || sanitizeDisplayName(String(wireMember.display_name ?? '')) || `Traveler ${memberId.slice(0, 8)}`,
     avatarUrl: resolveAvatarUrl(sanitizeAvatarUrl(member.avatarUrl, options), avatarSeed),
-    status: optionalSingleLineText(member.status),
+    status: role,
     inviteStatus: member.inviteStatus === 'pending' || member.inviteStatus === 'accepted'
       ? member.inviteStatus
-      : undefined,
+      : typeof wireMember.role === 'string'
+        ? 'accepted'
+        : undefined,
     presence: member.presence === 'active' || member.presence === 'viewing' || member.presence === 'offline'
       ? member.presence
       : undefined,
@@ -375,9 +704,9 @@ export function sanitizeItinerary(itinerary: Itinerary): Itinerary {
   return {
     ...itinerary,
     destination: sanitizeSingleLineText(itinerary.destination) || DEFAULT_DESTINATION,
-    days: itinerary.days.map((day) => ({
+    days: (Array.isArray(itinerary.days) ? itinerary.days : []).map((day) => ({
       ...day,
-      spots: day.spots.map((spot) => sanitizeTripSpot(spot)),
+      spots: (Array.isArray(day.spots) ? day.spots : []).map((spot) => sanitizeTripSpot(spot)),
     })),
     weatherForecast: sanitizeSingleLineText(itinerary.weatherForecast) || DEFAULT_WEATHER_FORECAST,
   };
@@ -387,20 +716,33 @@ export function sanitizeTrip(
   trip: Trip,
   options: TripSanitizerOptions = {},
 ): Trip {
-  const sanitizedSpots = trip.spots.map((spot) => sanitizeTripSpot(spot));
+  const wireTrip = trip as TripWireFields;
+  const tripSpots = Array.isArray(trip.spots) ? trip.spots : [];
+  const tripMembers = Array.isArray(trip.members) ? trip.members : [];
+  const sanitizedSpots = tripSpots.map((spot) => sanitizeTripSpot(spot));
+  const coverImageUrl = typeof trip.coverImageUrl === 'string'
+    ? trip.coverImageUrl
+    : typeof wireTrip.cover_photo_url === 'string'
+      ? wireTrip.cover_photo_url
+      : undefined;
 
   return {
     ...trip,
     title: sanitizeSingleLineText(trip.title) || DEFAULT_TRIP_TITLE,
     destination: sanitizeSingleLineText(trip.destination) || DEFAULT_DESTINATION,
     description: optionalMultilineText(trip.description),
+    isPublic: sanitizeBoolean(trip.isPublic, sanitizeBoolean(wireTrip.is_public, true)),
+    startDate: typeof trip.startDate === 'string' ? trip.startDate : typeof wireTrip.start_date === 'string' ? wireTrip.start_date : '',
+    endDate: typeof trip.endDate === 'string' ? trip.endDate : typeof wireTrip.end_date === 'string' ? wireTrip.end_date : '',
+    createdAt: typeof trip.createdAt === 'string' ? trip.createdAt : typeof wireTrip.created_at === 'string' ? wireTrip.created_at : undefined,
+    updatedAt: typeof trip.updatedAt === 'string' ? trip.updatedAt : typeof wireTrip.updated_at === 'string' ? wireTrip.updated_at : undefined,
     spots: sanitizedSpots,
-    members: trip.members.map((member) =>
+    members: tripMembers.map((member) =>
       sanitizeTripMember(member, { allowGeneratedAvatar: options.allowGeneratedMemberAvatars }),
     ),
     itinerary: trip.itinerary ? sanitizeItinerary(trip.itinerary) : undefined,
     coverImageUrl: resolveTripCoverImageUrl({
-      coverImageUrl: sanitizeImageUrl(trip.coverImageUrl),
+      coverImageUrl: sanitizeImageUrl(coverImageUrl),
       spots: sanitizedSpots,
     }),
   };
@@ -423,11 +765,102 @@ export function sanitizeFeedItem(
 }
 
 export function sanitizeNotificationItem(item: NotificationItem): NotificationItem {
+  const wireItem = item as NotificationItem & {
+    action_url?: unknown;
+    actor_user_id?: unknown;
+    archived_at?: unknown;
+    created_at?: unknown;
+    expires_at?: unknown;
+    group_key?: unknown;
+    is_read?: unknown;
+    metadata_json?: unknown;
+    priority?: unknown;
+    read_at?: unknown;
+    reference_id?: unknown;
+    reference_type?: unknown;
+    source_event_id?: unknown;
+    template_key?: unknown;
+    template_version?: unknown;
+  };
+  const createdAt = typeof item.createdAt === 'string'
+    ? item.createdAt
+    : typeof wireItem.created_at === 'string'
+      ? wireItem.created_at
+      : '';
+
   return {
     ...item,
     title: sanitizeSingleLineText(item.title) || DEFAULT_NOTIFICATION_TITLE,
     body: sanitizeMultilineText(item.body) || DEFAULT_NOTIFICATION_BODY,
     type: sanitizeSingleLineText(item.type) || 'general',
+    isRead: sanitizeBoolean(item.isRead, sanitizeBoolean(wireItem.is_read, false)),
+    createdAt,
+    templateKey: optionalSingleLineText(item.templateKey ?? (typeof wireItem.template_key === 'string' ? wireItem.template_key : undefined)),
+    templateVersion: sanitizeOptionalNumber(item.templateVersion ?? wireItem.template_version),
+    category: optionalSingleLineText(item.category) ?? 'general',
+    priority: optionalSingleLineText(item.priority ?? (typeof wireItem.priority === 'string' ? wireItem.priority : undefined)) ?? 'normal',
+    actionUrl: sanitizeRelativeAppPath(item.actionUrl ?? (typeof wireItem.action_url === 'string' ? wireItem.action_url : undefined)),
+    actorUserId: optionalSingleLineText(item.actorUserId ?? (typeof wireItem.actor_user_id === 'string' ? wireItem.actor_user_id : undefined)) ?? null,
+    referenceType: optionalSingleLineText(item.referenceType ?? (typeof wireItem.reference_type === 'string' ? wireItem.reference_type : undefined)) ?? null,
+    referenceId: optionalSingleLineText(item.referenceId ?? (typeof wireItem.reference_id === 'string' ? wireItem.reference_id : undefined)) ?? null,
+    sourceEventId: optionalSingleLineText(item.sourceEventId ?? (typeof wireItem.source_event_id === 'string' ? wireItem.source_event_id : undefined)) ?? null,
+    groupKey: optionalSingleLineText(item.groupKey ?? (typeof wireItem.group_key === 'string' ? wireItem.group_key : undefined)) ?? null,
+    metadataJson: typeof item.metadataJson === 'string'
+      ? item.metadataJson
+      : typeof wireItem.metadata_json === 'string'
+        ? wireItem.metadata_json
+        : null,
+    readAt: typeof item.readAt === 'string'
+      ? item.readAt
+      : typeof wireItem.read_at === 'string'
+        ? wireItem.read_at
+        : null,
+    expiresAt: typeof item.expiresAt === 'string'
+      ? item.expiresAt
+      : typeof wireItem.expires_at === 'string'
+        ? wireItem.expires_at
+        : null,
+    archivedAt: typeof item.archivedAt === 'string'
+      ? item.archivedAt
+      : typeof wireItem.archived_at === 'string'
+        ? wireItem.archived_at
+        : null,
+  };
+}
+
+function sanitizeRelativeAppPath(value: string | null | undefined): string | undefined {
+  const sanitized = sanitizeCompactText(value);
+  if (!sanitized || !sanitized.startsWith('/') || sanitized.startsWith('//')) {
+    return undefined;
+  }
+
+  return sanitized;
+}
+
+export function sanitizeNotificationPreference(preference: NotificationPreference): NotificationPreference {
+  const wirePreference = preference as NotificationPreference & {
+    digest_cadence?: unknown;
+    email_enabled?: unknown;
+    in_app_enabled?: unknown;
+    push_enabled?: unknown;
+    quiet_hours_end_minutes?: unknown;
+    quiet_hours_start_minutes?: unknown;
+    time_zone_id?: unknown;
+    user_id?: unknown;
+  };
+
+  return {
+    ...preference,
+    id: optionalSingleLineText(preference.id),
+    userId: optionalSingleLineText(preference.userId ?? (typeof wirePreference.user_id === 'string' ? wirePreference.user_id : undefined)),
+    category: sanitizeSingleLineText(preference.category) || 'general',
+    inAppEnabled: sanitizeBoolean(preference.inAppEnabled, sanitizeBoolean(wirePreference.in_app_enabled, true)),
+    pushEnabled: sanitizeBoolean(preference.pushEnabled, sanitizeBoolean(wirePreference.push_enabled, true)),
+    emailEnabled: sanitizeBoolean(preference.emailEnabled, sanitizeBoolean(wirePreference.email_enabled, false)),
+    digestCadence: sanitizeSingleLineText(preference.digestCadence ?? (typeof wirePreference.digest_cadence === 'string' ? wirePreference.digest_cadence : undefined)) || 'daily',
+    quietHoursStartMinutes: sanitizeOptionalNumber(preference.quietHoursStartMinutes ?? wirePreference.quiet_hours_start_minutes) ?? null,
+    quietHoursEndMinutes: sanitizeOptionalNumber(preference.quietHoursEndMinutes ?? wirePreference.quiet_hours_end_minutes) ?? null,
+    timeZoneId: sanitizeSingleLineText(preference.timeZoneId ?? (typeof wirePreference.time_zone_id === 'string' ? wirePreference.time_zone_id : undefined)) || 'UTC',
   };
 }
 
@@ -438,6 +871,8 @@ export function sanitizeFriendConnection(
   return {
     ...connection,
     user: sanitizeUserProfile(connection.user, { allowGeneratedAvatar: options.allowGeneratedUserAvatar }),
+    presence: sanitizeFriendPresence(connection.presence),
+    coverPhotoUrl: sanitizeImageUrl(connection.coverPhotoUrl),
     nextAdventure: optionalSingleLineText(connection.nextAdventure),
   };
 }
@@ -453,6 +888,12 @@ export function sanitizeFriendRequest(
   };
 }
 
+function sanitizeFriendPresence(value: string | undefined): FriendConnection['presence'] {
+  return value === 'planning' || value === 'online' || value === 'idle' || value === 'offline' || value === 'hidden'
+    ? value
+    : 'offline';
+}
+
 export function sanitizeSpotFormSubmission(submission: SpotFormSubmission): SpotFormSubmission {
   const sanitizedTitle = sanitizeSingleLineText(submission.spot.title) || DEFAULT_SPOT_TITLE;
 
@@ -464,7 +905,16 @@ export function sanitizeSpotFormSubmission(submission: SpotFormSubmission): Spot
       address: sanitizeSingleLineText(submission.spot.address),
       city: sanitizeSingleLineText(submission.spot.city),
       country: sanitizeSingleLineText(submission.spot.country).toUpperCase(),
+      postalCode: optionalSingleLineText(submission.spot.postalCode),
+      pillars: sanitizeSpotPillars(submission.spot.pillars),
       vibe: sanitizeSingleLineText(submission.spot.vibe),
+      providerPlaceId: optionalSingleLineText(submission.spot.providerPlaceId),
+      providerPlaceName: optionalSingleLineText(submission.spot.providerPlaceName),
+      providerPlaceAddress: optionalSingleLineText(submission.spot.providerPlaceAddress),
+      verificationStatus: sanitizeSpotVerificationStatus(submission.spot.verificationStatus),
+      verificationSource: optionalSingleLineText(submission.spot.verificationSource),
+      verificationDistanceMeters: sanitizeOptionalNumber(submission.spot.verificationDistanceMeters),
+      verifiedAt: optionalSingleLineText(submission.spot.verifiedAt),
     },
     existingPhotos: submission.existingPhotos.map((photo) => ({
       ...sanitizePhoto(photo),

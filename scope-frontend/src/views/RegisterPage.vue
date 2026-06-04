@@ -177,6 +177,7 @@ import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
 import { validateRegisterForm, type RegisterFormErrors } from '@/utils/authValidators';
 import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
+import { sanitizeInternalRouteTarget } from '@/utils/navigationSafety';
 
 const registerHighlights = [
   'Drop pins with real photos',
@@ -204,8 +205,7 @@ const route = useRoute();
 const router = useRouter();
 
 function resolveRedirectTarget() {
-  const redirectTarget = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-  return redirectTarget || '/map';
+  return sanitizeInternalRouteTarget(route.query.redirect, '/map');
 }
 
 // After account creation we always walk new explorers through the
@@ -371,7 +371,7 @@ async function registerWithGoogle() {
 }
 
 .auth-form__row--birthday-phone {
-  grid-template-columns: minmax(9.25rem, 0.64fr) minmax(0, 1.36fr);
+  grid-template-columns: minmax(13.25rem, 0.86fr) minmax(13rem, 1.14fr);
 }
 
 .auth-form__consent {

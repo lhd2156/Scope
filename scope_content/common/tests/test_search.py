@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,6 +51,26 @@ class TestSearchView:
         request = rf.get('/api/content/search?q=test&type=spots')
         response = SearchView.as_view()(request)
         assert response.status_code == 200
+        body = mock_es.search.call_args.kwargs['body']
+        assert {'term': {'is_public': True}} in body['query']['bool']['filter']
+
+    def test_search_filters_non_public_hits_returned_by_stale_indexes(self, rf, mock_es):
+        mock_es.search.return_value = {
+            'hits': {
+                'total': {'value': 2},
+                'hits': [
+                    {'_source': {'id': 'private', 'name': 'Hidden Spot', 'is_public': False}, '_score': 3.0},
+                    {'_source': {'id': 'public', 'name': 'Shared Spot', 'is_public': True}, '_score': 1.5},
+                ],
+            }
+        }
+        request = rf.get('/api/content/search?q=spot&type=spots')
+        response = SearchView.as_view()(request)
+        body = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert body['total'] == 1
+        assert [entry['id'] for entry in body['results']] == ['public']
 
     def test_es_unavailable_returns_503(self, rf):
         with patch('common.views_search.get_es_client', return_value=None):
@@ -79,3 +100,5 @@ class TestGeoSearchView:
         request = rf.get('/api/content/search/nearby?lat=40.7128&lon=-74.006&radius=5km')
         response = GeoSearchView.as_view()(request)
         assert response.status_code == 200
+        body = mock_es.search.call_args.kwargs['body']
+        assert {'term': {'is_public': True}} in body['query']['bool']['filter']

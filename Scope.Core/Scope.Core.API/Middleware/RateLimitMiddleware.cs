@@ -21,8 +21,22 @@ public sealed class RateLimitMiddleware(
     IOptions<RateLimitOptions> options,
     IServiceProvider services)
 {
+    private static readonly HashSet<string> StrictAuthPaths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/api/core/auth/register",
+        "/api/core/auth/login",
+        "/api/core/auth/password-reset/request",
+        "/api/core/auth/password-reset/complete",
+        "/api/core/auth/email/verify",
+        "/api/core/auth/email/verify/send",
+        "/api/core/auth/mfa/enroll",
+        "/api/core/auth/mfa/enroll/confirm",
+        "/api/core/auth/mfa/disable",
+    };
+
     private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> GlobalRequests = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> AuthRequests = new();
+    private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> RefreshRequests = new();
 
     private readonly RateLimitOptions limits = options.Value;
     private readonly TimeSpan window = TimeSpan.FromSeconds(options.Value.WindowSeconds);
@@ -36,10 +50,17 @@ public sealed class RateLimitMiddleware(
         }
 
         var key = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var isAuth = context.Request.Path.StartsWithSegments("/api/core/auth");
+        var isRefresh = context.Request.Path.Equals("/api/core/auth/refresh", StringComparison.OrdinalIgnoreCase);
+        var isStrictAuth = IsStrictAuthPath(context.Request.Path);
         var redis = services.GetService<IConnectionMultiplexer>();
 
-        if (isAuth && !await PermitAsync(redis, AuthRequests, $"auth:{key}", limits.AuthLimit))
+        if (isRefresh && !await PermitAsync(redis, RefreshRequests, $"auth-refresh:{key}", limits.RefreshLimit))
+        {
+            await WriteLimited(context);
+            return;
+        }
+
+        if (isStrictAuth && !await PermitAsync(redis, AuthRequests, $"auth:{key}", limits.AuthLimit))
         {
             await WriteLimited(context);
             return;
@@ -52,6 +73,9 @@ public sealed class RateLimitMiddleware(
 
         await next(context);
     }
+
+    private static bool IsStrictAuthPath(PathString path)
+        => StrictAuthPaths.Contains(path.Value ?? string.Empty);
 
     private async Task<bool> PermitAsync(
         IConnectionMultiplexer? redis,

@@ -13,7 +13,15 @@ vi.mock('@/services/api', () => ({
 
 describe('agentService', () => {
   beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
+    vi.stubEnv('VITE_ENABLE_AGENT_LOCAL_FALLBACK', 'true');
     apiPostMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('returns the live agent response when the API succeeds', async () => {
@@ -31,9 +39,10 @@ describe('agentService', () => {
       start_date: '2026-05-08',
     });
 
-    expect(apiPostMock).toHaveBeenCalledWith('/api/intel/agent/plan-trip', {
+    expect(apiPostMock).toHaveBeenCalledWith('/api/intel/agent/trip-chat', {
       prompt: 'Plan a quick route',
       start_date: '2026-05-08',
+      responseMode: 'json',
     }, {
       timeout: 120_000,
     });
@@ -76,6 +85,23 @@ describe('agentService', () => {
     expect(response.itinerary).toContain('$500 - $1,500');
     expect(response.itinerary).not.toContain('Verdict');
     expect(response.itinerary).not.toContain('Request failed with status code 500');
+  });
+
+  it('rejects agent outages in production mode without the local fallback flag', async () => {
+    vi.stubEnv('VITE_ENABLE_AGENT_LOCAL_FALLBACK', 'false');
+    const outage = {
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    };
+    apiPostMock.mockRejectedValue(outage);
+
+    const { planTrip } = await import('@/services/agentService');
+
+    await expect(planTrip({
+      prompt: 'Plan a quick route',
+      start_date: '2026-05-08',
+    })).rejects.toBe(outage);
   });
 
   it('falls back to the local copilot when the route agent endpoint is not mounted', async () => {
@@ -133,6 +159,43 @@ describe('agentService', () => {
     expect(response.itinerary).toContain('I can build that');
     expect(response.itinerary).toContain('What are your interests');
     expect(response.itinerary).not.toContain('- What');
+    expect(response.itinerary).not.toContain('Request failed with status code 500');
+  });
+
+  it('builds a concise constraint-aware local itinerary when the brief is complete', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Dallas, TX',
+        'End: San Antonio, TX',
+        'Dates: 2026-06-01 to 2026-06-01',
+        'Budget: $400 - $900',
+        '',
+        'Traveler request: Build a relaxed 3 day entertainment and food itinerary for my family',
+      ].join('\n'),
+      start_date: '2026-06-01',
+    });
+
+    expect(response.model).toBe('scope-local-copilot');
+    expect(response.itinerary).toContain('concise 3-day plan');
+    expect(response.itinerary).toContain('Plan guardrails');
+    expect(response.itinerary).toContain('Pace: relaxed');
+    expect(response.itinerary).toContain('Vibes: food or entertainment');
+    expect(response.itinerary).toContain('Travelers: family');
+    expect(response.itinerary).toContain('one verified entertainment anchor');
+    expect(response.itinerary).toContain('Verify before commit');
+    expect(response.itinerary).toContain('hours, tickets, reservations');
+    expect(response.itinerary).toContain('Scope does not fake venues');
+    expect(response.itinerary).not.toContain('What kind of trip should this feel like');
     expect(response.itinerary).not.toContain('Request failed with status code 500');
   });
 
@@ -217,6 +280,78 @@ describe('agentService', () => {
     }
   });
 
+  it('answers a new budget follow-up instead of hijacking it with a pending itinerary question', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Cr E0270, Goltry',
+        'End: I 49, Mansfield',
+        'Dates: 2026-05-08 to 2026-05-08',
+        'Budget: $100 - $300',
+        'Pace: relaxed',
+        '',
+        'Recent chat:',
+        'User: Build the itinerary from Cr E0270, Goltry to I 49, Mansfield',
+        'Scope AI: I can build that. How many days should I plan for?',
+        '',
+        'Traveler request: Keep this plan inside $100 - $300',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.model).toBe('scope-local-copilot');
+    expect(response.itinerary).toContain('inside $100 - $300');
+    expect(response.itinerary).toContain('Your next move');
+    expect(response.itinerary).not.toContain('How many days should I plan for?');
+    expect(response.itinerary).not.toContain('What kind of trip should this feel like');
+    expect(response.itinerary).not.toContain('Day 1');
+  });
+
+  it('does not revive a canceled itinerary question for later budget follow-ups', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Sterling City, Texas',
+        'End: 233 Baptist Church Road, Cuero',
+        'Dates: 2026-05-08 to 2026-05-08',
+        'Budget: $500 - $1,500',
+        'Pace: relaxed',
+        '',
+        'Recent chat:',
+        'User: Build the itinerary from Sterling City, Texas to 233 Baptist Church Road, Cuero',
+        'Scope AI: I can build that. How many days should I plan for?',
+        'User: Cancel this build',
+        'Scope AI: No problem. I stopped that itinerary build. Ask me to build again when the route brief is ready.',
+        '',
+        'Traveler request: Keep this plan inside $500 - $1,500',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.model).toBe('scope-local-copilot');
+    expect(response.itinerary).toContain('inside $500 - $1,500');
+    expect(response.itinerary).not.toContain('How many days');
+    expect(response.itinerary).not.toContain('stopped that itinerary build');
+  });
+
   it('changes the local copilot angle when the same topic repeats', async () => {
     apiPostMock.mockRejectedValue({
       status: 500,
@@ -281,6 +416,77 @@ describe('agentService', () => {
     expect(response.itinerary).toContain('Your weekend shape');
     expect(response.itinerary).toContain('I would');
     expect(response.itinerary).not.toContain('For Oklahoma City, OK to Dexter, NM: Suggest a simple weekend route');
+  });
+
+  it('answers specific planner topics with intent-matched local fallback guidance', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: relaxed',
+      'Interests: scenic, food',
+      'Stops:',
+      '1. Waco coffee break',
+      '2. Austin dinner',
+      '',
+    ];
+    const cases = [
+      {
+        request: 'tighten these stops',
+        expected: ['Cut without overthinking it', 'Waco coffee break'],
+      },
+      {
+        request: 'find a midpoint stop on the way',
+        expected: ['A midpoint is worth adding', 'Budget guardrail for you'],
+      },
+      {
+        request: 'where should we eat dinner',
+        expected: ['For food', 'restrooms'],
+      },
+      {
+        request: 'what about rain or weather',
+        expected: ['weather plan', 'live forecast'],
+      },
+      {
+        request: 'is this safe late at night',
+        expected: ['feel safe', 'daylight'],
+      },
+      {
+        request: 'planning for family travelers and friends',
+        expected: ['For a group', 'shared costs'],
+      },
+      {
+        request: 'look at this photo and tell me if it fits',
+        expected: ['vision-enabled agent', 'trip context'],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const response = await planTrip({
+        prompt: [
+          ...basePrompt,
+          `Traveler request: ${testCase.request}`,
+        ].join('\n'),
+        start_date: '2026-05-08',
+      });
+
+      expect(response.model, testCase.request).toBe('scope-local-copilot');
+      for (const expectedText of testCase.expected) {
+        expect(response.itinerary, testCase.request).toContain(expectedText);
+      }
+      expect(response.itinerary, testCase.request).not.toContain('Say that a little more specifically');
+    }
   });
 
   it('keeps blank-route answers written for the traveler instead of showing filler route text', async () => {
@@ -897,6 +1103,447 @@ describe('agentService', () => {
     expect(response.itinerary).not.toContain('Vibe: scenic');
   });
 
+  it('changes repeated budget checks into fresh budget guidance instead of reusing the first answer', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'End: Austin, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        'Pace: balanced',
+        'Interests: food, culture',
+        '',
+        'Recent chat:',
+        'User: Keep this plan inside budget',
+        'Scope AI: For you: I would treat $500 - $1,500 as the guardrail.',
+        '',
+        'Traveler request: Keep this plan inside budget',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.model).toBe('scope-local-copilot');
+    expect(response.itinerary).toContain('same budget again');
+    expect(response.itinerary).toContain('$500 - $1,500');
+    expect(response.itinerary).not.toContain('Verdict');
+  });
+
+  it('answers broad suggestion prompts with a next-decision framework instead of a vague clarification', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'End: Austin, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        'Pace: balanced',
+        'Interests: food, culture',
+        '',
+        'Traveler request: Suggest a route idea I should do next',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.itinerary).toContain('keep your next step narrow');
+    expect(response.itinerary).toContain('What I would add for you');
+    expect(response.itinerary).toContain('One food or culture stop');
+    expect(response.itinerary).not.toContain('Say that a little more specifically');
+  });
+
+  it('keeps common conversational local fallback intents concise and route-aware', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: balanced',
+      'Interests: food, culture',
+      '',
+    ];
+    const cases = [
+      { request: 'thanks', expected: 'tune the route' },
+      { request: 'ok', expected: 'Got you' },
+      { request: 'bye', expected: 'keep working on the trip' },
+      { request: 'what context do you have', expected: 'Fort Worth, TX to Austin, TX' },
+      { request: 'is this private', expected: 'Optional analytics' },
+    ];
+
+    for (const testCase of cases) {
+      const response = await planTrip({
+        prompt: [
+          ...basePrompt,
+          `Traveler request: ${testCase.request}`,
+        ].join('\n'),
+        start_date: '2026-05-08',
+      });
+
+      expect(response.model, testCase.request).toBe('scope-local-copilot');
+      expect(response.itinerary, testCase.request).toContain(testCase.expected);
+      expect(response.itinerary, testCase.request).not.toContain('Ask me one of these');
+      expect(response.itinerary, testCase.request).not.toContain('For you:');
+    }
+  });
+
+  it('routes crisis language to immediate support instead of planner advice', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Budget: $500 - $1,500',
+        'Pace: relaxed',
+        '',
+        'Traveler request: I might hurt myself',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.itinerary).toMatch(/emergency services|988|immediate/i);
+    expect(response.itinerary).not.toContain('route canvas');
+    expect(response.itinerary).not.toContain('For you:');
+  });
+
+  it('continues pending itinerary brief questions when the traveler answers one missing field', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'End: Austin, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        '',
+        'Recent chat:',
+        'User: Build the itinerary',
+        'Scope AI: What pace should I use: relaxed, balanced, or packed?',
+        '',
+        'Traveler request: relaxed',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.itinerary).toContain('Got it.');
+    expect(response.itinerary).toContain('What are your interests');
+    expect(response.itinerary).not.toContain('How many days should I plan for?');
+  });
+
+  it('handles start-city questions when only one endpoint is already known', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const startOnly = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        'Pace: relaxed',
+        '',
+        'Traveler request: Is this a good start city?',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+    const endOnly = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'End: Austin, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        'Pace: relaxed',
+        '',
+        'Traveler request: Help me choose a strong start city',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(startOnly.itinerary).toContain('test Fort Worth, TX as your start');
+    expect(startOnly.itinerary).toContain('Add the finish city');
+    expect(endOnly.itinerary).toContain('getting to Austin, TX easy');
+    expect(endOnly.itinerary).toContain('Tell me where you are coming from');
+  });
+
+  it('passes abort signals through to the live route agent request', async () => {
+    apiPostMock.mockResolvedValue({
+      data: {
+        itinerary: 'Live itinerary',
+        steps: 4,
+        model: 'scope-live',
+      },
+    });
+    const controller = new AbortController();
+
+    const { planTrip } = await import('@/services/agentService');
+    await planTrip({
+      prompt: 'Plan a clean route',
+      start_date: '2026-05-08',
+    }, {
+      signal: controller.signal,
+    });
+
+    expect(apiPostMock).toHaveBeenCalledWith('/api/intel/agent/trip-chat', {
+      prompt: 'Plan a clean route',
+      start_date: '2026-05-08',
+      responseMode: 'json',
+    }, {
+      timeout: 120_000,
+      signal: controller.signal,
+    });
+  });
+
+  it('uses the local fallback for retryable API failures beyond 404 and 500', async () => {
+    const retryableErrors = [
+      { isNetworkError: true, message: 'Network Error' },
+      { status: undefined, message: 'No response status' },
+      { status: 401, message: 'Unauthorized' },
+      { status: 403, message: 'Forbidden' },
+    ];
+    for (const error of retryableErrors) {
+      apiPostMock.mockRejectedValueOnce(error);
+    }
+
+    const { planTrip } = await import('@/services/agentService');
+
+    for (const error of retryableErrors) {
+      const response = await planTrip({
+        prompt: [
+          'Help refine this Scope trip draft.',
+          '',
+          'Current draft:',
+          'Start: Fort Worth, TX',
+          'End: Austin, TX',
+          'Dates: 2026-05-08 to 2026-05-10',
+          'Budget: $500 - $1,500',
+          'Pace: balanced',
+          'Interests: food, culture',
+          '',
+          'Traveler request: How can you help?',
+        ].join('\n'),
+        start_date: '2026-05-08',
+      });
+
+      expect(response.model, String(error.status)).toBe('scope-local-copilot');
+      expect(response.itinerary, String(error.status)).toContain('trip copilot');
+      expect(response.itinerary, String(error.status)).not.toContain(error.message);
+    }
+  });
+
+  it('covers the remaining conversational fallback guardrails without leaking planner templates', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: balanced',
+      'Interests: food, culture',
+      '',
+    ];
+    const cases = [
+      { request: 'how are you', expected: 'ready' },
+      { request: 'who am i', expected: 'do not have your profile name' },
+      { request: 'who are you', expected: 'Scope AI' },
+      { request: 'where am I', expected: 'current device location' },
+      { request: 'where is?', expected: 'real-world place' },
+      { request: 'are you religious', expected: 'do not have a sexual orientation' },
+      { request: 'i love you', expected: 'professional' },
+    ];
+
+    for (const testCase of cases) {
+      const response = await planTrip({
+        prompt: [
+          ...basePrompt,
+          `Traveler request: ${testCase.request}`,
+        ].join('\n'),
+        start_date: '2026-05-08',
+      });
+
+      expect(response.itinerary, testCase.request).toContain(testCase.expected);
+      expect(response.itinerary, testCase.request).not.toContain('For you:');
+      expect(response.itinerary, testCase.request).not.toContain('Ask me one of these');
+    }
+  });
+
+  it('routes topic fallbacks through concrete route-planning answers', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: balanced',
+      'Interests: food, culture',
+      'Stops:',
+      "1. Buc-ee's Temple",
+      '2. Mayfield Park',
+      '',
+    ];
+    const cases = [
+      { request: 'Can you tighten this route again?', expected: 'Keep only what helps you', recent: ['User: Can you tighten this route again?'] },
+      { request: 'Can you check timing again?', expected: 'total wheel time', recent: ['User: Can you check timing again?'] },
+      { request: 'Where should we stop halfway?', expected: 'A midpoint is worth adding' },
+      { request: 'Give me a simple weekend direction', expected: 'simple balanced weekend direction' },
+      { request: 'Where should we eat dinner?', expected: 'For food' },
+      { request: 'Will rain mess up the drive?', expected: 'weather plan' },
+      { request: 'Is this safe at night?', expected: 'feel safe' },
+      { request: 'Traveling with a family group with kids', expected: 'For a group' },
+      { request: 'Look at this attached photo for the trip', expected: 'use images as trip context' },
+    ];
+
+    for (const testCase of cases) {
+      const response = await planTrip({
+        prompt: [
+          ...basePrompt,
+          ...(testCase.recent ? ['Recent chat:', ...testCase.recent, ''] : []),
+          `Traveler request: ${testCase.request}`,
+        ].join('\n'),
+        start_date: '2026-05-08',
+      });
+
+      expect(response.itinerary, testCase.request).toContain(testCase.expected);
+      expect(response.itinerary, testCase.request).not.toContain('Request failed');
+    }
+  });
+
+  it('answers app-help fallbacks for image uploads and route canvas setup', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const imageHelp = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Budget: $500 - $1,500',
+        'Pace: balanced',
+        '',
+        'Traveler request: How do I upload a photo in the chat bar?',
+      ].join('\n'),
+    });
+    const routeHelp = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Budget: $500 - $1,500',
+        'Pace: balanced',
+        '',
+        'Traveler request: How do I use the route canvas to add start and end?',
+      ].join('\n'),
+    });
+
+    expect(imageHelp.itinerary).toContain('image button in the chat bar');
+    expect(imageHelp.itinerary).toContain('Pick one or more images');
+    expect(routeHelp.itinerary).toContain('Use the route canvas first');
+    expect(routeHelp.itinerary).toContain('Add a start point');
+  });
+
+  it('stops honoring a canceled pending itinerary brief', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'End: Austin, TX',
+        'Dates: 2026-05-08 to 2026-05-10',
+        'Budget: $500 - $1,500',
+        '',
+        'Recent chat:',
+        'User: Build the itinerary',
+        'Scope AI: How many days should I plan for?',
+        'User: cancel this itinerary build',
+        '',
+        'Traveler request: relaxed',
+      ].join('\n'),
+      start_date: '2026-05-08',
+    });
+
+    expect(response.itinerary).not.toContain('Got it.');
+    expect(response.itinerary).not.toContain('How many days should I plan for?');
+    expect(response.itinerary).toContain('Pace: relaxed');
+  });
+
   it('keeps client validation errors visible instead of falling back', async () => {
     const badRequest = {
       status: 400,
@@ -908,5 +1555,253 @@ describe('agentService', () => {
     const { planTrip } = await import('@/services/agentService');
 
     await expect(planTrip({ prompt: '' })).rejects.toBe(badRequest);
+  });
+
+  it('uses fresh-angle replies after every canned greeting, thanks, and vague fallback was already used', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: balanced',
+      '',
+    ];
+
+    const greeting = await planTrip({
+      prompt: [
+        ...basePrompt,
+        'Recent chat:',
+        'User: hey',
+        'Scope AI: Hey, I am here. Tell me what you want to check on this route and I will keep it clear.',
+        'User: hey',
+        'Scope AI: Still here with Fort Worth, TX to Austin, TX. What do you want me to look at first?',
+        'User: hey',
+        'Scope AI: I am here with the route. Send the piece that feels off and I will answer it directly.',
+        'User: hey',
+        'Scope AI: Yep, I am awake on this one. Give me the route, app, timing, or budget piece.',
+        '',
+        'Traveler request: hey',
+      ].join('\n'),
+    });
+    const thanks = await planTrip({
+      prompt: [
+        ...basePrompt,
+        'Recent chat:',
+        'User: thanks',
+        'Scope AI: Anytime. I am here when you want to tune the route, check timing, or sanity-check a stop.',
+        'User: thanks',
+        'Scope AI: Of course. When you want the next pass, I can help tighten timing, stops, or budget.',
+        'User: thanks',
+        'Scope AI: You got it. Send the next route detail and I will keep the answer focused.',
+        'User: thanks',
+        'Scope AI: No problem. I can keep working the route whenever you want another angle.',
+        '',
+        'Traveler request: thanks',
+      ].join('\n'),
+    });
+    const unclear = await planTrip({
+      prompt: [
+        ...basePrompt,
+        'Recent chat:',
+        'User: blue',
+        'Scope AI: I am with you. Say that a little more specifically and I will answer the exact thing instead of guessing.',
+        'User: blue',
+        'Scope AI: Give me a little more to grab onto: route, app, stop, timing, budget, or place.',
+        'User: blue',
+        'Scope AI: I need one more word of direction before I guess wrong. What part are we talking about?',
+        'User: blue',
+        'Scope AI: Say what you want checked and I will keep the answer tight.',
+        '',
+        'Traveler request: blue',
+      ].join('\n'),
+    });
+
+    expect(greeting.itinerary).toContain('Fresh angle 5');
+    expect(greeting.itinerary).toContain('I will not echo the same greeting back');
+    expect(thanks.itinerary).toContain('Fresh angle 5');
+    expect(thanks.itinerary).toContain('move from thanks into action');
+    expect(unclear.itinerary).toContain('Fresh angle 5');
+    expect(unclear.itinerary).toContain('I will not repeat the same wording');
+  });
+
+  it('continues each pending itinerary brief question only when the latest reply answers that question', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const prompts = [
+      {
+        question: 'How many days should I plan for?',
+        reply: '3',
+        next: 'what are your interests',
+      },
+      {
+        question: 'What are your interests for this trip?',
+        reply: 'food, museums, and parks',
+        next: 'who are you traveling',
+      },
+      {
+        question: 'What pace should I use: relaxed, balanced, or packed?',
+        reply: 'packed',
+        next: 'what are your interests',
+      },
+      {
+        question: 'Who is coming with you: solo, a couple, a group, or family?',
+        reply: 'family with kids',
+        next: 'what are your interests',
+      },
+    ];
+
+    for (const scenario of prompts) {
+      const response = await planTrip({
+        prompt: [
+          'Help refine this Scope trip draft.',
+          '',
+          'Current draft:',
+          'Start: Fort Worth, TX',
+          'End: Austin, TX',
+          'Dates: 2026-05-08 to 2026-05-10',
+          'Budget: $500 - $1,500',
+          'Pace: balanced',
+          '',
+          'Recent chat:',
+          'User: Build the itinerary',
+          `Scope AI: I can build that. ${scenario.question}`,
+          '',
+          `Traveler request: ${scenario.reply}`,
+        ].join('\n'),
+      });
+
+      expect(response.itinerary.toLowerCase(), scenario.question).toContain(scenario.next);
+    }
+  });
+
+  it('uses the repeat midpoint answer after route-stop advice has already been requested', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 500,
+      message: 'Request failed with status code 500',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const response = await planTrip({
+      prompt: [
+        'Help refine this Scope trip draft.',
+        '',
+        'Current draft:',
+        'Start: Fort Worth, TX',
+        'End: Austin, TX',
+        'Budget: $500 - $1,500',
+        'Pace: balanced',
+        'Interests: scenic, food',
+        '',
+        'Recent chat:',
+        'User: where should the midpoint stop be',
+        'Scope AI: A midpoint is worth adding only if it makes your drive easier.',
+        '',
+        'Traveler request: where should the midpoint stop be',
+      ].join('\n'),
+    });
+
+    expect(response.itinerary).toContain('I would choose your midpoint by what it does for you');
+    expect(response.itinerary).toContain('scenic or food stop');
+  });
+
+  it('covers local conversational fallback intents without surfacing backend outage text', async () => {
+    apiPostMock.mockRejectedValue({
+      status: 503,
+      message: 'Request failed with status code 503',
+      isNetworkError: false,
+    });
+
+    const { planTrip } = await import('@/services/agentService');
+    const basePrompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Dates: 2026-05-08 to 2026-05-10',
+      'Budget: $500 - $1,500',
+      'Pace: relaxed',
+      'Interests: scenic, food',
+      '',
+    ];
+    const requests = [
+      'how are you',
+      'ok',
+      'bye',
+      'this is confusing and broken',
+      'who am i',
+      'who are you',
+      'what do you remember about my draft',
+      'do you store my data',
+      'where am i',
+      'where is Mount Bonnell',
+      'what can you do',
+      'tell me about legal advice',
+      'explain quantum mechanics?',
+      'send nudes',
+      'are you dating anyone',
+      'fuck you',
+      'I want to hurt myself',
+    ];
+
+    for (const travelerRequest of requests) {
+      const response = await planTrip({
+        prompt: [
+          ...basePrompt,
+          `Traveler request: ${travelerRequest}`,
+        ].join('\n'),
+      });
+
+      expect(response.model, travelerRequest).toBe('scope-local-copilot');
+      expect(response.itinerary, travelerRequest).toEqual(expect.any(String));
+      expect(response.itinerary, travelerRequest).not.toContain('Request failed');
+    }
+  });
+
+  it('uses every local fallback outage shape and rejects non-API errors', async () => {
+    const { planTrip } = await import('@/services/agentService');
+    const prompt = [
+      'Help refine this Scope trip draft.',
+      '',
+      'Current draft:',
+      'Start: Fort Worth, TX',
+      'End: Austin, TX',
+      'Traveler request: Check timing',
+    ].join('\n');
+
+    for (const outage of [
+      { status: 401, isNetworkError: false },
+      { status: 403, isNetworkError: false },
+      { status: undefined, isNetworkError: false },
+      { status: 418, isNetworkError: true },
+    ]) {
+      apiPostMock.mockRejectedValueOnce({
+        ...outage,
+        message: 'agent unavailable',
+      });
+      await expect(planTrip({ prompt })).resolves.toMatchObject({
+        model: 'scope-local-copilot',
+      });
+    }
+
+    const nonApiError = new Error('plain failure');
+    apiPostMock.mockRejectedValueOnce(nonApiError);
+    await expect(planTrip({ prompt })).rejects.toBe(nonApiError);
   });
 });

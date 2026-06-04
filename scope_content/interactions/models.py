@@ -6,7 +6,7 @@ from django.db import models
 class Interaction(models.Model):
     """Append-only ledger of user<->spot interactions.
 
-    Written by `POST /api/content/interactions`. The frontend logs events here
+    Written by `POST /api/content/interactions/`. The frontend logs events here
     (view, click, dismiss, save, share). A Kafka event (`interaction.recorded`)
     is fanned out so Intel can mirror the row into `intel.UserInteractions`
     and learn from it. Keep this table append-only so offline replay works.

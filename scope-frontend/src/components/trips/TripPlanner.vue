@@ -4,15 +4,18 @@
     data-test="trip-planner"
     data-onboarding-target="planner-shell"
     :data-planner-mode="mobileWizard ? 'mobile-wizard' : 'desktop'"
+    novalidate
     @submit.prevent="handleSubmit"
   >
-    <header class="planner-header">
+    <header class="planner-header" :data-header-mode="mobileWizard ? 'full' : 'compact'">
       <div class="planner-copy">
         <p class="eyebrow">Route builder</p>
-        <h2>{{ displayTripTitle }}</h2>
-        <p class="section-copy">
-          Set the brief and route here. Scope AI uses this same draft to build the live itinerary in the copilot beside it.
-        </p>
+        <template v-if="mobileWizard">
+          <h2>{{ displayTripTitle }}</h2>
+          <p class="section-copy">
+            Set the brief and route here. The trip guide uses this same draft to build the live itinerary preview.
+          </p>
+        </template>
       </div>
     </header>
 
@@ -37,7 +40,7 @@
 
       <div id="planner-step-1-content" class="planner-step-content" data-test="planner-step-1-content" v-show="!mobileWizard || isWizardStepActive(1)">
         <section class="planner-grid">
-          <article class="planner-card glass-panel">
+          <article class="planner-card planner-card--pillar glass-panel" data-test="planner-core-brief-card">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Core brief</p>
@@ -141,7 +144,7 @@
                     type="text"
                     maxlength="120"
                     autocomplete="street-address"
-                    placeholder="Optional final address, city, or landmark"
+                    placeholder="Final address, city, or landmark"
                     aria-autocomplete="list"
                     :aria-expanded="String(shouldShowLocationSuggestions('endDestination'))"
                     aria-controls="end-destination-suggestions"
@@ -184,8 +187,14 @@
                   <span v-else-if="locationSuggestions.endDestination.error" class="location-status">{{ locationSuggestions.endDestination.error }}</span>
                   <span v-else-if="locationSuggestions.endDestination.results.length === 0" class="location-status">Keep typing a more exact place.</span>
                 </div>
-                <small class="field-hint">Optional. Scope will route toward it when set.</small>
+                <small class="field-hint">Add it now or before the start point. Scope will keep both endpoints in sync.</small>
+                <small v-if="errors.endDestination" class="field-error">{{ errors.endDestination }}</small>
               </div>
+
+              <p v-if="showRouteEmptyHint" class="planner-empty-hint field-full" data-test="planner-empty-hint">
+                <ScopeIcon name="pin" label="Route hint" />
+                <span>Add a start or end place to drop the first pin. The route preview will update from there.</span>
+              </p>
 
               <div class="field field-full traveler-field">
                 <span>Travelers</span>
@@ -225,7 +234,7 @@
             </div>
           </article>
 
-          <article class="planner-card glass-panel budget-card">
+          <article class="planner-card planner-card--pillar glass-panel budget-card">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Budget range</p>
@@ -345,6 +354,149 @@
             <p class="budget-helper">Total trip spend before splitting with travelers.</p>
             <small v-if="errors.budget" class="field-error">{{ errors.budget }}</small>
           </article>
+
+          <section class="planner-sidebar-tools" aria-label="Road trip tools">
+            <article class="planner-tool-card planner-tool-card--weather" data-test="trip-weather-card">
+              <header class="planner-tool-header">
+                <span class="eyebrow">Weather snapshot</span>
+                <strong>Origin + destination</strong>
+              </header>
+
+              <div v-if="weatherSnapshots.length" class="weather-snapshot-grid">
+                <article
+                  v-for="snapshot in weatherSnapshots"
+                  :key="snapshot.id"
+                  class="weather-snapshot"
+                  :class="getWeatherSnapshotClass(snapshot)"
+                >
+                  <div class="weather-snapshot__hero">
+                    <div class="weather-snapshot__visual" aria-hidden="true">
+                      <ScopeIcon :name="getWeatherSnapshotIcon(snapshot)" />
+                    </div>
+                    <div class="weather-snapshot__copy">
+                      <span class="weather-snapshot__location" :title="snapshot.label">{{ formatWeatherLocationLabel(snapshot.label) }}</span>
+                      <strong>{{ formatWeatherTemperature(snapshot.temperatureF) }}</strong>
+                      <small>{{ snapshot.condition }}</small>
+                    </div>
+                  </div>
+
+                  <dl class="weather-snapshot__stats">
+                    <div>
+                      <dt>Wind</dt>
+                      <dd>{{ formatWeatherWind(snapshot.windMph) }}</dd>
+                    </div>
+                    <div v-if="snapshot.airQuality">
+                      <dt>AQI</dt>
+                      <dd>{{ formatWeatherAirQuality(snapshot.airQuality) }}</dd>
+                    </div>
+                  </dl>
+
+                  <footer class="weather-snapshot__footer">
+                    <span class="weather-snapshot__source">{{ formatWeatherProvider(snapshot) }}</span>
+                    <span v-if="getWeatherCheckedTimestamp(snapshot)" class="weather-snapshot__time">Checked {{ formatWeatherCheckedAt(getWeatherCheckedTimestamp(snapshot)) }}</span>
+                    <span v-if="snapshot.isStale" class="weather-snapshot__flag">Stale</span>
+                    <span v-if="isFallbackWeatherSnapshot(snapshot)" class="weather-snapshot__flag">Fallback</span>
+                  </footer>
+                </article>
+              </div>
+              <p v-else class="planner-tool-state" :data-state="weatherState">{{ weatherStatusCopy }}</p>
+            </article>
+
+            <article class="planner-tool-card planner-tool-card--packing" data-test="trip-packing-card">
+              <header class="planner-tool-header">
+                <span class="eyebrow">Packing checklist</span>
+                <strong>{{ packingProgressLabel }}</strong>
+              </header>
+
+              <div class="packing-list" role="list">
+                <label
+                  v-for="item in packingItems"
+                  :key="item.id"
+                  class="packing-item"
+                  :class="{ checked: item.checked }"
+                  role="listitem"
+                >
+                  <input type="checkbox" :checked="item.checked" @change="togglePackingItem(item.id)" />
+                  <span>{{ item.label }}</span>
+                  <button
+                    v-if="item.custom"
+                    type="button"
+                    :aria-label="`Remove ${item.label}`"
+                    @click.prevent="removePackingItem(item.id)"
+                  >
+                    <ScopeIcon name="close" label="Remove packing item" />
+                  </button>
+                </label>
+              </div>
+
+              <form class="packing-add-form" @submit.prevent="addPackingItem">
+                <input v-model.trim="newPackingItemLabel" type="text" maxlength="60" placeholder="Add item" aria-label="Add packing item" />
+                <button type="submit" :disabled="!newPackingItemLabel">
+                  <ScopeIcon name="plus" label="Add packing item" />
+                </button>
+              </form>
+            </article>
+
+            <article ref="fuelCardRef" class="planner-tool-card planner-tool-card--fuel" data-test="trip-fuel-card">
+              <header class="planner-tool-header">
+                <span class="eyebrow">Fuel cost calculator</span>
+                <strong>{{ fuelSettingsSummary }}</strong>
+              </header>
+
+              <div class="fuel-type-selector" role="group" aria-label="Fuel tank type" data-test="fuel-type-selector">
+                <button
+                  v-for="option in fuelTypeOptions"
+                  :key="option.id"
+                  type="button"
+                  class="fuel-type-selector__option"
+                  :class="{ active: selectedFuelType === option.id }"
+                  :aria-pressed="String(selectedFuelType === option.id)"
+                  :data-test="`fuel-type-option-${option.id}`"
+                  @click="selectFuelType(option.id)"
+                >
+                  <ScopeIcon :name="option.icon" label="" />
+                  <span>{{ option.label }}</span>
+                </button>
+              </div>
+
+              <div class="fuel-input-grid">
+                <label class="field">
+                  <span>MPG</span>
+                  <div class="input-shell">
+                    <input
+                      v-model="fuelMpgInput"
+                      type="text"
+                      inputmode="decimal"
+                      maxlength="8"
+                      autocomplete="off"
+                      placeholder="Vehicle MPG"
+                      data-test="fuel-mpg-input"
+                      ref="fuelMpgFieldRef"
+                      @input="emitFuelSettings"
+                    />
+                  </div>
+                  <small v-if="fuelMpgError" class="field-error" data-test="fuel-mpg-error">{{ fuelMpgError }}</small>
+                </label>
+
+                <label class="field">
+                  <span>Gas price</span>
+                  <div class="input-shell">
+                    <input
+                      v-model="fuelGasPriceInput"
+                      type="text"
+                      inputmode="decimal"
+                      maxlength="8"
+                      autocomplete="off"
+                      placeholder="$ / gal"
+                      data-test="fuel-price-input"
+                      @input="emitFuelSettings"
+                    />
+                  </div>
+                  <small v-if="fuelGasPriceError" class="field-error" data-test="fuel-price-error">{{ fuelGasPriceError }}</small>
+                </label>
+              </div>
+            </article>
+          </section>
         </section>
 
         <div v-if="mobileWizard" class="planner-step-actions">
@@ -355,7 +507,7 @@
       </div>
     </section>
 
-    <section v-if="mobileWizard || hasRouteStops" class="planner-step-shell" :data-step-state="getWizardStepState(2)">
+    <section v-if="mobileWizard" class="planner-step-shell" :data-step-state="getWizardStepState(2)">
       <button
         v-if="mobileWizard"
         type="button"
@@ -379,7 +531,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Route order</p>
-              <h3>Stops Scope AI should sequence</h3>
+              <h3>Stops the guide should sequence</h3>
             </div>
             <button type="button" class="button button-secondary add-stop-button" data-test="trip-add-stop" @click="handleAddSuggestedStop">
               <ScopeIcon name="plus" label="Add suggested stop" />
@@ -404,7 +556,7 @@
           </div>
 
           <p class="section-copy stop-copy">
-            Add or reorder stops here. Scope AI will use this list, then tighten timing in the live preview.
+            Add or reorder stops here. The guide will use this list, then tighten timing in the live preview.
           </p>
 
           <div class="stop-list" data-test="trip-stop-list" role="list">
@@ -491,7 +643,7 @@
 
       <div id="planner-step-3-content" class="planner-step-content" data-test="planner-step-3-content" v-show="!mobileWizard || isWizardStepActive(3)">
         <section class="planner-grid planner-grid--secondary">
-          <article class="planner-card glass-panel">
+          <article class="planner-card planner-card--pillar glass-panel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Pace</p>
@@ -515,18 +667,18 @@
             </div>
           </article>
 
-          <article class="planner-card glass-panel">
+          <article class="planner-card planner-card--pillar glass-panel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Interests</p>
-                <h3>Pick the trip vibes</h3>
+                <h3>Trip style</h3>
               </div>
-              <span class="meta-pill">{{ form.interests.length }} selected</span>
+              <span class="meta-pill">{{ interestsMetaLabel }}</span>
             </div>
 
             <div class="chip-grid">
               <button
-                v-for="category in categories"
+                v-for="category in visibleInterestCategories"
                 :key="category"
                 type="button"
                 class="interest-chip"
@@ -543,15 +695,18 @@
                 <span>{{ categoryLabels[category] }}</span>
               </button>
             </div>
+            <small v-if="!form.interests.length" class="field-hint interest-empty-hint" data-test="trip-interest-empty-hint">
+              Optional. Scope starts from the route and your stops; vibes only nudge the mix.
+            </small>
             <small v-if="errors.interests" class="field-error">{{ errors.interests }}</small>
           </article>
         </section>
 
         <footer class="planner-footer" :class="{ 'planner-footer--mobile': mobileWizard }">
           <div class="planner-footer-copy">
-            <span class="eyebrow">Scope AI handoff</span>
+            <span class="eyebrow">Scope trip guide</span>
             <strong>{{ destinationLabel }}</strong>
-            <small>Send this route to Scope AI to build timing, sequence the stops, and refresh the preview. {{ interestsLabel }}</small>
+            <small>{{ guideHandoffCopy }} {{ interestsLabel }}</small>
           </div>
 
           <div class="planner-footer-actions">
@@ -559,11 +714,16 @@
               Back to route
             </button>
             <button class="submit-button" data-test="trip-planner-submit" data-onboarding-target="planner-submit" type="submit" :disabled="submitting">
-              <ScopeIcon name="sparkle" label="Hand off to Scope AI" />
-              <span>{{ submitting ? 'Scope AI is building...' : 'Hand Off to Scope AI' }}</span>
+              <span>{{ submitting ? 'Guide is building...' : 'Build with Trip Guide' }}</span>
             </button>
           </div>
+
+          <small class="planner-footer-learning-note" data-test="trip-ai-learning-note">
+            {{ learningNote }}
+          </small>
+
         </footer>
+
       </div>
     </section>
   </form>
@@ -582,11 +742,20 @@ import {
   TRIP_PLANNER_PACE_OPTIONS as paceOptions,
 } from '@/config/tripPlannerConfig';
 import { searchLocations, type GeocodeResult, type PlaceSearchResult } from '@/services/mapService';
-import type { SpotCategory, TripPlannerInput, TripSpot } from '@/types';
+import {
+  canLoadOpenWeatherMapWeather,
+  getOpenWeatherMapSnapshot,
+  type WeatherLookupPoint,
+  type WeatherSnapshot,
+} from '@/services/openWeatherMapService';
+import type { SpotCategory, TripFuelSettings, TripFuelType, TripPlannerInput, TripSpot } from '@/types';
 import { getInclusiveDaySpan } from '@/utils/formatters';
+import { useAnalyticsConsent } from '@/utils/analyticsConsent';
+import { getWeatherSnapshotClassName, getWeatherSnapshotIconName } from '@/utils/weatherDisplay';
 
 interface PlannerErrors {
   destination?: string;
+  endDestination?: string;
   startDate?: string;
   endDate?: string;
   budget?: string;
@@ -596,6 +765,14 @@ interface PlannerErrors {
 
 type PlannerWizardStep = 1 | 2 | 3 | 4;
 type LocationFieldKey = 'destination' | 'endDestination';
+type WeatherState = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'missing-key';
+
+interface PackingChecklistItem {
+  id: string;
+  label: string;
+  checked: boolean;
+  custom?: boolean;
+}
 
 interface LocationSearchAnchor {
   latitude: number;
@@ -622,6 +799,8 @@ const props = withDefaults(
     mobileWizard?: boolean;
     mobileActiveStep?: PlannerWizardStep;
     locationSearchProximity?: LocationSearchAnchor;
+    fuelSettings?: TripFuelSettings;
+    packingChecklistScope?: string;
   }>(),
   {
     initialValue: () => ({}),
@@ -634,6 +813,8 @@ const props = withDefaults(
     mobileWizard: false,
     mobileActiveStep: 1 as PlannerWizardStep,
     locationSearchProximity: undefined,
+    fuelSettings: () => ({}),
+    packingChecklistScope: 'draft:standalone',
   },
 );
 
@@ -642,17 +823,52 @@ const emit = defineEmits<{
   (event: 'update:draft', payload: TripPlannerInput): void;
   (event: 'update:stops', payload: TripSpot[]): void;
   (event: 'update:title', payload: string): void;
+  (event: 'update:fuel-settings', payload: TripFuelSettings): void;
   (event: 'wizard-step-change', payload: PlannerWizardStep): void;
 }>();
+
+const { consent } = useAnalyticsConsent();
+const learningNote = computed(() =>
+  consent.value === 'granted'
+    ? 'AI learning is on: opted-in chats and planner outcomes can help train future Scope AI trips.'
+    : 'AI learning is off: chats stay private from Scope AI training until the user opts in.',
+);
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 0,
 });
+const weatherCheckedAtFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+});
 const LOCATION_SEARCH_DEBOUNCE_MS = 260;
 const LOCATION_MIN_QUERY_LENGTH = 3;
 const BUDGET_STEP_AMOUNT = 100;
+const WEATHER_REFRESH_KEY_DEBOUNCE_MS = 200;
+const WEATHER_REFRESH_INTERVAL_MS = 120_000;
+const PACKING_CHECKLIST_STORAGE_KEY_PREFIX = 'scope-trip-planner-packing-checklist';
+const PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX = 'draft:';
+const FUEL_MPG_MIN = 1;
+const FUEL_MPG_MAX = 200;
+const FUEL_GAS_PRICE_MIN = 0.01;
+const FUEL_GAS_PRICE_MAX = 20;
+const fuelTypeOptions: Array<{ id: TripFuelType; label: string; icon: string }> = [
+  { id: 'regular', label: 'Regular', icon: 'fuel' },
+  { id: 'midgrade', label: 'Midgrade', icon: 'fuel' },
+  { id: 'premium', label: 'Premium', icon: 'fuel' },
+  { id: 'diesel', label: 'Diesel', icon: 'fuel' },
+  { id: 'ev', label: 'EV', icon: 'fuel' },
+];
+const DEFAULT_PACKING_ITEMS: PackingChecklistItem[] = [
+  { id: 'license-registration', label: 'Driver license and registration', checked: false },
+  { id: 'chargers-cables', label: 'Phone chargers and cables', checked: false },
+  { id: 'water-snacks', label: 'Water and road snacks', checked: false },
+  { id: 'first-aid', label: 'First aid kit', checked: false },
+  { id: 'sunglasses', label: 'Sunglasses', checked: false },
+  { id: 'emergency-kit', label: 'Emergency roadside kit', checked: false },
+];
 
 const errors = ref<PlannerErrors>({});
 const resolvedBudgetBounds = computed(() => normalizeBudgetRange(props.budgetRange));
@@ -660,11 +876,22 @@ const resolvedSelectedStops = computed(() => (props.selectedStops.length ? props
 const form = reactive<TripPlannerInput>(buildFormState(props.initialValue));
 const tripTitle = ref(props.initialTitle.trim() || buildTripTitle(props.initialValue.destination));
 const budgetCeiling = ref(resolveBudgetCeiling(props.initialValue, resolvedBudgetBounds.value));
-const budgetFloor = ref(resolveBudgetFloor(props.initialValue, resolvedBudgetBounds.value, budgetCeiling.value));
+const budgetFloor = ref(resolveBudgetFloor(props.initialValue, resolvedBudgetBounds.value));
 const budgetFloorInput = ref<HTMLInputElement | null>(null);
 const budgetCeilingInput = ref<HTMLInputElement | null>(null);
 const destinationStops = ref<TripSpot[]>(normalizeStops(resolvedSelectedStops.value));
 const destinationSearch = ref('');
+const weatherSnapshots = ref<WeatherSnapshot[]>([]);
+const weatherState = ref<WeatherState>('idle');
+const weatherErrorMessage = ref('');
+const weatherRequestId = ref(0);
+const packingItems = ref<PackingChecklistItem[]>(loadPackingChecklist(getPackingChecklistStorageKey()));
+const newPackingItemLabel = ref('');
+const fuelMpgInput = ref(formatFuelInputValue(props.fuelSettings.mpg));
+const fuelGasPriceInput = ref(formatFuelInputValue(props.fuelSettings.gasPricePerGallon));
+const selectedFuelType = ref<TripFuelType>(normalizeTripFuelType(props.fuelSettings.fuelType));
+const fuelCardRef = ref<HTMLElement | null>(null);
+const fuelMpgFieldRef = ref<HTMLInputElement | null>(null);
 const draggingStopId = ref<string | null>(null);
 const dropTargetStopId = ref<string | null>(null);
 const locationSuggestions = reactive<Record<LocationFieldKey, LocationSuggestionState>>({
@@ -695,13 +922,14 @@ const locationRequestIds: Record<LocationFieldKey, number> = {
   destination: 0,
   endDestination: 0,
 };
+let weatherRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => props.initialValue,
   (nextValue) => {
     Object.assign(form, buildFormState(nextValue));
     budgetCeiling.value = resolveBudgetCeiling(nextValue, resolvedBudgetBounds.value);
-    budgetFloor.value = resolveBudgetFloor(nextValue, resolvedBudgetBounds.value, budgetCeiling.value);
+    budgetFloor.value = resolveBudgetFloor(nextValue, resolvedBudgetBounds.value);
     normalizeBudgetInputs();
 
     if (!props.initialTitle.trim()) {
@@ -715,7 +943,7 @@ watch(
   () => props.initialTitle,
   (nextTitle) => {
     const normalizedTitle = nextTitle.trim();
-    if (normalizedTitle && normalizedTitle !== tripTitle.value) {
+    if (normalizedTitle !== tripTitle.value.trim()) {
       tripTitle.value = normalizedTitle;
     }
   },
@@ -749,6 +977,142 @@ const dailyBudget = computed(() => Math.round(budgetCeiling.value / Math.max(tri
 const paceLabel = computed(() => paceOptions.find((option) => option.value === form.pace)?.label ?? 'Moderate');
 const displayTripTitle = computed(() => tripTitle.value.trim() || 'New trip');
 
+function getLocationSegments(label: string): string[] {
+  return label
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function getLocationRegionHint(label: string): string {
+  const segments = getLocationSegments(label);
+  if (/\d/.test(segments[0] ?? '')) {
+    return segments.length > 2 ? segments.slice(2).join(', ') : '';
+  }
+
+  return segments.length > 1 ? segments.slice(1).join(', ') : '';
+}
+
+function getLikelyCityLabel(label: string): string {
+  const segments = getLocationSegments(label);
+  if (segments.length <= 1) {
+    return label.trim();
+  }
+
+  const lastSegment = segments[segments.length - 1] ?? '';
+  const firstSegment = segments[0] ?? '';
+  if (/\d/.test(firstSegment)) {
+    return segments.length > 2 ? segments[segments.length - 2] ?? lastSegment : lastSegment;
+  }
+
+  return firstSegment;
+}
+
+function buildWeatherSearchLabels(label: string, pairedLabel: string): string[] {
+  const cityLabel = getLikelyCityLabel(label);
+  const regionHint = getLocationRegionHint(label) || getLocationRegionHint(pairedLabel);
+  const labels = [
+    regionHint && cityLabel ? `${cityLabel}, ${regionHint}` : '',
+    cityLabel,
+  ];
+  const seenLabels = new Set<string>();
+
+  return labels.filter((candidate) => {
+    const normalizedCandidate = candidate.trim().toLowerCase();
+    if (!normalizedCandidate || normalizedCandidate === label.trim().toLowerCase() || seenLabels.has(normalizedCandidate)) {
+      return false;
+    }
+
+    seenLabels.add(normalizedCandidate);
+    return true;
+  });
+}
+
+const weatherLookupPoints = computed<WeatherLookupPoint[]>(() => {
+  const points: WeatherLookupPoint[] = [];
+  const originLabel = form.destination.trim();
+  const destinationLabelValue = form.endDestination?.trim() ?? '';
+
+  if (originLabel) {
+    points.push({
+      label: originLabel,
+      latitude: form.destinationLatitude,
+      longitude: form.destinationLongitude,
+      searchLabels: buildWeatherSearchLabels(originLabel, destinationLabelValue),
+    });
+  }
+
+  if (destinationLabelValue && destinationLabelValue.toLowerCase() !== originLabel.toLowerCase()) {
+    points.push({
+      label: destinationLabelValue,
+      latitude: form.endDestinationLatitude,
+      longitude: form.endDestinationLongitude,
+      searchLabels: buildWeatherSearchLabels(destinationLabelValue, originLabel),
+    });
+  }
+
+  return points;
+});
+const weatherLookupKey = computed(() =>
+  weatherLookupPoints.value
+    .map((point) => [
+      point.label,
+      Number.isFinite(point.latitude) ? Number(point.latitude).toFixed(5) : '',
+      Number.isFinite(point.longitude) ? Number(point.longitude).toFixed(5) : '',
+      ...(point.searchLabels ?? []),
+    ].join(':'))
+    .join('|'),
+);
+const weatherStatusCopy = computed(() => {
+  switch (weatherState.value) {
+    case 'loading':
+      return 'Checking live weather...';
+    case 'missing-key':
+      return 'Weather needs browser fetch support.';
+    case 'error':
+      return weatherErrorMessage.value || 'Weather is unavailable right now.';
+    case 'empty':
+      return 'Add an origin or destination to check weather.';
+    default:
+      return 'Weather will appear when the route has a city.';
+  }
+});
+const packingProgressLabel = computed(() => {
+  const checkedCount = packingItems.value.filter((item) => item.checked).length;
+  return `${checkedCount}/${packingItems.value.length} packed`;
+});
+const parsedFuelMpg = computed(() => parseBoundedFuelNumber(fuelMpgInput.value, FUEL_MPG_MIN, FUEL_MPG_MAX));
+const parsedFuelGasPrice = computed(() => parseBoundedFuelNumber(fuelGasPriceInput.value, FUEL_GAS_PRICE_MIN, FUEL_GAS_PRICE_MAX));
+const fuelMpgError = computed(() => getFuelInputError(fuelMpgInput.value, 'MPG', FUEL_MPG_MIN, FUEL_MPG_MAX));
+const fuelGasPriceError = computed(() => getFuelInputError(fuelGasPriceInput.value, 'Gas price', FUEL_GAS_PRICE_MIN, FUEL_GAS_PRICE_MAX, '$20.00/gal'));
+const selectedFuelTypeLabel = computed(() =>
+  fuelTypeOptions.find((option) => option.id === selectedFuelType.value)?.label ?? 'Regular',
+);
+const fuelSettingsSummary = computed(() => {
+  const mpg = parsedFuelMpg.value;
+  const price = parsedFuelGasPrice.value;
+  if (fuelMpgError.value || fuelGasPriceError.value) {
+    return 'Check fuel inputs';
+  }
+
+  if (mpg && price) {
+    return `${selectedFuelTypeLabel.value} / ${mpg.toLocaleString('en-US', { maximumFractionDigits: 1 })} MPG / $${price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}/gal`;
+  }
+
+  if (mpg) {
+    return `${selectedFuelTypeLabel.value} / add gas price`;
+  }
+
+  if (price) {
+    return `${selectedFuelTypeLabel.value} / add MPG`;
+  }
+
+  return `${selectedFuelTypeLabel.value} tank`;
+});
+
 function formatRouteEndpointLabel(value: string | undefined): string {
   const parts = (value ?? '').split(',').map((part) => part.trim()).filter(Boolean);
   if (!parts.length) {
@@ -769,9 +1133,34 @@ const destinationLabel = computed(() => {
 
   return startDestination || 'Pick a place to plan around';
 });
+const canEditEndDestination = computed(() => true);
+const hasPlannerRouteSeed = computed(() => (
+  Boolean(form.destination.trim() || (form.endDestination ?? '').trim() || destinationStops.value.length) ||
+  isCoordinatePair(form.destinationLatitude, form.destinationLongitude) ||
+  isCoordinatePair(form.endDestinationLatitude, form.endDestinationLongitude)
+));
+const showRouteEmptyHint = computed(() => !hasPlannerRouteSeed.value);
+
+watch(
+  canEditEndDestination,
+  (canEditEnd) => {
+    if (!canEditEnd) {
+      clearEndDestination();
+    }
+  },
+  { immediate: true },
+);
+
+const interestsMetaLabel = computed(() => {
+  if (!form.interests.length) {
+    return 'Optional';
+  }
+
+  return `${form.interests.length} selected`;
+});
 const interestsLabel = computed(() => {
   if (!form.interests.length) {
-    return 'Choose a few trip vibes';
+    return 'Smart defaults stay on.';
   }
 
   const labels = form.interests.map((interest) => categoryLabels[interest]);
@@ -781,10 +1170,23 @@ const interestsLabel = computed(() => {
 
   return `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more`;
 });
+const guideHandoffCopy = computed(() => {
+  if (!form.destination.trim() && !(form.endDestination ?? '').trim()) {
+    return 'Set a real route first; the guide uses the drive before it suggests anything.';
+  }
+
+  if (!form.endDestination?.trim()) {
+    return 'Add the final destination so the guide can stay route-grounded.';
+  }
+
+  return 'Your guide will use the route first, then dates, budget, pace, travelers, and vibes to pick real stops that fit the drive.';
+});
+const visibleInterestCategories = computed(() => (
+  categories.filter((category) => category !== 'other' || form.interests.includes('other'))
+));
 const budgetRangeLabel = computed(() => `${currencyFormatter.format(budgetFloor.value)} - ${currencyFormatter.format(budgetCeiling.value)}`);
 const dailyBudgetLabel = computed(() => `${currencyFormatter.format(dailyBudget.value)} / day`);
 const stepOneSummary = computed(() => `${destinationLabel.value} · ${tripLengthDays.value} day${tripLengthDays.value === 1 ? '' : 's'}`);
-const hasRouteStops = computed(() => destinationStops.value.length > 0 || props.suggestedStops.length > 0);
 const stepTwoSummary = computed(() => {
   const stopCount = destinationStops.value.length;
   if (!stopCount) {
@@ -794,7 +1196,384 @@ const stepTwoSummary = computed(() => {
   const leadStop = destinationStops.value[0]?.title ?? 'Choose stops';
   return `${stopCount} stop${stopCount === 1 ? '' : 's'} · ${leadStop}`;
 });
-const stepThreeSummary = computed(() => `${paceLabel.value} pace · ${form.interests.length} interest${form.interests.length === 1 ? '' : 's'}`);
+const stepThreeSummary = computed(() => (
+  form.interests.length
+    ? `${paceLabel.value} pace · ${form.interests.length} interest${form.interests.length === 1 ? '' : 's'}`
+    : `${paceLabel.value} pace · vibes optional`
+));
+
+function normalizePackingItem(item: Partial<PackingChecklistItem>, fallbackIndex: number): PackingChecklistItem | null {
+  const label = item.label?.trim();
+  if (!label) {
+    return null;
+  }
+
+  return {
+    id: item.id?.trim() || `packing-item-${fallbackIndex}`,
+    label,
+    checked: Boolean(item.checked),
+    custom: Boolean(item.custom),
+  };
+}
+
+function cloneDefaultPackingItems(): PackingChecklistItem[] {
+  return DEFAULT_PACKING_ITEMS.map((item) => ({ ...item }));
+}
+
+function normalizePackingChecklistScope(scope = props.packingChecklistScope): string {
+  const normalizedScope = scope.trim().replace(/\s+/g, '-').slice(0, 120);
+  return normalizedScope || `${PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX}standalone`;
+}
+
+function isDraftPackingChecklistScope(scope: string | undefined): boolean {
+  return normalizePackingChecklistScope(scope).startsWith(PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX);
+}
+
+function getPackingChecklistStorageKey(scope = props.packingChecklistScope): string {
+  return `${PACKING_CHECKLIST_STORAGE_KEY_PREFIX}:${normalizePackingChecklistScope(scope)}`;
+}
+
+function readPackingChecklistStorage(storageKey = getPackingChecklistStorageKey()): PackingChecklistItem[] | null {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+
+  try {
+    const rawValue = localStorage.getItem(storageKey);
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue) as unknown;
+    if (!Array.isArray(parsedValue)) {
+      return null;
+    }
+
+    const parsedItems = parsedValue
+      .map((item, index) => normalizePackingItem(item as Partial<PackingChecklistItem>, index))
+      .filter((item): item is PackingChecklistItem => Boolean(item));
+    return parsedItems.length ? parsedItems : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadPackingChecklist(storageKey = getPackingChecklistStorageKey()): PackingChecklistItem[] {
+  return readPackingChecklistStorage(storageKey) ?? cloneDefaultPackingItems();
+}
+
+function persistPackingChecklist(storageKey = getPackingChecklistStorageKey()): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(packingItems.value));
+  } catch {
+    // Ignore storage quota/privacy failures; the visible checklist still works for this session.
+  }
+}
+
+function togglePackingItem(itemId: string): void {
+  packingItems.value = packingItems.value.map((item) => (
+    item.id === itemId ? { ...item, checked: !item.checked } : item
+  ));
+}
+
+function addPackingItem(labelOverride?: string | Event): void {
+  const hasLabelOverride = typeof labelOverride === 'string';
+  const label = (hasLabelOverride ? labelOverride : newPackingItemLabel.value).trim();
+  if (!label) {
+    return;
+  }
+
+  packingItems.value = [
+    ...packingItems.value,
+    {
+      id: `custom-${Date.now().toString(36)}-${packingItems.value.length}`,
+      label,
+      checked: false,
+      custom: true,
+    },
+  ];
+  if (!hasLabelOverride) {
+    newPackingItemLabel.value = '';
+  }
+}
+
+function removePackingItem(itemId: string): void {
+  const normalizedItemId = itemId.trim().toLowerCase();
+  packingItems.value = packingItems.value.filter((item) =>
+    item.id !== itemId && item.label.trim().toLowerCase() !== normalizedItemId,
+  );
+}
+
+function parseFuelNumber(value: string): number | undefined {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(normalizedValue);
+  return Number.isFinite(parsedValue) ? parsedValue : undefined;
+}
+
+function parseBoundedFuelNumber(value: string, min: number, max: number): number | undefined {
+  const parsedValue = parseFuelNumber(value);
+  return parsedValue !== undefined && parsedValue >= min && parsedValue <= max ? parsedValue : undefined;
+}
+
+function formatFuelLimit(value: number): string {
+  return value >= 1
+    ? value.toLocaleString('en-US', { maximumFractionDigits: 0 })
+    : value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getFuelInputError(value: string, label: string, min: number, max: number, maxLabel = formatFuelLimit(max)): string {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  const parsedValue = Number(normalizedValue);
+  if (!Number.isFinite(parsedValue)) {
+    return `${label} needs a number.`;
+  }
+
+  if (parsedValue < min) {
+    return `${label} must be at least ${formatFuelLimit(min)}.`;
+  }
+
+  if (parsedValue > max) {
+    return `${label} must be ${maxLabel} or less.`;
+  }
+
+  return '';
+}
+
+function formatFuelInputValue(value: number | undefined): string {
+  return Number.isFinite(value) && Number(value) > 0 ? String(value) : '';
+}
+
+function normalizeTripFuelType(value: TripFuelSettings['fuelType'] | undefined): TripFuelType {
+  return fuelTypeOptions.some((option) => option.id === value) ? (value as TripFuelType) : 'regular';
+}
+
+function selectFuelType(fuelType: TripFuelType): void {
+  if (selectedFuelType.value === fuelType) {
+    return;
+  }
+
+  selectedFuelType.value = fuelType;
+  emitFuelSettings();
+}
+
+function emitFuelSettings(): void {
+  emit('update:fuel-settings', {
+    mpg: parsedFuelMpg.value,
+    gasPricePerGallon: parsedFuelGasPrice.value,
+    fuelType: selectedFuelType.value,
+  });
+}
+
+function scrollToFuelSettings(): void {
+  fuelCardRef.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+
+  window.setTimeout(() => {
+    fuelMpgFieldRef.value?.focus({ preventScroll: true });
+  }, 420);
+}
+
+function formatWeatherTemperature(value: number): string {
+  return `${Math.round(value)}\u00b0F`;
+}
+
+function formatWeatherWind(value: number): string {
+  return `${Math.round(value)} mph`;
+}
+
+function formatWeatherAirQuality(airQuality: WeatherSnapshot['airQuality']): string {
+  if (!airQuality) {
+    return '';
+  }
+
+  return airQuality.scale === 'us'
+    ? `${airQuality.index} ${airQuality.label}`
+    : airQuality.label;
+}
+
+function formatWeatherCheckedAt(value: string): string {
+  const checkedAt = new Date(value);
+  if (Number.isNaN(checkedAt.getTime())) {
+    return 'just now';
+  }
+
+  return weatherCheckedAtFormatter.format(checkedAt);
+}
+
+function isFallbackWeatherSnapshot(snapshot: WeatherSnapshot): boolean {
+  return snapshot.provider === 'openmeteo' || /fallback|demo/i.test(snapshot.providerLabel ?? '');
+}
+
+function formatWeatherProvider(snapshot: WeatherSnapshot): string {
+  return snapshot.providerLabel ?? snapshot.provider ?? 'Scope weather';
+}
+
+function getWeatherCheckedTimestamp(snapshot: WeatherSnapshot): string {
+  return snapshot.checkedAtIso ?? snapshot.observedAtIso ?? '';
+}
+
+function formatWeatherLocationLabel(label: string): string {
+  const parts = label
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return 'Route point';
+  }
+
+  const firstPart = parts[0] ?? '';
+  const firstPartLooksLikeAddress = /\d|\b(road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|highway|hwy|route|county|private)\b/i
+    .test(firstPart);
+  if (firstPartLooksLikeAddress && parts.length > 1) {
+    return parts[1] ?? firstPart;
+  }
+
+  return firstPart;
+}
+
+function getWeatherSnapshotClass(snapshot: WeatherSnapshot): string {
+  return getWeatherSnapshotClassName(snapshot);
+}
+
+function getWeatherSnapshotIcon(snapshot: WeatherSnapshot): string {
+  return getWeatherSnapshotIconName(snapshot);
+}
+
+async function loadWeatherSnapshots(): Promise<void> {
+  const requestId = weatherRequestId.value + 1;
+  weatherRequestId.value = requestId;
+  weatherErrorMessage.value = '';
+
+  try {
+    if (!weatherLookupPoints.value.length) {
+      weatherSnapshots.value = [];
+      weatherState.value = 'empty';
+      return;
+    }
+
+    if (!canLoadOpenWeatherMapWeather()) {
+      weatherSnapshots.value = [];
+      weatherState.value = 'missing-key';
+      return;
+    }
+
+    weatherState.value = 'loading';
+
+    const results = await Promise.allSettled(
+      weatherLookupPoints.value.map((point) => getOpenWeatherMapSnapshot(point)),
+    );
+    if (requestId !== weatherRequestId.value) {
+      return;
+    }
+
+    const snapshots = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+    weatherSnapshots.value = snapshots;
+
+    if (snapshots.length) {
+      weatherState.value = 'ready';
+      return;
+    }
+
+    weatherState.value = 'error';
+    weatherErrorMessage.value = 'Weather is unavailable right now.';
+  } finally {
+    if (
+      requestId === weatherRequestId.value &&
+      weatherLookupPoints.value.length &&
+      canLoadOpenWeatherMapWeather()
+    ) {
+      scheduleWeatherRefresh(WEATHER_REFRESH_INTERVAL_MS);
+    }
+  }
+}
+
+function clearWeatherRefreshTimer(): void {
+  if (!weatherRefreshTimer) {
+    return;
+  }
+
+  clearTimeout(weatherRefreshTimer);
+  weatherRefreshTimer = null;
+}
+
+function scheduleWeatherRefresh(delayMs = WEATHER_REFRESH_KEY_DEBOUNCE_MS): void {
+  clearWeatherRefreshTimer();
+  weatherRefreshTimer = setTimeout(() => {
+    weatherRefreshTimer = null;
+    void loadWeatherSnapshots();
+  }, delayMs);
+}
+
+watch(
+  weatherLookupKey,
+  () => {
+    scheduleWeatherRefresh();
+  },
+  { immediate: true },
+);
+
+watch(
+  packingItems,
+  () => {
+    persistPackingChecklist();
+  },
+  { deep: true },
+);
+
+watch(
+  () => props.packingChecklistScope,
+  (nextScope, previousScope) => {
+    const nextStorageKey = getPackingChecklistStorageKey(nextScope);
+    const storedItems = readPackingChecklistStorage(nextStorageKey);
+    const shouldCarryDraftItemsToSavedTrip = Boolean(
+      previousScope &&
+      isDraftPackingChecklistScope(previousScope) &&
+      !isDraftPackingChecklistScope(nextScope) &&
+      !storedItems,
+    );
+
+    if (shouldCarryDraftItemsToSavedTrip) {
+      persistPackingChecklist(nextStorageKey);
+      return;
+    }
+
+    packingItems.value = storedItems ?? cloneDefaultPackingItems();
+  },
+);
+
+watch(
+  () => props.fuelSettings,
+  (nextSettings) => {
+    const nextMpg = formatFuelInputValue(nextSettings?.mpg);
+    const nextGasPrice = formatFuelInputValue(nextSettings?.gasPricePerGallon);
+    const nextFuelType = normalizeTripFuelType(nextSettings?.fuelType);
+    if (nextMpg !== fuelMpgInput.value) {
+      fuelMpgInput.value = nextMpg;
+    }
+    if (nextGasPrice !== fuelGasPriceInput.value) {
+      fuelGasPriceInput.value = nextGasPrice;
+    }
+    if (nextFuelType !== selectedFuelType.value) {
+      selectedFuelType.value = nextFuelType;
+    }
+  },
+  { deep: true },
+);
 
 watch(
   () => [
@@ -975,6 +1754,32 @@ function clearLocationCoordinates(field: LocationFieldKey): void {
   form.endDestinationLongitude = undefined;
 }
 
+function resetLocationSuggestionState(field: LocationFieldKey): void {
+  clearLocationTimer(locationSearchTimers, field);
+  clearLocationTimer(locationBlurTimers, field);
+  locationRequestIds[field] += 1;
+  Object.assign(locationSuggestions[field], {
+    results: [],
+    loading: false,
+    open: false,
+    error: '',
+    activeIndex: -1,
+  });
+}
+
+function clearEndDestination(): void {
+  setLocationFieldValue('endDestination', '');
+  clearLocationCoordinates('endDestination');
+  resetLocationSuggestionState('endDestination');
+
+  if (errors.value.endDestination) {
+    errors.value = {
+      ...errors.value,
+      endDestination: undefined,
+    };
+  }
+}
+
 function setLocationCoordinates(field: LocationFieldKey, result: GeocodeResult): void {
   if (field === 'destination') {
     form.destinationLatitude = normalizeCoordinate(result.latitude, -90, 90);
@@ -995,6 +1800,10 @@ function clearLocationTimer(timers: Record<LocationFieldKey, ReturnType<typeof s
 }
 
 function shouldShowLocationSuggestions(field: LocationFieldKey): boolean {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    return false;
+  }
+
   const state = locationSuggestions[field];
   return state.open && (state.loading || Boolean(state.error) || state.results.length > 0 || getLocationFieldValue(field).trim().length >= LOCATION_MIN_QUERY_LENGTH);
 }
@@ -1051,6 +1860,11 @@ function resolveLocationSuggestionLabel(result: GeocodeResult): string {
 }
 
 function handleLocationFocus(field: LocationFieldKey): void {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    clearEndDestination();
+    return;
+  }
+
   clearLocationTimer(locationBlurTimers, field);
   locationSuggestions[field].open = true;
   scheduleLocationSearch(field);
@@ -1064,15 +1878,21 @@ function handleLocationBlur(field: LocationFieldKey): void {
 }
 
 function handleLocationInput(field: LocationFieldKey): void {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    clearEndDestination();
+    return;
+  }
+
   clearLocationCoordinates(field);
   locationSuggestions[field].open = true;
   locationSuggestions[field].error = '';
   scheduleLocationSearch(field);
 
-  if (field === 'destination' && errors.value.destination) {
+  const errorKey = field === 'destination' ? 'destination' : 'endDestination';
+  if (errors.value[errorKey]) {
     errors.value = {
       ...errors.value,
-      destination: undefined,
+      [errorKey]: undefined,
     };
   }
 }
@@ -1081,6 +1901,14 @@ function scheduleLocationSearch(field: LocationFieldKey): void {
   const query = getLocationFieldValue(field).trim();
   const state = locationSuggestions[field];
   clearLocationTimer(locationSearchTimers, field);
+
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    state.results = [];
+    state.loading = false;
+    state.error = '';
+    state.activeIndex = -1;
+    return;
+  }
 
   if (query.length < LOCATION_MIN_QUERY_LENGTH) {
     state.results = [];
@@ -1097,6 +1925,10 @@ function scheduleLocationSearch(field: LocationFieldKey): void {
 }
 
 async function runLocationSearch(field: LocationFieldKey, query: string): Promise<void> {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    return;
+  }
+
   const requestId = locationRequestIds[field] + 1;
   locationRequestIds[field] = requestId;
   const state = locationSuggestions[field];
@@ -1147,6 +1979,11 @@ function resolveLocationSearchProximity(field: LocationFieldKey): LocationSearch
 }
 
 function selectLocationSuggestion(field: LocationFieldKey, result: GeocodeResult): void {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    clearEndDestination();
+    return;
+  }
+
   const label = resolveLocationSuggestionLabel(result);
   setLocationFieldValue(field, label);
   setLocationCoordinates(field, result);
@@ -1155,6 +1992,55 @@ function selectLocationSuggestion(field: LocationFieldKey, result: GeocodeResult
   locationSuggestions[field].open = false;
   locationSuggestions[field].loading = false;
   locationSuggestions[field].error = '';
+}
+
+function findMatchingLocationSuggestion(field: LocationFieldKey, query: string): GeocodeResult | undefined {
+  const normalizedQuery = query.toLowerCase();
+  return locationSuggestions[field].results.find((result) => {
+    const title = formatLocationSuggestionTitle(result).toLowerCase();
+    const label = resolveLocationSuggestionLabel(result).toLowerCase();
+    return title === normalizedQuery || label === normalizedQuery;
+  });
+}
+
+async function resolveLocationFieldCoordinates(field: LocationFieldKey): Promise<void> {
+  if (field === 'endDestination' && !canEditEndDestination.value) {
+    clearEndDestination();
+    return;
+  }
+
+  const query = getLocationFieldValue(field).trim();
+  if (
+    query.length < LOCATION_MIN_QUERY_LENGTH ||
+    Object.keys(resolveLocationCoordinatePayload(field)).length > 0
+  ) {
+    return;
+  }
+
+  clearLocationTimer(locationSearchTimers, field);
+  locationSuggestions[field].loading = false;
+
+  let resolvedResult = findMatchingLocationSuggestion(field, query);
+  if (!resolvedResult) {
+    const response = await searchLocations(query, {
+      limit: 1,
+      proximity: resolveLocationSearchProximity(field),
+    }).catch(() => null);
+    resolvedResult = response?.data?.[0];
+  }
+
+  if (!resolvedResult || getLocationFieldValue(field).trim() !== query) {
+    return;
+  }
+
+  selectLocationSuggestion(field, resolvedResult);
+}
+
+async function resolveMissingLocationCoordinates(): Promise<void> {
+  await Promise.all([
+    resolveLocationFieldCoordinates('destination'),
+    resolveLocationFieldCoordinates('endDestination'),
+  ]);
 }
 
 function handleLocationKeydown(field: LocationFieldKey, event: KeyboardEvent): void {
@@ -1211,12 +2097,12 @@ function resolveBudgetCeiling(initialValue: Partial<TripPlannerInput>, bounds: {
   return normalizeBudgetValue(initialValue.budget ?? form.budget, bounds.min);
 }
 
-function resolveBudgetFloor(initialValue: Partial<TripPlannerInput>, bounds: { min: number }, ceiling: number): number {
+function resolveBudgetFloor(initialValue: Partial<TripPlannerInput>, bounds: { min: number }): number {
   if (initialValue.budgetFloor !== undefined) {
-    return Math.min(normalizeBudgetValue(initialValue.budgetFloor, bounds.min), ceiling);
+    return normalizeBudgetValue(initialValue.budgetFloor, bounds.min);
   }
 
-  return Math.min(bounds.min, ceiling);
+  return bounds.min;
 }
 
 function normalizeStops(stops: TripSpot[]): TripSpot[] {
@@ -1295,11 +2181,10 @@ function adjustBudgetCeiling(delta: number): void {
 }
 
 function normalizeBudgetInputs(): void {
-  budgetFloor.value = normalizeBudgetValue(budgetFloor.value, 0);
-  budgetCeiling.value = normalizeBudgetValue(budgetCeiling.value, budgetFloor.value);
-  if (budgetFloor.value > budgetCeiling.value) {
-    budgetFloor.value = budgetCeiling.value;
-  }
+  const normalizedFloor = normalizeBudgetValue(budgetFloor.value, 0);
+  const normalizedCeiling = normalizeBudgetValue(budgetCeiling.value, 0);
+  budgetFloor.value = normalizedCeiling < normalizedFloor ? normalizedCeiling : normalizedFloor;
+  budgetCeiling.value = normalizedCeiling;
 }
 
 function updateGroupSize(nextValue: number): void {
@@ -1388,8 +2273,15 @@ function validatePlanner(): PlannerErrors {
   const startDayNumber = toCalendarDayNumber(form.startDate);
   const endDayNumber = toCalendarDayNumber(form.endDate);
 
-  if (!form.destination.trim()) {
-    nextErrors.destination = 'Enter a city, state, or place so Scope can build a route.';
+  const hasStartDestination = Boolean(form.destination.trim());
+  const hasEndDestination = Boolean((form.endDestination ?? '').trim());
+
+  if (!hasStartDestination && !hasEndDestination) {
+    nextErrors.destination = 'Enter a start or final city, state, or place so Scope can build a route.';
+  }
+
+  if (hasStartDestination && !hasEndDestination) {
+    nextErrors.endDestination = 'Enter a final destination so Scope can build the itinerary.';
   }
 
   if (Number.isNaN(startDayNumber)) {
@@ -1408,23 +2300,19 @@ function validatePlanner(): PlannerErrors {
     nextErrors.budget = 'Budget values must be zero or higher.';
   }
 
-  if (budgetFloor.value > budgetCeiling.value) {
-    nextErrors.budget = 'Budget floor must be at or below the ceiling.';
+  if (budgetCeiling.value < budgetFloor.value) {
+    nextErrors.budget = 'Maximum budget must be at least the minimum budget.';
   }
 
   if (form.groupSize < 1 || form.groupSize > 12) {
     nextErrors.groupSize = 'Group size must stay between 1 and 12.';
   }
 
-  if (!form.interests.length) {
-    nextErrors.interests = 'Select at least one interest to guide the itinerary.';
-  }
-
   return nextErrors;
 }
 
 function resolveErrorStep(nextErrors: PlannerErrors): PlannerWizardStep {
-  if (nextErrors.destination || nextErrors.startDate || nextErrors.endDate || nextErrors.budget || nextErrors.groupSize) {
+  if (nextErrors.destination || nextErrors.endDestination || nextErrors.startDate || nextErrors.endDate || nextErrors.budget || nextErrors.groupSize) {
     return 1;
   }
 
@@ -1435,7 +2323,7 @@ function resolveErrorStep(nextErrors: PlannerErrors): PlannerWizardStep {
   return 1;
 }
 
-function handleSubmit(): void {
+async function handleSubmit(): Promise<void> {
   normalizeBudgetInputs();
   const nextErrors = validatePlanner();
   errors.value = nextErrors;
@@ -1445,6 +2333,8 @@ function handleSubmit(): void {
     return;
   }
 
+  await resolveMissingLocationCoordinates();
+
   form.budget = budgetCeiling.value;
   form.budgetFloor = budgetFloor.value;
 
@@ -1452,11 +2342,74 @@ function handleSubmit(): void {
 }
 
 onBeforeUnmount(() => {
+  clearWeatherRefreshTimer();
+  weatherRequestId.value += 1;
   (['destination', 'endDestination'] as const).forEach((field) => {
     clearLocationTimer(locationSearchTimers, field);
     clearLocationTimer(locationBlurTimers, field);
     locationRequestIds[field] += 1;
   });
+});
+
+defineExpose({
+  scrollToFuelSettings,
+  addPackingItem,
+  removePackingItem,
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          addPackingItem,
+          buildFormState,
+          buildPlannerPayload,
+          clearEndDestination,
+          clearLocationCoordinates,
+          clearLocationTimer,
+          cloneDefaultPackingItems,
+          emitFuelSettings,
+          formatDistanceMiles,
+          formatFuelInputValue,
+          formatFuelLimit,
+          formatLocationSuggestionBadge,
+          formatLocationSuggestionMeta,
+          formatLocationSuggestionTitle,
+          formatWeatherAirQuality,
+          formatWeatherCheckedAt,
+          formatWeatherLocationLabel,
+          formatWeatherProvider,
+          formatWeatherTemperature,
+          formatWeatherWind,
+          getFuelInputError,
+          getPackingChecklistStorageKey,
+          getWeatherCheckedTimestamp,
+          getWeatherSnapshotClass,
+          getWeatherSnapshotIcon,
+          handleLocationBlur,
+          handleLocationFocus,
+          handleLocationInput,
+          handleLocationKeydown,
+          isCoordinatePair,
+          isDraftPackingChecklistScope,
+          loadPackingChecklist,
+          normalizeBudgetRange,
+          normalizeBudgetValue,
+          normalizePackingChecklistScope,
+          normalizePackingItem,
+          normalizeTripFuelType,
+          parseBoundedFuelNumber,
+          parseFuelNumber,
+          persistPackingChecklist,
+          readPackingChecklistStorage,
+          removePackingItem,
+          resetLocationSuggestionState,
+          resolveLocationCoordinatePayload,
+          resolveLocationSearchProximity,
+          scrollToFuelSettings,
+          selectFuelType,
+          shouldShowLocationSuggestions,
+          validatePlanner,
+        },
+      }
+    : {}),
 });
 </script>
 
@@ -1490,11 +2443,13 @@ onBeforeUnmount(() => {
   align-content: start;
   gap: var(--space-4);
   padding: var(--space-5);
-  min-height: 100%;
+  min-height: 0;
 }
 
 .trip-planner[data-planner-mode='desktop'] {
   gap: var(--space-3);
+  min-height: 0;
+  height: auto;
   overflow: visible;
   padding: var(--space-4);
 }
@@ -1549,7 +2504,11 @@ onBeforeUnmount(() => {
 }
 
 .trip-planner[data-planner-mode='desktop'] .planner-copy {
-  gap: var(--space-2);
+  gap: 0;
+}
+
+.trip-planner[data-planner-mode='desktop'] .planner-header[data-header-mode='compact'] {
+  margin-bottom: calc(var(--space-2) * -1);
 }
 
 .eyebrow,
@@ -1749,6 +2708,11 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-xl);
 }
 
+.planner-card--pillar {
+  border-color: color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  background: color-mix(in srgb, var(--bg-primary) 48%, var(--glass-bg));
+}
+
 .field-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1775,6 +2739,29 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   font-size: var(--font-size-caption);
   line-height: var(--line-height-normal);
+}
+
+.planner-empty-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-normal);
+}
+
+.planner-empty-hint :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent-teal);
+  flex-shrink: 0;
 }
 
 .location-field {
@@ -1814,6 +2801,18 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--text-primary);
   padding: 0.65rem 0;
+}
+
+.trip-planner input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.trip-planner input[type='number']::-webkit-outer-spin-button,
+.trip-planner input[type='number']::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .trip-planner[data-planner-mode='desktop'] .input-shell {
@@ -2283,7 +3282,6 @@ onBeforeUnmount(() => {
 .pace-card:hover,
 .pace-card:focus-visible,
 .planner-summary:hover {
-  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: var(--border-hover);
 }
@@ -2423,13 +3421,12 @@ onBeforeUnmount(() => {
 
 .pace-card {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
+  gap: 0.35rem;
+  min-height: 4.75rem;
+  padding: var(--space-3);
   text-align: left;
   border-radius: var(--radius-xl);
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
     border-color var(--transition-fast),
     background var(--transition-fast);
 }
@@ -2438,36 +3435,40 @@ onBeforeUnmount(() => {
   padding: var(--space-3);
 }
 
+.pace-card span {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-normal);
+}
+
 .pace-card.active {
-  border-color: var(--accent-teal);
-  box-shadow: var(--shadow-glow-teal);
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 9%, var(--glass-bg));
+  box-shadow: none;
 }
 
 .chip-grid {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: var(--space-2);
 }
 
 .interest-chip {
-  --interest-bg: var(--badge-other-bg);
-  --interest-fg: var(--badge-other-fg);
-
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--space-2);
   width: 100%;
-  padding: 0.85rem 0.95rem;
-  border-width: 2px;
-  border-radius: var(--radius-xl);
-  border-color: color-mix(in srgb, var(--interest-fg) 32%, var(--glass-border));
-  background: color-mix(in srgb, var(--interest-bg) 28%, var(--glass-bg));
-  color: color-mix(in srgb, var(--interest-fg) 82%, var(--text-primary));
+  min-height: 2.9rem;
+  padding: 0.62rem 0.78rem;
+  border-width: 1px;
+  border-radius: var(--radius-lg);
+  border-color: color-mix(in srgb, var(--interest-fg, var(--text-secondary)) 24%, var(--glass-border));
+  background: color-mix(in srgb, var(--interest-bg, var(--bg-secondary)) 18%, var(--bg-secondary));
+  color: color-mix(in srgb, var(--interest-fg, var(--text-primary)) 76%, var(--text-primary));
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
-  opacity: 0.78;
+  line-height: var(--line-height-normal);
+  opacity: 1;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    opacity var(--transition-fast),
     border-color var(--transition-fast),
     background var(--transition-fast),
     color var(--transition-fast);
@@ -2503,6 +3504,11 @@ onBeforeUnmount(() => {
   --interest-fg: var(--badge-shopping-fg);
 }
 
+.interest-chip.badge-entertainment {
+  --interest-bg: var(--badge-entertainment-bg);
+  --interest-fg: var(--badge-entertainment-fg);
+}
+
 .interest-chip.badge-scenic {
   --interest-bg: var(--badge-scenic-bg);
   --interest-fg: var(--badge-scenic-fg);
@@ -2514,25 +3520,32 @@ onBeforeUnmount(() => {
 }
 
 .trip-planner[data-planner-mode='desktop'] .interest-chip {
-  padding: 0.72rem 0.85rem;
+  padding: 0.58rem 0.72rem;
 }
 
 .interest-chip.active,
 .interest-chip:hover,
 .interest-chip:focus-visible {
-  opacity: 1;
-  transform: translateY(var(--motion-chip-active-lift));
-  box-shadow: var(--shadow-md);
   outline: none;
 }
 
 .interest-chip :deep(.scope-icon) {
   width: 1rem;
   height: 1rem;
+  color: color-mix(in srgb, var(--interest-fg, var(--text-secondary)) 78%, var(--text-secondary));
+  flex-shrink: 0;
+}
+
+.interest-empty-hint {
+  display: block;
 }
 
 .planner-footer {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
   align-items: center;
+  text-align: center;
   padding-top: var(--space-2);
   border-top: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
 }
@@ -2542,9 +3555,10 @@ onBeforeUnmount(() => {
 }
 
 .planner-footer-copy {
-  flex: 1 1 18rem;
+  width: min(100%, 38rem);
   min-width: 0;
   gap: 0.35rem;
+  justify-items: center;
 }
 
 .planner-footer-copy strong {
@@ -2561,6 +3575,407 @@ onBeforeUnmount(() => {
 .planner-footer-copy small {
   font-size: var(--font-size-small);
   line-height: var(--line-height-normal);
+}
+
+.planner-footer-learning-note {
+  width: min(100%, 38rem);
+  margin: 0;
+  color: color-mix(in srgb, var(--text-muted) 88%, var(--accent-teal));
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-normal);
+  text-align: center;
+}
+
+.planner-sidebar-tools {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+.planner-tool-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-primary) 48%, var(--glass-bg));
+  overflow: hidden;
+}
+
+.planner-tool-header {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.planner-tool-header strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.planner-tool-state,
+.weather-snapshot-grid,
+.packing-list,
+.packing-add-form,
+.fuel-type-selector,
+.fuel-input-grid {
+  margin: 0;
+}
+
+.planner-tool-state {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-normal);
+}
+
+.weather-snapshot-grid,
+.packing-list,
+.fuel-input-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.fuel-type-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.4rem, 1fr));
+  gap: 0.36rem;
+}
+
+.fuel-type-selector__option {
+  min-width: 0;
+  min-height: 2.08rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.34rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 84%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.fuel-type-selector__option:hover,
+.fuel-type-selector__option.active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 58%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.fuel-type-selector__option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fuel-type-selector__option :deep(.scope-icon) {
+  width: 0.92rem;
+  height: 0.92rem;
+  flex: 0 0 auto;
+}
+
+.weather-snapshot-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(13.25rem, 100%), 13.25rem));
+  justify-content: center;
+  align-items: start;
+  gap: 0.92rem;
+}
+
+.weather-snapshot {
+  display: grid;
+  align-content: space-between;
+  gap: 0.72rem;
+  aspect-ratio: 1 / 1;
+  width: min(100%, 13.25rem);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.94rem;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
+  box-shadow: none;
+}
+
+.weather-snapshot.is-clear {
+  border-color: color-mix(in srgb, var(--accent-gold) 22%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-gold) 12%, var(--bg-secondary));
+}
+
+.weather-snapshot.is-clear-night {
+  border-color: color-mix(in srgb, var(--accent-teal) 20%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 8%, var(--bg-secondary));
+}
+
+.weather-snapshot.is-rain {
+  border-color: color-mix(in srgb, var(--info) 22%, var(--glass-border));
+  background: color-mix(in srgb, var(--info) 12%, var(--bg-secondary));
+}
+
+.weather-snapshot.is-snow,
+.weather-snapshot.is-fog {
+  border-color: color-mix(in srgb, var(--text-secondary) 20%, var(--glass-border));
+  background: color-mix(in srgb, var(--text-secondary) 9%, var(--bg-secondary));
+}
+
+.weather-snapshot.is-storm {
+  border-color: color-mix(in srgb, var(--warning) 26%, var(--glass-border));
+  background: color-mix(in srgb, var(--warning) 13%, var(--bg-secondary));
+}
+
+.weather-snapshot.is-wind {
+  border-color: color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
+}
+
+.weather-snapshot__hero {
+  display: grid;
+  align-items: start;
+  gap: 0.54rem;
+  justify-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.weather-snapshot__visual {
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  width: 2.72rem;
+  height: 2.72rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 46%, transparent);
+  color: var(--accent-teal);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 10%, transparent);
+}
+
+.weather-snapshot.is-clear .weather-snapshot__visual {
+  color: var(--accent-gold);
+}
+
+.weather-snapshot.is-clear-night .weather-snapshot__visual {
+  color: color-mix(in srgb, var(--text-primary) 82%, var(--accent-teal));
+}
+
+.weather-snapshot.is-rain .weather-snapshot__visual,
+.weather-snapshot.is-snow .weather-snapshot__visual,
+.weather-snapshot.is-fog .weather-snapshot__visual {
+  color: var(--info);
+}
+
+.weather-snapshot.is-storm .weather-snapshot__visual {
+  color: var(--warning);
+}
+
+.weather-snapshot__visual :deep(.scope-icon) {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.weather-snapshot__copy {
+  display: grid;
+  gap: 0.12rem;
+  justify-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.weather-snapshot__copy small,
+.weather-snapshot__stats,
+.weather-snapshot__footer {
+  color: color-mix(in srgb, var(--text-primary) 76%, var(--text-secondary));
+  line-height: var(--line-height-tight);
+}
+
+.weather-snapshot__location {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-snapshot strong {
+  color: var(--text-primary);
+  font-size: 2.4rem;
+  letter-spacing: 0;
+  line-height: var(--line-height-tight);
+}
+
+.weather-snapshot__copy small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-snapshot__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+  margin: 0;
+}
+
+.weather-snapshot__stats div {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.08rem;
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: 0.42rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 34%, transparent);
+}
+
+.weather-snapshot__stats div:only-child {
+  grid-column: 1 / -1;
+}
+
+.weather-snapshot__stats dt {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+}
+
+.weather-snapshot__stats dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-snapshot__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.26rem 0.54rem;
+  padding-top: 0.48rem;
+  border-top: 1px solid color-mix(in srgb, var(--glass-border) 64%, transparent);
+  font-size: var(--font-size-caption);
+}
+
+.weather-snapshot__source {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text-primary) 68%, var(--text-muted));
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-snapshot__time {
+  justify-self: end;
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text-primary) 78%, var(--text-secondary));
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-snapshot__flag {
+  justify-self: end;
+  padding: 0.18rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+  border-radius: var(--radius-full);
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--warning));
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.packing-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.packing-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.65rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 86%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--glass-bg) 62%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+}
+
+.packing-item input {
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: var(--accent-teal);
+}
+
+.packing-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.packing-item.checked span {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.packing-item button,
+.packing-add-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+  color: var(--text-secondary);
+}
+
+.packing-add-form {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.65rem;
+}
+
+.packing-add-form input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0.65rem 0.85rem;
+  outline: none;
+}
+
+.packing-add-form input:focus {
+  border-color: var(--accent-teal);
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.fuel-input-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .planner-summary {
@@ -2584,6 +3999,8 @@ onBeforeUnmount(() => {
 }
 
 .planner-footer-actions {
+  width: 100%;
+  justify-content: center;
   flex-wrap: wrap;
 }
 
@@ -2599,7 +4016,7 @@ onBeforeUnmount(() => {
   background: var(--accent-teal);
   color: var(--bg-primary);
   font-weight: var(--font-weight-semibold);
-  box-shadow: var(--shadow-glow-teal);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition:
     transform var(--transition-fast),
@@ -2609,24 +4026,26 @@ onBeforeUnmount(() => {
 }
 
 .interest-chip.active {
-  border-color: color-mix(in srgb, var(--text-primary) 86%, var(--interest-fg));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--interest-fg) 13%, var(--interest-bg)), var(--interest-bg));
+  border-color: color-mix(in srgb, var(--interest-fg, var(--accent-teal)) 52%, var(--glass-border));
+  background: color-mix(in srgb, var(--interest-bg, var(--accent-teal)) 32%, var(--bg-secondary));
   color: var(--text-primary);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 22%, transparent),
-    0 0.8rem 1.8rem color-mix(in srgb, var(--interest-bg) 58%, transparent);
+  box-shadow: none;
+}
+
+.interest-chip.active :deep(.scope-icon) {
+  color: color-mix(in srgb, var(--interest-fg, var(--accent-teal)) 88%, white);
 }
 
 .interest-chip:hover:not(.active),
 .interest-chip:focus-visible:not(.active) {
-  border-color: color-mix(in srgb, var(--text-primary) 72%, var(--interest-fg));
-  background: color-mix(in srgb, var(--interest-bg) 52%, var(--glass-bg));
+  border-color: color-mix(in srgb, var(--interest-fg, var(--text-secondary)) 42%, var(--glass-border));
+  background: color-mix(in srgb, var(--interest-bg, var(--bg-secondary)) 24%, var(--bg-secondary));
   color: var(--text-primary);
+  box-shadow: none;
 }
 
 .trip-planner[data-planner-mode='desktop'] .submit-button {
-  min-width: 14rem;
+  min-width: min(100%, 18rem);
   padding: 0.8rem 1.15rem;
 }
 
@@ -2691,7 +4110,11 @@ onBeforeUnmount(() => {
 
   .budget-input-grid,
   .pace-grid,
-  .chip-grid {
+  .chip-grid,
+  .planner-sidebar-tools,
+  .weather-snapshot-grid,
+  .packing-list,
+  .fuel-input-grid {
     grid-template-columns: 1fr;
   }
 

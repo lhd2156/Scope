@@ -9,6 +9,7 @@ describe('api client', () => {
     expect(getStoredToken()).toBe('jwt-token');
     setStoredToken(null);
     expect(localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY)).toBeNull();
+    expect(sessionStorage.getItem(ADMIN_STORAGE_TOKEN_KEY)).toBeNull();
   });
 
   it('attaches Authorization headers', async () => {

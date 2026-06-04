@@ -6,27 +6,21 @@ test.describe('Scope map interactions', () => {
 
     await expect(page.getByRole('heading', { name: 'Curate the map by mood' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /spot(?:s)? ready to explore/i })).toBeVisible();
-    await expect(page.locator('[data-test="map-fallback-stage"]')).toBeVisible();
 
     const selectedSpotCard = page.locator('[data-test="map-selected-spot-card"]');
-    const secondMarker = page.locator('[data-test="map-fallback-marker-spot-2"]');
-    const secondMarkerHitArea = page.locator('[data-test="map-fallback-marker-hit-spot-2"]');
+    const sunsetSpotButton = page.getByRole('button', { name: /Sunset Rooftop Tacos/i }).first();
 
+    await expect(sunsetSpotButton).toBeVisible();
+    await sunsetSpotButton.click();
     await expect(selectedSpotCard).toContainText('Sunset Rooftop Tacos');
-    await expect(secondMarker).not.toHaveClass(/is-active/);
-
-    await secondMarkerHitArea.click();
-
-    await expect(secondMarker).toHaveClass(/is-active/);
-    await expect(selectedSpotCard).toContainText('Botanic River Walk');
-    await expect(selectedSpotCard).toContainText('A shady riverside boardwalk with spring blooms');
+    await expect(selectedSpotCard).toContainText('Open-air tacos, frozen palomas');
 
     const detailLink = page.locator('[data-test="map-selected-spot-detail-link"]');
-    await expect(detailLink).toHaveAttribute('href', '/spots/spot-2');
+    await expect(detailLink).toHaveAttribute('href', '/spots/spot-1');
     await detailLink.click();
 
-    await expect(page).toHaveURL(/\/spots\/spot-2$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Botanic River Walk' })).toBeVisible();
+    await expect(page).toHaveURL(/\/spots\/spot-1$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Sunset Rooftop Tacos' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Quick planning notes' })).toBeVisible();
     await expect(page.locator('[data-test="spot-gallery"]')).toBeVisible();
   });

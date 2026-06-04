@@ -1,5 +1,5 @@
 import type { RegisterForm } from '@/types';
-import { validateLoginForm, validateRegisterForm } from '@/utils/authValidators';
+import { validateLoginForm, validatePasswordStrength, validateRegisterForm } from '@/utils/authValidators';
 
 // Centralise defaults so every test only overrides the field under test.
 // Keeping dateOfBirth dynamic (today minus 20y) means the COPPA threshold
@@ -52,6 +52,23 @@ describe('auth validators', () => {
     }).email).toBeUndefined();
   });
 
+  it('rejects malformed login identifiers without guessing intent', () => {
+    expect(validateLoginForm({
+      email: 'louis@scope',
+      password: 'SecurePass123!',
+    }).email).toContain('valid email');
+
+    expect(validateLoginForm({
+      email: 'bad!',
+      password: 'SecurePass123!',
+    }).email).toContain('valid email');
+
+    expect(validateLoginForm({
+      email: '555',
+      password: 'SecurePass123!',
+    }).email).toContain('10 to 15 digits');
+  });
+
   it('flags malformed registration input', () => {
     const result = validateRegisterForm(buildRegisterForm({
       username: ' a ',
@@ -79,6 +96,38 @@ describe('auth validators', () => {
 
     const invalid = validateRegisterForm(buildRegisterForm({ phoneNumber: '555' }));
     expect(invalid.phoneNumber).toContain('10 to 15 digits');
+
+    const unsupportedCharacters = validateRegisterForm(buildRegisterForm({ phoneNumber: '555-TRAVEL' }));
+    expect(unsupportedCharacters.phoneNumber).toContain('digits, spaces');
+  });
+
+  it('validates display-name fallback, handle length, impossible birthdays, and old birthdays', () => {
+    const displayNameTooShort = validateRegisterForm(buildRegisterForm({
+      displayName: 'A',
+    }));
+    expect(displayNameTooShort.lastName).toContain('at least 2');
+
+    const displayNameTooLong = validateRegisterForm(buildRegisterForm({
+      firstName: 'Traveler',
+      lastName: 'Name',
+      displayName: 'T'.repeat(61),
+    }));
+    expect(displayNameTooLong.lastName).toContain('under 60');
+
+    const longHandle = validateRegisterForm(buildRegisterForm({
+      username: 'a'.repeat(31),
+    }));
+    expect(longHandle.username).toContain('under 30');
+
+    const impossibleBirthday = validateRegisterForm(buildRegisterForm({
+      dateOfBirth: '2026-02-31',
+    }));
+    expect(impossibleBirthday.dateOfBirth).toContain('real calendar date');
+
+    const tooOld = validateRegisterForm(buildRegisterForm({
+      dateOfBirth: '1800-01-01',
+    }));
+    expect(tooOld.dateOfBirth).toContain('too far back');
   });
 
   it('rejects first and last names that look like handles', () => {
@@ -202,5 +251,18 @@ describe('auth validators', () => {
 
     const ok = validateRegisterForm(buildRegisterForm({ acceptedTerms: true }));
     expect(ok.acceptedTerms).toBeUndefined();
+  });
+
+  it('explains weak, common, and personally identifying passwords', () => {
+    expect(validatePasswordStrength('lowercaseonly')).toContain('three of');
+    expect(validatePasswordStrength('Password123')).toContain('common');
+    expect(validatePasswordStrength('JohnDoe123!', {
+      username: 'johndoe',
+      email: 'john@example.com',
+    })).toContain('handle');
+    expect(validatePasswordStrength('JohnSecure123!', {
+      email: 'john@example.com',
+    })).toContain('email name');
+    expect(validatePasswordStrength('SecurePass123!')).toBeUndefined();
   });
 });

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Scope.Core.Domain.Entities;
 using Scope.Core.Domain.Exceptions;
@@ -189,6 +190,15 @@ public sealed class AuthService(
             if (!await mfaService.ValidateAsync(user.Id, mfaCode, cancellationToken))
             {
                 user.FailedLoginAttempts += 1;
+                if (user.FailedLoginAttempts >= MaxFailedAttempts)
+                {
+                    user.LockoutUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
+                    user.FailedLoginAttempts = 0;
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    Audit("login", "failure", user.Id.ToString(), "mfa_lockout_triggered", identifier);
+                    throw new UnauthorizedException("Account temporarily locked. Try again later.");
+                }
+
                 await dbContext.SaveChangesAsync(cancellationToken);
                 Audit("login", "failure", user.Id.ToString(), "bad_mfa_code", identifier);
                 throw new UnauthorizedException("Invalid MFA code");
@@ -227,11 +237,29 @@ public sealed class AuthService(
         if (stored.RevokedAt is not null)
         {
             var active = dbContext.RefreshTokens.Where(x => x.UserId == stored.UserId && x.RevokedAt == null);
+            var revokedAt = DateTimeOffset.UtcNow;
             await active.ExecuteUpdateAsync(
-                s => s.SetProperty(t => t.RevokedAt, _ => DateTimeOffset.UtcNow)
+                s => s.SetProperty(t => t.RevokedAt, _ => revokedAt)
                       .SetProperty(t => t.RevokedReason, _ => "replay_detected"),
                 cancellationToken);
             Audit("token_refresh", "failure", stored.UserId.ToString(), "replay_detected");
+            throw new UnauthorizedException("Invalid refresh token");
+        }
+
+        if (stored.User is null || !stored.User.IsActive)
+        {
+            var activeTokens = await dbContext.RefreshTokens
+                .Where(x => x.UserId == stored.UserId && x.RevokedAt == null)
+                .ToListAsync(cancellationToken);
+            var revokedAt = DateTimeOffset.UtcNow;
+            foreach (var activeToken in activeTokens)
+            {
+                activeToken.RevokedAt = revokedAt;
+                activeToken.RevokedReason = "user_inactive";
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            Audit("token_refresh", "failure", stored.UserId.ToString(), "inactive_user");
             throw new UnauthorizedException("Invalid refresh token");
         }
 
@@ -271,7 +299,17 @@ public sealed class AuthService(
     {
         var user = await dbContext.Users.AsNoTracking()
             .Where(x => x.Id == userId && x.IsActive)
-            .Select(x => new UserProfile(x.Id, x.Username, x.Email, x.DisplayName, x.Bio, x.AvatarUrl, x.CreatedAt))
+            .Select(x => new UserProfile(
+                x.Id,
+                x.Username,
+                x.Email,
+                x.DisplayName,
+                x.Bio,
+                x.AvatarUrl,
+                x.HomeBase,
+                ParseInterests(x.InterestsJson),
+                x.ShowActivityStatus,
+                x.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("User not found");
         return user;
@@ -338,6 +376,23 @@ public sealed class AuthService(
         }
 
         return null;
+    }
+
+    private static IReadOnlyList<string> ParseInterests(string? interestsJson)
+    {
+        if (string.IsNullOrWhiteSpace(interestsJson))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(interestsJson) ?? Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
     }
 
     private void Audit(string eventName, string outcome, string? userId, string? reason = null, string? identifier = null)

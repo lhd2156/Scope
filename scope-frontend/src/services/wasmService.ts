@@ -1,4 +1,19 @@
 type RuntimeMode = 'wasm' | 'js-fallback';
+export type ScopeAiLexTokenType =
+  | 'word'
+  | 'number'
+  | 'email'
+  | 'handle'
+  | 'filler'
+  | 'map_keyword'
+  | 'zoom_keyword'
+  | 'zoom_direction'
+  | 'map_control'
+  | 'map_style'
+  | 'document_action'
+  | 'endpoint_keyword'
+  | 'role'
+  | 'place_span';
 
 const TILE_SIZE = 512;
 const EARTH_RADIUS_KM = 6371.0088;
@@ -6,6 +21,7 @@ const PI = Math.PI;
 const MERCATOR_MAX_LATITUDE = 85.05112878;
 const DEFAULT_CLUSTER_RADIUS_PX = 64;
 const DEFAULT_MIN_CLUSTER_POINTS = 2;
+const SCOPE_WASM_MODULE_CANDIDATES = ['scope_wasm.js', 'scope_wasm.generated.js'] as const;
 
 export interface ScopeWasmModuleInfo {
   version: string;
@@ -91,6 +107,14 @@ export interface ScopeWasmHullResult {
   hull: ScopeWasmHullPoint[];
 }
 
+export interface ScopeAiLexToken {
+  type: ScopeAiLexTokenType;
+  value: string;
+  normalized: string;
+  start: number;
+  end: number;
+}
+
 interface NormalizedGeographicPoint {
   id: string;
   latitude: number;
@@ -142,6 +166,7 @@ interface ScopeWasmBindings {
     points: ScopeWasmCoordinateInput[],
     viewport: ScopeWasmViewport,
   ) => ScopeWasmHullResult;
+  lexScopeAiCommandText?: (input: string) => ScopeAiLexToken[] | ArrayLike<ScopeAiLexToken>;
 }
 
 interface ScopeWasmFactoryConfig {
@@ -198,6 +223,168 @@ class DisjointSet {
 }
 
 let runtimePromise: Promise<ScopeWasmRuntime> | null = null;
+let readyRuntime: ScopeWasmRuntime | null = null;
+
+const SCOPE_AI_LEXER_TOKEN_TYPES = new Set<ScopeAiLexTokenType>([
+  'word',
+  'number',
+  'email',
+  'handle',
+  'filler',
+  'map_keyword',
+  'zoom_keyword',
+  'zoom_direction',
+  'map_control',
+  'map_style',
+  'document_action',
+  'endpoint_keyword',
+  'role',
+  'place_span',
+]);
+
+const SCOPE_AI_LEXER_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'around',
+  'at',
+  'can',
+  'could',
+  'for',
+  'from',
+  'in',
+  'into',
+  'it',
+  'me',
+  'my',
+  'of',
+  'on',
+  'please',
+  'pls',
+  'that',
+  'the',
+  'this',
+  'to',
+  'with',
+  'you',
+]);
+
+const SCOPE_AI_LEXER_KEYWORD_TYPES: Record<string, ScopeAiLexTokenType> = {
+  map: 'map_keyword',
+  zoom: 'zoom_keyword',
+  zooming: 'zoom_keyword',
+  in: 'zoom_direction',
+  into: 'zoom_direction',
+  out: 'zoom_direction',
+  reset: 'map_control',
+  fit: 'map_control',
+  locate: 'map_control',
+  center: 'map_control',
+  recenter: 'map_control',
+  focus: 'map_control',
+  show: 'map_control',
+  switch: 'map_control',
+  change: 'map_control',
+  turn: 'map_control',
+  toggle: 'map_control',
+  light: 'map_style',
+  bright: 'map_style',
+  dark: 'map_style',
+  save: 'document_action',
+  share: 'document_action',
+  invite: 'document_action',
+  add: 'document_action',
+  public: 'document_action',
+  publish: 'document_action',
+  private: 'document_action',
+  unpublish: 'document_action',
+  rename: 'document_action',
+  name: 'document_action',
+  title: 'document_action',
+  call: 'document_action',
+  delete: 'document_action',
+  remove: 'document_action',
+  clear: 'document_action',
+  discard: 'document_action',
+  confirm: 'document_action',
+  start: 'endpoint_keyword',
+  starting: 'endpoint_keyword',
+  end: 'endpoint_keyword',
+  destination: 'endpoint_keyword',
+  final: 'endpoint_keyword',
+  finish: 'endpoint_keyword',
+  viewer: 'role',
+  view: 'role',
+  editor: 'role',
+  edit: 'role',
+};
+
+const SCOPE_AI_LEXER_ALIASES: Record<string, string> = {
+  mapp: 'map',
+  mpa: 'map',
+  maap: 'map',
+  mappp: 'map',
+  zom: 'zoom',
+  zomm: 'zoom',
+  zoome: 'zoom',
+  zoomigng: 'zooming',
+  zoomingg: 'zooming',
+  into: 'in',
+  cneter: 'center',
+  centar: 'center',
+  cener: 'center',
+  reecenter: 'recenter',
+  swtich: 'switch',
+  swich: 'switch',
+  swithc: 'switch',
+  toggel: 'toggle',
+  toggl: 'toggle',
+  lokate: 'locate',
+  lcoate: 'locate',
+  locat: 'locate',
+  fitt: 'fit',
+  sahre: 'share',
+  shrae: 'share',
+  shar: 'share',
+  shre: 'share',
+  invte: 'invite',
+  inivte: 'invite',
+  invtie: 'invite',
+  renmae: 'rename',
+  reanme: 'rename',
+  publc: 'public',
+  pubilc: 'public',
+  publci: 'public',
+  publsh: 'publish',
+  publsih: 'publish',
+  privte: 'private',
+  prvate: 'private',
+  privat: 'private',
+  privtae: 'private',
+  viwer: 'viewer',
+  vewer: 'viewer',
+  edtor: 'editor',
+  editr: 'editor',
+  delte: 'delete',
+  deleet: 'delete',
+  delet: 'delete',
+  remvoe: 'remove',
+  cnfirm: 'confirm',
+  resset: 'reset',
+  reser: 'reset',
+  strt: 'start',
+  sstart: 'start',
+  dest: 'destination',
+  destnation: 'destination',
+  destinaton: 'destination',
+  destiantion: 'destination',
+  destinatoin: 'destination',
+  ligt: 'light',
+  lite: 'light',
+  brite: 'bright',
+  brigth: 'bright',
+  drak: 'dark',
+};
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
@@ -206,6 +393,129 @@ function clamp(value: number, minimum: number, maximum: number): number {
 function roundToPrecision(value: number, digits = 2): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
+}
+
+function isScopeAiLexemeCharacter(value: string): boolean {
+  return /^[A-Za-z0-9@._'-]$/.test(value);
+}
+
+function normalizeScopeAiLexeme(value: string): string {
+  const normalized = value.toLowerCase().replace(/^'+|'+$/g, '');
+  return SCOPE_AI_LEXER_ALIASES[normalized] ?? normalized;
+}
+
+function isScopeAiEmailLexeme(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isScopeAiHandleLexeme(value: string): boolean {
+  return /^@[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(value) && !value.includes('.');
+}
+
+function classifyScopeAiLexeme(value: string, normalized: string): ScopeAiLexTokenType {
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    return 'number';
+  }
+
+  if (isScopeAiEmailLexeme(value)) {
+    return 'email';
+  }
+
+  if (isScopeAiHandleLexeme(value)) {
+    return 'handle';
+  }
+
+  const keywordType = SCOPE_AI_LEXER_KEYWORD_TYPES[normalized];
+  if (keywordType) {
+    return keywordType;
+  }
+
+  if (SCOPE_AI_LEXER_STOP_WORDS.has(normalized)) {
+    return 'filler';
+  }
+
+  return 'word';
+}
+
+function isScopeAiPlaceCandidateToken(token: ScopeAiLexToken): boolean {
+  return (token.type === 'word' || token.type === 'number') && token.normalized.length > 1;
+}
+
+function buildScopeAiPlaceSpanTokens(tokens: ScopeAiLexToken[]): ScopeAiLexToken[] {
+  const spans: ScopeAiLexToken[] = [];
+  let index = 0;
+
+  while (index < tokens.length) {
+    if (!isScopeAiPlaceCandidateToken(tokens[index])) {
+      index += 1;
+      continue;
+    }
+
+    const startIndex = index;
+    let endIndex = index;
+    index += 1;
+
+    while (index < tokens.length && isScopeAiPlaceCandidateToken(tokens[index])) {
+      endIndex = index;
+      index += 1;
+    }
+
+    if (endIndex <= startIndex) {
+      continue;
+    }
+
+    const spanTokens = tokens.slice(startIndex, endIndex + 1);
+    spans.push({
+      type: 'place_span',
+      value: spanTokens.map((token) => token.value).join(' '),
+      normalized: spanTokens.map((token) => token.normalized).join(' '),
+      start: spanTokens[0].start,
+      end: spanTokens[spanTokens.length - 1].end,
+    });
+  }
+
+  return spans;
+}
+
+function lexScopeAiCommandTextFallback(input: string): ScopeAiLexToken[] {
+  const tokens: ScopeAiLexToken[] = [];
+  let index = 0;
+
+  while (index < input.length) {
+    while (index < input.length && !isScopeAiLexemeCharacter(input[index])) {
+      index += 1;
+    }
+
+    if (index >= input.length) {
+      break;
+    }
+
+    const start = index;
+    while (index < input.length && isScopeAiLexemeCharacter(input[index])) {
+      index += 1;
+    }
+
+    const end = index;
+    const value = input.slice(start, end);
+    const normalized = normalizeScopeAiLexeme(value);
+    if (!normalized) {
+      continue;
+    }
+
+    tokens.push({
+      type: classifyScopeAiLexeme(value, normalized),
+      value,
+      normalized,
+      start,
+      end,
+    });
+  }
+
+  return [...tokens, ...buildScopeAiPlaceSpanTokens(tokens)];
+}
+
+export function lexScopeAiCommandTextFallbackForTests(input: string): ScopeAiLexToken[] {
+  return lexScopeAiCommandTextFallback(input);
 }
 
 function degreesToRadians(value: number): number {
@@ -822,13 +1132,14 @@ function createFallbackBindings(): ScopeWasmBindings {
   return {
     ping: () => 'scope-wasm-js-fallback-ready',
     getModuleInfo: () => ({
-      version: '0.3.0-js-fallback',
+      version: '0.4.0-js-fallback',
       algorithmsReady: true,
-      status: 'Typed wrappers are using the JavaScript spatial fallback because wasm artifacts are unavailable.',
+      status: 'Typed wrappers are using the JavaScript spatial fallback and Scope AI lexer fallback because wasm artifacts are unavailable.',
     }),
     calculateHaversineDistance: calculateHaversineDistanceFallback,
     clusterViewportPoints: clusterViewportPointsFallback,
     buildViewportConvexHull: buildViewportConvexHullFallback,
+    lexScopeAiCommandText: lexScopeAiCommandTextFallback,
   };
 }
 
@@ -863,14 +1174,57 @@ function sanitizeHullResult(result: ScopeWasmHullResult): ScopeWasmHullResult {
   };
 }
 
+function sanitizeScopeAiLexToken(token: ScopeAiLexToken, inputLength: number): ScopeAiLexToken | null {
+  const type = SCOPE_AI_LEXER_TOKEN_TYPES.has(token.type) ? token.type : 'word';
+  const start = Number.isFinite(token.start) ? Math.max(0, Math.min(inputLength, Math.trunc(token.start))) : 0;
+  const end = Number.isFinite(token.end) ? Math.max(start, Math.min(inputLength, Math.trunc(token.end))) : start;
+  const value = String(token.value ?? '').trim();
+  const normalized = String(token.normalized ?? value).trim().toLowerCase();
+
+  if (!value || !normalized) {
+    return null;
+  }
+
+  return {
+    type,
+    value,
+    normalized,
+    start,
+    end,
+  };
+}
+
+function sanitizeScopeAiLexTokens(tokens: ScopeAiLexToken[] | ArrayLike<ScopeAiLexToken>, inputLength: number): ScopeAiLexToken[] {
+  return normalizeArray(tokens)
+    .map((token) => sanitizeScopeAiLexToken(token, inputLength))
+    .filter((token): token is ScopeAiLexToken => Boolean(token));
+}
+
 function resolveWasmAssetBasePath(): string {
   const baseUrl = import.meta.env.BASE_URL ?? '/';
   const trimmedBase = baseUrl === '/' ? '' : baseUrl.replace(/\/+$/, '');
   return `${trimmedBase}/wasm/dist/`;
 }
 
-async function loadWasmBindings(): Promise<ScopeWasmBindings> {
-  const modulePath = `${resolveWasmAssetBasePath()}scope_wasm.js`;
+function shouldAttemptWasmBindings(): boolean {
+  return import.meta.env.VITE_ENABLE_SCOPE_WASM !== 'false';
+}
+
+async function assertWasmModuleAssetAvailable(modulePath: string): Promise<void> {
+  if (typeof fetch !== 'function') {
+    return;
+  }
+
+  const response = await fetch(modulePath, { method: 'HEAD' });
+  if (!response.ok) {
+    throw new Error(`Scope WASM artifacts are unavailable (${response.status}).`);
+  }
+}
+
+async function loadWasmBindingsFromModule(moduleFileName: string): Promise<ScopeWasmBindings> {
+  const assetBasePath = resolveWasmAssetBasePath();
+  const modulePath = `${assetBasePath}${moduleFileName}`;
+  await assertWasmModuleAssetAvailable(modulePath);
   const importedModule = await import(/* @vite-ignore */ modulePath);
   const factory = (
     (typeof importedModule.default === 'function' && importedModule.default)
@@ -882,8 +1236,25 @@ async function loadWasmBindings(): Promise<ScopeWasmBindings> {
   }
 
   return factory({
-    locateFile: (path) => `${resolveWasmAssetBasePath()}${path}`,
+    locateFile: (path) => `${assetBasePath}${path}`,
   });
+}
+
+async function loadWasmBindings(): Promise<ScopeWasmBindings> {
+  if (!shouldAttemptWasmBindings()) {
+    throw new Error('Scope WASM runtime is disabled; using the JavaScript spatial fallback.');
+  }
+
+  const loadFailures: string[] = [];
+  for (const moduleFileName of SCOPE_WASM_MODULE_CANDIDATES) {
+    try {
+      return await loadWasmBindingsFromModule(moduleFileName);
+    } catch (error) {
+      loadFailures.push(`${moduleFileName}: ${error instanceof Error ? error.message : 'unknown failure'}`);
+    }
+  }
+
+  throw new Error(`Scope WASM artifacts are unavailable (${loadFailures.join('; ')}).`);
 }
 
 async function getRuntime(): Promise<ScopeWasmRuntime> {
@@ -897,7 +1268,11 @@ async function getRuntime(): Promise<ScopeWasmRuntime> {
         mode: 'js-fallback' as const,
         bindings: createFallbackBindings(),
         fallbackReason: error instanceof Error ? error.message : 'Unknown Scope WASM loader failure.',
-      }));
+      }))
+      .then((runtime) => {
+        readyRuntime = runtime;
+        return runtime;
+      });
   }
 
   return runtimePromise;
@@ -948,6 +1323,29 @@ export async function buildViewportConvexHull(
   return sanitizeHullResult(runtime.bindings.buildViewportConvexHull(points, viewport));
 }
 
+export function lexScopeAiCommandText(input: string): ScopeAiLexToken[] {
+  const runtime = readyRuntime;
+  const nativeLexer = runtime?.mode === 'wasm' ? runtime.bindings.lexScopeAiCommandText : null;
+
+  if (nativeLexer) {
+    return sanitizeScopeAiLexTokens(nativeLexer(input), input.length);
+  }
+
+  return lexScopeAiCommandTextFallback(input);
+}
+
+export async function lexScopeAiCommandTextWithRuntime(input: string): Promise<ScopeAiLexToken[]> {
+  const runtime = await getRuntime();
+  const nativeLexer = runtime.mode === 'wasm' ? runtime.bindings.lexScopeAiCommandText : null;
+
+  if (nativeLexer) {
+    return sanitizeScopeAiLexTokens(nativeLexer(input), input.length);
+  }
+
+  return sanitizeScopeAiLexTokens(runtime.bindings.lexScopeAiCommandText?.(input) ?? lexScopeAiCommandTextFallback(input), input.length);
+}
+
 export function resetScopeWasmRuntimeForTests() {
   runtimePromise = null;
+  readyRuntime = null;
 }

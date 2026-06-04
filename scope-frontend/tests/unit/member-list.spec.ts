@@ -19,4 +19,20 @@ describe('MemberList', () => {
     expect(wrapper.text()).toContain('Editor');
     expect(wrapper.findAll('.member-avatar')).toHaveLength(2);
   });
+
+  it('uses fallback labels for pending invites and members without roles', () => {
+    const wrapper = mount(MemberList, {
+      props: {
+        title: 'Planning crew',
+        members: [
+          { id: 'user-1', displayName: 'Pending Editor', status: 'editor', inviteStatus: 'pending' },
+          { id: 'user-2', displayName: 'Role Later' },
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain('Planning crew');
+    expect(wrapper.text()).toContain('Editor invite pending');
+    expect(wrapper.text()).toContain('Trip member');
+  });
 });

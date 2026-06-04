@@ -13,8 +13,13 @@ TRIP_SPOT_PREFETCH = Prefetch(
         'day_number',
         'sort_order',
         'notes',
+        'source',
         'spot__id',
         'spot__title',
+        'spot__latitude',
+        'spot__longitude',
+        'spot__category',
+        'spot__city',
     ),
 )
 TRIP_MEMBER_PREFETCH = Prefetch(

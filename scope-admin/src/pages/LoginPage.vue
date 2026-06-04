@@ -14,7 +14,8 @@ async function submit() {
     await auth.login(email.value, password.value);
     await router.replace('/dashboard');
   } catch (error) {
-    toast.value = error instanceof Error && error.message === 'Access Denied' ? 'Access Denied' : 'Login failed';
+    toast.value =
+      error instanceof Error && error.message === 'Access Denied' ? 'Access Denied' : 'Login failed';
   }
 }
 </script>
@@ -33,7 +34,13 @@ async function submit() {
         </label>
         <label>
           Password
-          <input v-model="password" required type="password" autocomplete="current-password" placeholder="Enter password" />
+          <input
+            v-model="password"
+            required
+            type="password"
+            autocomplete="current-password"
+            placeholder="Enter password"
+          />
         </label>
         <button class="btn primary" type="submit" :disabled="auth.loading">
           {{ auth.loading ? 'Signing in...' : 'Log in' }}

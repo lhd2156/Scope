@@ -7,7 +7,14 @@
       <div>
         <p class="eyebrow">Trip document</p>
         <h2>{{ title }}</h2>
-        <p>{{ statusCopy }}</p>
+        <p
+          class="save-status"
+          :data-save-state="effectiveSaveState"
+          data-test="trip-autosave-status"
+          aria-live="polite"
+        >
+          <span>{{ saveStatusLabel }}</span>
+        </p>
       </div>
     </div>
 
@@ -38,6 +45,18 @@
         <span>Edit</span>
       </RouterLink>
       <button
+        v-if="showAiAction"
+        type="button"
+        class="workspace-link workspace-link--ai"
+        data-test="trip-open-ai"
+        :disabled="saving"
+        @click="$emit('open-ai')"
+      >
+        <ScopeIcon name="sparkle" label="Open Scope AI" />
+        <span>Scope AI</span>
+      </button>
+      <button
+        v-if="canEdit"
         type="button"
         class="action-button action-button--secondary"
         data-test="trip-save-draft"
@@ -48,7 +67,7 @@
         <span>{{ saveButtonLabel }}</span>
       </button>
       <button
-        v-if="trip"
+        v-if="trip && canManage"
         type="button"
         class="action-button action-button--danger"
         data-test="trip-delete-draft"
@@ -59,6 +78,7 @@
         <span>Delete</span>
       </button>
       <button
+        v-if="canManage"
         type="button"
         class="action-button action-button--primary"
         data-test="trip-share-button"
@@ -68,6 +88,34 @@
         <ScopeIcon name="share" label="Share trip" />
         <span>Share</span>
       </button>
+      <div v-if="canManage" class="sharing-control" role="group" aria-label="Who can view this trip">
+        <button
+          type="button"
+          class="sharing-option"
+          :class="{ 'sharing-option--active': isPublic }"
+          :title="'Visible to others'"
+          :aria-label="'Set trip to public'"
+          :aria-pressed="String(isPublic)"
+          data-test="trip-visibility-public"
+          @click="emitVisibility(true)"
+        >
+          <ScopeIcon name="globe" label="" />
+          Public
+        </button>
+        <button
+          type="button"
+          class="sharing-option"
+          :class="{ 'sharing-option--active': !isPublic }"
+          :title="'Only you can view'"
+          :aria-label="'Set trip to private'"
+          :aria-pressed="String(!isPublic)"
+          data-test="trip-visibility-private"
+          @click="emitVisibility(false)"
+        >
+          <ScopeIcon name="lock" label="" />
+          Private
+        </button>
+      </div>
     </div>
   </section>
 </template>
@@ -86,6 +134,10 @@ const props = withDefaults(
     saveState?: 'unsaved' | 'saving' | 'saved';
     saving?: boolean;
     showEditLink?: boolean;
+    isPublic?: boolean;
+    canEdit?: boolean;
+    canManage?: boolean;
+    showAiAction?: boolean;
   }>(),
   {
     trip: null,
@@ -93,14 +145,27 @@ const props = withDefaults(
     saveState: 'unsaved',
     saving: false,
     showEditLink: true,
+    isPublic: false,
+    canEdit: true,
+    canManage: true,
+    showAiAction: true,
   },
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'save'): void;
   (event: 'share'): void;
   (event: 'delete'): void;
+  (event: 'open-ai'): void;
+  (event: 'update:isPublic', value: boolean): void;
 }>();
+
+const emitVisibility = (value: boolean) => {
+  if (props.isPublic === value || props.saving) {
+    return;
+  }
+  emit('update:isPublic', value);
+};
 
 const title = computed(() => props.trip?.title?.trim() || 'Unsaved draft');
 const visibleMembers = computed(() => props.members.slice(0, 4));
@@ -114,30 +179,21 @@ const crewNames = computed(() => {
 });
 const saveButtonLabel = computed(() => {
   if (props.saving || props.saveState === 'saving') {
-    return 'Saving';
+    return 'Saving...';
   }
 
-  if (props.saveState === 'saved' && props.trip) {
-    return 'Saved';
-  }
-
-  return 'Save now';
+  return 'Save';
 });
-
-const statusCopy = computed(() => {
-  if (props.saving || props.saveState === 'saving') {
-    return 'Autosaving this trip document now.';
+const effectiveSaveState = computed(() => (props.saving ? 'saving' : props.saveState));
+const saveStatusLabel = computed(() => {
+  switch (effectiveSaveState.value) {
+    case 'saving':
+      return 'Autosaving...';
+    case 'saved':
+      return 'Autosaved';
+    default:
+      return 'Autosave pending';
   }
-
-  if (!props.trip) {
-    return 'Start typing and Scope will autosave this draft.';
-  }
-
-  if (props.saveState === 'saved') {
-    return 'Draft autosaved. Editors can modify this trip when you share it.';
-  }
-
-  return 'Unsaved edits. Scope will autosave in a moment.';
 });
 </script>
 
@@ -148,10 +204,8 @@ const statusCopy = computed(() => {
   gap: clamp(var(--space-3), 1.3vw, var(--space-5));
   align-items: center;
   padding: clamp(var(--space-3), 1.15vw, var(--space-4));
-  border-color: color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border));
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--bg-secondary) 94%, var(--accent-teal) 6%), color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary))),
-    radial-gradient(circle at right top, color-mix(in srgb, var(--accent-teal) 9%, transparent), transparent 38%);
+  border-color: var(--glass-border);
+  background: var(--bg-secondary);
   box-shadow:
     var(--shadow-md),
     inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
@@ -212,12 +266,89 @@ const statusCopy = computed(() => {
   -webkit-line-clamp: 1;
 }
 
+.collaboration-status p.save-status {
+  display: block;
+  width: fit-content;
+  margin-top: 0.24rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.collaboration-status p.save-status[data-save-state='unsaved'] {
+  color: color-mix(in srgb, var(--accent-gold) 86%, var(--text-primary));
+}
+
+.collaboration-status p.save-status[data-save-state='saving'] {
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--accent-teal));
+}
+
+.collaboration-status p.save-status[data-save-state='saved'] {
+  color: color-mix(in srgb, var(--success) 82%, var(--text-secondary));
+}
+
 .crew-strip {
   min-width: 0;
   padding: 0.62rem 0.72rem;
   border: 1px solid color-mix(in srgb, var(--glass-border) 82%, var(--border));
   border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--glass-bg) 82%, transparent);
+}
+
+.sharing-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+  padding: 0.22rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 84%, var(--border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 36%, var(--glass-bg));
+}
+
+.sharing-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  min-height: 1.65rem;
+  padding: 0.18rem 0.54rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 90%, var(--border));
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-semibold);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.sharing-option :deep(.scope-icon) {
+  width: 0.82rem;
+  height: 0.82rem;
+}
+
+.sharing-option:hover,
+.sharing-option:focus-visible {
+  outline: none;
+  transform: none;
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  color: var(--text-primary);
+}
+
+.sharing-option--active {
+  border-color: color-mix(in srgb, var(--accent-teal) 72%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 18%, var(--bg-secondary));
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 26%, transparent);
 }
 
 .crew-avatars {
@@ -278,6 +409,11 @@ const statusCopy = computed(() => {
   background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
 }
 
+.workspace-link--ai {
+  border-color: color-mix(in srgb, var(--accent-gold) 42%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-gold) 14%, var(--bg-secondary));
+}
+
 .action-button {
   cursor: pointer;
 }
@@ -311,6 +447,11 @@ const statusCopy = computed(() => {
   opacity: 0.7;
 }
 
+.workspace-link:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .workspace-link :deep(.scope-icon),
 .action-button :deep(.scope-icon) {
   width: 1rem;
@@ -329,6 +470,8 @@ const statusCopy = computed(() => {
   }
 
   .collaboration-actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
     justify-content: flex-start;
     flex-wrap: wrap;
   }
@@ -350,6 +493,11 @@ const statusCopy = computed(() => {
   .workspace-link {
     flex: 1 1 9rem;
   }
+
+  .sharing-control {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -364,5 +512,6 @@ const statusCopy = computed(() => {
   .action-button:focus-visible {
     transform: none;
   }
+
 }
 </style>

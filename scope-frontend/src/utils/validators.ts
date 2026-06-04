@@ -1,15 +1,30 @@
-import type { SpotFormInput } from '@/types';
+import type { SpotFormInput, SpotPillar } from '@/types';
 
 export const MAX_SPOT_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_SPOT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const SPOT_PHOTO_ACCEPT = '.jpg,.jpeg,.png,.webp';
+export const ALLOWED_SPOT_PILLARS: readonly SpotPillar[] = [
+  'hidden-gem',
+  'photo-worthy',
+  'date-night',
+  'group-friendly',
+  'solo-friendly',
+  'family-friendly',
+  'budget-friendly',
+  'worth-the-drive',
+  'quick-stop',
+  'calm',
+  'lively',
+  'luxury-feel',
+] as const;
 
 const TITLE_MAX_LENGTH = 120;
 const DESCRIPTION_MAX_LENGTH = 2000;
 const LOCATION_FIELD_MAX_LENGTH = 160;
+const POSTAL_CODE_MAX_LENGTH = 32;
 const VIBE_MAX_LENGTH = 48;
 
-type SpotFormField = keyof SpotFormInput | 'photos';
+type SpotFormField = keyof SpotFormInput | 'photos' | 'locationVerification' | 'safety';
 
 export type SpotFormErrors = Partial<Record<SpotFormField, string>>;
 
@@ -32,12 +47,13 @@ export function validateSpotFormInput(input: SpotFormInput): SpotFormErrors {
   const address = input.address.trim();
   const city = input.city.trim();
   const country = input.country.trim();
+  const postalCode = input.postalCode?.trim() ?? '';
   const vibe = input.vibe.trim();
 
   if (!title) {
-    errors.title = 'Give this pin a clear title.';
+    errors.title = 'Name the place.';
   } else if (title.length > TITLE_MAX_LENGTH) {
-    errors.title = `Keep the title under ${TITLE_MAX_LENGTH} characters.`;
+    errors.title = `Keep the place name under ${TITLE_MAX_LENGTH} characters.`;
   }
 
   if (!description) {
@@ -64,10 +80,22 @@ export function validateSpotFormInput(input: SpotFormInput): SpotFormErrors {
     errors.country = `Keep the country under ${LOCATION_FIELD_MAX_LENGTH} characters.`;
   }
 
-  if (!vibe) {
-    errors.vibe = 'Add a vibe tag so Scope can cluster similar stops.';
-  } else if (vibe.length > VIBE_MAX_LENGTH) {
+  if (postalCode.length > POSTAL_CODE_MAX_LENGTH) {
+    errors.postalCode = `Keep the ZIP or postal code under ${POSTAL_CODE_MAX_LENGTH} characters.`;
+  }
+
+  if (vibe.length > VIBE_MAX_LENGTH) {
     errors.vibe = `Keep the vibe under ${VIBE_MAX_LENGTH} characters.`;
+  }
+
+  const pillars = Array.isArray(input.pillars) ? input.pillars : [];
+  const uniquePillars = new Set(pillars);
+  if (!pillars.length) {
+    errors.pillars = 'Choose at least one vibe pillar.';
+  } else if (pillars.length > 4 || uniquePillars.size > 4) {
+    errors.pillars = 'Choose up to 4 vibe pillars.';
+  } else if (pillars.some((pillar) => !ALLOWED_SPOT_PILLARS.includes(pillar))) {
+    errors.pillars = 'Choose pillars from the approved list.';
   }
 
   if (Number.isNaN(new Date(input.visitedAt).getTime())) {

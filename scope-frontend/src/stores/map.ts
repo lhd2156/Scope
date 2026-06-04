@@ -4,8 +4,10 @@ import { cloneMapViewport, UNITED_STATES_MAP_VIEWPORT } from '@/config/mapViewpo
 import type { MapViewport, SpotCategory } from '@/types';
 
 export const DEFAULT_MAP_VIEWPORT: MapViewport = cloneMapViewport(UNITED_STATES_MAP_VIEWPORT);
+export const MIN_MAP_ZOOM = 1.5;
+export const MAX_MAP_ZOOM = 18;
 
-const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const allCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 
 export const useMapStore = defineStore('map', () => {
   const viewport = ref<MapViewport>(cloneMapViewport(DEFAULT_MAP_VIEWPORT));
@@ -20,7 +22,7 @@ export const useMapStore = defineStore('map', () => {
   }
 
   function setZoom(zoom: number) {
-    viewport.value = { ...viewport.value, zoom: Math.min(Math.max(zoom, 2), 18) };
+    viewport.value = { ...viewport.value, zoom: Math.min(Math.max(zoom, MIN_MAP_ZOOM), MAX_MAP_ZOOM) };
   }
 
   function setStyle(style: string) {

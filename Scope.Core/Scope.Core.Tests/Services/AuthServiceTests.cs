@@ -203,6 +203,34 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task LoginAsync_LocksAccountAfterRepeatedBadMfaCodes()
+    {
+        var mfa = new Mock<IMfaService>();
+        mfa.Setup(x => x.ValidateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var service = BuildService(out var dbContext, out _, mfa: mfa);
+        await service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", AdultDateOfBirth);
+        var user = await dbContext.Users.FirstAsync();
+        user.MfaEnabled = true;
+        user.MfaSecret = "JBSWY3DPEHPK3PXP";
+        await dbContext.SaveChangesAsync();
+
+        for (var i = 0; i < 4; i++)
+        {
+            await Assert.ThrowsAsync<UnauthorizedException>(() =>
+                service.LoginAsync("lou@example.com", "SecurePass123!", "000000"));
+        }
+
+        var locked = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+            service.LoginAsync("lou@example.com", "SecurePass123!", "000000"));
+        Assert.Contains("locked", locked.Message, StringComparison.OrdinalIgnoreCase);
+
+        var stored = await dbContext.Users.FirstAsync();
+        Assert.NotNull(stored.LockoutUntil);
+        await Assert.ThrowsAsync<UnauthorizedException>(() =>
+            service.LoginAsync("lou@example.com", "SecurePass123!", "123456"));
+    }
+
+    [Fact]
     public async Task RefreshAsync_RotatesTokenAndRevokesPrior()
     {
         var service = BuildService(out var dbContext, out _);
@@ -218,6 +246,27 @@ public sealed class AuthServiceTests
         Assert.NotNull(original.RevokedAt);
         Assert.Equal("rotated", original.RevokedReason);
         Assert.NotNull(original.ReplacedByTokenHash);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RejectsInactiveUserAndRevokesOutstandingTokens()
+    {
+        var service = BuildService(out var dbContext, out _);
+        await service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", AdultDateOfBirth);
+        var outcome = await service.LoginAsync("lou@example.com", "SecurePass123!");
+        var user = await dbContext.Users.SingleAsync(x => x.Email == "lou@example.com");
+        user.IsActive = false;
+        await dbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => service.RefreshAsync(outcome.Result!.RefreshToken));
+
+        var outstandingTokens = await dbContext.RefreshTokens.Where(x => x.UserId == user.Id).ToListAsync();
+        Assert.NotEmpty(outstandingTokens);
+        Assert.All(outstandingTokens, token =>
+        {
+            Assert.NotNull(token.RevokedAt);
+            Assert.Equal("user_inactive", token.RevokedReason);
+        });
     }
 
     [Fact]
@@ -239,5 +288,44 @@ public sealed class AuthServiceTests
         // (relational providers) or a NotSupported / InvalidOperationException
         // (InMemory) — both prove the revoked token is not reusable.
         await Assert.ThrowsAnyAsync<Exception>(() => service.RefreshAsync(stolen));
+    }
+
+    [Fact]
+    public async Task LogoutAsync_RevokesActiveTokenAndIgnoresMissingValues()
+    {
+        var service = BuildService(out var dbContext, out _);
+        await service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", AdultDateOfBirth);
+        var outcome = await service.LoginAsync("lou@example.com", "SecurePass123!");
+
+        await service.LogoutAsync("");
+        await service.LogoutAsync("missing");
+        await service.LogoutAsync(outcome.Result!.RefreshToken);
+
+        var stored = await dbContext.RefreshTokens.SingleAsync(x => x.Token == RefreshTokenHasher.Hash(outcome.Result.RefreshToken));
+        Assert.NotNull(stored.RevokedAt);
+        Assert.Equal("logout", stored.RevokedReason);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ProjectsProfileAndRejectsMissingInactiveUsers()
+    {
+        var service = BuildService(out var dbContext, out _);
+        var registered = await service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", AdultDateOfBirth);
+        var user = await dbContext.Users.SingleAsync(x => x.Id == registered.Id);
+        user.Bio = "Routes and food";
+        user.AvatarUrl = "https://example.com/avatar.png";
+        user.HomeBase = "Austin";
+        user.InterestsJson = """["food","music"]""";
+        await dbContext.SaveChangesAsync();
+
+        var profile = await service.GetCurrentUserAsync(registered.Id);
+
+        Assert.Equal("lou", profile.Username);
+        Assert.Equal(new[] { "food", "music" }, profile.Interests);
+
+        user.IsActive = false;
+        await dbContext.SaveChangesAsync();
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetCurrentUserAsync(registered.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetCurrentUserAsync(Guid.NewGuid()));
     }
 }

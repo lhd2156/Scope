@@ -49,4 +49,20 @@ describe('ReviewList', () => {
     expect(wrapper.text()).toContain('No reviews yet');
     expect(wrapper.text()).toContain('Be the first traveler');
   });
+
+  it('leaves comments without a single trailing sentence period unchanged', () => {
+    const wrapper = mount(ReviewList, {
+      props: {
+        reviews: [
+          {
+            ...reviews[0],
+            id: 'review-2',
+            comment: 'Still delightful..',
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain('Still delightful..');
+  });
 });

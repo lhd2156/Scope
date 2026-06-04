@@ -53,6 +53,10 @@ class RateLimitMiddleware:
     def _upload_limit() -> int:
         return int(getattr(settings, 'RATE_LIMIT_UPLOAD_PER_USER', 20))
 
+    @staticmethod
+    def _comments_limit() -> int:
+        return int(getattr(settings, 'RATE_LIMIT_COMMENTS_PER_USER', 30))
+
     def _limits_for_request(self, request) -> list[tuple[str, int]]:
         limits: list[tuple[str, int]] = []
         ip_address = self._client_ip(request)
@@ -61,6 +65,10 @@ class RateLimitMiddleware:
         if request.path.startswith('/api/content/photos/upload'):
             upload_identity = self._upload_identity(request, ip_address)
             limits.append((f'upload:{upload_identity}', self._upload_limit()))
+
+        if request.path.startswith('/api/content/comments') and request.method in {'POST', 'PUT', 'DELETE'}:
+            upload_identity = self._upload_identity(request, ip_address)
+            limits.append((f'comments:{upload_identity}', self._comments_limit()))
 
         return limits
 

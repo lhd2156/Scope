@@ -413,7 +413,7 @@ func (a *App) handleAlertRules(writer http.ResponseWriter, _ *http.Request) {
 
 	writeJSON(writer, http.StatusOK, map[string]any{
 		"rulesPath":   a.config.AlertRulesPath,
-		"rulesLoaded": a.ruleSet != nil && a.rulesLoadError == "",
+		"rulesLoaded": a.rulesLoaded(),
 		"loadError":   a.rulesLoadError,
 		"config":      ruleConfig,
 	})
@@ -603,21 +603,17 @@ func (a *App) probeTarget(ctx context.Context, target config.Target) probeResult
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
 	if err != nil {
 		result.Error = err.Error()
-		result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
-		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
-		a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(0)
-		a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(0)
-		return result
+		return a.finishProbeResult(target, result)
 	}
+	// These probes call service containers directly, behind nginx's TLS
+	// boundary. Match nginx's forwarded scheme so HTTPS-only apps do not
+	// redirect the probe to an untrusted container-name TLS endpoint.
+	request.Header.Set("X-Forwarded-Proto", "https")
 
 	response, err := a.httpClient.Do(request)
 	if err != nil {
 		result.Error = err.Error()
-		result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
-		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
-		a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(0)
-		a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(0)
-		return result
+		return a.finishProbeResult(target, result)
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, response.Body)
@@ -625,17 +621,24 @@ func (a *App) probeTarget(ctx context.Context, target config.Target) probeResult
 	result.StatusCode = response.StatusCode
 	result.LatencySeconds = time.Since(startedAt).Seconds()
 	result.Up = response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
-	result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
 
+	return a.finishProbeResult(target, result)
+}
+
+func (a *App) finishProbeResult(target config.Target, result probeResult) probeResult {
+	result.LastCheckedUTC = time.Now().UTC().Format(time.RFC3339)
+	a.recordProbeMetrics(target, result)
+	return result
+}
+
+func (a *App) recordProbeMetrics(target config.Target, result probeResult) {
 	a.metrics.serviceResponseSecs.WithLabelValues(target.Name, target.URL).Set(result.LatencySeconds)
-	a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(float64(response.StatusCode))
+	a.metrics.serviceStatusCode.WithLabelValues(target.Name, target.URL).Set(float64(result.StatusCode))
 	if result.Up {
 		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(1)
 	} else {
 		a.metrics.serviceUp.WithLabelValues(target.Name, target.URL).Set(0)
 	}
-
-	return result
 }
 
 func (a *App) instrument(route string, next http.Handler) http.Handler {
@@ -720,7 +723,7 @@ func (a *App) buildAlertingResponse() alertingResponse {
 	return alertingResponse{
 		RulesPath:      a.config.AlertRulesPath,
 		RulesVersion:   rulesVersion,
-		RulesLoaded:    a.ruleSet != nil && a.rulesLoadError == "",
+		RulesLoaded:    a.rulesLoaded(),
 		RuleCount:      ruleCount,
 		WebhookEnabled: a.dispatcher.Enabled(),
 		WebhookURL:     a.config.AlertWebhookURL,
@@ -728,6 +731,10 @@ func (a *App) buildAlertingResponse() alertingResponse {
 		ActiveAlerts:   activeAlerts,
 		LastDispatch:   lastDispatch,
 	}
+}
+
+func (a *App) rulesLoaded() bool {
+	return a.ruleSet != nil && a.rulesLoadError == ""
 }
 
 func convertProbes(probes []probeResult) []alerts.ProbeSnapshot {

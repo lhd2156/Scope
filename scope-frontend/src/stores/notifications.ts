@@ -4,6 +4,7 @@ import {
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  performNotificationAction,
 } from '@/services/feedService';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
@@ -360,11 +361,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
-  async function markRead(notificationId: string) {
+  async function markRead(notificationId: string): Promise<NotificationItem | undefined> {
     const normalizedNotificationId = normalizeNotificationId(notificationId);
 
     if (!normalizedNotificationId) {
-      return;
+      return undefined;
     }
 
     const readScope = resolveNotificationReadScope();
@@ -373,7 +374,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     );
 
     if (!hasMatchingNotification) {
-      return;
+      return undefined;
     }
 
     const previousItems = [...items.value];
@@ -397,15 +398,52 @@ export const useNotificationsStore = defineStore('notifications', () => {
           items.value.map((notification) =>
             normalizeNotificationId(notification.id) === normalizedNotificationId
               ? normalizedUpdatedNotification
-              : notification,
+            : notification,
           ),
         );
+        return normalizedUpdatedNotification;
       }
+      return items.value.find((notification) => normalizeNotificationId(notification.id) === normalizedNotificationId);
     } catch (nextError) {
       items.value = previousItems;
       error.value = toAsyncErrorMessage(nextError, 'Scope could not mark that notification as read.');
       useToastStore().showError({
         title: 'Notification update failed',
+        message: error.value,
+      });
+      return undefined;
+    }
+  }
+
+  async function performAction(notificationId: string, action: string): Promise<void> {
+    const normalizedNotificationId = normalizeNotificationId(notificationId);
+    const normalizedAction = action.trim();
+    if (!normalizedNotificationId || !normalizedAction) {
+      return;
+    }
+
+    const previousItems = [...items.value];
+    error.value = null;
+
+    if (['mark_read', 'open', 'accept_friend_request', 'decline_friend_request'].includes(normalizedAction)) {
+      items.value = items.value.map((notification) =>
+        normalizeNotificationId(notification.id) === normalizedNotificationId
+          ? { ...notification, isRead: true }
+          : notification,
+      );
+    }
+
+    try {
+      await performNotificationAction(normalizedNotificationId, normalizedAction);
+      rememberReadNotificationIds([normalizedNotificationId]);
+      if (normalizedAction === 'decline_friend_request') {
+        items.value = items.value.filter((notification) => normalizeNotificationId(notification.id) !== normalizedNotificationId);
+      }
+    } catch (nextError) {
+      items.value = previousItems;
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not complete that notification action.');
+      useToastStore().showError({
+        title: 'Notification action failed',
         message: error.value,
       });
     }
@@ -457,6 +495,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     connect,
     disconnect,
     markRead,
+    performAction,
     markAllRead,
   };
 });

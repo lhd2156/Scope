@@ -30,10 +30,10 @@ class GeocodingService:
             results = self._parse_search_response(response.json(), normalized_query, safe_limit)
             if results:
                 return results
-        except Exception:  # noqa: BLE001 - geocoding should degrade to a deterministic local result
+        except Exception:  # noqa: BLE001 - provider outages should not create synthetic map pins
             current_app.logger.info("intel_geocode_provider_unavailable", exc_info=True)
 
-        return [self._fallback_geocode_result(normalized_query)]
+        return []
 
     def reverse_geocode(self, latitude: float, longitude: float) -> dict:
         if current_app.config.get("TESTING"):
@@ -146,9 +146,10 @@ class GeocodingService:
         formatted_address = str(payload.get("display_name") or payload.get("formattedAddress") or "").strip()
         city = self._extract_city(address)
         country = self._safe_string(address.get("country") or payload.get("country"))
+        postal_code = self._safe_string(address.get("postcode") or payload.get("postalCode") or payload.get("postal_code"))
         place_name = formatted_address.split(",")[0].strip() if formatted_address else "Pinned location"
 
-        return {
+        result = {
             "latitude": float(payload.get("lat") or latitude),
             "longitude": float(payload.get("lon") or longitude),
             "placeName": place_name,
@@ -158,6 +159,9 @@ class GeocodingService:
             "country": country,
             "precision": self._safe_string(payload.get("type") or payload.get("class") or "reverse"),
         }
+        if postal_code:
+            result["postalCode"] = postal_code
+        return result
 
     def _open_meteo_result_to_result(self, result: dict, query: str) -> dict:
         name = self._safe_string(result.get("name")) or query
@@ -178,7 +182,8 @@ class GeocodingService:
         address = result.get("address") if isinstance(result.get("address"), dict) else {}
         formatted_address = self._safe_string(result.get("display_name")) or query
         place_name = self._safe_string(result.get("name")) or formatted_address.split(",")[0].strip() or query
-        return {
+        postal_code = self._safe_string(address.get("postcode"))
+        geocode_result = {
             "latitude": float(result.get("lat")),
             "longitude": float(result.get("lon")),
             "placeName": place_name,
@@ -188,6 +193,9 @@ class GeocodingService:
             "country": self._safe_string(address.get("country")),
             "precision": self._safe_string(result.get("type") or result.get("class") or "place"),
         }
+        if postal_code:
+            geocode_result["postalCode"] = postal_code
+        return geocode_result
 
     def _mapbox_feature_to_result(
         self,
@@ -201,11 +209,13 @@ class GeocodingService:
         context = feature.get("context") if isinstance(feature.get("context"), list) else []
         city = self._mapbox_context_value(context, ("place", "locality", "neighborhood"))
         country = self._mapbox_context_value(context, ("country",))
+        country_code = self._mapbox_context_short_code(context, ("country",))
+        postal_code = self._safe_string((feature.get("properties") or {}).get("postcode") if isinstance(feature.get("properties"), dict) else None) or self._mapbox_context_value(context, ("postcode",))
         place_name = self._safe_string(feature.get("text")) or "Pinned location"
         house_number = self._safe_string(feature.get("address"))
         formatted_address = self._safe_string(feature.get("place_name")) or place_name
 
-        return {
+        result = {
             "latitude": latitude,
             "longitude": longitude,
             "placeName": place_name,
@@ -213,8 +223,13 @@ class GeocodingService:
             "address": " ".join(part for part in (house_number, place_name) if part) or None,
             "city": city,
             "country": country,
+            "countryCode": country_code,
+            "providerPlaceId": self._safe_string(feature.get("id")),
             "precision": self._safe_string((feature.get("place_type") or ["place"])[0]),
         }
+        if postal_code:
+            result["postalCode"] = postal_code
+        return result
 
     @staticmethod
     def _mapbox_context_value(context: list[dict], prefixes: tuple[str, ...]) -> str | None:
@@ -222,6 +237,16 @@ class GeocodingService:
             identifier = str(item.get("id") or "")
             if any(identifier.startswith(f"{prefix}.") for prefix in prefixes):
                 value = str(item.get("text") or "").strip()
+                if value:
+                    return value
+        return None
+
+    @staticmethod
+    def _mapbox_context_short_code(context: list[dict], prefixes: tuple[str, ...]) -> str | None:
+        for item in context:
+            identifier = str(item.get("id") or "")
+            if any(identifier.startswith(f"{prefix}.") for prefix in prefixes):
+                value = str(item.get("short_code") or "").strip()
                 if value:
                     return value
         return None
@@ -280,12 +305,13 @@ class GeocodingService:
 
     @staticmethod
     def _fallback_reverse_geocode_result(latitude: float, longitude: float) -> dict:
+        coordinate_label = f"{latitude:.6f}, {longitude:.6f}"
         return {
             "latitude": latitude,
             "longitude": longitude,
-            "placeName": "Fort Worth, TX, USA",
-            "formattedAddress": "Fort Worth, TX, USA",
-            "city": "Fort Worth",
-            "country": "United States",
-            "precision": "fallback",
+            "placeName": "Pinned location",
+            "formattedAddress": coordinate_label,
+            "city": None,
+            "country": None,
+            "precision": "coordinate",
         }

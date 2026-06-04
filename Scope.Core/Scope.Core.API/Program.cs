@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
+using Scope.Core.API.Configuration;
 using Scope.Core.API.Middleware;
+using Scope.Core.API.Services;
 using Scope.Core.Domain.Interfaces;
 using Scope.Core.Infrastructure.AI;
 using Scope.Core.Infrastructure.Configuration;
@@ -31,9 +33,15 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console(new RenderedCompactJsonFo
 builder.Host.UseSerilog();
 builder.WebHost.UseSentry(options =>
 {
+    var sentryEnvironment = builder.Configuration["SENTRY_ENVIRONMENT"];
+    var sentryRelease = builder.Configuration["SENTRY_RELEASE"];
+
     options.Dsn = builder.Configuration["SENTRY_DSN"] ?? string.Empty;
-    options.TracesSampleRate = 0.1;
-    options.Environment = builder.Environment.EnvironmentName;
+    options.TracesSampleRate = double.TryParse(builder.Configuration["SENTRY_TRACES_SAMPLE_RATE"], out var sentryTracesSampleRate)
+        ? Math.Clamp(sentryTracesSampleRate, 0, 1)
+        : 0.1;
+    options.Environment = string.IsNullOrWhiteSpace(sentryEnvironment) ? builder.Environment.EnvironmentName : sentryEnvironment;
+    options.Release = string.IsNullOrWhiteSpace(sentryRelease) ? null : sentryRelease;
     options.SendDefaultPii = false;
 });
 
@@ -94,9 +102,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
-    options.KnownProxies.Clear();
+    ForwardedHeadersOptionsConfigurator.Configure(options, builder.Configuration);
 });
 
 // Shared Redis connection. A single IConnectionMultiplexer is registered when
@@ -170,14 +176,24 @@ builder.Services.AddCors(options => options.AddPolicy("default", policy => polic
 // slow caller cannot tie up a connection-pool slot indefinitely.
 // SplitQuery prevents cartesian-explosion JOINs on collections without every
 // LINQ author remembering .AsSplitQuery() — verified against our schema.
+var configuredCoreDbConnection = builder.Configuration["CORE_DB_CONNECTION"];
+var namedCoreDbConnection = builder.Configuration.GetConnectionString("CoreDatabase");
+var coreDbConnection = !string.IsNullOrWhiteSpace(configuredCoreDbConnection)
+    ? configuredCoreDbConnection
+    : !string.IsNullOrWhiteSpace(namedCoreDbConnection)
+        ? namedCoreDbConnection
+        : builder.Environment.IsDevelopment()
+            ? "Server=(localdb)\\mssqllocaldb;Database=ScopeCore;Trusted_Connection=True;"
+            : throw new InvalidOperationException("CoreDatabase connection string must be configured outside Development.");
+if (!builder.Environment.IsDevelopment() && coreDbConnection.Contains("${", StringComparison.Ordinal))
+{
+    throw new InvalidOperationException("CoreDatabase connection string contains an unresolved placeholder.");
+}
+
 var dbPoolSize = int.TryParse(builder.Configuration["CORE_DB_POOL_SIZE"], out var pool) && pool > 0 ? pool : 128;
 builder.Services.AddDbContextPool<CoreDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("CoreDatabase")
-            ?? builder.Configuration["CORE_DB_CONNECTION"]
-            ?? (builder.Environment.IsDevelopment()
-                ? "Server=(localdb)\\mssqllocaldb;Database=ScopeCore;Trusted_Connection=True;"
-                : throw new InvalidOperationException("CoreDatabase connection string must be configured outside Development.")),
+        coreDbConnection,
         sql =>
         {
             sql.EnableRetryOnFailure(
@@ -227,6 +243,10 @@ builder.Services.AddOutputCache(options =>
         .SetVaryByHeader("Accept-Encoding"));
 });
 
+var rateLimitOptions = builder.Configuration
+    .GetSection(RateLimitOptions.SectionName)
+    .Get<RateLimitOptions>() ?? new RateLimitOptions();
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -236,22 +256,29 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 10,
+                PermitLimit = rateLimitOptions.GlobalLimit,
+                Window = TimeSpan.FromSeconds(rateLimitOptions.WindowSeconds),
+                QueueLimit = 20,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             }));
 
     options.AddPolicy("auth", httpContext =>
+    {
+        var isRefresh = httpContext.Request.Path.Equals("/api/core/auth/refresh", StringComparison.OrdinalIgnoreCase);
+        var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var partitionPrefix = isRefresh ? "auth-refresh" : "auth";
+
+        return
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: $"{partitionPrefix}:{remoteIp}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 2,
+                PermitLimit = isRefresh ? rateLimitOptions.RefreshLimit : rateLimitOptions.AuthLimit,
+                Window = TimeSpan.FromSeconds(rateLimitOptions.WindowSeconds),
+                QueueLimit = isRefresh ? 20 : 2,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            }));
+            });
+    });
 
     options.OnRejected = async (context, ct) =>
     {
@@ -318,6 +345,12 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<INotificationChannelSender, WebPushNotificationSender>();
+builder.Services.AddScoped<INotificationChannelSender, NoopEmailNotificationSender>();
+builder.Services.AddHostedService<NotificationEventConsumerService>();
+builder.Services.AddHostedService<NotificationDeliveryDispatcher>();
+builder.Services.AddHostedService<NotificationOutboxReplayDispatcher>();
 
 // HIBP breach checker is opt-in via config. When disabled the null checker
 // short-circuits so we don't pay for DI resolution of HttpClient, logger, etc.
@@ -388,8 +421,28 @@ builder.Services.AddHttpClient("content", client =>
             ? Math.Max(1, totalTimeoutHandler - 1) : 4);
 });
 builder.Services.AddSingleton<ITripMembershipValidator, TripMembershipValidator>();
+var grpcInternalToken = builder.Configuration["GRPC_INTERNAL_TOKEN"]?.Trim();
+if (string.IsNullOrWhiteSpace(grpcInternalToken))
+{
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("GRPC_INTERNAL_TOKEN must be configured outside Development.");
+    }
+}
+else
+{
+    if (Encoding.UTF8.GetByteCount(grpcInternalToken) < MinJwtSecretBytes)
+    {
+        throw new InvalidOperationException($"GRPC_INTERNAL_TOKEN must be at least {MinJwtSecretBytes} bytes (256 bits) of entropy.");
+    }
+    if (string.Equals(grpcInternalToken, jwtOptions.Secret, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("GRPC_INTERNAL_TOKEN must be distinct from CORE_JWT_SECRET.");
+    }
+}
 builder.Services.AddSingleton(new ContentGrpcClient(
-    builder.Configuration.GetValue<string>("CONTENT_GRPC_URL") ?? "http://content:50051"
+    builder.Configuration.GetValue<string>("CONTENT_GRPC_URL") ?? "http://content:50051",
+    grpcInternalToken
 ));
 var ollamaUrl = builder.Configuration["OLLAMA_BASE_URL"] ?? "http://ollama:11434";
 var ollamaModel = builder.Configuration["OLLAMA_MODEL"] ?? "llama3.1";

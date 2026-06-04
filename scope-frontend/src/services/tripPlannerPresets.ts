@@ -224,7 +224,7 @@ export function buildTripPlannerPresetItinerary(input: TripPlannerInput): Itiner
     return null;
   }
 
-  const totalDays = Math.max(1, Math.min(getInclusiveDaySpan(input.startDate, input.endDate), 5));
+  const totalDays = Math.max(1, Math.min(getInclusiveDaySpan(input.startDate, input.endDate), 30));
   const presetStops = [...matchedPreset.stops, ...matchedPreset.suggestedStops].map(cloneStop);
   const selectedStopCount = getTargetStopCount(totalDays, input.pace, presetStops.length);
   const selectedStops = presetStops.slice(0, selectedStopCount);
@@ -233,8 +233,7 @@ export function buildTripPlannerPresetItinerary(input: TripPlannerInput): Itiner
     .map((day, index) => ({
       ...day,
       date: addCalendarDays(input.startDate, index),
-    }))
-    .filter((day) => day.spots.length > 0);
+    }));
 
   const totalEstimatedCost = days
     .flatMap((day) => day.spots)

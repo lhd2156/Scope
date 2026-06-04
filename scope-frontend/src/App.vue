@@ -19,11 +19,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterView, useRoute, type RouteLocationNormalizedLoaded } from 'vue-router';
 import AppErrorBoundary from '@/components/common/AppErrorBoundary.vue';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useToastStore } from '@/stores/toasts';
+import { defineShellAsyncComponent } from '@/utils/shellAsyncComponent';
 import { ANALYTICS_CONSENT_STORAGE_KEY } from '@/utils/analyticsConsent';
 import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
 import { isScopeQaMode, syncScopeQaDocumentState } from '@/utils/qaMode';
@@ -41,10 +42,10 @@ function hasAnalyticsConsentChoice(): boolean {
   }
 }
 
-const AuthSessionRuntime = defineAsyncComponent(() => import('@/components/common/AuthSessionRuntime.vue'));
-const CookieConsentBanner = defineAsyncComponent(() => import('@/components/common/CookieConsentBanner.vue'));
-const OnboardingOverlay = defineAsyncComponent(() => import('@/components/common/OnboardingOverlay.vue'));
-const ToastViewport = defineAsyncComponent(() => import('@/components/common/ToastViewport.vue'));
+const AuthSessionRuntime = defineShellAsyncComponent(() => import('@/components/common/AuthSessionRuntime.vue'));
+const CookieConsentBanner = defineShellAsyncComponent(() => import('@/components/common/CookieConsentBanner.vue'));
+const OnboardingOverlay = defineShellAsyncComponent(() => import('@/components/common/OnboardingOverlay.vue'));
+const ToastViewport = defineShellAsyncComponent(() => import('@/components/common/ToastViewport.vue'));
 
 const onboardingStore = useOnboardingStore();
 const toastStore = useToastStore();

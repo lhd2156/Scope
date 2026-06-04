@@ -47,7 +47,6 @@ def load_tagger_model():
     if "tagger" in _registry:
         return _registry["tagger"]
 
-    import torch
     from torchvision import models, transforms
 
     from app.ml.device import get_device

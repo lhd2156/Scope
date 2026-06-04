@@ -1,3 +1,11 @@
+name: scope
+
+x-sentry-env: &sentry-env
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-${NODE_ENV:-development}}
+  SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+  SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+  SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -8,9 +16,9 @@ services:
       SA_PASSWORD: ${SA_PASSWORD}
       MSSQL_SA_PASSWORD: ${SA_PASSWORD}
       MSSQL_PID: Express
-      MSSQL_MEMORY_LIMIT_MB: ${SQLSERVER_MEMORY_LIMIT_MB:-512}
+      MSSQL_MEMORY_LIMIT_MB: ${SQLSERVER_MEMORY_LIMIT_MB:-2048}
     ports:
-      - "${SQLSERVER_PORT:-1433}:1433"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${SQLSERVER_PORT:-1433}:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
       - ./scripts/sql:/docker-entrypoint-initdb.d:ro
@@ -20,7 +28,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 45s
-    mem_limit: 768m
+    mem_limit: 2560m
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -31,7 +39,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
       KAFKA_HEAP_OPTS: ${ZOOKEEPER_HEAP_OPTS:- -Xms64m -Xmx128m}
     ports:
-      - "${ZOOKEEPER_PORT:-2181}:2181"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${ZOOKEEPER_PORT:-2181}:2181"
     healthcheck:
       test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -q Mode || exit 1"]
       interval: 15s
@@ -69,7 +77,7 @@ services:
       KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms128m -Xmx256m}
       KAFKA_JVM_PERFORMANCE_OPTS: ${KAFKA_JVM_PERFORMANCE_OPTS:--XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35}
     ports:
-      - "${KAFKA_PORT:-9092}:29092"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${KAFKA_PORT:-9092}:29092"
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
       interval: 20s
@@ -115,10 +123,22 @@ services:
         create spot.created              3
         create spot.updated              3
         create spot.liked                3
+        create review.created            3
+        create comment.created           3
+        create mention.created           3
         create trip.created              3
+        create trip.deleted              3
         create trip.member.added         3
         create friend.accepted           3
+        create friend.removed            3
+        create friend.rejected           3
+        create user.registered           3
         create user.updated              3
+        create user.email_verification_requested 3
+        create user.password_reset_requested     3
+        create user.password_changed             3
+        create live.location.updated     3
+        create live.session.stopped      3
         echo "topics ok"
     restart: "no"
     mem_limit: 256m
@@ -166,7 +186,7 @@ services:
       - ES_JAVA_OPTS=-Xms256m -Xmx256m
       - cluster.name=scope-search
     ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:
       - es-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -183,17 +203,17 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-scope}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-scope_dev}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS is required}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-scope}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${RABBITMQ_PORT:-5672}:5672"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${RABBITMQ_MGMT_PORT:-15672}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 10
       start_period: 30s
     mem_limit: 384m
@@ -214,7 +234,7 @@ services:
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -260,6 +280,7 @@ services:
       retries: 5
       start_period: 30s
     environment:
+      <<: *sentry-env
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       # TrustServerCertificate=True is only acceptable against the local container.
       # In staging/prod, supply a real CA-signed cert and set Encrypt=True without trust bypass.
@@ -272,14 +293,24 @@ services:
       CORE_FRONTEND_ORIGIN: ${CORE_FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
       CONTENT_SERVICE_URL: http://content:8000/api/content
       CONTENT_GRPC_URL: ${CONTENT_GRPC_URL:-http://content:50051}
+      GRPC_INTERNAL_TOKEN: ${GRPC_INTERNAL_TOKEN:?GRPC_INTERNAL_TOKEN is required and must be distinct from CORE_JWT_SECRET}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       SENTRY_DSN: ${SENTRY_DSN:-}
       METRICS_ALLOWED_CIDRS: ${METRICS_ALLOWED_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128}
+      CORE_FORWARDED_HEADERS_KNOWN_NETWORKS: ${CORE_FORWARDED_HEADERS_KNOWN_NETWORKS:-172.16.0.0/12,10.0.0.0/8}
+      CORE_FORWARDED_HEADERS_FORWARD_LIMIT: ${CORE_FORWARDED_HEADERS_FORWARD_LIMIT:-1}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # SignalR backplane — set to enable multi-replica hub fan-out.
       REDIS_URL: ${REDIS_URL:-redis:6379}
+      RateLimit__GlobalLimit: ${CORE_RATE_LIMIT_GLOBAL:-600}
+      RateLimit__AuthLimit: ${CORE_RATE_LIMIT_AUTH:-10}
+      RateLimit__RefreshLimit: ${CORE_RATE_LIMIT_REFRESH:-120}
+      RateLimit__WindowSeconds: ${CORE_RATE_LIMIT_WINDOW_SECONDS:-60}
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:-}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY:-}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT:-mailto:ops@example.com}
     expose:
       - "8080"
     mem_limit: 768m
@@ -303,6 +334,7 @@ services:
       sqlserver:
         condition: service_healthy
     environment:
+      <<: *sentry-env
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DEBUG: ${DJANGO_DEBUG:-false}
@@ -311,7 +343,7 @@ services:
       CORE_FRONTEND_ORIGIN: ${CORE_FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
       CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
       DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
-      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-https://f2daef86766b84afca9aa99ea93e66c5@o4511288349425664.ingest.us.sentry.io/4511288358141952}
+      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-${SENTRY_DSN:-}}
       # Skip the entrypoint's own migration gate so we don't double-run. The
       # compose `command:` below is what actually applies migrations.
       RUN_MIGRATIONS_ON_STARTUP: "false"
@@ -342,6 +374,7 @@ services:
       retries: 5
       start_period: 30s
     environment:
+      <<: *sentry-env
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DEBUG: ${DJANGO_DEBUG:-false}
@@ -354,20 +387,21 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_ENABLED: "true"
       GRPC_ENABLED: ${CONTENT_GRPC_ENABLED:-true}
+      GRPC_INTERNAL_TOKEN: ${GRPC_INTERNAL_TOKEN:?GRPC_INTERNAL_TOKEN is required and must be distinct from CORE_JWT_SECRET}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${AWS_REGION}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://scope:scope_dev@rabbitmq:5672/scope}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://${RABBITMQ_USER:-scope}:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672/${RABBITMQ_VHOST:-scope}}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       # Switch Django cache to shared Redis so cache state survives across replicas.
       DJANGO_CACHE_BACKEND: django.core.cache.backends.redis.RedisCache
       DJANGO_CACHE_LOCATION: ${DJANGO_CACHE_LOCATION:-redis://redis:6379/1}
       # Pointed at SQL Server in production. Falls back to SQLite only in dev.
       DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
-      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-https://f2daef86766b84afca9aa99ea93e66c5@o4511288349425664.ingest.us.sentry.io/4511288358141952}
+      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-${SENTRY_DSN:-}}
       # Default true for single-node dev. In k8s / scaled compose deployments,
       # set to "false" and run `content-migrate` as a pre-deploy Job so only
       # one process applies schema changes.
@@ -376,10 +410,20 @@ services:
       # flow. Flip to "true" once content-worker is running to offload Pillow
       # + second S3 PUT from the request critical section.
       PHOTO_UPLOAD_ASYNC_THUMBNAILS: ${PHOTO_UPLOAD_ASYNC_THUMBNAILS:-false}
+      RATE_LIMIT_GLOBAL_PER_IP: ${CONTENT_RATE_LIMIT_GLOBAL_PER_IP:-600}
+      RATE_LIMIT_AUTH_PER_IP: ${CONTENT_RATE_LIMIT_AUTH_PER_IP:-10}
+      RATE_LIMIT_SEARCH_PER_IP: ${CONTENT_RATE_LIMIT_SEARCH_PER_IP:-120}
+      RATE_LIMIT_UPLOAD_PER_USER: ${CONTENT_RATE_LIMIT_UPLOAD_PER_USER:-20}
+      RATE_LIMIT_COMMENTS_PER_USER: ${CONTENT_RATE_LIMIT_COMMENTS_PER_USER:-30}
+      # Keep Gunicorn worker recycling on a long cadence so production traffic
+      # spikes and overnight E2E sweeps do not see upstream resets mid-flow.
+      GUNICORN_MAX_REQUESTS: ${CONTENT_GUNICORN_MAX_REQUESTS:-10000}
+      GUNICORN_MAX_REQUESTS_JITTER: ${CONTENT_GUNICORN_MAX_REQUESTS_JITTER:-2000}
+      GUNICORN_GRACEFUL_TIMEOUT: ${CONTENT_GUNICORN_GRACEFUL_TIMEOUT:-45}
     volumes:
       - content-media:/app/media
     ports:
-      - "${CONTENT_GRPC_PORT:-50051}:50051"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${CONTENT_GRPC_PORT:-50051}:50051"
     expose:
       - "8000"
       - "50051"
@@ -406,10 +450,13 @@ services:
       content-media-init:
         condition: service_completed_successfully
     environment:
+      <<: *sentry-env
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DEBUG: ${DJANGO_DEBUG:-false}
       ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,content,nginx}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
+      CORE_FRONTEND_ORIGIN: ${CORE_FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
       CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
       CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-scope-core}
       CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-scope-frontend}
@@ -419,7 +466,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${AWS_REGION}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
-      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-https://f2daef86766b84afca9aa99ea93e66c5@o4511288349425664.ingest.us.sentry.io/4511288358141952}
+      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-${SENTRY_DSN:-}}
       DJANGO_CACHE_BACKEND: django.core.cache.backends.redis.RedisCache
       DJANGO_CACHE_LOCATION: ${DJANGO_CACHE_LOCATION:-redis://redis:6379/1}
       DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
@@ -449,18 +496,19 @@ services:
       content:
         condition: service_healthy
     environment:
+      <<: *sentry-env
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DEBUG: ${DJANGO_DEBUG:-false}
       ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,content,nginx}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
       CORE_FRONTEND_ORIGIN: ${CORE_FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://scope:scope_dev@rabbitmq:5672/scope}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://${RABBITMQ_USER:-scope}:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672/${RABBITMQ_VHOST:-scope}}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
       DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-}
       CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
-      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-https://f2daef86766b84afca9aa99ea93e66c5@o4511288349425664.ingest.us.sentry.io/4511288358141952}
+      SENTRY_DSN: ${CONTENT_SENTRY_DSN:-${SENTRY_DSN:-}}
       RUN_MIGRATIONS_ON_STARTUP: "false"
     command: ["celery", "-A", "scope_content", "worker", "--loglevel=info", "--concurrency=4", "-Q", "default,sentiment,classification,reindex"]
     healthcheck:
@@ -487,6 +535,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       ollama:
         condition: service_healthy
     healthcheck:
@@ -498,6 +548,7 @@ services:
       # (INTEL_WARMUP_RECOMMENDATIONS=true) which runs during create_app.
       start_period: 45s
     environment:
+      <<: *sentry-env
       FLASK_ENV: ${FLASK_ENV:-development}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
@@ -506,10 +557,26 @@ services:
       CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-scope-core}
       CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-scope-frontend}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://scope:scope_dev@rabbitmq:5672/scope}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://${RABBITMQ_USER:-scope}:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672/${RABBITMQ_VHOST:-scope}}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       CONTENT_SERVICE_URL: http://content:8000/api/content
       FLASK_DATABASE_URL: ${FLASK_DATABASE_URL:-sqlite:////app/data/scope_intel.db}
+      INTEL_MAX_CONTENT_LENGTH: ${INTEL_MAX_CONTENT_LENGTH:-6291456}
+      SCOPE_AI_PROVIDER: ${SCOPE_AI_PROVIDER:-auto}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.5-flash-lite,gemini-2.0-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-30}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-1536}
+      SCOPE_AI_FAST_MODEL: ${SCOPE_AI_FAST_MODEL:-gemini-2.5-flash}
+      SCOPE_AI_PRO_MODEL: ${SCOPE_AI_PRO_MODEL:-gemini-2.5-pro}
+      SCOPE_AI_LITE_MODEL: ${SCOPE_AI_LITE_MODEL:-gemini-2.5-flash-lite}
+      SCOPE_AI_SEARCH_GROUNDING_POLICY: ${SCOPE_AI_SEARCH_GROUNDING_POLICY:-always_under_cap}
+      SCOPE_AI_GEMINI_FAST_MONTHLY_CAP: ${SCOPE_AI_GEMINI_FAST_MONTHLY_CAP:-1000}
+      SCOPE_AI_GEMINI_PRO_MONTHLY_CAP: ${SCOPE_AI_GEMINI_PRO_MONTHLY_CAP:-100}
+      SCOPE_AI_GEMINI_LITE_MONTHLY_CAP: ${SCOPE_AI_GEMINI_LITE_MONTHLY_CAP:-1000}
+      SCOPE_AI_GEMINI_SEARCH_MONTHLY_CAP: ${SCOPE_AI_GEMINI_SEARCH_MONTHLY_CAP:-500}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-1024}
@@ -517,18 +584,72 @@ services:
       OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-4}
       OLLAMA_TIMEOUT_SECONDS: ${INTEL_OLLAMA_TIMEOUT_SECONDS:-120}
       AGENT_PLANNER_TIMEOUT_SECONDS: ${AGENT_PLANNER_TIMEOUT_SECONDS:-45}
+      MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
+      VITE_MAPBOX_ACCESS_TOKEN: ${VITE_MAPBOX_ACCESS_TOKEN:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      GOOGLE_PLACES_BASE_URL: ${GOOGLE_PLACES_BASE_URL:-https://places.googleapis.com/v1}
+      GOOGLE_PLACES_CACHE_SECONDS: ${GOOGLE_PLACES_CACHE_SECONDS:-180}
+      FUEL_RATE_LIMIT_PER_MINUTE: ${FUEL_RATE_LIMIT_PER_MINUTE:-20}
+      OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY:-}
+      OPENWEATHERMAP_BASE_URL: ${OPENWEATHERMAP_BASE_URL:-https://api.openweathermap.org/data/2.5/weather}
+      WEATHER_BASE_URL: ${WEATHER_BASE_URL:-https://api.open-meteo.com/v1/forecast}
+      WEATHER_GEOCODE_BASE_URL: ${WEATHER_GEOCODE_BASE_URL:-https://geocoding-api.open-meteo.com/v1/search}
+      WEATHER_PROVIDER_ORDER: ${WEATHER_PROVIDER_ORDER:-nws,openweather,openmeteo}
+      WEATHER_CACHE_REDIS_URL: ${WEATHER_CACHE_REDIS_URL:-redis://redis:6379/4}
+      WEATHER_CURRENT_CACHE_SECONDS: ${WEATHER_CURRENT_CACHE_SECONDS:-60}
+      WEATHER_CURRENT_STALE_SECONDS: ${WEATHER_CURRENT_STALE_SECONDS:-1800}
+      WEATHER_NWS_ENABLED: ${WEATHER_NWS_ENABLED:-true}
+      WEATHER_NWS_BASE_URL: ${WEATHER_NWS_BASE_URL:-https://api.weather.gov}
+      WEATHER_NWS_USER_AGENT: "${WEATHER_NWS_USER_AGENT:-Scope/1.0 (weather-cache; contact: ops@scope.local)}"
+      WEATHER_NWS_POINT_CACHE_SECONDS: ${WEATHER_NWS_POINT_CACHE_SECONDS:-86400}
       AWS_REGION: ${AWS_REGION}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       GRPC_ENABLED: ${INTEL_GRPC_ENABLED:-true}
+      GRPC_INTERNAL_TOKEN: ${GRPC_INTERNAL_TOKEN:?GRPC_INTERNAL_TOKEN is required and must be distinct from CORE_JWT_SECRET}
     volumes:
       - intel-data:/app/data
     ports:
-      - "${INTEL_GRPC_PORT:-50052}:50052"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${INTEL_GRPC_PORT:-50052}:50052"
     expose:
       - "5000"
       - "50052"
     mem_limit: ${INTEL_MEM_LIMIT:-2048m}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  intel-worker:
+    build:
+      context: ./scope_intel
+    restart: unless-stopped
+    depends_on:
+      content:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    environment:
+      <<: *sentry-env
+      FLASK_ENV: ${FLASK_ENV:-development}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
+      CORE_FRONTEND_ORIGIN: ${CORE_FRONTEND_ORIGIN:-http://localhost:${NGINX_PORT:-80}}
+      CORE_JWT_SECRET: ${CORE_JWT_SECRET:?CORE_JWT_SECRET is required}
+      CORE_JWT_ISSUER: ${CORE_JWT_ISSUER:-scope-core}
+      CORE_JWT_AUDIENCE: ${CORE_JWT_AUDIENCE:-scope-frontend}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      CONTENT_SERVICE_URL: http://content:8000/api/content
+      FLASK_DATABASE_URL: ${FLASK_DATABASE_URL:-sqlite:////app/data/scope_intel.db}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      GRPC_ENABLED: "false"
+      INTEL_WARMUP_RECOMMENDATIONS: "false"
+    volumes:
+      - intel-data:/app/data
+    command: ["python", "-m", "app.kafka.consumer_worker"]
+    healthcheck:
+      disable: true
+    mem_limit: 512m
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -548,13 +669,14 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      <<: *sentry-env
       OLLAMA_BASE_URL: http://ollama:11434
       SCOPE_AI_PROVIDER: ${SCOPE_AI_PROVIDER:-auto}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
-      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.0-flash-lite,gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.5-flash-lite,gemini-2.0-flash}
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-30}
-      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-512}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-1536}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-1024}
@@ -591,6 +713,7 @@ services:
       intel:
         condition: service_started
     environment:
+      <<: *sentry-env
       SCOPE_CORE_HEALTH_URL: http://core:8080/api/core/health
       SCOPE_CONTENT_HEALTH_URL: http://content:8000/api/content/health
       SCOPE_INTEL_HEALTH_URL: http://intel:5000/api/intel/health
@@ -598,7 +721,7 @@ services:
       SCOPE_METRICS_PORT: ${SCOPE_METRICS_PORT:-9090}
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
-      - "${SCOPE_METRICS_PORT:-9090}:9090"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${SCOPE_METRICS_PORT:-9090}:9090"
     healthcheck:
       test:
         [
@@ -651,8 +774,20 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/}
         VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
         VITE_CSRF_ENDPOINT: ${VITE_CSRF_ENDPOINT:-}
+        VITE_DEMO_MODE: ${VITE_DEMO_MODE:-false}
+        VITE_ENABLE_DEMO_WEATHER: ${VITE_ENABLE_DEMO_WEATHER:-false}
+        VITE_ENABLE_CLIENT_WEATHER_FALLBACK: ${VITE_ENABLE_CLIENT_WEATHER_FALLBACK:-false}
+        VITE_ENABLE_TRIP_MOCK_FALLBACK: ${VITE_ENABLE_TRIP_MOCK_FALLBACK:-false}
+        VITE_ENABLE_TRIP_LOCAL_WRITE_FALLBACK: ${VITE_ENABLE_TRIP_LOCAL_WRITE_FALLBACK:-false}
+        VITE_ENABLE_AGENT_LOCAL_FALLBACK: ${VITE_ENABLE_AGENT_LOCAL_FALLBACK:-false}
+        VITE_OPENWEATHERMAP_API_KEY: ${VITE_OPENWEATHERMAP_API_KEY:-}
         VITE_ENABLE_AUTH_MOCK_FALLBACK: ${VITE_ENABLE_AUTH_MOCK_FALLBACK:-false}
+        VITE_DISABLE_SERVICE_WORKER: ${VITE_DISABLE_SERVICE_WORKER:-false}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-${SENTRY_ENVIRONMENT:-${NODE_ENV:-development}}}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-${SENTRY_RELEASE:-}}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-${SENTRY_TRACES_SAMPLE_RATE:-0.1}}
+        VITE_WEB_PUSH_PUBLIC_KEY: ${VITE_WEB_PUSH_PUBLIC_KEY:-}
     environment:
       SENTRY_DSN: ${SENTRY_DSN:-}
     # container_name intentionally omitted to allow `--scale frontend=N`.
@@ -677,6 +812,10 @@ services:
       context: ./scope-site
       args:
         VITE_SITE_BASE_PATH: /site/
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-${SENTRY_ENVIRONMENT:-${NODE_ENV:-development}}}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-${SENTRY_RELEASE:-}}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-${SENTRY_TRACES_SAMPLE_RATE:-0.1}}
     environment:
       SENTRY_DSN: ${SENTRY_DSN:-}
     restart: unless-stopped
@@ -699,6 +838,10 @@ services:
       context: ./scope-admin
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-${SENTRY_ENVIRONMENT:-${NODE_ENV:-development}}}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-${SENTRY_RELEASE:-}}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-${SENTRY_TRACES_SAMPLE_RATE:-0.1}}
     restart: unless-stopped
     depends_on:
       core:
@@ -725,7 +868,14 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - "apk add --no-cache openssl >/dev/null 2>&1 || true; /docker-entrypoint.d/scope-bootstrap-tls.sh; exec /docker-entrypoint.sh nginx -g 'daemon off;'"
+      - >
+        apk add --no-cache openssl >/dev/null 2>&1 || true;
+        tr -d '\015' < /tmp/scope-bootstrap-tls.sh > /tmp/scope-bootstrap-tls.lf.sh;
+        sh /tmp/scope-bootstrap-tls.lf.sh;
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    environment:
+      SCOPE_TLS_HOSTNAME: ${SCOPE_TLS_HOSTNAME:-localhost}
+      SCOPE_REQUIRE_TRUSTED_TLS: ${SCOPE_REQUIRE_TRUSTED_TLS:-false}
     # Wait for upstreams to report healthy before starting to serve. Avoids
     # the 30–60s window of 502 responses that otherwise happens on cold boot
     # while the .NET + Django apps warm up.
@@ -749,14 +899,26 @@ services:
       - "${NGINX_TLS_PORT:-443}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./scripts/nginx/bootstrap-tls.sh:/docker-entrypoint.d/scope-bootstrap-tls.sh:ro
+      # Mount outside /docker-entrypoint.d so Windows CRLF checkouts do not get
+      # direct-executed by the stock nginx entrypoint before normalization.
+      - ./scripts/nginx/bootstrap-tls.sh:/tmp/scope-bootstrap-tls.sh:ro
       - nginx-certs:/etc/nginx/certs
+      - certbot-www:/var/www/certbot
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
+    mem_limit: 128m
+
+  certbot:
+    image: certbot/certbot:v2.11.0
+    profiles:
+      - tls
+    volumes:
+      - nginx-certs:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
     mem_limit: 128m
 
   prometheus:
@@ -767,7 +929,7 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9091}:9090"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9091}:9090"
     depends_on:
       scope-metrics:
         condition: service_started
@@ -785,11 +947,11 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-scope_dev}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "${SCOPE_INTERNAL_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -808,6 +970,7 @@ services:
 volumes:
   sqlserver-data:
   nginx-certs:
+  certbot-www:
   content-media:
   intel-data:
   es-data:

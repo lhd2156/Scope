@@ -1,3 +1,7 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'core')
 BEGIN
     EXEC('CREATE SCHEMA core');
@@ -17,15 +21,18 @@ BEGIN
         Role NVARCHAR(20) NOT NULL CONSTRAINT DF_core_Users_Role DEFAULT 'user',
         AvatarUrl NVARCHAR(500) NULL,
         Bio NVARCHAR(500) NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_Users_CreatedAt DEFAULT GETUTCDATE(),
-        UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_Users_UpdatedAt DEFAULT GETUTCDATE(),
+        HomeBase NVARCHAR(120) NULL,
+        InterestsJson NVARCHAR(1000) NULL,
+        ShowActivityStatus BIT NOT NULL CONSTRAINT DF_core_Users_ShowActivityStatus DEFAULT 1,
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
+        UpdatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_UpdatedAt DEFAULT SYSDATETIMEOFFSET(),
         IsActive BIT NOT NULL CONSTRAINT DF_core_Users_IsActive DEFAULT 1,
-        LastLoginAt DATETIME2 NULL,
+        LastLoginAt DATETIMEOFFSET NULL,
         FailedLoginAttempts INT NOT NULL CONSTRAINT DF_core_Users_FailedLoginAttempts DEFAULT 0,
-        LockoutUntil DATETIME2 NULL,
-        EmailVerifiedAt DATETIME2 NULL,
+        LockoutUntil DATETIMEOFFSET NULL,
+        EmailVerifiedAt DATETIMEOFFSET NULL,
         EmailVerificationTokenHash NVARCHAR(128) NULL,
-        EmailVerificationSentAt DATETIME2 NULL,
+        EmailVerificationSentAt DATETIMEOFFSET NULL,
         MfaEnabled BIT NOT NULL CONSTRAINT DF_core_Users_MfaEnabled DEFAULT 0,
         MfaSecret NVARCHAR(128) NULL,
         MfaRecoveryCodesHash NVARCHAR(MAX) NULL,
@@ -49,9 +56,9 @@ BEGIN
         Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_core_RefreshTokens PRIMARY KEY DEFAULT NEWID(),
         UserId UNIQUEIDENTIFIER NOT NULL,
         Token NVARCHAR(128) NOT NULL,
-        ExpiresAt DATETIME2 NOT NULL,
-        RevokedAt DATETIME2 NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_RefreshTokens_CreatedAt DEFAULT GETUTCDATE(),
+        ExpiresAt DATETIMEOFFSET NOT NULL,
+        RevokedAt DATETIMEOFFSET NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_RefreshTokens_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         ReplacedByTokenHash NVARCHAR(128) NULL,
         RevokedReason NVARCHAR(64) NULL,
         CONSTRAINT FK_core_RefreshTokens_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
@@ -66,9 +73,9 @@ BEGIN
         Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_core_PasswordResets PRIMARY KEY DEFAULT NEWID(),
         UserId UNIQUEIDENTIFIER NOT NULL,
         TokenHash NVARCHAR(128) NOT NULL,
-        ExpiresAt DATETIME2 NOT NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_PasswordResets_CreatedAt DEFAULT GETUTCDATE(),
-        ConsumedAt DATETIME2 NULL,
+        ExpiresAt DATETIMEOFFSET NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_PasswordResets_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
+        ConsumedAt DATETIMEOFFSET NULL,
         RequestIpHash NVARCHAR(128) NULL,
         CONSTRAINT FK_core_PasswordResets_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
         CONSTRAINT UQ_core_PasswordResets_TokenHash UNIQUE (TokenHash)
@@ -84,7 +91,7 @@ BEGIN
         RequesterId UNIQUEIDENTIFIER NOT NULL,
         AddresseeId UNIQUEIDENTIFIER NOT NULL,
         Status NVARCHAR(20) NOT NULL,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_Friendships_CreatedAt DEFAULT GETUTCDATE(),
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Friendships_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT FK_core_Friendships_Requester FOREIGN KEY (RequesterId) REFERENCES core.Users(Id),
         CONSTRAINT FK_core_Friendships_Addressee FOREIGN KEY (AddresseeId) REFERENCES core.Users(Id),
         CONSTRAINT CK_core_Friendships_Status CHECK (Status IN ('pending', 'accepted', 'declined', 'blocked')),
@@ -103,7 +110,7 @@ BEGIN
         Body NVARCHAR(1000) NULL,
         ReferenceId NVARCHAR(100) NULL,
         IsRead BIT NOT NULL CONSTRAINT DF_core_Notifications_IsRead DEFAULT 0,
-        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_core_Notifications_CreatedAt DEFAULT GETUTCDATE(),
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Notifications_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT FK_core_Notifications_User FOREIGN KEY (UserId) REFERENCES core.Users(Id)
     );
 END;
@@ -118,8 +125,25 @@ BEGIN
         Latitude FLOAT NOT NULL,
         Longitude FLOAT NOT NULL,
         IsActive BIT NOT NULL CONSTRAINT DF_core_LiveSessions_IsActive DEFAULT 1,
-        LastPingAt DATETIME2 NOT NULL CONSTRAINT DF_core_LiveSessions_LastPingAt DEFAULT GETUTCDATE(),
+        LastPingAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_LiveSessions_LastPingAt DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT FK_core_LiveSessions_User FOREIGN KEY (UserId) REFERENCES core.Users(Id)
     );
+END;
+GO
+
+IF OBJECT_ID('core.UserPresence', 'U') IS NULL
+BEGIN
+    CREATE TABLE core.UserPresence (
+        UserId UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_core_UserPresence PRIMARY KEY,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_core_UserPresence_Status DEFAULT 'offline',
+        RouteContext NVARCHAR(160) NULL,
+        IsIdle BIT NOT NULL CONSTRAINT DF_core_UserPresence_IsIdle DEFAULT 0,
+        LastActiveAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_UserPresence_LastActiveAt DEFAULT SYSDATETIMEOFFSET(),
+        LastPlanningAt DATETIMEOFFSET NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_UserPresence_UpdatedAt DEFAULT SYSDATETIMEOFFSET(),
+        CONSTRAINT FK_core_UserPresence_User FOREIGN KEY (UserId) REFERENCES core.Users(Id),
+        CONSTRAINT CK_core_UserPresence_Status CHECK (Status IN ('planning', 'online', 'idle', 'offline'))
+    );
+    CREATE INDEX IX_core_UserPresence_Status_LastActiveAt ON core.UserPresence (Status, LastActiveAt);
 END;
 GO

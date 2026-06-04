@@ -35,7 +35,11 @@ def test_itinerary_response_matches_appendix_b_shape(client, auth_header):
         "longitude",
         "category",
         "estimatedCost",
+        "reason",
+        "confidence",
     }
+    assert isinstance(spot["reason"], str)
+    assert 0 <= spot["confidence"] <= 1
 
 
 def test_route_optimizer_contract(client, auth_header):
@@ -60,7 +64,28 @@ def test_route_optimizer_contract(client, auth_header):
     assert payload["estimatedDistance"] >= 0
 
 
-def test_weather_contract(client, auth_header):
+class WeatherResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
+def test_weather_contract(client, auth_header, monkeypatch):
+    monkeypatch.setattr("app.services.weather_service.requests.get", lambda *_args, **_kwargs: WeatherResponse({
+        "daily": {
+            "time": ["2026-04-01"],
+            "weather_code": [0],
+            "temperature_2m_max": [78.1],
+            "temperature_2m_min": [61.8],
+            "wind_speed_10m_max": [9.2],
+        },
+    }))
+
     response = client.get("/api/intel/weather?lat=32.7555&lng=-97.3308&date=2026-04-01", headers=auth_header)
 
     assert response.status_code == 200
@@ -69,8 +94,51 @@ def test_weather_contract(client, auth_header):
         "latitude": 32.7555,
         "longitude": -97.3308,
         "date": "2026-04-01",
-        "forecast": "Sunny, 75F",
+        "forecast": "Clear, high 78F / low 62F, wind up to 9 mph",
+        "source": "Open-Meteo",
+        "provider": "openmeteo",
+        "condition": "Clear",
+        "temperatureHighF": 78.1,
+        "temperatureLowF": 61.8,
+        "windMph": 9.2,
+        "weatherCode": 0.0,
     }
+
+
+def test_current_weather_contract(app, client, auth_header, monkeypatch):
+    app.config["OPENWEATHERMAP_API_KEY"] = ""
+    app.config["WEATHER_NWS_ENABLED"] = False
+    from app.api.weather import service
+
+    service.clear_current_cache()
+    monkeypatch.setattr("app.services.weather_service.requests.get", lambda *_args, **_kwargs: WeatherResponse({
+        "current": {
+            "time": 1_779_151_200,
+            "temperature_2m": 82.7,
+            "weather_code": 0,
+            "wind_speed_10m": 11.6,
+            "is_day": 0,
+        },
+    }))
+
+    response = client.get("/api/intel/weather/current?lat=32.8343&lng=-97.2289&q=North%20Richland%20Hills", headers=auth_header)
+
+    assert response.status_code == 200
+    payload = response.get_json()["data"]
+    assert payload["label"] == "North Richland Hills"
+    assert payload["latitude"] == 32.8343
+    assert payload["longitude"] == -97.2289
+    assert payload["temperatureF"] == 82.7
+    assert payload["condition"] == "Clear"
+    assert payload["windMph"] == 11.6
+    assert payload["provider"] == "openmeteo"
+    assert payload["providerLabel"] == "Open-Meteo"
+    assert payload["source"] == "Open-Meteo"
+    assert payload["weatherCode"] == 0.0
+    assert payload["conditionCode"] == 0.0
+    assert payload["isDaytime"] is False
+    assert set(payload["cache"]) == {"hit", "expiresAtUtc", "ttlSeconds"}
+    assert payload["cache"]["hit"] is False
 
 
 def test_geocoding_contract(client, auth_header):
@@ -93,11 +161,11 @@ def test_geocoding_contract(client, auth_header):
     assert reverse_response.get_json()["data"] == {
         "latitude": 32.7555,
         "longitude": -97.3308,
-        "placeName": "Fort Worth, TX, USA",
-        "formattedAddress": "Fort Worth, TX, USA",
-        "city": "Fort Worth",
-        "country": "United States",
-        "precision": "fallback",
+        "placeName": "Pinned location",
+        "formattedAddress": "32.755500, -97.330800",
+        "city": None,
+        "country": None,
+        "precision": "coordinate",
     }
 
 

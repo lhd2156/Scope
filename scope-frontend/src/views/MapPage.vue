@@ -154,24 +154,15 @@
                 </div>
               </div>
 
-              <p v-else-if="workspaceLoading" class="sidebar-state">Syncing route preview and crew context…</p>
-              <EmptyStatePanel
-                v-else
-                class="route-empty-state"
-                compact
-                tone="surface"
-                alignment="center"
-                eyebrow="Featured route"
-                title="Planner previews land here"
-                description="Pick a trip from the planner to preview its stop sequence, crew context, and live route overlay here."
-                icon="route"
-                artwork="map"
-                heading-level="h3"
-              >
+              <p v-else-if="workspaceLoading" class="sidebar-state">Syncing route preview and crew context...</p>
+              <div v-else class="route-empty-state map-plain-empty-state" data-test="map-route-empty-state">
+                <p class="eyebrow">Featured route</p>
+                <h3>Route details coming together</h3>
+                <p>Add stops in the planner and Scope will draw the sequence, drive context, and crew timing here.</p>
                 <RouterLink class="button button-secondary" to="/trips/new" data-test="map-empty-route-cta">
                   Open planner
                 </RouterLink>
-              </EmptyStatePanel>
+              </div>
             </article>
 
             <article
@@ -238,10 +229,10 @@
                 <span class="filter-count">{{ activeFilterCountLabel }}</span>
               </div>
 
-              <p v-if="workspaceLoading" class="sidebar-state">Loading map pins and route context…</p>
+              <p v-if="workspaceLoading" class="sidebar-state">Loading map pins and route context...</p>
               <div v-else-if="visibleSpots.length" class="visible-list">
                 <button
-                  v-for="spot in visibleSpots.slice(0, 4)"
+                  v-for="spot in visibleSpotPreviews"
                   :key="spot.id"
                   class="visible-item"
                   type="button"
@@ -261,7 +252,10 @@
                     />
                     <span>{{ spot.rating.toFixed(1) }}</span>
                   </span>
-                  <div class="visible-location">
+                  <div
+                    class="visible-location"
+                    :class="{ 'has-country': formatSpotCountryBadge(spot.country) }"
+                  >
                     <span class="visible-location-badge">{{ formatSpotCityRegion(spot) }}</span>
                     <span v-if="formatSpotCountryBadge(spot.country)" class="visible-country-badge">
                       {{ formatSpotCountryBadge(spot.country) }}
@@ -269,19 +263,10 @@
                   </div>
                 </button>
               </div>
-              <EmptyStatePanel
-                v-else
-                class="sidebar-empty-state"
-                compact
-                tone="surface"
-                alignment="center"
-                eyebrow="Your adventure map"
-                title="No pins match this category mix"
-                description="Reset the category blend to bring every saved Scope pin back onto the map and into this quick-access rail."
-                icon="map"
-                artwork="map"
-                heading-level="h3"
-              >
+              <div v-else class="sidebar-empty-state map-plain-empty-state" data-test="map-sidebar-empty-state">
+                <p class="eyebrow">Your adventure map</p>
+                <h3>No pins match this category mix</h3>
+                <p>Reset the category blend to bring every saved Scope pin back onto the map and into this quick-access rail.</p>
                 <button
                   type="button"
                   class="button button-secondary"
@@ -290,7 +275,7 @@
                 >
                   Show all categories
                 </button>
-              </EmptyStatePanel>
+              </div>
             </article>
           </div>
         </aside>
@@ -305,9 +290,68 @@
             :route-geometry="routeGeometry"
             :auto-resolve-route-geometry="false"
             :selected-spot-id="mapStore.selectedSpotId"
+            :initial-viewport="mapBaseViewport"
+            :label-mode="mapLabelMode"
+            :show-place-labels="true"
+            map-presentation="scope"
+            :show-map-style-toggle="true"
+            :show-projection-toggle="true"
+            :persist-map-preferences="false"
+            :use-planner-camera-motion="true"
+            :auto-locate-on-load="false"
+            marker-variant="default"
+            :show-fit-route-control="routePoints.length > 1"
+            :auto-fit-route-on-load="false"
             @spot-select="handleSpotSelect"
             @interaction="handleMapInteraction"
           />
+          <Transition name="map-selected-overlay">
+            <article
+              v-if="selectedMapOverlaySpot"
+              class="map-selected-overlay glass-panel"
+              data-test="map-selected-overlay"
+              aria-live="polite"
+            >
+              <LazyImage
+                :src="selectedMapOverlayPhoto"
+                :alt="selectedMapOverlaySpot.title"
+                class="map-selected-overlay__media"
+                eager
+              />
+              <div class="map-selected-overlay__copy">
+                <div class="map-selected-overlay__topline">
+                  <span class="badge" :class="`badge-${selectedMapOverlaySpot.category}`">
+                    {{ formatCategory(selectedMapOverlaySpot.category) }}
+                  </span>
+                  <span class="map-selected-overlay__rating">
+                    <ScopeIcon name="star-filled" label="Rating" />
+                    {{ selectedMapOverlaySpot.rating.toFixed(1) }}
+                  </span>
+                </div>
+                <h2>{{ selectedMapOverlaySpot.title }}</h2>
+                <p class="map-selected-overlay__location">{{ selectedMapOverlayLocation }}</p>
+                <p class="map-selected-overlay__description">{{ selectedMapOverlaySpot.description }}</p>
+                <div class="map-selected-overlay__footer">
+                  <span v-if="selectedMapOverlaySpot.vibe" class="map-selected-overlay__vibe">
+                    <ScopeIcon name="sparkle" label="Vibe" />
+                    {{ formatVibeLabel(selectedMapOverlaySpot.vibe) }}
+                  </span>
+                  <RouterLink class="map-selected-overlay__link" :to="`/spots/${selectedMapOverlaySpot.id}`">
+                    <span>Open detail</span>
+                    <ScopeIcon name="navigation" label="Open selected spot detail" />
+                  </RouterLink>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="map-selected-overlay__close"
+                aria-label="Close selected spot preview"
+                @click="handleDismissMapSpotOverlay"
+              >
+                <ScopeIcon name="close" label="Close selected spot preview" />
+              </button>
+            </article>
+          </Transition>
         </article>
       </section>
     </div>
@@ -316,21 +360,25 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import { analyticsPageEngagementTracker } from '@/services/analyticsService';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { getDefaultDiscoveryMapViewport, resolveHomeBaseMapViewport } from '@/services/mapViewportService';
+import { mockSpots, mockTrips } from '@/services/mockData';
 import { resolveRoadRoute, type RoadRouteSummary } from '@/services/roadRouteService';
+import { cloneMapViewport } from '@/config/mapViewport';
+import { useAuthStore } from '@/stores/auth';
 import { useMapStore } from '@/stores/map';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
-import type { MapPoint, SpotCategory, TripSpot } from '@/types';
+import type { MapPoint, MapViewport, SpotCategory, SpotSummary, TripSpot } from '@/types';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
-import { formatVibeLabel } from '@/utils/formatters';
+import { formatCityRegionLocation, formatCountryLabel, formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import {
@@ -351,33 +399,43 @@ interface RoutePreviewStop {
 }
 
 type MobileSheetState = 'peek' | 'mid' | 'full';
+type MapLabelMode = 'none' | 'states' | 'majorCities' | 'full';
 
 const MOBILE_MAP_BREAKPOINT = 640;
 const MOBILE_SHEET_DRAG_LIMIT = 280;
 const MOBILE_SHEET_DRAG_THRESHOLD = 72;
 const MOBILE_SHEET_STATES: MobileSheetState[] = ['peek', 'mid', 'full'];
 const MAX_ROUTE_PREVIEW_STOPS = 5;
+const MAP_SPOT_PAGE_SIZE = 96;
+const VISIBLE_SPOT_PREVIEW_LIMIT = 8;
 const METERS_PER_MILE = 1609.344;
-const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const isMapAuditMode = isScopeQaMode();
-const CITY_REGION_FALLBACKS = new Map<string, string>([
-  ['arlington', 'TX'],
-  ['austin', 'TX'],
-  ['dallas', 'TX'],
-  ['fort worth', 'TX'],
-  ['houston', 'TX'],
-]);
+const LOCAL_MAP_PREVIEW_ENABLED = DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_MAP_MOCK_FALLBACK === 'true';
 const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
 
+const authStore = useAuthStore();
 const mapStore = useMapStore();
 const onboardingStore = useOnboardingStore();
 const spotsStore = useSpotsStore();
 const tripsStore = useTripsStore();
+const route = useRoute();
+
+if (!isMapAuditMode) {
+  mapStore.setSelectedSpotId(null);
+  mapStore.resetVisibleSpotIds();
+  mapStore.resetCategories();
+}
+
 const isMobileMapLayout = ref(false);
 const mapSidebarRef = ref<HTMLElement | null>(null);
+const mapBaseViewport = ref<MapViewport>(getDefaultDiscoveryMapViewport());
 const isMapSidebarScrolled = ref(false);
 const roadRoute = ref<RoadRouteSummary | null>(null);
 const roadRouteLoading = ref(false);
+const isSelectedMapOverlayVisible = ref(false);
+const hasLoadedSpotData = ref(false);
+const hasLoadedTripData = ref(false);
 const mobileSheetState = ref<MobileSheetState>('peek');
 const isDraggingMobileSheet = ref(false);
 const mobileSheetDragStartY = ref(0);
@@ -385,6 +443,12 @@ const mobileSheetDragOffset = ref(0);
 const ignoreNextMobileSheetClick = ref(false);
 let cancelInitialWorkspaceLoad: CancelScheduledTask = () => undefined;
 let roadRouteRequestId = 0;
+let mapBaseViewportRequestId = 0;
+
+const focusedMapSpotId = computed(() => {
+  const rawSpotId = route?.query?.spotId;
+  return typeof rawSpotId === 'string' ? rawSpotId.trim() : '';
+});
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -465,57 +529,20 @@ function buildRoutePreviewLayout(stopCount: number): { path: string } {
   return { path };
 }
 
-function normalizeRegion(value: string | undefined): string {
-  const region = value?.trim() ?? '';
-  if (!region) {
-    return '';
-  }
-
-  return region.length <= 3 ? region.toUpperCase() : region;
-}
-
-function resolveSpotRegion(spot: MapWorkspaceSpot): string {
-  const regionAwareSpot = spot as MapWorkspaceSpot & {
-    adminArea?: string;
-    province?: string;
-    region?: string;
-    state?: string;
-    stateCode?: string;
-  };
-  const explicitRegion = normalizeRegion(
-    regionAwareSpot.stateCode ||
-      regionAwareSpot.state ||
-      regionAwareSpot.region ||
-      regionAwareSpot.province ||
-      regionAwareSpot.adminArea,
-  );
-
-  if (explicitRegion) {
-    return explicitRegion;
-  }
-
-  return CITY_REGION_FALLBACKS.get((spot.city ?? '').trim().toLowerCase()) ?? '';
-}
-
 function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
-  const city = spot.city?.trim() ?? '';
-  const region = resolveSpotRegion(spot);
-  const locationParts = [city, region].filter(Boolean);
+  const locationLabel = formatCityRegionLocation(spot, 'Scope location').trim();
+  const countryBadge = formatSpotCountryBadge(spot.country);
+  const countrySuffix = `, ${countryBadge}`;
 
-  return locationParts.length ? locationParts.join(', ') : 'Scope location';
+  if (countryBadge && locationLabel.toLowerCase().endsWith(countrySuffix.toLowerCase())) {
+    return locationLabel.slice(0, -countrySuffix.length);
+  }
+
+  return locationLabel;
 }
 
 function formatSpotCountryBadge(country: string | undefined): string {
-  const normalizedCountry = country?.trim();
-  if (!normalizedCountry) {
-    return '';
-  }
-
-  if (/^(us|usa|united states|united states of america)$/i.test(normalizedCountry)) {
-    return 'USA';
-  }
-
-  return normalizedCountry.length <= 3 ? normalizedCountry.toUpperCase() : normalizedCountry;
+  return formatCountryLabel(country);
 }
 
 function resolveIsMobileMapLayout(): boolean {
@@ -623,23 +650,80 @@ function startMobileSheetDrag(event: PointerEvent) {
   }
 }
 
-const workspaceSpots = computed<MapWorkspaceSpot[]>(() => (
-  isMapAuditMode
-    ? MAP_AUDIT_SPOTS
-    : spotsStore.items.map((spot) => ({
-      id: spot.id,
-      title: spot.title,
-      description: spot.description,
-      latitude: spot.latitude,
-      longitude: spot.longitude,
-      category: spot.category,
-      city: spot.city,
-      country: spot.country,
-      vibe: spot.vibe,
-      rating: spot.rating,
-      photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
-    }))
-));
+function toWorkspaceSpot(spot: SpotSummary): MapWorkspaceSpot {
+  return {
+    id: spot.id,
+    title: spot.title,
+    description: spot.description ?? 'Saved Scope spot ready to explore on the live map.',
+    latitude: spot.latitude,
+    longitude: spot.longitude,
+    category: spot.category,
+    city: spot.city ?? 'Scope location',
+    country: spot.country ?? 'US',
+    vibe: spot.vibe ?? formatCategory(spot.category),
+    rating: spot.rating,
+    photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
+  };
+}
+
+function mergeSpotSources(spots: SpotSummary[], prioritySpot?: SpotSummary | null): SpotSummary[] {
+  if (!prioritySpot) {
+    return spots;
+  }
+
+  const seenSpotIds = new Set<string>();
+  return [prioritySpot, ...spots].filter((spot) => {
+    if (seenSpotIds.has(spot.id)) {
+      return false;
+    }
+
+    seenSpotIds.add(spot.id);
+    return true;
+  });
+}
+
+async function syncFocusedMapSpot(): Promise<void> {
+  const spotId = focusedMapSpotId.value;
+  if (!spotId || isMapAuditMode) {
+    return;
+  }
+
+  mapStore.setSelectedSpotId(spotId);
+  await spotsStore.fetchSpot(spotId);
+  hasLoadedSpotData.value = true;
+  mapStore.setSelectedSpotId(spotId);
+}
+
+const workspaceSpots = computed<MapWorkspaceSpot[]>(() => {
+  if (isMapAuditMode) {
+    return MAP_AUDIT_SPOTS;
+  }
+
+  const sourceSpots = spotsStore.items.length || hasLoadedSpotData.value || !LOCAL_MAP_PREVIEW_ENABLED
+    ? spotsStore.items
+    : mockSpots;
+  const mergedSpots = mergeSpotSources(sourceSpots, spotsStore.selectedSpot ? {
+    id: spotsStore.selectedSpot.id,
+    title: spotsStore.selectedSpot.title,
+    description: spotsStore.selectedSpot.description,
+    latitude: spotsStore.selectedSpot.latitude,
+    longitude: spotsStore.selectedSpot.longitude,
+    address: spotsStore.selectedSpot.address,
+    city: spotsStore.selectedSpot.city,
+    country: spotsStore.selectedSpot.country,
+    category: spotsStore.selectedSpot.category,
+    vibe: spotsStore.selectedSpot.vibe,
+    rating: spotsStore.selectedSpot.rating,
+    photoUrl: spotsStore.selectedSpot.photoUrl ?? spotsStore.selectedSpot.photos[0]?.url,
+    createdAt: spotsStore.selectedSpot.createdAt,
+    isPublic: spotsStore.selectedSpot.isPublic,
+    author: spotsStore.selectedSpot.author,
+    liked: spotsStore.selectedSpot.liked,
+    likesCount: spotsStore.selectedSpot.likesCount,
+  } : null);
+
+  return mergedSpots.map(toWorkspaceSpot);
+});
 const mapSpots = computed<MapPoint[]>(() => workspaceSpots.value.map((spot) => ({
   id: spot.id,
   title: spot.title,
@@ -652,22 +736,57 @@ const mapSpots = computed<MapPoint[]>(() => workspaceSpots.value.map((spot) => (
   photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
 })));
 
-const activeTrip = computed<MapRoutePreviewTrip | null>(() => (isMapAuditMode ? MAP_AUDIT_ROUTE : tripsStore.items[0] ?? null));
+const activeTrip = computed<MapRoutePreviewTrip | null>(() => (
+  isMapAuditMode
+    ? MAP_AUDIT_ROUTE
+    : tripsStore.items[0] ?? (hasLoadedTripData.value || !LOCAL_MAP_PREVIEW_ENABLED ? null : mockTrips[0]) ?? null
+));
 const workspaceLoading = computed(() => (isMapAuditMode ? false : spotsStore.loading || tripsStore.loading));
-const workspaceError = computed(() => (isMapAuditMode ? '' : spotsStore.error || tripsStore.error || ''));
+const workspaceError = computed(() => (
+  isMapAuditMode ? '' : spotsStore.error || (authStore.isAuthenticated ? tripsStore.error : '') || ''
+));
 const routeSourceStops = computed<TripSpot[]>(() => activeTrip.value?.spots ?? []);
-const routeSourcePoints = computed<MapPoint[]>(() => routeSourceStops.value.map((spot) => ({
+function labelRouteMapPoints(points: MapPoint[]): MapPoint[] {
+  const lastIndex = points.length - 1;
+
+  return points.map((point, index) => {
+    const routeRole: MapPoint['routeRole'] = index === 0
+      ? 'start'
+      : index === lastIndex
+        ? 'end'
+        : 'stop';
+    const routeLabel = routeRole === 'start' ? 'S' : routeRole === 'end' ? 'E' : String(index + 1);
+
+    return {
+      ...point,
+      routeRole,
+      routeLabel,
+    };
+  });
+}
+
+const routeSourcePoints = computed<MapPoint[]>(() => labelRouteMapPoints(routeSourceStops.value.map((spot) => ({
   id: spot.spotId,
   title: spot.title,
   latitude: spot.latitude,
   longitude: spot.longitude,
   category: spot.category,
-})));
+  city: spot.city,
+}))));
 const routePoints = computed<MapPoint[]>(() => {
   const optimizedPoints = roadRoute.value?.orderedPoints ?? [];
-  return optimizedPoints.length ? optimizedPoints : routeSourcePoints.value;
+  return labelRouteMapPoints(optimizedPoints.length ? optimizedPoints : routeSourcePoints.value);
 });
 const routeGeometry = computed(() => roadRoute.value?.geometry ?? []);
+const mapLabelMode = computed<MapLabelMode>(() => {
+  const hasPreferredLocation = Boolean(authStore.currentUser?.homeBase?.trim());
+  const hasFocusedMapContext = Boolean(mapStore.selectedSpotId) || mapStore.viewport.zoom >= 7;
+  if (hasPreferredLocation || hasFocusedMapContext) {
+    return 'full';
+  }
+
+  return mapStore.viewport.zoom >= 4.45 ? 'majorCities' : 'states';
+});
 const routeTitle = computed(() => {
   if (activeTrip.value?.title) {
     return activeTrip.value.title;
@@ -675,16 +794,37 @@ const routeTitle = computed(() => {
 
   return workspaceLoading.value ? 'Loading route preview' : 'Route preview ready';
 });
+
+function isRouteDescriptionPlaceholder(description: string): boolean {
+  const normalizedDescription = description.trim().toLowerCase();
+  return !normalizedDescription
+    || normalizedDescription === 'collaborative trip draft from scope planner.'
+    || normalizedDescription.includes('collaborative trip draft from scope planner')
+    || normalizedDescription.includes('pick a trip from the planner')
+    || normalizedDescription.includes('planner previews land here');
+}
+
 const routeDescription = computed(() => {
-  if (activeTrip.value?.description) {
-    return activeTrip.value.description;
+  const description = activeTrip.value?.description?.trim() ?? '';
+  if (description && !isRouteDescriptionPlaceholder(description)) {
+    return description;
   }
 
   if (workspaceLoading.value) {
     return 'Scope is syncing trip context into the map workspace.';
   }
 
-  return 'Pick a trip from the planner to preview its stop sequence and crew context on the map.';
+  if (activeTrip.value) {
+    const stopCount = routeSourceStops.value.length;
+    const destination = routeDestinationDisplay.value;
+    if (stopCount > 1) {
+      return `A live ${stopCount}-stop route preview around ${destination}, with the pin order, timing, and crew context ready to refine.`;
+    }
+
+    return `A focused route preview around ${destination}, ready for saved pins, timing, and trip context.`;
+  }
+
+  return 'Start a route in the planner and it will appear here with ordered stops, drive context, and crew notes.';
 });
 const routeDestinationLabel = computed(() => activeTrip.value?.destination ?? 'Trip planner');
 
@@ -781,6 +921,54 @@ const visibleSpots = computed(() => {
   return scopedSpots;
 });
 
+const visibleSpotPreviews = computed(() => {
+  const spots = visibleSpots.value;
+  if (spots.length <= VISIBLE_SPOT_PREVIEW_LIMIT) {
+    return spots;
+  }
+
+  const selectedSpotId = mapStore.selectedSpotId;
+  const previewAnchorSpot = selectedSpotId
+    ? spots.find((spot) => spot.id === selectedSpotId) ?? null
+    : spots[0] ?? null;
+  const selectedCategory = previewAnchorSpot?.category;
+  const categoryOrder = [
+    ...(selectedCategory ? [selectedCategory] : []),
+    ...categories.filter((category) => category !== selectedCategory),
+  ];
+  const selectedSpotIds = new Set<string>();
+  const previews: MapWorkspaceSpot[] = [];
+
+  const addPreview = (spot: MapWorkspaceSpot | null | undefined) => {
+    if (!spot || selectedSpotIds.has(spot.id) || previews.length >= VISIBLE_SPOT_PREVIEW_LIMIT) {
+      return;
+    }
+
+    selectedSpotIds.add(spot.id);
+    previews.push(spot);
+  };
+
+  addPreview(previewAnchorSpot);
+
+  const categoryBuckets = new Map<SpotCategory, MapWorkspaceSpot[]>();
+  categoryOrder.forEach((category) => {
+    categoryBuckets.set(
+      category,
+      spots
+        .filter((spot) => spot.category === category && !selectedSpotIds.has(spot.id))
+        .sort((a, b) => b.rating - a.rating || a.title.localeCompare(b.title)),
+    );
+  });
+
+  while (previews.length < VISIBLE_SPOT_PREVIEW_LIMIT && Array.from(categoryBuckets.values()).some((bucket) => bucket.length)) {
+    categoryOrder.forEach((category) => {
+      addPreview(categoryBuckets.get(category)?.shift());
+    });
+  }
+
+  return previews;
+});
+
 const visibleTitle = computed(() => {
   const count = visibleSpots.value.length;
   return `${count} spot${count === 1 ? '' : 's'} ready to explore`;
@@ -801,6 +989,13 @@ const selectedSpot = computed(() => {
 
   return visibleSpots.value.find((spot) => spot.id === selectedId) ?? visibleSpots.value[0] ?? null;
 });
+const selectedMapOverlaySpot = computed(() => {
+  if (!isSelectedMapOverlayVisible.value || isMobileMapLayout.value || !mapStore.selectedSpotId) {
+    return null;
+  }
+
+  return workspaceSpots.value.find((spot) => spot.id === mapStore.selectedSpotId) ?? null;
+});
 const selectedSpotPhoto = computed(() => {
   if (!selectedSpot.value) {
     return routeHeroPhoto.value;
@@ -808,12 +1003,20 @@ const selectedSpotPhoto = computed(() => {
 
   return getSpotPhotoUrl(selectedSpot.value.category, selectedSpot.value.photoUrl);
 });
+const selectedMapOverlayPhoto = computed(() => {
+  const spot = selectedMapOverlaySpot.value;
+  return spot ? getSpotPhotoUrl(spot.category, spot.photoUrl) : routeHeroPhoto.value;
+});
 const selectedSpotLocation = computed(() => {
   if (!selectedSpot.value) {
     return 'Scope';
   }
 
   return formatSpotCityRegion(selectedSpot.value);
+});
+const selectedMapOverlayLocation = computed(() => {
+  const spot = selectedMapOverlaySpot.value;
+  return spot ? formatSpotCityRegion(spot) : 'Scope';
 });
 const selectedSpotCountryBadge = computed(() => formatSpotCountryBadge(selectedSpot.value?.country));
 const nextMobileSheetState = computed<MobileSheetState>(() => {
@@ -924,8 +1127,15 @@ function handleResetCategories() {
   handleMapInteraction({ type: 'category_reset' });
 }
 
+function handleDismissMapSpotOverlay() {
+  isSelectedMapOverlayVisible.value = false;
+  mapStore.setSelectedSpotId(null);
+  handleMapInteraction({ type: 'spot_preview_dismiss' });
+}
+
 function handleSpotSelect(spot: MapPoint) {
   mapStore.setSelectedSpotId(spot.id);
+  isSelectedMapOverlayVisible.value = true;
   handleMapInteraction({ type: 'spot_select' });
   revealMobileSheet();
 }
@@ -937,6 +1147,7 @@ function focusSpot(spotId: string) {
   }
 
   mapStore.setSelectedSpotId(spot.id);
+  isSelectedMapOverlayVisible.value = true;
   mapStore.setCenter([spot.longitude, spot.latitude]);
   mapStore.setZoom(12);
   handleMapInteraction({ type: 'visible_spot_focus' });
@@ -945,6 +1156,31 @@ function focusSpot(spotId: string) {
 
 function buildRoutePointRequestKey(point: MapPoint): string {
   return `${point.id}:${point.longitude.toFixed(5)},${point.latitude.toFixed(5)}`;
+}
+
+function setMapBaseViewport(viewport: MapViewport): void {
+  const nextViewport = cloneMapViewport(viewport);
+  mapBaseViewport.value = nextViewport;
+  mapStore.setCenter(nextViewport.center);
+  mapStore.setZoom(nextViewport.zoom);
+  mapStore.setStyle(nextViewport.style);
+}
+
+async function syncMapBaseViewportFromPreferredLocation(): Promise<void> {
+  const requestId = ++mapBaseViewportRequestId;
+  const preferredLocation = authStore.currentUser?.homeBase?.trim() ?? '';
+
+  if (!preferredLocation) {
+    setMapBaseViewport(getDefaultDiscoveryMapViewport());
+    return;
+  }
+
+  const preferredViewport = await resolveHomeBaseMapViewport(preferredLocation).catch(() => null);
+  if (requestId !== mapBaseViewportRequestId) {
+    return;
+  }
+
+  setMapBaseViewport(preferredViewport ?? getDefaultDiscoveryMapViewport());
 }
 
 async function syncRoadRoute() {
@@ -1008,6 +1244,18 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => authStore.currentUser?.homeBase ?? '',
+  () => {
+    void syncMapBaseViewportFromPreferredLocation();
+  },
+  { immediate: true },
+);
+
+watch(focusedMapSpotId, () => {
+  void syncFocusedMapSpot().catch(() => undefined);
+});
+
 onMounted(() => {
   syncMobileMapLayout();
   window.addEventListener('resize', syncMobileMapLayout);
@@ -1021,16 +1269,27 @@ onMounted(() => {
   }
 
   cancelInitialWorkspaceLoad = scheduleNonCriticalTask(async () => {
-    await Promise.allSettled([spotsStore.fetchSpots(), tripsStore.fetchTrips()]);
+    const tripLoadTask = authStore.isAuthenticated
+      ? tripsStore.fetchTrips().then(() => {
+        hasLoadedTripData.value = true;
+      })
+      : Promise.resolve().then(() => {
+        hasLoadedTripData.value = true;
+      });
 
-    if (!mapStore.selectedSpotId && spotsStore.items[0]) {
-      mapStore.setSelectedSpotId(spotsStore.items[0].id);
-    }
+    await Promise.allSettled([
+      syncFocusedMapSpot().catch(() => undefined),
+      spotsStore.fetchSpots({ page: 1, pageSize: MAP_SPOT_PAGE_SIZE }).then(() => {
+        hasLoadedSpotData.value = true;
+      }),
+      tripLoadTask,
+    ]);
   }, { delayMs: 140, timeoutMs: 1_000 });
 });
 
 onBeforeUnmount(() => {
   roadRouteRequestId += 1;
+  mapBaseViewportRequestId += 1;
   cancelInitialWorkspaceLoad();
   cancelMobileSheetDrag();
   window.removeEventListener('resize', syncMobileMapLayout);
@@ -1065,8 +1324,8 @@ onBeforeUnmount(() => {
 .map-workspace {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(22rem, 24rem) minmax(0, 1fr);
-  gap: var(--space-5);
+  grid-template-columns: minmax(20rem, 22.5rem) minmax(0, 1fr);
+  gap: var(--space-4);
   height: clamp(36rem, calc(100dvh - var(--shell-content-top) - var(--space-10)), 46rem);
   min-height: 36rem;
   max-height: 46rem;
@@ -1129,6 +1388,39 @@ onBeforeUnmount(() => {
 .sidebar-empty-state {
   width: 100%;
   justify-self: stretch;
+}
+
+.map-plain-empty-state {
+  min-height: 14rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+}
+
+.map-plain-empty-state h3,
+.map-plain-empty-state p {
+  margin: 0;
+}
+
+.map-plain-empty-state h3 {
+  max-width: 24rem;
+  color: var(--text-primary);
+  font-size: clamp(1.15rem, 1.2vw, 1.45rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+}
+
+.map-plain-empty-state p:not(.eyebrow) {
+  max-width: 28rem;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.map-plain-empty-state .button {
+  margin-top: var(--space-1);
 }
 
 .map-sidebar-scroll {
@@ -1441,12 +1733,18 @@ onBeforeUnmount(() => {
 
 .route-card {
   min-width: 0;
+  width: 100%;
   background:
     linear-gradient(
       180deg,
       color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary) 4%),
       color-mix(in srgb, var(--bg-tertiary) 92%, var(--bg-primary) 8%)
     );
+}
+
+.route-card > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .route-heading .eyebrow {
@@ -1461,7 +1759,13 @@ onBeforeUnmount(() => {
 
 .route-heading > .route-destination-pill {
   align-self: flex-start;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.42rem 0.72rem;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 0.78rem;
 }
 
@@ -1841,22 +2145,24 @@ onBeforeUnmount(() => {
 
 .visible-list {
   display: grid;
-  gap: var(--space-3);
+  gap: 0.85rem;
 }
 
 .visible-item {
   width: 100%;
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: var(--space-3);
-  row-gap: 0.55rem;
-  padding: var(--space-3);
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  column-gap: 1rem;
+  row-gap: 0.58rem;
+  min-height: 7rem;
+  padding: 0.95rem 1rem;
   border-radius: var(--radius-xl);
   border: 1px solid var(--glass-border);
   background: color-mix(in srgb, var(--bg-primary) 22%, transparent);
   color: var(--text-primary);
+  font: inherit;
   text-align: left;
   cursor: pointer;
   transition:
@@ -1886,7 +2192,7 @@ onBeforeUnmount(() => {
 
 .visible-image {
   grid-row: 1 / span 2;
-  width: 4.5rem;
+  width: 4.75rem;
   aspect-ratio: 1;
   border-radius: var(--radius-lg);
   object-fit: cover;
@@ -1900,19 +2206,33 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.visible-copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 1.06rem;
+  line-height: 1.16;
+  letter-spacing: 0;
+  text-wrap: balance;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .visible-location {
-  grid-column: 2 / 4;
-  grid-row: 2;
+  grid-column: 1 / -1;
+  grid-row: 3;
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
+  width: 100%;
 }
 
 .visible-location-badge {
+  flex: 0 1 auto;
+  width: auto;
   min-width: 0;
-  max-width: min(100%, 14rem);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1925,9 +2245,6 @@ onBeforeUnmount(() => {
 .visible-location-badge,
 .visible-country-badge,
 .selected-country-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-height: 1.55rem;
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-full);
@@ -1936,8 +2253,16 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
+.visible-location-badge {
+  display: block;
+}
+
 .visible-country-badge,
 .selected-country-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   color: color-mix(in srgb, var(--text-primary) 82%, var(--accent-teal) 18%);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
@@ -1945,9 +2270,9 @@ onBeforeUnmount(() => {
 }
 
 .visible-rating {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1964,11 +2289,202 @@ onBeforeUnmount(() => {
   min-block-size: 100%;
 }
 
+.map-selected-overlay {
+  position: absolute;
+  top: max(var(--space-4), var(--safe-area-top));
+  left: max(var(--space-4), var(--safe-area-left));
+  z-index: calc(var(--z-sidebar) + 1);
+  display: grid;
+  grid-template-columns: minmax(8.8rem, 0.42fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--space-4);
+  width: min(30rem, calc(100% - 23rem));
+  min-height: 11rem;
+  padding: var(--space-4);
+  border-color: color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent));
+  box-shadow:
+    0 1.4rem 3.2rem color-mix(in srgb, var(--bg-primary) 38%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
+  pointer-events: auto;
+}
+
+.map-selected-overlay__media {
+  width: 100%;
+  min-height: 9.3rem;
+  border-radius: var(--radius-xl);
+  object-fit: cover;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--highlight-sheen) 10%, transparent),
+    0 0.8rem 1.8rem color-mix(in srgb, var(--bg-primary) 22%, transparent);
+}
+
+.map-selected-overlay__copy {
+  display: grid;
+  align-content: center;
+  gap: 0.62rem;
+  min-width: 0;
+}
+
+.map-selected-overlay__topline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.map-selected-overlay__topline .badge,
+.map-selected-overlay__rating,
+.map-selected-overlay__vibe {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.62rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: var(--radius-full);
+  font-size: 0.74rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.map-selected-overlay__rating {
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 26%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-gold) 8%, var(--bg-secondary) 92%);
+  color: color-mix(in srgb, var(--accent-gold) 72%, var(--text-primary) 28%);
+}
+
+.map-selected-overlay__rating :deep(.scope-icon) {
+  width: 0.84rem;
+  height: 0.84rem;
+}
+
+.map-selected-overlay h2,
+.map-selected-overlay p {
+  margin: 0;
+  min-width: 0;
+}
+
+.map-selected-overlay h2 {
+  color: var(--text-primary);
+  font-size: clamp(1.25rem, 1.4vw + 0.65rem, 1.7rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.map-selected-overlay__location {
+  color: var(--text-secondary);
+  font-size: 0.94rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-selected-overlay__description {
+  display: -webkit-box;
+  color: color-mix(in srgb, var(--text-secondary) 88%, var(--text-primary) 12%);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.map-selected-overlay__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: 0.1rem;
+}
+
+.map-selected-overlay__vibe {
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  background: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-teal) 8%);
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--accent-teal) 14%);
+}
+
+.map-selected-overlay__vibe :deep(.scope-icon) {
+  width: 0.84rem;
+  height: 0.84rem;
+  color: var(--accent-teal);
+}
+
+.map-selected-overlay__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  width: fit-content;
+  color: var(--accent-teal);
+  font-size: 0.88rem;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.map-selected-overlay__link :deep(.scope-icon) {
+  width: 0.88rem;
+  height: 0.88rem;
+}
+
+.map-selected-overlay__close {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 7%, var(--glass-border) 93%);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 28%, var(--bg-secondary) 72%);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.map-selected-overlay__close:hover,
+.map-selected-overlay__close:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  outline: none;
+}
+
+.map-selected-overlay__close :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.map-selected-overlay-enter-active,
+.map-selected-overlay-leave-active {
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+.map-selected-overlay-enter-from,
+.map-selected-overlay-leave-to {
+  opacity: 0;
+  transform: translateY(-0.8rem) scale(0.98);
+}
+
 .map-stage {
+  position: relative;
   height: 100%;
   min-height: 0;
   padding: 0;
   overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary) 4%),
+      color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary) 8%)
+    );
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 5%, transparent);
 }
 
 .map-stage[data-onboarding-active='true'] {
@@ -2037,7 +2553,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1080px) {
   .map-workspace {
     grid-template-columns: 1fr;
     gap: var(--space-4);
@@ -2322,7 +2838,7 @@ onBeforeUnmount(() => {
     flex-direction: row;
     align-items: flex-start;
     justify-content: space-between;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: var(--space-3);
   }
 
@@ -2333,8 +2849,9 @@ onBeforeUnmount(() => {
 
   .map-sidebar--mobile .route-heading > .route-destination-pill {
     align-self: flex-start;
-    margin-left: auto;
-    max-width: 45%;
+    flex: 0 1 auto;
+    margin-left: 0;
+    max-width: 100%;
     padding: 0.36rem 0.62rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2347,13 +2864,13 @@ onBeforeUnmount(() => {
   }
 
   .map-sidebar--mobile .route-card {
-    padding-right: calc(var(--space-4) + 0.45rem);
+    padding-right: var(--space-4);
   }
 
   .map-sidebar--mobile .route-preview-media {
-    width: calc(100% - 0.45rem);
+    width: 100%;
     min-height: 13.8rem;
-    margin-right: 0.45rem;
+    margin-right: 0;
     border-radius: var(--radius-xl);
   }
 
@@ -2364,10 +2881,10 @@ onBeforeUnmount(() => {
   }
 
   .map-sidebar--mobile .route-preview-stops {
-    grid-template-columns: repeat(2, minmax(0, min(12.35rem, calc((100% - 0.7rem) * 0.5))));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: space-between;
     gap: 0.82rem 0.72rem;
-    padding: 0.9rem calc(var(--space-4) + 0.8rem) 0.9rem 0.9rem;
+    padding: 0.9rem;
   }
 
   .map-sidebar--mobile .route-preview-stop {
@@ -2398,10 +2915,10 @@ onBeforeUnmount(() => {
   }
 
   .map-sidebar--mobile .route-metrics {
-    width: calc(100% - 0.45rem);
+    width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.55rem;
-    margin-right: 0.45rem;
+    margin-right: 0;
   }
 
   .map-sidebar--mobile .route-metrics span {
@@ -2417,22 +2934,32 @@ onBeforeUnmount(() => {
   }
 
   .map-sidebar--mobile .route-members {
-    margin-right: 0.45rem;
+    margin-right: 0;
+  }
+
+  .map-sidebar--mobile .route-empty-state {
+    max-width: 100%;
+  }
+
+  .map-sidebar--mobile .route-empty-state :deep(.empty-state-panel__actions),
+  .map-sidebar--mobile .route-empty-state :deep(.button) {
+    width: 100%;
   }
 
   .map-sidebar--mobile .visible-item {
-    grid-template-columns: 3.75rem minmax(0, 1fr);
+    grid-template-columns: 4.25rem minmax(0, 1fr);
     grid-template-rows: auto auto auto;
     align-items: start;
-    gap: var(--space-3);
-    padding: var(--space-3);
+    gap: 0.55rem 0.85rem;
+    min-height: 6.35rem;
+    padding: 0.85rem;
     border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--bg-primary) 28%, var(--bg-secondary) 72%);
   }
 
   .map-sidebar--mobile .visible-image {
-    grid-row: 1 / span 3;
-    width: 3.75rem;
+    grid-row: 1 / span 2;
+    width: 4.25rem;
   }
 
   .map-sidebar--mobile .visible-copy {
@@ -2446,8 +2973,13 @@ onBeforeUnmount(() => {
     justify-self: start;
   }
 
+  .map-sidebar--mobile .visible-copy strong {
+    font-size: 0.98rem;
+    line-height: 1.14;
+  }
+
   .map-sidebar--mobile .visible-location {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 3;
   }
 
@@ -2474,12 +3006,15 @@ onBeforeUnmount(() => {
   }
 
   .visible-item {
-    grid-template-columns: 4.5rem minmax(0, 1fr);
+    grid-template-columns: 4.25rem minmax(0, 1fr);
     grid-template-rows: auto auto auto;
+    min-height: 6.35rem;
+    padding: 0.85rem;
   }
 
   .visible-image {
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 2;
+    width: 4.25rem;
   }
 
   .visible-rating {
@@ -2489,8 +3024,13 @@ onBeforeUnmount(() => {
   }
 
   .visible-location {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 3;
+  }
+
+  .visible-copy strong {
+    font-size: 0.98rem;
+    line-height: 1.14;
   }
 }
 </style>

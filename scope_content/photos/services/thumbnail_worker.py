@@ -12,7 +12,7 @@ Event contract (topic `photo.thumbnail.requested`):
 
 The worker is idempotent: on retry it will overwrite the thumb at the target
 storage key and update `Photo.thumbnail_url`. Kafka delivers at-least-once,
-so the idempotency check (`if photo.thumbnail_url`) is what keeps us honest.
+so the idempotency check (`if photo.thumbnail_url`) keeps retries bounded.
 
 Poison-message handling
 -----------------------
@@ -141,13 +141,20 @@ class ThumbnailWorker:
             logger.info('thumbnail_worker_photo_missing', extra={'photoId': photo_id})
             return False
 
+        if storage_key != photo.storage_key:
+            logger.warning(
+                'thumbnail_worker_storage_key_mismatch',
+                extra={'photoId': photo_id, 'eventStorageKey': storage_key, 'photoStorageKey': photo.storage_key},
+            )
+            return False
+
         if photo.thumbnail_url:
             # Already generated (duplicate delivery, manual reprocess, etc.).
             # Kafka at-least-once semantics make this the common case on retry.
             logger.debug('thumbnail_worker_already_populated', extra={'photoId': photo_id})
             return True
 
-        thumbnail_url = self.storage_service.generate_thumbnail_for_storage_key(storage_key)
+        thumbnail_url = self.storage_service.generate_thumbnail_for_storage_key(photo.storage_key)
         photo.thumbnail_url = thumbnail_url
         photo.save(update_fields=['thumbnail_url'])
 
@@ -161,8 +168,72 @@ class ThumbnailWorker:
         )
         logger.info(
             'thumbnail_worker_processed',
-            extra={'photoId': photo_id, 'storageKey': storage_key},
+            extra={'photoId': photo_id, 'storageKey': photo.storage_key},
         )
+        return True
+
+    def _process_records(self, consumer: Any, records: dict) -> bool:
+        """Process one Kafka poll batch.
+
+        Returns True when it is safe to commit the consumer position. A
+        retryable handler failure seeks back to the failed offset and returns
+        False so at-least-once delivery is preserved in the same process.
+        """
+        for partition, batch in records.items():
+            for record in batch:
+                key = self._record_key(record)
+                try:
+                    ok = self.handle_payload(record.value)
+                    record_kafka_consumed(
+                        record.topic,
+                        self.consumer_group,
+                        status='ok' if ok else 'skipped',
+                    )
+                    self._attempt_counts.pop(key, None)
+                except Exception as exc:
+                    attempts = self._attempt_counts.get(key, 0) + 1
+                    self._attempt_counts[key] = attempts
+                    logger.exception(
+                        'thumbnail_worker_handler_error',
+                        extra={
+                            'offset': record.offset,
+                            'partition': record.partition,
+                            'attempts': attempts,
+                        },
+                    )
+                    record_kafka_consumed(record.topic, self.consumer_group, status='error')
+                    if attempts >= MAX_EVENT_ATTEMPTS:
+                        self._publish_dead_letter(record, exc)
+                        self._attempt_counts.pop(key, None)
+                        continue
+
+                    try:
+                        consumer.seek(partition, record.offset)
+                    except Exception:  # pragma: no cover - seek failures are rare
+                        logger.debug(
+                            'thumbnail_worker_retry_seek_failed',
+                            extra={'partition': record.partition, 'offset': record.offset},
+                            exc_info=True,
+                        )
+                    return False
+
+            try:
+                highwater = consumer.highwater(partition)
+                position = consumer.position(partition)
+                if highwater is not None and position is not None:
+                    record_kafka_consumer_lag(
+                        partition.topic,
+                        partition.partition,
+                        self.consumer_group,
+                        highwater - position,
+                    )
+            except Exception:  # pragma: no cover - metric is best-effort
+                logger.debug(
+                    'thumbnail_worker_lag_metric_failed',
+                    extra={'partition': getattr(partition, 'partition', None)},
+                    exc_info=True,
+                )
+
         return True
 
     def run_forever(self, *, poll_timeout_ms: int = 1000, idle_sleep_seconds: float = 0.1) -> None:
@@ -200,72 +271,13 @@ class ThumbnailWorker:
                 if not records:
                     time.sleep(idle_sleep_seconds)
                     continue
-                for partition, batch in records.items():
-                    for record in batch:
-                        key = self._record_key(record)
-                        try:
-                            ok = self.handle_payload(record.value)
-                            record_kafka_consumed(
-                                record.topic,
-                                self.consumer_group,
-                                status='ok' if ok else 'skipped',
-                            )
-                            # Success clears any prior failure streak so a
-                            # flaky record that eventually succeeds doesn't
-                            # count against a future (unrelated) offset.
-                            self._attempt_counts.pop(key, None)
-                        except Exception as exc:
-                            # Tally the failure; after MAX_EVENT_ATTEMPTS
-                            # retries, push to the DLQ and move on so this
-                            # record stops blocking the partition forever.
-                            attempts = self._attempt_counts.get(key, 0) + 1
-                            self._attempt_counts[key] = attempts
-                            logger.exception(
-                                'thumbnail_worker_handler_error',
-                                extra={
-                                    'offset': record.offset,
-                                    'partition': record.partition,
-                                    'attempts': attempts,
-                                },
-                            )
-                            record_kafka_consumed(
-                                record.topic, self.consumer_group, status='error'
-                            )
-                            if attempts >= MAX_EVENT_ATTEMPTS:
-                                self._publish_dead_letter(record, exc)
-                                self._attempt_counts.pop(key, None)
-                            else:
-                                # Re-raise semantics would stall the partition
-                                # on restart; instead we swallow here and
-                                # expect Kafka's at-least-once redelivery on
-                                # the NEXT consumer restart to replay the
-                                # offset. Within the same process lifetime we
-                                # keep processing subsequent records so a
-                                # single poison message doesn't throttle the
-                                # batch.
-                                pass
                     # After processing a partition batch, emit the lag gauge.
                     # `highwater()` is cached on the consumer (no broker round
                     # trip), and `position()` is read locally too — so this is
                     # cheap enough to run every poll. The diff is the single
                     # most useful signal for "should I scale out the worker?".
-                    try:
-                        highwater = consumer.highwater(partition)
-                        position = consumer.position(partition)
-                        if highwater is not None and position is not None:
-                            record_kafka_consumer_lag(
-                                partition.topic,
-                                partition.partition,
-                                self.consumer_group,
-                                highwater - position,
-                            )
-                    except Exception:  # pragma: no cover - metric is best-effort
-                        logger.debug(
-                            'thumbnail_worker_lag_metric_failed',
-                            extra={'partition': getattr(partition, 'partition', None)},
-                            exc_info=True,
-                        )
-                consumer.commit()
+                if self._process_records(consumer, records):
+                    consumer.commit()
         finally:
             try:
                 consumer.close()

@@ -69,11 +69,13 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import { planTrip, type TripPlanResponse } from '@/services/agentService';
 import { useAuthStore } from '@/stores/auth';
+import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
+import { formatUserVibes, normalizeUserVibes } from '@/utils/userPreferenceSignals';
 
 const authStore = useAuthStore();
 const prompt = ref('');
@@ -81,6 +83,7 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const response = ref<TripPlanResponse | null>(null);
 const chatContainer = ref<HTMLElement | null>(null);
+const accountVibes = computed(() => normalizeUserVibes(authStore.currentUser?.interests, { includeSurprise: false }));
 
 const suggestions = [
   'Plan a 3-day trip to Tokyo focused on street food and temples',
@@ -100,12 +103,23 @@ function escapeHtml(value: string): string {
 
 function formatMarkdown(raw: string): string {
   const withBold = escapeHtml(raw).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  return `<p>${withBold.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+  return toTrustedSanitizedHtml(`<p>${withBold.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
 }
 
 async function scrollChatToBottom(): Promise<void> {
   await nextTick();
   chatContainer.value?.scrollTo({ top: chatContainer.value.scrollHeight, behavior: 'smooth' });
+}
+
+function buildPersonalizedPrompt(rawPrompt: string): string {
+  if (!accountVibes.value.length) {
+    return rawPrompt;
+  }
+
+  return [
+    `Interests: ${formatUserVibes(accountVibes.value)}.`,
+    `Traveler request: ${rawPrompt}`,
+  ].join('\n');
 }
 
 async function handleSubmit() {
@@ -120,7 +134,7 @@ async function handleSubmit() {
 
   try {
     response.value = await planTrip({
-      prompt: trimmedPrompt,
+      prompt: buildPersonalizedPrompt(trimmedPrompt),
       user_id: authStore.currentUser?.id,
     });
   } catch (caughtError: unknown) {

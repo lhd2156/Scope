@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -35,10 +36,57 @@ std::vector<GraphEdge> sample_edges() {
 TEST(PathGraphTest, FindsTheCheapestPathWithDijkstra) {
     const PathGraph graph(sample_nodes(), sample_edges());
 
+    EXPECT_FALSE(graph.empty());
+    EXPECT_EQ(graph.size(), sample_nodes().size());
+
     const auto result = graph.shortest_path_dijkstra("a", "d");
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->node_ids, (std::vector<std::string> {"a", "b", "c", "d"}));
     EXPECT_DOUBLE_EQ(result->total_cost_km, 360.0);
+}
+
+TEST(PathGraphTest, DefaultGraphStartsEmptyAndCanBeRebuilt) {
+    PathGraph graph;
+    EXPECT_TRUE(graph.empty());
+    EXPECT_EQ(graph.size(), 0U);
+
+    graph.rebuild(
+        {
+            {"loop", {0.0, 0.0}},
+            {"goal", {0.0, 1.0}},
+        },
+        {
+            {"loop", "loop", 0.0, true},
+            {"loop", "goal", 1.0, true},
+        });
+
+    EXPECT_FALSE(graph.empty());
+    EXPECT_EQ(graph.size(), 2U);
+    const auto result = graph.shortest_path_dijkstra("loop", "goal");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->node_ids, (std::vector<std::string> {"loop", "goal"}));
+}
+
+TEST(PathGraphTest, StableQueueOrderingHandlesEqualCostChoices) {
+    const PathGraph graph(
+        {
+            {"start", {0.0, 0.0}},
+            {"b", {0.0, 1.0}},
+            {"c", {0.0, 2.0}},
+            {"goal", {0.0, 3.0}},
+        },
+        {
+            {"start", "b", 1.0, false},
+            {"start", "c", 1.0, false},
+            {"b", "goal", 1.0, false},
+            {"c", "goal", 1.0, false},
+        });
+
+    const auto result = graph.shortest_path_dijkstra("start", "goal");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->node_ids.front(), "start");
+    EXPECT_EQ(result->node_ids.back(), "goal");
+    EXPECT_DOUBLE_EQ(result->total_cost_km, 2.0);
 }
 
 TEST(PathGraphTest, AStarMatchesTheOptimalPathCost) {
@@ -121,10 +169,33 @@ TEST(PathGraphTest, RejectsInvalidGraphDefinitions) {
         [] {
             const PathGraph graph(
                 {
+                    {"", {41.8781, -87.6298}},
+                },
+                {});
+        }(),
+        std::invalid_argument);
+
+    EXPECT_THROW(
+        [] {
+            const PathGraph graph(
+                {
                     {"dup", {41.8781, -87.6298}},
                     {"dup", {41.8810, -87.6231}},
                 },
                 {});
+        }(),
+        std::invalid_argument);
+
+    EXPECT_THROW(
+        [] {
+            const PathGraph graph(
+                {
+                    {"start", {41.8781, -87.6298}},
+                    {"goal", {41.8853, -87.6216}},
+                },
+                {
+                    {"", "goal", 1.0, true},
+                });
         }(),
         std::invalid_argument);
 
@@ -141,6 +212,19 @@ TEST(PathGraphTest, RejectsInvalidGraphDefinitions) {
         }(),
         std::invalid_argument);
 
+    EXPECT_THROW(
+        [] {
+            const PathGraph graph(
+                {
+                    {"start", {41.8781, -87.6298}},
+                    {"goal", {41.8853, -87.6216}},
+                },
+                {
+                    {"start", "goal", std::nan(""), true},
+                });
+        }(),
+        std::invalid_argument);
+
     const PathGraph graph(
         {
             {"start", {41.8781, -87.6298}},
@@ -151,6 +235,7 @@ TEST(PathGraphTest, RejectsInvalidGraphDefinitions) {
         });
 
     EXPECT_THROW(graph.shortest_path_dijkstra("missing", "goal"), std::invalid_argument);
+    EXPECT_THROW(graph.shortest_path_dijkstra("start", "missing"), std::invalid_argument);
 
     EXPECT_THROW(
         [] {

@@ -1,0 +1,207 @@
+using System.Net;
+using System.Text.Json;
+using Scope.Core.API.Middleware;
+using Scope.Core.Domain.Exceptions;
+using Scope.Core.Domain.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Xunit;
+
+namespace Scope.Core.Tests.Middleware;
+
+public sealed class MiddlewareMoreTests
+{
+    [Fact]
+    public async Task CorrelationIdMiddleware_EchoesSafeHeaderAndReplacesUnsafeValues()
+    {
+        var safe = new DefaultHttpContext();
+        safe.Response.Body = new MemoryStream();
+        safe.Request.Headers[CorrelationIdMiddleware.HeaderName] = "safe-id_123";
+        var middleware = new CorrelationIdMiddleware(context => context.Response.WriteAsync("ok"), NullLogger<CorrelationIdMiddleware>.Instance);
+
+        await middleware.InvokeAsync(safe);
+
+        Assert.Equal("safe-id_123", safe.TraceIdentifier);
+        Assert.Equal("safe-id_123", Assert.IsType<string>(safe.Items[CorrelationIdMiddleware.HeaderName]));
+
+        var unsafeContext = new DefaultHttpContext();
+        unsafeContext.Response.Body = new MemoryStream();
+        unsafeContext.Request.Headers[CorrelationIdMiddleware.HeaderName] = "bad id with spaces";
+        await middleware.InvokeAsync(unsafeContext);
+        Assert.NotEqual("bad id with spaces", unsafeContext.TraceIdentifier);
+        Assert.Equal(32, unsafeContext.TraceIdentifier.Length);
+    }
+
+    [Fact]
+    public async Task ExceptionHandlingMiddleware_MapsScopeAndUnhandledExceptions()
+    {
+        var scopeContext = NewJsonContext();
+        var scopeMiddleware = new ExceptionHandlingMiddleware(
+            _ => throw new ValidationException("Bad input", [("field", "Nope")]),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await scopeMiddleware.InvokeAsync(scopeContext);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, scopeContext.Response.StatusCode);
+        var scopeError = await ReadEnvelope(scopeContext);
+        Assert.Equal("VALIDATION_ERROR", scopeError.Error.Code);
+        Assert.Equal("field", Assert.Single(scopeError.Error.Details).Field);
+
+        var unhandledContext = NewJsonContext();
+        var unhandledMiddleware = new ExceptionHandlingMiddleware(
+            _ => throw new InvalidOperationException("boom"),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        await unhandledMiddleware.InvokeAsync(unhandledContext);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, unhandledContext.Response.StatusCode);
+        Assert.Equal("INTERNAL_ERROR", (await ReadEnvelope(unhandledContext)).Error.Code);
+    }
+
+    [Fact]
+    public async Task MetricsAllowlistMiddleware_AllowsConfiguredNetworksUnknownAndBlocksOthers()
+    {
+        var called = 0;
+        var middleware = new MetricsAllowlistMiddleware(
+            _ =>
+            {
+                called += 1;
+                return Task.CompletedTask;
+            },
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["METRICS_ALLOWED_CIDRS"] = "203.0.113.0/24;bad-cidr",
+                ["METRICS_ALLOW_UNKNOWN_REMOTE"] = "true",
+            }).Build(),
+            NullLogger<MetricsAllowlistMiddleware>.Instance);
+
+        var allowed = new DefaultHttpContext();
+        allowed.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.10");
+        await middleware.InvokeAsync(allowed);
+        Assert.Equal(1, called);
+
+        var unknown = new DefaultHttpContext();
+        await middleware.InvokeAsync(unknown);
+        Assert.Equal(2, called);
+
+        var blocked = new DefaultHttpContext();
+        blocked.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.5");
+        await middleware.InvokeAsync(blocked);
+        Assert.Equal(StatusCodes.Status403Forbidden, blocked.Response.StatusCode);
+        Assert.Equal(2, called);
+    }
+
+    [Fact]
+    public async Task MetricsAllowlistMiddleware_AllowsDefaultPrivateRanges()
+    {
+        var called = 0;
+        var middleware = new MetricsAllowlistMiddleware(
+            _ =>
+            {
+                called += 1;
+                return Task.CompletedTask;
+            },
+            new ConfigurationBuilder().Build(),
+            NullLogger<MetricsAllowlistMiddleware>.Instance);
+
+        await middleware.InvokeAsync(Context("/metrics", "127.0.0.1"));
+        await middleware.InvokeAsync(Context("/metrics", "10.2.3.4"));
+
+        Assert.Equal(2, called);
+    }
+
+    [Fact]
+    public async Task RateLimitMiddleware_BypassesMetricsAndLimitsAuthAndGlobalBuckets()
+    {
+        var nextCalls = 0;
+        var middleware = new RateLimitMiddleware(
+            _ =>
+            {
+                nextCalls += 1;
+                return Task.CompletedTask;
+            },
+            NullLogger<RateLimitMiddleware>.Instance,
+            Options.Create(new RateLimitOptions { AuthLimit = 1, RefreshLimit = 3, GlobalLimit = 20, WindowSeconds = 60, RetryAfterSeconds = "9" }),
+            new ServiceCollection().BuildServiceProvider());
+
+        var metrics = Context("/metrics", "203.0.113.44");
+        await middleware.InvokeAsync(metrics);
+        Assert.Equal(1, nextCalls);
+
+        await middleware.InvokeAsync(Context("/api/core/auth/login", "203.0.113.45"));
+        var limitedAuth = Context("/api/core/auth/login", "203.0.113.45");
+        await middleware.InvokeAsync(limitedAuth);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, limitedAuth.Response.StatusCode);
+        Assert.Equal("9", limitedAuth.Response.Headers["Retry-After"].ToString());
+
+        var currentUser = Context("/api/core/auth/me", "203.0.113.45");
+        await middleware.InvokeAsync(currentUser);
+        Assert.NotEqual(StatusCodes.Status429TooManyRequests, currentUser.Response.StatusCode);
+
+        await middleware.InvokeAsync(Context("/api/core/auth/refresh", "203.0.113.45"));
+        await middleware.InvokeAsync(Context("/api/core/auth/refresh", "203.0.113.45"));
+        var allowedRefresh = Context("/api/core/auth/refresh", "203.0.113.45");
+        await middleware.InvokeAsync(allowedRefresh);
+        Assert.NotEqual(StatusCodes.Status429TooManyRequests, allowedRefresh.Response.StatusCode);
+        var limitedRefresh = Context("/api/core/auth/refresh", "203.0.113.45");
+        await middleware.InvokeAsync(limitedRefresh);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, limitedRefresh.Response.StatusCode);
+
+        var globalMiddleware = new RateLimitMiddleware(
+            _ =>
+            {
+                nextCalls += 1;
+                return Task.CompletedTask;
+            },
+            NullLogger<RateLimitMiddleware>.Instance,
+            Options.Create(new RateLimitOptions { AuthLimit = 10, RefreshLimit = 20, GlobalLimit = 2, WindowSeconds = 60, RetryAfterSeconds = "9" }),
+            new ServiceCollection().BuildServiceProvider());
+
+        await globalMiddleware.InvokeAsync(Context("/api/core/users/me", "203.0.113.46"));
+        await globalMiddleware.InvokeAsync(Context("/api/core/users/me", "203.0.113.46"));
+        var limitedGlobal = Context("/api/core/users/me", "203.0.113.46");
+        await globalMiddleware.InvokeAsync(limitedGlobal);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, limitedGlobal.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequestLoggingMiddleware_RecordsSuccessAndRethrowsFailures()
+    {
+        var success = Context("/api/core/users/me", "203.0.113.47");
+        success.Request.Method = "GET";
+        success.Response.StatusCode = StatusCodes.Status202Accepted;
+        var middleware = new RequestLoggingMiddleware(_ => Task.CompletedTask, NullLogger<RequestLoggingMiddleware>.Instance);
+
+        await middleware.InvokeAsync(success);
+
+        var failure = Context("/api/core/users/me", "203.0.113.48");
+        failure.Request.Method = "POST";
+        var throwing = new RequestLoggingMiddleware(_ => throw new InvalidOperationException("boom"), NullLogger<RequestLoggingMiddleware>.Instance);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => throwing.InvokeAsync(failure));
+    }
+
+    private static DefaultHttpContext Context(string path, string ip)
+    {
+        var context = NewJsonContext();
+        context.Request.Path = path;
+        context.Connection.RemoteIpAddress = IPAddress.Parse(ip);
+        return context;
+    }
+
+    private static DefaultHttpContext NewJsonContext()
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        return context;
+    }
+
+    private static async Task<ErrorEnvelope> ReadEnvelope(HttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        return (await JsonSerializer.DeserializeAsync<ErrorEnvelope>(
+            context.Response.Body,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
+    }
+}

@@ -2,7 +2,7 @@
   <div class="layout-shell" :data-navbar="navbarVariant">
     <component :is="activeNavbar" />
     <main><slot /></main>
-    <AppFooter />
+    <AppFooter v-if="!hideFooter" />
   </div>
 </template>
 
@@ -11,6 +11,10 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import { useRoute } from 'vue-router';
 import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
 import { getScopeQaSession } from '@/utils/qaMode';
+
+defineProps<{
+  hideFooter?: boolean;
+}>();
 
 const Navbar = defineAsyncComponent(() => import('./Navbar.vue'));
 const GuestNavbar = defineAsyncComponent(() => import('./GuestNavbar.vue'));

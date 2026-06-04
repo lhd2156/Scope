@@ -39,6 +39,8 @@ function readPngDimensions(publicPath: string): { width: number; height: number 
 
 describe('registerAppServiceWorker', () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     Reflect.deleteProperty(window, 'trustedTypes');
   });
 
@@ -69,11 +71,44 @@ describe('registerAppServiceWorker', () => {
     expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
   });
 
+  it('uses a plain service worker URL when the window global is unavailable', async () => {
+    const registration = { scope: '/' } as ServiceWorkerRegistration;
+    const register = vi.fn().mockResolvedValue(registration);
+
+    vi.stubGlobal('window', undefined);
+
+    await expect(
+      registerAppServiceWorker({
+        isProduction: true,
+        serviceWorkerContainer: { register },
+      }),
+    ).resolves.toBe(registration);
+
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+  });
+
+  it('skips registration when service workers are unavailable or explicitly disabled', async () => {
+    await expect(registerAppServiceWorker({ isProduction: true })).resolves.toBeNull();
+
+    vi.stubEnv('VITE_DISABLE_SERVICE_WORKER', 'true');
+    const register = vi.fn();
+    await expect(
+      registerAppServiceWorker({
+        isProduction: true,
+        serviceWorkerContainer: { register },
+      }),
+    ).resolves.toBeNull();
+
+    expect(register).not.toHaveBeenCalled();
+  });
+
   it('registers with a trusted script URL when Trusted Types are enforced', async () => {
     const registration = { scope: '/' } as ServiceWorkerRegistration;
     const trustedScriptUrl = { source: '/sw.js' };
     const createScriptURL = vi.fn().mockReturnValue(trustedScriptUrl);
-    const createPolicy = vi.fn().mockReturnValue({ createScriptURL });
+    const createPolicy = vi.fn((_name: string, rules: { createScriptURL: (value: string) => string }) => ({
+      createScriptURL: (value: string) => createScriptURL(rules.createScriptURL(value)),
+    }));
     const register = vi.fn().mockResolvedValue(registration);
 
     Object.defineProperty(window, 'trustedTypes', {
@@ -93,6 +128,31 @@ describe('registerAppServiceWorker', () => {
     });
     expect(createScriptURL).toHaveBeenCalledWith('/sw.js');
     expect(register).toHaveBeenCalledWith(trustedScriptUrl, { scope: '/' });
+  });
+
+  it('falls back to a string service worker URL when Trusted Types policy creation fails', async () => {
+    vi.resetModules();
+    const registration = { scope: '/' } as ServiceWorkerRegistration;
+    const createPolicy = vi.fn(() => {
+      throw new Error('trusted types denied');
+    });
+    const register = vi.fn().mockResolvedValue(registration);
+
+    Object.defineProperty(window, 'trustedTypes', {
+      configurable: true,
+      value: { createPolicy },
+    });
+
+    const { registerAppServiceWorker: freshRegisterAppServiceWorker } = await import('@/utils/pwa');
+
+    await expect(
+      freshRegisterAppServiceWorker({
+        isProduction: true,
+        serviceWorkerContainer: { register },
+      }),
+    ).resolves.toBe(registration);
+
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
   });
 
   it('returns null when registration fails', async () => {

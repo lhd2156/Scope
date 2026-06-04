@@ -70,9 +70,9 @@ test.describe('Phase 20 QA coverage', () => {
 
     await planner.locator('[data-test="trip-planner-submit"]').click();
 
-    await expect(planner.getByText('Enter a city, state, or place so Scope can build a route.')).toBeVisible();
+    await expect(planner.getByText('Enter a start or final city, state, or place so Scope can build a route.')).toBeVisible();
     await expect(planner.getByText('End date must be on or after the start date.')).toBeVisible();
-    await expect(planner.getByText('Select at least one interest to guide the itinerary.')).toBeVisible();
+    await expect(planner.getByText('Set a real route first; the guide uses the drive before it suggests anything.')).toBeVisible();
 
     const budgetSlider = planner.getByRole('spinbutton', { name: 'Minimum budget' });
     const originalBudgetFloor = await budgetSlider.inputValue();
@@ -85,10 +85,10 @@ test.describe('Phase 20 QA coverage', () => {
     await page.keyboard.press('Enter');
     await expect(relaxedPaceCard).toHaveClass(/active/);
 
-    const nightlifeChip = planner.locator('button.interest-chip').filter({ hasText: 'Nightlife' }).first();
-    await nightlifeChip.focus();
+    const shoppingChip = planner.locator('button.interest-chip').filter({ hasText: 'Shopping' }).first();
+    await shoppingChip.focus();
     await page.keyboard.press('Space');
-    await expect(nightlifeChip).toHaveClass(/active/);
+    await expect(shoppingChip).toHaveClass(/active/);
   });
 
   test('blocks invalid spot coordinates and safely renders HTML-like spot content as text', async ({ page, scopeApi }) => {
@@ -111,13 +111,13 @@ test.describe('Phase 20 QA coverage', () => {
     await form.locator('[data-test="photo-upload-input"]').setInputFiles(SPOT_PHOTO);
     await expect(form.locator('[data-test="photo-preview-card"]')).toHaveCount(1);
 
-    await form.getByLabel('Title').fill('Skyline <b>Glow</b> Lounge');
+    await form.getByRole('textbox', { name: 'Place' }).fill('Skyline <b>Glow</b> Lounge');
     await form.getByLabel('Description').fill('Premium skyline notes <script>alert("scope")</script> after dark.');
     await form.getByLabel('Address').fill('501 Riverfront Ave');
     await form.getByLabel('City').fill('Fort Worth');
     await form.getByLabel('Country').fill('US');
-    await form.getByLabel('Category').selectOption('nightlife');
-    await form.getByLabel('Vibe').fill('night <em>energy</em>');
+    await form.getByLabel('Spot category').selectOption('nightlife');
+    await form.getByLabel('Optional vibe').fill('night <em>energy</em>');
     await form.getByLabel('Rating').fill('4.8');
     await form.getByLabel('Visited at').fill('2026-04-01');
     await form.getByLabel('Latitude').fill('91');
@@ -128,8 +128,8 @@ test.describe('Phase 20 QA coverage', () => {
     await expect(form.getByText('Latitude must be between -90 and 90.')).toBeVisible();
     await expect(form.getByText('Longitude must be between -180 and 180.')).toBeVisible();
 
-    await form.getByLabel('Latitude').fill('32.7555');
-    await form.getByLabel('Longitude').fill('-97.3308');
+    await form.getByLabel('Latitude').fill('32.7561');
+    await form.getByLabel('Longitude').fill('-97.3314');
     await form.locator('[data-test="spot-submit"]').click();
 
     await expect(page).toHaveURL(/\/spots\/spot-\d+$/);

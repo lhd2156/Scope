@@ -39,6 +39,11 @@ export const SPOT_TRAVEL_CUES: Record<SpotCategory, TravelCue> = {
     pairing: 'Culture + food',
     energy: 'Polished flex stop',
   },
+  entertainment: {
+    window: 'Afternoon through evening',
+    pairing: 'Food + nightlife',
+    energy: 'Fun-forward anchor',
+  },
   scenic: {
     window: 'Sunrise or golden hour',
     pairing: 'Nature + food',

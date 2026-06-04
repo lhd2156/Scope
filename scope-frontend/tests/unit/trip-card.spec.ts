@@ -46,4 +46,65 @@ describe('TripCard', () => {
     expect(wrapper.text()).toContain('1 stop');
     expect(wrapper.find('a').attributes('href')).toBe('/trips/trip-1');
   });
+
+  it('toggles saved state and renders private draft fallbacks', async () => {
+    const wrapper = mount(TripCard, {
+      props: {
+        trip: {
+          ...trip,
+          description: '   ',
+          isPublic: false,
+          startDate: '2026-04-01',
+          endDate: '2026-04-01',
+          budget: undefined,
+          spots: [],
+          members: [],
+        },
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Apr 1');
+    expect(wrapper.text()).toContain('1 day');
+    expect(wrapper.text()).toContain('0 members');
+    expect(wrapper.text()).toContain('0 stops');
+    expect(wrapper.text()).toContain('Private draft');
+    expect(wrapper.text()).toContain('A premium route board is waiting for the first itinerary notes.');
+    expect(wrapper.text()).toContain('Ready for itinerary generation');
+
+    const saveButton = wrapper.get('button.save-button');
+    expect(saveButton.attributes('aria-pressed')).toBe('false');
+    await saveButton.trigger('click');
+    expect(saveButton.attributes('aria-pressed')).toBe('true');
+    expect(saveButton.attributes('aria-label')).toContain('Remove North Texas Night + Food Loop from saved trips');
+  });
+
+  it('formats budget footers with a default currency', () => {
+    const wrapper = mount(TripCard, {
+      props: {
+        trip: {
+          ...trip,
+          budget: 1200,
+          currency: undefined,
+        },
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Budget target $1,200');
+  });
 });

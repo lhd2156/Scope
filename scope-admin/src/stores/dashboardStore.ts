@@ -121,7 +121,10 @@ export const useDashboardStore = defineStore('dashboard', {
           loading: false,
         });
       } catch (error) {
-        this.$patch({ error: error instanceof Error ? error.message : 'Dashboard refresh failed', loading: false });
+        this.$patch({
+          error: error instanceof Error ? error.message : 'Dashboard refresh failed',
+          loading: false,
+        });
       }
     },
   },

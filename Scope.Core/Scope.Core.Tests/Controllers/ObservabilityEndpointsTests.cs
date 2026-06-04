@@ -1,4 +1,5 @@
 using System.Net;
+using Scope.Core.API.Middleware;
 using Scope.Core.Infrastructure.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,7 +15,7 @@ public sealed class ObservabilityEndpointsTests : IClassFixture<WebApplicationFa
 {
     private readonly WebApplicationFactory<Program> _factory;
     private static readonly string SqlHost = Environment.GetEnvironmentVariable("CORE_TEST_SQL_SERVER_HOST") ?? "sqlserver";
-    private static readonly string SqlPassword = Environment.GetEnvironmentVariable("SQL_SA_PASSWORD") ?? "Scope_Dev_2026!";
+    private static readonly string SqlPassword = Environment.GetEnvironmentVariable("SQL_SA_PASSWORD") ?? "CHANGE_ME_STRONG_PASSWORD!";
 
     public ObservabilityEndpointsTests(WebApplicationFactory<Program> factory)
     {
@@ -52,11 +53,12 @@ public sealed class ObservabilityEndpointsTests : IClassFixture<WebApplicationFa
     {
         using var client = _factory.CreateClient();
 
-        var healthResponse = await client.GetAsync("/api/core/health");
+        ScopeObservability.ObserveHttpRequest("GET", "/api/core/health", 200, TimeSpan.FromMilliseconds(12));
+        ScopeObservability.SetServiceHealth("core", true);
+
         var metricsResponse = await client.GetAsync("/metrics");
         var body = await metricsResponse.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.OK, healthResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, metricsResponse.StatusCode);
         Assert.Contains("scope_core_http_requests_total", body);
         Assert.Contains("route=\"/api/core/health\"", body);

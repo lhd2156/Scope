@@ -119,7 +119,7 @@ git push origin v1.0.0
    - GHCR images publish successfully
    - deployment bundle artifact uploads successfully
 4. when infrastructure changes are included, dispatch `Scope Deploy` manually with `terraform_action = plan`, review the uploaded plan artifact, then rerun with `terraform_action = apply` after approval
-5. for the single-box AWS path, use `terraform_profile = lightsail` plus `deploy_lightsail_app = true` so the workflow uploads the runtime bundle and starts Scope on the Lightsail host after apply
+5. for the single-box AWS path, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile lightsail -DeployComposeHost`, then use `terraform_profile = lightsail` plus `deploy_lightsail_app = true` so the workflow uploads the runtime bundle and starts Scope on the Lightsail host after apply; keep `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true` for Lightsail so SSH opens only to the active runner during deployment, or configure exact SSH allowlists (`LIGHTSAIL_ADMIN_*` / `EC2_COMPOSE_ADMIN_IPV4_CIDRS`) if dynamic SSH is disabled; production also requires a 32+ character `SCOPE_GRPC_INTERNAL_TOKEN`
 6. promote/deploy from the generated image set and bundle
 
 ### Option B — manual deployment path
@@ -144,6 +144,7 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Scope Metrics `/healthz` and `/metrics` respond
 - [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
+- [ ] Sentry receives release-tagged events for server and browser projects, with `SENTRY_RELEASE` / `VITE_SENTRY_RELEASE` matching the deployed commit; if `SENTRY_DSN_MODE=temporary-placeholder`, this is a known temporary gap and must be rotated before relying on monitoring
 - [ ] logs show no immediate crash loops or startup failures
 
 ### Recommended smoke command
@@ -221,7 +222,7 @@ These are the major remaining runtime gaps for Scope:
 
 1. execute the Terraform workflow against a real AWS account
 2. validate the Kubernetes/Terraform stack in a live cloud target
-3. finalize environment-specific production secrets and IAM/OIDC setup
+3. finalize environment-specific production secrets, Sentry DSNs, SSH allowlists, and IAM/OIDC setup
 4. complete final release polish around live cloud verification
 
 ---

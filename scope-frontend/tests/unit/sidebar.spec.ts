@@ -22,5 +22,11 @@ describe('Sidebar', () => {
     await wrapper.get('.sidebar-toggle').trigger('click');
 
     expect(wrapper.emitted('update:collapsed')?.[0]).toEqual([true]);
+
+    await wrapper.setProps({ collapsed: true });
+    expect(wrapper.classes()).toContain('is-collapsed');
+
+    await wrapper.setProps({ collapsed: false });
+    expect(wrapper.classes()).not.toContain('is-collapsed');
   });
 });

@@ -1,4 +1,3 @@
-import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 
 async function loadThemeToggle() {
@@ -13,8 +12,8 @@ describe('ThemeToggle', () => {
     document.documentElement.style.colorScheme = '';
   });
 
-  it('applies the stored theme and toggles to the opposite mode', async () => {
-    localStorage.setItem('scope-theme', 'dark');
+  it('forces dark mode and presents light mode as coming soon', async () => {
+    localStorage.setItem('scope-theme', 'light');
     const ThemeToggle = await loadThemeToggle();
 
     const wrapper = mount(ThemeToggle);
@@ -22,29 +21,28 @@ describe('ThemeToggle', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('scope-theme')).toBe('dark');
-    expect(wrapper.attributes('aria-label')).toBe('Switch to light mode');
+    expect(wrapper.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(wrapper.text()).toContain('Coming soon');
 
     await wrapper.trigger('click');
 
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-    expect(document.documentElement.style.colorScheme).toBe('light');
-    expect(localStorage.getItem('scope-theme')).toBe('light');
-    expect(wrapper.attributes('aria-label')).toBe('Switch to dark mode');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+    expect(localStorage.getItem('scope-theme')).toBe('dark');
   });
 
-  it('keeps multiple mounted toggles synchronized through the shared theme state', async () => {
+  it('keeps multiple mounted coming-soon controls stable', async () => {
     const ThemeToggle = await loadThemeToggle();
     const firstToggle = mount(ThemeToggle);
     const secondToggle = mount(ThemeToggle);
 
-    expect(firstToggle.attributes('aria-label')).toBe('Switch to light mode');
-    expect(secondToggle.attributes('aria-label')).toBe('Switch to light mode');
+    expect(firstToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(secondToggle.attributes('aria-label')).toBe('Light mode coming soon');
 
     await firstToggle.trigger('click');
-    await nextTick();
 
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-    expect(firstToggle.attributes('aria-label')).toBe('Switch to dark mode');
-    expect(secondToggle.attributes('aria-label')).toBe('Switch to dark mode');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(firstToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(secondToggle.attributes('aria-label')).toBe('Light mode coming soon');
   });
 });

@@ -146,8 +146,8 @@ const VIEWPORT_MARGIN = 16;
 const SPOTLIGHT_PADDING = 14;
 const CARD_GAP = 20;
 const BODY_LOCK_CLASS = 'scope-onboarding-lock';
-const CARD_MAX_WIDTH = 432;
-const CARD_ESTIMATED_HEIGHT = 508;
+const CARD_MAX_WIDTH = 408;
+const CARD_ESTIMATED_HEIGHT = 420;
 const MOBILE_BREAKPOINT = 720;
 const ROUTE_WAIT_MS = 260;
 const ANCHORED_STEP_STAGE_MS = 180;
@@ -477,6 +477,19 @@ async function syncPresentation(): Promise<void> {
     return;
   }
 
+  if (!target.isConnected || !isTargetVisible(target)) {
+    const refreshedAccentTargets = resolveVisibleTargets(currentStep.accentSelectors);
+    isAnchoredStepIntro.value = false;
+    spotlightRect.value = null;
+    cardPosition.value = currentStep.routeName === 'map'
+      ? resolveStandaloneCardPosition()
+      : resolveFallbackCardPosition();
+    setActiveTargets(refreshedAccentTargets);
+    await nextTick();
+    cardRef.value?.focus();
+    return;
+  }
+
   const nextSpotlightRect = measureElement(target);
   isAnchoredStepIntro.value = false;
   spotlightRect.value = nextSpotlightRect;
@@ -587,12 +600,46 @@ const cardStyle = computed(() => {
   };
 });
 
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          cardStyle,
+          clamp,
+          delay,
+          findVisibleTarget,
+          handleAdvance,
+          handleDotSelect,
+          handleKeydown,
+          handleSkip,
+          isTargetVisible,
+          measureElement,
+          refreshLayout,
+          resolveCardMaxWidth,
+          resolveCardPosition,
+          resolveDefaultCardPosition,
+          resolveEstimatedCardHeight,
+          resolveFallbackCardPosition,
+          resolveStandaloneCardPosition,
+          resolveVisibleTargets,
+          setActiveTargets,
+          setDocumentScrollLock,
+          spotlightStyle,
+          syncPresentation,
+          waitForTarget,
+        },
+      }
+    : {}),
+});
+
 watch(
   () => onboardingStore.isActive,
   (isActive) => {
     if (!isActive) {
+      syncSequence += 1;
       spotlightRect.value = null;
       cardPosition.value = null;
+      isAnchoredStepIntro.value = false;
       setActiveTargets([]);
       setDocumentScrollLock(false);
       return;
@@ -714,10 +761,11 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  height: min(31.75rem, calc(100dvh - (var(--space-4) * 2)));
+  gap: 0.55rem;
+  min-height: min(23.75rem, calc(100dvh - (var(--space-4) * 2)));
+  height: auto;
   max-height: calc(100dvh - (var(--space-4) * 2));
-  padding: clamp(var(--space-4), 1.8vw, var(--space-5));
+  padding: clamp(1.05rem, 1.6vw, 1.35rem);
   overflow: hidden;
   overscroll-behavior: contain;
   background: var(--onboarding-card-surface);
@@ -744,7 +792,8 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__card--welcome {
-  gap: var(--space-2);
+  gap: 0.55rem;
+  min-height: min(27.5rem, calc(100dvh - (var(--space-4) * 2)));
   background: var(--onboarding-card-surface);
 }
 
@@ -760,14 +809,14 @@ onBeforeUnmount(() => {
 .onboarding-overlay__welcome-brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 0.72rem;
 }
 
 .onboarding-overlay__welcome-brand-mark {
   display: grid;
   place-items: center;
-  width: 2.45rem;
-  height: 2.45rem;
+  width: 2.28rem;
+  height: 2.28rem;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
   color: var(--accent-teal);
@@ -777,8 +826,8 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__welcome-brand-mark :deep(.scope-icon) {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .onboarding-overlay__welcome-brand-copy {
@@ -807,16 +856,16 @@ onBeforeUnmount(() => {
 .onboarding-overlay__highlights {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .onboarding-overlay__highlight-card {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.55rem;
+  gap: 0.5rem;
   align-items: flex-start;
   min-width: 0;
-  padding: 0.62rem;
+  padding: 0.56rem;
   border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
@@ -828,8 +877,8 @@ onBeforeUnmount(() => {
 .onboarding-overlay__highlight-icon {
   display: grid;
   place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.62rem;
+  height: 1.62rem;
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent-teal) 16%, transparent);
   color: var(--accent-teal);
@@ -837,8 +886,8 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__highlight-icon :deep(.scope-icon) {
-  width: 1rem;
-  height: 1rem;
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .onboarding-overlay__highlight-copy {
@@ -848,7 +897,7 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__highlight-title {
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   line-height: 1.25;
@@ -858,7 +907,7 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   display: -webkit-box;
   overflow: hidden;
-  font-size: 0.72rem;
+  font-size: 0.69rem;
   line-height: 1.28;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -871,14 +920,14 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__title {
-  font-size: clamp(1.15rem, 1.35vw, 1.38rem);
+  font-size: clamp(1.08rem, 1.24vw, 1.28rem);
   line-height: var(--line-height-tight);
 }
 
 .onboarding-overlay__description {
   color: var(--text-secondary);
-  font-size: 0.84rem;
-  line-height: 1.42;
+  font-size: 0.8rem;
+  line-height: 1.38;
 }
 
 .onboarding-overlay__meta {
@@ -886,17 +935,17 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
   align-items: center;
-  column-gap: var(--space-4);
-  row-gap: 0.55rem;
+  column-gap: var(--space-3);
+  row-gap: 0.75rem;
   margin-top: auto;
 }
 
 .onboarding-overlay__progress {
   display: inline-flex;
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.46rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -907,8 +956,8 @@ onBeforeUnmount(() => {
 }
 
 .onboarding-overlay__progress-dot {
-  width: 1.12rem;
-  height: 1.12rem;
+  width: 0.86rem;
+  height: 0.86rem;
   padding: 0;
   border: none;
   border-radius: var(--radius-full);
@@ -964,32 +1013,36 @@ onBeforeUnmount(() => {
 
 .onboarding-overlay__actions {
   display: flex;
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 2;
   flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 0.65rem;
+  gap: 0.55rem;
+  width: 100%;
 }
 
 .onboarding-overlay__actions .button {
-  min-height: 2.75rem;
-  padding-block: 0.65rem;
+  min-height: 2.42rem;
+  padding-block: 0.55rem;
+  padding-inline: 1rem;
   line-height: 1;
+  font-size: 0.88rem;
 }
 
 .onboarding-overlay__actions .button-secondary {
-  flex: 0 0 8.25rem;
+  flex: 0 0 6.4rem;
   background: color-mix(in srgb, var(--bg-primary) 18%, transparent);
 }
 
 .onboarding-overlay__actions .button-primary {
-  flex: 0 0 auto;
-  min-width: 9.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
   box-shadow: none;
 }
 
 .onboarding-overlay__actions .button-primary:only-child {
-  min-width: 12rem;
+  flex: 0 1 12.6rem;
+  margin-left: auto;
 }
 
 .onboarding-fade-enter-active,
@@ -1052,8 +1105,8 @@ onBeforeUnmount(() => {
     left: var(--space-4) !important;
     width: auto !important;
     bottom: var(--space-4) !important;
-    height: min(31.75rem, calc(100dvh - (var(--space-4) * 2)));
-    min-height: 0;
+    height: auto;
+    min-height: min(23.75rem, calc(100dvh - (var(--space-4) * 2)));
     max-height: calc(100dvh - (var(--space-4) * 2));
     overflow-y: auto;
   }

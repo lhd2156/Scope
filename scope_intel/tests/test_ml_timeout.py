@@ -23,7 +23,7 @@ def build_low_timeout_app(timeout_seconds: float = 0.01):
     )
 
 
-def test_recommend_spots_returns_timeout_error_when_ml_computation_exceeds_limit(auth_header, monkeypatch):
+def test_recommend_spots_returns_best_effort_empty_list_when_ml_computation_exceeds_limit(auth_header, monkeypatch):
     app = build_low_timeout_app()
     client = app.test_client()
 
@@ -39,11 +39,8 @@ def test_recommend_spots_returns_timeout_error_when_ml_computation_exceeds_limit
         headers=auth_header,
     )
 
-    assert response.status_code == 503
-    error = response.get_json()["error"]
-    assert error["code"] == "ML_TIMEOUT"
-    assert error["message"] == "ML computation timed out"
-    assert error["details"] == [{"field": "recommend_spots", "message": "Exceeded 0.010s timeout"}]
+    assert response.status_code == 200
+    assert response.get_json()["data"]["recommendations"] == []
 
 
 def test_vibe_match_returns_timeout_error_when_ml_computation_exceeds_limit(auth_header, monkeypatch):
@@ -69,7 +66,7 @@ def test_vibe_match_returns_timeout_error_when_ml_computation_exceeds_limit(auth
     assert error["details"] == [{"field": "vibe_match", "message": "Exceeded 0.010s timeout"}]
 
 
-def test_similar_spots_returns_timeout_error_when_ml_computation_exceeds_limit(auth_header, monkeypatch):
+def test_similar_spots_returns_best_effort_empty_list_when_ml_computation_exceeds_limit(auth_header, monkeypatch):
     app = build_low_timeout_app()
     client = app.test_client()
 
@@ -80,8 +77,5 @@ def test_similar_spots_returns_timeout_error_when_ml_computation_exceeds_limit(a
 
     response = client.post("/api/intel/recommend/similar/spot-2", json={"limit": 2}, headers=auth_header)
 
-    assert response.status_code == 503
-    error = response.get_json()["error"]
-    assert error["code"] == "ML_TIMEOUT"
-    assert error["message"] == "ML computation timed out"
-    assert error["details"] == [{"field": "similar_spots", "message": "Exceeded 0.010s timeout"}]
+    assert response.status_code == 200
+    assert response.get_json()["data"]["recommendations"] == []

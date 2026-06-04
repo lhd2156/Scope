@@ -31,6 +31,12 @@ Scope uses Vite environment variables for local configuration.
 | `VITE_MAPBOX_TOKEN` | _(empty)_ | Mapbox token for map rendering |
 | `VITE_CSRF_ENDPOINT` | _(empty)_ | Optional CSRF bootstrap endpoint |
 | `VITE_DEMO_MODE` | `false` | Routes the frontend service layer to local demo fixtures instead of live APIs |
+| `VITE_ENABLE_DEMO_WEATHER` | `false` | Uses deterministic demo weather instead of live OpenWeatherMap/Open-Meteo data when demo mode is enabled |
+| `VITE_ENABLE_CLIENT_WEATHER_FALLBACK` | `false` | Allows browser-side weather provider calls when the backend weather endpoint is unavailable; keep disabled for production |
+| `VITE_ENABLE_TRIP_MOCK_FALLBACK` | `false` | Allows fixture-backed trip lists/details when the trip API is empty or unavailable; keep disabled for production |
+| `VITE_ENABLE_TRIP_LOCAL_WRITE_FALLBACK` | `false` | Allows localStorage trip writes when the trip API is unavailable; keep disabled for production |
+| `VITE_ENABLE_AGENT_LOCAL_FALLBACK` | `false` | Allows local trip copilot responses when the Intel agent endpoint is unavailable; keep disabled for production |
+| `VITE_OPENWEATHERMAP_API_KEY` | _(empty)_ | Optional browser fallback key for local development; production weather should use the Intel backend weather endpoint |
 | `VITE_ENABLE_AUTH_MOCK_FALLBACK` | `false` | Keeps the legacy auth fallback path available for local API-offline development |
 | `VITE_ENABLE_USER_MOCK_FALLBACK` | `false` | Enables user-profile-only fallback behavior outside demo mode |
 
@@ -48,6 +54,7 @@ When `VITE_DEMO_MODE=true`:
 - the API client short-circuits to fixture-backed mock data
 - auth uses the seeded shared demo account
 - realtime notifications stay idle instead of trying to connect to SignalR
+- weather still uses the backend/live providers unless `VITE_ENABLE_DEMO_WEATHER=true`
 - spots, trips, feed, notifications, maps, and itinerary generation all resolve from local demo fixtures
 
 ### Demo Login

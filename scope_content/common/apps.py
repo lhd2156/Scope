@@ -13,7 +13,7 @@ class CommonConfig(AppConfig):
 
         ensure_indexes()
 
-        if os.environ.get("GRPC_ENABLED", "true").lower() != "true":
+        if os.environ.get("GRPC_ENABLED", "false").lower() != "true":
             return
         if any(command in sys.argv for command in ["migrate", "makemigrations", "collectstatic", "pytest"]):
             return

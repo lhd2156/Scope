@@ -2,8 +2,8 @@ import type { UserLocation } from '@/types';
 
 export const GEOLOCATION_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  maximumAge: 15_000,
-  timeout: 10_000,
+  maximumAge: 5_000,
+  timeout: 12_000,
 };
 
 export function isGeolocationSupported(): boolean {
@@ -35,6 +35,20 @@ export function startLocationWatch(
     onError,
     options,
   );
+}
+
+export function getCurrentLocation(options: PositionOptions = GEOLOCATION_OPTIONS): Promise<UserLocation> {
+  if (!isGeolocationSupported()) {
+    return Promise.reject(new Error('Geolocation is not supported by this browser.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve(mapGeolocationPosition(position)),
+      reject,
+      options,
+    );
+  });
 }
 
 export function stopLocationWatch(watchId: number | null): void {

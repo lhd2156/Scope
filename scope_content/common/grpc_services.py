@@ -39,7 +39,6 @@ class SpotServiceServicer(spot_pb2_grpc.SpotServiceServicer):
         return self._spot_to_proto(spot)
 
     def ListSpots(self, request, context):
-        from spots.models import Spot
 
         page = request.pagination.page if request.HasField("pagination") and request.pagination.page > 0 else 1
         page_size = request.pagination.page_size if request.HasField("pagination") and request.pagination.page_size > 0 else 20

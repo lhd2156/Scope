@@ -1,10 +1,12 @@
 import api from '@/services/api';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { getTrendingSpots } from '@/services/feedService';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type {
   ApiEnvelope,
   Photo,
+  Review,
   SpotDetail,
   SpotFilters,
   SpotFormSubmission,
@@ -13,17 +15,66 @@ import type {
 } from '@/types';
 import {
   sanitizePhoto,
+  sanitizeReview,
   sanitizeSingleLineText,
   sanitizeSpotDetail,
   sanitizeSpotFormSubmission,
   sanitizeSpotSummary,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
+import { calculateHaversineDistanceKm } from '@/utils/geoDistance';
 import { rankTrendingSpots } from '@/utils/spotRanking';
 
 const SPOTS_BASE_PATH = '/api/content/spots';
+const SPOTS_COLLECTION_PATH = `${SPOTS_BASE_PATH}/`;
+const PHOTOS_BASE_PATH = '/api/content/photos';
+const REVIEWS_BASE_PATH = '/api/content/reviews';
+const INTEL_BASE_PATH = '/api/intel';
 const DEFAULT_RADIUS_KM = 25;
+const isEnabledEnv = (value: unknown) => String(value ?? '').trim().toLowerCase() === 'true';
+const SPOT_READ_FALLBACK_ENABLED =
+  DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_SPOT_MOCK_FALLBACK === 'true';
+const SPOT_WRITE_FALLBACK_ENABLED =
+  DEMO_MODE_ENABLED || isEnabledEnv(import.meta.env.VITE_ENABLE_SPOT_LOCAL_WRITE_FALLBACK);
 let hasObservedLiveSpotData = false;
+
+export interface VerifySpotPlaceInput {
+  title: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  postalCode?: string;
+  latitude: number;
+  longitude: number;
+  providerPlaceId?: string;
+}
+
+export interface VerifySpotPlaceCandidate {
+  source: string;
+  providerPlaceId?: string;
+  providerPlaceName?: string;
+  providerPlaceAddress?: string;
+  city?: string;
+  country?: string;
+  postalCode?: string;
+  distanceMeters?: number;
+  precision?: string;
+}
+
+export interface VerifySpotPlaceResult {
+  verified: boolean;
+  source: string;
+  providerPlaceId?: string;
+  providerPlaceName?: string;
+  providerPlaceAddress?: string;
+  city?: string;
+  country?: string;
+  postalCode?: string;
+  distanceMeters?: number | null;
+  precision?: string;
+  reason?: string;
+  candidates: VerifySpotPlaceCandidate[];
+}
 
 export interface NearbySpotFilters {
   latitude: number;
@@ -69,6 +120,102 @@ function sanitizePhotoEnvelope(response: ApiEnvelope<Photo[]>): ApiEnvelope<Phot
   };
 }
 
+function sanitizeVerifySpotPlaceResult(response: ApiEnvelope<VerifySpotPlaceResult> | VerifySpotPlaceResult): VerifySpotPlaceResult {
+  const payload = unwrapApiData(response) as Partial<VerifySpotPlaceResult>;
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+
+  return {
+    verified: Boolean(payload.verified),
+    source: sanitizeSingleLineText(payload.source) || '',
+    providerPlaceId: sanitizeSingleLineText(payload.providerPlaceId),
+    providerPlaceName: sanitizeSingleLineText(payload.providerPlaceName),
+    providerPlaceAddress: sanitizeSingleLineText(payload.providerPlaceAddress),
+    city: sanitizeSingleLineText(payload.city),
+    country: sanitizeSingleLineText(payload.country),
+    postalCode: sanitizeSingleLineText(payload.postalCode),
+    distanceMeters: typeof payload.distanceMeters === 'number' ? payload.distanceMeters : null,
+    precision: sanitizeSingleLineText(payload.precision),
+    reason: sanitizeSingleLineText(payload.reason),
+    candidates: candidates.map((candidate) => ({
+      source: sanitizeSingleLineText(candidate.source),
+      providerPlaceId: sanitizeSingleLineText(candidate.providerPlaceId),
+      providerPlaceName: sanitizeSingleLineText(candidate.providerPlaceName),
+      providerPlaceAddress: sanitizeSingleLineText(candidate.providerPlaceAddress),
+      city: sanitizeSingleLineText(candidate.city),
+      country: sanitizeSingleLineText(candidate.country),
+      postalCode: sanitizeSingleLineText(candidate.postalCode),
+      distanceMeters: typeof candidate.distanceMeters === 'number' ? candidate.distanceMeters : undefined,
+      precision: sanitizeSingleLineText(candidate.precision),
+    })),
+  };
+}
+
+function buildSpotComposeFormData(submission: SpotFormSubmission): FormData {
+  const formData = new FormData();
+  formData.append('spot', JSON.stringify(submission.spot));
+  submission.newPhotos.forEach((upload, index) => {
+    formData.append('photos', upload.file, upload.file.name);
+    formData.append('captions', upload.caption || '');
+    formData.append('sortOrders', String(index));
+  });
+  return formData;
+}
+
+export async function verifySpotPlace(input: VerifySpotPlaceInput): Promise<VerifySpotPlaceResult> {
+  const { data } = await api.post<ApiEnvelope<VerifySpotPlaceResult> | VerifySpotPlaceResult>(
+    `${INTEL_BASE_PATH}/place/verify`,
+    {
+      title: sanitizeSingleLineText(input.title),
+      address: sanitizeSingleLineText(input.address),
+      city: sanitizeSingleLineText(input.city),
+      country: sanitizeSingleLineText(input.country),
+      postalCode: sanitizeSingleLineText(input.postalCode),
+      latitude: input.latitude,
+      longitude: input.longitude,
+      providerPlaceId: sanitizeSingleLineText(input.providerPlaceId),
+    },
+  );
+
+  return sanitizeVerifySpotPlaceResult(data);
+}
+
+export async function uploadSpotPhoto(
+  spotId: string,
+  upload: Pick<Photo, 'caption'> & { file: File },
+  sortOrder: number,
+): Promise<ApiEnvelope<Photo>> {
+  const formData = new FormData();
+  formData.append('spot_id', spotId);
+  formData.append('file', upload.file, upload.file.name);
+  formData.append('caption', sanitizeSingleLineText(upload.caption));
+  formData.append('sort_order', String(sortOrder));
+
+  const { data } = await api.post<ApiEnvelope<Photo> | Photo>(`${PHOTOS_BASE_PATH}/upload`, formData);
+  return { data: sanitizePhoto(unwrapApiData(data) as Photo) };
+}
+
+export async function createVerifiedSpot(submission: SpotFormSubmission): Promise<ApiEnvelope<SpotDetail>> {
+  const { data } = await api.post<ApiEnvelope<SpotDetail> | SpotDetail>(
+    `${SPOTS_BASE_PATH}/compose`,
+    buildSpotComposeFormData(submission),
+  );
+  const responseSpot = unwrapApiData(data) as SpotDetail & {
+    is_public?: boolean;
+    photos?: SpotDetail['photos'];
+    reviews?: SpotDetail['reviews'];
+  };
+  const sanitizedResponse = sanitizeSpotDetailEnvelope({
+    data: {
+      ...responseSpot,
+      isPublic: responseSpot.isPublic ?? responseSpot.is_public ?? submission.spot.isPublic,
+      photos: Array.isArray(responseSpot.photos) ? responseSpot.photos : [],
+      reviews: Array.isArray(responseSpot.reviews) ? responseSpot.reviews : [],
+    } as SpotDetail,
+  });
+  rememberLiveSpotDetail();
+  return sanitizedResponse;
+}
+
 function rememberLiveSpotList(spots: SpotSummary[]): void {
   if (spots.length) {
     hasObservedLiveSpotData = true;
@@ -107,15 +254,15 @@ async function resolveSpotListEnvelope(
   const total = sanitizedResponse.meta?.total ?? sanitizedResponse.data.length;
   const isEmptyUnfilteredDiscovery = total === 0 && !hasSpotDiscoveryFilters(filters);
 
-  if (!sanitizedResponse.data.length && (!hasObservedLiveSpotData || isEmptyUnfilteredDiscovery)) {
+  if (
+    SPOT_READ_FALLBACK_ENABLED &&
+    !sanitizedResponse.data.length &&
+    (!hasObservedLiveSpotData || isEmptyUnfilteredDiscovery)
+  ) {
     return buildMockSpotEnvelope(filters, { ranked: options.rankedFallback });
   }
 
   return sanitizedResponse;
-}
-
-function toRadians(value: number): number {
-  return (value * Math.PI) / 180;
 }
 
 function distanceInKilometers(
@@ -124,17 +271,10 @@ function distanceInKilometers(
   secondLatitude: number,
   secondLongitude: number,
 ): number {
-  const earthRadiusKm = 6371;
-  const latitudeDelta = toRadians(secondLatitude - firstLatitude);
-  const longitudeDelta = toRadians(secondLongitude - firstLongitude);
-  const latitudeA = toRadians(firstLatitude);
-  const latitudeB = toRadians(secondLatitude);
-
-  const haversineComponent =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) ** 2;
-
-  return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversineComponent));
+  return calculateHaversineDistanceKm(
+    { latitude: firstLatitude, longitude: firstLongitude },
+    { latitude: secondLatitude, longitude: secondLongitude },
+  );
 }
 
 async function updateSpotCollections(
@@ -188,9 +328,12 @@ export async function listSpots(filters: SpotFilters = {}): Promise<ApiEnvelope<
   };
 
   try {
-    const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}`, { params: sanitizedFilters });
+    const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(SPOTS_COLLECTION_PATH, { params: sanitizedFilters });
     return resolveSpotListEnvelope(data, sanitizedFilters, { rankedFallback: true });
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     return buildMockSpotEnvelope(sanitizedFilters, { ranked: true });
   }
 }
@@ -209,7 +352,10 @@ export async function exploreSpots(filters: SpotFilters = {}): Promise<ApiEnvelo
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}/explore`, { params: sanitizedFilters });
     return resolveSpotListEnvelope(data, sanitizedFilters, { rankedFallback: true });
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     return buildMockSpotEnvelope(sanitizedFilters, { ranked: true });
   }
 }
@@ -230,10 +376,13 @@ export async function listNearbySpots(filters: NearbySpotFilters): Promise<ApiEn
     const sanitizedResponse = sanitizeSpotEnvelope(data);
     rememberLiveSpotList(sanitizedResponse.data);
 
-    if (sanitizedResponse.data.length || hasObservedLiveSpotData) {
+    if (sanitizedResponse.data.length || hasObservedLiveSpotData || !SPOT_READ_FALLBACK_ENABLED) {
       return sanitizedResponse;
     }
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     // The local seed layer below keeps nearby/map discovery populated while
     // the content service has not received its first real pins yet.
   }
@@ -258,11 +407,35 @@ export async function listUserSpots(userId: string, page = 1, pageSize = 20): Pr
     const sanitizedResponse = sanitizeSpotEnvelope(data);
     rememberLiveSpotList(sanitizedResponse.data);
     return sanitizedResponse;
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { mockSpots } = await loadMockData();
     const resolvedPageSize = pageSize || mockSpots.length || 1;
-    const userSpots = mockSpots.filter((spot) => spot.author?.id === userId);
+    const legacyDemoUserId = /^user-\d+$/i.test(userId) ? `demo-${userId}` : userId;
+    const userSpots = mockSpots.filter((spot) => spot.author?.id === userId || spot.author?.id === legacyDemoUserId);
     return sanitizeSpotEnvelope(paginateItems(userSpots, page, resolvedPageSize), { allowGeneratedAvatars: true });
+  }
+}
+
+export async function listSavedSpots(page = 1, pageSize = 12): Promise<ApiEnvelope<SpotSummary[]>> {
+  try {
+    const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}/saved`, {
+      params: { page, pageSize },
+    });
+    const sanitizedResponse = sanitizeSpotEnvelope(data);
+    rememberLiveSpotList(sanitizedResponse.data);
+    return sanitizedResponse;
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
+    const { mockSpots } = await loadMockData();
+    const savedSpots = mockSpots.filter((spot) => spot.liked);
+    return sanitizeSpotEnvelope(paginateItems(savedSpots, page, pageSize || savedSpots.length || 1), {
+      allowGeneratedAvatars: true,
+    });
   }
 }
 
@@ -272,7 +445,10 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
     const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
     rememberLiveSpotDetail();
     return sanitizedResponse;
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { getSpotById } = await loadMockData();
     const detail = getSpotById(spotId);
     if (!detail) {
@@ -280,6 +456,29 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
     }
     return sanitizeSpotDetailEnvelope({ data: detail }, { allowGeneratedAvatars: true });
   }
+}
+
+export async function listSpotReviews(spotId: string): Promise<ApiEnvelope<Review[]>> {
+  const { data } = await api.get<ApiEnvelope<Review[]> | Review[]>(`${REVIEWS_BASE_PATH}/spot/${spotId}`);
+  const reviews = normalizeArrayEnvelopeData({ data: unwrapApiData(data) as Review[] });
+
+  return {
+    data: reviews.map((review) => sanitizeReview({ ...review, spotId } as Review)),
+  };
+}
+
+export async function createSpotReview(
+  spotId: string,
+  payload: { rating: number; comment: string },
+): Promise<ApiEnvelope<Review>> {
+  const { data } = await api.post<ApiEnvelope<Review> | Review>(`${REVIEWS_BASE_PATH}/spot/${spotId}`, {
+    rating: payload.rating,
+    comment: payload.comment,
+  });
+
+  return {
+    data: sanitizeReview({ ...(unwrapApiData(data) as Review), spotId } as Review),
+  };
 }
 
 export async function createSpot(
@@ -290,11 +489,11 @@ export async function createSpot(
   const sanitizedUser = currentUser ? sanitizeUserProfile(currentUser) : currentUser;
 
   try {
-    const { data } = await api.post<ApiEnvelope<SpotDetail> | SpotDetail>(SPOTS_BASE_PATH, sanitizedSubmission.spot);
-    const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
-    rememberLiveSpotDetail();
-    return sanitizedResponse;
-  } catch {
+    return await createVerifiedSpot(sanitizedSubmission);
+  } catch (error) {
+    if (!SPOT_WRITE_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { createMockSpot } = await loadMockData();
     return sanitizeSpotDetailEnvelope({ data: createMockSpot(sanitizedSubmission, sanitizedUser) });
   }
@@ -310,10 +509,19 @@ export async function updateSpot(
 
   try {
     const { data } = await api.put<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}`, sanitizedSubmission.spot);
-    const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
+    for (const [index, upload] of sanitizedSubmission.newPhotos.entries()) {
+      await uploadSpotPhoto(spotId, upload, sanitizedSubmission.existingPhotos.length + index);
+    }
+    const refreshed = sanitizedSubmission.newPhotos.length
+      ? await getSpotDetail(spotId)
+      : sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) as SpotDetail });
+    const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: refreshed.data });
     rememberLiveSpotDetail();
     return sanitizedResponse;
-  } catch {
+  } catch (error) {
+    if (!SPOT_WRITE_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { updateMockSpot } = await loadMockData();
     return sanitizeSpotDetailEnvelope({ data: updateMockSpot(spotId, sanitizedSubmission, sanitizedUser) });
   }
@@ -322,7 +530,10 @@ export async function updateSpot(
 export async function deleteSpot(spotId: string): Promise<void> {
   try {
     await api.delete(`${SPOTS_BASE_PATH}/${spotId}`);
-  } catch {
+  } catch (error) {
+    if (!SPOT_WRITE_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { mockSpotDetails, mockSpots } = await loadMockData();
     const summaryIndex = mockSpots.findIndex((spot) => spot.id === spotId);
     if (summaryIndex >= 0) {
@@ -339,7 +550,10 @@ export async function likeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail>>
     const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
     rememberLiveSpotDetail();
     return sanitizedResponse;
-  } catch {
+  } catch (error) {
+    if (!SPOT_WRITE_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { getSpotById } = await loadMockData();
     const existingSpot = getSpotById(spotId);
     if (!existingSpot) {
@@ -369,7 +583,10 @@ export async function unlikeSpot(spotId: string): Promise<ApiEnvelope<SpotDetail
     const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
     rememberLiveSpotDetail();
     return sanitizedResponse;
-  } catch {
+  } catch (error) {
+    if (!SPOT_WRITE_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { getSpotById } = await loadMockData();
     const existingSpot = getSpotById(spotId);
     if (!existingSpot) {
@@ -397,7 +614,10 @@ export async function listSpotPhotos(spotId: string): Promise<ApiEnvelope<Photo[
   try {
     const { data } = await api.get<ApiEnvelope<Photo[]>>(`${SPOTS_BASE_PATH}/${spotId}/photos`);
     return sanitizePhotoEnvelope(data);
-  } catch {
+  } catch (error) {
+    if (!SPOT_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
     const { getSpotById } = await loadMockData();
     const spot = getSpotById(spotId);
     if (!spot) {

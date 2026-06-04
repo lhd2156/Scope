@@ -1,9 +1,15 @@
 import api, { isApiClientError } from '@/services/api';
+import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { isVagueBriefReply } from '@/utils/itineraryBrief';
 
 export interface TripPlanRequest {
   prompt: string;
   user_id?: string;
   start_date?: string;
+}
+
+export interface TripPlanOptions {
+  signal?: AbortSignal;
 }
 
 export interface TripPlanResponse {
@@ -12,7 +18,16 @@ export interface TripPlanResponse {
   model: string;
 }
 
+interface TripChatResponse {
+  response?: string;
+  itinerary?: string;
+  steps?: number;
+  model?: string;
+}
+
 const AGENT_BASE = '/api/intel/agent';
+const AGENT_LOCAL_FALLBACK_ENABLED = DEMO_MODE_ENABLED ||
+  import.meta.env.VITE_ENABLE_AGENT_LOCAL_FALLBACK === 'true';
 const APP_HELP_SURFACE_PATTERN = /\b(app|screen|button|click|tap|ui|interface|route canvas|create spot|notifications?|profile|search bar|image icon|chat bar|planner|map|route points?|start point|end point|add start|add end|upload|attach|preview|build itinerary)\b/i;
 const APP_HELP_QUESTION_PATTERN = /\b(how do i|how can i|where do i|where is|where can i|what button|which button|click|tap|open|go to|find in (?:the )?app|locate in (?:the )?app)\b/i;
 
@@ -85,7 +100,7 @@ type ConversationalIntent =
   | 'clarify';
 
 function readRecentChat(prompt: string): string {
-  const match = prompt.match(/^Recent chat:\s*([\s\S]*?)(?=\nTraveler request:|$)/im);
+  const match = prompt.match(/(?:^|\n)Recent chat:\s*([\s\S]*?)(?=\nTraveler request:|$)/i);
   return match?.[1]?.trim() ?? '';
 }
 
@@ -157,7 +172,7 @@ function normalizeConversationText(value: string): string {
 }
 
 function isScopeDomainQuestion(normalized: string): boolean {
-  return /\b(scope|app|screen|button|click|tap|ui|interface|route canvas|planner|map|trip|travel|route|road trip|itinerary|spot|spots|place|places|experience|experiences|destination|destinations|city|visit|go to|stay in|drive|flight|hotel|restaurant|food|budget|pace|timing|schedule|start|end|stop|stops|midpoint|halfway|address|street|road|avenue|boulevard|county road|farm to market|fm|photo|photos|image|images|review|reviews|friend|friends|notification|notifications|profile|search|weather|safe|safety|group|weekend|vacation)\b/.test(normalized);
+  return /\b(scope|app|screen|button|click|tap|ui|interface|route canvas|planner|map|trip|travel|route|road trip|itinerary|spot|spots|place|places|experience|experiences|destination|destinations|city|visit|go to|stay in|drive|flight|hotel|restaurant|food|entertainment|bowling|arcade|theme park|amusement park|movie theater|budget|pace|timing|schedule|start|end|stop|stops|midpoint|halfway|address|street|road|avenue|boulevard|county road|farm to market|fm|photo|photos|image|images|review|reviews|friend|friends|notification|notifications|profile|search|weather|safe|safety|group|weekend|vacation)\b/.test(normalized);
 }
 
 function isOffTopicGeneralQuestion(value: string, normalized: string, topic: TravelerRequestTopic): boolean {
@@ -183,6 +198,29 @@ function readRecentChatRoleLines(recentChat: string, role: 'User' | 'Scope AI'):
     .map((line) => line.trim())
     .map((line) => line.match(prefixPattern)?.[1]?.trim() ?? '')
     .filter(Boolean);
+}
+
+interface RecentChatLine {
+  role: 'User' | 'Scope AI';
+  content: string;
+}
+
+function readRecentChatLines(recentChat: string): RecentChatLine[] {
+  return recentChat
+    .split('\n')
+    .map((line) => line.trim())
+    .map((line): RecentChatLine | null => {
+      const match = line.match(/^(User|Scope AI):\s*(.+)$/i);
+      if (!match?.[1] || !match[2]?.trim()) {
+        return null;
+      }
+
+      return {
+        role: /^user$/i.test(match[1]) ? 'User' : 'Scope AI',
+        content: match[2].trim(),
+      };
+    })
+    .filter((line): line is RecentChatLine => Boolean(line));
 }
 
 function classifyConversationalIntent(value: string, topic: TravelerRequestTopic): ConversationalIntent | null {
@@ -365,6 +403,10 @@ function selectFreshResponse(
   );
   const startIndex = repeatCount > 0 ? repeatCount % usableVariants.length : 0;
 
+  if (repeatCount >= usableVariants.length) {
+    return `${usableVariants[startIndex]}\n\n${buildRepeatShiftLine(travelerRequest, repeatCount)}`;
+  }
+
   for (let offset = 0; offset < usableVariants.length; offset += 1) {
     const candidate = usableVariants[(startIndex + offset) % usableVariants.length];
     if (!recentAssistantAnswers.has(normalizeConversationText(candidate))) {
@@ -390,6 +432,10 @@ function ensureFreshFinalAnswer(
 }
 
 function shouldUseLocalFallback(error: unknown): boolean {
+  if (!AGENT_LOCAL_FALLBACK_ENABLED) {
+    return false;
+  }
+
   if (!isApiClientError(error)) {
     return false;
   }
@@ -397,6 +443,8 @@ function shouldUseLocalFallback(error: unknown): boolean {
   return (
     error.isNetworkError ||
     error.status === undefined ||
+    error.status === 401 ||
+    error.status === 403 ||
     error.status === 404 ||
     error.status >= 500
   );
@@ -409,12 +457,35 @@ function isItineraryBuildRequest(value: string): boolean {
   );
 }
 
+function shouldReturnConciseItinerary(value: string, topic: TravelerRequestTopic): boolean {
+  if (!isItineraryBuildRequest(value)) {
+    return false;
+  }
+
+  if (topic !== 'weekend') {
+    return true;
+  }
+
+  return /\b(itinerary|plan|route|draft)\b/i.test(value);
+}
+
 function parsePromptDurationDays(prompt: string, dates: string): number | null {
   const durationLine = readPromptLine(prompt, 'Trip duration');
   const durationMatch = durationLine.match(/\b(\d+)\s+day/i);
 
   if (durationMatch?.[1]) {
     const parsed = Number(durationMatch[1]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const travelerRequest = readTravelerRequest(prompt);
+  if (/\bweekend\b/i.test(travelerRequest)) {
+    return 2;
+  }
+
+  const requestDurationMatch = travelerRequest.match(/\b(\d{1,2})\s*(?:day|days|d)\b/i);
+  if (requestDurationMatch?.[1]) {
+    const parsed = Number(requestDurationMatch[1]);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
@@ -435,16 +506,59 @@ function parsePromptDurationDays(prompt: string, dates: string): number | null {
 function hasTravelPartyBrief(prompt: string): boolean {
   const travelers = readPromptLine(prompt, 'Travelers');
   const travelParty = readPromptLine(prompt, 'Travel party');
+  const travelerRequest = readTravelerRequest(prompt);
   const travelerCount = Number(travelers);
 
   return (
     (Number.isFinite(travelerCount) && travelerCount > 0) ||
-    /\b(solo|couple|pair|group|family|friends?|travelers?)\b/i.test(travelParty)
+    /\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b/i.test(travelParty) ||
+    /\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b/i.test(travelerRequest)
   );
 }
 
 function buildMissingItineraryBriefAnswer(questions: string[]): string {
   return `I can build that. ${questions[0] ?? 'What kind of trip should this feel like?'}`;
+}
+
+function inferInterestsFromText(value: string): string {
+  const normalized = value.toLowerCase();
+  const interests: string[] = [];
+  const add = (interest: string, pattern: RegExp) => {
+    if (pattern.test(normalized) && !interests.includes(interest)) {
+      interests.push(interest);
+    }
+  };
+
+  add('food', /\b(food|restaurants?|coffee|cafes?|lunch|dinner|breakfast|eat|drink)\b/);
+  add('culture', /\b(culture|museums?|art|history|historic)\b/);
+  add('nature', /\b(nature|parks?|trails?|hikes?|outdoors?)\b/);
+  add('scenic', /\b(scenic|views?|overlooks?|photo)\b/);
+  add('adventure', /\b(adventure|active|activities|zipline|rafting|climb)\b/);
+  add('nightlife', /\b(nightlife|bars?|clubs?|live music)\b/);
+  add('shopping', /\b(shopping|markets?|malls?|boutiques?)\b/);
+  add('entertainment', /\b(entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b/);
+
+  if (/\b(?:balanced\s+(?:vibes?|interests?|mix)|mix|variety)\b/.test(normalized) && !interests.length) {
+    interests.push('food', 'culture', 'scenic');
+  }
+
+  return interests.join(', ');
+}
+
+function inferPaceFromText(value: string): string {
+  if (/\b(relaxed|slow|chill|easy)\b/i.test(value)) {
+    return 'relaxed';
+  }
+
+  if (/\b(packed|busy|full|fast)\b/i.test(value)) {
+    return 'packed';
+  }
+
+  if (/\b(balanced|moderate|standard|normal)\b/i.test(value)) {
+    return 'balanced';
+  }
+
+  return '';
 }
 
 function getMissingItineraryBriefQuestions(
@@ -467,7 +581,7 @@ function getMissingItineraryBriefQuestions(
   }
 
   if (!rawInterests.trim()) {
-    questions.push('What are your interests: food, nightlife, nature, culture, shopping, adventure, or something else?');
+    questions.push('What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?');
   }
 
   if (!pace.trim()) {
@@ -481,33 +595,166 @@ function getMissingItineraryBriefQuestions(
   return questions;
 }
 
-function isVagueBriefReply(value: string): boolean {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[’]/g, "'")
-    .replace(/[^\w'\s]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const hasSpecificBriefSignal = /\b(?:\d{1,2}\s*(?:day|days|d)|weekend|food|restaurants?|coffee|cafes?|culture|museums?|art|history|nature|parks?|trails?|hikes?|adventure|nightlife|bars?|shopping|scenic|views?|relaxed|chill|balanced|moderate|packed|busy|solo|alone|couple|partner|family|kids?|children|group|friends?)\b/i.test(normalized);
-  if (hasSpecificBriefSignal) {
-    return false;
+const PENDING_ITINERARY_BRIEF_PATTERN = /\b(how many days|what kind of trip|what are your interests|what pace|who is coming|who are you traveling|what destination)\b/i;
+const CANCELED_ITINERARY_BRIEF_PATTERN = /\b(stopped that itinerary build|cancel(?:led|ed)?(?: this| the)? itinerary build|ask me to build again when the route brief is ready)\b/i;
+const USER_CANCEL_PATTERN = /^(?:cancel|never mind|nevermind|start over|stop)(?:\s+(?:this|the|that)?\s*(?:itinerary|build|plan|request))?[.!?]*$/i;
+
+function getLatestPendingItineraryBriefLine(recentChat: string): string {
+  const lines = readRecentChatLines(recentChat);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    if (!line) {
+      continue;
+    }
+
+    if (line.role === 'Scope AI' && CANCELED_ITINERARY_BRIEF_PATTERN.test(line.content)) {
+      return '';
+    }
+
+    if (line.role === 'User' && USER_CANCEL_PATTERN.test(line.content)) {
+      return '';
+    }
+
+    if (line.role === 'Scope AI' && PENDING_ITINERARY_BRIEF_PATTERN.test(line.content)) {
+      return line.content;
+    }
   }
 
-  return /\b(?:idk|idc|dunno|whatever|anything|anywhere|any|sure|yeah|yes|yep|ok|okay|fine|alright|meh)\b/i.test(normalized)
-    || /\b(?:i\s*(?:dont|don't|do\s*not)\s*know|(?:dont|don't|do\s*not)\s*know|i\s*(?:dont|don't|do\s*not)\s*care|(?:dont|don't|do\s*not)\s*care|not\s*sure|unsure|no\s*(?:idea|clue|preference|prefs?)|not\s*picky|doesn'?t\s*matter|does\s*not\s*matter|surprise\s*(?:me|us)|you\s*(?:choose|pick|decide|plan)|u\s*(?:choose|pick|decide|plan)|you\s*got\s*it|go\s*for\s*it|sounds\s*good|works\s*for\s*me|do\s*your\s*thing|make\s*it\s*good|best\s*option|whatever\s*you\s*(?:think|want|recommend)|anything\s*works|any\s*works|any\s*is\s*fine|i'?m\s*open|im\s*open|open\s*to\s*anything|dealer'?s?\s*choice|up\s*to\s*you|your\s*call|i\s*guess|i\s*trust\s*you|trust\s*you|you\s*know\s*best|help\s*me|just\s*help|u\s*wanna\s*help|you\s*wanna\s*help|pick\s*for\s*me|choose\s*for\s*me|plan\s*it|build\s*it|send\s*it)\b/i.test(normalized);
+  return '';
 }
 
 function recentChatHasPendingItineraryBrief(recentChat: string): boolean {
-  const assistantLines = readRecentChatRoleLines(recentChat, 'Scope AI').join(' ');
-  return /\b(how many days|what kind of trip|what are your interests|what pace|who is coming|who are you traveling|what destination)\b/i.test(assistantLines);
+  return Boolean(getLatestPendingItineraryBriefLine(recentChat));
 }
 
 function promptHasPendingItineraryBrief(prompt: string, recentChat: string): boolean {
+  if (CANCELED_ITINERARY_BRIEF_PATTERN.test(recentChat) || USER_CANCEL_PATTERN.test(readRecentChatRoleLines(recentChat, 'User').at(-1) ?? '')) {
+    return false;
+  }
+
   return (
     recentChatHasPendingItineraryBrief(recentChat) ||
     /\bScope AI:\s*.*(?:how many days|what kind of trip|what are your interests|what pace|who is coming|who are you traveling|what destination)/is.test(prompt)
   );
+}
+
+type PendingBriefQuestionKey = 'destination' | 'duration' | 'interests' | 'pace' | 'travelParty';
+
+interface PendingBriefQuestion {
+  key: PendingBriefQuestionKey;
+  text: string;
+}
+
+function getPendingBriefQuestionKey(value: string): PendingBriefQuestionKey | null {
+  if (/\bhow many days\b/i.test(value)) {
+    return 'duration';
+  }
+
+  if (/\b(what kind of trip|what are your interests|interests:)\b/i.test(value)) {
+    return 'interests';
+  }
+
+  if (/\b(what pace|do you want the pace|packed, balanced, or relaxed)\b/i.test(value)) {
+    return 'pace';
+  }
+
+  if (/\b(who is coming|who are you traveling|who are you travelling|solo, couple, group, or family)\b/i.test(value)) {
+    return 'travelParty';
+  }
+
+  if (/\bwhat destination\b/i.test(value)) {
+    return 'destination';
+  }
+
+  return null;
+}
+
+function normalizePendingBriefQuestion(key: PendingBriefQuestionKey, fallbackText: string): PendingBriefQuestion {
+  if (key === 'duration') {
+    return { key, text: 'How many days should I plan for?' };
+  }
+
+  if (key === 'interests') {
+    return { key, text: 'What kind of trip should this feel like: food, culture, nature, adventure, nightlife, shopping, entertainment, or balanced?' };
+  }
+
+  if (key === 'pace') {
+    return { key, text: 'What pace should I use: relaxed, balanced, or packed?' };
+  }
+
+  if (key === 'travelParty') {
+    return { key, text: 'Who is coming with you: solo, a couple, a group, or family?' };
+  }
+
+  return { key, text: fallbackText || 'What destination should I use for this trip?' };
+}
+
+function getPendingItineraryBriefQuestion(prompt: string, recentChat: string): PendingBriefQuestion | null {
+  const latestPendingLine = getLatestPendingItineraryBriefLine(recentChat);
+  if (latestPendingLine) {
+    const key = getPendingBriefQuestionKey(latestPendingLine);
+    if (key) {
+      return normalizePendingBriefQuestion(key, latestPendingLine);
+    }
+  }
+
+  if (CANCELED_ITINERARY_BRIEF_PATTERN.test(recentChat) || USER_CANCEL_PATTERN.test(readRecentChatRoleLines(recentChat, 'User').at(-1) ?? '')) {
+    return null;
+  }
+
+  const promptMatch = prompt.match(/\bScope AI:\s*([^\n]*(?:how many days|what kind of trip|what are your interests|what pace|who is coming|who are you traveling|what destination)[^\n]*)/i);
+  const promptQuestion = promptMatch?.[1]?.trim() ?? '';
+  const promptQuestionKey = getPendingBriefQuestionKey(promptQuestion);
+  return promptQuestionKey ? normalizePendingBriefQuestion(promptQuestionKey, promptQuestion) : null;
+}
+
+function doesReplyAnswerPendingBriefQuestion(value: string, question: PendingBriefQuestion): boolean {
+  const normalized = normalizeConversationText(value);
+  if (!normalized) {
+    return false;
+  }
+
+  if (question.key === 'duration') {
+    return /\b(?:weekend|one day|two days|three days|four days|five days|six days|seven days|\d{1,2}\s*(?:day|days|d))\b/i.test(normalized) ||
+      /^(?:1|2|3|4|5|6|7|8|9|10)$/.test(normalized);
+  }
+
+  if (question.key === 'interests') {
+    return /\b(food|restaurants?|coffee|culture|museums?|art|history|nature|parks?|trails?|adventure|nightlife|bars?|shopping|entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|scenic|views?|balanced|mix|variety)\b/i.test(normalized);
+  }
+
+  if (question.key === 'pace') {
+    return /\b(relaxed|slow|chill|easy|balanced|moderate|normal|packed|busy|full|fast)\b/i.test(normalized);
+  }
+
+  if (question.key === 'travelParty') {
+    return /\b(solo|alone|couple|pair|partner|family|kids?|children|group|friends?|travelers?|people|person)\b/i.test(normalized) ||
+      /^(?:1|2|3|4|5|6|7|8|9|10)$/.test(normalized);
+  }
+
+  return value.trim().length > 2;
+}
+
+function buildPendingBriefReminderAnswer(question: PendingBriefQuestion, travelerRequest: string): string {
+  const replySummary = /\b(budget|inside|under|cap|\$|cost|spend|price|cheap|expensive)\b/i.test(travelerRequest)
+    ? 'Got the budget guardrail.'
+    : 'I caught that.';
+
+  return `${replySummary} I still need this before I build the itinerary: ${question.text}`;
+}
+
+function getNextMissingBriefQuestionAfterAnswer(
+  prompt: string,
+  start: string,
+  end: string,
+  dates: string,
+  pace: string,
+  rawInterests: string,
+  answeredKey: PendingBriefQuestionKey,
+): string | null {
+  return getMissingItineraryBriefQuestions(prompt, start, end, dates, pace, rawInterests)
+    .find((question) => getPendingBriefQuestionKey(question) !== answeredKey) ?? null;
 }
 
 function buildSmartDefaultItineraryAnswer(route: string, budget: string, pace: string): string {
@@ -535,6 +782,176 @@ function buildSmartDefaultItineraryAnswer(route: string, budget: string, pace: s
         'Morning: use the first stop for a must-see or photo-friendly place before crowds build.',
         'Afternoon: keep the drive practical and add one hidden-gem stop close to the route.',
         'Evening: finish near the destination with dinner or a relaxed walkable stop.',
+      ],
+    },
+  ]);
+}
+
+function parsePlannerStopNames(stops: string): string[] {
+  return stops
+    .split('\n')
+    .map((stop) => stop.replace(/^\d+\.\s*/, '').replace(/\s+\([^)]*\)\s*$/g, '').trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function getTravelersLabel(prompt: string): string {
+  const travelParty = readPromptLine(prompt, 'Travel party');
+  if (travelParty) {
+    return travelParty;
+  }
+
+  const travelers = Number(readPromptLine(prompt, 'Travelers'));
+  if (Number.isFinite(travelers) && travelers > 0) {
+    return travelers === 1 ? 'solo traveler' : `${travelers} travelers`;
+  }
+
+  const request = readTravelerRequest(prompt);
+  if (/\b(family|kids?|children)\b/i.test(request)) {
+    return 'family';
+  }
+  if (/\b(couple|pair|partner)\b/i.test(request)) {
+    return 'couple';
+  }
+  if (/\b(solo|alone)\b/i.test(request)) {
+    return 'solo traveler';
+  }
+  if (/\b(group|friends?)\b/i.test(request)) {
+    return 'group';
+  }
+
+  return 'travel party not locked';
+}
+
+function getConcisePlanDayCount(prompt: string, dates: string): number {
+  const parsed = parsePromptDurationDays(prompt, dates);
+  return parsed && parsed > 0 ? Math.min(parsed, 14) : 2;
+}
+
+function getPaceStopTarget(pace: string): string {
+  if (/packed|busy|fast|full/i.test(pace)) {
+    return 'up to 3 meaningful stops per full day, with drive time checked before adding more';
+  }
+
+  if (/relaxed|slow|chill|easy/i.test(pace)) {
+    return '1 main anchor plus 1 flexible backup per day';
+  }
+
+  return '2 main anchors per full day, with one practical break folded in';
+}
+
+function buildInterestAnchor(rawInterests: string, dayNumber: number): string {
+  const normalized = rawInterests.toLowerCase();
+  const anchors: string[] = [];
+
+  if (/\b(entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b/.test(normalized)) {
+    anchors.push('one verified entertainment anchor such as bowling, an arcade, a theater, or a theme park');
+  }
+
+  if (/\b(food|restaurant|coffee|cafe|lunch|dinner|breakfast)\b/.test(normalized)) {
+    anchors.push('one food stop that also works as the real break');
+  }
+
+  if (/\b(culture|museum|art|history|historic)\b/.test(normalized)) {
+    anchors.push('one culture or history stop with enough time to actually enjoy it');
+  }
+
+  if (/\b(nature|scenic|view|park|trail|hike|outdoor)\b/.test(normalized)) {
+    anchors.push('one scenic or outdoor stop close to the route');
+  }
+
+  if (/\b(shopping|market|mall|boutique)\b/.test(normalized)) {
+    anchors.push('one shopping district or market stop with easy parking');
+  }
+
+  if (/\b(nightlife|bar|club|music)\b/.test(normalized)) {
+    anchors.push('one nightlife option only after arrival timing is comfortable');
+  }
+
+  if (/\b(adventure|activity|activities)\b/.test(normalized)) {
+    anchors.push('one active stop that does not overload the drive day');
+  }
+
+  if (!anchors.length) {
+    anchors.push('one good-fit stop close to the route');
+  }
+
+  return anchors[(dayNumber - 1) % anchors.length];
+}
+
+function buildConciseItineraryAnswer(
+  prompt: string,
+  route: string,
+  dates: string,
+  budget: string,
+  pace: string,
+  rawInterests: string,
+  stops: string,
+): string {
+  const dayCount = getConcisePlanDayCount(prompt, dates);
+  const visibleDayCount = Math.min(dayCount, 5);
+  const stopNames = parsePlannerStopNames(stops);
+  const interestPhrase = formatInterestPhrase(rawInterests || 'the selected trip vibes');
+  const travelers = getTravelersLabel(prompt);
+  const daySections: Array<{ title: string; lines: string[] }> = [];
+
+  for (let dayNumber = 1; dayNumber <= visibleDayCount; dayNumber += 1) {
+    const existingStop = stopNames[dayNumber - 1];
+    const isFirstDay = dayNumber === 1;
+    const isLastVisibleDay = dayNumber === visibleDayCount;
+    const travelShape = isFirstDay
+      ? 'Start with the cleanest travel leg, then add only one optional stop after timing is known.'
+      : isLastVisibleDay
+        ? 'Protect the arrival window and keep the final leg easy to finish.'
+        : 'Use this as the main experience day, not another overloaded travel day.';
+
+    daySections.push({
+      title: `Day ${dayNumber}`,
+      lines: [
+        existingStop
+          ? `Anchor: ${existingStop}.`
+          : `Anchor: ${buildInterestAnchor(rawInterests, dayNumber)}.`,
+        travelShape,
+        'Fold food, restrooms, fuel, or charging into the same area whenever possible.',
+      ],
+    });
+  }
+
+  if (dayCount > visibleDayCount) {
+    daySections.push({
+      title: 'Later days',
+      lines: [
+        `Repeat the same pattern for days ${visibleDayCount + 1}-${dayCount}: one main anchor, one practical break, and one flexible backup.`,
+      ],
+    });
+  }
+
+  return buildStructuredAnswer(`I can turn ${route} into a concise ${dayCount}-day plan from the context you gave me.`, [
+    {
+      title: 'Plan guardrails',
+      lines: [
+        `Dates: ${dates}.`,
+        `Pace: ${pace}; target ${getPaceStopTarget(pace)}.`,
+        `Budget: ${budget}; treat this as a cap, not a goal to spend.`,
+        `Vibes: ${interestPhrase}.`,
+        `Travelers: ${travelers}.`,
+      ],
+    },
+    ...daySections,
+    {
+      title: 'Verify before commit',
+      lines: [
+        'Use live route timing before locking optional stops.',
+        'Verify hours, tickets, reservations, parking, and weather for exact venues.',
+        stopNames.length
+          ? 'Use the stops already on the canvas first; replace weak ones instead of stacking more.'
+          : 'Search live places before adding exact stop names, so Scope does not fake venues.',
+      ],
+    },
+    {
+      title: 'Next action',
+      lines: [
+        'Build the live itinerary from this shape, then tighten any day that has too much drive time, cost, or backtracking.',
       ],
     },
   ]);
@@ -1292,6 +1709,31 @@ function buildImageAnswer(route: string, travelerRequest: string): string {
   ]);
 }
 
+function shouldAnswerNewIntentBeforePendingBrief(
+  topic: TravelerRequestTopic,
+  conversationalIntent: ConversationalIntent | null,
+  travelerRequest: string,
+  pendingQuestion: PendingBriefQuestion | null,
+): boolean {
+  if (!pendingQuestion) {
+    return false;
+  }
+
+  if (isVagueBriefReply(travelerRequest) || doesReplyAnswerPendingBriefQuestion(travelerRequest, pendingQuestion)) {
+    return false;
+  }
+
+  if (topic !== 'general') {
+    return true;
+  }
+
+  return Boolean(
+    conversationalIntent
+    && conversationalIntent !== 'acknowledgement'
+    && conversationalIntent !== 'clarify',
+  );
+}
+
 function buildGeneralAnswer(
   route: string,
   travelerRequest: string,
@@ -1366,11 +1808,13 @@ function buildLocalTripPlanFallback(request: TripPlanRequest): TripPlanResponse 
   const dates = readPromptLine(request.prompt, 'Dates') || request.start_date || 'your selected dates';
   const budget = readPromptLine(request.prompt, 'Budget') || 'the current budget';
   const rawPace = readPromptLine(request.prompt, 'Pace');
-  const pace = rawPace || 'balanced';
   const rawInterests = readPromptLine(request.prompt, 'Interests');
-  const interests = rawInterests || 'the selected trip vibes';
   const stops = readPromptSection(request.prompt, 'Stops');
   const travelerRequest = readTravelerRequest(request.prompt);
+  const effectivePace = rawPace || inferPaceFromText(travelerRequest);
+  const pace = effectivePace || 'balanced';
+  const effectiveInterests = rawInterests || inferInterestsFromText(travelerRequest);
+  const interests = effectiveInterests || 'the selected trip vibes';
   const recentChat = readRecentChat(request.prompt);
   const route = start && end ? `${start} to ${end}` : start || end || 'your route';
   const topic = classifyTravelerRequest(travelerRequest);
@@ -1383,13 +1827,37 @@ function buildLocalTripPlanFallback(request: TripPlanRequest): TripPlanResponse 
 
   let itinerary: string;
   const missingBriefQuestions = topic !== 'appHelp' && isItineraryBuildRequest(travelerRequest)
-    ? getMissingItineraryBriefQuestions(request.prompt, start, end, dates, rawPace, rawInterests)
+    ? getMissingItineraryBriefQuestions(request.prompt, start, end, dates, effectivePace, effectiveInterests)
     : [];
+  const pendingBriefQuestion = getPendingItineraryBriefQuestion(request.prompt, recentChat);
+  const shouldUsePendingBrief = Boolean(pendingBriefQuestion) && !shouldAnswerNewIntentBeforePendingBrief(
+    topic,
+    conversationalIntent,
+    travelerRequest,
+    pendingBriefQuestion,
+  );
 
   if (isVagueBriefReply(travelerRequest) && promptHasPendingItineraryBrief(request.prompt, recentChat)) {
     itinerary = buildSmartDefaultItineraryAnswer(route, budget, pace);
+  } else if (shouldUsePendingBrief && pendingBriefQuestion && !doesReplyAnswerPendingBriefQuestion(travelerRequest, pendingBriefQuestion)) {
+    itinerary = buildPendingBriefReminderAnswer(pendingBriefQuestion, travelerRequest);
+  } else if (shouldUsePendingBrief && pendingBriefQuestion) {
+    const nextBriefQuestion = getNextMissingBriefQuestionAfterAnswer(
+      request.prompt,
+      start,
+      end,
+      dates,
+      effectivePace,
+      effectiveInterests,
+      pendingBriefQuestion.key,
+    );
+    itinerary = nextBriefQuestion
+      ? `Got it. ${nextBriefQuestion}`
+      : `Got it. I have enough to keep building ${route}. Ask me to build it again if you want me to refresh the itinerary from the planner.`;
   } else if (missingBriefQuestions.length) {
     itinerary = buildMissingItineraryBriefAnswer(missingBriefQuestions);
+  } else if (topic !== 'appHelp' && shouldReturnConciseItinerary(travelerRequest, topic)) {
+    itinerary = buildConciseItineraryAnswer(request.prompt, route, dates, budget, pace, effectiveInterests, stops);
   } else if (conversationalIntent) {
     itinerary = buildConversationalAnswer(conversationalIntent, route, travelerRequest, recentChat, repeatCount);
   } else if (topic === 'appHelp') {
@@ -1429,12 +1897,93 @@ function buildLocalTripPlanFallback(request: TripPlanRequest): TripPlanResponse 
   };
 }
 
-export async function planTrip(request: TripPlanRequest): Promise<TripPlanResponse> {
+export const __agentServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      buildAppHelpAnswer,
+      buildBudgetAnswer,
+      buildConciseItineraryAnswer,
+      buildConversationalAnswer,
+      buildFoodAnswer,
+      buildGeneralAnswer,
+      buildGroupAnswer,
+      buildImageAnswer,
+      buildLocalTripPlanFallback,
+      buildMidpointAnswer,
+      buildMissingItineraryBriefAnswer,
+      buildMissingRouteLine,
+      buildPendingBriefReminderAnswer,
+      buildRepeatShiftLine,
+      buildRouteSections,
+      buildSafetyAnswer,
+      buildSmartDefaultItineraryAnswer,
+      buildStartCityAnswer,
+      buildStructuredAnswer,
+      buildTimingAnswer,
+      buildTightenAnswer,
+      buildWeekendAnswer,
+      buildWeatherAnswer,
+      classifyConversationalIntent,
+      classifyTravelerRequest,
+      countRecentConversationalIntentMentions,
+      countRecentExactUserRequests,
+      countRecentMatchingAssistantAnswers,
+      countRecentTopicMentions,
+      doesReplyAnswerPendingBriefQuestion,
+      ensureFreshFinalAnswer,
+      formatInterestPhrase,
+      getConcisePlanDayCount,
+      getLatestPendingItineraryBriefLine,
+      getMissingItineraryBriefQuestions,
+      getNextMissingBriefQuestionAfterAnswer,
+      getPaceStopTarget,
+      getPendingBriefQuestionKey,
+      getPendingItineraryBriefQuestion,
+      getTravelersLabel,
+      hasTravelPartyBrief,
+      inferInterestsFromText,
+      inferPaceFromText,
+      isAppHelpRequest,
+      isItineraryBuildRequest,
+      isOffTopicGeneralQuestion,
+      isScopeDomainQuestion,
+      isVagueBriefReply,
+      normalizeConversationText,
+      normalizePendingBriefQuestion,
+      parsePlannerStopNames,
+      parsePromptDurationDays,
+      shouldReturnConciseItinerary,
+      promptHasPendingItineraryBrief,
+      readPromptLine,
+      readPromptSection,
+      readRecentChat,
+      readRecentChatLines,
+      readRecentChatRoleLines,
+      readTravelerRequest,
+      recentChatHasPendingItineraryBrief,
+      selectFreshResponse,
+      shouldAnswerNewIntentBeforePendingBrief,
+      shouldUseLocalFallback,
+    }
+  : undefined;
+
+export async function planTrip(request: TripPlanRequest, options: TripPlanOptions = {}): Promise<TripPlanResponse> {
+  if (DEMO_MODE_ENABLED && !import.meta.env.VITEST) {
+    return buildLocalTripPlanFallback(request);
+  }
+
   try {
-    const { data } = await api.post<TripPlanResponse>(`${AGENT_BASE}/plan-trip`, request, {
+    const { data } = await api.post<TripChatResponse>(`${AGENT_BASE}/trip-chat`, {
+      ...request,
+      responseMode: 'json',
+    }, {
       timeout: 120_000,
+      ...(options.signal ? { signal: options.signal } : {}),
     });
-    return data;
+    return {
+      itinerary: data.itinerary ?? data.response ?? '',
+      steps: data.steps ?? 0,
+      model: data.model ?? 'scope-ai',
+    };
   } catch (error) {
     if (shouldUseLocalFallback(error)) {
       return buildLocalTripPlanFallback(request);

@@ -3,14 +3,14 @@ interface MatchMediaController {
   dispatch: (matches: boolean) => void;
 }
 
-function createMatchMediaController(initialMatches: boolean): MatchMediaController {
+function createMatchMediaController(initialMatches: boolean, options: { legacyListener?: boolean } = {}): MatchMediaController {
   let listener: ((event: MediaQueryListEvent) => void) | undefined;
 
   const mediaQueryList = {
     matches: initialMatches,
     media: '(prefers-reduced-motion: reduce)',
     onchange: null,
-    addEventListener: vi.fn((_event: string, callback: EventListenerOrEventListenerObject) => {
+    addEventListener: options.legacyListener ? undefined : vi.fn((_event: string, callback: EventListenerOrEventListenerObject) => {
       listener = callback as (event: MediaQueryListEvent) => void;
     }),
     removeEventListener: vi.fn(),
@@ -65,5 +65,31 @@ describe('motion utility', () => {
     initializeMotionPreference();
 
     expect(controller.mediaQueryList.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back when matchMedia is unavailable and supports legacy listeners', async () => {
+    vi.resetModules();
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: undefined,
+    });
+
+    const noMediaModule = await import('@/utils/motion');
+    expect(noMediaModule.initializeMotionPreference()).toBe(false);
+    expect(document.documentElement.getAttribute('data-reduced-motion')).toBe('no-preference');
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+
+    const legacyController = createMatchMediaController(false, { legacyListener: true });
+    const { initializeMotionPreference, useReducedMotion } = await loadMotionModule(legacyController);
+    initializeMotionPreference();
+    legacyController.dispatch(true);
+
+    expect(legacyController.mediaQueryList.addListener).toHaveBeenCalledTimes(1);
+    expect(useReducedMotion().value).toBe(true);
   });
 });

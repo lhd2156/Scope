@@ -41,7 +41,7 @@ from app.services.native_geo import get_native_geo
 logger = logging.getLogger(__name__)
 
 # Score weights. Sum is intentionally ~1.0 so a single "perfect" spot caps
-# near 1.0 and scores stay interpretable. See RESEARCH.md §5.6.
+# near 1.0 and scores stay interpretable.
 #
 # Warm-start profile: user has interaction history and/or liked spots.
 TEXT_SIMILARITY_WEIGHT = 0.45
@@ -373,7 +373,7 @@ class RecommendationEngine:
     ) -> list[_ScoredCandidate]:
         """Maximal Marginal Relevance with a lightweight category-Jaccard
         similarity. Good enough to prevent "all six recs are food" while we
-        stay on TF-IDF; RESEARCH.md §5.7 upgrades this to embedding-cosine.
+        stay on TF-IDF.
         """
         if limit <= 0 or not candidates:
             return []

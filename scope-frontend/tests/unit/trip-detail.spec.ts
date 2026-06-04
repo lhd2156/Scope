@@ -118,4 +118,121 @@ describe('TripDetail', () => {
     expect(wrapper.text()).toContain('Open with lunch before the city walk.');
     expect(wrapper.find('[data-test="trip-map"]').exists()).toBe(true);
   });
+
+  it('builds a fallback itinerary, budget label, and packed route map when itinerary data is absent', () => {
+    const fallbackTrip: Trip = {
+      ...trip,
+      id: 'trip-fallback',
+      title: 'Single Day Sprint',
+      startDate: '2026-04-01',
+      endDate: '2026-04-01',
+      budget: undefined,
+      itinerary: undefined,
+      members: [{ id: 'user-1', displayName: 'Louis Do', status: 'owner' }],
+      spots: Array.from({ length: 5 }, (_, index) => ({
+        spotId: `fallback-spot-${index + 1}`,
+        title: `Fallback stop ${index + 1}`,
+        latitude: 32.7 + index * 0.01,
+        longitude: -97.3 - index * 0.01,
+        category: 'food',
+        city: 'Fort Worth',
+        timeSlot: index % 2 === 0 ? undefined : `1${index}:00`,
+        estimatedCost: index % 2 === 0 ? undefined : 18,
+        dayNumber: index < 3 ? 1 : 2,
+      })),
+    };
+    const mapViewStub = {
+      name: 'MapView',
+      props: ['spots'],
+      template: '<div data-test="trip-map">Trip map stub</div>',
+    };
+
+    const wrapper = mount(TripDetail, {
+      props: {
+        trip: fallbackTrip,
+      },
+      global: {
+        stubs: {
+          MapView: mapViewStub,
+        },
+      },
+    });
+
+    const mapSpots = wrapper.findComponent({ name: 'MapView' }).props('spots') as Array<{ routeRole: string }>;
+
+    expect(wrapper.text()).toContain('Single Day Sprint');
+    expect(wrapper.text()).toContain('Apr 1');
+    expect(wrapper.text()).toContain('Budget TBD');
+    expect(wrapper.text()).toContain('$36');
+    expect(wrapper.text()).toContain('Weather syncing from Scope Intel.');
+    expect(wrapper.text()).toContain('Packed');
+    expect(mapSpots.map((spot) => spot.routeRole)).toEqual(['start', 'stop', 'stop', 'stop', 'end']);
+  });
+
+  it('uses itinerary stops for the map when the trip spot list is empty', () => {
+    const itineraryOnlyTrip: Trip = {
+      ...trip,
+      id: 'trip-itinerary-only',
+      title: 'Itinerary Only Route',
+      spots: [],
+      budget: 725,
+      itinerary: {
+        id: 'itinerary-only',
+        destination: 'Fort Worth, TX',
+        totalEstimatedCost: 210,
+        weatherForecast: 'Cloudy, 68F',
+        days: [
+          {
+            dayNumber: 3,
+            date: '2026-04-03',
+            spots: [
+              {
+                spotId: 'itinerary-stop-1',
+                title: 'Gallery brunch',
+                latitude: 32.76,
+                longitude: -97.34,
+                category: 'culture',
+                city: 'Fort Worth',
+              },
+              {
+                spotId: 'itinerary-stop-2',
+                title: 'River walk',
+                latitude: 32.78,
+                longitude: -97.36,
+                category: 'nature',
+                city: 'Fort Worth',
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const mapViewStub = {
+      name: 'MapView',
+      props: ['spots'],
+      template: '<div data-test="trip-map">Trip map stub</div>',
+    };
+
+    const wrapper = mount(TripDetail, {
+      props: {
+        trip: itineraryOnlyTrip,
+      },
+      global: {
+        stubs: {
+          MapView: mapViewStub,
+        },
+      },
+    });
+
+    const mapSpots = wrapper.findComponent({ name: 'MapView' }).props('spots') as Array<{ id: string; routeRole: string }>;
+
+    expect(wrapper.text()).toContain('$725');
+    expect(wrapper.text()).toContain('$210');
+    expect(wrapper.text()).toContain('Cloudy, 68F');
+    expect(wrapper.text()).toContain('Relaxed');
+    expect(mapSpots).toEqual([
+      expect.objectContaining({ id: 'itinerary-stop-1', routeRole: 'start' }),
+      expect.objectContaining({ id: 'itinerary-stop-2', routeRole: 'end' }),
+    ]);
+  });
 });

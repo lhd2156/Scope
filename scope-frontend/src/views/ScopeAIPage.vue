@@ -105,11 +105,16 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import AppShell from '@/components/common/AppShell.vue';
 import SectionHeading from '@/components/common/SectionHeading.vue';
 import { askScopeAI, type RagConversationTurn, type RagImageAttachment } from '@/services/ragService';
+import { useAuthStore } from '@/stores/auth';
+import { useTripsStore } from '@/stores/trips';
+import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
+import { formatUserVibes, normalizeUserVibes } from '@/utils/userPreferenceSignals';
 import { getScopeAiResponseStartedAt, waitForScopeAiResponsePace } from '@/utils/scopeAiResponsePace';
 
 const MAX_PENDING_IMAGES = 3;
@@ -142,12 +147,27 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const pendingImages = ref<PendingImageAttachment[]>([]);
 const imageError = ref('');
 const imagePreviewUrls = new Set<string>();
+const route = useRoute() as ReturnType<typeof useRoute> | undefined;
+const authStore = useAuthStore();
+const tripsStore = useTripsStore();
+const tripContext = ref('');
+const accountVibes = computed(() => normalizeUserVibes(authStore.currentUser?.interests, { includeSurprise: false }));
 
-const suggestions = [
-  'Help me plan a relaxed weekend nearby',
-  'Find a memorable first stop for tonight',
-  'What should I pack for a rainy city walk?',
-];
+const suggestions = computed(() => {
+  if (route?.query.mode === 'trip-planning') {
+    return [
+      'Tighten this route into a better day plan',
+      'Suggest stops that fit the current trip',
+      'Build a packing list for this itinerary',
+    ];
+  }
+
+  return [
+    'Help me plan a relaxed weekend nearby',
+    'Find a memorable first stop for tonight',
+    'What should I pack for a rainy city walk?',
+  ];
+});
 
 function buildImageId(file: File): string {
   return `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`;
@@ -196,13 +216,20 @@ async function handleImageSelect(event: Event): Promise<void> {
 
     const previewUrl = URL.createObjectURL(file);
     imagePreviewUrls.add(previewUrl);
-    pendingImages.value.push({
-      id: buildImageId(file),
-      filename: file.name || 'Scope image',
-      mime_type: file.type as RagImageAttachment['mime_type'],
-      previewUrl,
-      data: dataUrlToBase64(await readFileAsDataUrl(file)),
-    });
+
+    try {
+      pendingImages.value.push({
+        id: buildImageId(file),
+        filename: file.name || 'Scope image',
+        mime_type: file.type as RagImageAttachment['mime_type'],
+        previewUrl,
+        data: dataUrlToBase64(await readFileAsDataUrl(file)),
+      });
+    } catch (error) {
+      URL.revokeObjectURL(previewUrl);
+      imagePreviewUrls.delete(previewUrl);
+      imageError.value = error instanceof Error ? error.message : 'Scope AI could not read that image.';
+    }
   }
 
   resetFileInput();
@@ -228,7 +255,7 @@ function escapeHtml(value: string): string {
 
 function formatMarkdown(text: string): string {
   const withBold = escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  return `<p>${withBold.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+  return toTrustedSanitizedHtml(`<p>${withBold.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
 }
 
 function buildConversationContext(history: ChatMessage[] = messages.value): RagConversationTurn[] {
@@ -239,6 +266,22 @@ function buildConversationContext(history: ChatMessage[] = messages.value): RagC
       text: message.text.replace(/\s+/g, ' ').trim().slice(0, 1000),
     }))
     .filter((message) => message.text);
+}
+
+function buildScopedQuestion(value: string): string {
+  const accountContext = accountVibes.value.length
+    ? `Account preference context:\nInterests: ${formatUserVibes(accountVibes.value)}.`
+    : '';
+
+  if (!accountContext && !tripContext.value) {
+    return value;
+  }
+
+  return [
+    accountContext,
+    tripContext.value,
+    `Traveler question: ${value}`,
+  ].filter(Boolean).join('\n\n');
 }
 
 async function scrollThreadToBottom(): Promise<void> {
@@ -287,7 +330,7 @@ async function handleAsk() {
   let assistantMessage: ChatMessage;
   try {
     const result = await askScopeAI({
-      question: effectiveQuestion,
+      question: buildScopedQuestion(effectiveQuestion),
       conversation: priorConversation,
       ...(outboundImages.length ? { images: outboundImages } : {}),
     });
@@ -307,6 +350,36 @@ async function handleAsk() {
     await scrollThreadToBottom();
   }
 }
+
+onMounted(async () => {
+  const tripId = typeof route?.query.tripId === 'string' ? route.query.tripId : '';
+  const destination = typeof route?.query.destination === 'string' ? route.query.destination : '';
+
+  if (destination && !question.value) {
+    question.value = `Help me plan ${destination}`;
+  }
+
+  if (!tripId) {
+    return;
+  }
+
+  try {
+    const trip = await tripsStore.fetchTrip(tripId);
+    const stops = trip.spots.map((spot) => spot.title).filter(Boolean).join(', ') || 'No saved stops yet';
+    tripContext.value = [
+      'Current Scope trip context:',
+      `Title: ${trip.title}`,
+      `Destination: ${trip.destination}`,
+      `Dates: ${trip.startDate} to ${trip.endDate}`,
+      `Budget: ${trip.budget ? `$${trip.budget}` : 'Not set'}`,
+      `Stops: ${stops}`,
+    ].join('\n');
+  } catch {
+    if (destination) {
+      tripContext.value = `Current Scope trip context:\nDestination: ${destination}`;
+    }
+  }
+});
 
 onBeforeUnmount(() => {
   imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));

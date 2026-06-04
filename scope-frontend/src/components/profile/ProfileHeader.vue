@@ -1,33 +1,46 @@
 <template>
-  <header class="profile-header glass-panel" data-test="profile-header">
-    <div class="profile-halo" aria-hidden="true" />
+  <header class="profile-header" data-test="profile-header">
+    <div class="profile-header__row">
+      <div class="avatar-shell" data-test="profile-avatar">
+        <div class="avatar-ring" :class="{ 'avatar-ring--placeholder': !avatarSource }">
+          <LazyImage
+            v-if="avatarSource"
+            :src="avatarSource"
+            :alt="`${user.displayName} profile photo`"
+            class="avatar-image"
+          />
+          <ScopeIcon v-else class="avatar-silhouette" name="user" label="Default profile picture" />
+        </div>
+        <span v-if="presenceLabel" class="avatar-presence" :class="`avatar-presence--${presence}`" :aria-label="presenceLabel" />
+      </div>
 
-    <div class="avatar-shell" data-test="profile-avatar">
-      <div class="avatar-ring" :class="{ 'avatar-ring--placeholder': !avatarSource }">
-        <LazyImage
-          v-if="avatarSource"
-          :src="avatarSource"
-          :alt="`${user.displayName} profile photo`"
-          class="avatar-image"
-        />
-        <ScopeIcon v-else class="avatar-silhouette" name="user" label="Default profile picture" />
+      <div class="identity-block">
+        <p v-if="isCurrentUser" class="profile-label">Your scope</p>
+        <h1>{{ user.displayName }}</h1>
+        <p class="username">@{{ user.username }}</p>
+        <p class="location">
+          <ScopeIcon name="pin" label="Location" />
+          <span>{{ user.homeBase || 'Scope community' }}</span>
+          <span v-if="presenceLabel" class="presence-chip" :class="`presence-chip--${presence}`">
+            <span class="presence-dot" aria-hidden="true" />
+            {{ presenceLabel }}
+          </span>
+        </p>
+      </div>
+
+      <div class="action-row">
+        <RouterLink :to="primaryActionTo" class="profile-action profile-action--primary">{{ primaryActionLabel }}</RouterLink>
+        <RouterLink
+          v-if="secondaryActionLabel && secondaryActionTo"
+          :to="secondaryActionTo"
+          class="profile-action profile-action--ghost"
+        >
+          {{ secondaryActionLabel }}
+        </RouterLink>
       </div>
     </div>
 
-    <div class="header-topline">
-      <p class="eyebrow">{{ isCurrentUser ? 'Your scope' : 'Explorer profile' }}</p>
-      <span class="meta-pill">{{ profileSignature }}</span>
-    </div>
-
-    <div class="identity-copy">
-      <h1>{{ user.displayName }}</h1>
-      <p class="username">@{{ user.username }}</p>
-      <p class="location">
-        <ScopeIcon name="pin" label="Home base" />
-        <span>{{ user.homeBase || 'Scope community' }}</span>
-      </p>
-      <p class="section-copy">{{ bioCopy }}</p>
-    </div>
+    <p class="bio-copy">{{ bioCopy }}</p>
 
     <div v-if="user.interests.length" class="interest-row">
       <span
@@ -36,19 +49,9 @@
         class="interest-chip"
         :class="interestChipClass(interest)"
       >
+        <ScopeIcon :name="categoryIcon(interest)" :label="formatInterest(interest)" />
         {{ formatInterest(interest) }}
       </span>
-    </div>
-
-    <div class="action-row">
-      <RouterLink :to="primaryActionTo" class="button button-primary">{{ primaryActionLabel }}</RouterLink>
-      <RouterLink
-        v-if="secondaryActionLabel && secondaryActionTo"
-        :to="secondaryActionTo"
-        class="button button-secondary"
-      >
-        {{ secondaryActionLabel }}
-      </RouterLink>
     </div>
   </header>
 </template>
@@ -58,12 +61,13 @@ import { computed } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
-import type { SpotCategory, UserProfile } from '@/types';
+import type { FriendPresence, SpotCategory, UserProfile } from '@/types';
 
 const props = withDefaults(
   defineProps<{
     user: UserProfile;
     isCurrentUser?: boolean;
+    presence?: FriendPresence;
     primaryActionLabel: string;
     primaryActionTo: RouteLocationRaw;
     secondaryActionLabel?: string;
@@ -71,21 +75,31 @@ const props = withDefaults(
   }>(),
   {
     isCurrentUser: false,
+    presence: undefined,
     secondaryActionLabel: undefined,
     secondaryActionTo: undefined,
   },
 );
 
-const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'scenic', 'other'];
+const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 
-const bioCopy = computed(() => props.user.bio?.trim() || 'Building a premium Scope footprint one memorable pin at a time.');
+const bioCopy = computed(() => props.user.bio?.trim() || 'Building a Scope footprint one memorable pin at a time.');
 const avatarSource = computed(() => props.user.avatarUrl?.trim() ?? '');
-const profileSignature = computed(() => {
-  if (props.user.stats?.spots) {
-    return `${props.user.stats.spots} lifetime pin${props.user.stats.spots === 1 ? '' : 's'}`;
+const presenceLabel = computed(() => {
+  switch (props.presence) {
+    case 'planning':
+      return 'Planning now';
+    case 'online':
+      return 'Online now';
+    case 'idle':
+      return 'Idle';
+    case 'hidden':
+      return 'Activity hidden';
+    case 'offline':
+      return 'Offline';
+    default:
+      return '';
   }
-
-  return `${props.user.interests.length || 1} signature vibe${props.user.interests.length === 1 ? '' : 's'}`;
 });
 
 function toBadgeCategory(value: string): SpotCategory {
@@ -98,6 +112,11 @@ function formatInterest(value: string): string {
   return normalizedValue.charAt(0).toUpperCase() + normalizedValue.slice(1);
 }
 
+function categoryIcon(value: string): string {
+  const category = toBadgeCategory(value);
+  return category === 'other' ? 'sparkle' : category;
+}
+
 function interestChipClass(value: string): string {
   return `badge-${toBadgeCategory(value)}`;
 }
@@ -105,66 +124,36 @@ function interestChipClass(value: string): string {
 
 <style scoped>
 .profile-header {
-  position: relative;
-  isolation: isolate;
-  overflow: visible;
+  container-type: inline-size;
   display: grid;
   gap: var(--space-5);
-  padding: clamp(var(--space-6), 3vw, var(--space-8));
-  padding-top: clamp(6.5rem, 9vw, 7.75rem);
-  text-align: center;
-  background:
-    radial-gradient(circle at top center, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 38%),
-    radial-gradient(circle at 18% 100%, color-mix(in srgb, var(--accent-gold) 14%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 68%, transparent), var(--glass-bg));
+  padding: clamp(var(--space-5), 3vw, var(--space-6));
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
 }
 
-.profile-header::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 6%, transparent), transparent 18%);
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-.profile-halo {
-  position: absolute;
-  inset-inline: 50%;
-  top: -1.75rem;
-  width: 16rem;
-  height: 8rem;
-  transform: translateX(-50%);
-  border-radius: var(--radius-full);
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent-teal) 30%, transparent), transparent 68%);
-  filter: blur(1rem);
-  opacity: 0.85;
-  pointer-events: none;
+.profile-header__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(var(--space-4), 2vw, var(--space-5));
 }
 
 .avatar-shell {
-  position: absolute;
-  inset-inline-start: 50%;
-  top: 0;
-  transform: translate(-50%, -45%);
-  width: 7.5rem;
-  height: 7.5rem;
-  animation: profile-float 6s ease-in-out infinite;
+  position: relative;
+  width: 5.5rem;
+  height: 5.5rem;
+  flex-shrink: 0;
 }
 
 .avatar-ring {
-  position: relative;
   width: 100%;
   height: 100%;
-  padding: 0.4rem;
+  padding: 2px;
   border-radius: var(--radius-full);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-teal) 70%, transparent), color-mix(in srgb, var(--accent-gold) 18%, transparent)),
-    var(--bg-primary);
-  box-shadow:
-    0 0 0 0.3rem color-mix(in srgb, var(--accent-teal) 14%, transparent),
-    var(--shadow-glow-teal);
+  border: 2px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: var(--bg-primary);
 }
 
 .avatar-image,
@@ -177,88 +166,59 @@ function interestChipClass(value: string): string {
 .avatar-image {
   display: block;
   object-fit: cover;
-  background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+  background: var(--bg-tertiary);
 }
 
 .avatar-silhouette {
   display: block;
   padding: 22%;
-  background: color-mix(in srgb, var(--bg-tertiary) 82%, var(--bg-secondary));
-  color: color-mix(in srgb, var(--text-secondary) 92%, var(--text-primary));
-  stroke-width: 1.4;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .avatar-ring--placeholder {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--glass-border) 70%, transparent), color-mix(in srgb, var(--bg-primary) 40%, transparent)),
-    var(--bg-primary);
-  box-shadow:
-    0 0 0 0.25rem color-mix(in srgb, var(--text-secondary) 12%, transparent),
-    var(--shadow-md);
+  background: var(--bg-tertiary);
 }
 
-.header-topline,
-.interest-row,
-.action-row,
-.location {
-  display: flex;
-  align-items: center;
+.avatar-presence {
+  position: absolute;
+  right: 0.15rem;
+  bottom: 0.15rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--bg-secondary);
+  background: var(--text-muted);
 }
 
-.header-topline,
-.action-row {
-  justify-content: center;
-}
+.avatar-presence--online { background: var(--success); }
+.avatar-presence--planning { background: var(--accent-gold); }
+.avatar-presence--idle { background: var(--warning); }
+.avatar-presence--hidden,
+.avatar-presence--offline { background: var(--text-muted); }
 
-.header-topline,
-.action-row,
-.interest-row {
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.header-topline,
-.identity-copy,
-.location {
-  position: relative;
-  z-index: 1;
-}
-
-.identity-copy {
+.identity-block {
   display: grid;
-  gap: var(--space-3);
-  justify-items: center;
+  gap: 0.32rem;
+  min-width: 0;
 }
 
-.eyebrow,
+.profile-label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+}
+
+h1,
 .username,
 .location,
-.section-copy,
-h1,
-span,
-p {
+.bio-copy,
+p,
+span {
   margin: 0;
-}
-
-.eyebrow {
-  color: var(--accent-teal);
-  font-size: var(--font-size-caption);
-  letter-spacing: var(--letter-spacing-eyebrow);
-  text-transform: uppercase;
-  font-weight: var(--font-weight-medium);
-}
-
-.meta-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.55rem 0.9rem;
-  border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 10%, transparent);
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
 }
 
 h1 {
@@ -269,82 +229,176 @@ h1 {
 
 .username {
   color: var(--text-secondary);
-  font-size: 1.05rem;
-}
-
-.location {
-  justify-content: center;
-  gap: var(--space-2);
-  color: var(--text-secondary);
+  font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
 }
 
+.location {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  margin-top: 0.2rem;
+}
+
 .location :deep(.scope-icon) {
-  width: 1rem;
-  height: 1rem;
+  width: 0.85rem;
+  height: 0.85rem;
   color: var(--accent-teal);
 }
 
-.section-copy {
-  max-width: 40rem;
+.presence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.presence-chip--online { color: var(--success); }
+.presence-chip--planning { color: var(--accent-gold); }
+.presence-chip--idle { color: var(--warning); }
+.presence-chip--hidden,
+.presence-chip--offline { color: var(--text-secondary); }
+
+.presence-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.profile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.35rem;
+  padding: 0 1rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.profile-action--primary {
+  background: var(--accent-teal);
+  color: var(--bg-primary);
+  border: 1px solid var(--accent-teal);
+}
+
+.profile-action--primary:hover,
+.profile-action--primary:focus-visible {
+  background: var(--accent-teal-hover);
+  border-color: var(--accent-teal-hover);
+}
+
+.profile-action--ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+}
+
+.profile-action--ghost:hover,
+.profile-action--ghost:focus-visible {
+  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
+}
+
+.bio-copy {
+  margin-top: 0.1rem;
+  max-width: 42rem;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.5;
 }
 
 .interest-row {
-  justify-content: center;
-  position: relative;
-  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .interest-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.6rem 0.9rem;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
   border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 90%, transparent);
-  font-size: var(--font-size-small);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
 }
 
-.action-row {
-  position: relative;
-  z-index: 1;
+.interest-chip :deep(.scope-icon) {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
-.action-row :deep(.button) {
-  min-width: 11rem;
-}
-
-@keyframes profile-float {
-  0%,
-  100% {
-    transform: translate(-50%, -45%);
+@container (max-width: 44rem) {
+  .profile-header__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'avatar identity'
+      'actions actions';
   }
-  50% {
-    transform: translate(-50%, -48%);
+
+  .avatar-shell {
+    grid-area: avatar;
+  }
+
+  .identity-block {
+    grid-area: identity;
+  }
+
+  .action-row {
+    grid-area: actions;
+    justify-content: stretch;
+  }
+
+  .profile-action {
+    flex: 1;
   }
 }
 
 @media (max-width: 720px) {
-  .profile-header {
-    padding-inline: var(--space-5);
-    padding-bottom: var(--space-5);
+  .profile-header__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'avatar identity'
+      'actions actions';
+  }
+
+  .avatar-shell {
+    grid-area: avatar;
+  }
+
+  .identity-block {
+    grid-area: identity;
   }
 
   .action-row {
-    width: 100%;
+    grid-area: actions;
+    justify-content: stretch;
   }
 
-  .action-row :deep(.button) {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .avatar-shell {
-    animation: none;
+  .profile-action {
+    flex: 1;
   }
 }
 </style>

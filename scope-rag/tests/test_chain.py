@@ -135,8 +135,8 @@ def test_ask_prefers_gemini_when_key_is_configured(monkeypatch):
         "search",
         lambda *args, **kwargs: [
             {
-                "text": "Scope AI opens from the /ai/ask route.",
-                "metadata": {"source": "app_catalog", "source_type": "frontend_route", "title": "Scope AI", "path": "/ai/ask"},
+                "text": "Scope AI opens from the /trips/new route.",
+                "metadata": {"source": "app_catalog", "source_type": "frontend_route", "title": "AI trip planner", "path": "/trips/new"},
                 "score": 0.01,
             }
         ],
@@ -161,8 +161,8 @@ def test_ask_auto_falls_back_to_ollama_when_gemini_fails(monkeypatch):
         "search",
         lambda *args, **kwargs: [
             {
-                "text": "Scope AI opens from the /ai/ask route.",
-                "metadata": {"source": "app_catalog", "source_type": "frontend_route", "title": "Scope AI", "path": "/ai/ask"},
+                "text": "Scope AI opens from the /trips/new route.",
+                "metadata": {"source": "app_catalog", "source_type": "frontend_route", "title": "AI trip planner", "path": "/trips/new"},
                 "score": 0.01,
             }
         ],
@@ -252,6 +252,44 @@ def test_gemini_generation_sends_inline_images(monkeypatch):
     assert "lookout.png" in parts[1]["text"]
 
 
+def test_scope_ai_chat_sends_inline_images_to_gemini(monkeypatch):
+    monkeypatch.setattr(chain.settings, "scope_ai_provider", "auto")
+    monkeypatch.setattr(chain.settings, "gemini_api_key", "test-key")
+    monkeypatch.setattr(chain.settings, "gemini_model", "gemini-primary")
+    monkeypatch.setattr(chain.settings, "gemini_fallback_models", "")
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": "The image fits a scenic route stop."}]}}]}
+
+    def fake_post(url, **kwargs):
+        captured["payload"] = kwargs["json"]
+        return FakeResponse()
+
+    monkeypatch.setattr(chain.httpx, "post", fake_post)
+
+    result = chain.scope_ai_chat(
+        system_prompt="You are Scope AI. {context} {recent_chat}",
+        planner_state={"start": "Dallas", "end": "Austin"},
+        session_history=[],
+        preferences={},
+        message="Review this image for my trip.",
+        images=[{"filename": "lookout.png", "mime_type": "image/png", "data": "YXRsYXM="}],
+    )
+
+    parts = captured["payload"]["contents"][0]["parts"]
+    assert result == {"response": "The image fits a scenic route stop.", "model": "gemini-primary"}
+    assert parts[0]["inline_data"] == {"mime_type": "image/png", "data": "YXRsYXM="}
+    assert "lookout.png" in parts[1]["text"]
+
+
 def test_ask_inspects_images_even_without_retrieved_context(monkeypatch):
     monkeypatch.setattr(chain.settings, "scope_ai_provider", "auto")
     monkeypatch.setattr(chain.settings, "gemini_api_key", "test-key")
@@ -320,7 +358,7 @@ def test_ask_uses_app_catalog_for_route_questions(monkeypatch):
             return self
 
         def invoke(self, question: str) -> str:
-            return "Use /ai/ask for Scope AI. It is a private frontend route backed by /api/rag/ask."
+            return "Use /trips/new for Scope AI. That is the private planner route with the assistant panel."
 
     class FakePromptTemplate:
         @staticmethod
@@ -333,7 +371,7 @@ def test_ask_uses_app_catalog_for_route_questions(monkeypatch):
 
     result = chain.ask("Which frontend route opens Scope AI?", top_k=4)
 
-    assert "/ai/ask" in result["answer"]
+    assert "/trips/new" in result["answer"]
     assert result["context_docs_used"] > 0
     assert result["sources"][0]["source"] == "app_catalog"
 

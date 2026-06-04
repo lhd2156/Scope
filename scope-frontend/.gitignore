@@ -11,6 +11,8 @@ node_modules
 dist
 .tmp/
 dist-ssr
+.playwright-browsers/
+.ms-playwright/
 *.local
 emsdk/
 

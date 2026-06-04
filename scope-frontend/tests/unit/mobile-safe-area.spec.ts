@@ -36,9 +36,10 @@ describe('mobile safe-area and touch-action polish', () => {
     const mapPageVue = readProjectFile('src/views/MapPage.vue');
 
     expect(navbarVue).toContain('padding: calc(var(--safe-area-top) + 0.85rem) 0 0.7rem;');
-    expect(navbarVue).toContain('max-width: var(--shell-max-width-with-safe-area);');
-    expect(navbarVue).toContain('calc(var(--shell-side-padding) + var(--safe-area-right))');
-    expect(navbarVue).toContain('calc(var(--shell-side-padding) + var(--safe-area-left))');
+    expect(navbarVue).toContain('max-width: none;');
+    expect(navbarVue).toContain('--navbar-edge-padding: var(--shell-side-padding);');
+    expect(navbarVue).toContain('calc(var(--navbar-edge-padding) + var(--safe-area-right))');
+    expect(navbarVue).toContain('calc(var(--navbar-edge-padding) + var(--safe-area-left))');
     expect(mapPageVue).toContain('--scope-map-controls-right: max(var(--space-3), var(--safe-area-right));');
     expect(mapPageVue).toContain('--scope-map-controls-panel-left: max(var(--space-3), var(--safe-area-left));');
     expect(mapPageVue).toContain('calc(var(--space-3) + var(--safe-area-bottom))');

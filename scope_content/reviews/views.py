@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
@@ -11,6 +12,7 @@ from common.cache_utils import (
     SPOTS_CACHE_NAMESPACE,
     invalidate_cache_namespaces,
 )
+from common.events import record_and_publish
 from common.indexing import delete_review, index_review
 from common.kafka_producer import ScopeKafkaProducer
 from common.permissions import IsAuthenticatedJWT
@@ -20,6 +22,10 @@ from reviews.serializers import ReviewSerializer
 from spots.models import Spot
 
 producer = ScopeKafkaProducer()
+
+
+def _iso_timestamp(value) -> str:
+    return value.isoformat().replace('+00:00', 'Z')
 
 
 @api_view(['POST', 'GET'])
@@ -44,7 +50,22 @@ def spot_reviews(request, spot_id):
     index_review(review)
     invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
     if instance is None:
-        producer.publish('review.created', {'reviewId': str(review.id), 'spotId': str(spot.id), 'userId': str(request.user.id)})
+        record_and_publish(
+            producer,
+            'review.created',
+            {
+                'reviewId': str(review.id),
+                'spotId': str(spot.id),
+                'userId': str(request.user.id),
+                'ownerUserId': str(spot.user_id),
+                'spotTitle': spot.title,
+                'interactionType': 'review',
+                'rating': float(review.rating),
+                'bodyExcerpt': review.comment[:220],
+                'sentimentScore': 0.0,
+                'occurredAt': _iso_timestamp(getattr(review, 'created_at', None) or timezone.now()),
+            },
+        )
     return data_response(
         ReviewSerializer(review).data,
         status_code=status.HTTP_201_CREATED if instance is None else status.HTTP_200_OK,

@@ -9,13 +9,13 @@ class Settings(BaseSettings):
     # Scope AI model routing. "auto" uses Gemini when a key exists, otherwise Ollama.
     scope_ai_provider: str = "auto"
 
-    # Gemini (hosted free-tier friendly dev fallback; keep keys in .env only)
+    # Gemini (hosted free-tier friendly primary when GEMINI_API_KEY is set)
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash-lite"
-    gemini_fallback_models: str = "gemini-2.0-flash-lite,gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_fallback_models: str = "gemini-2.5-flash-lite,gemini-2.0-flash"
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     gemini_timeout_seconds: int = 30
-    gemini_max_output_tokens: int = 512
+    gemini_max_output_tokens: int = 1536
 
     # Ollama (local LLM - free, no API key needed)
     ollama_base_url: str = "http://ollama:11434"
@@ -38,6 +38,20 @@ class Settings(BaseSettings):
     core_jwt_secret: str = ""
     core_jwt_issuer: str = "scope-core"
     core_jwt_audience: str = "scope-frontend"
+
+    # HTTP security
+    environment: str = "development"
+    frontend_origin: str = ""
+    development_frontend_origin: str = "http://localhost:5173"
+
+    # App-level rate limiting. The Nginx edge also limits /api/rag, but this
+    # protects the service when reached directly inside the private network.
+    rag_rate_limit_enabled: bool = True
+    rag_rate_limit_per_minute: int = 60
+    rag_generation_rate_limit_per_minute: int = 10
+    rag_ingest_rate_limit_per_minute: int = 5
+    rag_rate_limit_redis_url: str = "redis://redis:6379/5"
+    rag_ingest_required_role: str = "admin"
 
     # Kafka
     kafka_bootstrap_servers: str = "kafka:9092"

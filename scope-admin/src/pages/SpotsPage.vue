@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { listSpots } from '@/api/content';
 import type { SpotSummary } from '@/types/spot';
+import { formatLocation } from '@/utils/formatters';
 
 const spots = ref<SpotSummary[]>([]);
 const flagged = ref<boolean | ''>('');
@@ -39,7 +40,7 @@ onMounted(loadSpots);
       <tbody>
         <tr v-for="spot in spots" :key="spot.id">
           <td>{{ spot.title ?? spot.name }}</td>
-          <td>{{ [spot.city, spot.country].filter(Boolean).join(', ') || spot.location || 'Unknown' }}</td>
+          <td>{{ formatLocation(spot) }}</td>
           <td>{{ spot.reviewCount ?? spot.review_count ?? 0 }}</td>
           <td>{{ spot.flagged ? 'Flagged' : 'Clear' }}</td>
         </tr>

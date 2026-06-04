@@ -96,6 +96,8 @@ class RateLimitMiddleware:
 
         if request.path.startswith("/api/content/photos/upload"):
             rules.append((f"rl:upload:{self._upload_identity(request, ip)}", int(getattr(settings, "RATE_LIMIT_UPLOAD_PER_USER", 20)), window))
+        if request.path.startswith("/api/content/comments") and request.method in {"POST", "PUT", "DELETE"}:
+            rules.append((f"rl:comments:{self._upload_identity(request, ip)}", int(getattr(settings, "RATE_LIMIT_COMMENTS_PER_USER", 30)), window))
 
         return rules
 

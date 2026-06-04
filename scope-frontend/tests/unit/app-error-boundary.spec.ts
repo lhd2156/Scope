@@ -5,15 +5,18 @@ import AppErrorBoundary from '@/components/common/AppErrorBoundary.vue';
 describe('AppErrorBoundary', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    localStorage.clear();
+    sessionStorage.clear();
+    delete window.__SCOPE_ROUTE_ERROR__;
   });
 
-  function mountBoundary(shouldThrow: { value: boolean }, resetKey = '/explore') {
+  function mountBoundary(shouldThrow: { value: boolean }, resetKey = '/explore', errorMessage = 'Planner render failure') {
     const ThrowingChild = defineComponent({
       name: 'ThrowingChild',
       setup() {
         return () => {
           if (shouldThrow.value) {
-            throw new Error('Failed to fetch dynamically imported module');
+            throw new Error(errorMessage);
           }
 
           return h('div', { 'data-test': 'recovered-view' }, 'Recovered view');
@@ -45,7 +48,7 @@ describe('AppErrorBoundary', () => {
 
     expect(fallback.attributes('role')).toBe('alert');
     expect(wrapper.text()).toContain('This workspace hit a snag');
-    expect(wrapper.text()).toContain('route bundle');
+    expect(wrapper.text()).toContain('page-level error');
     expect(document.activeElement).toBe(fallback.element);
 
     shouldThrow.value = false;
@@ -69,5 +72,55 @@ describe('AppErrorBoundary', () => {
 
     expect(wrapper.find('[data-test="route-error-boundary"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="recovered-view"]').exists()).toBe(true);
+  });
+
+  it('publishes chunk errors, marks one reload attempt, and keeps retry copy specific', async () => {
+    const shouldThrow = ref(true);
+    const wrapper = mountBoundary(shouldThrow, '/chunked', 'Loading chunk 42 failed');
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('could not finish loading that route bundle');
+    expect(window.__SCOPE_ROUTE_ERROR__).toMatchObject({
+      message: 'Loading chunk 42 failed',
+      resetKey: '/chunked',
+    });
+    expect(sessionStorage.getItem('scope-route-chunk-reload:/chunked')).toBe('reloaded');
+
+    await wrapper.get('button.button-primary').trigger('click');
+    expect(wrapper.find('[data-test="route-error-boundary"]').exists()).toBe(true);
+  });
+
+  it('recovers trip planner route errors once and clears transient planner storage', async () => {
+    localStorage.setItem('scope.tripPlanner.mapStyleMode', 'native');
+    localStorage.setItem('scope-trip-planner-packing-checklist:test', '["water"]');
+    localStorage.setItem('keep-me', 'value');
+    sessionStorage.setItem('scope-route-error-recovery:old', 'recovered');
+    sessionStorage.setItem('keep-session', 'value');
+
+    const shouldThrow = ref(true);
+    mountBoundary(shouldThrow, '/trips/new', 'Planner render failure');
+
+    await flushPromises();
+
+    expect(sessionStorage.getItem('scope-route-error-recovery:/trips/new')).toBeNull();
+    expect(localStorage.getItem('scope.tripPlanner.mapStyleMode')).toBeNull();
+    expect(localStorage.getItem('scope-trip-planner-packing-checklist:test')).toBeNull();
+    expect(sessionStorage.getItem('scope-route-error-recovery:old')).toBeNull();
+    expect(localStorage.getItem('keep-me')).toBe('value');
+    expect(sessionStorage.getItem('keep-session')).toBe('value');
+  });
+
+  it('does not repeat automatic recovery reloads when storage already records the attempt', async () => {
+    sessionStorage.setItem('scope-route-chunk-reload:/already-reloaded', 'reloaded');
+    sessionStorage.setItem('scope-route-error-recovery:/trips/retry/edit', 'recovered');
+
+    mountBoundary(ref(true), '/already-reloaded', 'Loading CSS chunk failed');
+    mountBoundary(ref(true), '/trips/retry/edit', 'Planner render failure');
+
+    await flushPromises();
+
+    expect(sessionStorage.getItem('scope-route-chunk-reload:/already-reloaded')).toBe('reloaded');
+    expect(sessionStorage.getItem('scope-route-error-recovery:/trips/retry/edit')).toBe('recovered');
   });
 });

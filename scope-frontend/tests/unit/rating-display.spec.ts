@@ -15,6 +15,9 @@ describe('starFillPortionAtIndex', () => {
   it('clamps rating to 0-5', () => {
     expect(starFillPortionAtIndex(6, 5)).toBe(1);
     expect(starFillPortionAtIndex(-1, 1)).toBe(0);
+    expect(starFillPortionAtIndex(Number.NaN, 1)).toBe(0);
+    expect(starFillPortionAtIndex(3, 0)).toBe(0);
+    expect(starFillPortionAtIndex(3, 6)).toBe(0);
   });
 
   it('renders decimal ratings as partial final stars', () => {

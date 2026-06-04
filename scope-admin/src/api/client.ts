@@ -12,16 +12,18 @@ export const apiClient = axios.create({
 });
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(ADMIN_STORAGE_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_STORAGE_TOKEN_KEY);
+  return sessionStorage.getItem(ADMIN_STORAGE_TOKEN_KEY);
 }
 
 export function setStoredToken(token: string | null): void {
+  localStorage.removeItem(ADMIN_STORAGE_TOKEN_KEY);
   if (token) {
-    localStorage.setItem(ADMIN_STORAGE_TOKEN_KEY, token);
+    sessionStorage.setItem(ADMIN_STORAGE_TOKEN_KEY, token);
     return;
   }
 
-  localStorage.removeItem(ADMIN_STORAGE_TOKEN_KEY);
+  sessionStorage.removeItem(ADMIN_STORAGE_TOKEN_KEY);
 }
 
 apiClient.interceptors.request.use((config) => {
@@ -48,7 +50,15 @@ apiClient.interceptors.response.use(
   (response) => {
     if (response.status === 401) {
       handleUnauthorizedResponse(response);
-      return Promise.reject(new AxiosError('Unauthorized', AxiosError.ERR_BAD_RESPONSE, response.config, response.request, response));
+      return Promise.reject(
+        new AxiosError(
+          'Unauthorized',
+          AxiosError.ERR_BAD_RESPONSE,
+          response.config,
+          response.request,
+          response,
+        ),
+      );
     }
 
     return response;

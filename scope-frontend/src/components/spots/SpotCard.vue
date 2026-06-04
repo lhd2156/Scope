@@ -19,10 +19,10 @@
     </div>
 
     <div class="spot-body">
-      <p class="location-row">
+      <RouterLink :to="`/spots/${spot.id}`" class="location-row" :aria-label="`Open ${spot.title} details`">
         <ScopeIcon name="pin" />
         <span>{{ locationLabel }}</span>
-      </p>
+      </RouterLink>
 
       <div class="rating-row">
         <span class="rating-pill" :aria-label="`Rated ${ratingLabel} out of 5`">
@@ -63,7 +63,7 @@ import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import type { SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
-import { formatVibeLabel } from '@/utils/formatters';
+import { formatCategoryLabel, formatVibeLabel } from '@/utils/formatters';
 
 const props = defineProps<{
   spot: SpotSummary;
@@ -78,15 +78,11 @@ watch(
   },
 );
 
-function formatCategory(category: string): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
-}
-
 function toggleSaved() {
   isSaved.value = !isSaved.value;
 }
 
-const categoryLabel = computed(() => formatCategory(props.spot.category));
+const categoryLabel = computed(() => formatCategoryLabel(props.spot.category));
 const CARD_IMAGE_WIDTH = 640;
 
 const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.category, CARD_IMAGE_WIDTH));
@@ -243,6 +239,14 @@ const footerCopy = computed(() => {
   font-size: 0.82rem;
   font-weight: 500;
   min-width: 0;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.location-row:hover,
+.location-row:focus-visible {
+  color: var(--text-primary);
+  outline: none;
 }
 
 .location-row span {

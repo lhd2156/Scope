@@ -5,22 +5,16 @@ This directory hosts the Emscripten build for Scope client-side spatial algorith
 ## Local prerequisites
 
 1. Clone and install the Emscripten SDK into `scope-frontend/emsdk/`.
-2. Activate the SDK before building:
-
-```powershell
-Set-Location ..\emsdk
-.\emsdk_env.ps1
-Set-Location ..\wasm
-```
+2. The `npm run wasm:build` script activates the local SDK for the command it runs.
 
 ## Build
 
 ```powershell
-emcmake cmake .
-emmake make
+npm run wasm:build
 ```
 
-The build emits `dist/scope_wasm.js` and `dist/scope_wasm.wasm` for the upcoming typed loader in Phase 23.4.
+The build emits `wasm/dist/scope_wasm.js` and `wasm/dist/scope_wasm.wasm`.
+Run `npm run wasm:test` after building to verify the native Scope AI lexer corpus.
 
 ## Exported API
 
@@ -31,6 +25,7 @@ Current embind exports:
 - `calculateHaversineDistance(from, to)`
 - `clusterViewportPoints(points, viewport, options)`
 - `buildViewportConvexHull(points, viewport)`
+- `lexScopeAiCommandText(input)`
 
 ### `calculateHaversineDistance(from, to)`
 
@@ -49,3 +44,8 @@ Accepts the same point array + viewport object as the clustering helper, project
 - visible bounds (`minScreenX`, `minScreenY`, `maxScreenX`, `maxScreenY`)
 - `areaSquarePx`, `perimeterPx`
 - `pointIds`, `hullPointIds`, and `hull` vertex objects for future map label surfaces
+
+### `lexScopeAiCommandText(input)`
+
+Accepts a normalized Scope AI command string and returns compiler-style tokens for app-owned planner commands:
+map controls, zoom direction, document actions, visibility, sharing, invite recipients, endpoint keywords, roles, email/handle tokens, and place-like spans. TypeScript remains the semantic parser and safety/action layer.

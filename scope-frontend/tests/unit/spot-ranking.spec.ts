@@ -58,4 +58,23 @@ describe('spot trending ranking', () => {
     expect(ranked.map((entry) => entry.id)).toEqual(['high', 'mid']);
     expect(spots.map((entry) => entry.id)).toEqual(['low', 'high', 'mid']);
   });
+
+  it('uses deterministic tie-breakers and clamps invalid score inputs', () => {
+    const tiedSpots = [
+      spot({ id: 'b', title: 'Beta', likesCount: 2, rating: 4, createdAt: '2026-04-20T12:00:00Z' }),
+      spot({ id: 'a', title: 'Alpha', likesCount: 2, rating: 4, createdAt: '2026-04-20T12:00:00Z' }),
+      spot({ id: 'c', title: 'Alpha', likesCount: 2, rating: 4, createdAt: '2026-04-20T12:00:00Z' }),
+    ];
+    const malformedSpot = spot({
+      id: 'malformed',
+      title: 'Malformed',
+      likesCount: -10,
+      rating: -2,
+      createdAt: 'not-a-date',
+    });
+
+    expect(rankTrendingSpots(tiedSpots, tiedSpots.length, NOW).map((entry) => entry.id)).toEqual(['a', 'c', 'b']);
+    expect(rankTrendingSpots(tiedSpots, -1, NOW)).toEqual([]);
+    expect(getSpotTrendingScore(malformedSpot, NOW)).toBe(0);
+  });
 });

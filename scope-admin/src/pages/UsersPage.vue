@@ -63,7 +63,11 @@ onMounted(loadUsers);
       </thead>
       <tbody>
         <tr v-for="user in users" :key="user.id">
-          <td><RouterLink :to="`/users/${user.id}`">{{ user.username }}</RouterLink></td>
+          <td>
+            <RouterLink :to="`/users/${user.id}`">
+              {{ user.username }}
+            </RouterLink>
+          </td>
           <td>{{ user.email }}</td>
           <td>{{ user.status ?? 'active' }}</td>
           <td>{{ user.role ?? 'user' }}</td>
@@ -78,8 +82,27 @@ onMounted(loadUsers);
     <footer class="table-footer">
       <span>{{ loading ? 'Loading...' : `${total} users` }}</span>
       <div class="table-actions">
-        <button class="btn secondary" type="button" :disabled="page === 1" @click="page--; loadUsers()">Previous</button>
-        <button class="btn secondary" type="button" @click="page++; loadUsers()">Next</button>
+        <button
+          class="btn secondary"
+          type="button"
+          :disabled="page === 1"
+          @click="
+            page--;
+            loadUsers();
+          "
+        >
+          Previous
+        </button>
+        <button
+          class="btn secondary"
+          type="button"
+          @click="
+            page++;
+            loadUsers();
+          "
+        >
+          Next
+        </button>
       </div>
     </footer>
   </section>
