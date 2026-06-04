@@ -1,5 +1,5 @@
 # Pin to python:3.12-slim; for release builds, append @sha256:<digest>.
-FROM python:3.12-slim
+FROM python:3.14-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
