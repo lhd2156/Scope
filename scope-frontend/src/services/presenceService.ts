@@ -2,6 +2,7 @@ import api, { getAccessToken } from '@/services/api';
 import type { PresenceHeartbeatInput, PresenceStatus } from '@/types';
 
 const PRESENCE_BASE_PATH = '/api/core/presence';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '';
 const PRESENCE_ACTIVITY_EVENT = 'scope:presence-activity';
 const MIN_HEARTBEAT_INTERVAL_MS = 15_000;
 const FAILED_HEARTBEAT_BACKOFF_MS = 30_000;
@@ -38,6 +39,14 @@ function buildHeartbeatPayload(input: PresenceHeartbeatInput) {
 function hasDeliverablePresenceSession(): boolean {
   const accessToken = getAccessToken().trim();
   return Boolean(accessToken) && !accessToken.startsWith('scope-qa-') && !accessToken.startsWith('preview-access-');
+}
+
+function buildPresenceApiUrl(path: string): string {
+  if (!API_BASE_URL || API_BASE_URL === '/') {
+    return path;
+  }
+
+  return `${API_BASE_URL.replace(/\/+$/, '')}${path}`;
 }
 
 async function postHeartbeat(input: PresenceHeartbeatInput): Promise<void> {
@@ -124,7 +133,7 @@ export function sendPresenceBeacon(input: PresenceHeartbeatInput): void {
   }
 
   try {
-    void window.fetch(`${PRESENCE_BASE_PATH}/heartbeat`, {
+    void window.fetch(buildPresenceApiUrl(`${PRESENCE_BASE_PATH}/heartbeat`), {
       method: 'PUT',
       keepalive: true,
       headers: {
