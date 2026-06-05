@@ -1,234 +1,350 @@
 [
   {
     "id": "demo-trip-1",
-    "title": "North Texas Night + Food Loop",
-    "destination": "Fort Worth + Dallas, TX",
-    "description": "Two polished days across rooftop tacos, heritage retail, brunch, and a vinyl-bar finish sequenced for Scope demo mode.",
+    "title": "Texas Starter Loop",
+    "destination": "Fort Worth, San Antonio, Austin, Dallas, Houston, Big Bend",
+    "description": "A production-ready Texas sampler that mixes market stops, water views, skyline parks, and one true desert anchor.",
     "isPublic": true,
-    "startDate": "2026-04-04",
-    "endDate": "2026-04-05",
-    "coverSpotId": "demo-spot-3",
-    "budget": 360,
+    "startDate": "2026-04-10",
+    "endDate": "2026-04-14",
+    "coverSpotId": "demo-spot-1",
+    "budget": 1180,
     "currency": "USD",
-    "status": "completed",
-    "weatherForecast": "Clear evenings, 74°F highs, and a photo-friendly blue-hour finish.",
+    "status": "planning",
+    "weatherForecast": "Warm afternoons, cooler desert mornings, and easy evening walk windows.",
     "memberIds": [
-      { "userId": "demo-user-1", "status": "owner" },
-      { "userId": "demo-user-2", "status": "editor" },
-      { "userId": "demo-user-4", "status": "viewer" }
+      {
+        "userId": "demo-user-1",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-2",
+        "status": "viewer"
+      },
+      {
+        "userId": "demo-user-4",
+        "status": "editor"
+      }
     ],
     "stops": [
-      {
-        "spotId": "demo-spot-3",
-        "dayNumber": 1,
-        "timeSlot": "12:30",
-        "duration": 90,
-        "estimatedCost": 32,
-        "notes": "Anchor the weekend with rooftop tacos while the skyline still reads warm and cinematic."
-      },
       {
         "spotId": "demo-spot-1",
         "dayNumber": 1,
-        "timeSlot": "15:15",
+        "timeSlot": "11:00",
         "duration": 75,
-        "estimatedCost": 18,
-        "notes": "Use Mule Alley for a slower retail pass and a quick golden-hour photo reset before dinner."
-      },
-      {
-        "spotId": "demo-spot-11",
-        "dayNumber": 1,
-        "timeSlot": "21:00",
-        "duration": 120,
-        "estimatedCost": 48,
-        "notes": "Close the first night once the vinyl room settles into its best amber light and soundtrack."
-      },
-      {
-        "spotId": "demo-spot-6",
-        "dayNumber": 2,
-        "timeSlot": "10:00",
-        "duration": 80,
-        "estimatedCost": 26,
-        "notes": "Brunch by the park keeps day two social without feeling rushed."
-      },
-      {
-        "spotId": "demo-spot-14",
-        "dayNumber": 2,
-        "timeSlot": "13:15",
-        "duration": 90,
         "estimatedCost": 24,
-        "notes": "Let the atrium light and clean negative space carry the culture portion of the route."
-      }
-    ],
-    "costBreakdown": {
-      "lodging": 170,
-      "dining": 110,
-      "tickets": 34,
-      "transport": 46
-    },
-    "highlights": [
-      "Blue-hour rooftop dinner",
-      "Curated Bishop Arts nightlife",
-      "Museum-light afternoon finish"
-    ]
-  },
-  {
-    "id": "demo-trip-2",
-    "title": "Dallas Design Weekend",
-    "destination": "Dallas → San Antonio, TX",
-    "description": "A multi-city design weekend pairing museum light, brunch reservations, gallery calm, and River Walk aperitivo energy.",
-    "isPublic": true,
-    "startDate": "2026-04-11",
-    "endDate": "2026-04-13",
-    "coverSpotId": "demo-spot-14",
-    "budget": 540,
-    "currency": "USD",
-    "status": "planning",
-    "weatherForecast": "Warm afternoons, soft evening cloud cover, and ideal patio weather after sunset.",
-    "memberIds": [
-      { "userId": "demo-user-2", "status": "owner" },
-      { "userId": "demo-user-4", "status": "editor" },
-      { "userId": "demo-user-1", "status": "viewer" }
-    ],
-    "stops": [
-      {
-        "spotId": "demo-spot-6",
-        "dayNumber": 1,
-        "timeSlot": "10:00",
-        "duration": 75,
-        "estimatedCost": 28,
-        "notes": "Kick off with an easy brunch and let the park set a polished pace for the whole route."
+        "notes": "Start with the Stockyards retail lane while storefronts are active."
       },
       {
-        "spotId": "demo-spot-14",
+        "spotId": "demo-spot-3",
         "dayNumber": 1,
-        "timeSlot": "13:00",
-        "duration": 100,
-        "estimatedCost": 22,
-        "notes": "Book the atrium slot before afternoon crowds so the gallery still feels quiet and editorial."
-      },
-      {
-        "spotId": "demo-spot-11",
-        "dayNumber": 1,
-        "timeSlot": "20:30",
-        "duration": 110,
-        "estimatedCost": 44,
-        "notes": "Use the vinyl bar as the final Dallas chapter once dinner service winds down."
-      },
-      {
-        "spotId": "demo-spot-15",
-        "dayNumber": 2,
-        "timeSlot": "11:15",
-        "duration": 70,
-        "estimatedCost": 24,
-        "notes": "Mercado breakfast keeps the San Antonio handoff colorful and low friction."
+        "timeSlot": "15:00",
+        "duration": 60,
+        "estimatedCost": 0,
+        "notes": "Use the Water Gardens as a compact downtown architecture reset."
       },
       {
         "spotId": "demo-spot-4",
         "dayNumber": 2,
-        "timeSlot": "14:00",
-        "duration": 85,
-        "estimatedCost": 18,
-        "notes": "The Pearl gallery hall gives the route a calmer midpoint before evening cocktails."
+        "timeSlot": "12:30",
+        "duration": 95,
+        "estimatedCost": 38,
+        "notes": "Make Pearl the flexible lunch and browse block."
       },
       {
         "spotId": "demo-spot-2",
         "dayNumber": 2,
-        "timeSlot": "18:45",
-        "duration": 105,
-        "estimatedCost": 42,
-        "notes": "Arrive twenty minutes before sunset so the canal reflections evolve through blue hour."
+        "timeSlot": "18:15",
+        "duration": 90,
+        "estimatedCost": 52,
+        "notes": "Save the River Walk for blue-hour dinner energy."
       },
       {
-        "spotId": "demo-spot-18",
+        "spotId": "demo-spot-5",
         "dayNumber": 3,
-        "timeSlot": "16:30",
-        "duration": 90,
-        "estimatedCost": 16,
-        "notes": "Wrap the weekend with a slower art-district stroll and one last wine-bar detour."
+        "timeSlot": "09:00",
+        "duration": 75,
+        "estimatedCost": 0,
+        "notes": "Give Austin a morning skyline walk before traffic builds."
+      },
+      {
+        "spotId": "demo-spot-6",
+        "dayNumber": 3,
+        "timeSlot": "15:30",
+        "duration": 70,
+        "estimatedCost": 18,
+        "notes": "Drop into Klyde Warren before museums or dinner."
+      },
+      {
+        "spotId": "demo-spot-7",
+        "dayNumber": 4,
+        "timeSlot": "10:00",
+        "duration": 80,
+        "estimatedCost": 0,
+        "notes": "Let Houston read from the bayou trail first."
+      },
+      {
+        "spotId": "demo-spot-8",
+        "dayNumber": 5,
+        "timeSlot": "07:30",
+        "duration": 180,
+        "estimatedCost": 15,
+        "notes": "Treat Big Bend as a daylight-first closer, not a rushed detour."
       }
     ],
     "costBreakdown": {
-      "lodging": 260,
-      "dining": 130,
-      "tickets": 58,
-      "transport": 92
+      "lodging": 620,
+      "dining": 310,
+      "tickets": 40,
+      "transport": 210
     },
     "highlights": [
-      "Dallas atrium light",
-      "Pearl District culture stop",
-      "River Walk aperitivo close"
+      "Texas anchors across five cities",
+      "Waterfront and skyline balance",
+      "One memorable nature finish"
+    ]
+  },
+  {
+    "id": "demo-trip-2",
+    "title": "US City Icons",
+    "destination": "Chicago, New York, Seattle, Miami, Los Angeles, Denver, New Orleans",
+    "description": "A recognizable US showcase route for testing cards, trip detail, and map density across different metros.",
+    "isPublic": true,
+    "startDate": "2026-05-02",
+    "endDate": "2026-05-09",
+    "coverSpotId": "demo-spot-10",
+    "budget": 2420,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Mixed city weather; keep museum and market stops flexible around rain.",
+    "memberIds": [
+      {
+        "userId": "demo-user-2",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-5",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-6",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-10",
+        "dayNumber": 1,
+        "timeSlot": "10:00",
+        "duration": 90,
+        "estimatedCost": 0,
+        "notes": "Use public art as the Chicago first-look anchor."
+      },
+      {
+        "spotId": "demo-spot-11",
+        "dayNumber": 2,
+        "timeSlot": "18:30",
+        "duration": 95,
+        "estimatedCost": 58,
+        "notes": "Make the New York skyline moment a night-view decision."
+      },
+      {
+        "spotId": "demo-spot-12",
+        "dayNumber": 3,
+        "timeSlot": "09:30",
+        "duration": 100,
+        "estimatedCost": 34,
+        "notes": "Let Pike Place cover food, flowers, and waterfront movement."
+      },
+      {
+        "spotId": "demo-spot-13",
+        "dayNumber": 4,
+        "timeSlot": "16:00",
+        "duration": 90,
+        "estimatedCost": 22,
+        "notes": "Save Wynwood for late light and dinner proximity."
+      },
+      {
+        "spotId": "demo-spot-14",
+        "dayNumber": 5,
+        "timeSlot": "11:00",
+        "duration": 70,
+        "estimatedCost": 0,
+        "notes": "Keep the concert hall as a design stop before lunch."
+      },
+      {
+        "spotId": "demo-spot-15",
+        "dayNumber": 6,
+        "timeSlot": "08:30",
+        "duration": 65,
+        "estimatedCost": 16,
+        "notes": "Use Union Station for coffee and transit orientation."
+      },
+      {
+        "spotId": "demo-spot-16",
+        "dayNumber": 7,
+        "timeSlot": "15:00",
+        "duration": 95,
+        "estimatedCost": 28,
+        "notes": "Close in Jackson Square when music and street life are active."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 1260,
+      "dining": 520,
+      "tickets": 210,
+      "transport": 430
+    },
+    "highlights": [
+      "Dense recognizable US places",
+      "Good card imagery variety",
+      "Trip detail with seven cities"
     ]
   },
   {
     "id": "demo-trip-3",
-    "title": "Hill Country Sunrise Sprint",
-    "destination": "Austin + Hill Country, TX",
-    "description": "A fast but premium two-day loop with creek overlooks, espresso resets, skyline boardwalk light, wellness calm, and a river launch finish.",
+    "title": "Tokyo to Singapore Culture Route",
+    "destination": "Tokyo and Singapore",
+    "description": "A compact international starter route with neon, temple culture, and skyline garden contrast.",
     "isPublic": true,
-    "startDate": "2026-04-18",
-    "endDate": "2026-04-19",
-    "coverSpotId": "demo-spot-9",
-    "budget": 310,
+    "startDate": "2026-06-12",
+    "endDate": "2026-06-16",
+    "coverSpotId": "demo-spot-17",
+    "budget": 1680,
     "currency": "USD",
-    "status": "completed",
-    "weatherForecast": "Crisp sunrise air, sunny afternoons, and mild evening temperatures around the lake.",
+    "status": "planning",
+    "weatherForecast": "Humid evenings; keep outdoor garden time near sunset.",
     "memberIds": [
-      { "userId": "demo-user-3", "status": "owner" },
-      { "userId": "demo-user-5", "status": "editor" },
-      { "userId": "demo-user-2", "status": "viewer" }
+      {
+        "userId": "demo-user-8",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-1",
+        "status": "viewer"
+      },
+      {
+        "userId": "demo-user-3",
+        "status": "viewer"
+      }
     ],
     "stops": [
       {
-        "spotId": "demo-spot-9",
+        "spotId": "demo-spot-17",
         "dayNumber": 1,
-        "timeSlot": "07:30",
-        "duration": 105,
+        "timeSlot": "19:30",
+        "duration": 60,
         "estimatedCost": 0,
-        "notes": "Start early while the creek ledge is still quiet and the canopy keeps the light soft."
+        "notes": "Start with Shibuya when the crossing feels fully alive."
       },
       {
-        "spotId": "demo-spot-10",
-        "dayNumber": 1,
-        "timeSlot": "11:00",
-        "duration": 70,
-        "estimatedCost": 16,
-        "notes": "Recover with espresso and enough table space to re-sequence the afternoon route if needed."
-      },
-      {
-        "spotId": "demo-spot-5",
-        "dayNumber": 1,
-        "timeSlot": "18:45",
-        "duration": 80,
-        "estimatedCost": 0,
-        "notes": "Hold this one for sunset so the skyline reflections feel like a proper day-one payoff."
-      },
-      {
-        "spotId": "demo-spot-19",
+        "spotId": "demo-spot-18",
         "dayNumber": 2,
         "timeSlot": "09:00",
         "duration": 120,
-        "estimatedCost": 68,
-        "notes": "Use the bathhouse stop as a recovery chapter before shifting back into active travel."
+        "estimatedCost": 18,
+        "notes": "Use Senso-ji early before the approach gets dense."
       },
       {
-        "spotId": "demo-spot-16",
-        "dayNumber": 2,
-        "timeSlot": "14:00",
-        "duration": 150,
-        "estimatedCost": 54,
-        "notes": "Finish on the river so the sprint still ends with motion and a clear outdoors-first identity."
+        "spotId": "demo-spot-21",
+        "dayNumber": 4,
+        "timeSlot": "18:45",
+        "duration": 120,
+        "estimatedCost": 32,
+        "notes": "Let Gardens by the Bay handle the skyline night finish."
       }
     ],
     "costBreakdown": {
-      "lodging": 120,
-      "dining": 52,
-      "activities": 122,
-      "transport": 16
+      "lodging": 920,
+      "dining": 360,
+      "tickets": 80,
+      "transport": 320
     },
     "highlights": [
-      "Greenbelt sunrise",
-      "Coffee-led reset pacing",
-      "Kayak launch finale"
+      "High-energy Tokyo opener",
+      "Cultural morning counterpoint",
+      "Singapore skyline garden finish"
+    ]
+  },
+  {
+    "id": "demo-trip-4",
+    "title": "World Waterfront and Market Circuit",
+    "destination": "Barcelona, London, Cape Town, Mexico City, Sydney",
+    "description": "A global showcase route for testing far-apart pins, public trips, and profile activity with destination variety.",
+    "isPublic": true,
+    "startDate": "2026-07-04",
+    "endDate": "2026-07-14",
+    "coverSpotId": "demo-spot-24",
+    "budget": 3880,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Plan for shoulder-season layers and flexible market mornings.",
+    "memberIds": [
+      {
+        "userId": "demo-user-7",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-5",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-6",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-19",
+        "dayNumber": 1,
+        "timeSlot": "10:00",
+        "duration": 120,
+        "estimatedCost": 24,
+        "notes": "Book Park Guell early and give the terrace enough breathing room."
+      },
+      {
+        "spotId": "demo-spot-20",
+        "dayNumber": 3,
+        "timeSlot": "11:00",
+        "duration": 105,
+        "estimatedCost": 30,
+        "notes": "Use Portobello Road as a market-first London morning."
+      },
+      {
+        "spotId": "demo-spot-22",
+        "dayNumber": 6,
+        "timeSlot": "16:00",
+        "duration": 120,
+        "estimatedCost": 44,
+        "notes": "Keep the waterfront flexible for food, shops, and mountain photos."
+      },
+      {
+        "spotId": "demo-spot-23",
+        "dayNumber": 8,
+        "timeSlot": "10:30",
+        "duration": 90,
+        "estimatedCost": 12,
+        "notes": "Anchor Mexico City with Bellas Artes before Alameda wandering."
+      },
+      {
+        "spotId": "demo-spot-24",
+        "dayNumber": 10,
+        "timeSlot": "17:30",
+        "duration": 110,
+        "estimatedCost": 36,
+        "notes": "Close with Circular Quay when ferry movement and light are strongest."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 2140,
+      "dining": 760,
+      "tickets": 260,
+      "transport": 720
+    },
+    "highlights": [
+      "Global map coverage",
+      "Markets plus waterfronts",
+      "Strong public-trip cover imagery"
     ]
   }
 ]

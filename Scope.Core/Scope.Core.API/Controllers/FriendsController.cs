@@ -243,7 +243,7 @@ public sealed class FriendsController(
         var excludedIds = linkedUserIds.Append(userId).ToHashSet();
         var candidates = await dbContext.Users
             .AsNoTracking()
-            .Where(x => x.IsActive && !excludedIds.Contains(x.Id))
+            .Where(x => x.IsActive && !x.IsShowcase && !excludedIds.Contains(x.Id))
             .OrderByDescending(x => x.CreatedAt)
             .Take(200)
             .Select(x => new UserProjection(x.Id, x.Username, string.Empty, x.DisplayName, x.Bio, x.AvatarUrl, x.HomeBase, x.InterestsJson, x.ShowActivityStatus, x.CreatedAt))

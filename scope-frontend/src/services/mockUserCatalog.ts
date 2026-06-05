@@ -7,7 +7,7 @@ const fallbackCatalogUsers: UserProfile[] = [
   sanitizeUserProfile({
     id: 'user-1',
     username: 'scopedemo',
-    email: 'demo@scope.travel',
+    email: 'demo@scope.local',
     // Anonymous demo persona used for mock mode. Once real accounts land,
     // this fallback should simply never surface to the UI.
     displayName: 'Scope traveler',

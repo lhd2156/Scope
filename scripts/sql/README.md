@@ -4,51 +4,45 @@ This directory contains SQL Server scripts for creating and seeding the logical 
 
 ## Order of execution
 
-Run the files in this order:
+`scope-cli seed` discovers SQL files by numeric prefix, then service folder. Run
+`scope-cli seed --dry-run --directory scripts/sql` to see the exact plan before
+execution.
 
-1. `core/001_core_schema.sql`
-2. `core/003_security_enhancements.sql`
-3. `core/004_notifications_platform.sql`
-4. `core/005_datetimeoffset_alignment.sql`
-5. `content/001_content_schema.sql`
-6. `intel/001_intel_schema.sql`
-7. `core/002_core_seed_data.sql`
-8. `content/002_content_seed_data.sql`
-9. `intel/002_intel_seed_data.sql`
+The single-host deploy script bootstraps Core schema scripts
+`001`, `003`, `004`, `005`, and `006` before starting the app services. It then
+runs the full idempotent seed only when `SCOPE_RUN_STARTER_SEED=true`, after the
+app health checks have confirmed Django migrations are in place.
 
 ## What the seed data provides
 
-The seed set is intentionally small but cross-linked:
+The seed set is intentionally showcase-oriented and cross-linked:
 
-- 3 demo users in `core.Users`
-- accepted friendship + notifications + one live session in `core.*`
-- 2 demo spots, 1 trip, trip membership, photo, review, and like in `content.*`
+- 8 fictional showcase personas in `core.Users` with `IsShowcase = 1`
+- no accepted seed friendships between showcase personas
+- 24 public place anchors in the Django content tables, with photos, reviews, likes, and trips
+- 4 public trips spanning Texas, US icons, Tokyo/Singapore, and world waterfront/market routes
 - 2 user preference rows, 2 spot feature rows, and 1 cached itinerary in `intel.*`
+- media source metadata in `showcase_media_sources.json`
 
 This is enough to support:
 
-- authentication/friend/notification smoke tests
-- spot detail and feed surfaces
+- authentication/friend/search smoke tests
+- Explore, map, spot detail, feed, public profile, and trip surfaces
 - trip planning UI demos
 - itinerary cache / preference-based Intel smoke checks
 
+`content/002_content_seed_data.sql` targets the Django-managed `dbo.spots_spot`, `dbo.photos_photo`, `dbo.reviews_review`, and `dbo.trips_*` tables. Run Django content migrations before executing that seed file.
+
 ## Idempotency
 
-All `002_*_seed_data.sql` scripts are idempotent and use fixed GUIDs with `IF NOT EXISTS` guards, so they can be re-run safely in local development.
+All `002_*_seed_data.sql` scripts are idempotent and use fixed GUIDs with upsert guards, so they can be re-run safely in local development and deployment.
 
-## Example invocation with sqlcmd
+## Example invocation
 
 ```powershell
-sqlcmd -S localhost,1433 -U sa -P "$env:SA_PASSWORD" -d Scope \
-  -i scripts/sql/core/001_core_schema.sql \
-  -i scripts/sql/core/003_security_enhancements.sql \
-  -i scripts/sql/core/004_notifications_platform.sql \
-  -i scripts/sql/core/005_datetimeoffset_alignment.sql \
-  -i scripts/sql/content/001_content_schema.sql \
-  -i scripts/sql/intel/001_intel_schema.sql \
-  -i scripts/sql/core/002_core_seed_data.sql \
-  -i scripts/sql/content/002_content_seed_data.sql \
-  -i scripts/sql/intel/002_intel_seed_data.sql
+cargo run --manifest-path scope-cli/Cargo.toml -- seed --dry-run --directory scripts/sql
 ```
 
-If you use Docker Compose locally, make sure the SQL Server container is healthy before running the scripts.
+For execution, make sure SQL Server is healthy and the app migrations have run,
+then run `scope-cli seed --directory scripts/sql` or use the deploy script with
+`SCOPE_RUN_STARTER_SEED=true`.

@@ -57,6 +57,14 @@ on:
         options:
           - 'true'
           - 'false'
+      run_starter_seed:
+        description: Run the idempotent starter showcase seed after app health checks
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       deploy_kubernetes_app:
         description: After a successful full-stack apply, render and apply Kubernetes manifests to EKS
         required: true
@@ -1251,6 +1259,7 @@ jobs:
           SCOPE_TLS_HOSTNAME=${tls_hostname}
           SCOPE_TLS_EMAIL=${SCOPE_TLS_EMAIL}
           SCOPE_REQUIRE_TRUSTED_TLS=${{ github.event.inputs.terraform_environment == 'production' && 'true' || 'false' }}
+          SCOPE_RUN_STARTER_SEED=${{ github.event.inputs.run_starter_seed == 'true' && 'true' || 'false' }}
           NGINX_PORT=80
           NGINX_TLS_PORT=443
           EOF

@@ -283,10 +283,12 @@ SA_PASSWORD="$(read_env_value SA_PASSWORD "${SA_PASSWORD:-}")"
 SCOPE_TLS_HOSTNAME="$(read_env_value SCOPE_TLS_HOSTNAME "${SCOPE_TLS_HOSTNAME:-}")"
 SCOPE_TLS_EMAIL="$(read_env_value SCOPE_TLS_EMAIL "${SCOPE_TLS_EMAIL:-}")"
 SCOPE_REQUIRE_TRUSTED_TLS="$(read_env_value SCOPE_REQUIRE_TRUSTED_TLS "${SCOPE_REQUIRE_TRUSTED_TLS:-false}")"
+SCOPE_RUN_STARTER_SEED="$(read_env_value SCOPE_RUN_STARTER_SEED "${SCOPE_RUN_STARTER_SEED:-false}")"
 export SA_PASSWORD
 export SCOPE_TLS_HOSTNAME
 export SCOPE_TLS_EMAIL
 export SCOPE_REQUIRE_TRUSTED_TLS
+export SCOPE_RUN_STARTER_SEED
 
 if [[ -z "${SA_PASSWORD:-}" ]]; then
   printf '[scope-lightsail] SA_PASSWORD must be present in the runtime environment.\n' >&2
@@ -314,7 +316,8 @@ compose exec -T sqlserver "$sqlcmd_path" -C -S localhost -U sa -P "$SA_PASSWORD"
 for core_script in \
   003_security_enhancements.sql \
   004_notifications_platform.sql \
-  005_datetimeoffset_alignment.sql
+  005_datetimeoffset_alignment.sql \
+  006_showcase_users.sql
 do
   if [[ -f "$release_dir/scripts/sql/core/$core_script" ]]; then
     compose exec -T sqlserver "$sqlcmd_path" -C -S localhost -U sa -P "$SA_PASSWORD" -d ScopeDb -i "/docker-entrypoint-initdb.d/core/$core_script"
@@ -334,6 +337,13 @@ wait_for_health frontend 300
 wait_for_health site 300
 wait_for_health admin 300
 wait_for_health nginx 300
+
+if [[ "$SCOPE_RUN_STARTER_SEED" == "true" ]]; then
+  printf '[scope-lightsail] Running starter showcase seed.\n'
+  compose --profile ops run --rm scope-cli seed --directory /workspace/scripts/sql
+else
+  printf '[scope-lightsail] SCOPE_RUN_STARTER_SEED is not true; skipping starter showcase seed.\n'
+fi
 
 ensure_trusted_tls
 

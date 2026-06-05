@@ -160,7 +160,7 @@ public sealed class UsersController(CoreDbContext dbContext) : ControllerBase
         var loweredQuery = query.ToLowerInvariant();
         var baseQuery = dbContext.Users
             .AsNoTracking()
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && !x.IsShowcase)
             .Where(x => isExactEmailSearch
                 ? x.Email == loweredQuery
                 : x.Username.Contains(query) || x.DisplayName.Contains(query) || (x.HomeBase != null && x.HomeBase.Contains(query)));

@@ -81,6 +81,53 @@ public sealed class FriendsControllerTests
         Assert.Equal(vibeCandidateId, GetNestedGuid(items[1], "user", "id"));
     }
 
+    [Fact]
+    public async Task Suggestions_ExcludesShowcaseUsers()
+    {
+        var callerId = Guid.NewGuid();
+        var showcaseId = Guid.NewGuid();
+        var visibleCandidateId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateUser(callerId, "caller", interestsJson: @"[""food""]"),
+            CreateUser(showcaseId, "showcase", interestsJson: @"[""food""]", isShowcase: true),
+            CreateUser(visibleCandidateId, "visible", interestsJson: @"[""food""]"));
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+
+        var result = await controller.Suggestions("best", 8, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<ApiResponse<object>>(ok.Value);
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(response.Data).ToList();
+        Assert.Single(items);
+        Assert.Equal(visibleCandidateId, GetNestedGuid(items[0], "user", "id"));
+    }
+
+    [Fact]
+    public async Task CreateRequest_AllowsDirectShowcaseProfileRequest()
+    {
+        var callerId = Guid.NewGuid();
+        var showcaseId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateUser(callerId, "caller"),
+            CreateUser(showcaseId, "showcase", isShowcase: true));
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+
+        var result = await controller.CreateRequest(showcaseId, CancellationToken.None);
+
+        var created = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
+        var friendship = await dbContext.Friendships.SingleAsync();
+        Assert.Equal(callerId, friendship.RequesterId);
+        Assert.Equal(showcaseId, friendship.AddresseeId);
+        Assert.Equal("pending", friendship.Status);
+    }
+
     private static CoreDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
@@ -94,7 +141,8 @@ public sealed class FriendsControllerTests
         string username,
         bool showActivityStatus = true,
         string? interestsJson = null,
-        string? homeBase = null) => new()
+        string? homeBase = null,
+        bool isShowcase = false) => new()
     {
         Id = userId,
         Username = username,
@@ -102,6 +150,7 @@ public sealed class FriendsControllerTests
         DisplayName = username,
         PasswordHash = "hash",
         IsActive = true,
+        IsShowcase = isShowcase,
         ShowActivityStatus = showActivityStatus,
         InterestsJson = interestsJson,
         HomeBase = homeBase,

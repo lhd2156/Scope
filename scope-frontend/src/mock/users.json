@@ -1,64 +1,66 @@
 [
   {
     "id": "demo-user-1",
-    "username": "scopedemo",
-    "email": "demo@scope.travel",
+    "username": "alex.morgan",
+    "email": "alex.morgan@showcase.scope.local",
     "displayName": "Alex Morgan",
-    "avatarUrl": "https://i.pravatar.cc/300?img=12",
-    "bio": "Food-first traveler collecting memorable pins, routes, and late-night finds across every city I visit.",
-    "homeBase": "",
+    "avatarUrl": "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for food-first city routes, late dinners, and walkable culture loops.",
+    "homeBase": "Fort Worth, TX",
     "interests": [
       "food",
       "culture",
       "nightlife"
     ],
     "stats": {
-      "spots": 42,
-      "trips": 8,
-      "friends": 126
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
     },
+    "showActivityStatus": true,
     "joinedAt": "2024-08-15T15:30:00Z",
     "isDemoAccount": true,
+    "isShowcase": true,
     "activityHistory": [
       {
         "id": "demo-activity-1",
-        "type": "trip-completed",
-        "title": "Completed North Texas Night + Food Loop",
-        "targetType": "trip",
-        "targetId": "demo-trip-1",
-        "summary": "Wrapped a two-night itinerary across rooftop tacos, design hotels, and live-music stops.",
-        "location": "Fort Worth, TX",
-        "occurredAt": "2026-03-28T22:10:00Z"
+        "type": "spot-created",
+        "title": "Published Mule Alley Mercantile Row",
+        "targetType": "spot",
+        "targetId": "demo-spot-1",
+        "summary": "Added showcase notes for Fort Worth.",
+        "location": "Fort Worth, US",
+        "occurredAt": "2026-03-29T20:10:00Z"
       },
       {
         "id": "demo-activity-2",
-        "type": "spot-created",
-        "title": "Published Sunset Rooftop Tacos",
+        "type": "review-posted",
+        "title": "Reviewed Historic Market Square San Antonio",
         "targetType": "spot",
-        "targetId": "demo-spot-3",
-        "summary": "Added late-night taco intel with skyline photography and quick tips for first-timers.",
-        "location": "Fort Worth, TX",
-        "occurredAt": "2026-03-27T19:45:00Z"
+        "targetId": "demo-spot-9",
+        "summary": "Left starter review copy for San Antonio.",
+        "location": "San Antonio, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
       },
       {
         "id": "demo-activity-3",
-        "type": "review-posted",
-        "title": "Reviewed Bishop Arts Vinyl Bar",
-        "targetType": "spot",
-        "targetId": "demo-spot-11",
-        "summary": "Left a five-star note about the lighting, soundtrack, and after-dinner energy.",
-        "location": "Dallas, TX",
-        "occurredAt": "2026-03-25T02:05:00Z"
+        "type": "trip-planned",
+        "title": "Planned Texas Starter Loop",
+        "targetType": "trip",
+        "targetId": "demo-trip-1",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
+        "location": "Fort Worth, TX",
+        "occurredAt": "2026-03-18T18:30:00Z"
       }
     ]
   },
   {
     "id": "demo-user-2",
     "username": "maya.chen",
-    "email": "maya@scope.travel",
+    "email": "maya.chen@showcase.scope.local",
     "displayName": "Maya Chen",
-    "avatarUrl": "https://i.pravatar.cc/300?img=32",
-    "bio": "Weekend explorer chasing garden districts, museum mornings, and polished boutique stays.",
+    "avatarUrl": "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for gardens, museums, and design-forward weekend pacing.",
     "homeBase": "Dallas, TX",
     "interests": [
       "scenic",
@@ -66,51 +68,54 @@
       "shopping"
     ],
     "stats": {
-      "spots": 28,
-      "trips": 6,
-      "friends": 84
+      "spots": 4,
+      "trips": 1,
+      "friends": 0
     },
+    "showActivityStatus": true,
     "joinedAt": "2024-10-04T09:00:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
     "activityHistory": [
       {
         "id": "demo-activity-4",
-        "type": "trip-planned",
-        "title": "Planned River Walk Aperitivo Evening",
-        "targetType": "trip",
-        "targetId": "demo-trip-2",
-        "summary": "Drafted a polished San Antonio weekend with courtyard breakfast, Pearl gallery time, canal cocktails, and a Southtown art walk.",
-        "location": "San Antonio, TX",
-        "occurredAt": "2026-03-28T16:20:00Z"
+        "type": "spot-created",
+        "title": "Published San Antonio River Walk Blue Hour",
+        "targetType": "spot",
+        "targetId": "demo-spot-2",
+        "summary": "Added showcase notes for San Antonio.",
+        "location": "San Antonio, US",
+        "occurredAt": "2026-03-28T19:10:00Z"
       },
       {
         "id": "demo-activity-5",
-        "type": "spot-created",
-        "title": "Dropped a pin for Klyde Warren Garden Brunch",
+        "type": "review-posted",
+        "title": "Reviewed Millennium Park Bean Loop",
         "targetType": "spot",
-        "targetId": "demo-spot-6",
-        "summary": "Added a polished café-and-park stop with stroller-friendly paths and strong morning light.",
-        "location": "Dallas, TX",
-        "occurredAt": "2026-03-27T14:10:00Z"
+        "targetId": "demo-spot-10",
+        "summary": "Left starter review copy for Chicago.",
+        "location": "Chicago, US",
+        "occurredAt": "2026-03-19T12:00:00Z"
       },
       {
         "id": "demo-activity-6",
-        "type": "photo-uploaded",
-        "title": "Uploaded gallery shots for Dallas Contemporary Atrium",
-        "targetType": "spot",
-        "targetId": "demo-spot-14",
-        "summary": "Shared vertical photos highlighting the glass roof, negative space, and lobby staging.",
+        "type": "trip-planned",
+        "title": "Planned Texas Starter Loop",
+        "targetType": "trip",
+        "targetId": "demo-trip-1",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
         "location": "Dallas, TX",
-        "occurredAt": "2026-03-24T18:40:00Z"
+        "occurredAt": "2026-03-17T18:30:00Z"
       }
     ]
   },
   {
     "id": "demo-user-3",
     "username": "elijah.brooks",
-    "email": "elijah@scope.travel",
+    "email": "elijah.brooks@showcase.scope.local",
     "displayName": "Elijah Brooks",
-    "avatarUrl": "https://i.pravatar.cc/300?img=45",
-    "bio": "Adventure-first planner with a thing for steep hikes, strong coffee, and post-trail vinyl rooms.",
+    "avatarUrl": "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for outdoor resets, strong coffee, and high-energy city walks.",
     "homeBase": "Austin, TX",
     "interests": [
       "adventure",
@@ -118,51 +123,54 @@
       "nature"
     ],
     "stats": {
-      "spots": 36,
-      "trips": 11,
-      "friends": 64
+      "spots": 4,
+      "trips": 1,
+      "friends": 0
     },
-    "joinedAt": "2024-07-02T12:15:00Z",
+    "showActivityStatus": true,
+    "joinedAt": "2024-11-12T18:45:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
     "activityHistory": [
       {
         "id": "demo-activity-7",
-        "type": "trip-completed",
-        "title": "Finished Hill Country Sunrise Sprint",
-        "targetType": "trip",
-        "targetId": "demo-trip-3",
-        "summary": "Closed out a two-day route with canyon overlooks, coffee bars, and spring-fed swim stops.",
-        "location": "Austin, TX",
-        "occurredAt": "2026-03-29T12:05:00Z"
+        "type": "spot-created",
+        "title": "Published Fort Worth Water Gardens",
+        "targetType": "spot",
+        "targetId": "demo-spot-3",
+        "summary": "Added showcase notes for Fort Worth.",
+        "location": "Fort Worth, US",
+        "occurredAt": "2026-03-27T18:10:00Z"
       },
       {
         "id": "demo-activity-8",
-        "type": "spot-created",
-        "title": "Published Greenbelt Creek Overlook",
+        "type": "review-posted",
+        "title": "Reviewed Empire State Observation Window",
         "targetType": "spot",
-        "targetId": "demo-spot-9",
-        "summary": "Logged the best morning approach, parking notes, and a post-hike taco recommendation.",
-        "location": "Austin, TX",
-        "occurredAt": "2026-03-26T13:50:00Z"
+        "targetId": "demo-spot-11",
+        "summary": "Left starter review copy for New York.",
+        "location": "New York, US",
+        "occurredAt": "2026-03-18T12:00:00Z"
       },
       {
         "id": "demo-activity-9",
-        "type": "review-posted",
-        "title": "Reviewed East Austin Espresso Lab",
-        "targetType": "spot",
-        "targetId": "demo-spot-10",
-        "summary": "Called out the quiet upstairs workspace, cortado quality, and photo-friendly afternoon light.",
+        "type": "trip-planned",
+        "title": "Planned US City Icons",
+        "targetType": "trip",
+        "targetId": "demo-trip-2",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
         "location": "Austin, TX",
-        "occurredAt": "2026-03-22T20:15:00Z"
+        "occurredAt": "2026-03-16T18:30:00Z"
       }
     ]
   },
   {
     "id": "demo-user-4",
     "username": "sofia.ramirez",
-    "email": "sofia@scope.travel",
+    "email": "sofia.ramirez@showcase.scope.local",
     "displayName": "Sofia Ramirez",
-    "avatarUrl": "https://i.pravatar.cc/300?img=23",
-    "bio": "Food-first city breaker building itineraries around markets, rooftop dinners, and museum calm between bites.",
+    "avatarUrl": "https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for market mornings, heritage districts, and food-led itineraries.",
     "homeBase": "San Antonio, TX",
     "interests": [
       "food",
@@ -170,93 +178,264 @@
       "shopping"
     ],
     "stats": {
-      "spots": 19,
-      "trips": 4,
-      "friends": 42
+      "spots": 3,
+      "trips": 1,
+      "friends": 0
     },
-    "joinedAt": "2025-01-11T08:45:00Z",
+    "showActivityStatus": true,
+    "joinedAt": "2025-01-08T12:20:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
     "activityHistory": [
       {
         "id": "demo-activity-10",
-        "type": "trip-planned",
-        "title": "Planned River Walk Aperitivo Evening",
-        "targetType": "trip",
-        "targetId": "demo-trip-2",
-        "summary": "Drafted a social evening with canal-side dining, boutique shopping, and a final rooftop toast.",
-        "location": "San Antonio, TX",
-        "occurredAt": "2026-03-27T21:00:00Z"
+        "type": "spot-created",
+        "title": "Published Pearl District Market Hall",
+        "targetType": "spot",
+        "targetId": "demo-spot-4",
+        "summary": "Added showcase notes for San Antonio.",
+        "location": "San Antonio, US",
+        "occurredAt": "2026-03-26T17:10:00Z"
       },
       {
         "id": "demo-activity-11",
-        "type": "spot-created",
-        "title": "Added Mercado Courtyard Breakfast",
+        "type": "review-posted",
+        "title": "Reviewed Pike Place Market Morning",
         "targetType": "spot",
-        "targetId": "demo-spot-15",
-        "summary": "Shared the best opening-hour tables, pan dulce picks, and courtyard photo angles.",
-        "location": "San Antonio, TX",
-        "occurredAt": "2026-03-26T15:35:00Z"
+        "targetId": "demo-spot-12",
+        "summary": "Left starter review copy for Seattle.",
+        "location": "Seattle, US",
+        "occurredAt": "2026-03-17T12:00:00Z"
       },
       {
         "id": "demo-activity-12",
-        "type": "review-posted",
-        "title": "Reviewed Blue Hour Gallery Walk",
-        "targetType": "spot",
-        "targetId": "demo-spot-18",
-        "summary": "Recommended an after-sunset route through the district with two easy wine-bar detours.",
+        "type": "trip-planned",
+        "title": "Planned US City Icons",
+        "targetType": "trip",
+        "targetId": "demo-trip-2",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
         "location": "San Antonio, TX",
-        "occurredAt": "2026-03-23T00:20:00Z"
+        "occurredAt": "2026-03-15T18:30:00Z"
       }
     ]
   },
   {
     "id": "demo-user-5",
     "username": "jordan.reed",
-    "email": "jordan@scope.travel",
+    "email": "jordan.reed@showcase.scope.local",
     "displayName": "Jordan Reed",
-    "avatarUrl": "https://i.pravatar.cc/300?img=52",
-    "bio": "Always looking for the next scenic overlook and a route that wastes zero daylight.",
-    "homeBase": "Houston, TX",
+    "avatarUrl": "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for scenic overlooks, rail stations, and daylight-efficient routes.",
+    "homeBase": "Denver, CO",
     "interests": [
       "scenic",
       "nature",
       "adventure"
     ],
     "stats": {
-      "spots": 24,
-      "trips": 5,
-      "friends": 38
+      "spots": 3,
+      "trips": 1,
+      "friends": 0
     },
-    "joinedAt": "2024-11-20T17:25:00Z",
+    "showActivityStatus": true,
+    "joinedAt": "2025-02-14T11:05:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
     "activityHistory": [
       {
         "id": "demo-activity-13",
         "type": "spot-created",
-        "title": "Pinned Buffalo Bayou Skyline Run",
+        "title": "Published Lady Bird Skyline Boardwalk",
         "targetType": "spot",
-        "targetId": "demo-spot-20",
-        "summary": "Documented the smoothest sunset route, parking lot timing, and post-run taco stop.",
-        "location": "Houston, TX",
-        "occurredAt": "2026-03-28T01:25:00Z"
+        "targetId": "demo-spot-5",
+        "summary": "Added showcase notes for Austin.",
+        "location": "Austin, US",
+        "occurredAt": "2026-03-25T16:10:00Z"
       },
       {
         "id": "demo-activity-14",
-        "type": "trip-completed",
-        "title": "Completed North Texas Night + Food Loop",
-        "targetType": "trip",
-        "targetId": "demo-trip-1",
-        "summary": "Wrapped a two-day city route with Stockyards shopping, skyline tacos, contemporary art, and a vinyl-bar finish.",
-        "location": "Fort Worth & Dallas, TX",
-        "occurredAt": "2026-03-24T23:40:00Z"
+        "type": "review-posted",
+        "title": "Reviewed Wynwood Walls Color Walk",
+        "targetType": "spot",
+        "targetId": "demo-spot-13",
+        "summary": "Left starter review copy for Miami.",
+        "location": "Miami, US",
+        "occurredAt": "2026-03-16T12:00:00Z"
       },
       {
         "id": "demo-activity-15",
-        "type": "photo-uploaded",
-        "title": "Uploaded marsh-boardwalk shots",
+        "type": "trip-planned",
+        "title": "Planned Tokyo to Singapore Culture Route",
+        "targetType": "trip",
+        "targetId": "demo-trip-3",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
+        "location": "Denver, CO",
+        "occurredAt": "2026-03-14T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-6",
+    "username": "aisha.bello",
+    "email": "aisha.bello@showcase.scope.local",
+    "displayName": "Aisha Bello",
+    "avatarUrl": "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for waterfront walks, art districts, and polished group dinners.",
+    "homeBase": "Houston, TX",
+    "interests": [
+      "culture",
+      "food",
+      "scenic"
+    ],
+    "stats": {
+      "spots": 2,
+      "trips": 1,
+      "friends": 0
+    },
+    "showActivityStatus": true,
+    "joinedAt": "2025-03-01T16:10:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-activity-16",
+        "type": "spot-created",
+        "title": "Published Klyde Warren Park Lawn",
         "targetType": "spot",
-        "targetId": "demo-spot-17",
-        "summary": "Added three golden-hour photos highlighting reeds, cloud reflections, and the low-tide boardwalk.",
-        "location": "Galveston, TX",
-        "occurredAt": "2026-03-21T13:05:00Z"
+        "targetId": "demo-spot-6",
+        "summary": "Added showcase notes for Dallas.",
+        "location": "Dallas, US",
+        "occurredAt": "2026-03-24T15:10:00Z"
+      },
+      {
+        "id": "demo-activity-17",
+        "type": "review-posted",
+        "title": "Reviewed Walt Disney Concert Hall Curve",
+        "targetType": "spot",
+        "targetId": "demo-spot-14",
+        "summary": "Left starter review copy for Los Angeles.",
+        "location": "Los Angeles, US",
+        "occurredAt": "2026-03-15T12:00:00Z"
+      },
+      {
+        "id": "demo-activity-18",
+        "type": "trip-planned",
+        "title": "Planned Tokyo to Singapore Culture Route",
+        "targetType": "trip",
+        "targetId": "demo-trip-3",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
+        "location": "Houston, TX",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-7",
+    "username": "theo.alvarez",
+    "email": "theo.alvarez@showcase.scope.local",
+    "displayName": "Theo Alvarez",
+    "avatarUrl": "https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for markets, architecture, and late-night city energy.",
+    "homeBase": "Barcelona, ES",
+    "interests": [
+      "culture",
+      "shopping",
+      "nightlife"
+    ],
+    "stats": {
+      "spots": 2,
+      "trips": 1,
+      "friends": 0
+    },
+    "showActivityStatus": true,
+    "joinedAt": "2025-03-18T08:30:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-activity-19",
+        "type": "spot-created",
+        "title": "Published Buffalo Bayou Skyline Run",
+        "targetType": "spot",
+        "targetId": "demo-spot-7",
+        "summary": "Added showcase notes for Houston.",
+        "location": "Houston, US",
+        "occurredAt": "2026-03-23T14:10:00Z"
+      },
+      {
+        "id": "demo-activity-20",
+        "type": "review-posted",
+        "title": "Reviewed Denver Union Station Great Hall",
+        "targetType": "spot",
+        "targetId": "demo-spot-15",
+        "summary": "Left starter review copy for Denver.",
+        "location": "Denver, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-activity-21",
+        "type": "trip-planned",
+        "title": "Planned World Waterfront and Market Circuit",
+        "targetType": "trip",
+        "targetId": "demo-trip-4",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
+        "location": "Barcelona, ES",
+        "occurredAt": "2026-03-17T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-8",
+    "username": "priya.nair",
+    "email": "priya.nair@showcase.scope.local",
+    "displayName": "Priya Nair",
+    "avatarUrl": "https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "bio": "Fictional Scope starter persona for gardens, skyline walks, and compact international stopovers.",
+    "homeBase": "Singapore",
+    "interests": [
+      "scenic",
+      "culture",
+      "food"
+    ],
+    "stats": {
+      "spots": 1,
+      "trips": 1,
+      "friends": 0
+    },
+    "showActivityStatus": true,
+    "joinedAt": "2025-04-03T21:25:00Z",
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-activity-22",
+        "type": "spot-created",
+        "title": "Published Big Bend Window Trail",
+        "targetType": "spot",
+        "targetId": "demo-spot-8",
+        "summary": "Added showcase notes for Big Bend National Park.",
+        "location": "Big Bend National Park, US",
+        "occurredAt": "2026-03-22T13:10:00Z"
+      },
+      {
+        "id": "demo-activity-23",
+        "type": "review-posted",
+        "title": "Reviewed Jackson Square Brass Corner",
+        "targetType": "spot",
+        "targetId": "demo-spot-16",
+        "summary": "Left starter review copy for New Orleans.",
+        "location": "New Orleans, US",
+        "occurredAt": "2026-03-19T12:00:00Z"
+      },
+      {
+        "id": "demo-activity-24",
+        "type": "trip-planned",
+        "title": "Planned World Waterfront and Market Circuit",
+        "targetType": "trip",
+        "targetId": "demo-trip-4",
+        "summary": "Sequenced starter showcase stops for production discovery surfaces.",
+        "location": "Singapore",
+        "occurredAt": "2026-03-16T18:30:00Z"
       }
     ]
   }
