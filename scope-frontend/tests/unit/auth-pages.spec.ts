@@ -401,7 +401,7 @@ describe('auth page views', () => {
     await wrapper.get('form').trigger('submit');
 
     expect(authStoreMock.register).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain('Passwords do not match');
+    expect(wrapper.text()).toContain('Those two entries do not match yet');
   });
 
   it('surfaces registration failures without leaving the form', async () => {
