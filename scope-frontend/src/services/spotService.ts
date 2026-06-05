@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
+import { localFallbackEnabled } from '@/services/demoMode';
 import { getTrendingSpots } from '@/services/feedService';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';

@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from django.urls import Resolver404
 
 
 class ApiNotFoundJsonMiddleware:
@@ -6,7 +7,20 @@ class ApiNotFoundJsonMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
+        try:
+            response = self.get_response(request)
+        except Resolver404:
+            if request.path.startswith('/api/'):
+                return JsonResponse(
+                    {
+                        'error': {
+                            'code': 'NOT_FOUND',
+                            'message': 'API route does not exist',
+                        },
+                    },
+                    status=404,
+                )
+            raise
 
         if (
             response.status_code == 404

@@ -133,9 +133,10 @@ const statusCopy = computed(() => {
   right: var(--scope-map-controls-right, var(--space-4));
   bottom: var(--scope-map-controls-bottom, var(--space-4));
   left: var(--scope-map-controls-left, auto);
-  z-index: var(--z-sidebar);
+  z-index: var(--scope-map-chrome-z, var(--z-sidebar));
   display: grid;
   justify-items: end;
+  align-content: end;
   gap: var(--space-4);
   pointer-events: none;
 }
@@ -155,6 +156,12 @@ const statusCopy = computed(() => {
 
 .control-stack {
   display: grid;
+  width: max-content;
+  height: max-content;
+  justify-items: center;
+  align-items: center;
+  justify-self: end;
+  align-self: end;
   gap: 0.55rem;
   padding: 0.5rem;
   border: 1px solid color-mix(in srgb, var(--highlight-sheen) 8%, var(--glass-border) 92%);
@@ -165,6 +172,10 @@ const statusCopy = computed(() => {
     inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.map-controls--with-panel .control-stack {
+  align-self: start;
 }
 
 .control-stack[data-onboarding-active='true'] {

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 from uuid import UUID
 
 from django.conf import settings
-from django.db import DatabaseError, connection
 from rest_framework.decorators import api_view, permission_classes
 
 from common.cache_utils import FEED_CACHE_NAMESPACE, cached_api_response
@@ -101,18 +99,6 @@ def _normalize_user_key(value) -> str:
             return str(value or '').replace('-', '').lower()
 
 
-def _parse_interests(value) -> list[str]:
-    if not value:
-        return []
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    try:
-        parsed = json.loads(value)
-    except (TypeError, ValueError):
-        return []
-    return [str(item) for item in parsed if str(item).strip()] if isinstance(parsed, list) else []
-
-
 def _default_actor_profile(user_id) -> dict:
     key = _normalize_user_key(user_id)
     showcase_profile = SHOWCASE_USER_PROFILES.get(key, {})
@@ -145,48 +131,7 @@ def _collect_feed_user_ids(entries) -> set[object]:
 
 
 def _resolve_user_profiles(user_ids: set[object]) -> dict[str, dict]:
-    profiles = {_normalize_user_key(user_id): _default_actor_profile(user_id) for user_id in user_ids}
-    query_ids = [str(UUID(_normalize_user_key(user_id))) for user_id in user_ids if _normalize_user_key(user_id)]
-    if not query_ids or connection.vendor not in {'microsoft', 'mssql'}:
-        return profiles
-
-    placeholders = ', '.join(['CONVERT(uniqueidentifier, %s)'] * len(query_ids))
-    query = f'''
-        SELECT
-            LOWER(REPLACE(CONVERT(NVARCHAR(36), Id), '-', '')) AS Id,
-            Username,
-            Email,
-            DisplayName,
-            AvatarUrl,
-            Bio,
-            HomeBase,
-            InterestsJson,
-            ShowActivityStatus
-        FROM core.Users
-        WHERE Id IN ({placeholders})
-    '''
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query, query_ids)
-            for row in cursor.fetchall():
-                key = str(row[0])
-                profiles[key] = {
-                    'id': str(UUID(key)),
-                    'username': row[1] or profiles.get(key, {}).get('username', 'scope-user'),
-                    'email': '',
-                    'displayName': row[3] or profiles.get(key, {}).get('displayName', 'Scope traveler'),
-                    'avatarUrl': row[4] or '',
-                    'bio': row[5] or '',
-                    'homeBase': row[6] or '',
-                    'interests': _parse_interests(row[7]),
-                    'showActivityStatus': bool(row[8]) if row[8] is not None else True,
-                    'stats': profiles.get(key, {}).get('stats', {'spots': 18, 'trips': 5, 'friends': 96}),
-                }
-    except DatabaseError:
-        return profiles
-
-    return profiles
+    return {_normalize_user_key(user_id): _default_actor_profile(user_id) for user_id in user_ids}
 
 
 def _actor_for(actor_profiles: dict[str, dict], user_id) -> dict:
