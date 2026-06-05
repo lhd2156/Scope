@@ -73,6 +73,17 @@ function buildSpot(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 async function mountSpotDetailPage(path = '/spots/spot-1') {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -244,6 +255,49 @@ describe('SpotDetailPage', () => {
 
     expect(wrapper.text()).toContain('That pin is temporarily unavailable');
     expect(wrapper.text()).toContain('Scope could not load that spot right now.');
+  });
+
+  it('does not let a stale failed detail request override a newer successful load', async () => {
+    const staleLoad = deferred();
+    const latestLoad = deferred();
+
+    spotsStoreMock.selectedSpot = null;
+    spotsStoreMock.fetchSpot.mockImplementation((spotId: string) => {
+      if (spotId === 'spot-1') {
+        return staleLoad.promise;
+      }
+
+      if (spotId === 'spot-2') {
+        return latestLoad.promise.then(() => {
+          spotsStoreMock.selectedSpot = buildSpot({
+            id: 'spot-2',
+            title: 'Recovered production spot',
+          });
+        });
+      }
+
+      return Promise.resolve();
+    });
+
+    const { router, wrapper } = await mountSpotDetailPage('/spots/spot-1');
+
+    await router.push('/spots/spot-2');
+    await flushPromises();
+
+    staleLoad.reject(new Error('stale 404'));
+    await flushPromises();
+
+    spotsStoreMock.selectedSpot = buildSpot({
+      id: 'spot-2',
+      title: 'Recovered production spot',
+    });
+    latestLoad.resolve();
+    await flushPromises();
+    await wrapper.vm.$forceUpdate();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).not.toContain('Missing spot');
+    expect(wrapper.find('[data-test="spot-detail-stub"]').exists()).toBe(true);
   });
 
   it('renders the loading state while the detail request is still in flight', async () => {

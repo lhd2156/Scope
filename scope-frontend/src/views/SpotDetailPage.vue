@@ -139,6 +139,7 @@ const isSpotDetailAuditMode = isScopeQaMode();
 const notFound = ref(false);
 const showDeleteModal = ref(false);
 const deleteErrorMessage = ref('');
+const loadSpotRequestId = ref(0);
 
 const requestedSpotId = computed(() => String(route.params.id ?? ''));
 const auditSpot = computed<SpotDetailModel | null>(() => (
@@ -201,8 +202,13 @@ async function handleDeleteSpot() {
 }
 
 async function loadSpot(spotId: string) {
+  const requestId = ++loadSpotRequestId.value;
+  const isCurrentRequest = () => requestId === loadSpotRequestId.value;
+
   if (!spotId) {
-    notFound.value = true;
+    if (isCurrentRequest()) {
+      notFound.value = true;
+    }
     return;
   }
 
@@ -211,17 +217,27 @@ async function loadSpot(spotId: string) {
   showDeleteModal.value = false;
 
   if (isSpotDetailAuditMode && spotId === SPOT_DETAIL_AUDIT_FIXTURE.id) {
+    if (isCurrentRequest()) {
+      notFound.value = false;
+    }
     return;
   }
 
   try {
     await spotsStore.fetchSpot(spotId);
+    if (!isCurrentRequest()) {
+      return;
+    }
+
+    notFound.value = false;
     // Successful detail load counts as a 'view'. Drives Intel's user affinity
     // model (see scope_intel/app/repositories.INTERACTION_WEIGHTS). Errors
     // are swallowed inside `logInteraction` -- ledger writes are best-effort.
     logInteraction({ spotId, type: 'view', context: { source: 'detail' } });
   } catch {
-    notFound.value = true;
+    if (isCurrentRequest()) {
+      notFound.value = true;
+    }
   }
 }
 
