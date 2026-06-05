@@ -2,11 +2,7 @@ name: Scope CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
-      - develop
-      - 'feature/**'
+  workflow_dispatch:
 
 concurrency:
   group: scope-ci-${{ github.workflow }}-${{ github.ref }}
