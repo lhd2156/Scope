@@ -8,6 +8,7 @@ describe('presence service', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.doUnmock('@/services/api');
   });
 
@@ -228,5 +229,29 @@ describe('presence service', () => {
     presenceService.sendPresenceBeacon({ routeContext: '/trips/new' });
     presenceService.sendPresenceBeacon({ routeContext: '/trips/new' });
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the configured API origin for keepalive beacons in production', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.scopetrips.com');
+    vi.resetModules();
+
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetch);
+    vi.doMock('@/services/api', () => ({
+      default: { put: vi.fn() },
+      getAccessToken: vi.fn(() => 'token-123'),
+    }));
+
+    const presenceService = await import('@/services/presenceService');
+
+    presenceService.sendPresenceBeacon({ routeContext: '/map', status: 'offline' });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.scopetrips.com/api/core/presence/heartbeat',
+      expect.objectContaining({
+        method: 'PUT',
+        keepalive: true,
+      }),
+    );
   });
 });
