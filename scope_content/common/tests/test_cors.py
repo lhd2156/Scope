@@ -6,7 +6,7 @@ from django.test import override_settings
 PRODUCTION_FRONTEND_ORIGIN = 'https://scope-frontend.example'
 LOCALHOST_FRONTEND_ORIGIN = 'http://localhost:5173'
 CORS_METHODS = ['DELETE', 'GET', 'OPTIONS', 'POST', 'PUT']
-CORS_HEADERS = ['authorization', 'content-type']
+CORS_HEADERS = ['authorization', 'content-type', 'x-requested-with', 'x-signalr-user-agent']
 
 
 def _preflight(client, path: str, origin: str):
@@ -14,7 +14,7 @@ def _preflight(client, path: str, origin: str):
         path,
         HTTP_ORIGIN=origin,
         HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
-        HTTP_ACCESS_CONTROL_REQUEST_HEADERS='authorization,content-type',
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS='authorization,content-type,x-requested-with,x-signalr-user-agent',
     )
 
 
@@ -34,6 +34,8 @@ def test_production_preflight_allows_configured_frontend_origin(api_client):
     assert response.headers['Access-Control-Allow-Credentials'] == 'true'
     assert 'authorization' in response.headers['Access-Control-Allow-Headers'].lower()
     assert 'content-type' in response.headers['Access-Control-Allow-Headers'].lower()
+    assert 'x-requested-with' in response.headers['Access-Control-Allow-Headers'].lower()
+    assert 'x-signalr-user-agent' in response.headers['Access-Control-Allow-Headers'].lower()
     assert 'GET' in response.headers['Access-Control-Allow-Methods']
 
 

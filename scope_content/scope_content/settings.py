@@ -123,7 +123,7 @@ if not DEBUG and not FRONTEND_ORIGIN:
     raise ImproperlyConfigured('FRONTEND_ORIGIN or CORE_FRONTEND_ORIGIN must be set when DEBUG=false for scope_content CORS.')
 CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS))
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = ['authorization', 'content-type']
+CORS_ALLOW_HEADERS = ['authorization', 'content-type', 'x-requested-with', 'x-signalr-user-agent']
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'POST', 'PUT']
 CORS_URLS_REGEX = r'^/api/content/.*$'
 CONTENT_SECURITY_POLICY = _build_content_security_policy()
