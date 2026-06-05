@@ -4,7 +4,7 @@
     hero-title="Find the trip you left mid-route."
     hero-description="Sign in to sync saved spots, AI itineraries, traveler activity, and the real-world stories you already mapped across Scope."
     :hero-highlights="loginHighlights"
-    :hero-image-src="DEMO_HERO_IMAGES.auth"
+    :hero-image-src="TRAVEL_HERO_IMAGES.auth"
     hero-image-alt="Sunlit alpine valley surrounded by dramatic mountain peaks"
     :show-panel-effects="false"
   >
@@ -14,9 +14,6 @@
         <h2>Sign in to Scope</h2>
         <p class="section-copy auth-card__description">
           Keep your routes, wishlists, and collaborative trip plans moving across every device.
-        </p>
-        <p v-if="DEMO_MODE_ENABLED" class="demo-credentials" role="note">
-          Demo mode is on — use <strong>{{ DEMO_LOGIN_EMAIL }}</strong> / <strong>{{ DEMO_LOGIN_PASSWORD }}</strong>.
         </p>
       </header>
 
@@ -52,7 +49,7 @@
             <span>Remember me</span>
           </label>
 
-          <a class="text-link" href="mailto:support@scope.travel?subject=Scope%20password%20reset">Forgot password?</a>
+          <a class="text-link" href="mailto:support@scopetrips.com?subject=Scope%20password%20reset">Forgot password?</a>
         </div>
 
         <Button class="submit-button" type="submit" :loading="isSubmitting" block>
@@ -60,11 +57,20 @@
         </Button>
       </form>
 
-      <div class="auth-divider" aria-hidden="true">
+      <div v-if="oauthLoginEnabled" class="auth-divider" aria-hidden="true">
         <span>Or continue with</span>
       </div>
 
-      <Button class="oauth-button" type="button" variant="secondary" :loading="isOAuthSubmitting" block icon="globe" @click="loginWithGoogle">
+      <Button
+        v-if="oauthLoginEnabled"
+        class="oauth-button"
+        type="button"
+        variant="secondary"
+        :loading="isOAuthSubmitting"
+        block
+        icon="globe"
+        @click="loginWithGoogle"
+      >
         Continue with Google
       </Button>
 
@@ -82,10 +88,9 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AuthField from '@/components/auth/AuthField.vue';
 import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
 import Button from '@/components/common/Button.vue';
-import { DEMO_LOGIN_EMAIL, DEMO_LOGIN_PASSWORD, DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { useAuthStore } from '@/stores/auth';
 import { validateLoginForm, type LoginFormErrors } from '@/utils/authValidators';
-import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
+import { TRAVEL_HERO_IMAGES } from '@/utils/travelMedia';
 import { sanitizeInternalRouteTarget } from '@/utils/navigationSafety';
 
 const loginHighlights = [
@@ -94,8 +99,9 @@ const loginHighlights = [
   'Traveler activity follows you',
 ];
 
-const identifier = ref(DEMO_MODE_ENABLED ? DEMO_LOGIN_EMAIL : '');
-const password = ref(DEMO_MODE_ENABLED ? DEMO_LOGIN_PASSWORD : '');
+const oauthLoginEnabled = import.meta.env.VITE_ENABLE_COGNITO_OAUTH === 'true';
+const identifier = ref('');
+const password = ref('');
 const rememberMe = ref(true);
 const showPassword = ref(false);
 const isSubmitting = ref(false);
@@ -220,20 +226,6 @@ async function loginWithGoogle() {
 
 .auth-card__description {
   color: var(--text-secondary);
-}
-
-.demo-credentials {
-  margin: 0;
-  padding: 0.85rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--accent-teal) 10%, transparent);
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-}
-
-.demo-credentials strong {
-  color: var(--accent-teal);
 }
 
 .form-error {

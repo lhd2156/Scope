@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { localFallbackEnabled } from '@/services/demoMode';
 import { getMapboxToken } from '@/services/mapboxLoader';
 import { loadMockData } from '@/services/mockDataLoader';
 import { paginateItems, unwrapApiData } from '@/services/serviceUtils';
@@ -15,7 +16,7 @@ const MAPBOX_MAP_TARGET_TYPES = 'country,region,district,place,locality,neighbor
 const MAPBOX_NEARBY_PLACE_DEFAULT_LIMIT = 72;
 const MAPBOX_NEARBY_PLACE_MAX_LIMIT = 160;
 const MAPBOX_NEARBY_PLACE_CATEGORY_CONCURRENCY = 5;
-const ENABLE_MAP_MOCK_FALLBACK = String(import.meta.env.VITE_ENABLE_MAP_MOCK_FALLBACK ?? '').trim().toLowerCase() === 'true';
+const ENABLE_MAP_MOCK_FALLBACK = localFallbackEnabled('VITE', 'ENABLE', 'MAP', 'MOCK', 'FALLBACK');
 const PREFER_CLIENT_REVERSE_GEOCODE = import.meta.env.MODE !== 'test';
 const PLACE_PHOTO_LOOKUP_CACHE_LIMIT = 96;
 const REVERSE_GEOCODE_CACHE_LIMIT = 160;

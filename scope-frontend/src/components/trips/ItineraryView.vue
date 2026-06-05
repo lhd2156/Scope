@@ -1032,7 +1032,7 @@ import { listNearbySpots } from '@/services/spotService';
 import { addCalendarDays, formatWeekdayMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 import { calculateHaversineDistanceKm } from '@/utils/geoDistance';
 import type { FuelStationPrice, Itinerary, MapNearbyPlacePin, MapPoint, MapViewport, SpotCategory, SpotSummary, TripFuelSettings, TripFuelType, TripMember, TripPlannerInput, TripSpot } from '@/types';
-import { resolveSpotPhotoUrl, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
+import { resolveSpotPhotoUrl, resolveTripStopPhotoUrl } from '@/utils/imageFallbacks';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { getSpotTrendingScore } from '@/utils/spotRanking';
 import type { ScopeAiMapCommand, ScopeAiMapCommandPayload } from '@/stores/scopeAiPlanner';

@@ -66,7 +66,7 @@ export function buildPravatarUrl(seed: string, _size = DEFAULT_AVATAR_SIZE): str
  * explicit is set we intentionally return an empty string so the Avatar
  * component can render its neutral silhouette placeholder (Instagram
  * style) rather than a seeded pravatar face that isn't actually the
- * user's. Demo users that want a stock face can still call
+ * user's. Preview users that want a stock face can still call
  * `buildPravatarUrl` directly when seeding their avatarUrl.
  */
 export function resolveAvatarUrl(source: string | null | undefined, _seed: string, _size = DEFAULT_AVATAR_SIZE): string {

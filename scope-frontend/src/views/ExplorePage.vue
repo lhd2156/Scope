@@ -437,7 +437,7 @@ import { useMapStore } from '@/stores/map';
 import { useSearchStore } from '@/stores/search';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
-import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import {
   formatCityRegionLocation,
   formatLocationRegionLabel,

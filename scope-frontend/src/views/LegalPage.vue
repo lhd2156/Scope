@@ -114,7 +114,7 @@ const legalPages: Record<string, LegalPageContent> = {
       },
       {
         title: 'Children and contact',
-        body: 'Scope is intended for users who are at least 13 years old. Questions about this policy can be sent to privacy@scope.travel or support@scope.travel.',
+        body: 'Scope is intended for users who are at least 13 years old. Questions about this policy can be sent to privacy@scopetrips.com or support@scopetrips.com.',
       },
     ],
   },
@@ -159,7 +159,7 @@ const legalPages: Record<string, LegalPageContent> = {
       },
       {
         title: 'Disclaimers and contact',
-        body: 'Scope is provided as available and without guarantees of uninterrupted service or perfect data. Questions about these terms can be sent to legal@scope.travel or support@scope.travel.',
+        body: 'Scope is provided as available and without guarantees of uninterrupted service or perfect data. Questions about these terms can be sent to legal@scopetrips.com or support@scopetrips.com.',
       },
     ],
   },
@@ -226,7 +226,7 @@ const legalPages: Record<string, LegalPageContent> = {
       },
       {
         title: 'Feedback',
-        body: 'Send accessibility issues to support@scope.travel so we can prioritize fixes.',
+        body: 'Send accessibility issues to support@scopetrips.com so we can prioritize fixes.',
       },
     ],
   },
@@ -268,7 +268,7 @@ const legalPages: Record<string, LegalPageContent> = {
       },
       {
         title: 'Contact support',
-        body: 'For support, email support@scope.travel.',
+        body: 'For support, email support@scopetrips.com.',
       },
     ],
   },

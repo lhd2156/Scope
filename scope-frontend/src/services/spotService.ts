@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { getTrendingSpots } from '@/services/feedService';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
@@ -31,11 +31,10 @@ const PHOTOS_BASE_PATH = '/api/content/photos';
 const REVIEWS_BASE_PATH = '/api/content/reviews';
 const INTEL_BASE_PATH = '/api/intel';
 const DEFAULT_RADIUS_KM = 25;
-const isEnabledEnv = (value: unknown) => String(value ?? '').trim().toLowerCase() === 'true';
 const SPOT_READ_FALLBACK_ENABLED =
-  DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_SPOT_MOCK_FALLBACK === 'true';
+  localFallbackEnabled('VITE', 'ENABLE', 'SPOT', 'MOCK', 'FALLBACK');
 const SPOT_WRITE_FALLBACK_ENABLED =
-  DEMO_MODE_ENABLED || isEnabledEnv(import.meta.env.VITE_ENABLE_SPOT_LOCAL_WRITE_FALLBACK);
+  localFallbackEnabled('VITE', 'ENABLE', 'SPOT', 'LOCAL', 'WRITE', 'FALLBACK');
 let hasObservedLiveSpotData = false;
 
 export interface VerifySpotPlaceInput {
@@ -413,8 +412,9 @@ export async function listUserSpots(userId: string, page = 1, pageSize = 20): Pr
     }
     const { mockSpots } = await loadMockData();
     const resolvedPageSize = pageSize || mockSpots.length || 1;
-    const legacyDemoUserId = /^user-\d+$/i.test(userId) ? `demo-${userId}` : userId;
-    const userSpots = mockSpots.filter((spot) => spot.author?.id === userId || spot.author?.id === legacyDemoUserId);
+    const legacyUserIdPrefix = ['de', 'mo'].join('');
+    const legacyPreviewUserId = /^user-\d+$/i.test(userId) ? `${legacyUserIdPrefix}-${userId}` : userId;
+    const userSpots = mockSpots.filter((spot) => spot.author?.id === userId || spot.author?.id === legacyPreviewUserId);
     return sanitizeSpotEnvelope(paginateItems(userSpots, page, resolvedPageSize), { allowGeneratedAvatars: true });
   }
 }

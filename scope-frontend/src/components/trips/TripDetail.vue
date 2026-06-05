@@ -75,7 +75,7 @@ import MapView from '@/components/map/MapView.vue';
 import MemberList from '@/components/trips/MemberList.vue';
 import TripTimeline from '@/components/trips/TripTimeline.vue';
 import type { Itinerary, MapPoint, Trip } from '@/types';
-import { getTripCoverFallback, resolveTripCoverImageUrl, resolveTripStopPhotoUrl } from '@/utils/demoPhotos';
+import { getTripCoverFallback, resolveTripCoverImageUrl, resolveTripStopPhotoUrl } from '@/utils/imageFallbacks';
 import { addCalendarDays, formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 
 const props = defineProps<{

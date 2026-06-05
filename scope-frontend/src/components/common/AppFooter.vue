@@ -72,7 +72,7 @@ const footerGroups: FooterGroup[] = [
       { label: 'About Scope', to: { name: 'about' } },
       { label: 'Help', to: { name: 'help' } },
       { label: 'Accessibility', to: { name: 'accessibility' } },
-      { label: 'Contact', href: 'mailto:support@scope.travel' },
+      { label: 'Contact', href: 'mailto:support@scopetrips.com' },
     ],
   },
   {

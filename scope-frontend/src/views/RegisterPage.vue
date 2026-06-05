@@ -5,7 +5,7 @@
     hero-title="Map the stories waiting beyond the next ridge."
     hero-description="Create an account to drop pins, upload rich travel photography, and turn real-world community data into smarter itineraries."
     :hero-highlights="registerHighlights"
-    :hero-image-src="DEMO_HERO_IMAGES.auth"
+    :hero-image-src="TRAVEL_HERO_IMAGES.auth"
     hero-image-alt="Golden hour over an alpine valley with winding rivers and steep mountain ridges"
     :show-panel-effects="false"
   >
@@ -151,11 +151,20 @@
         </Button>
       </form>
 
-      <div class="auth-divider" aria-hidden="true">
+      <div v-if="oauthLoginEnabled" class="auth-divider" aria-hidden="true">
         <span>Or continue with</span>
       </div>
 
-      <Button class="oauth-button" type="button" variant="secondary" :loading="isOAuthSubmitting" block icon="globe" @click="registerWithGoogle">
+      <Button
+        v-if="oauthLoginEnabled"
+        class="oauth-button"
+        type="button"
+        variant="secondary"
+        :loading="isOAuthSubmitting"
+        block
+        icon="globe"
+        @click="registerWithGoogle"
+      >
         Continue with Google
       </Button>
 
@@ -176,7 +185,7 @@ import DateField from '@/components/auth/DateField.vue';
 import Button from '@/components/common/Button.vue';
 import { useAuthStore } from '@/stores/auth';
 import { validateRegisterForm, type RegisterFormErrors } from '@/utils/authValidators';
-import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
+import { TRAVEL_HERO_IMAGES } from '@/utils/travelMedia';
 import { sanitizeInternalRouteTarget } from '@/utils/navigationSafety';
 
 const registerHighlights = [
@@ -185,6 +194,7 @@ const registerHighlights = [
   'Unlock AI itinerary planning',
 ];
 
+const oauthLoginEnabled = import.meta.env.VITE_ENABLE_COGNITO_OAUTH === 'true';
 const username = ref('');
 const firstName = ref('');
 const lastName = ref('');

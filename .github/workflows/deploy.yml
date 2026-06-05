@@ -135,7 +135,7 @@ jobs:
           AWS_S3_BUCKET: scope-photos-deploy
           VITE_MAPBOX_TOKEN: pk.deploy-token
           VITE_API_BASE_URL: /
-          VITE_ENABLE_AUTH_MOCK_FALLBACK: 'false'
+          VITE_ENABLE_LOCAL_PREVIEW: 'false'
         run: docker compose config > /tmp/scope-deploy-compose.yaml
 
   publish-images:
@@ -205,7 +205,8 @@ jobs:
               VITE_API_BASE_URL=/
               VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
               VITE_CSRF_ENDPOINT=${{ vars.VITE_CSRF_ENDPOINT }}
-              VITE_ENABLE_AUTH_MOCK_FALLBACK=false
+              VITE_ENABLE_LOCAL_PREVIEW=false
+              VITE_ENABLE_COGNITO_OAUTH=false
               VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
               VITE_SENTRY_ENVIRONMENT=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
               VITE_SENTRY_RELEASE=${{ github.sha }}
@@ -277,7 +278,7 @@ jobs:
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
-      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || vars.SCOPE_TLS_HOSTNAME || '' }}
+      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
@@ -438,7 +439,7 @@ jobs:
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
-      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || vars.SCOPE_TLS_HOSTNAME || '' }}
+      TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
       TF_VAR_eks_endpoint_public_access: ${{ vars.EKS_ENDPOINT_PUBLIC_ACCESS || 'false' }}
       TF_VAR_eks_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS || '[]' }}
@@ -594,7 +595,8 @@ jobs:
               VITE_API_BASE_URL=/
               VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
               VITE_CSRF_ENDPOINT=${{ vars.VITE_CSRF_ENDPOINT }}
-              VITE_ENABLE_AUTH_MOCK_FALLBACK=false
+              VITE_ENABLE_LOCAL_PREVIEW=false
+              VITE_ENABLE_COGNITO_OAUTH=false
               VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
               VITE_SENTRY_ENVIRONMENT=${{ github.event.inputs.terraform_environment }}
               VITE_SENTRY_RELEASE=${{ github.sha }}
@@ -1008,6 +1010,7 @@ jobs:
       VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
       VITE_OPENWEATHERMAP_API_KEY: ${{ secrets.VITE_OPENWEATHERMAP_API_KEY || secrets.OPENWEATHERMAP_API_KEY }}
       SCOPE_PUBLIC_BASE_URL: ${{ vars.SCOPE_PUBLIC_BASE_URL }}
+      SCOPE_APP_BASE_URL: ${{ vars.SCOPE_APP_BASE_URL || vars.SCOPE_FRONTEND_ORIGIN || 'https://app.scopetrips.com' }}
       SCOPE_TLS_HOSTNAME: ${{ vars.SCOPE_TLS_HOSTNAME }}
       SCOPE_TLS_EMAIL: ${{ vars.SCOPE_TLS_EMAIL }}
       SQLSERVER_MEMORY_LIMIT_MB: ${{ vars.SQLSERVER_MEMORY_LIMIT_MB || '2048' }}
@@ -1172,6 +1175,8 @@ jobs:
         shell: bash
         run: |
           tls_hostname="${SCOPE_TLS_HOSTNAME:-$SCOPE_PUBLIC_HOST}"
+          frontend_origin="${SCOPE_APP_BASE_URL:-$SCOPE_PUBLIC_BASE_URL}"
+          allowed_hosts="${SCOPE_PUBLIC_HOST},${tls_hostname},api.scopetrips.com,app.scopetrips.com,localhost,127.0.0.1,content,nginx"
           aws_use_iam_role=false
           if [ "${{ github.event.inputs.terraform_profile }}" = "ec2-compose" ]; then
             aws_use_iam_role=true
@@ -1182,9 +1187,9 @@ jobs:
           DEBUG=false
           ASPNETCORE_ENVIRONMENT=Production
           FLASK_ENV=production
-          FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
-          CORE_FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
-          DEVELOPMENT_FRONTEND_ORIGIN=${SCOPE_PUBLIC_BASE_URL}
+          FRONTEND_ORIGIN=${frontend_origin}
+          CORE_FRONTEND_ORIGIN=${frontend_origin}
+          DEVELOPMENT_FRONTEND_ORIGIN=${frontend_origin}
           SQLSERVER_MEMORY_LIMIT_MB=${SQLSERVER_MEMORY_LIMIT_MB}
           SCOPE_DATA_ROOT=/opt/scope/shared
           SA_PASSWORD=${SCOPE_SA_PASSWORD}
@@ -1195,15 +1200,15 @@ jobs:
           CORE_JWT_SECRET=${SCOPE_CORE_JWT_SECRET}
           CORE_JWT_ISSUER=scope-core
           CORE_JWT_AUDIENCE=scope-frontend
-          CORE_ALLOWED_ORIGINS=${SCOPE_PUBLIC_BASE_URL}
+          CORE_ALLOWED_ORIGINS=${frontend_origin},${SCOPE_PUBLIC_BASE_URL}
           GRPC_INTERNAL_TOKEN=${SCOPE_GRPC_INTERNAL_TOKEN}
           CONTENT_GRPC_ENABLED=true
           INTEL_GRPC_ENABLED=true
           GRPC_ENABLE_REFLECTION=false
           DJANGO_SECRET_KEY=${SCOPE_DJANGO_SECRET_KEY}
           DJANGO_DEBUG=false
-          DJANGO_ALLOWED_HOSTS=${SCOPE_PUBLIC_HOST},localhost,127.0.0.1,content,nginx
-          ALLOWED_HOSTS=${SCOPE_PUBLIC_HOST},localhost,127.0.0.1,content,nginx
+          DJANGO_ALLOWED_HOSTS=${allowed_hosts}
+          ALLOWED_HOSTS=${allowed_hosts}
           DJANGO_DATABASE_URL=mssql://sa:${DJANGO_DB_PASSWORD_ENCODED}@sqlserver:1433/ScopeDb
           DJANGO_MSSQL_DRIVER=ODBC Driver 18 for SQL Server
           DJANGO_MSSQL_EXTRA_PARAMS=Encrypt=yes;TrustServerCertificate=yes
@@ -1234,8 +1239,8 @@ jobs:
           VITE_OPENWEATHERMAP_API_KEY=${VITE_OPENWEATHERMAP_API_KEY}
           MAPBOX_ACCESS_TOKEN=${VITE_MAPBOX_TOKEN}
           VITE_MAPBOX_ACCESS_TOKEN=${VITE_MAPBOX_TOKEN}
-          VITE_ENABLE_AUTH_MOCK_FALLBACK=false
-          VITE_DEMO_MODE=false
+          VITE_ENABLE_LOCAL_PREVIEW=false
+          VITE_ENABLE_COGNITO_OAUTH=false
           SCOPE_AI_PROVIDER=${SCOPE_AI_PROVIDER}
           GEMINI_API_KEY=${GEMINI_API_KEY}
           GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}

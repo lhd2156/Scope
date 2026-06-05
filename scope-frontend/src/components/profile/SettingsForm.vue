@@ -17,7 +17,7 @@
         <div class="field-group">
           <span>Email</span>
           <div class="readonly-field">
-            <strong>{{ accountEmail || 'signed-in@scope.travel' }}</strong>
+            <strong>{{ accountEmail || 'signed-in@scopetrips.com' }}</strong>
             <small>Email changes require verification - reach out to support to update.</small>
           </div>
         </div>

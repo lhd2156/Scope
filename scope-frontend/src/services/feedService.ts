@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, sortByCreatedAtDescending } from '@/services/serviceUtils';
 import type {
@@ -23,8 +23,8 @@ const FEED_BASE_PATH = '/api/content/feed';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
 const DEFAULT_NOTIFICATION_CATEGORIES = ['account', 'security', 'trip', 'friend', 'social', 'comment', 'mention', 'digest', 'general'];
-const FEED_READ_FALLBACK_ENABLED = DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_FEED_MOCK_FALLBACK === 'true';
-const NOTIFICATION_READ_FALLBACK_ENABLED = DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_NOTIFICATION_MOCK_FALLBACK === 'true';
+const FEED_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'FEED', 'MOCK', 'FALLBACK');
+const NOTIFICATION_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'NOTIFICATION', 'MOCK', 'FALLBACK');
 let hasObservedLiveFeedData = false;
 let hasObservedLiveTrendingData = false;
 

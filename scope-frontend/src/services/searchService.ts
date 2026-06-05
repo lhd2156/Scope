@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { LOCAL_PREVIEW_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { isScopeQaMode } from '@/utils/qaMode';
 
@@ -37,8 +37,9 @@ type SearchContentType = 'spots' | 'reviews' | 'trips';
 
 export function shouldUseLocalSearchFallback(): boolean {
   return (
-    DEMO_MODE_ENABLED ||
-    isScopeQaMode()
+    LOCAL_PREVIEW_ENABLED ||
+    localFallbackEnabled('VITE', 'ENABLE', 'SEARCH', 'MOCK', 'FALLBACK') ||
+    (import.meta.env.MODE !== 'production' && isScopeQaMode())
   );
 }
 

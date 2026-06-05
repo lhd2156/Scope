@@ -1,5 +1,5 @@
 import type { Itinerary, ItineraryDay, TripMember, TripPace, TripPlannerInput, TripSpot } from '@/types';
-import { buildInitialsAvatarUrl } from '@/utils/demoMedia';
+import { buildInitialsAvatarUrl } from '@/utils/travelMedia';
 import { getInclusiveDaySpan } from '@/utils/formatters';
 
 export interface TripPlannerPreset {

@@ -322,7 +322,7 @@ import { createSpotReview, listNearbySpots, listSpotReviews } from '@/services/s
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
-import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { formatVibeLabel } from '@/utils/formatters';
 import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';

@@ -357,7 +357,7 @@ import { useToastStore } from '@/stores/toasts';
 import { useTripsStore } from '@/stores/trips';
 import { useUserStore } from '@/stores/user';
 import { isScopeQaMode } from '@/utils/qaMode';
-import { getSpotPhotoFallback } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback } from '@/utils/imageFallbacks';
 import { sanitizeImageUrl, sanitizeTripMember } from '@/utils/sanitizers';
 import { addCalendarDays, getInclusiveDaySpan } from '@/utils/formatters';
 import { areUserVibesEqual, normalizeUserVibes } from '@/utils/userPreferenceSignals';
@@ -599,8 +599,8 @@ const routeLibraryPhotoLookupPending = new Map<string, Promise<string>>();
 let routeLibraryPhotoCache: Record<string, RouteLibraryPhotoCacheEntry> | null = null;
 
 const eligibleFeaturedRoutes = computed(() => [...featuredRouteTrips.value].filter(isRouteLibraryTrip).sort(compareRecentTrips));
-const publicFeaturedRoutes = computed(() => eligibleFeaturedRoutes.value.filter((trip) => !isDemoRouteLibraryTrip(trip)));
-const seededFeaturedRoutes = computed(() => eligibleFeaturedRoutes.value.filter(isDemoRouteLibraryTrip));
+const publicFeaturedRoutes = computed(() => eligibleFeaturedRoutes.value.filter((trip) => !isSeedRouteLibraryTrip(trip)));
+const seededFeaturedRoutes = computed(() => eligibleFeaturedRoutes.value.filter(isSeedRouteLibraryTrip));
 const featuredRoutes = computed(() => {
   const sourceRoutes = publicFeaturedRoutes.value.length ? publicFeaturedRoutes.value : seededFeaturedRoutes.value;
   return sourceRoutes.slice(0, ROUTE_LIBRARY_CARD_LIMIT);
@@ -1306,7 +1306,7 @@ function shouldUseRouteLibrarySplitVisual(trip: Trip, stops: TripSpot[], endpoin
     return true;
   }
 
-  return isDemoRouteLibraryTrip(trip) &&
+  return isSeedRouteLibraryTrip(trip) &&
     stops.length > 1 &&
     stops.some((stop) => hasCoordinatePair(stop.latitude, stop.longitude));
 }
@@ -1476,7 +1476,7 @@ function setRouteLibraryLookupPhoto(tripId: string, role: RouteLibraryPhotoRole,
 }
 
 function shouldPreferRouteLibraryLookupPhoto(trip: Trip): boolean {
-  return isDemoRouteLibraryTrip(trip);
+  return isSeedRouteLibraryTrip(trip);
 }
 
 function buildRouteLibraryVisualImages(
@@ -1549,7 +1549,7 @@ function buildRouteLibraryCard(trip: Trip, repeatedImageKeys: Set<string>): Rout
     title: trip.title,
     routeLabel: endpoints.routeLabel,
     dateLabel: formatRouteLibraryDateLabel(trip),
-    statusLabel: isDemoRouteLibraryTrip(trip) ? 'Seed route' : 'Public route',
+    statusLabel: isSeedRouteLibraryTrip(trip) ? 'Seed route' : 'Public route',
     memberLabel: formatRouteLibraryCount(memberCount, 'member'),
     stopLabel: formatRouteLibraryCount(stops.length, 'stop'),
     dayLabel: formatRouteLibraryCount(dayCount, 'day'),
@@ -1562,8 +1562,8 @@ function buildRouteLibraryCard(trip: Trip, repeatedImageKeys: Set<string>): Rout
   };
 }
 
-function isDemoRouteLibraryTrip(trip: Trip): boolean {
-  return /^demo-trip-/i.test(trip.id) || /^trip-\d+$/i.test(trip.id);
+function isSeedRouteLibraryTrip(trip: Trip): boolean {
+  return /^trip-\d+$/i.test(trip.id);
 }
 
 function shouldLookupRouteLibraryPhoto(trip: Trip, stops: TripSpot[], repeatedImageKeys: Set<string>): boolean {

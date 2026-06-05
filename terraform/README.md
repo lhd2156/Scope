@@ -209,7 +209,7 @@ The deploy workflow supports optional manual Terraform plan and apply jobs when 
 - Variable: `EC2_COMPOSE_KEY_PAIR_NAME` when `terraform_profile=ec2-compose` (falls back to `LIGHTSAIL_KEY_PAIR_NAME`)
 - Variable: `EC2_COMPOSE_SSH_PUBLIC_KEY` when `terraform_profile=ec2-compose` (falls back to `LIGHTSAIL_SSH_PUBLIC_KEY`)
 - Variable: `EC2_COMPOSE_ADMIN_IPV4_CIDRS` when `terraform_profile=ec2-compose` and `deploy_lightsail_app=true`; use an exact runner/VPN/admin CIDR
-- Variable: `PUBLIC_DNS_ZONE_NAME` (optional; for production this is `scope.travel`) to let Terraform create Route53 public DNS for apex and `www`
+- Variable: `PUBLIC_DNS_ZONE_NAME` (optional; leave blank when Cloudflare manages DNS) to let Terraform create Route53 public DNS for apex and `www`
 - Variable: `PUBLIC_DNS_TTL_SECONDS` (optional; defaults to `60`)
 - Secret: `SCOPE_SA_PASSWORD` when `deploy_lightsail_app=true`
 - Secret: `SCOPE_CORE_JWT_SECRET` when `deploy_lightsail_app=true`

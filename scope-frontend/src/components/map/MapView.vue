@@ -307,7 +307,7 @@ import {
   type NearbyPlaceBounds,
   type NearbyPlaceResult,
 } from '@/services/mapService';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { getOpenWeatherMapSnapshot, type WeatherSnapshot } from '@/services/openWeatherMapService';
 import {
   resolveRoadRoute,
@@ -324,7 +324,7 @@ import {
 import { DEFAULT_MAP_VIEWPORT, MAX_MAP_ZOOM, MIN_MAP_ZOOM, useMapStore } from '@/stores/map';
 import type { ScopeAiMapCommand, ScopeAiMapCommandPayload, ScopeAiMapTarget } from '@/stores/scopeAiPlanner';
 import type { MapNearbyPlacePin, MapPoint, MapViewport, SpotCategory, UserLocation } from '@/types';
-import { getSpotPhotoFallback, isSpotPhotoFallbackUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, isSpotPhotoFallbackUrl } from '@/utils/imageFallbacks';
 import { getCurrentLocation, isGeolocationSupported } from '@/utils/geolocation';
 import { isUiTestEnvironment } from '@/utils/scheduleNonCriticalTask';
 import { getWeatherSnapshotIconName } from '@/utils/weatherDisplay';
@@ -459,7 +459,7 @@ const MAP_PROJECTION_MODE_STORAGE_KEY = 'scope.map.projectionMode';
 const MAP_WEATHER_MIN_ZOOM = 6;
 const MAP_WEATHER_COORDINATE_PRECISION = 2;
 const MAP_WEATHER_REFRESH_DEBOUNCE_MS = 650;
-const MAP_DEMO_WEATHER_ENABLED = import.meta.env.VITE_ENABLE_DEMO_WEATHER === 'true';
+const MAP_DEMO_WEATHER_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'DEMO', 'WEATHER');
 const MAP_DECORATIVE_CAMERA_SETTLE_BUFFER_MS = 180;
 const NEARBY_PLACES_MIN_ZOOM = 8.4;
 const NEARBY_PLACES_REFRESH_DEBOUNCE_MS = 1400;

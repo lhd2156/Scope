@@ -73,7 +73,7 @@
   },
   {
     "id": "demo-notification-10",
-    "title": "Demo mode enabled",
+    "title": "Preview mode enabled",
     "body": "You're exploring Scope with local fixture data, seeded trips, and the shared demo account.",
     "isRead": false,
     "createdAt": "2026-03-30T08:00:00Z",

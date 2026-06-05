@@ -1,12 +1,12 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, FuelStationLookup, FuelStationPrice } from '@/types';
 
 const FUEL_BASE_PATH = '/api/intel/fuel/stations';
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const FALLBACK_CACHE_TTL_MS = 30 * 1000;
-const DEMO_FUEL_PRICES_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FUEL_PRICES === 'true';
+const LOCAL_FUEL_PRICES_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'DEMO', 'FUEL', 'PRICES');
 
 type FuelType = 'all' | 'regular' | 'midgrade' | 'premium' | 'diesel';
 type FuelSortMode = 'closest' | 'best_price';
@@ -27,14 +27,14 @@ interface CachedFuelLookup {
 
 const lookupCache = new Map<string, CachedFuelLookup>();
 
-const DEMO_FUEL_STATION_NAMES = [
+const LOCAL_FUEL_STATION_NAMES = [
   'Routeway Market Fuel',
   'Trailhead Travel Stop',
   'Scope Roadside Energy',
   'Crossroads Fuel Co.',
   'Waypoint Service Station',
 ];
-const DEMO_FUEL_PRICE_OFFSETS: Record<Exclude<FuelType, 'all'>, number> = {
+const LOCAL_FUEL_PRICE_OFFSETS: Record<Exclude<FuelType, 'all'>, number> = {
   regular: 0,
   midgrade: 0.28,
   premium: 0.58,
@@ -80,22 +80,22 @@ function sanitizeFuelLookup(payload: FuelStationLookup): FuelStationLookup {
   };
 }
 
-function buildDemoFuelLookup(options: Required<FuelLookupOptions>): FuelStationLookup {
+function buildLocalFuelLookup(options: Required<FuelLookupOptions>): FuelStationLookup {
   const seed = Math.abs(Math.sin(options.latitude * 12.9898 + options.longitude * 78.233));
-  const count = Math.max(0, Math.min(options.limit, DEMO_FUEL_STATION_NAMES.length));
-  const demoFuelType: Exclude<FuelType, 'all'> = options.fuelType === 'all' ? 'regular' : options.fuelType;
-  const stations = DEMO_FUEL_STATION_NAMES.slice(0, count).map((name, index): FuelStationPrice => {
+  const count = Math.max(0, Math.min(options.limit, LOCAL_FUEL_STATION_NAMES.length));
+  const localFuelType: Exclude<FuelType, 'all'> = options.fuelType === 'all' ? 'regular' : options.fuelType;
+  const stations = LOCAL_FUEL_STATION_NAMES.slice(0, count).map((name, index): FuelStationPrice => {
     const priceOffset = ((Math.floor((seed + index) * 100) % 55) / 100) + index * 0.04;
-    const fuelOffset = DEMO_FUEL_PRICE_OFFSETS[demoFuelType] ?? 0;
+    const fuelOffset = LOCAL_FUEL_PRICE_OFFSETS[localFuelType] ?? 0;
     return {
-      id: `demo-fuel-${options.latitude.toFixed(3)}-${options.longitude.toFixed(3)}-${index}`,
+      id: `local-fuel-${options.latitude.toFixed(3)}-${options.longitude.toFixed(3)}-${index}`,
       name,
-      brand: 'Scope Demo',
+      brand: 'Scope Preview',
       address: index === 0 ? 'Closest mapped route point' : `Route preview stop ${index + 1}`,
       latitude: options.latitude + (index * 0.008),
       longitude: options.longitude - (index * 0.008),
       distanceKm: Number((0.7 + index * 1.1).toFixed(1)),
-      fuelType: demoFuelType,
+      fuelType: localFuelType,
       pricePerUnit: Number((3.08 + fuelOffset + priceOffset).toFixed(2)),
       currency: 'USD',
       isOpen: true,
@@ -104,9 +104,9 @@ function buildDemoFuelLookup(options: Required<FuelLookupOptions>): FuelStationL
 
   return sanitizeFuelLookup({
     configured: true,
-    coverage: 'Demo fuel preview. Live routes use the Intel fuel endpoint backed by Google Places when configured.',
-    source: 'Scope demo fuel preview',
-    license: 'Local demo fixture',
+    coverage: 'Local fuel preview. Live routes use the Intel fuel endpoint backed by Google Places when configured.',
+    source: 'Scope local fuel preview',
+    license: 'Local preview fixture',
     radiusKm: options.radiusKm,
     sortBy: options.sortBy,
     stations,
@@ -186,8 +186,8 @@ export async function getNearbyFuelStations(options: FuelLookupOptions): Promise
       return devFuelLookup;
     }
 
-    if (DEMO_MODE_ENABLED && DEMO_FUEL_PRICES_ENABLED) {
-      const payload = buildDemoFuelLookup(normalizedOptions);
+    if (DEMO_MODE_ENABLED && LOCAL_FUEL_PRICES_ENABLED) {
+      const payload = buildLocalFuelLookup(normalizedOptions);
       lookupCache.set(cacheKey, {
         expiresAt: Date.now() + CACHE_TTL_MS,
         payload,

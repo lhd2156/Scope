@@ -197,7 +197,7 @@ const activeWorkspaceMeta = computed(() => {
 });
 
 function isReferenceTrip(trip: Trip): boolean {
-  return /^(?:demo-)?trip-[123]$/.test(trip.id);
+  return /^trip-[123]$/.test(trip.id);
 }
 
 function firstPopulatedWorkspaceView(): WorkspaceView | null {

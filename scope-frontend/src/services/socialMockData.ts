@@ -1,15 +1,14 @@
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { localFallbackEnabled } from '@/services/demoMode';
 import rawUsers from '@/mock/users.json';
 import type { FriendConnection, FriendRequest, UserProfile } from '@/types';
 import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeUserProfile } from '@/utils/sanitizers';
-import { buildPravatarUrl } from '@/utils/demoPhotos';
+import { buildPravatarUrl } from '@/utils/imageFallbacks';
 
 // Real Scope members start with an empty travel circle and add friends
 // themselves through search. The `demo*` arrays below stay around purely
-// to seed the public demo experience (opt-in via VITE_DEMO_MODE=true).
+// to seed the local preview experience.
 const SOCIAL_MOCK_FALLBACK_ENABLED =
-  DEMO_MODE_ENABLED ||
-  import.meta.env.VITE_ENABLE_SOCIAL_MOCK_FALLBACK === 'true';
+  localFallbackEnabled('VITE', 'ENABLE', 'SOCIAL', 'MOCK', 'FALLBACK');
 const canonicalDemoUsers = new Map((rawUsers as UserProfile[]).map((user) => [user.id, user]));
 
 function buildUserProfile(input: Partial<UserProfile> & Pick<UserProfile, 'id' | 'username' | 'displayName'>): UserProfile {
@@ -192,7 +191,7 @@ export const demoFriendRequests: FriendRequest[] = [
 
 // Default exports used by the live Friends experience. Real Scope members
 // should always start empty and grow their circle through search + requests.
-// Demo mode opts back into the seeded dataset above.
+// Local preview opts back into the seeded dataset above.
 export const mockFriendConnections: FriendConnection[] = SOCIAL_MOCK_FALLBACK_ENABLED
   ? demoFriendConnections
   : [];

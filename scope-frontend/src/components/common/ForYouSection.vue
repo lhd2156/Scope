@@ -66,7 +66,7 @@ import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import { recommendSpots } from '@/services/intelService';
 import { useAuthStore } from '@/stores/auth';
 import type { SpotSummary } from '@/types';
-import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { formatCategoryLabel, formatCityRegionLocation, formatVibeLabel } from '@/utils/formatters';
 import { normalizeUserVibes } from '@/utils/userPreferenceSignals';
 

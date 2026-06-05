@@ -9,7 +9,6 @@ import {
   updateLocalPreviewUserProfile,
 } from '@/services/localPreviewUserStorage';
 import { loadMockData } from '@/services/mockDataLoader';
-import { catalogMockUsers, getCatalogMockUserById } from '@/services/mockUserCatalog';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type { ApiEnvelope, UserProfile, UserStats } from '@/types';
 import {
@@ -21,6 +20,8 @@ import {
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const USERS_BASE_PATH = '/api/core/users';
+const MOCK_USER_CATALOG_ALLOWED_IN_BUILD = import.meta.env.MODE !== 'production' || import.meta.env.VITE_ENABLE_LOCAL_PREVIEW === 'true';
+type MockUserCatalogModule = typeof import('@/services/mockUserCatalog');
 
 export interface UpdateUserProfileInput {
   username?: string;
@@ -102,16 +103,19 @@ function sanitizeStatsEnvelope(response: ApiEnvelope<UserStats>): ApiEnvelope<Us
   };
 }
 
-function resolveUserIndex(userId: string): number {
-  return catalogMockUsers.findIndex((user) => user.id === userId);
-}
+const loadMockUserCatalog: () => Promise<MockUserCatalogModule> = MOCK_USER_CATALOG_ALLOWED_IN_BUILD
+  ? async () => import('@/services/mockUserCatalog')
+  : async () => {
+    throw new Error('Local preview users are not available in this production build.');
+  };
 
-function getMockUserOrThrow(userId: string): UserProfile {
+async function getMockUserOrThrow(userId: string): Promise<UserProfile> {
   const localPreviewUser = findLocalPreviewUser({ id: userId });
   if (localPreviewUser) {
     return toLocalPreviewUserProfile(localPreviewUser);
   }
 
+  const { getCatalogMockUserById } = await loadMockUserCatalog();
   const user = getCatalogMockUserById(userId);
 
   if (!user) {
@@ -122,6 +126,7 @@ function getMockUserOrThrow(userId: string): UserProfile {
 }
 
 async function buildFallbackStats(userId: string): Promise<UserStats> {
+  const { getCatalogMockUserById } = await loadMockUserCatalog();
   const user = getCatalogMockUserById(userId);
   const { mockSpots, mockTrips } = await loadMockData();
 
@@ -149,8 +154,9 @@ function sanitizeUpdateInput(input: UpdateUserProfileInput): UpdateUserProfileIn
   ) as UpdateUserProfileInput;
 }
 
-function updateMockUser(userId: string, updates: UpdateUserProfileInput): UserProfile {
-  const userIndex = resolveUserIndex(userId);
+async function updateMockUser(userId: string, updates: UpdateUserProfileInput): Promise<UserProfile> {
+  const { catalogMockUsers } = await loadMockUserCatalog();
+  const userIndex = catalogMockUsers.findIndex((user) => user.id === userId);
 
   if (userIndex === -1) {
     const localPreviewProfile = updateLocalPreviewUserProfile(userId, sanitizeUpdateInput(updates) as Partial<UserProfile>);
@@ -180,11 +186,12 @@ export async function getCurrentUserProfile(fallbackUserId?: string): Promise<Ap
     }
 
     const currentLocalPreviewUser = readCurrentLocalPreviewUser();
+    const { catalogMockUsers } = await loadMockUserCatalog();
     const user = fallbackUserId
-      ? getMockUserOrThrow(fallbackUserId)
+      ? await getMockUserOrThrow(fallbackUserId)
       : currentLocalPreviewUser
         ? toLocalPreviewUserProfile(currentLocalPreviewUser)
-        : getMockUserOrThrow(catalogMockUsers[0]?.id ?? 'user-1');
+        : await getMockUserOrThrow(catalogMockUsers[0]?.id ?? 'user-1');
     return sanitizeUserEnvelope({ data: user });
   }
 }
@@ -198,7 +205,7 @@ export async function getUserProfile(userId: string): Promise<ApiEnvelope<UserPr
       throw error;
     }
 
-    return sanitizeUserEnvelope({ data: getMockUserOrThrow(userId) });
+    return sanitizeUserEnvelope({ data: await getMockUserOrThrow(userId) });
   }
 }
 
@@ -213,7 +220,7 @@ export async function updateUserProfile(userId: string, updates: UpdateUserProfi
       throw error;
     }
 
-    return sanitizeUserEnvelope({ data: updateMockUser(userId, sanitizedInput) });
+    return sanitizeUserEnvelope({ data: await updateMockUser(userId, sanitizedInput) });
   }
 }
 
@@ -225,7 +232,8 @@ export async function deactivateUserProfile(userId: string): Promise<void> {
       throw error;
     }
 
-    const userIndex = resolveUserIndex(userId);
+    const { catalogMockUsers } = await loadMockUserCatalog();
+    const userIndex = catalogMockUsers.findIndex((user) => user.id === userId);
 
     if (userIndex >= 0) {
       catalogMockUsers.splice(userIndex, 1);
@@ -259,6 +267,7 @@ export async function searchUsers(query: string, page = 1, pageSize = 10): Promi
 
     const normalizedQuery = (sanitizedQuery.startsWith('@') ? sanitizedQuery.slice(1) : sanitizedQuery).toLowerCase();
     const dedupedUsers = new Map<string, UserProfile>();
+    const { catalogMockUsers } = await loadMockUserCatalog();
     [...readLocalPreviewUsers().map(toLocalPreviewUserProfile), ...catalogMockUsers].forEach((user) => {
       dedupedUsers.set(user.id, user);
     });

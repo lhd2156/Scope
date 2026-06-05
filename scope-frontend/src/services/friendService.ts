@@ -1,5 +1,4 @@
 import api from '@/services/api';
-import { mockFriendConnections, mockFriendRequests } from '@/services/socialMockData';
 import { searchUsersLive } from '@/services/userService';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import type {
@@ -47,6 +46,18 @@ type FriendSuggestionWire = Partial<FriendSuggestion> & {
   favoriteCategories?: string[];
   sharedInterests?: string[];
 };
+
+interface SocialFallbackData {
+  mockFriendConnections: FriendConnection[];
+  mockFriendRequests: FriendRequest[];
+}
+
+async function loadSocialFallbackData(): Promise<SocialFallbackData> {
+  return {
+    mockFriendConnections: [],
+    mockFriendRequests: [],
+  };
+}
 
 function normalizeHandleQuery(query: string): string {
   const sanitizedQuery = sanitizeSingleLineText(query);
@@ -178,7 +189,8 @@ function compareFallbackSuggestions(mode: 'best' | 'mutuals' | 'vibes' | 'random
   };
 }
 
-function buildFallbackSuggestionEnvelope(mode: 'best' | 'mutuals' | 'vibes' | 'random', limit: number): ApiEnvelope<FriendSuggestion[]> {
+async function buildFallbackSuggestionEnvelope(mode: 'best' | 'mutuals' | 'vibes' | 'random', limit: number): Promise<ApiEnvelope<FriendSuggestion[]>> {
+  const { mockFriendConnections, mockFriendRequests } = await loadSocialFallbackData();
   const candidates = [
     ...mockFriendRequests.map((request) => ({
       id: request.user.id,
@@ -225,6 +237,7 @@ function emptyListEnvelope<T>(page?: number, pageSize?: number): ApiEnvelope<T[]
 
 export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<FriendConnection[]>> {
   if (IS_TEST_MODE) {
+    const { mockFriendConnections } = await loadSocialFallbackData();
     return normalizeConnectionEnvelope(paginateItems(mockFriendConnections, page, pageSize));
   }
 
@@ -233,6 +246,7 @@ export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<
     return normalizeConnectionEnvelope(data);
   } catch {
     if (CAN_USE_SOCIAL_FALLBACK) {
+      const { mockFriendConnections } = await loadSocialFallbackData();
       return normalizeConnectionEnvelope(paginateItems(mockFriendConnections, page, pageSize));
     }
 
@@ -242,6 +256,7 @@ export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<
 
 export async function listPendingFriendRequests(): Promise<ApiEnvelope<FriendRequest[]>> {
   if (IS_TEST_MODE) {
+    const { mockFriendRequests } = await loadSocialFallbackData();
     return normalizeRequestEnvelope({ data: mockFriendRequests.filter((request) => request.direction === 'incoming') });
   }
 
@@ -250,6 +265,7 @@ export async function listPendingFriendRequests(): Promise<ApiEnvelope<FriendReq
     return normalizeRequestEnvelope(data);
   } catch {
     if (CAN_USE_SOCIAL_FALLBACK) {
+      const { mockFriendRequests } = await loadSocialFallbackData();
       return normalizeRequestEnvelope({ data: mockFriendRequests.filter((request) => request.direction === 'incoming') });
     }
 
@@ -303,6 +319,7 @@ export async function acceptFriendRequest(requestId: string): Promise<FriendConn
       throw error;
     }
 
+    const { mockFriendRequests } = await loadSocialFallbackData();
     const request = mockFriendRequests.find((entry) => entry.id === requestId);
     if (!request) {
       throw error;

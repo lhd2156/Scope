@@ -366,9 +366,8 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import { analyticsPageEngagementTracker } from '@/services/analyticsService';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { LOCAL_PREVIEW_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { getDefaultDiscoveryMapViewport, resolveHomeBaseMapViewport } from '@/services/mapViewportService';
-import { mockSpots, mockTrips } from '@/services/mockData';
 import { resolveRoadRoute, type RoadRouteSummary } from '@/services/roadRouteService';
 import { cloneMapViewport } from '@/config/mapViewport';
 import { useAuthStore } from '@/stores/auth';
@@ -377,7 +376,7 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
 import type { MapPoint, MapViewport, SpotCategory, SpotSummary, TripSpot } from '@/types';
-import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
+import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
 import { formatCityRegionLocation, formatCountryLabel, formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
@@ -411,7 +410,7 @@ const VISIBLE_SPOT_PREVIEW_LIMIT = 8;
 const METERS_PER_MILE = 1609.344;
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const isMapAuditMode = isScopeQaMode();
-const LOCAL_MAP_PREVIEW_ENABLED = DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_MAP_MOCK_FALLBACK === 'true';
+const LOCAL_MAP_PREVIEW_ENABLED = LOCAL_PREVIEW_ENABLED || localFallbackEnabled('VITE', 'ENABLE', 'MAP', 'MOCK', 'FALLBACK');
 const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
 
 const authStore = useAuthStore();
@@ -436,6 +435,8 @@ const roadRouteLoading = ref(false);
 const isSelectedMapOverlayVisible = ref(false);
 const hasLoadedSpotData = ref(false);
 const hasLoadedTripData = ref(false);
+const localPreviewSpots = ref<SpotSummary[]>([]);
+const localPreviewTrip = ref<MapRoutePreviewTrip | null>(null);
 const mobileSheetState = ref<MobileSheetState>('peek');
 const isDraggingMobileSheet = ref(false);
 const mobileSheetDragStartY = ref(0);
@@ -694,6 +695,20 @@ async function syncFocusedMapSpot(): Promise<void> {
   mapStore.setSelectedSpotId(spotId);
 }
 
+async function loadLocalMapPreviewData(): Promise<void> {
+  if (!LOCAL_MAP_PREVIEW_ENABLED) {
+    return;
+  }
+
+  if (import.meta.env.MODE === 'production' && import.meta.env.VITE_ENABLE_LOCAL_PREVIEW !== 'true') {
+    return;
+  }
+
+  const { mockSpots, mockTrips } = await import('@/services/mockData');
+  localPreviewSpots.value = mockSpots;
+  localPreviewTrip.value = mockTrips[0] ?? null;
+}
+
 const workspaceSpots = computed<MapWorkspaceSpot[]>(() => {
   if (isMapAuditMode) {
     return MAP_AUDIT_SPOTS;
@@ -701,7 +716,7 @@ const workspaceSpots = computed<MapWorkspaceSpot[]>(() => {
 
   const sourceSpots = spotsStore.items.length || hasLoadedSpotData.value || !LOCAL_MAP_PREVIEW_ENABLED
     ? spotsStore.items
-    : mockSpots;
+    : localPreviewSpots.value;
   const mergedSpots = mergeSpotSources(sourceSpots, spotsStore.selectedSpot ? {
     id: spotsStore.selectedSpot.id,
     title: spotsStore.selectedSpot.title,
@@ -739,7 +754,7 @@ const mapSpots = computed<MapPoint[]>(() => workspaceSpots.value.map((spot) => (
 const activeTrip = computed<MapRoutePreviewTrip | null>(() => (
   isMapAuditMode
     ? MAP_AUDIT_ROUTE
-    : tripsStore.items[0] ?? (hasLoadedTripData.value || !LOCAL_MAP_PREVIEW_ENABLED ? null : mockTrips[0]) ?? null
+    : tripsStore.items[0] ?? (hasLoadedTripData.value || !LOCAL_MAP_PREVIEW_ENABLED ? null : localPreviewTrip.value) ?? null
 ));
 const workspaceLoading = computed(() => (isMapAuditMode ? false : spotsStore.loading || tripsStore.loading));
 const workspaceError = computed(() => (
@@ -1278,6 +1293,7 @@ onMounted(() => {
       });
 
     await Promise.allSettled([
+      loadLocalMapPreviewData(),
       syncFocusedMapSpot().catch(() => undefined),
       spotsStore.fetchSpots({ page: 1, pageSize: MAP_SPOT_PAGE_SIZE }).then(() => {
         hasLoadedSpotData.value = true;

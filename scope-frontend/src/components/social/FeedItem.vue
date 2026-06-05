@@ -144,7 +144,7 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { FeedItem as FeedItemModel } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
-import { getFeedPhotoFallback, resolveFeedImageUrl } from '@/utils/demoPhotos';
+import { getFeedPhotoFallback, resolveFeedImageUrl } from '@/utils/imageFallbacks';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
 

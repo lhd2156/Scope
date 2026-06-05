@@ -30,7 +30,7 @@ import {
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
 import { addCalendarDays, getInclusiveDaySpan } from '@/utils/formatters';
-import { buildPravatarAvatarUrl } from '@/utils/demoMedia';
+import { buildPravatarAvatarUrl } from '@/utils/travelMedia';
 import { demoFeed, demoNotifications, demoSpotDetails, demoSpots, demoTrips, demoUsers, demoViewport } from '@/mock';
 import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { buildTripPlannerPresetItinerary } from '@/services/tripPlannerPresets';
@@ -38,11 +38,11 @@ import { buildTripPlannerPresetItinerary } from '@/services/tripPlannerPresets';
 const users: UserProfile[] = [
   {
     id: 'user-1',
-    username: 'scopedemo',
-    email: 'demo@scope.travel',
+    username: 'scope-preview',
+    email: 'traveler@preview.scope.local',
     displayName: 'Scope traveler',
     avatarUrl: buildPravatarAvatarUrl(12),
-    bio: 'Sample demo profile used until a real account connects.',
+    bio: 'Sample preview profile used until a real account connects.',
     interests: ['food', 'culture', 'nightlife'],
     stats: { spots: 42, trips: 8, friends: 126 },
   },

@@ -258,7 +258,7 @@ import { trackFriendAdd } from '@/services/analyticsService';
 import { useFriendsStore } from '@/stores/friends';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { FriendPresence, FriendSuggestion, SpotCategory, UserProfile } from '@/types';
-import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
+import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
 
 type FriendTab = 'all' | 'online' | 'requests' | 'discover';
 type DiscoverMode = 'best' | 'mutuals' | 'vibes' | 'random';
