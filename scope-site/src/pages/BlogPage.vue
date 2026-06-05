@@ -9,7 +9,7 @@ import { posts } from "@/data";
         Blog
       </p>
       <h1>Notes from the map.</h1>
-      <p>Product updates, architecture notes, and field reports from the Scope build.</p>
+      <p>Product updates, architecture notes, and field reports from the Scope Trips build.</p>
     </div>
     <div class="feature-grid">
       <RouterLink

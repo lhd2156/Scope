@@ -15,12 +15,12 @@ export const stats = [
 export const features = [
   {
     title: "Interactive Map",
-    description: "Discover spots on a live map with routes, proximity, and community context.",
+    description: "Discover real spots on a live map with routes, proximity, and community context.",
     tone: "cyan",
   },
   {
     title: "AI Trip Planner",
-    description: "Agentic AI builds itineraries from reviews, weather, distance, and cost signals.",
+    description: "AI-assisted planning turns saved places into practical day-by-day routes.",
     tone: "fuchsia",
   },
   {
@@ -49,14 +49,14 @@ export const featureDeepDives = [
   {
     title: "Interactive Map",
     description:
-      "Scope starts with place. Map-powered discovery lets travelers scan nearby spots, filter by vibe, and open rich stories from real people.",
+      "Scope Trips starts with place. Map-powered discovery lets travelers scan nearby spots, filter by vibe, and open useful context from real people.",
     image: "/screenshots/map-view.png",
     badges: ["Mapbox", "Geo search", "Live pins"],
   },
   {
     title: "AI Trip Planner",
     description:
-      "LangGraph agents combine Scope content, reviews, weather, distance, and cost prediction into efficient day-by-day routes.",
+      "Planning intelligence combines saved spots, reviews, weather, distance, and cost signals into efficient day-by-day routes.",
     image: "/screenshots/trip-planner.png",
     badges: ["LangGraph", "Ollama", "RAG"],
   },
@@ -72,29 +72,29 @@ export const featureDeepDives = [
 export const posts = [
   {
     slug: "launch-announcement",
-    title: "Introducing Scope - Your Map to Real Adventures",
+    title: "Introducing Scope Trips - Your Map to Smarter Trips",
     date: "2026-04-26",
-    excerpt: "Scope is a platform where people document, discover, and plan real-world experiences on an interactive map.",
+    excerpt: "Scope Trips is a map-first app for discovering real spots and turning them into practical travel plans.",
     readTime: "4 min",
     tags: ["announcement", "launch"],
     body:
-      "Scope starts with the map. Every saved spot can carry photos, reviews, routes, and context from people who were actually there.",
+      "Scope Trips starts with the map. Every saved spot can carry photos, reviews, routes, and context from people who were actually there.",
   },
   {
     slug: "building-scope-architecture",
-    title: "Building Scope Architecture",
+    title: "Building Scope Trips Architecture",
     date: "2026-04-25",
     excerpt: "A look at the service boundaries behind Core, Content, Intel, and the web app.",
     readTime: "6 min",
     tags: ["engineering", "architecture"],
     body:
-      "Scope keeps service responsibilities separate so auth, content, intelligence, and delivery can evolve without turning into one crowded backend.",
+      "Scope Trips keeps service responsibilities separate so auth, content, intelligence, and delivery can evolve without turning into one crowded backend.",
   },
   {
     slug: "ai-trip-planning",
     title: "AI Trip Planning With Community Signal",
     date: "2026-04-24",
-    excerpt: "How Scope turns reviews, distance, weather, and vibe into a practical route.",
+    excerpt: "How Scope Trips turns reviews, distance, weather, and vibe into a practical route.",
     readTime: "5 min",
     tags: ["ai", "planning"],
     body:

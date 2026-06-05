@@ -1,13 +1,13 @@
 import type { Router, RouteLocationNormalizedLoaded } from 'vue-router';
 import type { ThemeMode } from '@/types';
 
-const APP_NAME = 'Scope';
-const DEFAULT_TITLE = 'Scope — Discover spots, map stories, and plan smarter trips';
-const DEFAULT_DESCRIPTION = 'Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends.';
+const APP_NAME = 'Scope Trips';
+const DEFAULT_TITLE = 'Scope Trips - Discover spots and plan smarter trips';
+const DEFAULT_DESCRIPTION = 'Scope Trips helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends.';
 const DEFAULT_ROBOTS = 'index,follow';
 const DEFAULT_IMAGE_PATH = '/social-preview.png';
 const DEFAULT_OG_TYPE = 'website';
-const DEFAULT_IMAGE_ALT = 'Scope preview showing a map-led adventure planning workspace';
+const DEFAULT_IMAGE_ALT = 'Scope Trips preview showing a map-led adventure planning workspace';
 const THEME_COLOR_VARIABLE = '--bg-primary';
 
 type MetaValue = string | false | ((route: RouteLocationNormalizedLoaded) => string | false);

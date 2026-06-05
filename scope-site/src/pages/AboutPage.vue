@@ -4,7 +4,7 @@
       <p class="eyebrow">
         About
       </p>
-      <h1>Scope turns local knowledge into adventure infrastructure.</h1>
+      <h1>Scope Trips turns local knowledge into practical trip planning.</h1>
       <p>
         The platform is built for the moment between inspiration and action: save a place,
         understand why it matters, then turn it into a route you can actually follow.
@@ -14,7 +14,7 @@
       <article class="card">
         <h2>Project Story</h2>
         <p>
-          Scope grew from a simple idea: the best adventures are already happening around us,
+          Scope Trips grew from a simple idea: the best places are already around us,
           but they are scattered across camera rolls, group chats, reviews, and saved maps.
         </p>
       </article>

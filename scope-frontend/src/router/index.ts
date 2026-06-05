@@ -73,8 +73,8 @@ const routes = [
     name: 'home',
     component: HomePage,
     meta: publicRouteMeta(
-      'Scope — Discover spots, map stories, and plan smarter trips',
-      'Discover community-loved spots, turn real-world outings into shareable stories, and build smarter itineraries with Scope.',
+      'Scope Trips - Discover spots and plan smarter trips',
+      'Discover community-loved spots, turn real-world outings into shareable stories, and build smarter itineraries with Scope Trips.',
     ),
   },
   {
@@ -82,8 +82,8 @@ const routes = [
     name: 'explore',
     component: ExplorePage,
     meta: publicRouteMeta(
-      'Explore community-loved spots | Scope',
-      'Browse Scope spots by category, city, and vibe to find food stops, scenic trails, cultural gems, entertainment, or nightlife plans.',
+      'Explore community-loved spots | Scope Trips',
+      'Browse Scope Trips spots by category, city, and vibe to find food stops, scenic trails, cultural gems, entertainment, or nightlife plans.',
     ),
   },
   {
@@ -91,8 +91,8 @@ const routes = [
     name: 'map',
     component: MapPage,
     meta: publicRouteMeta(
-      'Live adventure map | Scope',
-      'Open the full Scope map to explore pins, compare neighborhoods, and jump straight into the places shaping your next outing.',
+      'Live adventure map | Scope Trips',
+      'Open the full Scope Trips map to explore pins, compare neighborhoods, and jump straight into the places shaping your next outing.',
     ),
   },
   {
@@ -100,8 +100,8 @@ const routes = [
     name: 'trips',
     component: TripsWorkspacePage,
     meta: privateRouteMeta(
-      'Trips workspace | Scope',
-      'Open saved drafts, shared trip documents, and published Scope routes in one trip workspace.',
+      'Trips workspace | Scope Trips',
+      'Open saved drafts, shared trip documents, and published Scope Trips routes in one trip workspace.',
     ),
   },
   {
@@ -109,8 +109,8 @@ const routes = [
     name: 'trip-planner',
     component: TripPlannerPage,
     meta: privateRouteMeta(
-      'AI trip planner | Scope',
-      'Build a smarter Scope itinerary with destination, timing, pace, and group preferences tailored to your next adventure.',
+      'AI trip planner | Scope Trips',
+      'Build a smarter Scope Trips itinerary with destination, timing, pace, and group preferences tailored to your next adventure.',
     ),
   },
   {
@@ -118,8 +118,8 @@ const routes = [
     name: 'trip-edit',
     component: TripPlannerPage,
     meta: privateRouteMeta(
-      'Edit trip draft | Scope',
-      'Edit a saved Scope trip draft, update the crew, and refresh the AI itinerary before publishing.',
+      'Edit trip draft | Scope Trips',
+      'Edit a saved Scope Trips trip draft, update the crew, and refresh the AI itinerary before publishing.',
     ),
   },
   {
@@ -139,8 +139,8 @@ const routes = [
     name: 'trip-share',
     component: TripDetailPage,
     meta: publicRouteMeta(
-      'Shared trip | Scope',
-      'Open a shared Scope trip itinerary, route, stops, and crew context.',
+      'Shared trip | Scope Trips',
+      'Open a shared Scope Trips itinerary, route, stops, and crew context.',
     ),
   },
   {
@@ -148,8 +148,8 @@ const routes = [
     name: 'trip-detail',
     component: TripDetailPage,
     meta: privateRouteMeta(
-      'Trip workspace | Scope',
-      'Review itinerary timing, collaborators, and pinned stops inside your Scope trip workspace.',
+      'Trip workspace | Scope Trips',
+      'Review itinerary timing, collaborators, and pinned stops inside your Scope Trips workspace.',
     ),
   },
   {
@@ -157,8 +157,8 @@ const routes = [
     name: 'spot-create',
     component: SpotComposerPage,
     meta: privateRouteMeta(
-      'Create a spot | Scope',
-      'Publish a new Scope pin with photos, notes, coordinates, and category details so your community can discover it.',
+      'Create a spot | Scope Trips',
+      'Publish a new Scope Trips pin with photos, notes, coordinates, and category details so your community can discover it.',
     ),
   },
   {
@@ -166,8 +166,8 @@ const routes = [
     name: 'spot-edit',
     component: SpotComposerPage,
     meta: privateRouteMeta(
-      'Edit your spot | Scope',
-      'Refresh an existing Scope spot with better copy, updated coordinates, stronger photos, or new review context.',
+      'Edit your spot | Scope Trips',
+      'Refresh an existing Scope Trips spot with better copy, updated coordinates, stronger photos, or new review context.',
     ),
   },
   {
@@ -175,8 +175,8 @@ const routes = [
     name: 'spot-detail',
     component: SpotDetailPage,
     meta: publicRouteMeta(
-      'Spot details | Scope',
-      'See Scope spot photos, reviews, map context, and location details before deciding where to head next.',
+      'Spot details | Scope Trips',
+      'See Scope Trips spot photos, reviews, map context, and location details before deciding where to head next.',
     ),
   },
   {
@@ -184,8 +184,8 @@ const routes = [
     name: 'profile',
     component: ProfilePage,
     meta: privateRouteMeta(
-      'Explorer profile | Scope',
-      'Review an Scope explorer’s mapped highlights, public pins, and collaborative trip footprint in one workspace.',
+      'Explorer profile | Scope Trips',
+      'Review a Scope Trips explorer’s mapped highlights, public pins, and collaborative trip footprint in one workspace.',
     ),
   },
   {
@@ -193,8 +193,8 @@ const routes = [
     name: 'friends',
     component: FriendsPage,
     meta: privateRouteMeta(
-      'Friend graph | Scope',
-      'Manage your Scope network, incoming requests, and shared-adventure relationships in one place.',
+      'Friend graph | Scope Trips',
+      'Manage your Scope Trips network, incoming requests, and shared-adventure relationships in one place.',
     ),
   },
   {
@@ -202,8 +202,8 @@ const routes = [
     name: 'notifications',
     component: NotificationsPage,
     meta: privateRouteMeta(
-      'Notifications | Scope',
-      'Review Scope trip invites, friend activity, comments, mentions, and account alerts from one inbox.',
+      'Notifications | Scope Trips',
+      'Review Scope Trips trip invites, friend activity, comments, mentions, and account alerts from one inbox.',
     ),
   },
   {
@@ -211,8 +211,8 @@ const routes = [
     name: 'settings',
     component: SettingsPage,
     meta: privateRouteMeta(
-      'Account settings | Scope',
-      'Update your Scope profile, preferences, and account details while keeping your adventure workspace personalized.',
+      'Account settings | Scope Trips',
+      'Update your Scope Trips profile, preferences, and account details while keeping your adventure workspace personalized.',
     ),
   },
   {
@@ -220,8 +220,8 @@ const routes = [
     name: 'login',
     component: LoginPage,
     meta: guestRouteMeta(
-      'Log in to Scope',
-      'Sign in to Scope to pick up your saved trips, network activity, and pinned adventure stories.',
+      'Log in to Scope Trips',
+      'Sign in to Scope Trips to pick up your saved trips, network activity, and pinned adventure stories.',
     ),
   },
   {
@@ -229,8 +229,8 @@ const routes = [
     name: 'register',
     component: RegisterPage,
     meta: guestRouteMeta(
-      'Create your Scope account',
-      'Join Scope to map real-world experiences, share stories with friends, and unlock smarter itinerary planning.',
+      'Create your Scope Trips account',
+      'Join Scope Trips to map real-world experiences, share stories with friends, and unlock smarter itinerary planning.',
     ),
   },
   {
@@ -238,8 +238,8 @@ const routes = [
     name: 'onboarding-preferences',
     component: OnboardingPreferencesPage,
     meta: privateRouteMeta(
-      'Personalize Scope | Onboarding',
-      'Tell Scope what matters most on your next adventure so every map, feed, and trip suggestion leans your way.',
+      'Personalize Scope Trips | Onboarding',
+      'Tell Scope Trips what matters most on your next adventure so every map, feed, and trip suggestion leans your way.',
     ),
   },
   {
@@ -248,8 +248,8 @@ const routes = [
     name: 'privacy',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Privacy Policy | Scope',
-      'Read the simple Scope privacy overview for account, map, planning, and analytics data.',
+      'Privacy Policy | Scope Trips',
+      'Read the simple Scope Trips privacy overview for account, map, planning, and analytics data.',
     ),
   },
   {
@@ -258,8 +258,8 @@ const routes = [
     name: 'terms',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Terms of Service | Scope',
-      'Review the simple Scope terms for accounts, shared content, and responsible use.',
+      'Terms of Service | Scope Trips',
+      'Review the simple Scope Trips terms for accounts, shared content, and responsible use.',
     ),
   },
   {
@@ -267,8 +267,8 @@ const routes = [
     name: 'cookies',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Cookie Choices | Scope',
-      'Review how Scope uses essential storage and optional analytics cookies.',
+      'Cookie Choices | Scope Trips',
+      'Review how Scope Trips uses essential storage and optional analytics cookies.',
     ),
   },
   {
@@ -276,8 +276,8 @@ const routes = [
     name: 'accessibility',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Accessibility | Scope',
-      'Read the Scope accessibility notes for keyboard, contrast, and responsive support.',
+      'Accessibility | Scope Trips',
+      'Read the Scope Trips accessibility notes for keyboard, contrast, and responsive support.',
     ),
   },
   {
@@ -285,8 +285,8 @@ const routes = [
     name: 'security',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Security | Scope',
-      'Read the Scope security overview for account protection, APIs, and deployment defaults.',
+      'Security | Scope Trips',
+      'Read the Scope Trips security overview for account protection, APIs, and deployment defaults.',
     ),
   },
   {
@@ -294,8 +294,8 @@ const routes = [
     name: 'about',
     component: LegalPage,
     meta: publicRouteMeta(
-      'About Scope',
-      'Learn what Scope is building for real-world adventure discovery and planning.',
+      'About Scope Trips',
+      'Learn what Scope Trips is building for real-world adventure discovery and planning.',
     ),
   },
   {
@@ -303,8 +303,8 @@ const routes = [
     name: 'help',
     component: LegalPage,
     meta: publicRouteMeta(
-      'Help | Scope',
-      'Find simple help for exploring places, planning trips, and contacting Scope support.',
+      'Help | Scope Trips',
+      'Find simple help for exploring places, planning trips, and contacting Scope Trips support.',
     ),
   },
   {
@@ -312,8 +312,8 @@ const routes = [
     name: 'not-found',
     component: NotFoundPage,
     meta: {
-      title: 'Page not found | Scope',
-      description: 'The requested Scope route could not be found. Jump back into home, explore, or the live map to continue discovering.',
+      title: 'Page not found | Scope Trips',
+      description: 'The requested Scope Trips route could not be found. Jump back into home, explore, or the live map to continue discovering.',
       robots: PRIVATE_ROBOTS,
       canonicalPath: false,
     },

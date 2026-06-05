@@ -9,7 +9,7 @@
           <span class="guest-navbar__brand-mark" aria-hidden="true">
             <ScopeIcon name="logo" />
           </span>
-          <span class="guest-navbar__brand-text">Scope</span>
+          <span class="guest-navbar__brand-text">Scope Trips</span>
         </RouterLink>
 
         <nav class="guest-navbar__links" aria-label="Primary">
@@ -59,7 +59,7 @@
       >
         <div class="guest-navbar__mobile-header">
           <div class="guest-navbar__mobile-heading">
-            <p class="guest-navbar__mobile-eyebrow">Discover Scope</p>
+            <p class="guest-navbar__mobile-eyebrow">Discover Scope Trips</p>
             <h2 :id="mobileMenuTitleId">Plan your next adventure</h2>
           </div>
 
@@ -127,7 +127,7 @@ const mobileLinks = computed(() => [
     label: 'Explore',
     to: '/explore',
     icon: 'explore',
-    description: 'Standout spots across the Scope community.',
+    description: 'Standout spots across the Scope Trips community.',
   },
   {
     label: 'Map',

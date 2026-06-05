@@ -7,19 +7,19 @@ import { assetPath, features, stats } from "@/data";
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">
-          Map-first social discovery
+          Map-first trip planning
         </p>
-        <h1>Discover Real <span>Adventures</span></h1>
+        <h1>Plan Real <span>Trips</span></h1>
         <p>
-          Scope helps people document, discover, and plan real-world experiences with community
-          photos, trusted stories, and AI-powered itineraries.
+          Scope Trips helps people discover real spots, save the places that matter, and turn
+          them into smarter routes with AI-assisted planning.
         </p>
         <div class="hero-actions">
           <RouterLink
             class="button primary"
             to="/download"
           >
-            Get Started
+            Start Planning
           </RouterLink>
           <RouterLink
             class="button secondary"
@@ -32,7 +32,7 @@ import { assetPath, features, stats } from "@/data";
       <div class="hero-media">
         <img
           :src="assetPath('/screenshots/map-view.png')"
-          alt="Scope interactive map interface"
+          alt="Scope Trips interactive map interface"
         >
         <div class="media-badges">
           <span>Golden hour</span>
@@ -57,8 +57,8 @@ import { assetPath, features, stats } from "@/data";
         <p class="eyebrow">
           Platform
         </p>
-        <h2>Everything adventure planning needs in one place.</h2>
-        <p>Scope blends social proof, location intelligence, and local AI into an app built for repeated exploration.</p>
+        <h2>Everything trip planning needs in one place.</h2>
+        <p>Scope Trips blends social proof, location intelligence, and AI assistance into an app built for repeated exploration.</p>
       </div>
       <div class="feature-grid">
         <article
@@ -80,13 +80,13 @@ import { assetPath, features, stats } from "@/data";
       <p class="eyebrow">
         Start here
       </p>
-      <h2>Start Your Adventure</h2>
-      <p>Save real places, share the story, and let Scope turn the next open weekend into a plan.</p>
+      <h2>Start Your Trip</h2>
+      <p>Save real places, share the plan, and let Scope Trips turn the next open weekend into a route.</p>
       <RouterLink
         class="button primary"
         to="/download"
       >
-        Open Scope
+        Open Scope Trips
       </RouterLink>
     </section>
   </main>
