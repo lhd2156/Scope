@@ -334,3 +334,9 @@ def test_kafka_consumer_handles_user_registered_event(monkeypatch):
     consumer.handle_message("user.registered", {"userId": "user-99"})
 
     assert captured["preference"] == ("user-99", ["culture", "food"], "medium", "moderate")
+
+    consumer.handle_message("user.registered", {"Id": "core-user-100", "Username": "core"})
+    assert captured["preference"] == ("core-user-100", ["culture", "food"], "medium", "moderate")
+
+    consumer.handle_message("user.registered", {"Username": "missing-id"})
+    assert captured["preference"] == ("core-user-100", ["culture", "food"], "medium", "moderate")
