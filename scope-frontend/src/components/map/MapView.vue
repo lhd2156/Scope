@@ -9902,6 +9902,7 @@ defineExpose({
 
 <style scoped>
 .map-view {
+  --scope-map-chrome-z: 720;
   --scope-map-loading-bg: rgb(31 35 38);
   --scope-map-style-transition-bg:
     radial-gradient(circle at 18% 16%, rgb(32 190 169 / 0.22), transparent 36%),
@@ -9917,6 +9918,7 @@ defineExpose({
   --scope-map-status-left: 0.58rem;
   --scope-map-attribution-clearance: 2.05rem;
   position: relative;
+  isolation: isolate;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -9971,6 +9973,11 @@ defineExpose({
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.map-canvas {
+  z-index: 0;
+  overflow: hidden;
 }
 
 .map-planner-preload-surface {
@@ -10831,7 +10838,7 @@ defineExpose({
 .map-style-switch,
 .map-projection-switch {
   position: absolute;
-  z-index: var(--z-sidebar);
+  z-index: var(--scope-map-chrome-z);
 }
 
 .map-summary {
@@ -10973,7 +10980,7 @@ defineExpose({
 }
 
 .map-style-switch {
-  right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-4)) + 3.95rem);
+  right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-4)) + 5.15rem);
   bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-4)));
   display: inline-flex;
   align-items: center;
@@ -11094,7 +11101,7 @@ defineExpose({
   inset: 50% auto auto 50%;
   width: min(30rem, calc(100% - 3rem));
   transform: translate(-50%, -50%);
-  z-index: var(--z-sidebar);
+  z-index: var(--scope-map-chrome-z);
   pointer-events: none;
   padding: var(--space-5) var(--space-6);
   display: grid;
@@ -11288,7 +11295,7 @@ code {
   }
 
   .map-style-switch {
-    right: calc(var(--scope-map-controls-right, var(--space-3)) + 3.55rem);
+    right: calc(var(--scope-map-controls-right, var(--space-3)) + 4.75rem);
     bottom: var(--scope-map-controls-bottom, var(--space-3));
   }
 

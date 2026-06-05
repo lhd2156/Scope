@@ -36,6 +36,7 @@ repos:
       - id: ruff
         args: ['--fix']
         files: '^(scope_content|scope_intel|scope-metrics|scope-cli|scripts)/.*\.py$'
+        exclude: '(^|/)proto/scope/v1/.*_pb2\.py$'
 
   - repo: local
     hooks:

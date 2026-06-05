@@ -205,36 +205,20 @@ export async function sendFriendRequest(userId: string): Promise<void> {
     return;
   }
 
-  try {
-    await api.post(`${FRIENDS_BASE_PATH}/request/${userId}`);
-  } catch (error) {
-    throw error;
-  }
+  await api.post(`${FRIENDS_BASE_PATH}/request/${userId}`);
 }
 
 export async function acceptFriendRequest(requestId: string): Promise<FriendConnection> {
-  try {
-    const { data } = await api.put<ApiEnvelope<FriendConnectionWire> | FriendConnectionWire>(`${FRIENDS_BASE_PATH}/${requestId}/accept`);
-    return normalizeConnection(unwrapApiData(data) as FriendConnectionWire);
-  } catch (error) {
-    throw error;
-  }
+  const { data } = await api.put<ApiEnvelope<FriendConnectionWire> | FriendConnectionWire>(`${FRIENDS_BASE_PATH}/${requestId}/accept`);
+  return normalizeConnection(unwrapApiData(data) as FriendConnectionWire);
 }
 
 export async function rejectFriendRequest(requestId: string): Promise<void> {
-  try {
-    await api.put(`${FRIENDS_BASE_PATH}/${requestId}/reject`);
-  } catch (error) {
-    throw error;
-  }
+  await api.put(`${FRIENDS_BASE_PATH}/${requestId}/reject`);
 }
 
 export async function removeFriend(friendshipId: string): Promise<void> {
-  try {
-    await api.delete(`${FRIENDS_BASE_PATH}/${friendshipId}`);
-  } catch (error) {
-    throw error;
-  }
+  await api.delete(`${FRIENDS_BASE_PATH}/${friendshipId}`);
 }
 
 export type FriendListMeta = PaginationMeta | null;
