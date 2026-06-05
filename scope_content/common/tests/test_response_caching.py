@@ -190,13 +190,13 @@ def test_social_feed_response_is_cached_and_invalidated_after_trip_create(auth_h
     )
     refreshed_response = client.get('/api/content/feed/')
     trip_titles = {
-        entry['item']['title']
+        entry['title']
         for entry in refreshed_response.json()['data']
         if entry['type'] == 'trip'
     }
 
     assert create_response.status_code == 201
-    assert 'New Cached Trip' in trip_titles
+    assert any('New Cached Trip' in title for title in trip_titles)
 
 
 

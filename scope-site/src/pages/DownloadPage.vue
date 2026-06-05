@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { assetPath } from "@/data";
 
-const webAppUrl = import.meta.env.VITE_SCOPE_WEB_APP_URL || "https://app.scopetrips.com";
+const webAppUrl = import.meta.env.VITE_SCOPE_WEB_APP_URL || "https://scopetrips.com";
 </script>
 
 <template>

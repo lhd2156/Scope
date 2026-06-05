@@ -20,6 +20,7 @@ import {
 import { rankTrendingSpots } from '@/utils/spotRanking';
 
 const FEED_BASE_PATH = '/api/content/feed';
+const FEED_LIST_PATH = '/api/content/feed/';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
 const DEFAULT_NOTIFICATION_CATEGORIES = ['account', 'security', 'trip', 'friend', 'social', 'comment', 'mention', 'digest', 'general'];
@@ -143,7 +144,7 @@ export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): 
   }
 
   try {
-    const { data } = await api.get<ApiEnvelope<FeedItem[]>>(FEED_BASE_PATH, { params: { page, pageSize } });
+    const { data } = await api.get<ApiEnvelope<FeedItem[]>>(FEED_LIST_PATH, { params: { page, pageSize } });
     const sanitizedEnvelope = sanitizeFeedEnvelope(data);
     rememberLiveFeed(sanitizedEnvelope.data);
     if (sanitizedEnvelope.data.length || hasObservedLiveFeedData || !FEED_READ_FALLBACK_ENABLED) {

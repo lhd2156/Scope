@@ -327,12 +327,12 @@ function resolveActivityLabel(title: string, type: FeedItemModel['type']): strin
     return 'Planned a route';
   }
 
-  if (normalizedTitle.includes('completed')) {
-    return 'Completed a trip';
-  }
-
   if (normalizedTitle.includes('review')) {
     return 'Wrote a review';
+  }
+
+  if (normalizedTitle.includes('completed')) {
+    return 'Completed a trip';
   }
 
   return type === 'trip' ? 'Trip activity' : 'Spot activity';
@@ -342,10 +342,25 @@ const activityLabel = computed(() => resolveActivityLabel(props.item.title, prop
 const headlineCopy = computed(() => resolveHeadlineCopy(props.item.title, props.item.actor));
 const relativeTime = computed(() => formatRelativeTime(props.item.createdAt));
 const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : `/spots/${props.item.targetId}`));
-const typeLabel = computed(() => (props.item.type === 'trip' ? 'Trip update' : 'Pinned spot'));
+const typeLabel = computed(() => {
+  if (props.item.type === 'trip') {
+    return 'Trip update';
+  }
+  return props.item.type === 'review' ? 'Place review' : 'Pinned spot';
+});
 const destinationLabel = computed(() => (props.item.type === 'trip' ? 'Open trip' : 'Open spot'));
-const typeIcon = computed(() => (props.item.type === 'trip' ? 'route' : 'pin'));
-const overlayTitle = computed(() => (props.item.type === 'trip' ? 'Route snapshot' : 'Pinned moment'));
+const typeIcon = computed(() => {
+  if (props.item.type === 'trip') {
+    return 'route';
+  }
+  return props.item.type === 'review' ? 'star' : 'pin';
+});
+const overlayTitle = computed(() => {
+  if (props.item.type === 'trip') {
+    return 'Route snapshot';
+  }
+  return props.item.type === 'review' ? 'Review note' : 'Pinned moment';
+});
 const locationCopy = computed(() => props.item.actor.homeBase?.trim() || 'Scope community');
 const FEED_IMAGE_WIDTH = 960;
 
@@ -654,6 +669,14 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 }
 
 .type-pill--spot :deep(.scope-icon) {
+  color: var(--accent-gold);
+}
+
+.type-pill--review {
+  background: color-mix(in srgb, var(--accent-gold) 22%, var(--glass-bg));
+}
+
+.type-pill--review :deep(.scope-icon) {
   color: var(--accent-gold);
 }
 
