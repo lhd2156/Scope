@@ -43,6 +43,7 @@ vi.mock('@microsoft/signalr', () => ({
     Reconnecting: 'Reconnecting',
   },
   LogLevel: {
+    None: 0,
     Information: 2,
     Warning: 3,
   },
@@ -118,6 +119,7 @@ describe('signalrService', () => {
 
   it('uses the configured API origin for production notification hub connections', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'https://api.scopetrips.com');
+    vi.stubEnv('MODE', 'production');
     vi.resetModules();
 
     const { startNotificationStream } = await import('@/services/signalrService');
@@ -135,6 +137,7 @@ describe('signalrService', () => {
         accessTokenFactory: expect.any(Function),
       }),
     );
+    expect(signalrMock.builder.configureLogging).toHaveBeenCalledWith(0);
   });
 
   it('stays idle when there is no access token', async () => {
