@@ -1092,9 +1092,10 @@ const mapViewStyle = computed(() => {
   }
 
   return {
+    '--scope-mobile-sheet-visible': mobileSheetVisibleHeight.value,
     '--scope-map-controls-top': 'calc(var(--space-3) + 4.75rem)',
     '--scope-map-controls-right': 'var(--space-3)',
-    '--scope-map-controls-bottom': 'auto',
+    '--scope-map-controls-bottom': 'calc(var(--scope-mobile-sheet-visible) + var(--space-4))',
     '--scope-map-controls-left': 'auto',
     '--scope-map-controls-panel-top': 'var(--space-3)',
     '--scope-map-controls-panel-right': 'var(--space-3)',
@@ -2653,7 +2654,7 @@ onBeforeUnmount(() => {
   .map-stage--mobile :deep(.map-controls) {
     --scope-map-controls-top: calc(var(--space-3) + 4.75rem);
     --scope-map-controls-right: max(var(--space-3), var(--safe-area-right));
-    --scope-map-controls-bottom: max(var(--space-3), var(--safe-area-bottom));
+    --scope-map-controls-bottom: calc(var(--scope-mobile-sheet-visible, 9.5rem) + var(--space-4) + var(--safe-area-bottom));
     --scope-map-controls-panel-right: max(var(--space-3), var(--safe-area-right));
     --scope-map-controls-panel-bottom: max(var(--space-3), var(--safe-area-bottom));
     --scope-map-controls-panel-left: max(var(--space-3), var(--safe-area-left));

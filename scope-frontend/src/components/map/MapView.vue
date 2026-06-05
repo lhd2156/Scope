@@ -11159,8 +11159,9 @@ defineExpose({
 .map-view--mobile .map-summary {
   top: max(var(--space-3), var(--safe-area-top));
   right: max(var(--space-3), var(--safe-area-right));
-  left: auto;
-  max-width: min(18rem, calc(100% - 7.5rem));
+  left: max(var(--space-3), var(--safe-area-left));
+  max-width: none;
+  justify-content: center;
   gap: 0.35rem var(--space-2);
   padding: 0.5rem;
   border-radius: 1.35rem;
@@ -11190,8 +11191,15 @@ defineExpose({
   padding: 0.38rem 0.62rem;
 }
 
+.map-view--mobile .map-style-switch {
+  top: calc(max(var(--space-3), var(--safe-area-top)) + 4.35rem);
+  right: max(var(--space-3), var(--safe-area-right));
+  left: auto;
+  bottom: auto;
+}
+
 .map-view--mobile .map-projection-switch {
-  top: calc(max(var(--space-3), var(--safe-area-top)) + 5.9rem);
+  top: calc(max(var(--space-3), var(--safe-area-top)) + 8.35rem);
   right: max(var(--space-3), var(--safe-area-right));
   left: auto;
   bottom: auto;
@@ -11287,7 +11295,7 @@ code {
   }
 
   .map-view--mobile .map-summary {
-    max-width: min(18rem, calc(100% - 7.5rem));
+    max-width: none;
   }
 
   .map-view--mobile .tracker-overlay {
