@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { localFallbackEnabled } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, unwrapApiData } from '@/services/serviceUtils';
 import { getSpotDetail } from '@/services/spotService';
@@ -77,7 +78,7 @@ interface IntelVibeMatchResponse {
 function shouldUseMockFallback(): boolean {
   return (
     isScopeQaMode() ||
-    import.meta.env.VITE_ENABLE_INTEL_MOCK_FALLBACK === 'true'
+    localFallbackEnabled('VITE', 'ENABLE', 'INTEL', 'MOCK', 'FALLBACK')
   );
 }
 

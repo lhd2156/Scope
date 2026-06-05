@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { unwrapApiData } from '@/services/serviceUtils';
 
 export interface WeatherLookupPoint {
@@ -118,8 +118,8 @@ const OPEN_METEO_GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search
 const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 let openWeatherMapUnavailable = false;
-const DEMO_WEATHER_ENABLED = DEMO_MODE_ENABLED && import.meta.env.VITE_ENABLE_DEMO_WEATHER === 'true';
-const CLIENT_WEATHER_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_CLIENT_WEATHER_FALLBACK === 'true';
+const DEMO_WEATHER_ENABLED = DEMO_MODE_ENABLED && localFallbackEnabled('VITE', 'ENABLE', 'DEMO', 'WEATHER');
+const CLIENT_WEATHER_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'CLIENT', 'WEATHER', 'FALLBACK');
 
 function getOpenWeatherMapApiKey(): string {
   return import.meta.env.VITE_OPENWEATHERMAP_API_KEY?.trim() ?? '';
@@ -174,7 +174,7 @@ async function getBackendCurrentWeatherSnapshot(point: WeatherLookupPoint): Prom
   return normalizeBackendWeatherSnapshot(point, unwrapApiData(data) as BackendCurrentWeatherResponse);
 }
 
-function buildDemoWeatherSnapshot(point: WeatherLookupPoint): WeatherSnapshot {
+function buildLocalWeatherSnapshot(point: WeatherLookupPoint): WeatherSnapshot {
   const latitude = getOptionalWeatherNumber(point.latitude) ?? 32;
   const longitude = getOptionalWeatherNumber(point.longitude) ?? -97;
   const label = point.label.trim() || 'Map preview';
@@ -183,13 +183,13 @@ function buildDemoWeatherSnapshot(point: WeatherLookupPoint): WeatherSnapshot {
   const condition = ['Clear', 'Partly Cloudy', 'Current Conditions', 'Breezy'][conditionCode] ?? 'Current Conditions';
 
   return {
-    id: `demo:${label}:${latitude.toFixed(2)}:${longitude.toFixed(2)}`,
+    id: `local-weather:${label}:${latitude.toFixed(2)}:${longitude.toFixed(2)}`,
     label,
     temperatureF: 66 + temperatureOffset,
     condition,
     windMph: 6 + Math.round(Math.abs(longitude) % 8),
-    provider: 'demo',
-    providerLabel: 'Scope demo weather',
+    provider: 'local',
+    providerLabel: 'Scope local weather',
     conditionCode,
     isDaytime: true,
   };
@@ -575,7 +575,7 @@ export async function getOpenWeatherMapSnapshot(point: WeatherLookupPoint): Prom
   }
 
   if (DEMO_WEATHER_ENABLED) {
-    return buildDemoWeatherSnapshot({ ...point, label });
+    return buildLocalWeatherSnapshot({ ...point, label });
   }
 
   try {

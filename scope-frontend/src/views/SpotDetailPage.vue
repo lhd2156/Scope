@@ -67,7 +67,7 @@
     <Modal :open="showDeleteModal" title="Delete this spot?" eyebrow="Creator tools" size="sm" @close="closeDeleteModal">
       <div class="delete-modal" data-test="spot-delete-modal">
         <p class="section-copy">
-          Scope will remove this pin from explore, maps, and itinerary suggestions for everyone using the current demo workspace.
+          Scope will remove this pin from explore, maps, and itinerary suggestions for everyone using the current workspace.
         </p>
         <p v-if="deleteErrorMessage" class="delete-error" role="alert">{{ deleteErrorMessage }}</p>
         <div class="modal-actions">
@@ -98,7 +98,7 @@ import { formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 
 const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
-  id: 'demo-spot-1',
+  id: 'audit-spot-1',
   title: 'Sunset Rooftop Tacos',
   description: 'A compact audit fixture that keeps the detail route readable, branded, and fast while synthetic QA skips the full gallery and review stack.',
   latitude: 32.7555,
@@ -112,9 +112,9 @@ const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
   photoUrl: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?auto=format&fit=crop&w=1200&q=80',
   createdAt: '2026-01-12T18:00:00.000Z',
   author: {
-    id: 'demo-user-1',
-    username: 'scopedemo',
-    email: 'demo@scope.travel',
+    id: 'preview-user-1',
+    username: 'scope-audit',
+    email: '',
     displayName: 'Scope traveler',
     interests: ['food', 'nightlife', 'culture'],
   },
@@ -122,7 +122,7 @@ const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
   likesCount: 184,
   photos: [
     {
-      id: 'demo-spot-1-photo-1',
+      id: 'audit-spot-1-photo-1',
       url: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?auto=format&fit=crop&w=1200&q=80',
       caption: 'Rooftop tacos at sunset',
     },

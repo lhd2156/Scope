@@ -1,10 +1,10 @@
 import api from '@/services/api';
 import {
   AUTH_MOCK_FALLBACK_ENABLED,
-  DEMO_LOGIN_EMAIL,
-  DEMO_LOGIN_ERROR_MESSAGE,
-  DEMO_LOGIN_PASSWORD,
-  DEMO_MODE_ENABLED,
+  DEMO_LOGIN_EMAIL as LOCAL_PREVIEW_LOGIN_EMAIL,
+  DEMO_LOGIN_ERROR_MESSAGE as LOCAL_PREVIEW_LOGIN_ERROR_MESSAGE,
+  DEMO_LOGIN_PASSWORD as LOCAL_PREVIEW_LOGIN_PASSWORD,
+  DEMO_MODE_ENABLED as LOCAL_PREVIEW_MODE_ENABLED,
 } from '@/services/demoMode';
 import {
   findLocalPreviewUser,
@@ -19,28 +19,35 @@ import { sanitizeAuthForm, sanitizeAuthPayload, sanitizeRegisterForm } from '@/u
 
 const AUTH_BASE_PATH = '/api/core/auth';
 
-function randomDemoToken(prefix: string): string {
-  // Demo tokens must be unpredictable so they cannot be reused across sessions
-  // or mistaken for a shared "default" credential. These values are ONLY ever
-  // used when the local demo/mock fallback is explicitly enabled at build time.
+function randomPreviewToken(prefix: string): string {
+  // Local preview tokens are randomized so they cannot be reused across sessions
+  // or mistaken for a shared default credential.
   const rnd = typeof crypto !== 'undefined' && crypto.getRandomValues
     ? Array.from(crypto.getRandomValues(new Uint32Array(4))).map((n) => n.toString(16)).join('')
     : Math.random().toString(16).slice(2) + Date.now().toString(16);
   return `${prefix}-${rnd}`;
 }
 
-const DEFAULT_DEMO_ACCESS_TOKEN = randomDemoToken('demo-access');
-const DEFAULT_DEMO_REFRESH_TOKEN = randomDemoToken('demo-refresh');
+const DEFAULT_PREVIEW_ACCESS_TOKEN = randomPreviewToken('preview-access');
+const DEFAULT_PREVIEW_REFRESH_TOKEN = randomPreviewToken('preview-refresh');
 const LIVE_REFRESH_SESSION_REUSE_MS = 5_000;
 const FALLBACK_USER = {
   id: 'user-1',
-  username: 'scopedemo',
-  email: 'demo@scope.travel',
+  username: 'scope-user',
+  email: '',
   displayName: 'Scope traveler',
 };
 
 const EMAIL_IDENTIFIER_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_IDENTIFIER_REGEX = /^[+\d().\-\s]+$/;
+const AUTH_MOCK_USERS_ALLOWED_IN_BUILD = import.meta.env.MODE !== 'production' || import.meta.env.VITE_ENABLE_LOCAL_PREVIEW === 'true';
+type AuthMockUsersModule = typeof import('@/services/mockAuthUsers');
+
+const loadAuthMockUsers: () => Promise<AuthMockUsersModule> = AUTH_MOCK_USERS_ALLOWED_IN_BUILD
+  ? async () => import('@/services/mockAuthUsers')
+  : async () => {
+    throw new Error('Local preview auth users are not available in this production build.');
+  };
 
 function slugifyIdentifier(identifier: string): string {
   return identifier
@@ -108,7 +115,11 @@ const recentLiveRefreshSessions = new Map<string, { payload: AuthPayload; expire
 async function findMatchingMockUser(
   criteria: Partial<Pick<UserProfile, 'id' | 'email' | 'username' | 'displayName'>>,
 ): Promise<UserProfile | undefined> {
-  const { findAuthMockUser } = await import('@/services/mockAuthUsers');
+  if (import.meta.env.MODE === 'production' && import.meta.env.VITE_ENABLE_LOCAL_PREVIEW !== 'true') {
+    return undefined;
+  }
+
+  const { findAuthMockUser } = await loadAuthMockUsers();
   return findAuthMockUser(criteria);
 }
 
@@ -237,32 +248,35 @@ async function buildFallbackAuthPayload(overrides: Partial<AuthPayload> = {}): P
     homeBase: overrides.homeBase ?? matchingUser?.homeBase,
     interests: overrides.interests ?? matchingUser?.interests,
     showActivityStatus: overrides.showActivityStatus ?? matchingUser?.showActivityStatus,
-    accessToken: overrides.accessToken ?? DEFAULT_DEMO_ACCESS_TOKEN,
-    refreshToken: overrides.refreshToken ?? DEFAULT_DEMO_REFRESH_TOKEN,
+    accessToken: overrides.accessToken ?? DEFAULT_PREVIEW_ACCESS_TOKEN,
+    refreshToken: overrides.refreshToken ?? DEFAULT_PREVIEW_REFRESH_TOKEN,
   });
 }
 
-async function buildDemoAuthPayload(overrides: Partial<AuthPayload> = {}): Promise<AuthPayload> {
-  const demoUser = await findMatchingMockUser({ email: DEMO_LOGIN_EMAIL });
+async function buildLocalPreviewAuthPayload(overrides: Partial<AuthPayload> = {}): Promise<AuthPayload> {
+  const previewEmail = LOCAL_PREVIEW_LOGIN_EMAIL || FALLBACK_USER.email;
+  const previewUser = await findMatchingMockUser({ email: previewEmail });
 
   return buildFallbackAuthPayload({
-    id: demoUser?.id,
-    username: demoUser?.username,
-    email: DEMO_LOGIN_EMAIL,
-    displayName: demoUser?.displayName,
+    id: previewUser?.id,
+    username: previewUser?.username,
+    email: previewEmail,
+    displayName: previewUser?.displayName,
     accessToken: overrides.accessToken,
     refreshToken: overrides.refreshToken,
   });
 }
 
-function assertDemoCredentials(credentials: AuthForm): void {
+function assertLocalPreviewCredentials(credentials: AuthForm): void {
   const sanitizedCredentials = sanitizeAuthForm(credentials);
 
   if (
-    sanitizedCredentials.email !== DEMO_LOGIN_EMAIL ||
-    sanitizedCredentials.password !== DEMO_LOGIN_PASSWORD
+    !LOCAL_PREVIEW_LOGIN_EMAIL ||
+    !LOCAL_PREVIEW_LOGIN_PASSWORD ||
+    sanitizedCredentials.email !== LOCAL_PREVIEW_LOGIN_EMAIL ||
+    sanitizedCredentials.password !== LOCAL_PREVIEW_LOGIN_PASSWORD
   ) {
-    throw new Error(DEMO_LOGIN_ERROR_MESSAGE);
+    throw new Error(LOCAL_PREVIEW_LOGIN_ERROR_MESSAGE);
   }
 }
 
@@ -273,9 +287,9 @@ function hasUsableAuthTokens(payload: Partial<AuthPayload> | null | undefined): 
 export async function login(credentials: AuthForm): Promise<AuthPayload> {
   const sanitizedCredentials = sanitizeAuthForm(credentials);
 
-  if (DEMO_MODE_ENABLED) {
-    assertDemoCredentials(sanitizedCredentials);
-    return buildDemoAuthPayload();
+  if (LOCAL_PREVIEW_MODE_ENABLED) {
+    assertLocalPreviewCredentials(sanitizedCredentials);
+    return buildLocalPreviewAuthPayload();
   }
 
   try {
@@ -295,7 +309,7 @@ export async function login(credentials: AuthForm): Promise<AuthPayload> {
 export async function register(payload: RegisterForm): Promise<AuthPayload> {
   const sanitizedPayload = sanitizeRegisterForm(payload);
 
-  if (DEMO_MODE_ENABLED) {
+  if (LOCAL_PREVIEW_MODE_ENABLED) {
     return rememberLocalPreviewAuthPayload(
       await buildFallbackAuthPayload(buildLocalPreviewUserFromRegistration(sanitizedPayload)),
     );
@@ -327,10 +341,10 @@ export async function register(payload: RegisterForm): Promise<AuthPayload> {
 }
 
 export async function refreshSession(options: RefreshSessionOptions = {}): Promise<AuthPayload> {
-  if (DEMO_MODE_ENABLED) {
-    return buildDemoAuthPayload({
-      accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
-      refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
+  if (LOCAL_PREVIEW_MODE_ENABLED) {
+    return buildLocalPreviewAuthPayload({
+      accessToken: `${DEFAULT_PREVIEW_ACCESS_TOKEN}-${Date.now()}`,
+      refreshToken: DEFAULT_PREVIEW_REFRESH_TOKEN,
     });
   }
 
@@ -340,8 +354,8 @@ export async function refreshSession(options: RefreshSessionOptions = {}): Promi
     if (options.allowMockFallback && AUTH_MOCK_FALLBACK_ENABLED) {
       return buildFallbackAuthPayload({
         ...readCurrentLocalPreviewUser(),
-        accessToken: `${DEFAULT_DEMO_ACCESS_TOKEN}-${Date.now()}`,
-        refreshToken: DEFAULT_DEMO_REFRESH_TOKEN,
+        accessToken: `${DEFAULT_PREVIEW_ACCESS_TOKEN}-${Date.now()}`,
+        refreshToken: DEFAULT_PREVIEW_REFRESH_TOKEN,
       });
     }
 
@@ -350,7 +364,7 @@ export async function refreshSession(options: RefreshSessionOptions = {}): Promi
 }
 
 export async function logout(refreshToken = readStoredRefreshToken()): Promise<void> {
-  if (DEMO_MODE_ENABLED) {
+  if (LOCAL_PREVIEW_MODE_ENABLED) {
     return;
   }
 
@@ -362,8 +376,8 @@ export async function logout(refreshToken = readStoredRefreshToken()): Promise<v
 }
 
 export async function loginWithCognito(idToken: string): Promise<AuthPayload> {
-  if (DEMO_MODE_ENABLED) {
-    return buildDemoAuthPayload();
+  if (LOCAL_PREVIEW_MODE_ENABLED) {
+    return buildLocalPreviewAuthPayload();
   }
 
   try {

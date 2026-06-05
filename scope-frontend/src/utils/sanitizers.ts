@@ -30,7 +30,7 @@ import {
   resolveFeedImageUrl,
   resolveSpotPhotoUrl,
   resolveTripCoverImageUrl,
-} from '@/utils/demoPhotos';
+} from '@/utils/imageFallbacks';
 
 const CONTROL_CHARACTER_CLASS = [
   `${String.fromCharCode(0)}-${String.fromCharCode(8)}`,

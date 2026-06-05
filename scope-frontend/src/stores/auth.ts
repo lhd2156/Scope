@@ -23,12 +23,13 @@ const INVALID_LOGIN_STATUSES = new Set([400, 401, 403, 404, 422]);
 
 async function resolveCurrentUser(payload: AuthPayload): Promise<UserProfile> {
   const sanitizedPayload = sanitizeAuthPayload(payload);
-  const { findAuthMockUser } = await import('@/services/mockAuthUsers');
-  const matchingUser = findAuthMockUser({
-    id: sanitizedPayload.id,
-    email: sanitizedPayload.email,
-    username: sanitizedPayload.username,
-  });
+  const matchingUser = import.meta.env.MODE === 'production' && import.meta.env.VITE_ENABLE_LOCAL_PREVIEW !== 'true'
+    ? undefined
+    : (await import('@/services/mockAuthUsers')).findAuthMockUser({
+      id: sanitizedPayload.id,
+      email: sanitizedPayload.email,
+      username: sanitizedPayload.username,
+    });
 
   if (matchingUser) {
     return sanitizeUserProfile({
@@ -72,7 +73,7 @@ function resolveLoginErrorMessage(error: unknown): string {
     const message = error.message.trim();
 
     if (/status code (400|401|403|404|422)\b/i.test(message) || /invalid|credential|password|user/i.test(message)) {
-      return message.includes('demo@scope.travel') ? message : INVALID_LOGIN_MESSAGE;
+      return INVALID_LOGIN_MESSAGE;
     }
 
     if (/status code 5\d\d\b|network|timeout|failed/i.test(message)) {
@@ -134,8 +135,8 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = nextToken;
     currentUser.value = sanitizeUserProfile({
       id: currentUser.value?.id ?? 'user-1',
-      username: currentUser.value?.username ?? 'scopedemo',
-      email: currentUser.value?.email ?? 'demo@scope.travel',
+      username: currentUser.value?.username ?? 'scope-qa',
+      email: currentUser.value?.email ?? '',
       displayName: currentUser.value?.displayName ?? 'Scope traveler',
       avatarUrl: currentUser.value?.avatarUrl,
       bio: currentUser.value?.bio,
@@ -284,11 +285,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loginWithCognito(idToken = 'demo-cognito-id-token') {
+  async function loginWithCognito(idToken = '') {
     error.value = null;
     sessionExpiredMessage.value = null;
 
     try {
+      if (!idToken.trim()) {
+        throw new Error('Google sign-in is not configured for this build.');
+      }
       const { loginWithCognito: loginWithCognitoRequest } = await loadAuthService();
       await applyAuthPayload(await loginWithCognitoRequest(idToken));
     } catch (nextError) {

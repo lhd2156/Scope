@@ -131,7 +131,7 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import MapView from '@/components/map/MapView.vue';
 import { getDefaultDiscoveryMapViewport } from '@/services/mapViewportService';
 import type { MapPoint, MapViewport, SpotCategory, SpotSummary } from '@/types';
-import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { getSpotFingerprint } from '@/utils/spotIdentity';
 
 type ProfileMapMode = 'all' | 'visited' | 'pinned' | 'wishlist';

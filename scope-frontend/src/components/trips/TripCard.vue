@@ -67,7 +67,7 @@ import { computed, ref } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { Trip } from '@/types';
-import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/demoPhotos';
+import { getTripCoverFallback, resolveTripCoverImageUrl } from '@/utils/imageFallbacks';
 import { formatMonthDay, getInclusiveDaySpan } from '@/utils/formatters';
 
 const props = defineProps<{

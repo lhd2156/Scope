@@ -4,7 +4,7 @@
       <section class="hero-band" aria-labelledby="home-hero-title">
         <img
           class="hero-band__image"
-          :src="DEMO_HERO_IMAGES.landing"
+          :src="TRAVEL_HERO_IMAGES.landing"
           alt=""
           aria-hidden="true"
           fetchpriority="high"
@@ -178,7 +178,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useFeedStore } from '@/stores/feed';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useSpotsStore } from '@/stores/spots';
-import { DEMO_HERO_IMAGES } from '@/utils/demoMedia';
+import { TRAVEL_HERO_IMAGES } from '@/utils/travelMedia';
 import { useReducedMotion } from '@/utils/motion';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { isUiTestEnvironment } from '@/utils/scheduleNonCriticalTask';

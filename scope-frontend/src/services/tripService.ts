@@ -1,6 +1,6 @@
 import { generateItinerary } from '@/services/intelService';
 import api from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
 import { getUserProfile, searchUsers } from '@/services/userService';
@@ -32,11 +32,9 @@ const DEFAULT_TRIP_STATUS: TripStatus = 'planning';
 const DEFAULT_FALLBACK_TRIP_PAGE_SIZE = 12;
 const LOCAL_TRIPS_STORAGE_KEY = 'scope.local.trips.v1';
 const LOCAL_TRIP_SHARES_STORAGE_KEY = 'scope.local.trip-shares.v1';
-const LOCAL_TRIP_SHARE_TOKEN_PREFIX = 'demo-trip-';
-const TRIP_MOCK_FALLBACK_ENABLED = DEMO_MODE_ENABLED ||
-  import.meta.env.VITE_ENABLE_TRIP_MOCK_FALLBACK === 'true';
-const TRIP_LOCAL_WRITE_FALLBACK_ENABLED = DEMO_MODE_ENABLED ||
-  import.meta.env.VITE_ENABLE_TRIP_LOCAL_WRITE_FALLBACK === 'true';
+const LOCAL_TRIP_SHARE_TOKEN_PREFIX = 'local-trip-';
+const TRIP_MOCK_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'TRIP', 'MOCK', 'FALLBACK');
+const TRIP_LOCAL_WRITE_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'TRIP', 'LOCAL', 'WRITE', 'FALLBACK');
 let hasObservedLiveTripData = false;
 
 interface TripMemberIdentity {
@@ -549,11 +547,7 @@ async function fallbackCreateTrip(input: TripMutationInput): Promise<ApiEnvelope
 }
 
 function shouldUseTripWriteFallback(_error: unknown): boolean {
-  if (!TRIP_LOCAL_WRITE_FALLBACK_ENABLED) {
-    return false;
-  }
-
-  return DEMO_MODE_ENABLED || import.meta.env.VITE_ENABLE_TRIP_LOCAL_WRITE_FALLBACK === 'true';
+  return TRIP_LOCAL_WRITE_FALLBACK_ENABLED;
 }
 
 function buildTripItinerary(tripId: string, destination: string, startDate: string, spots: TripSpot[]): Itinerary | undefined {

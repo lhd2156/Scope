@@ -25,7 +25,7 @@ function isQaModeAllowed(): boolean {
   // Gate behind an explicit flag so production builds cannot be tricked into
   // accepting synthetic tokens simply because the URL carries ?scopeQaSession=.
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  const allow = env.VITE_ENABLE_AUTH_MOCK_FALLBACK ?? env.VITE_DEMO_MODE;
+  const allow = env.VITE_ENABLE_LOCAL_PREVIEW;
   if (allow && allow.toLowerCase() === 'true') {
     return true;
   }

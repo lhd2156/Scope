@@ -1,5 +1,5 @@
 import type { SpotCategory } from '@/types';
-import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/demoMedia';
+import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
 
 // Static fixture used only when Scope QA Mode is active on the map page.
 // Kept in a dedicated module so the main MapPage component isn't dominated by

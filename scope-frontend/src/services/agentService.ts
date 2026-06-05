@@ -1,5 +1,5 @@
 import api, { isApiClientError } from '@/services/api';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { isVagueBriefReply } from '@/utils/itineraryBrief';
 
 export interface TripPlanRequest {
@@ -26,8 +26,7 @@ interface TripChatResponse {
 }
 
 const AGENT_BASE = '/api/intel/agent';
-const AGENT_LOCAL_FALLBACK_ENABLED = DEMO_MODE_ENABLED ||
-  import.meta.env.VITE_ENABLE_AGENT_LOCAL_FALLBACK === 'true';
+const AGENT_LOCAL_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'AGENT', 'LOCAL', 'FALLBACK');
 const APP_HELP_SURFACE_PATTERN = /\b(app|screen|button|click|tap|ui|interface|route canvas|create spot|notifications?|profile|search bar|image icon|chat bar|planner|map|route points?|start point|end point|add start|add end|upload|attach|preview|build itinerary)\b/i;
 const APP_HELP_QUESTION_PATTERN = /\b(how do i|how can i|where do i|where is|where can i|what button|which button|click|tap|open|go to|find in (?:the )?app|locate in (?:the )?app)\b/i;
 

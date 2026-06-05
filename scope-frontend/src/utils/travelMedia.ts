@@ -1,6 +1,6 @@
 import type { SpotCategory } from '@/types';
 
-export const DEMO_HERO_IMAGES = {
+export const TRAVEL_HERO_IMAGES = {
   landing: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1280&q=60',
   auth: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&fm=webp&w=560&q=45',
 } as const;

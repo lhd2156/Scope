@@ -62,7 +62,7 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import type { SpotSummary } from '@/types';
-import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { formatCategoryLabel, formatVibeLabel } from '@/utils/formatters';
 
 const props = defineProps<{

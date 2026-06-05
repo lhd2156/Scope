@@ -4,7 +4,7 @@ import {
   submitRecommendationFeedback,
   type RecommendedSpotSummary,
 } from '@/services/intelService';
-import { DEMO_MODE_ENABLED } from '@/services/demoMode';
+import { LOCAL_PREVIEW_ENABLED } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData } from '@/services/serviceUtils';
 import { shouldUseLocalSearchFallback } from '@/services/searchService';
@@ -80,7 +80,7 @@ export async function loadSearchPlaceRecommendations(
   try {
     return await fetchLiveTrendingPlaces(limit);
   } catch (error) {
-    if (shouldUseLocalSearchFallback() || DEMO_MODE_ENABLED) {
+    if (shouldUseLocalSearchFallback() || LOCAL_PREVIEW_ENABLED) {
       return buildLocalTrendingPlaces(limit);
     }
 
