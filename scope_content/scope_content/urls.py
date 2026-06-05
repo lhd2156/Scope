@@ -1,9 +1,9 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 
-from common.views import health_view, metrics_view
+from common.views import api_not_found_view, health_view, metrics_view
 from common.views_search import GeoSearchView, SearchView
 
 urlpatterns = [
@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/content/comments/', include('comments.urls')),
     path('api/content/feed/', include('feed.urls')),
     path('api/content/interactions/', include('interactions.urls')),
+    re_path(r'^api/.*$', api_not_found_view, name='api-not-found'),
 ]
 
 if settings.DEBUG or getattr(settings, 'SERVE_LOCAL_MEDIA', False):
