@@ -34,7 +34,7 @@ def test_cors_allows_configured_frontend_origin_in_production_preflight():
         headers={
             "Origin": PRODUCTION_FRONTEND_ORIGIN,
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "Authorization, Content-Type",
+            "Access-Control-Request-Headers": "Authorization, Content-Type, X-Requested-With, X-SignalR-User-Agent",
         },
     )
 
@@ -44,6 +44,8 @@ def test_cors_allows_configured_frontend_origin_in_production_preflight():
     assert "POST" in response.headers["Access-Control-Allow-Methods"]
     assert "Authorization" in response.headers["Access-Control-Allow-Headers"]
     assert "Content-Type" in response.headers["Access-Control-Allow-Headers"]
+    assert "X-Requested-With" in response.headers["Access-Control-Allow-Headers"]
+    assert "X-SignalR-User-Agent" in response.headers["Access-Control-Allow-Headers"]
 
 
 def test_cors_rejects_localhost_origin_in_production():

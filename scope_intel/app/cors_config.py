@@ -5,7 +5,7 @@ from flask_cors import CORS
 
 DEFAULT_DEVELOPMENT_ORIGIN = "http://localhost:5173"
 ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-ALLOWED_HEADERS = ["Authorization", "Content-Type"]
+ALLOWED_HEADERS = ["Authorization", "Content-Type", "X-Requested-With", "X-SignalR-User-Agent"]
 
 
 def _allowed_origins(app: Flask) -> list[str]:

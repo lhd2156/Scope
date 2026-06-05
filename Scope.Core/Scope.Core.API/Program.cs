@@ -165,7 +165,7 @@ if (allowedOrigins.Length == 0)
 builder.Services.AddCors(options => options.AddPolicy("default", policy => policy
     .WithOrigins(allowedOrigins)
     .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-    .WithHeaders("authorization", "content-type", "x-correlation-id")
+    .WithHeaders("authorization", "content-type", "x-correlation-id", "x-requested-with", "x-signalr-user-agent")
     .AllowCredentials()));
 
 // EF Core with DbContext pooling: reuses DbContext instances across requests
