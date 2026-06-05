@@ -115,7 +115,7 @@ describe('FeedItem', () => {
       props: {
         item: {
           ...item,
-          type: 'spot',
+          type: 'review',
           title: 'Maya completed a review of Botanic River Walk',
           targetId: 'spot-1',
         },
@@ -136,8 +136,9 @@ describe('FeedItem', () => {
     });
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('aria-pressed')).toBe('false');
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('title')).toContain('Sample Scope activity');
-    expect(previewWrapper.text()).toContain('Completed a trip');
-    expect(previewWrapper.text()).toContain('Pinned moment');
+    expect(previewWrapper.text()).toContain('Wrote a review');
+    expect(previewWrapper.text()).toContain('Review note');
+    expect(previewWrapper.text()).toContain('Place review');
     expect(previewWrapper.text()).toContain('Open spot');
 
     previewWrapper.unmount();
@@ -187,6 +188,8 @@ describe('FeedItem', () => {
       props: {
         item: {
           ...item,
+          type: 'review',
+          targetId: 'spot-1',
           title: 'Finished a review of Downtown Food Hall',
           actor: {
             ...item.actor,
@@ -209,6 +212,8 @@ describe('FeedItem', () => {
 
     expect(wrapper.text()).toContain('scopefriend finished a review of Downtown Food Hall');
     expect(wrapper.text()).toContain('Wrote a review');
+    expect(wrapper.text()).toContain('Review note');
+    expect(wrapper.text()).toContain('Place review');
     expect(wrapper.text()).toContain('Scope community');
     expect(likeButton.attributes('title')).toBe('Like');
 
@@ -222,6 +227,6 @@ describe('FeedItem', () => {
 
     await wrapper.get(`[data-test="feed-comment-${item.id}"]`).trigger('click');
     await flushPromises();
-    expect(router.currentRoute.value.path).toBe('/trips/trip-1');
+    expect(router.currentRoute.value.path).toBe('/spots/spot-1');
   });
 });

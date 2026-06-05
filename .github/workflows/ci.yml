@@ -441,6 +441,7 @@ jobs:
 
   site:
     name: Site build and test
+    if: vars.ENABLE_LEGACY_SITE_CI == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -639,7 +640,7 @@ jobs:
     # Keyless cosign signing requires an OIDC token from GitHub Actions and
     # push access to GHCR. We only run it on branches that are allowed to
     # publish images; PRs still build (for smoke) but do not push/sign.
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && vars.ENABLE_IMAGE_SIGNING == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

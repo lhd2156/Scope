@@ -137,6 +137,12 @@ def test_social_feed_prefetches_related_spot_and_trip_data(authenticated_client,
             caption=f'Feed {index}',
             sort_order=0,
         )
+        Review.objects.create(
+            spot=spot,
+            user_id='22222222-2222-2222-2222-222222222222',
+            rating='4.7',
+            comment=f'Reviewed Feed Spot {index}',
+        )
 
     for index in range(2):
         trip = Trip.objects.create(
@@ -158,9 +164,14 @@ def test_social_feed_prefetches_related_spot_and_trip_data(authenticated_client,
         response = authenticated_client.get('/api/content/feed/')
 
     assert response.status_code == 200
-    assert len(response.json()['data']) == 7
-    assert {item['type'] for item in response.json()['data']} == {'spot', 'trip'}
-    assert len(queries) <= 6
+    assert len(response.json()['data']) == 10
+    assert {item['type'] for item in response.json()['data']} == {'spot', 'trip', 'review'}
+    review_entry = next(item for item in response.json()['data'] if item['type'] == 'review')
+    assert review_entry['actor']['displayName'] == 'Maya Chen'
+    assert review_entry['title'].startswith('Maya Chen reviewed Feed Spot')
+    assert review_entry['targetId']
+    assert 'item' not in review_entry
+    assert len(queries) <= 9
 
 
 def test_feed_aggregator_hydrates_only_the_current_page(monkeypatch):
@@ -179,6 +190,7 @@ def test_feed_aggregator_hydrates_only_the_current_page(monkeypatch):
 
     monkeypatch.setattr(aggregator, '_load_spot_references', lambda cursor, limit: spot_references[:limit])
     monkeypatch.setattr(aggregator, '_load_trip_references', lambda cursor, limit: trip_references[:limit])
+    monkeypatch.setattr(aggregator, '_load_review_references', lambda cursor, limit: [])
 
     def fake_hydrate_spots(spot_ids):
         hydrated_spot_ids.extend(spot_ids)
@@ -190,6 +202,7 @@ def test_feed_aggregator_hydrates_only_the_current_page(monkeypatch):
 
     monkeypatch.setattr(aggregator, '_hydrate_spots', fake_hydrate_spots)
     monkeypatch.setattr(aggregator, '_hydrate_trips', fake_hydrate_trips)
+    monkeypatch.setattr(aggregator, '_hydrate_reviews', lambda review_ids: {})
 
     page = aggregator.social_feed_page(page_size=20)
 

@@ -2525,7 +2525,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
       return;
     }
 
-    if (requestPath === '/api/content/feed' && requestMethod === 'GET') {
+    if ((requestPath === '/api/content/feed' || requestPath === '/api/content/feed/') && requestMethod === 'GET') {
       const pageNumber = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
       const requestedPageSize = Number(requestUrl.searchParams.get('pageSize') ?? String(state.feed.length || 1)) || state.feed.length || 1;
       const pageSize = Math.max(1, requestedPageSize);

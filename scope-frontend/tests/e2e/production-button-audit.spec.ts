@@ -631,7 +631,7 @@ function handleAuditApiRequest(request: AuditApiRequest): AuditApiResponse {
     return { status: 204 };
   }
 
-  if (path === '/api/content/feed' && method === 'GET') {
+  if ((path === '/api/content/feed' || path === '/api/content/feed/') && method === 'GET') {
     return auditPaginated(buildAuditFeed(), requestUrl);
   }
 

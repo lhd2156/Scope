@@ -453,7 +453,7 @@ export interface FuelStationLookup {
 
 export interface FeedItem {
   id: string;
-  type: 'spot' | 'trip';
+  type: 'spot' | 'trip' | 'review';
   actor: UserProfile;
   title: string;
   excerpt: string;

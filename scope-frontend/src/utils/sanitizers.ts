@@ -178,6 +178,13 @@ type TripWireFields = Partial<Trip> & {
   updated_at?: unknown;
 };
 
+type FeedWireFields = Partial<FeedItem> & {
+  created_at?: unknown;
+  image_url?: unknown;
+  target_id?: unknown;
+  item?: unknown;
+};
+
 interface FeedSanitizerOptions {
   allowGeneratedActorAvatar?: boolean;
 }
@@ -752,15 +759,48 @@ export function sanitizeFeedItem(
   item: FeedItem,
   options: FeedSanitizerOptions = {},
 ): FeedItem {
+  const wireItem = item as FeedWireFields;
+  const nestedItem = wireItem.item && typeof wireItem.item === 'object'
+    ? wireItem.item as Record<string, unknown>
+    : {};
+  const type = item.type === 'trip' || item.type === 'review' ? item.type : 'spot';
+  const nestedTitle = optionalWireString(nestedItem.title);
+  const fallbackTitle = nestedTitle
+    ? `${type === 'trip' ? 'Planned' : type === 'review' ? 'Reviewed' : 'Pinned'} ${nestedTitle}`
+    : DEFAULT_FEED_TITLE;
+  const imageUrl =
+    optionalWireString(item.imageUrl) ??
+    optionalWireString(wireItem.image_url) ??
+    optionalWireString(nestedItem.photo_url) ??
+    optionalWireString(nestedItem.cover_photo_url);
+  const targetId =
+    optionalWireString(item.targetId) ??
+    optionalWireString(wireItem.target_id) ??
+    optionalWireString(nestedItem.id) ??
+    optionalWireString(nestedItem.spot_id) ??
+    '';
+  const actor = item.actor && typeof item.actor === 'object'
+    ? item.actor
+    : {
+      id: optionalWireString(nestedItem.user_id) ?? optionalWireString(nestedItem.creator_id) ?? 'scope-community',
+      username: 'scope-community',
+      email: '',
+      displayName: 'Scope community',
+      interests: [],
+    };
+
   return {
     ...item,
-    actor: sanitizeUserProfile(item.actor, { allowGeneratedAvatar: options.allowGeneratedActorAvatar }),
-    title: sanitizeSingleLineText(item.title) || DEFAULT_FEED_TITLE,
-    excerpt: sanitizeMultilineText(item.excerpt),
+    type,
+    actor: sanitizeUserProfile(actor as UserProfile, { allowGeneratedAvatar: options.allowGeneratedActorAvatar }),
+    title: sanitizeSingleLineText(item.title) || fallbackTitle,
+    excerpt: sanitizeMultilineText(item.excerpt) || sanitizeMultilineText(optionalWireString(nestedItem.description)),
+    createdAt: optionalWireString(item.createdAt) ?? optionalWireString(wireItem.created_at) ?? optionalWireString(nestedItem.created_at) ?? new Date(0).toISOString(),
     imageUrl: resolveFeedImageUrl({
-      type: item.type,
-      imageUrl: sanitizeImageUrl(item.imageUrl),
+      type,
+      imageUrl: sanitizeImageUrl(imageUrl),
     }),
+    targetId,
   };
 }
 

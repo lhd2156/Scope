@@ -1,9 +1,6 @@
 name: Scope Deploy
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       publish_images:
@@ -1010,7 +1007,7 @@ jobs:
       VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
       VITE_OPENWEATHERMAP_API_KEY: ${{ secrets.VITE_OPENWEATHERMAP_API_KEY || secrets.OPENWEATHERMAP_API_KEY }}
       SCOPE_PUBLIC_BASE_URL: ${{ vars.SCOPE_PUBLIC_BASE_URL }}
-      SCOPE_APP_BASE_URL: ${{ vars.SCOPE_APP_BASE_URL || vars.SCOPE_FRONTEND_ORIGIN || 'https://app.scopetrips.com' }}
+      SCOPE_APP_BASE_URL: ${{ vars.SCOPE_APP_BASE_URL || vars.SCOPE_FRONTEND_ORIGIN || 'https://scopetrips.com' }}
       SCOPE_TLS_HOSTNAME: ${{ vars.SCOPE_TLS_HOSTNAME }}
       SCOPE_TLS_EMAIL: ${{ vars.SCOPE_TLS_EMAIL }}
       SQLSERVER_MEMORY_LIMIT_MB: ${{ vars.SQLSERVER_MEMORY_LIMIT_MB || '2048' }}
