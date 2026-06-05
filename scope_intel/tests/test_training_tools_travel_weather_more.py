@@ -259,6 +259,31 @@ def test_weather_additional_error_and_stale_paths(app, monkeypatch):
         monkeypatch.setattr("app.services.weather_service.requests.get", fake_geocode)
         assert service._resolve_current_location(None, None, "Austin")["label"] == "Austin, Texas, US"
 
+        geocode_calls = []
+
+        def fake_geocode_city_state(url, params, timeout):
+            geocode_calls.append(params["name"])
+            return Response(
+                {
+                    "results": [
+                        {
+                            "name": "Fort Worth",
+                            "admin1": "Texas",
+                            "country": "United States",
+                            "country_code": "US",
+                            "latitude": 32.72541,
+                            "longitude": -97.32085,
+                        },
+                    ],
+                }
+            )
+
+        monkeypatch.setattr("app.services.weather_service.requests.get", fake_geocode_city_state)
+        resolved = service._resolve_current_location(None, None, "Fort Worth, TX")
+        assert geocode_calls[0] == "Fort Worth"
+        assert resolved["label"] == "Fort Worth, Texas, United States"
+        assert resolved["latitude"] == 32.72541
+
         monkeypatch.setattr("app.services.weather_service.requests.get", lambda *args, **kwargs: Response({"results": []}))
         with pytest.raises(WeatherUnavailableError):
             service._resolve_current_location(None, None, "Nowhere")

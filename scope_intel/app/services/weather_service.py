@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -23,6 +24,59 @@ class WeatherService:
     _CURRENT_CACHE: dict[str, dict[str, Any]] = {}
     _NWS_POINT_CACHE: dict[str, dict[str, Any]] = {}
     _REDIS_CLIENTS: dict[str, Redis] = {}
+    _US_STATE_ABBREVIATIONS = {
+        "AL": "Alabama",
+        "AK": "Alaska",
+        "AZ": "Arizona",
+        "AR": "Arkansas",
+        "CA": "California",
+        "CO": "Colorado",
+        "CT": "Connecticut",
+        "DE": "Delaware",
+        "FL": "Florida",
+        "GA": "Georgia",
+        "HI": "Hawaii",
+        "ID": "Idaho",
+        "IL": "Illinois",
+        "IN": "Indiana",
+        "IA": "Iowa",
+        "KS": "Kansas",
+        "KY": "Kentucky",
+        "LA": "Louisiana",
+        "ME": "Maine",
+        "MD": "Maryland",
+        "MA": "Massachusetts",
+        "MI": "Michigan",
+        "MN": "Minnesota",
+        "MS": "Mississippi",
+        "MO": "Missouri",
+        "MT": "Montana",
+        "NE": "Nebraska",
+        "NV": "Nevada",
+        "NH": "New Hampshire",
+        "NJ": "New Jersey",
+        "NM": "New Mexico",
+        "NY": "New York",
+        "NC": "North Carolina",
+        "ND": "North Dakota",
+        "OH": "Ohio",
+        "OK": "Oklahoma",
+        "OR": "Oregon",
+        "PA": "Pennsylvania",
+        "RI": "Rhode Island",
+        "SC": "South Carolina",
+        "SD": "South Dakota",
+        "TN": "Tennessee",
+        "TX": "Texas",
+        "UT": "Utah",
+        "VT": "Vermont",
+        "VA": "Virginia",
+        "WA": "Washington",
+        "WV": "West Virginia",
+        "WI": "Wisconsin",
+        "WY": "Wyoming",
+        "DC": "District of Columbia",
+    }
 
     def get_forecast(self, latitude: float, longitude: float, target_date: date) -> dict:
         payload = self._fetch_open_meteo_forecast(latitude, longitude, target_date)
@@ -398,26 +452,34 @@ class WeatherService:
         if not isinstance(query, str) or not query.strip():
             raise WeatherUnavailableError("Weather location is missing.")
 
+        query_text = query.strip()
         base_url = current_app.config.get("WEATHER_GEOCODE_BASE_URL") or self._GEOCODE_BASE_URL
         timeout_seconds = float(current_app.config.get("ML_REQUEST_TIMEOUT_SECONDS", 5.0))
-        try:
-            response = requests.get(
-                base_url,
-                params={
-                    "name": query.strip(),
-                    "count": 1,
-                    "language": "en",
-                    "format": "json",
-                },
-                timeout=timeout_seconds,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise WeatherUnavailableError("Weather geocoder unavailable.") from exc
 
-        body = response.json()
-        results = body.get("results") if isinstance(body, dict) else None
-        result = results[0] if isinstance(results, list) and results and isinstance(results[0], dict) else None
+        for geocode_query in self._geocode_query_variants(query_text):
+            try:
+                response = requests.get(
+                    base_url,
+                    params={
+                        "name": geocode_query["name"],
+                        "count": 10 if geocode_query.get("admin1") else 1,
+                        "language": "en",
+                        "format": "json",
+                    },
+                    timeout=timeout_seconds,
+                )
+                response.raise_for_status()
+            except requests.RequestException as exc:
+                raise WeatherUnavailableError("Weather geocoder unavailable.") from exc
+
+            body = response.json()
+            results = body.get("results") if isinstance(body, dict) else None
+            result = self._select_geocode_result(results, geocode_query.get("admin1"))
+            if result is not None:
+                break
+        else:
+            result = None
+
         resolved_latitude = self._finite_number(result.get("latitude") if result else None)
         resolved_longitude = self._finite_number(result.get("longitude") if result else None)
         if resolved_latitude is None or resolved_longitude is None:
@@ -426,10 +488,69 @@ class WeatherService:
         label_parts = [result.get("name"), result.get("admin1"), result.get("country")] if result else []
         label = ", ".join(str(part).strip() for part in label_parts if isinstance(part, str) and part.strip())
         return {
-            "label": label or query.strip(),
+            "label": label or query_text,
             "latitude": resolved_latitude,
             "longitude": resolved_longitude,
         }
+
+    def _geocode_query_variants(self, query: str) -> list[dict[str, str]]:
+        normalized_query = " ".join(query.split())
+        variants: list[dict[str, str]] = []
+        parts = [part.strip() for part in normalized_query.split(",") if part.strip()]
+
+        if len(parts) >= 2:
+            admin1 = self._normalize_us_state(parts[1])
+            if admin1:
+                variants.append({"name": parts[0], "admin1": admin1})
+            variants.append({"name": parts[0]})
+
+        variants.append({"name": normalized_query})
+
+        deduped: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for variant in variants:
+            key = (variant["name"].casefold(), variant.get("admin1", "").casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(variant)
+        return deduped
+
+    def _select_geocode_result(self, results: Any, admin1: str | None = None) -> dict[str, Any] | None:
+        if not isinstance(results, list):
+            return None
+
+        candidates = [result for result in results if isinstance(result, dict)]
+        if not admin1:
+            return candidates[0] if candidates else None
+
+        normalized_admin1 = admin1.casefold()
+        for result in candidates:
+            result_admin1 = result.get("admin1")
+            result_country_code = result.get("country_code")
+            if (
+                isinstance(result_admin1, str)
+                and result_admin1.casefold() == normalized_admin1
+                and (not isinstance(result_country_code, str) or result_country_code.upper() == "US")
+            ):
+                return result
+
+        return None
+
+    def _normalize_us_state(self, value: str) -> str | None:
+        compact = re.sub(r"[^A-Za-z ]+", "", value).strip()
+        if not compact:
+            return None
+
+        upper = compact.upper()
+        if upper in self._US_STATE_ABBREVIATIONS:
+            return self._US_STATE_ABBREVIATIONS[upper]
+
+        title = " ".join(part.capitalize() for part in compact.split())
+        if title in self._US_STATE_ABBREVIATIONS.values():
+            return title
+
+        return None
 
     def _build_current_payload(
         self,
