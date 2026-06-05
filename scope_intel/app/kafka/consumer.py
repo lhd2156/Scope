@@ -180,7 +180,14 @@ class KafkaSpotFeatureConsumer:
                     source_event_id=event_id or payload.get("reviewId"),
                 )
         elif topic == "user.registered":
-            IntelRepository.upsert_preference(payload["userId"], ["culture", "food"], "medium", "moderate")
+            user_id = payload.get("userId") or payload.get("UserId") or payload.get("id") or payload.get("Id")
+            if user_id:
+                IntelRepository.upsert_preference(str(user_id), ["culture", "food"], "medium", "moderate")
+            else:
+                logger.warning(
+                    "kafka_user_registered_missing_user_id",
+                    extra={"payload_keys": list(payload.keys())},
+                )
         elif topic == "friend.accepted":
             requester = payload.get("requesterId") or payload.get("RequesterId")
             addressee = payload.get("addresseeId") or payload.get("AddresseeId")
