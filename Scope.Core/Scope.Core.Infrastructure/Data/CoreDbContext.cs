@@ -29,6 +29,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.HasIndex(x => x.Email).IsUnique();
             entity.HasIndex(x => x.Username).IsUnique();
             entity.HasIndex(x => x.PhoneNumber).IsUnique().HasFilter("[PhoneNumber] IS NOT NULL");
+            entity.HasIndex(x => new { x.IsShowcase, x.IsActive, x.CreatedAt });
             entity.Property(x => x.Email).HasMaxLength(255).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(32);
             entity.Property(x => x.Username).HasMaxLength(30).IsRequired();
@@ -38,6 +39,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(x => x.HomeBase).HasMaxLength(120);
             entity.Property(x => x.InterestsJson).HasMaxLength(1000);
             entity.Property(x => x.ShowActivityStatus).HasDefaultValue(true);
+            entity.Property(x => x.IsShowcase).HasDefaultValue(false);
             entity.Property(x => x.Role).HasMaxLength(20).IsRequired();
             entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);
             entity.Property(x => x.MfaSecret).HasMaxLength(128);

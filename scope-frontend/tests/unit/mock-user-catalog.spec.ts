@@ -17,7 +17,7 @@ describe('mock user catalog', () => {
 
   it('finds users by id, email, or username criteria', () => {
     expect(findCatalogMockUser({ id: 'demo-user-2' })?.displayName).toBe('Maya Chen');
-    expect(findCatalogMockUser({ email: 'elijah@scope.travel' })?.displayName).toBe('Elijah Brooks');
+    expect(findCatalogMockUser({ email: 'elijah.brooks@showcase.scope.local' })?.displayName).toBe('Elijah Brooks');
     expect(findCatalogMockUser({ username: 'sofia.ramirez' })?.displayName).toBe('Sofia Ramirez');
     expect(findCatalogMockUser({ email: 'nobody@example.com' })).toBeUndefined();
   });

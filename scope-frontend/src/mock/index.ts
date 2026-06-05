@@ -1,4 +1,5 @@
 import rawFeed from '@/mock/feed.json';
+import rawMediaSources from '@/mock/media-sources.json';
 import rawNotifications from '@/mock/notifications.json';
 import rawSpots from '@/mock/spots.json';
 import rawTrips from '@/mock/trips.json';
@@ -301,3 +302,4 @@ export const demoNotifications = (rawNotifications as NotificationItem[]).map((n
   sanitizeNotificationItem({ ...notification }),
 );
 export const demoViewport = buildDemoViewport(seededSpotDetails);
+export const demoMediaSources = rawMediaSources;

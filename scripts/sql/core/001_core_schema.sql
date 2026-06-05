@@ -24,6 +24,7 @@ BEGIN
         HomeBase NVARCHAR(120) NULL,
         InterestsJson NVARCHAR(1000) NULL,
         ShowActivityStatus BIT NOT NULL CONSTRAINT DF_core_Users_ShowActivityStatus DEFAULT 1,
+        IsShowcase BIT NOT NULL CONSTRAINT DF_core_Users_IsShowcase DEFAULT 0,
         CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         UpdatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_UpdatedAt DEFAULT SYSDATETIMEOFFSET(),
         IsActive BIT NOT NULL CONSTRAINT DF_core_Users_IsActive DEFAULT 1,
@@ -43,10 +44,26 @@ END;
 GO
 
 IF OBJECT_ID('core.Users', 'U') IS NOT NULL
+   AND COL_LENGTH('core.Users', 'IsShowcase') IS NULL
+BEGIN
+    ALTER TABLE core.Users
+        ADD IsShowcase BIT NOT NULL CONSTRAINT DF_core_Users_IsShowcase DEFAULT 0 WITH VALUES;
+END;
+GO
+
+IF OBJECT_ID('core.Users', 'U') IS NOT NULL
    AND COL_LENGTH('core.Users', 'PhoneNumber') IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_core_Users_PhoneNumber' AND object_id = OBJECT_ID('core.Users'))
 BEGIN
     CREATE UNIQUE INDEX IX_core_Users_PhoneNumber ON core.Users (PhoneNumber) WHERE PhoneNumber IS NOT NULL;
+END;
+GO
+
+IF OBJECT_ID('core.Users', 'U') IS NOT NULL
+   AND COL_LENGTH('core.Users', 'IsShowcase') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_core_Users_Showcase_Active_CreatedAt' AND object_id = OBJECT_ID('core.Users'))
+BEGIN
+    CREATE INDEX IX_core_Users_Showcase_Active_CreatedAt ON core.Users (IsShowcase, IsActive, CreatedAt);
 END;
 GO
 

@@ -201,6 +201,50 @@ public sealed class UsersControllerTests
         Assert.Empty(items);
     }
 
+    [Fact]
+    public async Task Search_HidesShowcaseUsers_ButGetAllowsPublicProfile()
+    {
+        var callerId = Guid.NewGuid();
+        var showcaseId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            new User
+            {
+                Id = callerId,
+                Username = "caller",
+                Email = "caller@example.com",
+                DisplayName = "Caller",
+                PasswordHash = "hash",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            },
+            new User
+            {
+                Id = showcaseId,
+                Username = "showcaseauthor",
+                Email = "showcase@example.com",
+                DisplayName = "Showcase Author",
+                PasswordHash = "hash",
+                IsActive = true,
+                IsShowcase = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+
+        var searchResult = await controller.Search("Showcase", cancellationToken: CancellationToken.None);
+        var searchOk = Assert.IsType<OkObjectResult>(searchResult);
+        var searchResponse = Assert.IsType<ApiResponse<object>>(searchOk.Value);
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<object>>(searchResponse.Data));
+
+        var getResult = await controller.Get(showcaseId, CancellationToken.None);
+        var getOk = Assert.IsType<OkObjectResult>(getResult);
+        var getResponse = Assert.IsType<ApiResponse<object>>(getOk.Value);
+        Assert.NotNull(getResponse.Data);
+        Assert.Equal("Showcase Author", getResponse.Data!.GetType().GetProperty("DisplayName")?.GetValue(getResponse.Data));
+    }
+
     private static CoreDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
