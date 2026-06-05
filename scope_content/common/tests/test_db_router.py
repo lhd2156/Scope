@@ -8,6 +8,7 @@ decisions directly.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -100,3 +101,24 @@ def test_integration_router_routes_real_queries_when_replicas_configured(setting
     assert router.db_for_write(Spot) == 'default'
     # With only one replica alias, random.choice is a no-op.
     assert router.db_for_read(Spot) == 'replica'
+
+
+@pytest.mark.django_db
+def test_authenticated_spot_detail_queryset_uses_primary(settings):
+    settings.DATABASES['replica'] = {
+        **settings.DATABASES['default'],
+        'TEST': {'MIRROR': 'default'},
+    }
+    settings.DATABASE_ROUTERS = ['common.db_router.PrimaryReplicaRouter']
+
+    from spots.views import _detail_queryset_for_request
+
+    request = SimpleNamespace(
+        user=SimpleNamespace(
+            id='11111111-1111-1111-1111-111111111111',
+            is_authenticated=True,
+            is_admin=False,
+        )
+    )
+
+    assert _detail_queryset_for_request(request).db == 'default'

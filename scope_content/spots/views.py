@@ -20,6 +20,7 @@ from common.cache_utils import (
     invalidate_cache_namespaces,
 )
 from common.content_safety import evaluate_text_fields
+from common.db_router import read_from_primary
 from common.etag import apply_conditional_etag
 from common.events import record_and_publish
 from common.indexing import delete_spot, index_spot
@@ -209,8 +210,13 @@ def _verification_error(verification: dict) -> ValidationError:
 
 
 def _detail_queryset_for_request(request):
+    queryset = Spot.objects.all()
+    user = getattr(request, 'user', None)
+    if getattr(user, 'is_authenticated', False):
+        queryset = queryset.using('default')
+
     return with_spot_viewer_state(
-        with_spot_detail_relations(visible_to_request(Spot.objects.all(), request)),
+        with_spot_detail_relations(visible_to_request(queryset, request)),
         request,
     )
 
@@ -498,7 +504,11 @@ def compose_spot(request):
             },
         )
 
-    refreshed_spot = with_spot_viewer_state(with_spot_detail_relations(Spot.objects.filter(pk=spot.pk)), request).get()
+    with read_from_primary():
+        refreshed_spot = with_spot_viewer_state(
+            with_spot_detail_relations(Spot.objects.filter(pk=spot.pk)),
+            request,
+        ).get()
     return data_response(SpotDetailSerializer(refreshed_spot).data, status_code=status.HTTP_201_CREATED)
 
 
