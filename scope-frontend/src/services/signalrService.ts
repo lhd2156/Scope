@@ -7,6 +7,9 @@ const NOTIFICATION_HUB_PATH = '/api/core/hubs/notifications';
 const NOTIFICATION_RECEIVED_EVENT = 'NotificationReceived';
 const RECONNECT_DELAYS_MS = [0, 2_000, 10_000, 30_000];
 const VISUAL_QA_FLAG = '__SCOPE_VISUAL_QA__';
+const SIGNALR_LOG_LEVEL = import.meta.env.MODE === 'development'
+  ? signalR.LogLevel.Information
+  : signalR.LogLevel.None;
 
 export interface NotificationStreamOptions {
   accessTokenFactory: () => string;
@@ -72,7 +75,7 @@ function buildConnection(options: NotificationStreamOptions): signalR.HubConnect
       accessTokenFactory: options.accessTokenFactory,
     })
     .withAutomaticReconnect(RECONNECT_DELAYS_MS)
-    .configureLogging(import.meta.env.DEV ? signalR.LogLevel.Information : signalR.LogLevel.Warning)
+    .configureLogging(SIGNALR_LOG_LEVEL)
     .build();
 
   connection.on(NOTIFICATION_RECEIVED_EVENT, (notification: NotificationItem) => {
