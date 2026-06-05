@@ -13,7 +13,7 @@
           <span class="brand__mark" aria-hidden="true">
             <ScopeIcon name="logo" />
           </span>
-          <span class="brand__text">Scope</span>
+          <span class="brand__text">Scope Trips</span>
         </RouterLink>
 
         <nav class="nav-links" aria-label="Primary">
@@ -76,7 +76,7 @@
             v-model="searchQuery"
             class="navbar-search"
             compact
-            label="Search Scope"
+            label="Search Scope Trips"
             placeholder="Search cities, vibes, and spots"
             @search="handleSearch"
           />
@@ -91,7 +91,7 @@
             >
               <p class="quick-search-dropdown__eyebrow">{{ quickSearchPanelEyebrow }}</p>
               <div v-if="quickSearchLoading && hasQuickSearchQuery" class="quick-search-state" role="status" aria-live="polite">
-                Searching Scope...
+                Searching Scope Trips...
               </div>
               <div v-else-if="quickSearchError" class="quick-search-state quick-search-state--error" role="alert">
                 {{ quickSearchError }}
@@ -146,7 +146,7 @@
                     <span class="quick-search-result__copy">
                       <strong>{{ result.title }}</strong>
                       <small>{{ formatQuickSearchResultMeta(result) }}</small>
-                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope places.' }}</span>
+                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope Trips places.' }}</span>
                     </span>
                   </button>
                 </div>
@@ -283,7 +283,7 @@
           <p class="navbar__mobile-eyebrow">Navigator</p>
           <div class="navbar__mobile-title-row">
             <div class="navbar__mobile-title-copy">
-              <h2 :id="mobileMenuTitleId">Take Scope with you</h2>
+              <h2 :id="mobileMenuTitleId">Take Scope Trips with you</h2>
               <p>{{ mobileDrawerDescription }}</p>
             </div>
             <button
@@ -308,7 +308,7 @@
 
         <div v-else class="navbar__mobile-account navbar__mobile-account--guest surface-card">
           <div class="navbar__mobile-account-copy">
-            <strong>Welcome back to Scope</strong>
+            <strong>Welcome back to Scope Trips</strong>
             <p>Sign in to keep planning trips, saving pins, and following your crew from anywhere.</p>
           </div>
         </div>
@@ -322,7 +322,7 @@
           <SearchBar
             v-model="searchQuery"
             class="navbar__mobile-search"
-            aria-label="Search Scope on mobile"
+            aria-label="Search Scope Trips on mobile"
             placeholder="Search cities, spots, and travel vibes"
             @search="handleSearch"
           />
@@ -337,7 +337,7 @@
             >
               <p class="quick-search-dropdown__eyebrow">{{ quickSearchPanelEyebrow }}</p>
               <div v-if="quickSearchLoading && hasQuickSearchQuery" class="quick-search-state" role="status" aria-live="polite">
-                Searching Scope...
+                Searching Scope Trips...
               </div>
               <div v-else-if="quickSearchError" class="quick-search-state quick-search-state--error" role="alert">
                 {{ quickSearchError }}
@@ -392,7 +392,7 @@
                     <span class="quick-search-result__copy">
                       <strong>{{ result.title }}</strong>
                       <small>{{ formatQuickSearchResultMeta(result) }}</small>
-                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope places.' }}</span>
+                      <span>{{ result.recommendationReason || result.description || 'Strong signal from current Scope Trips places.' }}</span>
                     </span>
                   </button>
                 </div>
@@ -649,7 +649,7 @@ function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): s
       result.tags?.find((tag) => tag.trim()),
     ].filter(Boolean);
 
-    return metaParts.length ? metaParts.join(' / ') : 'Scope spot';
+    return metaParts.length ? metaParts.join(' / ') : 'Scope Trips spot';
   }
 
   const metaParts = [
@@ -662,7 +662,7 @@ function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): s
     result.tags?.find((tag) => tag.trim()),
   ].filter(Boolean);
 
-  return metaParts.length ? metaParts.join(' / ') : 'Scope spot';
+  return metaParts.length ? metaParts.join(' / ') : 'Scope Trips spot';
 }
 
 async function loadQuickSearchRecommendations(options: { force?: boolean } = {}): Promise<void> {
@@ -1185,7 +1185,7 @@ async function handleLogout() {
 
   toastStore.showSuccess({
     title: 'Signed out',
-    message: 'Your Scope session is closed for now. Come back anytime to keep exploring.',
+    message: 'Your Scope Trips session is closed for now. Come back anytime to keep exploring.',
   });
 }
 
@@ -1219,7 +1219,7 @@ async function handleSearch(query: string): Promise<void> {
     }
 
     quickSearchResults.value = [];
-    quickSearchError.value = 'Scope could not load quick search right now.';
+    quickSearchError.value = 'Scope Trips could not load quick search right now.';
   } finally {
     if (requestId === quickSearchRequestId) {
       quickSearchLoading.value = false;

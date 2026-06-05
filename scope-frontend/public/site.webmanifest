@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Scope - Real-world adventures mapped",
-  "short_name": "Scope",
+  "name": "Scope Trips - Real-world trips mapped",
+  "short_name": "Scope Trips",
   "description": "Discover community-loved spots, map real-world stories, and plan smarter trips with friends.",
   "start_url": "/map?source=pwa",
   "scope": "/",
@@ -44,7 +44,7 @@
     {
       "name": "Open the map",
       "short_name": "Map",
-      "description": "Jump into the live Scope adventure map.",
+      "description": "Jump into the live Scope Trips map.",
       "url": "/map",
       "icons": [
         {
@@ -57,7 +57,7 @@
     {
       "name": "Explore spots",
       "short_name": "Explore",
-      "description": "Browse community-loved places across Scope.",
+      "description": "Browse community-loved places across Scope Trips.",
       "url": "/explore",
       "icons": [
         {

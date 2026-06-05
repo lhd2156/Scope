@@ -15,8 +15,8 @@ const menuOpen = ref(false);
         class="brand"
         to="/"
       >
-        <span class="brand-mark">AT</span>
-        <span>Scope</span>
+        <span class="brand-mark">ST</span>
+        <span>Scope Trips</span>
       </RouterLink>
       <div
         class="nav-links"
@@ -35,7 +35,7 @@ const menuOpen = ref(false);
         class="nav-cta"
         to="/download"
       >
-        Launch Web App
+        Open App
       </RouterLink>
       <button
         class="menu-button"
@@ -55,10 +55,10 @@ const menuOpen = ref(false);
         class="brand"
         to="/"
       >
-        <span class="brand-mark">AT</span>
-        <span>Scope</span>
+        <span class="brand-mark">ST</span>
+        <span>Scope Trips</span>
       </RouterLink>
-      <p>Real places, real photos, real adventures on a map-first platform for curious people.</p>
+      <p>Real spots, smarter routes, and shareable trip plans for curious people.</p>
     </div>
     <div class="footer-links">
       <RouterLink to="/features">
