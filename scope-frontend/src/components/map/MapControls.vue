@@ -155,15 +155,20 @@ const statusCopy = computed(() => {
 }
 
 .control-stack {
+  --scope-map-control-button-size: 2.85rem;
+  --scope-map-control-rail-padding: 0.5rem;
+
   display: grid;
   width: max-content;
   height: max-content;
+  grid-template-columns: var(--scope-map-control-button-size);
   justify-items: center;
   align-items: center;
+  justify-content: center;
   justify-self: end;
   align-self: end;
   gap: 0.55rem;
-  padding: 0.5rem;
+  padding: var(--scope-map-control-rail-padding);
   border: 1px solid color-mix(in srgb, var(--highlight-sheen) 8%, var(--glass-border) 92%);
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
@@ -207,13 +212,19 @@ const statusCopy = computed(() => {
 }
 
 .control-button {
-  width: 2.85rem;
-  height: 2.85rem;
+  width: var(--scope-map-control-button-size);
+  height: var(--scope-map-control-button-size);
+  min-width: var(--scope-map-control-button-size);
+  min-height: var(--scope-map-control-button-size);
+  padding: 0;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-tertiary) 84%, var(--glass-bg) 16%);
   color: var(--text-primary);
   display: grid;
   place-items: center;
+  line-height: 0;
+  aspect-ratio: 1;
+  appearance: none;
   cursor: pointer;
   box-shadow:
     0 0.45rem 1.1rem color-mix(in srgb, var(--bg-primary) 24%, transparent),
@@ -347,9 +358,8 @@ const statusCopy = computed(() => {
     left: var(--scope-map-controls-panel-left, var(--space-3));
   }
 
-  .control-button {
-    width: 2.75rem;
-    height: 2.75rem;
+  .control-stack {
+    --scope-map-control-button-size: 2.75rem;
   }
 
   .filter-panel {
@@ -363,13 +373,13 @@ const statusCopy = computed(() => {
   }
 
   .control-stack {
+    --scope-map-control-button-size: 2.65rem;
+    --scope-map-control-rail-padding: 0.45rem;
+
     gap: 0.5rem;
-    padding: 0.45rem;
   }
 
   .control-button {
-    width: 2.65rem;
-    height: 2.65rem;
     background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
     box-shadow:
       0 0.8rem 1.6rem color-mix(in srgb, var(--bg-primary) 24%, transparent),
