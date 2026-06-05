@@ -414,17 +414,17 @@ describe('trip planner intel service contracts', () => {
 
     expect(response).toMatchObject({
       configured: true,
-      coverage: expect.stringContaining('Demo fuel preview'),
-      source: 'Scope demo fuel preview',
-      license: 'Local demo fixture',
+      coverage: expect.stringContaining('Local fuel preview'),
+      source: 'Scope local fuel preview',
+      license: 'Local preview fixture',
       radiusKm: 9,
       sortBy: 'closest',
     });
     expect(response.stations).toHaveLength(2);
     expect(response.stations[0]).toMatchObject({
-      id: 'demo-fuel-35.468--97.516-0',
+      id: 'local-fuel-35.468--97.516-0',
       name: 'Routeway Market Fuel',
-      brand: 'Scope Demo',
+      brand: 'Scope Preview',
       fuelType: 'premium',
       currency: 'USD',
       isOpen: true,

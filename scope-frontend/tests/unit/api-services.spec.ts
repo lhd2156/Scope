@@ -30,6 +30,7 @@ describe('API service fallbacks', () => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_DEMO_MODE', 'false');
+    vi.stubEnv('VITE_ENABLE_LOCAL_PREVIEW', 'false');
     vi.stubEnv('VITE_ENABLE_DEMO_WEATHER', 'false');
     vi.stubEnv('VITE_ENABLE_CLIENT_WEATHER_FALLBACK', 'false');
     vi.stubEnv('VITE_OPENWEATHERMAP_API_KEY', '');
@@ -67,7 +68,7 @@ describe('API service fallbacks', () => {
     ).rejects.toThrow('network down');
   });
 
-  it('falls back to demo auth only when explicitly enabled for local development', async () => {
+  it('falls back to local preview auth only when explicitly enabled for local development', async () => {
     vi.stubEnv('VITE_ENABLE_AUTH_MOCK_FALLBACK', 'true');
     apiMock.post.mockRejectedValue(new Error('network down'));
 
@@ -79,7 +80,7 @@ describe('API service fallbacks', () => {
 
     expect(payload.email).toBe('maya@example.com');
     expect(payload.displayName).toBe('Maya');
-    expect(payload.accessToken).toMatch(/^demo-access-/);
+    expect(payload.accessToken).toMatch(/^preview-access-/);
   });
 
   it('keeps a display-name login recognizable in local auth fallback', async () => {
@@ -96,7 +97,7 @@ describe('API service fallbacks', () => {
       username: 'jordan-lee',
       displayName: 'Jordan Lee',
     });
-    expect(payload.accessToken).toMatch(/^demo-access-/);
+    expect(payload.accessToken).toMatch(/^preview-access-/);
   });
 
   it('falls back to a local auth session when registration is explicitly enabled for frontend testing', async () => {
@@ -120,7 +121,7 @@ describe('API service fallbacks', () => {
       email: 'maya@example.com',
       displayName: 'Maya Chen',
     });
-    expect(payload.accessToken).toMatch(/^demo-access-/);
+    expect(payload.accessToken).toMatch(/^preview-access-/);
 
     await expect(
       authService.login({
@@ -234,7 +235,7 @@ describe('API service fallbacks', () => {
 
     apiMock.post.mockRejectedValueOnce(new Error('cognito unavailable'));
     await expect(authService.loginWithCognito('id-token-fallback')).resolves.toMatchObject({
-      username: 'scopedemo',
+      username: 'scope-user',
     });
 
     vi.resetModules();
@@ -496,8 +497,8 @@ describe('API service fallbacks', () => {
       password: 'SecurePass123!',
     })).resolves.toMatchObject({
       id: 'user-1',
-      username: 'scopedemo',
-      email: 'demo@scope.travel',
+      username: 'scope-user',
+      email: undefined,
     });
 
     await expect(authService.logout('expired-refresh-token')).resolves.toBeUndefined();
@@ -639,7 +640,7 @@ describe('API service fallbacks', () => {
       data: expect.arrayContaining([
         expect.objectContaining({
           id: 'demo-user-2',
-          avatarUrl: expect.stringContaining('i.pravatar.cc'),
+          avatarUrl: expect.stringContaining('images.pexels.com'),
         }),
       ]),
     });
@@ -940,7 +941,7 @@ describe('API service fallbacks', () => {
     });
   });
 
-  it('keeps seeded social fallbacks deterministic for suggestion ranking and request acceptance', async () => {
+  it('keeps seeded social fallback fixtures out of production service fallbacks', async () => {
     vi.stubEnv('VITE_ENABLE_SOCIAL_MOCK_FALLBACK', 'true');
     const friendService = await import('@/services/friendService');
     const { mockFriendRequests } = await import('@/services/socialMockData');
@@ -952,23 +953,16 @@ describe('API service fallbacks', () => {
       friendService.listFriendSuggestions('random', 4),
     ]);
 
-    expect(best.data).toHaveLength(4);
-    expect(mutuals.data[0]?.mutualFriends).toBeGreaterThanOrEqual(mutuals.data.at(-1)?.mutualFriends ?? 0);
-    expect(vibes.data[0]?.sharedInterests.length ?? 0).toBeGreaterThanOrEqual(1);
-    expect(random.data.map((suggestion) => suggestion.id)).not.toEqual(best.data.map((suggestion) => suggestion.id));
+    expect(best.data).toEqual([]);
+    expect(mutuals.data).toEqual([]);
+    expect(vibes.data).toEqual([]);
+    expect(random.data).toEqual([]);
 
     const incomingRequest = mockFriendRequests.find((request) => request.direction === 'incoming');
     expect(incomingRequest).toBeDefined();
     apiMock.put.mockRejectedValueOnce(new Error('friends API offline'));
 
-    await expect(friendService.acceptFriendRequest(incomingRequest!.id)).resolves.toMatchObject({
-      id: `connection-${incomingRequest!.user.id}`,
-      presence: 'online',
-      mutualFriends: incomingRequest!.mutualFriends,
-      user: expect.objectContaining({
-        id: incomingRequest!.user.id,
-      }),
-    });
+    await expect(friendService.acceptFriendRequest(incomingRequest!.id)).rejects.toThrow('friends API offline');
   });
 
   it('uses explicit local spot fallback for geocoding only when preview map fallback is enabled', async () => {
@@ -995,8 +989,8 @@ describe('API service fallbacks', () => {
     expect(response.data).toEqual([]);
   });
 
-  it('falls back to local quick search results in demo mode when content search is unavailable', async () => {
-    vi.stubEnv('VITE_DEMO_MODE', 'true');
+  it('falls back to local quick search results in local preview mode when content search is unavailable', async () => {
+    vi.stubEnv('VITE_ENABLE_SEARCH_MOCK_FALLBACK', 'true');
     apiMock.get.mockRejectedValue(new Error('search unavailable'));
 
     const searchService = await import('@/services/searchService');
@@ -1601,8 +1595,7 @@ describe('API service fallbacks', () => {
     });
   });
 
-  it('keeps weather live in demo mode unless demo weather is explicitly enabled', async () => {
-    vi.stubEnv('VITE_DEMO_MODE', 'true');
+  it('keeps weather live when local weather fallback is not enabled', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     apiMock.get.mockResolvedValue({
@@ -1650,7 +1643,7 @@ describe('API service fallbacks', () => {
     expect(snapshot.checkedAtIso).toBe('2026-05-19T03:00:00.000Z');
   });
 
-  it('uses deterministic demo weather only behind the demo weather flag', async () => {
+  it('uses deterministic local weather only behind the local weather flag', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     vi.stubEnv('VITE_ENABLE_DEMO_WEATHER', 'true');
     const fetchMock = vi.fn();
@@ -1664,8 +1657,8 @@ describe('API service fallbacks', () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(snapshot.provider).toBe('demo');
-    expect(snapshot.providerLabel).toBe('Scope demo weather');
+    expect(snapshot.provider).toBe('local');
+    expect(snapshot.providerLabel).toBe('Scope local weather');
   });
 
   it('builds a local presigned target and short-circuits blob uploads', async () => {
@@ -1878,7 +1871,7 @@ describe('API service fallbacks', () => {
     });
   });
 
-  it('hydrates empty initial live trending responses from ranked mocks in production mode', async () => {
+  it('keeps empty initial live trending responses empty when mock fallback is disabled', async () => {
     apiMock.get.mockResolvedValue({
       data: {
         data: [],
@@ -1886,11 +1879,9 @@ describe('API service fallbacks', () => {
     });
 
     const feedService = await import('@/services/feedService');
-    const { mockSpots } = await import('@/services/mockData');
-    const { rankTrendingSpots } = await import('@/utils/spotRanking');
     const response = await feedService.getTrendingSpots(4);
 
-    expect(response.data.map((spot) => spot.id)).toEqual(rankTrendingSpots(mockSpots).slice(0, 4).map((spot) => spot.id));
+    expect(response.data).toEqual([]);
   });
 
   it('hydrates spot lists from ranked mocks when live content has no pins yet', async () => {
@@ -2213,8 +2204,8 @@ describe('API service fallbacks', () => {
     const spotService = await import('@/services/spotService');
     const currentUser = {
       id: 'user-1',
-      username: 'scopedemo',
-      email: 'demo@scope.travel',
+      username: 'scope-user',
+      email: '',
       displayName: 'Local preview user',
     };
     const submission = {
@@ -2491,7 +2482,7 @@ describe('API service fallbacks', () => {
     expect(apiMock.delete).toHaveBeenLastCalledWith('/api/content/spots/spot-live-social');
   });
 
-  it('hydrates empty initial activity feed API responses from mocks in production mode', async () => {
+  it('keeps empty initial activity feed API responses empty when mock fallback is disabled', async () => {
     apiMock.get.mockResolvedValue({
       data: {
         data: [],
@@ -2505,14 +2496,13 @@ describe('API service fallbacks', () => {
     });
 
     const feedService = await import('@/services/feedService');
-    const { mockFeed } = await import('@/services/mockData');
     const response = await feedService.getFeed(1, 3);
 
-    expect(response.data.length).toBeGreaterThan(0);
+    expect(response.data).toEqual([]);
     expect(response.meta).toMatchObject({
       page: 1,
       pageSize: 3,
-      total: mockFeed.length,
+      total: 0,
     });
   });
 
@@ -3026,8 +3016,7 @@ describe('API service fallbacks', () => {
     expect(apiMock.get).not.toHaveBeenCalled();
   });
 
-  it('tries the intel fuel API in demo mode and does not fabricate prices on failure', async () => {
-    vi.stubEnv('VITE_DEMO_MODE', 'true');
+  it('tries the intel fuel API and does not fabricate prices on failure when local fuel fallback is disabled', async () => {
     apiMock.get.mockRejectedValue(new Error('intel unavailable'));
 
     const fuelPriceService = await import('@/services/fuelPriceService');

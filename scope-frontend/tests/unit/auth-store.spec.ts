@@ -381,8 +381,8 @@ describe('auth store security hardening', () => {
     expect(store.token).toMatch(/^scope-qa-/);
     expect(store.currentUser).toMatchObject({
       id: 'user-1',
-      username: 'scopedemo',
-      email: 'demo@scope.travel',
+      username: 'scope-qa',
+      email: '',
       displayName: 'Scope traveler',
     });
     expect(store.hasHydratedSession).toBe(true);
@@ -485,7 +485,7 @@ describe('auth store security hardening', () => {
     store.clearError();
     expect(store.error).toBeNull();
 
-    await expect(store.loginWithCognito()).rejects.toThrow('google offline');
+    await expect(store.loginWithCognito('google-id-token')).rejects.toThrow('google offline');
     expect(store.error).toBe('google offline');
 
     store.clearSessionExpiredMessage();

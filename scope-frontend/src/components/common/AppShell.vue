@@ -34,20 +34,12 @@ function syncSessionHint(): void {
 }
 
 onMounted(() => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
   syncSessionHint();
   window.addEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
   window.addEventListener('storage', syncSessionHint);
 });
 
 onBeforeUnmount(() => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
   window.removeEventListener(AUTH_SESSION_HINT_CHANGE_EVENT, syncSessionHint);
   window.removeEventListener('storage', syncSessionHint);
 });

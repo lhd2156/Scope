@@ -15,6 +15,8 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.stubEnv('VITE_ENABLE_COGNITO_OAUTH', 'true');
+
 import LoginPage from '@/views/LoginPage.vue';
 import RegisterPage from '@/views/RegisterPage.vue';
 

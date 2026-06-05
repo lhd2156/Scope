@@ -1,6 +1,6 @@
 import api from '@/services/api';
 import { searchUsersLive } from '@/services/userService';
-import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
+import { normalizeArrayEnvelopeData, unwrapApiData } from '@/services/serviceUtils';
 import type {
   ApiEnvelope,
   FriendConnection,
@@ -16,14 +16,6 @@ import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeImageUrl, sani
 const FRIENDS_BASE_PATH = '/api/core/friends';
 const SPOT_CATEGORIES = new Set<SpotCategory>(['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other']);
 const IS_TEST_MODE = import.meta.env.MODE === 'test' || Boolean(import.meta.env.VITEST);
-const CAN_USE_SOCIAL_FALLBACK = IS_TEST_MODE;
-const PRESENCE_RANK: Record<FriendPresence, number> = {
-  planning: 5,
-  online: 4,
-  idle: 2,
-  hidden: 1,
-  offline: 0,
-};
 
 type FriendConnectionWire = Partial<FriendConnection> & {
   friendshipId?: string;
@@ -46,18 +38,6 @@ type FriendSuggestionWire = Partial<FriendSuggestion> & {
   favoriteCategories?: string[];
   sharedInterests?: string[];
 };
-
-interface SocialFallbackData {
-  mockFriendConnections: FriendConnection[];
-  mockFriendRequests: FriendRequest[];
-}
-
-async function loadSocialFallbackData(): Promise<SocialFallbackData> {
-  return {
-    mockFriendConnections: [],
-    mockFriendRequests: [],
-  };
-}
 
 function normalizeHandleQuery(query: string): string {
   const sanitizedQuery = sanitizeSingleLineText(query);
@@ -161,66 +141,6 @@ function normalizeSuggestionEnvelope(response: ApiEnvelope<FriendSuggestionWire[
   };
 }
 
-function stableSuggestionHash(value: string): number {
-  return [...value].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) % 997, 17);
-}
-
-function compareFallbackSuggestions(mode: 'best' | 'mutuals' | 'vibes' | 'random') {
-  return (left: FriendSuggestion, right: FriendSuggestion) => {
-    if (mode === 'random') {
-      return stableSuggestionHash(left.user.id) - stableSuggestionHash(right.user.id);
-    }
-
-    const presenceDelta = PRESENCE_RANK[right.presence] - PRESENCE_RANK[left.presence];
-    const mutualDelta = right.mutualFriends - left.mutualFriends;
-    const vibeDelta = (right.sharedInterests.length + right.favoriteCategories.length) -
-      (left.sharedInterests.length + left.favoriteCategories.length);
-    const scoreDelta = (right.score ?? 0) - (left.score ?? 0);
-
-    if (mode === 'mutuals') {
-      return mutualDelta || presenceDelta || vibeDelta || scoreDelta || left.user.displayName.localeCompare(right.user.displayName);
-    }
-
-    if (mode === 'vibes') {
-      return vibeDelta || presenceDelta || mutualDelta || scoreDelta || left.user.displayName.localeCompare(right.user.displayName);
-    }
-
-    return presenceDelta || mutualDelta || vibeDelta || scoreDelta || left.user.displayName.localeCompare(right.user.displayName);
-  };
-}
-
-async function buildFallbackSuggestionEnvelope(mode: 'best' | 'mutuals' | 'vibes' | 'random', limit: number): Promise<ApiEnvelope<FriendSuggestion[]>> {
-  const { mockFriendConnections, mockFriendRequests } = await loadSocialFallbackData();
-  const candidates = [
-    ...mockFriendRequests.map((request) => ({
-      id: request.user.id,
-      user: request.user,
-      mutualFriends: request.mutualFriends,
-      sharedInterests: request.user.interests,
-      favoriteCategories: toSpotCategories(request.user.interests),
-      presence: 'offline' as FriendPresence,
-      reason: request.note || `${request.mutualFriends} mutual friends`,
-    })),
-    ...mockFriendConnections.map((connection) => ({
-      id: connection.user.id,
-      user: connection.user,
-      mutualFriends: connection.mutualFriends,
-      sharedInterests: connection.favoriteCategories,
-      favoriteCategories: connection.favoriteCategories,
-      presence: connection.presence,
-      reason: `${connection.mutualFriends} mutual friends`,
-    })),
-  ];
-  const normalized = normalizeSuggestionEnvelope({ data: candidates });
-
-  return {
-    ...normalized,
-    data: normalized.data
-      .sort(compareFallbackSuggestions(mode))
-      .slice(0, limit),
-  };
-}
-
 function emptyListEnvelope<T>(page?: number, pageSize?: number): ApiEnvelope<T[]> {
   return {
     data: [],
@@ -237,45 +157,33 @@ function emptyListEnvelope<T>(page?: number, pageSize?: number): ApiEnvelope<T[]
 
 export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<FriendConnection[]>> {
   if (IS_TEST_MODE) {
-    const { mockFriendConnections } = await loadSocialFallbackData();
-    return normalizeConnectionEnvelope(paginateItems(mockFriendConnections, page, pageSize));
+    return emptyListEnvelope<FriendConnection>(page, pageSize);
   }
 
   try {
     const { data } = await api.get<ApiEnvelope<FriendConnectionWire[]>>(FRIENDS_BASE_PATH, { params: { page, pageSize } });
     return normalizeConnectionEnvelope(data);
   } catch {
-    if (CAN_USE_SOCIAL_FALLBACK) {
-      const { mockFriendConnections } = await loadSocialFallbackData();
-      return normalizeConnectionEnvelope(paginateItems(mockFriendConnections, page, pageSize));
-    }
-
     return emptyListEnvelope<FriendConnection>(page, pageSize);
   }
 }
 
 export async function listPendingFriendRequests(): Promise<ApiEnvelope<FriendRequest[]>> {
   if (IS_TEST_MODE) {
-    const { mockFriendRequests } = await loadSocialFallbackData();
-    return normalizeRequestEnvelope({ data: mockFriendRequests.filter((request) => request.direction === 'incoming') });
+    return emptyListEnvelope<FriendRequest>();
   }
 
   try {
     const { data } = await api.get<ApiEnvelope<FriendRequestWire[]>>(`${FRIENDS_BASE_PATH}/pending`);
     return normalizeRequestEnvelope(data);
   } catch {
-    if (CAN_USE_SOCIAL_FALLBACK) {
-      const { mockFriendRequests } = await loadSocialFallbackData();
-      return normalizeRequestEnvelope({ data: mockFriendRequests.filter((request) => request.direction === 'incoming') });
-    }
-
     return emptyListEnvelope<FriendRequest>();
   }
 }
 
 export async function listFriendSuggestions(mode: 'best' | 'mutuals' | 'vibes' | 'random' = 'best', limit = 8): Promise<ApiEnvelope<FriendSuggestion[]>> {
   if (IS_TEST_MODE) {
-    return buildFallbackSuggestionEnvelope(mode, limit);
+    return emptyListEnvelope<FriendSuggestion>();
   }
 
   try {
@@ -284,10 +192,6 @@ export async function listFriendSuggestions(mode: 'best' | 'mutuals' | 'vibes' |
     });
     return normalizeSuggestionEnvelope(data);
   } catch {
-    if (CAN_USE_SOCIAL_FALLBACK) {
-      return buildFallbackSuggestionEnvelope(mode, limit);
-    }
-
     return emptyListEnvelope<FriendSuggestion>();
   }
 }
@@ -304,9 +208,7 @@ export async function sendFriendRequest(userId: string): Promise<void> {
   try {
     await api.post(`${FRIENDS_BASE_PATH}/request/${userId}`);
   } catch (error) {
-    if (!CAN_USE_SOCIAL_FALLBACK) {
-      throw error;
-    }
+    throw error;
   }
 }
 
@@ -315,26 +217,7 @@ export async function acceptFriendRequest(requestId: string): Promise<FriendConn
     const { data } = await api.put<ApiEnvelope<FriendConnectionWire> | FriendConnectionWire>(`${FRIENDS_BASE_PATH}/${requestId}/accept`);
     return normalizeConnection(unwrapApiData(data) as FriendConnectionWire);
   } catch (error) {
-    if (!CAN_USE_SOCIAL_FALLBACK) {
-      throw error;
-    }
-
-    const { mockFriendRequests } = await loadSocialFallbackData();
-    const request = mockFriendRequests.find((entry) => entry.id === requestId);
-    if (!request) {
-      throw error;
-    }
-
-    return normalizeConnection({
-      id: `connection-${request.user.id}`,
-      user: request.user,
-      presence: 'online',
-      sharedTrips: 0,
-      mutualFriends: request.mutualFriends,
-      favoriteCategories: toSpotCategories(request.user.interests),
-      nextAdventure: request.note || 'Ready to map a first route together.',
-      lastActiveAt: new Date().toISOString(),
-    });
+    throw error;
   }
 }
 
@@ -342,9 +225,7 @@ export async function rejectFriendRequest(requestId: string): Promise<void> {
   try {
     await api.put(`${FRIENDS_BASE_PATH}/${requestId}/reject`);
   } catch (error) {
-    if (!CAN_USE_SOCIAL_FALLBACK) {
-      throw error;
-    }
+    throw error;
   }
 }
 
@@ -352,9 +233,7 @@ export async function removeFriend(friendshipId: string): Promise<void> {
   try {
     await api.delete(`${FRIENDS_BASE_PATH}/${friendshipId}`);
   } catch (error) {
-    if (!CAN_USE_SOCIAL_FALLBACK) {
-      throw error;
-    }
+    throw error;
   }
 }
 

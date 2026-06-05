@@ -4,7 +4,7 @@ import {
   buildPravatarAvatarUrl,
   getCategoryTravelPhoto,
   pickTravelPhotoForSeed,
-} from '@/utils/demoMedia';
+} from '@/utils/travelMedia';
 
 describe('demo media utilities', () => {
   it('picks stable category photos with an empty-seed fallback', () => {

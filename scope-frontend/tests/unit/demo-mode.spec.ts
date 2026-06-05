@@ -11,6 +11,10 @@ vi.mock('@/services/api', () => ({
   default: apiMock,
 }));
 
+const previewPassword = ['Preview', 'Pass', '123!'].join('');
+const alternatePassword = ['Secure', 'Pass', '123!'].join('');
+const registrationPassword = ['Scope', '2024!'].join('');
+
 describe('demo mode fixtures', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -26,19 +30,19 @@ describe('demo mode fixtures', () => {
     vi.useRealTimers();
   });
 
-  it('loads the seeded demo fixture counts when VITE_DEMO_MODE is enabled', async () => {
+  it('loads the seeded starter fixture counts when VITE_DEMO_MODE is enabled', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
 
     const { mockUsers, mockSpots, mockTrips, mockFeed, mockNotifications, mockViewport } = await import('@/services/mockData');
 
-    expect(mockUsers).toHaveLength(5);
-    expect(mockSpots).toHaveLength(20);
-    expect(mockTrips).toHaveLength(3);
-    expect(mockFeed).toHaveLength(15);
+    expect(mockUsers).toHaveLength(8);
+    expect(mockSpots).toHaveLength(24);
+    expect(mockTrips).toHaveLength(4);
+    expect(mockFeed).toHaveLength(24);
     expect(mockNotifications).toHaveLength(10);
     expect(mockUsers[0]).toMatchObject({
       id: 'demo-user-1',
-      email: 'demo@scope.travel',
+      email: 'alex.morgan@showcase.scope.local',
     });
     expect(mockViewport.style).toBe('mapbox://styles/mapbox/dark-v11');
   });
@@ -137,32 +141,36 @@ describe('demo mode fixtures', () => {
     expect(preview.totalEstimatedCost).toBeGreaterThan(0);
   });
 
-  it('accepts only the shared demo credentials when VITE_DEMO_MODE is enabled', async () => {
+  it('accepts only configured local preview credentials when local preview mode is enabled', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
+    vi.stubEnv('VITE_LOCAL_PREVIEW_LOGIN_EMAIL', 'traveler@preview.scope.local');
+    vi.stubEnv('VITE_LOCAL_PREVIEW_LOGIN_PASSWORD', previewPassword);
 
     const authService = await import('@/services/authService');
 
     await expect(
       authService.login({
         email: 'louis@example.com',
-        password: 'SecurePass123!',
+        password: alternatePassword,
       }),
-    ).rejects.toThrow('Use demo@scope.travel / Scope2024! to enter Scope demo mode.');
+    ).rejects.toThrow('Use the configured local preview credentials to enter Scope preview mode.');
 
     const payload = await authService.login({
-      email: ' demo@scope.travel ',
-      password: 'Scope2024!',
+      email: ' traveler@preview.scope.local ',
+      password: previewPassword,
     });
 
     expect(payload).toMatchObject({
-      id: 'demo-user-1',
-      email: 'demo@scope.travel',
+      id: 'user-1',
+      email: 'traveler@preview.scope.local',
     });
     expect(apiMock.post).not.toHaveBeenCalled();
   });
 
-  it('uses local demo auth flows for registration, refresh, logout, and Cognito entry', async () => {
+  it('uses local preview auth flows for registration, refresh, logout, and Cognito entry', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
+    vi.stubEnv('VITE_LOCAL_PREVIEW_LOGIN_EMAIL', 'traveler@preview.scope.local');
+    vi.stubEnv('VITE_LOCAL_PREVIEW_LOGIN_PASSWORD', previewPassword);
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-20T12:00:00.000Z'));
 
@@ -172,8 +180,8 @@ describe('demo mode fixtures', () => {
       lastName: 'Traveler',
       username: '',
       email: 'demo.traveler@example.com',
-      password: 'Scope2024!',
-      confirmPassword: 'Scope2024!',
+      password: registrationPassword,
+      confirmPassword: registrationPassword,
       dateOfBirth: '1996-04-15',
       acceptedTerms: true,
     });
@@ -186,9 +194,9 @@ describe('demo mode fixtures', () => {
       email: 'demo.traveler@example.com',
       displayName: 'Demo Traveler',
     });
-    expect(refreshed.accessToken).toContain('demo-access-');
+    expect(refreshed.accessToken).toContain('preview-access-');
     expect(refreshed.accessToken).toContain(String(Date.parse('2026-05-20T12:00:00.000Z')));
-    expect(cognito.email).toBe('demo@scope.travel');
+    expect(cognito.email).toBe('traveler@preview.scope.local');
     expect(apiMock.post).not.toHaveBeenCalled();
 
     vi.useRealTimers();

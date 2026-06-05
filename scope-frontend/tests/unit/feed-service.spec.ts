@@ -56,6 +56,14 @@ function mockData(overrides: Partial<{
   };
 }
 
+function mockDemoMode(enabled: boolean, fallbackEnabled = enabled) {
+  return {
+    DEMO_MODE_ENABLED: enabled,
+    LOCAL_PREVIEW_ENABLED: enabled,
+    localFallbackEnabled: () => fallbackEnabled,
+  };
+}
+
 describe('feed service contracts', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -69,7 +77,7 @@ describe('feed service contracts', () => {
 
   it('serves demo feed, trending, notifications, and read mutations from mutable fixtures', async () => {
     const fixtures = mockData();
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: true }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(true));
     vi.doMock('@/services/api', () => ({
       default: {
         get: vi.fn(),
@@ -120,7 +128,7 @@ describe('feed service contracts', () => {
         },
       });
 
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: false }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false));
     vi.doMock('@/services/api', () => ({
       default: { get, put: vi.fn() },
     }));
@@ -153,7 +161,7 @@ describe('feed service contracts', () => {
     const get = vi.fn().mockRejectedValue(new Error('content offline'));
     const put = vi.fn().mockRejectedValue(new Error('content offline'));
 
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: false }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
       default: { get, put },
     }));
@@ -206,7 +214,7 @@ describe('feed service contracts', () => {
         },
       ],
     });
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: true }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(true));
     vi.doMock('@/services/api', () => ({
       default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
     }));
@@ -307,7 +315,7 @@ describe('feed service contracts', () => {
       .mockResolvedValueOnce({ data: { ok: true, action: 'mute_category' } })
       .mockResolvedValueOnce({ data: { id: 'push-subscription-1' } });
 
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: false }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
       default: { get, put, post },
     }));
@@ -381,7 +389,7 @@ describe('feed service contracts', () => {
     const get = vi.fn().mockRejectedValue(new Error('preferences offline'));
     const post = vi.fn().mockRejectedValue(new Error('actions offline'));
 
-    vi.doMock('@/services/demoMode', () => ({ DEMO_MODE_ENABLED: false }));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
       default: { get, put: vi.fn(), post },
     }));

@@ -15,7 +15,7 @@ export interface WeatherSnapshot {
   temperatureF: number;
   condition: string;
   windMph: number;
-  provider?: 'demo' | 'nws' | 'openweather' | 'openmeteo';
+  provider?: 'demo' | 'local' | 'nws' | 'openweather' | 'openmeteo';
   providerLabel?: string;
   observedAtIso?: string;
   checkedAtIso?: string;

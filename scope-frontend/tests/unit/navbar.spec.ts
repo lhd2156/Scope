@@ -213,7 +213,7 @@ describe('Navbar', () => {
     expect(router.currentRoute.value.fullPath).toBe('/');
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Signed out',
-      message: 'Your Scope session is closed for now. Come back anytime to keep exploring.',
+      message: 'Your Scope Trips session is closed for now. Come back anytime to keep exploring.',
     });
 
     wrapper.unmount();
@@ -518,7 +518,7 @@ describe('Navbar', () => {
     await flushPromises();
 
     const mobileDrawer = wrapper.get('[data-test="mobile-drawer"]');
-    expect(mobileDrawer.text()).toContain('Take Scope with you');
+    expect(mobileDrawer.text()).toContain('Take Scope Trips with you');
     expect(mobileDrawer.text()).toContain('Louis Do');
     expect(mobileDrawer.text()).toContain('Profile');
     expect(document.body.style.overflow).toBe('hidden');
@@ -645,7 +645,7 @@ describe('Navbar', () => {
     await searchTrigger.trigger('click');
     await flushPromises();
 
-    expect(wrapper.get('[role="alert"]').text()).toBe('Scope could not load quick search right now.');
+    expect(wrapper.get('[role="alert"]').text()).toBe('Scope Trips could not load quick search right now.');
 
     await searchInput.setValue('   ');
     await searchTrigger.trigger('click');
@@ -744,7 +744,7 @@ describe('Navbar', () => {
 
     const dropdownText = wrapper.get('[data-test="quick-search-dropdown"]').text();
     expect(dropdownText).toContain('Second Result');
-    expect(dropdownText).toContain('Scope spot');
+    expect(dropdownText).toContain('Scope Trips spot');
     expect(dropdownText).not.toContain('Old Result');
 
     await wrapper.get('[data-test="quick-search-result"]').trigger('click');
@@ -1117,7 +1117,7 @@ describe('Navbar', () => {
       tags: ['  '],
       avg_rating: 0,
       review_count: 0,
-    })).toBe('Scope spot');
+    })).toBe('Scope Trips spot');
 
     Object.defineProperty(window, 'scrollY', {
       configurable: true,

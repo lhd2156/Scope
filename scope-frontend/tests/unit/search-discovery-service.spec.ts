@@ -20,6 +20,7 @@ vi.mock('@/services/intelService', () => ({
 
 vi.mock('@/services/demoMode', () => ({
   DEMO_MODE_ENABLED: false,
+  LOCAL_PREVIEW_ENABLED: false,
 }));
 
 vi.mock('@/services/mockDataLoader', () => ({

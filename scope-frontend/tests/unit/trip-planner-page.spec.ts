@@ -38,7 +38,7 @@ function buildRouteLibraryTrip(overrides: Partial<Trip> = {}): Trip {
   ];
 
   return {
-    id: 'demo-trip-1',
+    id: 'trip-1',
     title: 'North Texas Night + Food Loop',
     destination: 'Fort Worth, Texas to Dallas, Texas',
     description: '',
@@ -700,7 +700,7 @@ describe('TripPlannerPage', () => {
       .mockResolvedValueOnce({ photoUrl: 'https://cdn.scope.test/real-end.jpg' })
       .mockResolvedValueOnce({ photoUrl: 'https://cdn.scope.test/real-single.jpg' });
     tripsStoreMock.items = [buildRouteLibraryTrip({
-      id: 'demo-trip-photo-preference',
+      id: 'trip-2',
       coverImageUrl: 'https://images.unsplash.com/mock-cover?auto=format',
       spots: [
         { ...buildRouteStop('seed-start', 'Seed Lookup Stockyards', 1, 'culture'), latitude: 33.111, longitude: -98.111, city: 'Fort Worth', photoUrl: 'https://images.unsplash.com/mock-start?auto=format' },
