@@ -1309,6 +1309,7 @@ fn looks_like_placeholder(value: &str) -> bool {
     let normalized = value.trim().to_ascii_lowercase();
     normalized.is_empty()
         || normalized.contains("change-me")
+        || normalized.contains("change_me")
         || normalized.contains("change_in_prod")
         || normalized.contains("change-in-prod")
         || normalized.contains("your-mapbox-token")

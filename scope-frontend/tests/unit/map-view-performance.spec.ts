@@ -7,7 +7,7 @@ import { getPlacePhoto, reverseGeocode, searchNearbyPlaces } from '@/services/ma
 import { getOpenWeatherMapSnapshot } from '@/services/openWeatherMapService';
 import { useMapStore } from '@/stores/map';
 import { clusterViewportPoints, preloadScopeWasmRuntime } from '@/services/wasmService';
-import { getSpotPhotoFallback } from '@/utils/demoPhotos';
+import { getSpotPhotoFallback } from '@/utils/imageFallbacks';
 import { getCurrentLocation } from '@/utils/geolocation';
 import type { UserLocation } from '@/types';
 
@@ -470,6 +470,8 @@ vi.mock('@/services/mapboxLoader', () => ({
 
 vi.mock('@/services/demoMode', () => ({
   DEMO_MODE_ENABLED: false,
+  LOCAL_PREVIEW_ENABLED: false,
+  localFallbackEnabled: () => false,
 }));
 
 vi.mock('@/utils/scheduleNonCriticalTask', () => ({

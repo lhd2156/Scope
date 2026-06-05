@@ -213,7 +213,7 @@ describe('TripsWorkspacePage', () => {
   it('renders section-specific empty states after filtering reference trips', async () => {
     tripsStoreMock.items = [
       buildTrip({
-        id: 'demo-trip-1',
+        id: 'trip-1',
         title: 'Reference trip hidden from workspace',
       }),
     ];

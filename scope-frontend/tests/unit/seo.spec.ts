@@ -43,7 +43,7 @@ describe('seo shell metadata', () => {
           component: StubPage,
           meta: {
             title: 'Explore community-loved spots | Scope',
-            description: 'Browse Scope spots by category, city, and vibe to find your next outing.',
+            description: 'Browse Scope Trips spots by category, city, and vibe to find your next outing.',
             robots: 'index,follow',
             image: '/social-preview.png',
           },
@@ -59,13 +59,13 @@ describe('seo shell metadata', () => {
     const canonicalUrl = new URL('/explore', window.location.origin).toString();
 
     expect(document.title).toBe('Explore community-loved spots | Scope');
-    expect(getMetaByName('description')).toBe('Browse Scope spots by category, city, and vibe to find your next outing.');
+    expect(getMetaByName('description')).toBe('Browse Scope Trips spots by category, city, and vibe to find your next outing.');
     expect(getMetaByName('robots')).toBe('index,follow');
-    expect(getMetaByName('application-name')).toBe('Scope');
-    expect(getMetaByName('apple-mobile-web-app-title')).toBe('Scope');
+    expect(getMetaByName('application-name')).toBe('Scope Trips');
+    expect(getMetaByName('apple-mobile-web-app-title')).toBe('Scope Trips');
     expect(getMetaByName('apple-mobile-web-app-capable')).toBe('yes');
     expect(getMetaByName('mobile-web-app-capable')).toBe('yes');
-    expect(getMetaByProperty('og:site_name')).toBe('Scope');
+    expect(getMetaByProperty('og:site_name')).toBe('Scope Trips');
     expect(getMetaByProperty('og:url')).toBe(canonicalUrl);
     expect(getMetaByProperty('og:image')).toBe(new URL('/social-preview.png', window.location.origin).toString());
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(canonicalUrl);
@@ -143,8 +143,8 @@ describe('seo shell metadata', () => {
     await router.isReady();
     await Promise.resolve();
 
-    expect(document.title).toContain('Discover spots, map stories, and plan smarter trips');
-    expect(getMetaByName('description')).toBe('Scope helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends.');
+    expect(document.title).toContain('Discover spots and plan smarter trips');
+    expect(getMetaByName('description')).toBe('Scope Trips helps people discover community-loved spots, document real-world adventures with photos and stories, and build smarter itineraries with friends.');
     expect(getMetaByName('robots')).toBe('index,follow');
     expect(getMetaByProperty('og:type')).toBe('website');
     expect(getMetaByProperty('og:url')).toBe(new URL('/dynamic/42?tab=spots', window.location.origin).toString());

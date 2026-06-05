@@ -199,7 +199,7 @@ describe('tripService behavior fallbacks', () => {
     expect(apiMock.post).not.toHaveBeenCalled();
   });
 
-  it('reuses encoded demo share links and tolerates malformed local storage fallbacks', async () => {
+  it('reuses encoded local share links and tolerates malformed local storage fallbacks', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     localStorage.setItem('scope.local.trips.v1', '{bad trips');
     localStorage.setItem('scope.local.trip-shares.v1', '{bad shares');
@@ -212,7 +212,7 @@ describe('tripService behavior fallbacks', () => {
     const secondLink = await tripService.createTripShareLink(trip.id);
     const shared = await tripService.getTripByShareToken(firstLink.token);
 
-    expect(firstLink.token).toMatch(/^demo-trip-/);
+    expect(firstLink.token).toMatch(/^local-trip-/);
     expect(secondLink.token).toBe(firstLink.token);
     expect(firstLink.url).toContain(firstLink.path);
     expect(shared.data).toMatchObject({

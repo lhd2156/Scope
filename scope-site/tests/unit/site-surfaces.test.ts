@@ -53,7 +53,7 @@ describe("site data and pages", () => {
     expect(findPostBySlug(["missing-post"]).title).toBe(posts[0].title);
 
     const home = mount(HomePage, { global: { stubs } });
-    expect(home.text()).toContain("Discover Real Adventures");
+    expect(home.text()).toContain("Plan Real Trips");
     expect(home.text()).toContain(features[0].title);
     expect(home.find("img").attributes("src")).toContain("/screenshots/map-view.png");
 
@@ -63,13 +63,13 @@ describe("site data and pages", () => {
 
     expect(mount(AboutPage).text()).toContain("Architecture");
     expect(mount(BlogPage, { global: { stubs } }).text()).toContain(posts[0].title);
-    expect(mount(DownloadPage).text()).toContain("Launch Web App");
+    expect(mount(DownloadPage).text()).toContain("Open App");
   });
 
   it("renders blog post matches, fallback posts, and legal variants", () => {
     routeSlug = "building-scope-architecture";
     const matched = mount(BlogPostPage, { global: { stubs } });
-    expect(matched.text()).toContain("Building Scope Architecture");
+    expect(matched.text()).toContain("Building Scope Trips Architecture");
     expect(matched.text()).toContain("engineering");
 
     routeSlug = "missing-post";

@@ -52,7 +52,7 @@ describe('SpotDetailPage QA audit preview', () => {
       ],
     });
 
-    await router.push('/spots/demo-spot-1');
+    await router.push('/spots/audit-spot-1');
     await router.isReady();
 
     const wrapper = mount(SpotDetailPage, {

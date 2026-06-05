@@ -55,7 +55,7 @@ describe('presence service', () => {
     const getAccessToken = vi.fn<[], string>()
       .mockReturnValueOnce('')
       .mockReturnValueOnce('scope-qa-token')
-      .mockReturnValueOnce('demo-access-token')
+      .mockReturnValueOnce('preview-access-token')
       .mockReturnValue('token-123');
     vi.doMock('@/services/api', () => ({
       default: { put },
@@ -187,7 +187,7 @@ describe('presence service', () => {
       .mockReturnValueOnce('token-123')
       .mockReturnValueOnce('token-123')
       .mockReturnValueOnce('scope-qa-token')
-      .mockReturnValueOnce('demo-access-token');
+      .mockReturnValueOnce('preview-access-token');
     const fetch = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockImplementationOnce(() => {

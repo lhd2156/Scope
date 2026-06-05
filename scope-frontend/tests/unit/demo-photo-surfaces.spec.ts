@@ -5,7 +5,7 @@ import ProfileHeader from '@/components/profile/ProfileHeader.vue';
 import SpotCard from '@/components/spots/SpotCard.vue';
 import TripCard from '@/components/trips/TripCard.vue';
 import type { FeedItem as FeedItemModel, SpotSummary, Trip, UserProfile } from '@/types';
-import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/demoPhotos';
+import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/imageFallbacks';
 
 const lazyImageStub = {
   props: ['src', 'fallbackSrc', 'alt'],

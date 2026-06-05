@@ -55,7 +55,12 @@ vi.mock('@/stores/user', () => ({
 }));
 
 vi.mock('@/services/demoMode', () => ({
+  IS_PRODUCTION_BUILD: false,
+  LOCAL_PREVIEW_ENABLED: true,
+  DEMO_MODE_ENABLED: true,
+  AUTH_MOCK_FALLBACK_ENABLED: true,
   USER_MOCK_FALLBACK_ENABLED: true,
+  localFallbackEnabled: vi.fn(() => true),
 }));
 
 vi.mock('@/utils/qaMode', () => ({

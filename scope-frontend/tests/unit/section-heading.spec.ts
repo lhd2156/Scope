@@ -15,4 +15,16 @@ describe('SectionHeading', () => {
     expect(wrapper.text()).toContain('Community-loved spots');
     expect(wrapper.text()).toContain('The strongest Scope signals across the map.');
   });
+
+  it('renders cleanly with only a title', () => {
+    const wrapper = mount(SectionHeading, {
+      props: {
+        title: 'Minimal section',
+      },
+    });
+
+    expect(wrapper.text()).toContain('Minimal section');
+    expect(wrapper.find('.eyebrow').exists()).toBe(false);
+    expect(wrapper.find('.description').exists()).toBe(false);
+  });
 });

@@ -2,24 +2,30 @@
 
 
 class TestSentimentInference:
-    def test_positive_sentiment(self):
+    def test_positive_sentiment(self, monkeypatch):
+        from app.ml import registry
         from app.ml.inference.sentiment import analyze_sentiment
 
+        monkeypatch.setattr(registry, "load_sentiment_model", lambda: (_ for _ in ()).throw(ImportError("offline")))
         result = analyze_sentiment("This place is absolutely amazing! Best food ever.")
         assert result["label"] == "POSITIVE"
         assert result["score"] > 0.8
         assert result["normalized_score"] > 0
 
-    def test_negative_sentiment(self):
+    def test_negative_sentiment(self, monkeypatch):
+        from app.ml import registry
         from app.ml.inference.sentiment import analyze_sentiment
 
+        monkeypatch.setattr(registry, "load_sentiment_model", lambda: (_ for _ in ()).throw(ImportError("offline")))
         result = analyze_sentiment("Terrible service, dirty tables, would never come back.")
         assert result["label"] == "NEGATIVE"
         assert result["normalized_score"] < 0
 
-    def test_batch_sentiment(self):
+    def test_batch_sentiment(self, monkeypatch):
+        from app.ml import registry
         from app.ml.inference.sentiment import analyze_batch
 
+        monkeypatch.setattr(registry, "load_sentiment_model", lambda: (_ for _ in ()).throw(ImportError("offline")))
         results = analyze_batch(["Great!", "Awful."])
         assert len(results) == 2
         assert results[0]["label"] == "POSITIVE"

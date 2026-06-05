@@ -11,7 +11,7 @@ import {
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
 import type { FeedItem, SpotDetail, SpotFormSubmission, SpotSummary, Trip, TripMember, UserProfile } from '@/types';
-import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/demoPhotos';
+import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/imageFallbacks';
 
 describe('sanitizers', () => {
   it('normalizes multiline user content and strips control characters', () => {

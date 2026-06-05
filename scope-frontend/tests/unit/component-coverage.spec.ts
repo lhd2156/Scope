@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
 import Modal from '@/components/common/Modal.vue';
 import PageHero from '@/components/common/PageHero.vue';
 import TabBar from '@/components/common/TabBar.vue';
@@ -224,6 +225,15 @@ describe('component coverage smoke tests', () => {
     expect(hero.get('[data-test="hero-stat"]').text()).toBe('3 stops');
     expect(hero.get('[data-test="hero-footer"]').text()).toBe('Updated now');
 
+    const defaultHero = mount(PageHero, {
+      props: {
+        title: 'Default Scope hero',
+      },
+    });
+    expect(defaultHero.classes()).toContain('page-hero--teal');
+    expect(defaultHero.find('.eyebrow').exists()).toBe(false);
+    expect(defaultHero.find('.page-hero__description').exists()).toBe(false);
+
     const tabs = mount(TabBar, {
       props: {
         modelValue: 'map',
@@ -249,5 +259,39 @@ describe('component coverage smoke tests', () => {
     await tabs.get('[data-test="budget-tab"]').trigger('click');
     expect(tabs.emitted('update:modelValue')?.[0]).toEqual(['budget']);
     expect(tabs.emitted('change')?.[0]).toEqual(['budget']);
+  });
+
+  it('renders the auth split shell default effects and forwarded stage attributes', () => {
+    const wrapper = mount(AuthSplitShell, {
+      props: {
+        heroImageSrc: 'https://images.example.com/auth.jpg',
+        heroEyebrow: 'Adventure platform',
+        heroTitle: 'Plan the next route',
+        heroDescription: 'Keep the whole trip in one place.',
+        heroHighlights: ['Saved spots', 'Shared trips'],
+      },
+      attrs: {
+        id: 'auth-stage-test',
+        class: 'custom-auth-stage',
+      },
+      slots: {
+        default: '<div data-test="auth-panel">Panel content</div>',
+      },
+      global: {
+        stubs: {
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          ScopeIcon: { props: ['name'], template: '<span data-test="scope-icon">{{ name }}</span>' },
+          LazyImage: { props: ['src', 'alt'], template: '<img :src="src" :alt="alt" />' },
+          AppFooter: { template: '<footer data-test="app-footer" />' },
+        },
+      },
+    });
+
+    expect(wrapper.get('main').attributes('id')).toBe('auth-stage-test');
+    expect(wrapper.get('main').classes()).toContain('custom-auth-stage');
+    expect(wrapper.get('main').classes()).toContain('has-panel-effects');
+    expect(wrapper.findAll('.auth-stage__particle')).toHaveLength(5);
+    expect(wrapper.text()).toContain('Saved spots');
+    expect(wrapper.get('[data-test="auth-panel"]').text()).toBe('Panel content');
   });
 });

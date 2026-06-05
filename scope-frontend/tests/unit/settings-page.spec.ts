@@ -69,7 +69,12 @@ vi.mock('@/stores/user', () => ({
 }));
 
 vi.mock('@/services/demoMode', () => ({
+  IS_PRODUCTION_BUILD: false,
+  LOCAL_PREVIEW_ENABLED: false,
+  DEMO_MODE_ENABLED: false,
+  AUTH_MOCK_FALLBACK_ENABLED: false,
   USER_MOCK_FALLBACK_ENABLED: false,
+  localFallbackEnabled: vi.fn(() => false),
 }));
 
 import SettingsPage from '@/views/SettingsPage.vue';
