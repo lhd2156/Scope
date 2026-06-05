@@ -1,0 +1,8 @@
+name = "scopetrips-api-proxy"
+main = "src/index.js"
+compatibility_date = "2026-06-05"
+workers_dev = false
+
+routes = [
+  { pattern = "scopetrips.com/api/*", zone_name = "scopetrips.com" }
+]
