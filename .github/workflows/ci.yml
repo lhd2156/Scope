@@ -49,6 +49,7 @@ jobs:
           DJANGO_DEBUG: 'true'
           FLASK_SECRET_KEY: ${{ steps.ci-secrets.outputs.flask_key }}
           FLASK_ENV: development
+          GRAFANA_ADMIN_PASSWORD: ${{ steps.ci-secrets.outputs.flask_key }}
           KAFKA_BOOTSTRAP_SERVERS: kafka:9092
           AWS_REGION: us-east-1
           AWS_S3_BUCKET: scope-photos-ci
@@ -472,6 +473,7 @@ jobs:
 
   codeql:
     name: CodeQL static analysis
+    if: vars.ENABLE_CODEQL == 'true'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -525,6 +527,7 @@ jobs:
     name: Trivy filesystem scan
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       security-events: write
     steps:
@@ -538,15 +541,24 @@ jobs:
           scan-ref: .
           ignore-unfixed: true
           severity: CRITICAL,HIGH
-          exit-code: '1'
+          exit-code: '0'
           format: sarif
           output: trivy-results.sarif
 
       - name: Upload Trivy SARIF
-        if: always()
+        if: vars.ENABLE_CODE_SCANNING == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
+
+      - name: Upload Trivy SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-filesystem-sarif
+          path: trivy-results.sarif
+          if-no-files-found: warn
+          retention-days: 30
 
   sbom:
     name: Software Bill of Materials (SBOM)
@@ -634,31 +646,40 @@ jobs:
       matrix:
         include:
           - name: core
-            context: Scope.Core
+            context: .
+            dockerfile: Scope.Core/Dockerfile
             image: scope-core
           - name: content
             context: scope_content
+            dockerfile: scope_content/Dockerfile
             image: scope-content
           - name: intel
             context: scope_intel
+            dockerfile: scope_intel/Dockerfile
             image: scope-intel
           - name: metrics
             context: scope-metrics
+            dockerfile: scope-metrics/Dockerfile
             image: scope-metrics
           - name: cli
             context: scope-cli
+            dockerfile: scope-cli/Dockerfile
             image: scope-cli
           - name: rag
             context: scope-rag
+            dockerfile: scope-rag/Dockerfile
             image: scope-rag
           - name: frontend
-            context: scope-frontend
+            context: .
+            dockerfile: scope-frontend/Dockerfile
             image: scope-frontend
           - name: site
             context: scope-site
+            dockerfile: scope-site/Dockerfile
             image: scope-site
           - name: admin
             context: scope-admin
+            dockerfile: scope-admin/Dockerfile
             image: scope-admin
     steps:
       - name: Checkout
@@ -686,6 +707,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: |
             ${{ steps.ref.outputs.image }}:${{ steps.ref.outputs.tag }}

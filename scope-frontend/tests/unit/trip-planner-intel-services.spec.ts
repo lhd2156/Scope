@@ -572,7 +572,7 @@ describe('trip planner intel service contracts', () => {
         status: 200,
         json: vi.fn().mockResolvedValue({
           current: {
-            time: '2026-05-19 14:30',
+            time: Date.parse('2026-05-19T19:30:00.000Z') / 1000,
             temperature_2m: 58,
             weather_code: 95,
             wind_speed_10m: 18,

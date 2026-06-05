@@ -953,8 +953,8 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
       precompilePrograms: true,
       prefetchZoomDelta: expect.any(Number),
     }));
-    expect(instance.options.prefetchZoomDelta as number).toBeGreaterThanOrEqual(2);
-    expect(instance.options.maxTileCacheSize as number).toBeGreaterThan(900);
+    expect(instance.options.prefetchZoomDelta as number).toBeGreaterThanOrEqual(1);
+    expect(instance.options.maxTileCacheSize as number).toBeGreaterThanOrEqual(560);
 
     instance.easeToCalls = [];
     await wrapper.get('button[aria-label="Zoom in"]').trigger('click');

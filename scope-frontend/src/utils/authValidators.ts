@@ -268,10 +268,11 @@ export function validateRegisterForm(input: RegisterForm): RegisterFormErrors {
   }
 
   const confirmPassword = input.confirmPassword.trim();
+  const mismatchMessage = 'Those two entries do not match yet - try again.';
   if (!confirmPassword) {
     errors.confirmPassword = 'Re-enter your password.';
   } else if (confirmPassword !== password) {
-    errors.confirmPassword = 'Passwords do not match yet — try again.';
+    errors.confirmPassword = mismatchMessage;
   }
 
   const dateOfBirthError = validateDateOfBirth(input.dateOfBirth.trim());
