@@ -2,7 +2,8 @@ import * as signalR from '@microsoft/signalr';
 import { AUTH_MOCK_FALLBACK_ENABLED, DEMO_MODE_ENABLED } from '@/services/demoMode';
 import type { NotificationConnectionState, NotificationItem } from '@/types';
 
-const NOTIFICATION_HUB_URL = '/api/core/hubs/notifications';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '';
+const NOTIFICATION_HUB_PATH = '/api/core/hubs/notifications';
 const NOTIFICATION_RECEIVED_EVENT = 'NotificationReceived';
 const RECONNECT_DELAYS_MS = [0, 2_000, 10_000, 30_000];
 const VISUAL_QA_FLAG = '__SCOPE_VISUAL_QA__';
@@ -53,9 +54,21 @@ function normalizeNotification(notification: NotificationItem): NotificationItem
   };
 }
 
+function buildNotificationHubUrl(): string {
+  if (!API_BASE_URL || API_BASE_URL === '/') {
+    return NOTIFICATION_HUB_PATH;
+  }
+
+  try {
+    return new URL(NOTIFICATION_HUB_PATH, API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`).toString();
+  } catch {
+    return NOTIFICATION_HUB_PATH;
+  }
+}
+
 function buildConnection(options: NotificationStreamOptions): signalR.HubConnection {
   const connection = new signalR.HubConnectionBuilder()
-    .withUrl(NOTIFICATION_HUB_URL, {
+    .withUrl(buildNotificationHubUrl(), {
       accessTokenFactory: options.accessTokenFactory,
     })
     .withAutomaticReconnect(RECONNECT_DELAYS_MS)
