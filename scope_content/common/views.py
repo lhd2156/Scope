@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from django.conf import settings
 from django.db import connection
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -80,3 +80,15 @@ def metrics_view(request):
         return HttpResponseForbidden('metrics access denied')
     payload = render_metrics()
     return HttpResponse(payload, content_type=CONTENT_TYPE_LATEST)
+
+
+def api_not_found_view(request):
+    return JsonResponse(
+        {
+            'error': {
+                'code': 'NOT_FOUND',
+                'message': 'API route does not exist',
+            },
+        },
+        status=404,
+    )
