@@ -116,6 +116,27 @@ describe('signalrService', () => {
     });
   });
 
+  it('uses the configured API origin for production notification hub connections', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.scopetrips.com');
+    vi.resetModules();
+
+    const { startNotificationStream } = await import('@/services/signalrService');
+
+    await startNotificationStream({
+      accessTokenFactory: () => 'demo-token',
+      onNotification: vi.fn(),
+      onStateChange: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    expect(signalrMock.builder.withUrl).toHaveBeenCalledWith(
+      'https://api.scopetrips.com/api/core/hubs/notifications',
+      expect.objectContaining({
+        accessTokenFactory: expect.any(Function),
+      }),
+    );
+  });
+
   it('stays idle when there is no access token', async () => {
     const { startNotificationStream } = await import('@/services/signalrService');
     const onStateChange = vi.fn();

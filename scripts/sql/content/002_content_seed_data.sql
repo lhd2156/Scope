@@ -14,6 +14,14 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER FUNCTION dbo.__scope_seed_uuid32 (@value UNIQUEIDENTIFIER)
+RETURNS CHAR(32)
+AS
+BEGIN
+    RETURN LOWER(REPLACE(CONVERT(CHAR(36), @value), '-', ''));
+END;
+GO
+
 DECLARE @Now DATETIME2 = SYSUTCDATETIME();
 
 DECLARE @ShowcaseSpots TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, UserId UNIQUEIDENTIFIER NOT NULL, Title NVARCHAR(200) NOT NULL, Description NVARCHAR(MAX) NOT NULL, Latitude FLOAT NOT NULL, Longitude FLOAT NOT NULL, Address NVARCHAR(500) NOT NULL, City NVARCHAR(100) NOT NULL, Country NVARCHAR(100) NOT NULL, Category NVARCHAR(50) NOT NULL, Vibe NVARCHAR(50) NOT NULL, Pillars NVARCHAR(MAX) NOT NULL, Rating DECIMAL(2,1) NOT NULL, VisitedOffsetDays INT NOT NULL, CreatedOffsetDays INT NOT NULL);
@@ -47,9 +55,9 @@ VALUES
 
 MERGE dbo.spots_spot AS target
 USING @ShowcaseSpots AS source
-ON target.id = source.Id
-WHEN MATCHED THEN UPDATE SET user_id = source.UserId, title = source.Title, description = source.Description, latitude = source.Latitude, longitude = source.Longitude, address = source.Address, city = source.City, country = source.Country, postal_code = N'', category = source.Category, vibe = source.Vibe, pillars = source.Pillars, rating = source.Rating, visited_at = CAST(DATEADD(DAY, -source.VisitedOffsetDays, @Now) AS date), is_public = 1, verification_status = N'verified', verification_source = N'showcase_seed', provider_place_id = CONCAT(N'showcase:', CONVERT(NVARCHAR(36), source.Id)), provider_place_name = source.Title, provider_place_address = source.Address, verification_distance_meters = 0, verified_at = @Now, safety_status = N'clean', safety_reason = N'seeded showcase place', updated_at = @Now
-WHEN NOT MATCHED THEN INSERT (id, user_id, title, description, latitude, longitude, address, city, country, postal_code, category, vibe, pillars, rating, visited_at, is_public, verification_status, verification_source, provider_place_id, provider_place_name, provider_place_address, verification_distance_meters, verified_at, safety_status, safety_reason, created_at, updated_at) VALUES (source.Id, source.UserId, source.Title, source.Description, source.Latitude, source.Longitude, source.Address, source.City, source.Country, N'', source.Category, source.Vibe, source.Pillars, source.Rating, CAST(DATEADD(DAY, -source.VisitedOffsetDays, @Now) AS date), 1, N'verified', N'showcase_seed', CONCAT(N'showcase:', CONVERT(NVARCHAR(36), source.Id)), source.Title, source.Address, 0, @Now, N'clean', N'seeded showcase place', DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now);
+ON target.id = dbo.__scope_seed_uuid32(source.Id)
+WHEN MATCHED THEN UPDATE SET user_id = dbo.__scope_seed_uuid32(source.UserId), title = source.Title, description = source.Description, latitude = source.Latitude, longitude = source.Longitude, address = source.Address, city = source.City, country = source.Country, postal_code = N'', category = source.Category, vibe = source.Vibe, pillars = source.Pillars, rating = source.Rating, visited_at = CAST(DATEADD(DAY, -source.VisitedOffsetDays, @Now) AS date), is_public = 1, verification_status = N'verified', verification_source = N'showcase_seed', provider_place_id = CONCAT(N'showcase:', CONVERT(NVARCHAR(36), source.Id)), provider_place_name = source.Title, provider_place_address = source.Address, verification_distance_meters = 0, verified_at = @Now, safety_status = N'clean', safety_reason = N'seeded showcase place', updated_at = @Now
+WHEN NOT MATCHED THEN INSERT (id, user_id, title, description, latitude, longitude, address, city, country, postal_code, category, vibe, pillars, rating, visited_at, is_public, verification_status, verification_source, provider_place_id, provider_place_name, provider_place_address, verification_distance_meters, verified_at, safety_status, safety_reason, created_at, updated_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.UserId), source.Title, source.Description, source.Latitude, source.Longitude, source.Address, source.City, source.Country, N'', source.Category, source.Vibe, source.Pillars, source.Rating, CAST(DATEADD(DAY, -source.VisitedOffsetDays, @Now) AS date), 1, N'verified', N'showcase_seed', CONCAT(N'showcase:', CONVERT(NVARCHAR(36), source.Id)), source.Title, source.Address, 0, @Now, N'clean', N'seeded showcase place', DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now);
 
 DECLARE @ShowcasePhotos TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, SpotId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, StorageKey NVARCHAR(500) NOT NULL, StorageUrl NVARCHAR(1000) NOT NULL, ThumbnailUrl NVARCHAR(1000) NOT NULL, Caption NVARCHAR(500) NOT NULL, SortOrder INT NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcasePhotos (Id, SpotId, UserId, StorageKey, StorageUrl, ThumbnailUrl, Caption, SortOrder, CreatedOffsetDays)
@@ -80,9 +88,9 @@ VALUES
     ('b1000000-0000-0000-0000-000000000024', '90000000-0000-0000-0000-000000000024', '55555555-5555-5555-5555-555555555551', N'showcase/spots/demo-spot-24/hero.jpg', N'https://images.pexels.com/photos/1878293/pexels-photo-1878293.jpeg?auto=compress&cs=tinysrgb&w=1600', N'https://images.pexels.com/photos/1878293/pexels-photo-1878293.jpeg?auto=compress&cs=tinysrgb&w=600', N'Sydney Opera House Circular Quay starter showcase photo.', 0, 24);
 MERGE dbo.photos_photo AS target
 USING @ShowcasePhotos AS source
-ON target.id = source.Id
-WHEN MATCHED THEN UPDATE SET spot_id = source.SpotId, user_id = source.UserId, storage_key = source.StorageKey, storage_url = source.StorageUrl, thumbnail_url = source.ThumbnailUrl, caption = source.Caption, sort_order = source.SortOrder
-WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, storage_key, storage_url, thumbnail_url, caption, sort_order, created_at) VALUES (source.Id, source.SpotId, source.UserId, source.StorageKey, source.StorageUrl, source.ThumbnailUrl, source.Caption, source.SortOrder, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+ON target.id = dbo.__scope_seed_uuid32(source.Id)
+WHEN MATCHED THEN UPDATE SET spot_id = dbo.__scope_seed_uuid32(source.SpotId), user_id = dbo.__scope_seed_uuid32(source.UserId), storage_key = source.StorageKey, storage_url = source.StorageUrl, thumbnail_url = source.ThumbnailUrl, caption = source.Caption, sort_order = source.SortOrder
+WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, storage_key, storage_url, thumbnail_url, caption, sort_order, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.StorageKey, source.StorageUrl, source.ThumbnailUrl, source.Caption, source.SortOrder, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseReviews TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, SpotId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, Rating DECIMAL(2,1) NOT NULL, Comment NVARCHAR(1000) NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseReviews (Id, SpotId, UserId, Rating, Comment, CreatedOffsetDays)
@@ -137,9 +145,9 @@ VALUES
     ('c1000000-0000-0000-0000-000000000048', '90000000-0000-0000-0000-000000000024', '33333333-3333-3333-3333-333333333333', 4.9, N'Strong starter pin for a first-time visitor. The pacing works better than trying to stack too many stops.', 26);
 MERGE dbo.reviews_review AS target
 USING @ShowcaseReviews AS source
-ON target.spot_id = source.SpotId AND target.user_id = source.UserId
+ON target.spot_id = dbo.__scope_seed_uuid32(source.SpotId) AND target.user_id = dbo.__scope_seed_uuid32(source.UserId)
 WHEN MATCHED THEN UPDATE SET rating = source.Rating, comment = source.Comment
-WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, rating, comment, created_at) VALUES (source.Id, source.SpotId, source.UserId, source.Rating, source.Comment, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, rating, comment, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.Rating, source.Comment, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseLikes TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, SpotId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseLikes (Id, SpotId, UserId, CreatedOffsetDays)
@@ -232,8 +240,8 @@ VALUES
     ('d1000000-0000-0000-0000-000000000086', '90000000-0000-0000-0000-000000000024', '66666666-6666-6666-6666-666666666661', 29);
 MERGE dbo.trips_like AS target
 USING @ShowcaseLikes AS source
-ON target.spot_id = source.SpotId AND target.user_id = source.UserId
-WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, created_at) VALUES (source.Id, source.SpotId, source.UserId, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+ON target.spot_id = dbo.__scope_seed_uuid32(source.SpotId) AND target.user_id = dbo.__scope_seed_uuid32(source.UserId)
+WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseTrips TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, CreatorId UNIQUEIDENTIFIER NOT NULL, Title NVARCHAR(200) NOT NULL, Destination NVARCHAR(300) NOT NULL, Description NVARCHAR(MAX) NOT NULL, StartDate DATE NOT NULL, EndDate DATE NOT NULL, Budget DECIMAL(10,2) NOT NULL, Currency NVARCHAR(3) NOT NULL, Status NVARCHAR(20) NOT NULL, IsPublic BIT NOT NULL, CoverPhotoUrl NVARCHAR(1000) NOT NULL, ShareToken UNIQUEIDENTIFIER NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseTrips (Id, CreatorId, Title, Destination, Description, StartDate, EndDate, Budget, Currency, Status, IsPublic, CoverPhotoUrl, ShareToken, CreatedOffsetDays)
@@ -244,9 +252,9 @@ VALUES
     ('a1000000-0000-0000-0000-000000000004', '77777777-7777-7777-7777-777777777771', N'World Waterfront and Market Circuit', N'Barcelona, London, Cape Town, Mexico City, Sydney', N'A global showcase route for testing far-apart pins, public trips, and profile activity with destination variety.', '2026-07-04', '2026-07-14', 3880, N'USD', N'planning', 1, N'https://images.pexels.com/photos/1878293/pexels-photo-1878293.jpeg?auto=compress&cs=tinysrgb&w=1600', 'a2000000-0000-0000-0000-000000000004', 4);
 MERGE dbo.trips_trip AS target
 USING @ShowcaseTrips AS source
-ON target.id = source.Id
-WHEN MATCHED THEN UPDATE SET creator_id = source.CreatorId, title = source.Title, destination = source.Destination, description = source.Description, start_date = source.StartDate, end_date = source.EndDate, budget = source.Budget, currency = source.Currency, status = source.Status, is_public = source.IsPublic, cover_photo_url = source.CoverPhotoUrl
-WHEN NOT MATCHED THEN INSERT (id, creator_id, title, destination, description, start_date, end_date, budget, currency, status, is_public, cover_photo_url, share_token, share_created_at, created_at) VALUES (source.Id, source.CreatorId, source.Title, source.Destination, source.Description, source.StartDate, source.EndDate, source.Budget, source.Currency, source.Status, source.IsPublic, source.CoverPhotoUrl, source.ShareToken, @Now, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+ON target.id = dbo.__scope_seed_uuid32(source.Id)
+WHEN MATCHED THEN UPDATE SET creator_id = dbo.__scope_seed_uuid32(source.CreatorId), title = source.Title, destination = source.Destination, description = source.Description, start_date = source.StartDate, end_date = source.EndDate, budget = source.Budget, currency = source.Currency, status = source.Status, is_public = source.IsPublic, cover_photo_url = source.CoverPhotoUrl
+WHEN NOT MATCHED THEN INSERT (id, creator_id, title, destination, description, start_date, end_date, budget, currency, status, is_public, cover_photo_url, share_token, share_created_at, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.CreatorId), source.Title, source.Destination, source.Description, source.StartDate, source.EndDate, source.Budget, source.Currency, source.Status, source.IsPublic, source.CoverPhotoUrl, dbo.__scope_seed_uuid32(source.ShareToken), @Now, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseTripSpots TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, TripId UNIQUEIDENTIFIER NOT NULL, SpotId UNIQUEIDENTIFIER NOT NULL, DayNumber INT NOT NULL, SortOrder INT NOT NULL, Notes NVARCHAR(500) NOT NULL, Source NVARCHAR(32) NOT NULL);
 INSERT INTO @ShowcaseTripSpots (Id, TripId, SpotId, DayNumber, SortOrder, Notes, Source)
@@ -276,9 +284,9 @@ VALUES
     ('e1000000-0000-0000-0000-000000000023', 'a1000000-0000-0000-0000-000000000004', '90000000-0000-0000-0000-000000000024', 10, 4, N'Close with Circular Quay when ferry movement and light are strongest.', N'saved_spot');
 MERGE dbo.trips_tripspot AS target
 USING @ShowcaseTripSpots AS source
-ON target.trip_id = source.TripId AND target.spot_id = source.SpotId
+ON target.trip_id = dbo.__scope_seed_uuid32(source.TripId) AND target.spot_id = dbo.__scope_seed_uuid32(source.SpotId)
 WHEN MATCHED THEN UPDATE SET day_number = source.DayNumber, sort_order = source.SortOrder, notes = source.Notes, source = source.Source
-WHEN NOT MATCHED THEN INSERT (id, trip_id, spot_id, day_number, sort_order, notes, source) VALUES (source.Id, source.TripId, source.SpotId, source.DayNumber, source.SortOrder, source.Notes, source.Source);
+WHEN NOT MATCHED THEN INSERT (id, trip_id, spot_id, day_number, sort_order, notes, source) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.TripId), dbo.__scope_seed_uuid32(source.SpotId), source.DayNumber, source.SortOrder, source.Notes, source.Source);
 
 DECLARE @ShowcaseTripMembers TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, TripId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, Role NVARCHAR(20) NOT NULL, JoinedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseTripMembers (Id, TripId, UserId, Role, JoinedOffsetDays)
@@ -297,7 +305,10 @@ VALUES
     ('f1000000-0000-0000-0000-000000000012', 'a1000000-0000-0000-0000-000000000004', '66666666-6666-6666-6666-666666666661', N'viewer', 12);
 MERGE dbo.trips_tripmember AS target
 USING @ShowcaseTripMembers AS source
-ON target.trip_id = source.TripId AND target.user_id = source.UserId
+ON target.trip_id = dbo.__scope_seed_uuid32(source.TripId) AND target.user_id = dbo.__scope_seed_uuid32(source.UserId)
 WHEN MATCHED THEN UPDATE SET role = source.Role
-WHEN NOT MATCHED THEN INSERT (id, trip_id, user_id, role, joined_at) VALUES (source.Id, source.TripId, source.UserId, source.Role, DATEADD(DAY, -source.JoinedOffsetDays, @Now));
+WHEN NOT MATCHED THEN INSERT (id, trip_id, user_id, role, joined_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.TripId), dbo.__scope_seed_uuid32(source.UserId), source.Role, DATEADD(DAY, -source.JoinedOffsetDays, @Now));
+GO
+
+DROP FUNCTION IF EXISTS dbo.__scope_seed_uuid32;
 GO
