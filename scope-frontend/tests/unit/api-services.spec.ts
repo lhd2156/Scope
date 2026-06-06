@@ -1,14 +1,18 @@
-const apiMock = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
-  delete: vi.fn(),
+const { apiMock, getAccessTokenMock } = vi.hoisted(() => ({
+  apiMock: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
+  getAccessTokenMock: vi.fn(() => ''),
 }));
 
 const axiosPutMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/api', () => ({
   default: apiMock,
+  getAccessToken: getAccessTokenMock,
   isApiClientError: (error: unknown) => error instanceof Error && error.name === 'ApiClientError',
 }));
 
@@ -44,6 +48,8 @@ describe('API service fallbacks', () => {
     apiMock.post.mockReset();
     apiMock.put.mockReset();
     apiMock.delete.mockReset();
+    getAccessTokenMock.mockReset();
+    getAccessTokenMock.mockReturnValue('');
     axiosPutMock.mockReset();
     localStorage.clear();
     sessionStorage.clear();
@@ -482,6 +488,8 @@ describe('API service fallbacks', () => {
     });
 
     const refreshError = new Error('refresh still strict');
+    const { persistAuthSessionHint } = await import('@/utils/authSessionStorage');
+    persistAuthSessionHint('register-refresh-token');
     apiMock.post.mockRejectedValueOnce(refreshError);
     await expect(authService.refreshSession({ allowMockFallback: false })).rejects.toBe(refreshError);
   });
@@ -1596,6 +1604,7 @@ describe('API service fallbacks', () => {
   });
 
   it('keeps weather live when local weather fallback is not enabled', async () => {
+    getAccessTokenMock.mockReturnValue('live-access-token');
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     apiMock.get.mockResolvedValue({

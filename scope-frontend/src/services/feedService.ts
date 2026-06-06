@@ -28,6 +28,7 @@ const REVIEWS_BASE_PATH = '/api/content/reviews';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
 const STARTER_REVIEW_SPOT_LIMIT = 10;
+const STARTER_FEED_HIGHLIGHT_LIMIT = 6;
 const DEFAULT_NOTIFICATION_CATEGORIES = ['account', 'security', 'trip', 'friend', 'social', 'comment', 'mention', 'digest', 'general'];
 const FEED_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'FEED', 'MOCK', 'FALLBACK');
 const NOTIFICATION_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'NOTIFICATION', 'MOCK', 'FALLBACK');
@@ -50,7 +51,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     username: 'maya.chen',
     email: '',
     displayName: 'Maya Chen',
-    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
     bio: 'Fictional Scope starter persona for gardens, museums, and design-forward weekend pacing.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
@@ -61,7 +62,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     username: 'elijah.brooks',
     email: '',
     displayName: 'Elijah Brooks',
-    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
     bio: 'Fictional Scope starter persona for outdoor resets, strong coffee, and high-energy city walks.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
@@ -302,6 +303,67 @@ function buildStarterReviewItem(spot: SpotSummary, review: Review): FeedItem {
   });
 }
 
+function parseStarterRating(item: FeedItem): number {
+  const ratingMatch = item.excerpt.match(/^([0-5](?:\.\d)?)(?:\/5)?/);
+  const rating = Number(ratingMatch?.[1]);
+  return Number.isFinite(rating) ? rating : 0;
+}
+
+function scoreStarterFeedItem(item: FeedItem): number {
+  const actorStats = item.actor.stats;
+  const socialScore = ((actorStats?.friends ?? 0) * 0.08) + ((actorStats?.spots ?? 0) * 0.5) + ((actorStats?.trips ?? 0) * 0.75);
+  const ratingScore = parseStarterRating(item) * 18;
+  const noteScore = Math.min(18, Math.max(0, item.excerpt.trim().length / 14));
+  const typeScore = item.type === 'review' ? 14 : item.type === 'trip' ? 8 : 5;
+
+  return ratingScore + socialScore + noteScore + typeScore;
+}
+
+function selectStarterFeedHighlights(items: FeedItem[]): FeedItem[] {
+  const rankedItems = [...items].sort((left, right) => {
+    const scoreDelta = scoreStarterFeedItem(right) - scoreStarterFeedItem(left);
+    if (scoreDelta !== 0) {
+      return scoreDelta;
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+
+  const selectedItems: FeedItem[] = [];
+  const selectedTargets = new Set<string>();
+  const selectedActors = new Set<string>();
+
+  for (const item of rankedItems) {
+    if (selectedItems.length >= STARTER_FEED_HIGHLIGHT_LIMIT) {
+      break;
+    }
+
+    if (selectedTargets.has(item.targetId) || selectedActors.has(item.actor.id)) {
+      continue;
+    }
+
+    selectedItems.push(item);
+    selectedTargets.add(item.targetId);
+    selectedActors.add(item.actor.id);
+  }
+
+  if (selectedItems.length < STARTER_FEED_HIGHLIGHT_LIMIT) {
+    for (const item of rankedItems) {
+      if (selectedItems.length >= STARTER_FEED_HIGHLIGHT_LIMIT) {
+        break;
+      }
+
+      if (selectedItems.some((selectedItem) => selectedItem.id === item.id)) {
+        continue;
+      }
+
+      selectedItems.push(item);
+    }
+  }
+
+  return selectedItems;
+}
+
 async function getSpotReviewsForStarterFeed(spot: SpotSummary): Promise<FeedItem[]> {
   const { data } = await api.get<ApiEnvelope<Review[]> | Review[]>(`${REVIEWS_BASE_PATH}/spot/${spot.id}`);
   const reviews = normalizeArrayEnvelopeData({ data: 'data' in data ? data.data : data as Review[] });
@@ -317,7 +379,7 @@ async function buildPublicStarterReviewFeed(page: number, pageSize: number): Pro
   const reviewItems = reviewGroups
     .flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
-  const starterItems = reviewItems.length
+  const starterItems = selectStarterFeedHighlights(reviewItems.length
     ? reviewItems
     : spots.map((spot) => sanitizeFeedItem({
       id: `spot-${spot.id}`,
@@ -329,7 +391,7 @@ async function buildPublicStarterReviewFeed(page: number, pageSize: number): Pro
       imageUrl: spot.photoUrl,
       targetId: spot.id,
       targetPath: buildSpotPath(spot),
-    }));
+    })));
 
   return paginateItems(starterItems, page, pageSize || DEFAULT_FALLBACK_PAGE_SIZE);
 }

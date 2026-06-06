@@ -227,6 +227,6 @@ describe('FeedItem', () => {
 
     await wrapper.get(`[data-test="feed-comment-${item.id}"]`).trigger('click');
     await flushPromises();
-    expect(router.currentRoute.value.path).toBe('/spots/spot-1');
+    expect(router.currentRoute.value.path).toBe('/spots/downtown-food-hall');
   });
 });

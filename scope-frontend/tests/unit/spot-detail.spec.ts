@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 
-const { authStoreMock, createSpotReviewMock, fetchSpotMock, listNearbySpotsMock, listSpotReviewsMock, toggleLikeMock } = vi.hoisted(() => ({
+const { authStoreMock, createSpotReviewMock, fetchSpotMock, listNearbySpotsMock, listSpotReviewsMock, routerPushMock, toastStoreMock, toggleLikeMock } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
     currentUser: {
@@ -16,6 +16,10 @@ const { authStoreMock, createSpotReviewMock, fetchSpotMock, listNearbySpotsMock,
   fetchSpotMock: vi.fn(),
   listNearbySpotsMock: vi.fn(),
   listSpotReviewsMock: vi.fn(),
+  routerPushMock: vi.fn(),
+  toastStoreMock: {
+    showInfo: vi.fn(),
+  },
   toggleLikeMock: vi.fn(),
 }));
 
@@ -30,10 +34,24 @@ vi.mock('@/stores/spots', () => ({
   }),
 }));
 
+vi.mock('@/stores/toasts', () => ({
+  useToastStore: () => toastStoreMock,
+}));
+
 vi.mock('@/services/spotService', () => ({
   createSpotReview: createSpotReviewMock,
   listNearbySpots: listNearbySpotsMock,
   listSpotReviews: listSpotReviewsMock,
+}));
+
+vi.mock('vue-router', () => ({
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
+  },
+  useRouter: () => ({
+    push: routerPushMock,
+  }),
 }));
 
 import SpotDetail from '@/components/spots/SpotDetail.vue';
@@ -136,6 +154,9 @@ describe('SpotDetail', () => {
     listSpotReviewsMock.mockImplementation(async (spotId: string) => ({
       data: spotId === 'spot-1' ? spot.reviews : [],
     }));
+    routerPushMock.mockReset();
+    routerPushMock.mockResolvedValue(undefined);
+    toastStoreMock.showInfo.mockReset();
     toggleLikeMock.mockReset();
   });
 
@@ -153,6 +174,7 @@ describe('SpotDetail', () => {
 
     expect(wrapper.find('[data-test="spot-gallery"]').exists()).toBe(true);
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('5 photos');
     expect(wrapper.find('[data-test="spot-photo-curation"]').text()).toContain('Curated travel angles');
     expect(wrapper.find('.hero-gallery__copy').text()).not.toContain('·');
@@ -180,6 +202,88 @@ describe('SpotDetail', () => {
     expect(similarRating.findAll('.star-rating__clip')[4].attributes('style')).toContain('width: 70%');
   });
 
+  it('deduplicates repeated gallery URLs and leaves missing thumbnail slots blank', async () => {
+    const duplicateGallerySpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-duplicate-gallery',
+      title: 'River Walk Blue Hour',
+      photoUrl: 'https://images.example.com/river-walk.jpg?auto=compress&w=1600',
+      photos: [
+        {
+          id: 'river-main',
+          url: 'https://images.example.com/river-walk.jpg?auto=compress&w=720',
+          caption: 'River walk hero angle',
+        },
+        {
+          id: 'river-extra-1',
+          url: 'https://images.example.com/river-walk-side.jpg',
+          caption: 'Side bridge detail',
+        },
+        {
+          id: 'river-extra-2',
+          url: 'https://images.example.com/river-walk-lights.jpg',
+          caption: 'Blue hour lights',
+        },
+        {
+          id: 'river-extra-2-duplicate',
+          url: 'https://images.example.com/river-walk-lights.jpg?auto=compress&w=480',
+          caption: 'Duplicate blue hour lights',
+        },
+      ],
+      reviews: [],
+    };
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: duplicateGallerySpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('3 photos');
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(2);
+    expect(wrapper.text()).toContain('Side bridge detail');
+    expect(wrapper.text()).toContain('Blue hour lights');
+    expect(wrapper.text()).not.toContain('Duplicate blue hour lights');
+
+    await wrapper.findAll('[data-test="gallery-thumb"]')[0].trigger('click');
+    expect(wrapper.find('.hero-gallery__copy').text()).toContain('Side bridge detail');
+  });
+
+  it('uses intentional blank gallery slots when no real spot photos are available', async () => {
+    const noPhotoSpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-no-photo',
+      title: 'Quiet Plaza Corner',
+      category: 'culture',
+      photoUrl: undefined,
+      photos: [],
+      reviews: [],
+    };
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: noPhotoSpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('.hero-gallery__placeholder').exists()).toBe(true);
+    expect(wrapper.find('.hero-gallery__placeholder').text()).toContain('Culture');
+    expect(wrapper.find('[data-test="spot-photo-count"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(4);
+  });
+
   it('shows the login prompt when the traveler is not authenticated', async () => {
     authStoreMock.isAuthenticated = false;
 
@@ -195,6 +299,186 @@ describe('SpotDetail', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Log in to review');
+  });
+
+  it('keeps starter reviews visible when live review refresh fails', async () => {
+    listSpotReviewsMock.mockRejectedValueOnce(new Error('reviews unavailable'));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Excellent anchor stop for an evening route.');
+    expect(wrapper.text()).toContain('Scope could not refresh live reviews right now.');
+  });
+
+  it('shows a clean error when review publishing fails', async () => {
+    createSpotReviewMock.mockRejectedValueOnce(new Error('review publish failed'));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-test="submit-review"]').trigger('click');
+    await flushPromises();
+
+    expect(createSpotReviewMock).toHaveBeenCalledWith('spot-1', {
+      rating: 5,
+      comment: 'Perfect quiet reset.',
+    });
+    expect(wrapper.text()).toContain('Scope could not publish that review right now.');
+    expect(wrapper.text()).toContain('Excellent anchor stop for an evening route.');
+  });
+
+  it('routes guests to login when they try to save a readable spot', async () => {
+    authStoreMock.isAuthenticated = false;
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: { ...spot, liked: false },
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('button[aria-label="Save Sunset Rooftop Tacos"]').trigger('click');
+    await flushPromises();
+
+    expect(toastStoreMock.showInfo).toHaveBeenCalledWith({
+      title: 'Sign in to save',
+      message: 'Create an account or log in to keep this spot in your saved places.',
+    });
+    expect(routerPushMock).toHaveBeenCalledWith({
+      path: '/login',
+      query: {
+        redirect: '/spots/sunset-rooftop-tacos-fort-worth',
+        intent: 'save',
+      },
+    });
+    expect(toggleLikeMock).not.toHaveBeenCalled();
+  });
+
+  it('rolls the saved state back when the API cannot persist a save toggle', async () => {
+    toggleLikeMock.mockRejectedValueOnce(new Error('like unavailable'));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: { ...spot, liked: false, likesCount: 12 },
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    const saveButton = wrapper.get('button[aria-label="Save Sunset Rooftop Tacos"]');
+    await saveButton.trigger('click');
+    await flushPromises();
+
+    expect(toggleLikeMock).toHaveBeenCalledWith('spot-1');
+    expect(wrapper.get('button[aria-label="Save Sunset Rooftop Tacos"]').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.text()).toContain('12 saves');
+  });
+
+  it('ignores duplicate save clicks while the save request is still in flight', async () => {
+    let resolveToggle!: (value: SpotDetailModel) => void;
+    toggleLikeMock.mockImplementationOnce(() => new Promise<SpotDetailModel>((resolve) => {
+      resolveToggle = resolve;
+    }));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: { ...spot, liked: false, likesCount: 12 },
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    const saveButton = wrapper.get('button[aria-label="Save Sunset Rooftop Tacos"]');
+    await saveButton.trigger('click');
+    saveButton.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(toggleLikeMock).toHaveBeenCalledTimes(1);
+
+    resolveToggle({ ...spot, liked: true, likesCount: 13 });
+    await flushPromises();
+
+    expect(wrapper.get('button[aria-label="Remove Sunset Rooftop Tacos from saved spots"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.text()).toContain('13 saves');
+  });
+
+  it('shows share feedback even when the browser clipboard API is unavailable', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+    await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Link copied');
+  });
+
+  it('resets the active gallery image when a new spot has a different photo set', async () => {
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+    await wrapper.findAll('[data-test="gallery-thumb"]')[1].trigger('click');
+    expect(wrapper.find('.hero-gallery__copy').text()).toContain('Cocktail pass');
+
+    await wrapper.setProps({
+      spot: {
+        ...spot,
+        id: 'spot-fresh-gallery',
+        title: 'Fresh Gallery Stop',
+        photoUrl: 'https://images.example.com/fresh-main.jpg',
+        photos: [
+          { id: 'fresh-main', url: 'https://images.example.com/fresh-main.jpg', caption: 'Fresh hero angle' },
+          { id: 'fresh-extra', url: 'https://images.example.com/fresh-extra.jpg', caption: 'Fresh side angle' },
+        ],
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.hero-gallery__copy').text()).toContain('Fresh hero angle');
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(1);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(3);
   });
 
   it('handles sparse media, local reviews, save toggles, sharing, and similar spot failures', async () => {
@@ -250,7 +534,9 @@ describe('SpotDetail', () => {
 
     await flushPromises();
 
-    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(4);
+    expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('1 photo');
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(4);
     expect(wrapper.text()).toContain('Scope location pending');
     expect(wrapper.text()).toContain('No similar spots yet');
     expect(wrapper.text()).toContain('Fresh saves');
@@ -278,7 +564,7 @@ describe('SpotDetail', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click');
     await flushPromises();
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/spots/spot-sparse'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/spots/quiet-garden-stop'));
     expect(wrapper.text()).toContain('Link copied');
     await wrapper.get('.toast-close').trigger('click');
     expect(wrapper.text()).not.toContain('Link copied');

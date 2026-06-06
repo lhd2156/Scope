@@ -267,7 +267,7 @@ describe('Navbar', () => {
       id: 'spot-rec-1',
       searchSuggestionSource: 'recommendation',
     }));
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-rec-1');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/botanic-river-walk-fort-worth');
 
     wrapper.unmount();
   });
@@ -751,7 +751,7 @@ describe('Navbar', () => {
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot%201%2F2');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/second-result');
 
     wrapper.unmount();
   });
@@ -1071,7 +1071,7 @@ describe('Navbar', () => {
     await resultButtons.at(-1)!.trigger('click');
     await flushPromises();
 
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-1');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/sunset-rooftop-tacos');
     expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
     expect(document.body.style.overflow).toBe('');
 
@@ -1210,7 +1210,7 @@ describe('Navbar', () => {
       review_count: 1,
     });
     await flushPromises();
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot%20helper');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/helper-spot');
 
     wrapper.unmount();
   });
@@ -1345,7 +1345,7 @@ describe('Navbar', () => {
     });
     await flushPromises();
     expect(recordSearchPlaceSuggestionClickMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'guest-rec-1' }));
-    expect(router.currentRoute.value.fullPath).toBe('/spots/guest-rec-1');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/guest-garden-walk');
 
     await coverage.openQuickSearchResult({
       id: '   ',

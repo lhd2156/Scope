@@ -170,7 +170,30 @@ describe('HomePage', () => {
     const wrapper = mountHomePage();
 
     expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(4);
-    expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-test="feed-item-skeleton"]')).toHaveLength(6);
+  });
+
+  it('caps network activity at the six curated homepage highlights', async () => {
+    feedStoreMock.items = Array.from({ length: 8 }, (_, index) => ({
+      id: `feed-${index + 1}`,
+      type: 'review',
+      title: `Traveler reviewed spot ${index + 1}`,
+    }));
+
+    const wrapper = mountHomePage({
+      SpotCard: { template: '<div />' },
+      FeedItem: {
+        props: ['item'],
+        template: '<div class="feed-item-stub">{{ item.title }}</div>',
+      },
+    });
+
+    await flushPromises();
+
+    expect(feedStoreMock.fetchFeed).toHaveBeenCalledWith(false, 1, 6);
+    expect(wrapper.findAll('.feed-item-stub')).toHaveLength(6);
+    expect(wrapper.text()).toContain('Traveler reviewed spot 6');
+    expect(wrapper.text()).not.toContain('Traveler reviewed spot 7');
   });
 
   it('shows empty discovery and activity states after both home rails resolve without content', async () => {

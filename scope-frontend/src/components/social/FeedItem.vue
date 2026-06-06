@@ -27,9 +27,16 @@
 
       <div class="feed-overlay">
         <p class="overlay-title">{{ overlayTitle }}</p>
-        <p class="overlay-copy">{{ item.excerpt }}</p>
       </div>
     </RouterLink>
+
+    <div class="feed-note" :class="{ 'feed-note--review': item.type === 'review' }">
+      <div class="feed-note__header">
+        <span class="feed-note__label">{{ noteLabel }}</span>
+        <span v-if="reviewRatingCopy" class="feed-note__rating">{{ reviewRatingCopy }}</span>
+      </div>
+      <p>{{ noteCopy }}</p>
+    </div>
 
     <footer class="feed-footer">
       <div class="action-group" aria-label="Feed engagement actions">
@@ -266,7 +273,10 @@ const ACTION_START_WORDS = new Set([
   'shared',
 ]);
 
-const FEED_SPOT_ACTION_PATTERN = /\b(?:pinned|reviewed|dropped|saved)\s+(.+)$/i;
+const FEED_SPOT_ACTION_PATTERNS = [
+  /\b(?:pinned|reviewed|dropped|saved)\s+(.+)$/i,
+  /\breview\s+(?:of|for)\s+(.+)$/i,
+];
 
 function trimActorPrefix(title: string, actor: FeedItemModel['actor']): string {
   const normalizedTitle = title.trim();
@@ -342,7 +352,9 @@ function resolveActivityLabel(title: string, type: FeedItemModel['type']): strin
 }
 
 function resolveSpotTitleFromFeedItem(item: FeedItemModel): string {
-  const matchedTitle = item.title.match(FEED_SPOT_ACTION_PATTERN)?.[1]?.trim();
+  const matchedTitle = FEED_SPOT_ACTION_PATTERNS
+    .map((pattern) => item.title.match(pattern)?.[1]?.trim())
+    .find((title): title is string => Boolean(title));
   return matchedTitle || item.title;
 }
 
@@ -378,7 +390,27 @@ const overlayTitle = computed(() => {
   if (props.item.type === 'trip') {
     return 'Route snapshot';
   }
-  return props.item.type === 'review' ? 'Review note' : 'Pinned moment';
+  return props.item.type === 'review' ? 'Community take' : 'Pinned moment';
+});
+const reviewParts = computed(() => {
+  const match = props.item.excerpt.trim().match(/^([0-5](?:\.\d)?\/5):\s*(.+)$/);
+  return {
+    rating: match?.[1] ?? '',
+    note: match?.[2]?.trim() || props.item.excerpt.trim(),
+  };
+});
+const reviewRatingCopy = computed(() => (props.item.type === 'review' ? reviewParts.value.rating : ''));
+const noteLabel = computed(() => {
+  if (props.item.type === 'trip') {
+    return 'Trip signal';
+  }
+  return props.item.type === 'review' ? 'Review note' : 'Pinned context';
+});
+const noteCopy = computed(() => {
+  if (props.item.type === 'review') {
+    return reviewParts.value.note;
+  }
+  return props.item.excerpt.trim();
 });
 const locationCopy = computed(() => props.item.actor.homeBase?.trim() || 'Scope community');
 const FEED_IMAGE_WIDTH = 960;
@@ -425,7 +457,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-rows: var(--feed-header-block-size) auto minmax(0, 1fr);
+  grid-template-rows: var(--feed-header-block-size) auto minmax(4.5rem, auto) minmax(0, 1fr);
   align-content: start;
   gap: var(--space-4);
   padding: clamp(var(--space-4), 1.8vw, var(--space-5));
@@ -465,6 +497,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 .actor-row,
 .header-copy,
 .feed-overlay,
+.feed-note,
 .feed-footer,
 .action-group {
   display: grid;
@@ -506,7 +539,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 .eyebrow,
 .meta,
 .overlay-title,
-.overlay-copy,
+.feed-note p,
 .header-copy h3 {
   margin: 0;
 }
@@ -654,18 +687,6 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   font-weight: var(--font-weight-semibold);
 }
 
-.overlay-copy {
-  max-width: 24rem;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  line-height: 1.4;
-  text-shadow: var(--shadow-md);
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
 .type-pill {
   font-weight: var(--font-weight-semibold);
 }
@@ -701,6 +722,62 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .feed-footer {
   gap: var(--space-3);
+}
+
+.feed-note {
+  align-content: start;
+  min-height: 4.5rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-elevated) 76%, transparent), color-mix(in srgb, var(--bg-tertiary) 88%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+.feed-note--review {
+  border-color: color-mix(in srgb, var(--accent-gold) 28%, var(--glass-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-gold) 9%, var(--bg-elevated)), color-mix(in srgb, var(--bg-tertiary) 92%, transparent));
+}
+
+.feed-note__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.feed-note__label,
+.feed-note__rating {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+.feed-note__label {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+}
+
+.feed-note__rating {
+  flex: 0 0 auto;
+  padding: 0.18rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-gold) 18%, var(--bg-secondary));
+  color: var(--accent-gold);
+}
+
+.feed-note p {
+  color: var(--text-primary);
+  font-size: 0.93rem;
+  line-height: 1.42;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .action-group {
@@ -839,7 +916,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
     right: var(--space-4);
   }
 
-  .overlay-copy {
+  .feed-note p {
     -webkit-line-clamp: 4;
   }
 }

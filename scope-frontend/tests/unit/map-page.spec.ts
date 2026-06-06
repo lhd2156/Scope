@@ -361,10 +361,11 @@ describe('MapPage', () => {
     expect(wrapper.text()).not.toContain('13 min drive - 2 mi');
     expect(wrapper.text()).toContain('Featured spot');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
-    expect(wrapper.find('.route-preview-path-line').exists()).toBe(true);
-    expect(wrapper.find('.route-preview-path-line').attributes('d')).toBe('M 24 50 L 76 50');
-    expect(wrapper.findAll('.route-preview-arrow')).toHaveLength(0);
-    expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('2 spots / 2 route points / 2 route coords /');
+    expect(wrapper.find('.route-preview-path-line').exists()).toBe(false);
+    expect(wrapper.findAll('.route-timeline-stop')).toHaveLength(2);
+    expect(wrapper.find('.route-timeline').text()).toContain('Day 1');
+    expect(wrapper.find('.route-timeline').text()).toContain('11:00');
+    expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('2 spots / 0 route points / 0 route coords /');
     expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('states');
     expect(mapStoreMock.setSelectedSpotId).toHaveBeenCalledWith(null);
     expect(mapStoreMock.resetVisibleSpotIds).toHaveBeenCalledTimes(1);
@@ -389,6 +390,44 @@ describe('MapPage', () => {
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(1, 'category_toggle');
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(2, 'visible_spot_focus');
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(3, 'category_reset');
+  });
+
+  it('keeps the featured route off the map until it is previewed or pinned', async () => {
+    const wrapper = mountMapPage();
+
+    await flushPromises();
+
+    const mapViewText = () => wrapper.find('[data-test="map-view-stub"]').text();
+    const routeCard = wrapper.get('[data-test="map-featured-route-card"]');
+
+    expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');
+
+    await routeCard.trigger('mouseenter');
+    await flushPromises();
+
+    expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
+
+    await routeCard.trigger('mouseleave');
+    await flushPromises();
+
+    expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');
+
+    await wrapper.get('[data-test="map-featured-route-toggle"]').trigger('click');
+    await flushPromises();
+
+    expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
+    expect(mapInteractionTrackMock).toHaveBeenCalledWith('featured_route_pin');
+
+    await routeCard.trigger('mouseleave');
+    await flushPromises();
+
+    expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
+
+    await wrapper.get('[data-test="map-featured-route-toggle"]').trigger('click');
+    await flushPromises();
+
+    expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');
+    expect(mapInteractionTrackMock).toHaveBeenCalledWith('featured_route_unpin');
   });
 
   it('uses full map labels when the viewport is already focused on a city-scale map', async () => {
@@ -455,6 +494,7 @@ describe('MapPage', () => {
     mapStoreMock.visibleSpotIdsMeasured = true;
     mapStoreMock.visibleSpotIds = ['spot-paris'];
     mapStoreMock.selectedSpotId = 'spot-hidden';
+    mapStoreMock.activeCategories = ['culture'];
 
     const wrapper = mountMapPage();
 
@@ -577,8 +617,9 @@ describe('MapPage', () => {
     expect(resolveRoadRouteMock).not.toHaveBeenCalled();
     expect(oneStopWrapper.text()).toContain('A focused route preview around Fort Worth, TX');
     expect(oneStopWrapper.text()).toContain('1 trip stop');
-    expect(oneStopWrapper.find('.route-preview-path-line').attributes('d')).toBe('');
-    expect(oneStopWrapper.find('[data-test="map-view-stub"]').text()).toContain('1 route points');
+    expect(oneStopWrapper.find('.route-preview-path-line').exists()).toBe(false);
+    expect(oneStopWrapper.findAll('.route-timeline-stop')).toHaveLength(1);
+    expect(oneStopWrapper.find('[data-test="map-view-stub"]').text()).toContain('0 route points');
 
     tripsStoreMock.items = [
       {
@@ -626,7 +667,12 @@ describe('MapPage', () => {
   });
 
   it('renders plain centered empty states when no trip preview or visible pins are available yet', async () => {
-    tripsStoreMock.items = [];
+    tripsStoreMock.items = [
+      {
+        ...tripsStoreMock.items[0],
+        spots: [],
+      },
+    ];
     mapStoreMock.visibleSpotIds = [];
     mapStoreMock.visibleSpotIdsMeasured = true;
     mapStoreMock.activeCategories = [];
@@ -641,7 +687,7 @@ describe('MapPage', () => {
     expect(wrapper.findAll('[data-test="empty-state-panel"]')).toHaveLength(0);
     expect(wrapper.findAll('[data-test="empty-state-artwork"]')).toHaveLength(0);
     expect(wrapper.text()).toContain('Route details coming together');
-    expect(wrapper.text()).toContain('No pins match this category mix');
+    expect(wrapper.text()).toContain('No categories selected');
     expect(wrapper.get('[data-test="map-empty-route-cta"]').attributes('href')).toContain('/trips/new');
 
     await wrapper.get('[data-test="map-empty-reset-categories"]').trigger('click');
@@ -901,7 +947,7 @@ describe('MapPage', () => {
       '[scope-map] Road route resolution failed; keeping stop order stable.',
       expect.any(Error),
     );
-    expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('2 route points / 0 route coords');
+    expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('0 route points / 0 route coords');
     expect(wrapper.text()).not.toContain('13 min');
 
     warnSpy.mockRestore();

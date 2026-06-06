@@ -61,7 +61,7 @@ describe('NearbySpots', () => {
     expect(wrapper.text()).toContain('River Tacos');
     expect(wrapper.text()).toContain('1.2km away');
     expect(wrapper.text()).toContain('4.6');
-    expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toEqual(['/spots/spot-1', '/spots/spot-2']);
+    expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toEqual(['/spots/river-tacos', '/spots/skyline-trail']);
   });
 
   it('uses geolocation when coordinates are not passed', async () => {

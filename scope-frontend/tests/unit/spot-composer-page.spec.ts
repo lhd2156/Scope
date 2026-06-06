@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
-const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, listSpotsMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
@@ -36,6 +36,7 @@ const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
     showSuccess: vi.fn(),
     showError: vi.fn(),
   },
+  listSpotsMock: vi.fn(),
 }));
 
 vi.mock('@/stores/auth', () => ({
@@ -48,6 +49,10 @@ vi.mock('@/stores/spots', () => ({
 
 vi.mock('@/stores/toasts', () => ({
   useToastStore: () => toastStoreMock,
+}));
+
+vi.mock('@/services/spotService', () => ({
+  listSpots: listSpotsMock,
 }));
 
 import SpotComposerPage from '@/views/SpotComposerPage.vue';
@@ -83,11 +88,13 @@ describe('SpotComposerPage', () => {
     spotsStoreMock.error = '';
     spotsStoreMock.selectedSpot = buildSelectedSpot();
     spotsStoreMock.fetchSpot.mockClear();
-    spotsStoreMock.fetchSpot.mockResolvedValue(undefined);
+    spotsStoreMock.fetchSpot.mockImplementation(async () => spotsStoreMock.selectedSpot);
     spotsStoreMock.createSpot.mockClear();
     spotsStoreMock.createSpot.mockResolvedValue({ id: 'spot-created' });
     spotsStoreMock.updateSpot.mockClear();
-    spotsStoreMock.updateSpot.mockResolvedValue({ id: 'spot-7' });
+    spotsStoreMock.updateSpot.mockResolvedValue(buildSelectedSpot());
+    listSpotsMock.mockReset();
+    listSpotsMock.mockResolvedValue({ data: [buildSelectedSpot()] });
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showError.mockClear();
   });
@@ -163,11 +170,94 @@ describe('SpotComposerPage', () => {
     await flushPromises();
 
     expect(spotsStoreMock.updateSpot).toHaveBeenCalledWith('spot-7', expect.any(Object), authStoreMock.currentUser);
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-7');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/garden-gallery-fort-worth');
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Spot updated',
       message: 'Scope saved the latest pin details for explorers.',
     });
+  });
+
+  it('loads edit mode from a polished spot slug by resolving the live spot id', async () => {
+    const slugSpot = buildSelectedSpot({
+      id: 'spot-88',
+      title: 'Hidden Tea Garden',
+    });
+    spotsStoreMock.selectedSpot = null;
+    listSpotsMock.mockResolvedValueOnce({ data: [slugSpot] });
+    spotsStoreMock.fetchSpot.mockImplementationOnce(async (spotId: string) => {
+      spotsStoreMock.selectedSpot = slugSpot;
+      return { ...slugSpot, id: spotId };
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
+      ],
+    });
+
+    await router.push('/spots/hidden-tea-garden-fort-worth/edit');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            props: ['mode', 'initialValue'],
+            template: '<div><span data-test="spot-form-mode">{{ mode }}</span><span data-test="spot-form-title">{{ initialValue.title }}</span></div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(listSpotsMock).toHaveBeenCalledWith({ page: 1, pageSize: 100 });
+    expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith('spot-88');
+    expect(wrapper.get('[data-test="spot-form-mode"]').text()).toBe('edit');
+  });
+
+  it('loads legacy uuid edit routes directly without a public spot lookup', async () => {
+    const uuid = '90000000-0000-0000-0000-000000000003';
+    const uuidSpot = buildSelectedSpot({
+      id: uuid,
+      title: 'Legacy River Walk Pin',
+    });
+    spotsStoreMock.selectedSpot = null;
+    spotsStoreMock.fetchSpot.mockImplementationOnce(async () => {
+      spotsStoreMock.selectedSpot = uuidSpot;
+      return uuidSpot;
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
+      ],
+    });
+
+    await router.push(`/spots/${uuid}/edit`);
+    await router.isReady();
+
+    mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            props: ['mode', 'initialValue'],
+            template: '<div><span data-test="spot-form-mode">{{ mode }}</span><span data-test="spot-form-title">{{ initialValue.title }}</span></div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(listSpotsMock).not.toHaveBeenCalled();
+    expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith(uuid);
   });
 
   it('passes the saved private visibility state into the edit form', async () => {
@@ -352,7 +442,7 @@ describe('SpotComposerPage', () => {
     await wrapper.get('[data-test="spot-form-cancel"]').trigger('click');
     await flushPromises();
 
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-7');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/garden-gallery-fort-worth');
   });
 
   it('shows a save error when spot creation fails and emits an error toast', async () => {

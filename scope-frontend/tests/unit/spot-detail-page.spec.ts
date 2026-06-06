@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
-const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, listSpotsMock, logInteractionMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
     hasHydratedSession: true,
@@ -36,6 +36,8 @@ const { authStoreMock, spotsStoreMock, toastStoreMock } = vi.hoisted(() => ({
     showSuccess: vi.fn(),
     showError: vi.fn(),
   },
+  listSpotsMock: vi.fn(),
+  logInteractionMock: vi.fn(),
 }));
 
 vi.mock('@/stores/auth', () => ({
@@ -48,6 +50,14 @@ vi.mock('@/stores/spots', () => ({
 
 vi.mock('@/stores/toasts', () => ({
   useToastStore: () => toastStoreMock,
+}));
+
+vi.mock('@/services/spotService', () => ({
+  listSpots: listSpotsMock,
+}));
+
+vi.mock('@/services/interactionService', () => ({
+  logInteraction: logInteractionMock,
 }));
 
 import SpotDetailPage from '@/views/SpotDetailPage.vue';
@@ -133,9 +143,20 @@ describe('SpotDetailPage', () => {
     spotsStoreMock.saving = false;
     spotsStoreMock.selectedSpot = buildSpot();
     spotsStoreMock.fetchSpot.mockReset();
-    spotsStoreMock.fetchSpot.mockResolvedValue(undefined);
+    spotsStoreMock.fetchSpot.mockImplementation(async () => spotsStoreMock.selectedSpot);
     spotsStoreMock.deleteSpot.mockReset();
     spotsStoreMock.deleteSpot.mockResolvedValue(undefined);
+    listSpotsMock.mockReset();
+    listSpotsMock.mockResolvedValue({
+      data: [
+        buildSpot(),
+        buildSpot({
+          id: 'spot-2',
+          title: 'Recovered production spot',
+        }),
+      ],
+    });
+    logInteractionMock.mockReset();
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showError.mockClear();
   });
@@ -173,6 +194,91 @@ describe('SpotDetailPage', () => {
     expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith('spot-1');
     expect(wrapper.find('[data-test="spot-detail-stub"]').text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('Edit this spot');
+  });
+
+  it('replaces raw named detail routes with polished spot slugs', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/spots/:id', name: 'spot-detail', component: SpotDetailPage }],
+    });
+
+    await router.push('/spots/spot-1');
+    await router.isReady();
+
+    mount(SpotDetailPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          LoadingSpinner: { template: '<div>Loading</div>' },
+          Modal: {
+            props: ['open'],
+            emits: ['close'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+          SpotDetail: {
+            props: ['spot'],
+            template: '<div data-test="spot-detail-stub">{{ spot?.title }}</div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(router.currentRoute.value.fullPath).toBe('/spots/sunset-rooftop-tacos-fort-worth');
+    expect(logInteractionMock).toHaveBeenCalledWith({
+      spotId: 'spot-1',
+      type: 'view',
+      context: { source: 'detail' },
+    });
+  });
+
+  it('loads uuid-like route ids directly before replacing them with readable slugs', async () => {
+    const uuidSpotId = '90000000-0000-0000-0000-000000000003';
+    spotsStoreMock.selectedSpot = null;
+    spotsStoreMock.fetchSpot.mockImplementation(async (spotId: string) => {
+      const nextSpot = buildSpot({
+        id: spotId,
+        title: 'UUID River Walk',
+        city: 'San Antonio',
+      });
+      spotsStoreMock.selectedSpot = nextSpot;
+      return nextSpot;
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/spots/:id', name: 'spot-detail', component: SpotDetailPage }],
+    });
+
+    await router.push(`/spots/${uuidSpotId}`);
+    await router.isReady();
+
+    mount(SpotDetailPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          LoadingSpinner: { template: '<div>Loading</div>' },
+          Modal: {
+            props: ['open'],
+            emits: ['close'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+          SpotDetail: {
+            props: ['spot'],
+            template: '<div data-test="spot-detail-stub">{{ spot?.title }}</div>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(listSpotsMock).not.toHaveBeenCalled();
+    expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith(uuidSpotId);
+    expect(router.currentRoute.value.fullPath).toBe('/spots/uuid-river-walk-san-antonio');
   });
 
   it('confirms creator-side deletion, routes back to explore, and emits a success toast', async () => {
@@ -269,10 +375,12 @@ describe('SpotDetailPage', () => {
 
       if (spotId === 'spot-2') {
         return latestLoad.promise.then(() => {
-          spotsStoreMock.selectedSpot = buildSpot({
+          const latestSpot = buildSpot({
             id: 'spot-2',
             title: 'Recovered production spot',
           });
+          spotsStoreMock.selectedSpot = latestSpot;
+          return latestSpot;
         });
       }
 
@@ -284,7 +392,9 @@ describe('SpotDetailPage', () => {
     await router.push('/spots/spot-2');
     await flushPromises();
 
+    const staleLoadHandled = staleLoad.promise.catch(() => undefined);
     staleLoad.reject(new Error('stale 404'));
+    await staleLoadHandled;
     await flushPromises();
 
     spotsStoreMock.selectedSpot = buildSpot({

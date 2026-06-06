@@ -81,45 +81,66 @@
               </div>
             </article>
 
-            <article class="glass-panel sidebar-panel route-card" :class="{ 'route-card--empty': !activeTrip }" style="--scope-stagger-index: 1;">
+            <article
+              class="glass-panel sidebar-panel route-card"
+              :class="{
+                'route-card--empty': !activeTrip,
+                'route-card--map-preview-active': isFeaturedRouteMapVisible,
+                'route-card--map-preview-pinned': isFeaturedRoutePreviewPinned,
+              }"
+              style="--scope-stagger-index: 1;"
+              data-test="map-featured-route-card"
+              @mouseenter="handleFeaturedRoutePreviewEnter"
+              @mouseleave="handleFeaturedRoutePreviewLeave"
+              @focusin="handleFeaturedRoutePreviewEnter"
+              @focusout="handleFeaturedRoutePreviewFocusOut"
+            >
               <div class="panel-heading route-heading">
                 <div class="route-heading-copy">
                   <p class="eyebrow">Featured route</p>
                   <h2>{{ routeTitle }}</h2>
                 </div>
-                <span class="route-destination-pill">{{ routeDestinationDisplay }}</span>
+                <div class="route-heading-actions">
+                  <span class="route-destination-pill">{{ routeDestinationDisplay }}</span>
+                  <button
+                    v-if="canPreviewFeaturedRouteOnMap"
+                    type="button"
+                    class="route-map-toggle"
+                    data-test="map-featured-route-toggle"
+                    :class="{ 'is-active': isFeaturedRouteMapVisible }"
+                    :aria-pressed="String(isFeaturedRoutePreviewPinned)"
+                    @click="handleFeaturedRouteMapToggle"
+                  >
+                    <ScopeIcon
+                      :name="isFeaturedRouteMapVisible ? 'eye-off' : 'route'"
+                      :label="isFeaturedRouteMapVisible ? 'Hide route on map' : 'Show route on map'"
+                    />
+                    <span>{{ isFeaturedRoutePreviewPinned ? 'Hide route' : 'Show route' }}</span>
+                  </button>
+                </div>
               </div>
 
               <p class="panel-copy route-copy">{{ routeDescription }}</p>
 
-              <div v-if="routeStopsPreview.length" class="route-preview">
-                <div class="route-preview-media" aria-label="Featured route stop order">
-                  <svg class="route-preview-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <path class="route-preview-path-shadow" :d="routePreviewPath" />
-                    <path class="route-preview-path-glow" :d="routePreviewPath" />
-                    <path class="route-preview-path-line" :d="routePreviewPath" />
-                  </svg>
-
-                  <div class="route-preview-stops">
-                    <article
-                      v-for="(stop, index) in routeStopsPreview"
-                      :key="stop.id"
-                      class="route-preview-stop"
-                      :class="index % 2 === 0 ? 'route-preview-stop--left' : 'route-preview-stop--right'"
-                    >
-                      <span class="route-preview-index">{{ index + 1 }}</span>
-                      <div class="route-preview-copy">
-                        <strong>{{ stop.title }}</strong>
-                        <div class="route-preview-meta">
-                          <span class="route-preview-meta-pill">Day {{ stop.dayNumber ?? index + 1 }}</span>
-                          <span v-if="stop.timeSlot" class="route-preview-meta-pill route-preview-meta-pill--time">
-                            {{ stop.timeSlot }}
-                          </span>
-                        </div>
+              <div v-if="routeStopsPreview.length" class="route-preview" data-test="map-featured-route-preview">
+                <ol class="route-timeline" aria-label="Featured route stop order">
+                  <li v-for="(stop, index) in routeStopsPreview" :key="stop.id" class="route-timeline-stop">
+                    <span class="route-timeline-index">{{ index + 1 }}</span>
+                    <div class="route-timeline-copy">
+                      <strong>{{ stop.title }}</strong>
+                      <div class="route-timeline-meta">
+                        <span class="route-timeline-pill">
+                          <ScopeIcon name="calendar" label="Day" />
+                          Day {{ stop.dayNumber ?? index + 1 }}
+                        </span>
+                        <span v-if="stop.timeSlot" class="route-timeline-pill route-timeline-pill--time">
+                          <ScopeIcon name="clock" label="Time" />
+                          {{ stop.timeSlot }}
+                        </span>
                       </div>
-                    </article>
-                  </div>
-                </div>
+                    </div>
+                  </li>
+                </ol>
 
                 <div class="route-footer">
                   <div class="route-metrics">
@@ -483,6 +504,8 @@ const hasLoadedSpotData = ref(false);
 const hasLoadedTripData = ref(false);
 const localPreviewSpots = ref<SpotSummary[]>([]);
 const localPreviewTrip = ref<MapRoutePreviewTrip | null>(null);
+const isFeaturedRoutePreviewHovered = ref(false);
+const isFeaturedRoutePreviewPinned = ref(false);
 const mobileSheetState = ref<MobileSheetState>('peek');
 const isDraggingMobileSheet = ref(false);
 const mobileSheetDragStartY = ref(0);
@@ -552,28 +575,6 @@ function formatRouteDistance(meters: number): string {
   }
 
   return `${miles.toFixed(1).replace(/\.0$/, '')} mi`;
-}
-
-function buildRoutePreviewLayout(stopCount: number): { path: string } {
-  const count = clampNumber(stopCount, 2, MAX_ROUTE_PREVIEW_STOPS);
-  const leftX = 24;
-  const rightX = 76;
-  const rowCount = Math.ceil(count / 2);
-  const topY = 20;
-  const bottomY = 80;
-  const yPositions = rowCount === 1
-    ? [50]
-    : Array.from({ length: rowCount }, (_, index) => {
-        const y = topY + (((bottomY - topY) / (rowCount - 1)) * index);
-        return Number(y.toFixed(2));
-      });
-  const points = Array.from({ length: count }, (_, index) => {
-    const y = yPositions[Math.floor(index / 2)] ?? 50;
-    return `${index % 2 === 0 ? leftX : rightX} ${y}`;
-  });
-  const path = `M ${points.join(' L ')}`;
-
-  return { path };
 }
 
 function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
@@ -842,8 +843,13 @@ const routePoints = computed<MapPoint[]>(() => {
 });
 const routeGeometry = computed(() => roadRoute.value?.geometry ?? []);
 const hasSelectedMapCategories = computed(() => mapStore.activeCategories.length > 0);
-const mapRoutePoints = computed(() => (hasSelectedMapCategories.value ? routePoints.value : []));
-const mapRouteGeometry = computed(() => (hasSelectedMapCategories.value ? routeGeometry.value : []));
+const canPreviewFeaturedRouteOnMap = computed(() => hasSelectedMapCategories.value && routeSourcePoints.value.length > 1);
+const isFeaturedRouteMapVisible = computed(() => (
+  canPreviewFeaturedRouteOnMap.value
+  && (isFeaturedRoutePreviewHovered.value || isFeaturedRoutePreviewPinned.value)
+));
+const mapRoutePoints = computed(() => (isFeaturedRouteMapVisible.value ? routePoints.value : []));
+const mapRouteGeometry = computed(() => (isFeaturedRouteMapVisible.value ? routeGeometry.value : []));
 const mapLabelMode = computed<MapLabelMode>(() => {
   const hasPreferredLocation = Boolean(authStore.currentUser?.homeBase?.trim());
   const hasFocusedMapContext = Boolean(mapStore.selectedSpotId) || mapStore.viewport.zoom >= 7;
@@ -966,12 +972,6 @@ const routeStopsPreview = computed<RoutePreviewStop[]>(() => {
     };
   });
 });
-const routePreviewLayout = computed(() => (
-  routeStopsPreview.value.length > 1
-    ? buildRoutePreviewLayout(routeStopsPreview.value.length)
-    : { path: '' }
-));
-const routePreviewPath = computed(() => routePreviewLayout.value.path);
 const routeHeroPhoto = computed(() => activeTrip.value?.coverImageUrl ?? routeStopsPreview.value[0]?.photoUrl ?? getFallbackPhoto('adventure'));
 const routeMemberPreview = computed(() => (activeTrip.value?.members ?? []).slice(0, 3).map((member) => ({
   id: member.id,
@@ -1208,6 +1208,39 @@ function recordMapInteraction(type: string): void {
 
 function handleMapInteraction(payload: { type: string }) {
   recordMapInteraction(payload.type);
+}
+
+function handleFeaturedRoutePreviewEnter() {
+  if (!canPreviewFeaturedRouteOnMap.value) {
+    return;
+  }
+
+  isFeaturedRoutePreviewHovered.value = true;
+}
+
+function handleFeaturedRoutePreviewLeave() {
+  isFeaturedRoutePreviewHovered.value = false;
+}
+
+function handleFeaturedRoutePreviewFocusOut(event: FocusEvent) {
+  const currentTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  const relatedTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+
+  if (!currentTarget || !relatedTarget || !currentTarget.contains(relatedTarget)) {
+    isFeaturedRoutePreviewHovered.value = false;
+  }
+}
+
+function handleFeaturedRouteMapToggle() {
+  if (!canPreviewFeaturedRouteOnMap.value) {
+    return;
+  }
+
+  isFeaturedRoutePreviewPinned.value = !isFeaturedRoutePreviewPinned.value;
+  isFeaturedRoutePreviewHovered.value = isFeaturedRoutePreviewPinned.value;
+  handleMapInteraction({
+    type: isFeaturedRoutePreviewPinned.value ? 'featured_route_pin' : 'featured_route_unpin',
+  });
 }
 
 function handleCategoryToggle(category: SpotCategory) {
@@ -1841,6 +1874,14 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 
+.route-card--map-preview-active {
+  border-color: color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border));
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 8%, transparent);
+}
+
 .route-heading .eyebrow {
   color: color-mix(in srgb, var(--text-secondary) 22%, var(--accent-teal) 78%);
   letter-spacing: 0.1em;
@@ -1851,7 +1892,18 @@ onBeforeUnmount(() => {
   font-weight: var(--font-weight-semibold);
 }
 
-.route-heading > .route-destination-pill {
+.route-heading-actions {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.route-heading-actions > .route-destination-pill {
   align-self: flex-start;
   flex: 0 1 auto;
   min-width: 0;
@@ -1861,6 +1913,53 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.78rem;
+}
+
+.route-map-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-height: 2.15rem;
+  max-width: 100%;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-secondary) 86%, var(--bg-primary) 14%);
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--accent-teal) 12%);
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.route-map-toggle:hover,
+.route-map-toggle:focus-visible,
+.route-map-toggle.is-active {
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--border-hover));
+  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary) 84%);
+  color: var(--accent-teal);
+  outline: none;
+  box-shadow:
+    0 0.65rem 1.4rem color-mix(in srgb, var(--accent-teal) 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
+}
+
+.route-map-toggle:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
+}
+
+.route-map-toggle :deep(.scope-icon) {
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .route-preview {
@@ -1892,21 +1991,6 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
-.route-preview-media {
-  position: relative;
-  width: 100%;
-  min-height: 14.25rem;
-  border-radius: var(--radius-2xl);
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 5%, var(--border) 95%);
-  background:
-    radial-gradient(circle at 24% 18%, color-mix(in srgb, var(--accent-teal) 10%, transparent), transparent 36%),
-    linear-gradient(145deg, color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary) 4%), color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary) 12%));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 38%, transparent);
-}
-
 .selected-image {
   width: 100%;
   height: 100%;
@@ -1914,150 +1998,131 @@ onBeforeUnmount(() => {
   transition: transform var(--transition-normal);
 }
 
-.route-preview-path {
-  position: absolute;
-  inset: 1.65rem 2.2rem;
-  width: calc(100% - 4.4rem);
-  height: calc(100% - 3.3rem);
-  pointer-events: none;
-}
-
-.route-preview-path-shadow,
-.route-preview-path-glow,
-.route-preview-path-line {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.route-preview-path-shadow {
-  stroke: color-mix(in srgb, var(--bg-primary) 82%, transparent);
-  stroke-width: 9;
-  opacity: 0.82;
-}
-
-.route-preview-path-glow {
-  stroke: color-mix(in srgb, var(--accent-teal) 32%, transparent);
-  stroke-width: 6;
-  opacity: 0.36;
-  stroke-dasharray: 7 10;
-}
-
-.route-preview-path-line {
-  stroke: color-mix(in srgb, var(--accent-teal) 82%, var(--text-primary) 18%);
-  stroke-width: 3.25;
-  opacity: 0.92;
-  stroke-dasharray: 7 9;
-}
-
-.route-preview-stops {
-  position: relative;
-  z-index: 2;
+.route-timeline {
+  list-style: none;
+  min-width: 0;
+  margin: 0;
+  padding: 1.05rem;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: space-between;
-  gap: 0.86rem 0.78rem;
-  min-height: inherit;
-  padding: 0.95rem;
-  box-sizing: border-box;
-}
-
-.route-preview-stop {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  min-height: 3.38rem;
-  padding: 0.54rem 0.68rem 0.54rem 0.54rem;
-  border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 8%, var(--border) 92%);
-  background: color-mix(in srgb, var(--bg-primary) 24%, var(--bg-secondary) 76%);
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 6%, var(--border) 94%);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 90%, var(--bg-primary) 10%), color-mix(in srgb, var(--bg-primary) 16%, var(--bg-secondary) 84%));
   box-shadow:
-    0 0.55rem 1.4rem color-mix(in srgb, var(--bg-primary) 14%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 34%, transparent);
 }
 
-.route-preview-stop--left {
-  grid-column: 1;
-  justify-self: start;
+.route-timeline-stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0 0 1.14rem;
 }
 
-.route-preview-stop--right {
-  grid-column: 2;
-  justify-self: end;
+.route-timeline-stop:last-child {
+  padding-bottom: 0;
 }
 
-.route-preview-index {
+.route-timeline-stop::after {
+  content: '';
+  position: absolute;
+  left: 0.95rem;
+  top: 2.26rem;
+  bottom: 0.25rem;
+  border-left: 1px dashed color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+}
+
+.route-timeline-stop:last-child::after {
+  display: none;
+}
+
+.route-timeline-index {
+  position: relative;
+  z-index: 1;
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  width: 1.55rem;
-  height: 1.55rem;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 50%;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--text-primary) 86%, var(--accent-teal) 14%);
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--accent-teal) 12%);
   line-height: 1;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 36%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 62%, var(--border));
   background:
-    radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 58%),
+    radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--accent-teal) 24%, transparent), transparent 58%),
     color-mix(in srgb, var(--bg-secondary) 86%, var(--bg-primary) 14%);
-  box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--bg-primary) 28%, transparent);
+  box-shadow:
+    0 0 0 0.2rem color-mix(in srgb, var(--bg-primary) 24%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
 }
 
-.route-preview-copy strong,
+.route-timeline-copy strong,
 .visible-copy strong,
 .visible-copy p {
   display: block;
 }
 
-.route-preview-copy strong,
+.route-timeline-copy strong,
 .visible-copy strong {
   color: var(--text-primary);
 }
 
-.route-preview-copy {
+.route-timeline-copy {
+  display: grid;
+  align-content: start;
+  gap: 0.46rem;
   min-width: 0;
+  padding-top: 0.08rem;
 }
 
-.route-preview-copy strong {
-  font-size: 0.86rem;
-  line-height: 1.15;
+.route-timeline-copy strong {
+  font-size: 0.92rem;
+  line-height: 1.24;
   overflow-wrap: anywhere;
 }
 
-.route-preview-meta {
+.route-timeline-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.32rem;
-  margin-top: 0.3rem;
+  gap: 0.36rem;
 }
 
-.route-preview-meta-pill {
+.route-timeline-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.18rem;
-  padding: 0.16rem 0.44rem;
+  gap: 0.28rem;
+  min-height: 1.42rem;
+  padding: 0.22rem 0.52rem;
   border-radius: var(--radius-full);
   border: 1px solid color-mix(in srgb, var(--highlight-sheen) 6%, var(--border) 94%);
   background: color-mix(in srgb, var(--bg-secondary) 84%, var(--bg-primary) 16%);
   color: color-mix(in srgb, var(--text-secondary) 84%, var(--text-primary) 16%);
-  font-size: 0.64rem;
+  font-size: 0.68rem;
   font-weight: var(--font-weight-semibold);
   line-height: 1;
   white-space: nowrap;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
-.route-preview-meta-pill--time {
-  border-color: color-mix(in srgb, var(--accent-gold) 18%, var(--border));
-  background: color-mix(in srgb, var(--accent-gold) 7%, var(--bg-secondary) 93%);
-  color: color-mix(in srgb, var(--accent-gold) 42%, var(--text-secondary) 58%);
+.route-timeline-pill :deep(.scope-icon) {
+  width: 0.72rem;
+  height: 0.72rem;
+  color: color-mix(in srgb, var(--accent-teal) 66%, var(--text-secondary) 34%);
+}
+
+.route-timeline-pill--time {
+  border-color: color-mix(in srgb, var(--accent-teal) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary) 90%);
+  color: color-mix(in srgb, var(--accent-teal) 56%, var(--text-primary) 44%);
 }
 
 .route-member-copy,
@@ -2690,8 +2755,8 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .route-preview-media {
-    min-height: 12.5rem;
+  .route-timeline {
+    padding: 0.95rem;
   }
 }
 
@@ -2941,7 +3006,12 @@ onBeforeUnmount(() => {
     line-height: 1.18;
   }
 
-  .map-sidebar--mobile .route-heading > .route-destination-pill {
+  .map-sidebar--mobile .route-heading-actions {
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+
+  .map-sidebar--mobile .route-heading-actions > .route-destination-pill {
     align-self: flex-start;
     flex: 0 1 auto;
     margin-left: 0;
@@ -2949,6 +3019,12 @@ onBeforeUnmount(() => {
     padding: 0.36rem 0.62rem;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-size: 0.72rem;
+  }
+
+  .map-sidebar--mobile .route-map-toggle {
+    min-height: 2rem;
+    padding: 0.36rem 0.62rem;
     font-size: 0.72rem;
   }
 
@@ -2961,51 +3037,45 @@ onBeforeUnmount(() => {
     padding-right: var(--space-4);
   }
 
-  .map-sidebar--mobile .route-preview-media {
-    width: 100%;
-    min-height: 13.8rem;
-    margin-right: 0;
-    border-radius: var(--radius-xl);
-  }
-
-  .map-sidebar--mobile .route-preview-path {
-    inset: 1.55rem 2.1rem 1.55rem 1.45rem;
-    width: calc(100% - 3.55rem);
-    height: calc(100% - 3.1rem);
-  }
-
-  .map-sidebar--mobile .route-preview-stops {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    justify-content: space-between;
-    gap: 0.82rem 0.72rem;
+  .map-sidebar--mobile .route-timeline {
     padding: 0.9rem;
+    border-radius: var(--radius-lg);
   }
 
-  .map-sidebar--mobile .route-preview-stop {
-    width: 100%;
-    min-height: 3.22rem;
-    padding: 0.5rem 0.58rem 0.5rem 0.48rem;
+  .map-sidebar--mobile .route-timeline-stop {
+    gap: 0.68rem;
+    padding-bottom: 1rem;
   }
 
-  .map-sidebar--mobile .route-preview-index {
-    width: 1.5rem;
-    height: 1.5rem;
-    font-size: 0.66rem;
+  .map-sidebar--mobile .route-timeline-stop::after {
+    left: 0.84rem;
+    top: 2.05rem;
   }
 
-  .map-sidebar--mobile .route-preview-copy strong {
-    font-size: 0.85rem;
+  .map-sidebar--mobile .route-timeline-index {
+    width: 1.68rem;
+    height: 1.68rem;
+    font-size: 0.7rem;
   }
 
-  .map-sidebar--mobile .route-preview-meta {
-    gap: 0.26rem;
-    margin-top: 0.26rem;
+  .map-sidebar--mobile .route-timeline-copy strong {
+    font-size: 0.86rem;
+    line-height: 1.22;
   }
 
-  .map-sidebar--mobile .route-preview-meta-pill {
-    min-height: 1.12rem;
-    padding: 0.14rem 0.38rem;
-    font-size: 0.6rem;
+  .map-sidebar--mobile .route-timeline-meta {
+    gap: 0.28rem;
+  }
+
+  .map-sidebar--mobile .route-timeline-pill {
+    min-height: 1.22rem;
+    padding: 0.16rem 0.42rem;
+    font-size: 0.62rem;
+  }
+
+  .map-sidebar--mobile .route-timeline-pill :deep(.scope-icon) {
+    width: 0.64rem;
+    height: 0.64rem;
   }
 
   .map-sidebar--mobile .route-metrics {
