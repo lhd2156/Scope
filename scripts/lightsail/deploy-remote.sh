@@ -211,6 +211,7 @@ install_tls_renewal_cron() {
 
   cron_command='cd /opt/scope/current && compose_files="-f docker-compose.yml"; [ -f docker-compose.data.yml ] && compose_files="$compose_files -f docker-compose.data.yml"; docker compose $compose_files --profile tls run --rm certbot renew --webroot --webroot-path /var/www/certbot --config-dir /etc/letsencrypt --work-dir /var/lib/letsencrypt --logs-dir /var/log/letsencrypt --quiet && docker compose $compose_files --profile tls run --rm --entrypoint /bin/sh certbot -c "cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/fullchain.pem /etc/letsencrypt/fullchain.pem && cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/privkey.pem /etc/letsencrypt/privkey.pem && chmod 600 /etc/letsencrypt/privkey.pem" && docker compose $compose_files exec -T nginx nginx -s reload'
 
+  sudo mkdir -p "$(dirname "$cron_file")"
   {
     printf 'SHELL=/bin/bash\n'
     printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
