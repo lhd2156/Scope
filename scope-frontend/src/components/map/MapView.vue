@@ -355,6 +355,7 @@ type MapFeaturePlacePopupAnchor =
 
 type LocationTrackerInstance = ComponentPublicInstance & {
   focusUserLocation: () => UserLocation | null;
+  getCurrentLocationSnapshot: () => UserLocation | null;
   startTracking: () => void;
 };
 
@@ -6725,6 +6726,7 @@ async function requestOneShotUserLocation(requestId: number): Promise<void> {
       return;
     }
 
+    ensureLocationTracking();
     handleLocationUpdate(location);
   } catch (error) {
     if (requestId !== manualLocateRequestId) {
@@ -6831,8 +6833,7 @@ function handleLocate() {
   emit('interaction', { type: 'locate' });
 
   clearPendingInitialAutoLocateFocus();
-  startUserLocationFollow();
-  const location = locationTracker.value?.focusUserLocation() ?? lastUserLocation.value ?? null;
+  const location = locationTracker.value?.getCurrentLocationSnapshot() ?? lastUserLocation.value ?? null;
   if (location) {
     focusUserLocationSmoothly(location);
     return;
@@ -6846,7 +6847,6 @@ function handleLocationBadgeActivate(location: UserLocation | null) {
   emit('interaction', { type: 'locate_badge' });
 
   clearPendingInitialAutoLocateFocus();
-  startUserLocationFollow();
   const targetLocation = location ?? lastUserLocation.value;
   if (targetLocation) {
     focusUserLocationSmoothly(targetLocation);

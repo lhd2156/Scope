@@ -88,6 +88,24 @@ describe('geolocation utility', () => {
     expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), GEOLOCATION_OPTIONS);
   });
 
+  it('rejects if the browser never resolves the location prompt', async () => {
+    vi.useFakeTimers();
+    getCurrentPosition.mockImplementation(() => undefined);
+
+    try {
+      const locationPromise = getCurrentLocation();
+      const timeoutExpectation = expect(locationPromise).rejects.toMatchObject({
+        code: 3,
+        message: 'Location request timed out.',
+      });
+      await vi.advanceTimersByTimeAsync((GEOLOCATION_OPTIONS.timeout ?? 12_000) + 1_000);
+
+      await timeoutExpectation;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('handles unsupported geolocation without registering or clearing watches', async () => {
     delete (navigator as Navigator & { geolocation?: Geolocation }).geolocation;
 
