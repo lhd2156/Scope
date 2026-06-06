@@ -1,10 +1,14 @@
-const apiMock = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
+const { apiMock, getAccessTokenMock } = vi.hoisted(() => ({
+  apiMock: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+  getAccessTokenMock: vi.fn(() => ''),
 }));
 
 vi.mock('@/services/api', () => ({
   default: apiMock,
+  getAccessToken: getAccessTokenMock,
 }));
 
 describe('trip planner intel service contracts', () => {
@@ -19,6 +23,8 @@ describe('trip planner intel service contracts', () => {
     vi.stubEnv('VITE_OPENWEATHERMAP_API_KEY', '');
     apiMock.get.mockReset();
     apiMock.post.mockReset();
+    getAccessTokenMock.mockReset();
+    getAccessTokenMock.mockReturnValue('');
   });
 
   afterEach(() => {
@@ -433,6 +439,7 @@ describe('trip planner intel service contracts', () => {
   });
 
   it('rejects malformed backend weather when client fallback is disabled', async () => {
+    getAccessTokenMock.mockReturnValue('live-access-token');
     apiMock.get.mockResolvedValue({
       data: {
         data: {
@@ -454,6 +461,7 @@ describe('trip planner intel service contracts', () => {
   });
 
   it('normalizes backend weather for coordinate-only route points', async () => {
+    getAccessTokenMock.mockReturnValue('live-access-token');
     apiMock.get.mockResolvedValue({
       data: {
         data: {
@@ -818,6 +826,7 @@ describe('trip planner intel service contracts', () => {
   });
 
   it('returns explicit backend weather metadata and unavailable fuel fallbacks', async () => {
+    getAccessTokenMock.mockReturnValue('live-access-token');
     apiMock.get
       .mockResolvedValueOnce({
         data: {

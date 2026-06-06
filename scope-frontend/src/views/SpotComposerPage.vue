@@ -126,6 +126,7 @@ const initialPhotos = computed<Photo[]>(() => (mode.value === 'edit' ? spotsStor
 function matchesSpotRouteParam(spot: Pick<SpotFormInput, 'title' | 'city' | 'country'> & { id: string }, routeParam: string): boolean {
   const titleSlug = buildSpotSlug({ id: spot.id, title: spot.title });
   return (
+    spot.id === routeParam ||
     buildSpotSlug(spot) === routeParam ||
     titleSlug === routeParam ||
     routeParam.startsWith(`${titleSlug}-`)

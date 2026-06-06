@@ -41,20 +41,24 @@
       </div>
 
       <div class="thumbnail-grid">
-        <button
-          v-for="photo in thumbnailPhotos"
-          :key="photo.id"
-          type="button"
-          class="thumbnail-card"
-          :class="{ 'is-active': photo.id === activeGalleryPhoto?.id }"
-          :aria-label="`Show ${photo.caption || spot.title}`"
-          data-test="gallery-thumb"
-          @click="selectedPhotoId = photo.id"
-        >
-          <LazyImage :src="photo.url" :fallback-src="heroImageFallback" :alt="photo.caption || spot.title" class="thumbnail-card__image" />
-          <span class="thumbnail-card__overlay"></span>
-          <span class="thumbnail-card__copy">{{ photo.caption || 'Travel angle' }}</span>
-        </button>
+        <template v-for="photo in thumbnailPhotos" :key="photo.id">
+          <button
+            v-if="!photo.isPlaceholder"
+            type="button"
+            class="thumbnail-card"
+            :class="{ 'is-active': photo.id === activeGalleryPhoto?.id }"
+            :aria-label="`Show ${photo.caption || spot.title}`"
+            data-test="gallery-thumb"
+            @click="selectedPhotoId = photo.id"
+          >
+            <LazyImage :src="photo.url" :fallback-src="heroImageFallback" :alt="photo.caption || spot.title" class="thumbnail-card__image" />
+            <span class="thumbnail-card__overlay"></span>
+            <span class="thumbnail-card__copy">{{ photo.caption || 'Travel angle' }}</span>
+          </button>
+          <div v-else class="thumbnail-card thumbnail-card--empty" data-test="gallery-empty-slot" aria-hidden="true">
+            <span class="thumbnail-card__empty-glow"></span>
+          </div>
+        </template>
       </div>
     </section>
 
@@ -330,9 +334,14 @@ import { buildSpotPath } from '@/utils/spotRoutes';
 import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';
 
 const DESIRED_GALLERY_SIZE = 5;
+const THUMBNAIL_GALLERY_SIZE = DESIRED_GALLERY_SIZE - 1;
 const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
   ? new Intl.DisplayNames(['en'], { type: 'region' })
   : null;
+
+type GalleryPhoto = Photo & { isPlaceholder?: false };
+type EmptyGallerySlot = { id: string; isPlaceholder: true };
+type GallerySlot = GalleryPhoto | EmptyGallerySlot;
 
 const props = defineProps<{
   spot: SpotDetailModel | null;
@@ -387,11 +396,31 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function duplicatePhoto(photo: Photo, index: number): Photo {
+function normalizeGalleryUrl(url: string): string {
+  const trimmedUrl = url.trim();
+  try {
+    const parsedUrl = new URL(trimmedUrl);
+    const host = parsedUrl.host.toLowerCase();
+    if (['images.pexels.com', 'images.unsplash.com', 'images.example.com'].includes(host)) {
+      return `${parsedUrl.protocol}//${host}${parsedUrl.pathname}`.toLowerCase();
+    }
+  } catch {
+    return trimmedUrl.toLowerCase();
+  }
+
+  return trimmedUrl.toLowerCase();
+}
+
+function normalizeGalleryPhoto(photo: Photo): GalleryPhoto | null {
+  const url = photo.url.trim();
+  if (!url) {
+    return null;
+  }
+
   return {
-    id: `${photo.id}-variant-${index}`,
-    url: photo.url,
-    caption: photo.caption,
+    id: photo.id,
+    url,
+    ...(photo.caption?.trim() ? { caption: photo.caption.trim() } : {}),
   };
 }
 
@@ -407,34 +436,49 @@ const heroImageUrl = computed(() => {
   return resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl ?? props.spot.photos[0]?.url, SPOT_DETAIL_HERO_IMAGE_WIDTH);
 });
 const travelCue = computed(() => (props.spot ? SPOT_TRAVEL_CUES[props.spot.category] : SPOT_TRAVEL_CUES.other));
-const galleryPhotos = computed<Photo[]>(() => {
+const galleryPhotos = computed<GalleryPhoto[]>(() => {
   if (!props.spot) {
     return [];
   }
 
-  const sourcePhotos = props.spot.photos.length
-    ? props.spot.photos.filter((photo) => Boolean(photo.url))
-    : heroImageUrl.value
-      ? [{ id: `${props.spot.id}-hero-photo`, url: heroImageUrl.value, caption: props.spot.title }]
-      : [];
+  const candidatePhotos: Photo[] = [
+    ...(props.spot.photoUrl?.trim()
+      ? [{ id: `${props.spot.id}-primary-photo`, url: props.spot.photoUrl, caption: props.spot.title }]
+      : []),
+    ...(props.spot.photos ?? []),
+  ];
 
-  if (!sourcePhotos.length) {
-    return [];
+  const uniquePhotos = new Map<string, GalleryPhoto>();
+  for (const candidatePhoto of candidatePhotos) {
+    const normalizedPhoto = normalizeGalleryPhoto(candidatePhoto);
+    if (!normalizedPhoto) {
+      continue;
+    }
+
+    const dedupeKey = normalizeGalleryUrl(normalizedPhoto.url);
+    const existingPhoto = uniquePhotos.get(dedupeKey);
+    if (!existingPhoto) {
+      uniquePhotos.set(dedupeKey, normalizedPhoto);
+      continue;
+    }
+
+    if (normalizedPhoto.caption && (!existingPhoto.caption || existingPhoto.caption === props.spot.title)) {
+      uniquePhotos.set(dedupeKey, { ...existingPhoto, caption: normalizedPhoto.caption });
+    }
   }
 
-  if (sourcePhotos.length >= DESIRED_GALLERY_SIZE) {
-    return sourcePhotos.slice(0, DESIRED_GALLERY_SIZE);
-  }
-
-  const expandedPhotos = [...sourcePhotos];
-  for (let index = sourcePhotos.length; index < DESIRED_GALLERY_SIZE; index += 1) {
-    expandedPhotos.push(duplicatePhoto(sourcePhotos[index % sourcePhotos.length], index));
-  }
-
-  return expandedPhotos;
+  return Array.from(uniquePhotos.values()).slice(0, DESIRED_GALLERY_SIZE);
 });
 const activeGalleryPhoto = computed(() => galleryPhotos.value.find((photo) => photo.id === selectedPhotoId.value) ?? galleryPhotos.value[0] ?? null);
-const thumbnailPhotos = computed(() => galleryPhotos.value.slice(1, DESIRED_GALLERY_SIZE));
+const thumbnailPhotos = computed<GallerySlot[]>(() => {
+  const realThumbnailPhotos = galleryPhotos.value.slice(1, DESIRED_GALLERY_SIZE);
+  const emptySlots = Array.from({ length: Math.max(0, THUMBNAIL_GALLERY_SIZE - realThumbnailPhotos.length) }, (_, index) => ({
+    id: `empty-gallery-slot-${index + 1}`,
+    isPlaceholder: true as const,
+  }));
+
+  return [...realThumbnailPhotos, ...emptySlots];
+});
 const locationLine = computed(() => {
   if (!props.spot) {
     return '';
@@ -797,6 +841,10 @@ onBeforeUnmount(() => {
   border: 0;
   padding: 0;
   background: transparent;
+}
+
+.hero-gallery__button,
+.thumbnail-card:not(.thumbnail-card--empty) {
   cursor: pointer;
 }
 
@@ -948,6 +996,35 @@ onBeforeUnmount(() => {
 .thumbnail-card {
   aspect-ratio: 1.18 / 1;
   border: 1px solid var(--glass-border);
+}
+
+.thumbnail-card--empty {
+  display: grid;
+  place-items: center;
+  cursor: default;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent)),
+    repeating-linear-gradient(
+      -35deg,
+      color-mix(in srgb, var(--text-primary) 7%, transparent) 0,
+      color-mix(in srgb, var(--text-primary) 7%, transparent) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 6%, transparent);
+}
+
+.thumbnail-card__empty-glow {
+  width: clamp(2.25rem, 38%, 4.8rem);
+  aspect-ratio: 1;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, transparent);
+  background:
+    radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 55%),
+    color-mix(in srgb, var(--bg-primary) 32%, transparent);
+  opacity: 0.56;
 }
 
 .thumbnail-card.is-active {
@@ -1491,8 +1568,8 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.thumbnail-card:hover,
-.thumbnail-card:focus-visible,
+.thumbnail-card:not(.thumbnail-card--empty):hover,
+.thumbnail-card:not(.thumbnail-card--empty):focus-visible,
 .glass-info-card:hover,
 .route-cue-card:hover,
 .similar-card:hover,
@@ -1507,8 +1584,8 @@ onBeforeUnmount(() => {
 
 .hero-gallery__button:hover .hero-gallery__image,
 .hero-gallery__button:focus-visible .hero-gallery__image,
-.thumbnail-card:hover .thumbnail-card__image,
-.thumbnail-card:focus-visible .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--empty):hover .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--empty):focus-visible .thumbnail-card__image,
 .similar-card:hover .similar-card__image,
 .similar-card:focus-visible .similar-card__image {
   transform: scale(1.05);
@@ -1614,8 +1691,8 @@ onBeforeUnmount(() => {
     transition: none;
   }
 
-  .thumbnail-card:hover,
-  .thumbnail-card:focus-visible,
+  .thumbnail-card:not(.thumbnail-card--empty):hover,
+  .thumbnail-card:not(.thumbnail-card--empty):focus-visible,
   .glass-info-card:hover,
   .route-cue-card:hover,
   .similar-card:hover,
@@ -1627,8 +1704,8 @@ onBeforeUnmount(() => {
 
   .hero-gallery__button:hover .hero-gallery__image,
   .hero-gallery__button:focus-visible .hero-gallery__image,
-  .thumbnail-card:hover .thumbnail-card__image,
-  .thumbnail-card:focus-visible .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--empty):hover .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--empty):focus-visible .thumbnail-card__image,
   .similar-card:hover .similar-card__image,
   .similar-card:focus-visible .similar-card__image {
     transform: none;

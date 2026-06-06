@@ -134,16 +134,16 @@
 
           <div class="feed-activity-stage" data-onboarding-target="activity-feed-list">
             <div v-if="showFeedSkeletons" class="feed-grid feed-grid--loading" role="status" aria-live="polite" aria-label="Loading Scope activity feed">
-              <FeedItemSkeleton v-for="index in 4" :key="`feed-skeleton-${index}`" />
+              <FeedItemSkeleton v-for="index in FEED_PREVIEW_LIMIT" :key="`feed-skeleton-${index}`" />
             </div>
             <div
-              v-else-if="feedStore.items.length"
+              v-else-if="curatedFeedItems.length"
               class="feed-grid"
               role="list"
               aria-label="Scope activity feed"
             >
               <div
-                v-for="(item, index) in feedStore.items"
+                v-for="(item, index) in curatedFeedItems"
                 :key="item.id"
                 class="feed-grid__cell"
                 :style="{ '--scope-stagger-index': index }"
@@ -185,6 +185,7 @@ import { isUiTestEnvironment } from '@/utils/scheduleNonCriticalTask';
 
 const FeedItem = defineAsyncComponent(() => import('@/components/social/FeedItem.vue'));
 const SpotCard = defineAsyncComponent(() => import('@/components/spots/SpotCard.vue'));
+const FEED_PREVIEW_LIMIT = 6;
 
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
@@ -199,6 +200,7 @@ const hasResolvedFeed = ref(false);
 const guidedTourLabel = computed(() => (onboardingStore.hasCompleted ? 'Replay tour' : 'Start tour'));
 const showFeaturedSkeletons = computed(() => !hasResolvedFeatured.value && !spotsStore.featuredSpots.length);
 const showFeedSkeletons = computed(() => !hasResolvedFeed.value && !feedStore.items.length);
+const curatedFeedItems = computed(() => feedStore.items.slice(0, FEED_PREVIEW_LIMIT));
 const sectionObservers: IntersectionObserver[] = [];
 
 function scrollToFeed() {
@@ -256,7 +258,7 @@ function loadFeedItems() {
     return;
   }
 
-  feedStore.fetchFeed().catch(() => undefined).finally(() => {
+  feedStore.fetchFeed(false, 1, FEED_PREVIEW_LIMIT).catch(() => undefined).finally(() => {
     hasResolvedFeed.value = true;
   });
 }

@@ -160,16 +160,6 @@
       </span>
     </div>
 
-    <LocationTracker
-      v-if="showLocationTracker"
-      ref="locationTracker"
-      :auto-start="false"
-      class="tracker-overlay"
-      @activate="handleLocationBadgeActivate"
-      @tracking-state="handleTrackingState"
-      @update:location="handleLocationUpdate"
-    />
-
     <MapControls
       v-if="showControls"
       :categories="allCategories"
@@ -188,27 +178,43 @@
       @toggle-category="mapStore.toggleCategory"
     />
 
-    <nav
-      v-if="props.showMapStyleToggle && interactiveMapEnabled"
-      class="map-style-switch glass-panel"
-      aria-label="Map style"
-      data-test="map-style-switch"
+    <div
+      v-if="showLocationTracker || (props.showMapStyleToggle && interactiveMapEnabled)"
+      class="map-bottom-toolbar"
+      data-test="map-bottom-toolbar"
     >
-      <button
-        v-for="option in mapStyleModeOptions"
-        :key="option.mode"
-        type="button"
-        class="map-style-switch__button"
-        :class="{ 'is-active': activeMapStyleMode === option.mode }"
-        :aria-label="option.ariaLabel"
-        :aria-pressed="String(activeMapStyleMode === option.mode)"
-        :title="option.label"
-        @click="handleMapStyleModeSelect(option.mode)"
+      <LocationTracker
+        v-if="showLocationTracker"
+        ref="locationTracker"
+        :auto-start="false"
+        class="tracker-overlay"
+        @activate="handleLocationBadgeActivate"
+        @tracking-state="handleTrackingState"
+        @update:location="handleLocationUpdate"
+      />
+
+      <nav
+        v-if="props.showMapStyleToggle && interactiveMapEnabled"
+        class="map-style-switch glass-panel"
+        aria-label="Map style"
+        data-test="map-style-switch"
       >
-        <ScopeIcon :name="option.iconName" :label="option.label" />
-        <span class="map-style-switch__label">{{ option.label }}</span>
-      </button>
-    </nav>
+        <button
+          v-for="option in mapStyleModeOptions"
+          :key="option.mode"
+          type="button"
+          class="map-style-switch__button"
+          :class="{ 'is-active': activeMapStyleMode === option.mode }"
+          :aria-label="option.ariaLabel"
+          :aria-pressed="String(activeMapStyleMode === option.mode)"
+          :title="option.label"
+          @click="handleMapStyleModeSelect(option.mode)"
+        >
+          <ScopeIcon :name="option.iconName" :label="option.label" />
+          <span class="map-style-switch__label">{{ option.label }}</span>
+        </button>
+      </nav>
+    </div>
 
     <nav
       v-if="props.showProjectionToggle && interactiveMapEnabled"
@@ -10859,6 +10865,7 @@ defineExpose({
 .map-status-dock,
 .map-location-corner,
 .map-traffic-key,
+.map-bottom-toolbar,
 .tracker-overlay,
 .map-style-switch,
 .map-projection-switch {
@@ -11121,6 +11128,38 @@ defineExpose({
   bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-4)) + 0.24rem);
 }
 
+.map-bottom-toolbar {
+  right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-4)) + 5.15rem);
+  bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-4)));
+  left: max(var(--safe-area-left), var(--space-4));
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  pointer-events: none;
+}
+
+.map-bottom-toolbar > * {
+  pointer-events: auto;
+}
+
+.map-bottom-toolbar .tracker-overlay,
+.map-bottom-toolbar .map-style-switch {
+  position: static;
+  inset: auto;
+}
+
+.map-bottom-toolbar .tracker-overlay {
+  flex: 1 1 10.5rem;
+  width: max-content;
+  max-width: min(12.35rem, 100%);
+}
+
+.map-bottom-toolbar .map-style-switch {
+  flex: 0 0 auto;
+}
+
 .empty-state {
   position: absolute;
   inset: 50% auto auto 50%;
@@ -11208,6 +11247,11 @@ defineExpose({
   display: none;
 }
 
+.map-view--mobile .map-bottom-toolbar {
+  position: static;
+  display: contents;
+}
+
 .map-view--mobile .map-weather-badge {
   left: max(var(--space-3), var(--safe-area-left));
   bottom: calc(var(--space-3) + var(--safe-area-bottom) + 1.45rem);
@@ -11217,6 +11261,7 @@ defineExpose({
 }
 
 .map-view--mobile .map-style-switch {
+  position: absolute;
   top: calc(max(var(--space-3), var(--safe-area-top)) + 4.35rem);
   right: max(var(--space-3), var(--safe-area-right));
   left: auto;
@@ -11292,6 +11337,17 @@ code {
     right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-3)) + 10rem);
     bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-3)) + 0.16rem);
     max-width: min(11.9rem, calc(100% - 14.2rem));
+  }
+
+  .map-bottom-toolbar {
+    right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-3)) + 4.75rem);
+    bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-3)));
+    left: max(var(--safe-area-left), var(--space-3));
+    gap: 0.45rem;
+  }
+
+  .map-bottom-toolbar .tracker-overlay {
+    max-width: min(11.9rem, 100%);
   }
 
   .map-weather-badge {

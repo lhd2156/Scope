@@ -42,6 +42,57 @@ describe('toast store', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('handles missing dismissals and invokes close callbacks by default', () => {
+    const store = useToastStore();
+    const onClose = vi.fn();
+
+    store.dismissToast('toast-missing');
+
+    const toastId = store.showInfo({
+      title: 'Sync complete',
+      message: 'Latest changes are available.',
+      onClose,
+    });
+
+    store.dismissToast(toastId);
+
+    expect(store.items).toHaveLength(0);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears all toasts, applies copy fallbacks, and invokes close callbacks', () => {
+    const store = useToastStore();
+    const firstClose = vi.fn();
+    const secondClose = vi.fn();
+
+    store.pushToast({
+      title: '   ',
+      message: '   ',
+      autoHideMs: Number.NaN,
+      onClose: firstClose,
+    });
+    store.pushToast({
+      title: 'Ready',
+      message: 'Production gates finished.',
+      autoHideMs: -100,
+      onClose: secondClose,
+    });
+
+    expect(store.items[1]).toMatchObject({
+      title: 'Scope update',
+      message: 'Your latest Scope update is ready.',
+      tone: 'info',
+      autoHideMs: 4000,
+    });
+    expect(store.items[0].autoHideMs).toBe(0);
+
+    store.clearToasts();
+
+    expect(store.hasToasts).toBe(false);
+    expect(firstClose).toHaveBeenCalledTimes(1);
+    expect(secondClose).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps only the newest four toasts visible', () => {
     const store = useToastStore();
 

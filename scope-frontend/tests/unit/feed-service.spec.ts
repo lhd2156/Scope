@@ -148,6 +148,76 @@ describe('feed service contracts', () => {
     expect(secondPage.meta).toMatchObject({ page: 2, pageSize: 20 });
   });
 
+  it('curates the public starter activity feed down to six ranked social-proof items', async () => {
+    const actorIds = [
+      '11111111111111111111111111111111',
+      '22222222222222222222222222222222',
+      '33333333333333333333333333333333',
+      '44444444444444444444444444444441',
+      '55555555555555555555555555555551',
+      '66666666666666666666666666666661',
+      '77777777777777777777777777777771',
+      '88888888888888888888888888888881',
+    ];
+    const ratings = [4.6, 4.9, 5, 4.7, 4.2, 4.8, 4.5, 4.4];
+    const spots = actorIds.map((userId, index) => ({
+      id: `spot-${index + 1}`,
+      title: `Starter spot ${index + 1}`,
+      description: `Starter description ${index + 1}`,
+      latitude: 32 + index,
+      longitude: -97 - index,
+      category: 'scenic',
+      city: 'Austin',
+      rating: ratings[index],
+      photoUrl: `https://images.example.com/spot-${index + 1}.jpg`,
+      createdAt: `2026-05-${String(index + 1).padStart(2, '0')}T12:00:00Z`,
+      userId,
+    }));
+    const get = vi.fn((path: string) => {
+      if (path === '/api/content/feed/trending') {
+        return Promise.resolve({ data: { data: spots } });
+      }
+
+      const spotId = path.split('/').pop() ?? '';
+      const spotIndex = spots.findIndex((spot) => spot.id === spotId);
+      return Promise.resolve({
+        data: {
+          data: [
+            {
+              id: `review-${spotId}`,
+              spot_id: spotId,
+              user_id: spots[spotIndex]?.userId,
+              rating: ratings[spotIndex] ?? 4,
+              comment: `Useful starter review for ${spotId} with enough detail to rank well.`,
+              created_at: `2026-06-${String(spotIndex + 1).padStart(2, '0')}T12:00:00Z`,
+            },
+          ],
+        },
+      });
+    });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    const feed = await feedService.getFeed(1, 20);
+    const actorNames = feed.data.map((item) => item.actor.displayName);
+
+    expect(feed.data).toHaveLength(6);
+    expect(feed.meta).toMatchObject({ page: 1, pageSize: 20, total: 6, totalPages: 1 });
+    expect(new Set(feed.data.map((item) => item.targetId)).size).toBe(6);
+    expect(actorNames).toContain('Maya Chen');
+    expect(feed.data.find((item) => item.actor.displayName === 'Maya Chen')?.actor.avatarUrl).toContain('1239291');
+    expect(feed.data.find((item) => item.actor.displayName === 'Elijah Brooks')?.actor.avatarUrl).toContain('220453');
+  });
+
   it('falls back for public feed and notification reads while surfacing notification mutation failures', async () => {
     const fixtures = mockData({
       mockNotifications: [
@@ -193,6 +263,44 @@ describe('feed service contracts', () => {
     await expect(feedService.markNotificationRead('notification-1')).rejects.toThrow('content offline');
     await expect(feedService.markAllNotificationsRead()).rejects.toThrow('content offline');
     expect(fixtures.mockNotifications.every((notification) => Boolean((notification as { isRead?: boolean }).isRead))).toBe(false);
+  });
+
+  it('surfaces notification read failures when production fallback is disabled', async () => {
+    const get = vi.fn().mockRejectedValue(new Error('notifications offline'));
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    await expect(feedService.getNotifications()).rejects.toThrow('notifications offline');
+  });
+
+  it('returns an empty public starter feed instead of mocks when read fallback is disabled', async () => {
+    const get = vi.fn().mockResolvedValue({ data: { data: [] } });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    await expect(feedService.getFeed(1, 9)).resolves.toMatchObject({
+      data: [],
+      meta: { page: 1, pageSize: 9, total: 0, totalPages: 1 },
+    });
+    expect(get).toHaveBeenCalledWith('/api/content/feed/trending', { params: { limit: 10 } });
   });
 
   it('filters demo notifications, performs demo actions, and supplies default preferences', async () => {
@@ -412,5 +520,22 @@ describe('feed service contracts', () => {
     });
     await expect(feedService.performNotificationAction('notification-1', 'open')).rejects.toThrow('actions offline');
     expect(fixtures.mockNotifications[0]).toMatchObject({ id: 'notification-1', isRead: false });
+  });
+
+  it('surfaces notification preference failures when production fallback is disabled', async () => {
+    const get = vi.fn().mockRejectedValue(new Error('preferences offline'));
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    await expect(feedService.getNotificationPreferences()).rejects.toThrow('preferences offline');
   });
 });
