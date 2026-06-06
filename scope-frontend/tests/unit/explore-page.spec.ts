@@ -358,6 +358,78 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="explore-results"]').text()).toContain('Production Water Garden');
   });
 
+  it('shows city and state labels for seeded production spots when API summaries omit location fields', async () => {
+    const seededProductionSpots = [
+      {
+        ...fixtureSpots[0],
+        id: '90000000-0000-0000-0000-000000000001',
+        title: 'Mule Alley Mercantile Row',
+        city: undefined,
+        country: undefined,
+        category: 'shopping',
+        likesCount: undefined,
+      },
+      {
+        ...fixtureSpots[1],
+        id: '90000000-0000-0000-0000-000000000002',
+        title: 'San Antonio River Walk Blue Hour',
+        city: undefined,
+        country: undefined,
+        category: 'scenic',
+        likesCount: undefined,
+      },
+      {
+        ...fixtureSpots[2],
+        id: '90000000-0000-0000-0000-000000000003',
+        title: 'Fort Worth Water Gardens',
+        city: undefined,
+        country: undefined,
+        category: 'scenic',
+        likesCount: undefined,
+      },
+    ];
+
+    listSpotsMock.mockResolvedValueOnce({
+      data: seededProductionSpots,
+      meta: {
+        page: 1,
+        pageSize: seededProductionSpots.length,
+        total: seededProductionSpots.length,
+        totalPages: 1,
+      },
+    });
+
+    const { wrapper } = await mountExplorePage();
+
+    expect(wrapper.text()).toContain('2 cities across all regions');
+    expect(wrapper.find('[data-test="city-chip-empty"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
+      'Fort Worth, TX',
+      'San Antonio, TX',
+    ]);
+    expect(wrapper.get('[data-test="explore-results"]').text()).toContain('Fort Worth, TX');
+    expect(wrapper.get('[data-test="explore-results"]').text()).toContain('San Antonio, TX');
+    expect(wrapper.get('[data-test="trending-list"]').text()).toContain('Fort Worth, TX');
+    expect(wrapper.get('[data-test="trending-list"]').text()).not.toContain('Scope community pin');
+    expect(wrapper.get('[data-test="trending-list"]').text()).not.toContain('New pin');
+
+    await wrapper.findAll('[data-test="city-chip"]').find((chip) => chip.text() === 'Fort Worth, TX')?.trigger('click');
+    await nextTick();
+
+    expect(wrapper.get('[data-test="results-count"]').text()).toBe('2');
+    expect(wrapper.get('[data-test="explore-results"]').text()).toContain('Mule Alley Mercantile Row');
+    expect(wrapper.get('[data-test="explore-results"]').text()).not.toContain('San Antonio River Walk Blue Hour');
+
+    await wrapper.get('.quick-filter-actions [data-test="state-reset-location"]').trigger('click');
+    await nextTick();
+    await wrapper.get('input[aria-label="Search spots"]').setValue('San Antonio');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
+    expect(wrapper.get('[data-test="explore-results"]').text()).toContain('San Antonio River Walk Blue Hour');
+  });
+
   it('shows recommended places when explore search receives focus and opens the spot', async () => {
     const { wrapper, router } = await mountExplorePage();
 
@@ -377,7 +449,7 @@ describe('ExplorePage', () => {
       id: 'spot-2',
       searchSuggestionSource: 'recommendation',
     }));
-    expect(router.currentRoute.value.fullPath).toBe('/spots/spot-2');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/botanic-river-walk-fort-worth');
   });
 
   it('renders elastic search results with safe highlights, fallbacks, and route query sync', async () => {
@@ -823,7 +895,7 @@ describe('ExplorePage', () => {
       },
     });
 
-    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(12);
+    expect(wrapper.findAll('[data-test="spot-card-skeleton"]')).toHaveLength(9);
     expect(wrapper.find('[data-test="trending-item"]').exists()).toBe(false);
   });
 
