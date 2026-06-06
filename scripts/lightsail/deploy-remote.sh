@@ -340,7 +340,7 @@ wait_for_health nginx 300
 
 if [[ "$SCOPE_RUN_STARTER_SEED" == "true" ]]; then
   printf '[scope-lightsail] Running starter showcase seed.\n'
-  compose --profile ops run --rm scope-cli seed --directory /workspace/scripts/sql
+  compose --profile ops run --rm --build scope-cli seed --directory /workspace/scripts/sql
 else
   printf '[scope-lightsail] SCOPE_RUN_STARTER_SEED is not true; skipping starter showcase seed.\n'
 fi
