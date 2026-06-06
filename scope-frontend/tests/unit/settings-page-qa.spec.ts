@@ -76,7 +76,7 @@ describe('SettingsPage QA preview', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Preferences preview');
-    expect(wrapper.text()).toContain('Settings sections stay condensed during the QA session.');
+    expect(wrapper.text()).toContain('Settings sections stay condensed for quick previews.');
     expect(wrapper.text()).toContain('Louis Do');
     expect(wrapper.text()).toContain('louis@example.com');
     expect(wrapper.text()).toContain('Preview mode');

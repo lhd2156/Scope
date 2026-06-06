@@ -82,7 +82,7 @@ describe('SpotDetailPage QA audit preview', () => {
 
     expect(spotsStoreMock.fetchSpot).not.toHaveBeenCalled();
     expect(wrapper.get('[data-test="spot-detail-audit"]').text()).toContain('Sunset Rooftop Tacos');
-    expect(wrapper.text()).toContain('A compact audit fixture that keeps the detail route readable');
+    expect(wrapper.text()).toContain('A compact preview that keeps the detail route readable');
     expect(wrapper.text()).toContain('Fort Worth, US');
     expect(wrapper.text()).toContain('Rated 4.8 out of 5');
     expect(wrapper.text()).toContain('Golden Hour Bites');

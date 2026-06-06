@@ -476,7 +476,7 @@ describe('TripPlannerPage', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Planner preview');
-    expect(wrapper.text()).toContain('Trip brief, route momentum, and itinerary output stay condensed during the QA session.');
+    expect(wrapper.text()).toContain('Trip brief, route momentum, and itinerary output stay condensed for quick previews.');
     expect(wrapper.text()).toContain('0 planned stops');
     expect(wrapper.text()).toContain('$1,500');
     expect(wrapper.text()).toContain('0 itinerary days');

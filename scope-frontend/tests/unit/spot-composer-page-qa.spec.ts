@@ -91,7 +91,7 @@ describe('SpotComposerPage QA preview', () => {
     ]);
 
     expect(wrapper.text()).toContain('Spot composer preview');
-    expect(wrapper.text()).toContain('New pin creation stays condensed during the QA session.');
+    expect(wrapper.text()).toContain('New pin creation stays condensed for quick previews.');
     expect(wrapper.text()).toContain('Creating new pin');
     expect(wrapper.text()).toContain('Fort Worth');
     expect(wrapper.text()).toContain('Return to explore');
@@ -104,7 +104,7 @@ describe('SpotComposerPage QA preview', () => {
       { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
     ]);
 
-    expect(wrapper.text()).toContain('Pin refinement stays condensed during the QA session.');
+    expect(wrapper.text()).toContain('Pin refinement stays condensed for quick previews.');
     expect(wrapper.text()).toContain('Editing community pin');
     expect(wrapper.text()).toContain('Fort Worth');
     expect(wrapper.text()).toContain('culture');

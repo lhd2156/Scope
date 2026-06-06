@@ -73,7 +73,7 @@ describe('HomePage QA preview', () => {
 
     expect(wrapper.text()).toContain('Scope preview');
     expect(wrapper.text()).toContain('Discovery rails, social proof, and live feed detail load after the first meaningful interaction.');
-    expect(wrapper.text()).toContain('For the QA session Scope keeps the homepage focused on the hero entry point');
+    expect(wrapper.text()).toContain('Scope keeps the homepage focused on the hero entry point');
     expect(wrapper.findAll('a[href="/explore"]').map((link) => link.text())).toContain('Browse discovery');
     expect(wrapper.get('a[href="/login"]').text()).toBe('Open travel circle');
     expect(wrapper.text()).not.toContain('Trending Destinations');

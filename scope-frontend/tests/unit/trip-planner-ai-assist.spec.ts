@@ -2938,10 +2938,10 @@ describe('TripPlannerAiAssist', () => {
     await flushPromises();
 
     expect(scopeAiStore.applyActionBlockResolved).not.toHaveBeenCalled();
-    expect(getLatestAiResponseText(wrapper)).toContain('demo or fallback result');
+    expect(getLatestAiResponseText(wrapper)).toContain('unverified result');
     expect(scopeAiStore.pendingScopeAiContext).toMatchObject({
       kind: 'explanation',
-      lastAnswer: expect.stringContaining('demo or fallback result'),
+      lastAnswer: expect.stringContaining('unverified result'),
     });
   });
 

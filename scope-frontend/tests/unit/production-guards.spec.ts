@@ -14,7 +14,7 @@ describe('production guard rails', () => {
 
     const { loadMockData } = await import('@/services/mockDataLoader');
 
-    await expect(loadMockData()).rejects.toThrow('Local preview data is not available in this production build.');
+    await expect(loadMockData()).rejects.toThrow('Offline starter data is unavailable in this build.');
   });
 
   it('allows mock data only for an explicit production local-preview build', async () => {
