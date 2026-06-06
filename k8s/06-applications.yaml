@@ -444,6 +444,8 @@ spec:
             - configMapRef:
                 name: scope-shared-config
           env:
+            - name: ANONYMIZED_TELEMETRY
+              value: "False"
             - name: CORE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
