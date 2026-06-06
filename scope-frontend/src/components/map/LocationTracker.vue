@@ -141,6 +141,10 @@ function focusUserLocation(): UserLocation | null {
   return null;
 }
 
+function getCurrentLocationSnapshot(): UserLocation | null {
+  return lastLocation.value;
+}
+
 function handleActivate() {
   if (!isActionable.value) {
     return;
@@ -151,6 +155,7 @@ function handleActivate() {
 
 defineExpose({
   focusUserLocation,
+  getCurrentLocationSnapshot,
   startTracking,
   stopTracking,
   lastLocation,

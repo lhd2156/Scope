@@ -725,6 +725,57 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
     }));
   });
 
+  it('asks for browser location on locate click before starting live tracking', async () => {
+    let resolveLocation: (location: UserLocation) => void = () => undefined;
+    vi.mocked(getCurrentLocation).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLocation = resolve;
+    }));
+    const { wrapper } = await mountInteractiveMap({
+      showControls: true,
+      showFilterPanel: true,
+      showLocationTracker: true,
+    });
+    geolocationMock.startLocationWatch.mockClear();
+
+    await wrapper.get('button[aria-label="Center on my location"]').trigger('click');
+    await nextTick();
+
+    expect(getCurrentLocation).toHaveBeenCalledTimes(1);
+    expect(geolocationMock.startLocationWatch).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Scope is locking onto your current coordinates.');
+
+    resolveLocation({
+      latitude: 32.838,
+      longitude: -97.19,
+      accuracy: 133,
+      timestamp: Date.now(),
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(geolocationMock.startLocationWatch).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Live GPS is sharing your current position with the map.');
+  });
+
+  it('does not leave locate stuck when browser location permission is denied', async () => {
+    vi.mocked(getCurrentLocation).mockRejectedValueOnce({ code: 1 });
+    const { wrapper } = await mountInteractiveMap({
+      showControls: true,
+      showFilterPanel: true,
+      showLocationTracker: true,
+    });
+    geolocationMock.startLocationWatch.mockClear();
+
+    await wrapper.get('button[aria-label="Center on my location"]').trigger('click');
+    await flushPromises();
+    await nextTick();
+
+    expect(getCurrentLocation).toHaveBeenCalledTimes(1);
+    expect(geolocationMock.startLocationWatch).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Location access is blocked.');
+    expect(wrapper.text()).not.toContain('Scope is locking onto your current coordinates.');
+  });
+
   it('locates from map controls even when the location badge is hidden', async () => {
     const { instance, wrapper } = await mountInteractiveMap({
       showControls: true,

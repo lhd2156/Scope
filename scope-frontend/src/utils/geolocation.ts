@@ -6,6 +6,8 @@ export const GEOLOCATION_OPTIONS: PositionOptions = {
   timeout: 12_000,
 };
 
+const GEOLOCATION_TIMEOUT_BUFFER_MS = 1_000;
+
 export function isGeolocationSupported(): boolean {
   return typeof navigator !== 'undefined' && 'geolocation' in navigator;
 }
@@ -43,9 +45,31 @@ export function getCurrentLocation(options: PositionOptions = GEOLOCATION_OPTION
   }
 
   return new Promise((resolve, reject) => {
+    let isSettled = false;
+    const timeoutMs = typeof options.timeout === 'number' && options.timeout > 0
+      ? options.timeout + GEOLOCATION_TIMEOUT_BUFFER_MS
+      : GEOLOCATION_OPTIONS.timeout + GEOLOCATION_TIMEOUT_BUFFER_MS;
+    const fallbackTimer = setTimeout(() => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      reject(Object.assign(new Error('Location request timed out.'), { code: 3 }));
+    }, timeoutMs);
+    const settle = <T>(handler: (value: T) => void, value: T) => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      clearTimeout(fallbackTimer);
+      handler(value);
+    };
+
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve(mapGeolocationPosition(position)),
-      reject,
+      (position) => settle(resolve, mapGeolocationPosition(position)),
+      (error) => settle(reject, error),
       options,
     );
   });
