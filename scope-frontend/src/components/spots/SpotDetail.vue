@@ -256,7 +256,7 @@
         <RouterLink
           v-for="similarSpot in similarSpots"
           :key="similarSpot.id"
-          :to="`/spots/${similarSpot.id}`"
+          :to="buildSpotPath(similarSpot)"
           class="similar-card"
         >
           <div class="similar-card__media">
@@ -313,7 +313,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
@@ -321,10 +321,12 @@ import Toast from '@/components/common/Toast.vue';
 import { createSpotReview, listNearbySpots, listSpotReviews } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
+import { useToastStore } from '@/stores/toasts';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { formatVibeLabel } from '@/utils/formatters';
+import { buildSpotPath } from '@/utils/spotRoutes';
 import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';
 
 const DESIRED_GALLERY_SIZE = 5;
@@ -340,8 +342,10 @@ const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'
 const ReviewForm = defineAsyncComponent(() => import('@/components/spots/ReviewForm.vue'));
 const ReviewList = defineAsyncComponent(() => import('@/components/spots/ReviewList.vue'));
 
+const router = useRouter();
 const authStore = useAuthStore();
 const spotsStore = useSpotsStore();
+const toastStore = useToastStore();
 const persistedReviews = ref<Review[]>([]);
 const isSaved = ref(false);
 const savingSavedState = ref(false);
@@ -544,6 +548,7 @@ const highlightCards = computed(() => [
   },
 ]);
 const tripPlannerLink = computed(() => (props.spot ? `/trips/new?spot=${encodeURIComponent(props.spot.id)}` : '/trips/new'));
+const spotPath = computed(() => (props.spot ? buildSpotPath(props.spot) : '/explore'));
 const miniMapSpots = computed<MapPoint[]>(() => {
   if (!props.spot) {
     return [];
@@ -642,8 +647,8 @@ async function handleShare(): Promise<void> {
   }
 
   const shareUrl = typeof window === 'undefined'
-    ? `/spots/${props.spot.id}`
-    : new URL(`/spots/${props.spot.id}`, window.location.origin).toString();
+    ? spotPath.value
+    : new URL(spotPath.value, window.location.origin).toString();
 
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -660,6 +665,11 @@ async function toggleSaved(): Promise<void> {
   }
 
   if (!authStore.isAuthenticated) {
+    toastStore.showInfo({
+      title: 'Sign in to save',
+      message: 'Create an account or log in to keep this spot in your saved places.',
+    });
+    router.push({ path: '/login', query: { redirect: spotPath.value } }).catch(() => undefined);
     return;
   }
 

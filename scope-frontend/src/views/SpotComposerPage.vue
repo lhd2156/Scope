@@ -58,12 +58,14 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import SpotForm from '@/components/spots/SpotForm.vue';
+import { listSpots } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
 import type { Photo, SpotComposerRejection, SpotFormInput, SpotFormSubmission } from '@/types';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { buildSpotComposerRejection } from '@/utils/spotComposerRejection';
+import { buildSpotPath, buildSpotSlug, isUuidLike, normalizeSpotRouteParam } from '@/utils/spotRoutes';
 
 const route = useRoute();
 const router = useRouter();
@@ -73,9 +75,10 @@ const toastStore = useToastStore();
 const pageErrorMessage = ref('');
 const composerRejection = ref<SpotComposerRejection | null>(null);
 const isSpotComposerAuditMode = isScopeQaMode();
+const resolvedEditableSpotId = ref('');
 
 const mode = computed<'create' | 'edit'>(() => (route.name === 'spot-edit' ? 'edit' : 'create'));
-const requestedSpotId = computed(() => String(route.params.id ?? ''));
+const requestedSpotId = computed(() => normalizeSpotRouteParam(String(route.params.id ?? '')));
 const homeBaseCity = computed(() => authStore.currentUser?.homeBase?.split(',')[0]?.trim() || '');
 
 const initialFormValue = computed<Partial<SpotFormInput>>(() => {
@@ -120,6 +123,28 @@ const initialFormValue = computed<Partial<SpotFormInput>>(() => {
 
 const initialPhotos = computed<Photo[]>(() => (mode.value === 'edit' ? spotsStore.selectedSpot?.photos ?? [] : []));
 
+function matchesSpotRouteParam(spot: Pick<SpotFormInput, 'title' | 'city' | 'country'> & { id: string }, routeParam: string): boolean {
+  const titleSlug = buildSpotSlug({ id: spot.id, title: spot.title });
+  return (
+    buildSpotSlug(spot) === routeParam ||
+    titleSlug === routeParam ||
+    routeParam.startsWith(`${titleSlug}-`)
+  );
+}
+
+async function resolveEditableSpotId(routeParam: string): Promise<string> {
+  if (isUuidLike(routeParam)) {
+    return routeParam;
+  }
+
+  if (spotsStore.selectedSpot && matchesSpotRouteParam(spotsStore.selectedSpot, routeParam)) {
+    return spotsStore.selectedSpot.id;
+  }
+
+  const response = await listSpots({ page: 1, pageSize: 100 });
+  return response.data.find((spot) => matchesSpotRouteParam(spot, routeParam))?.id ?? routeParam;
+}
+
 async function loadEditableSpot(spotId: string): Promise<void> {
   if (mode.value !== 'edit') {
     pageErrorMessage.value = '';
@@ -134,7 +159,9 @@ async function loadEditableSpot(spotId: string): Promise<void> {
   pageErrorMessage.value = '';
 
   try {
-    await spotsStore.fetchSpot(spotId);
+    const lookupSpotId = await resolveEditableSpotId(spotId);
+    resolvedEditableSpotId.value = lookupSpotId;
+    await spotsStore.fetchSpot(lookupSpotId);
   } catch {
     pageErrorMessage.value = spotsStore.error || 'The requested pin may not exist yet or the content engine has not synced it back.';
   }
@@ -147,10 +174,10 @@ async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
 
   try {
     const savedSpot = isEditingSpot
-      ? await spotsStore.updateSpot(requestedSpotId.value, submission, authStore.currentUser)
+      ? await spotsStore.updateSpot(resolvedEditableSpotId.value || requestedSpotId.value, submission, authStore.currentUser)
       : await spotsStore.createSpot(submission, authStore.currentUser);
 
-    await router.push(`/spots/${savedSpot.id}`);
+    await router.push(buildSpotPath(savedSpot));
     toastStore.showSuccess({
       title: isEditingSpot ? 'Spot updated' : 'Spot published',
       message: isEditingSpot
@@ -169,7 +196,7 @@ async function handleSubmit(submission: SpotFormSubmission): Promise<void> {
 
 async function handleCancel(): Promise<void> {
   if (mode.value === 'edit' && requestedSpotId.value) {
-    await router.push(`/spots/${requestedSpotId.value}`);
+    await router.push(spotsStore.selectedSpot ? buildSpotPath(spotsStore.selectedSpot) : '/explore');
     return;
   }
 

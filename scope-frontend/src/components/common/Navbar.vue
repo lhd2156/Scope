@@ -454,6 +454,7 @@ import { searchContent, type SearchResult } from '@/services/searchService';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
 import { focusFirstElement, focusLastElement, getFocusableElements, moveFocus } from '@/utils/a11y';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const NotificationDropdown = defineAsyncComponent(() => import('@/components/social/NotificationDropdown.vue'));
 const QUICK_SEARCH_RESULT_LIMIT = 6;
@@ -718,7 +719,7 @@ async function openQuickSearchResult(result: SearchResult | QuickSearchPlace): P
     }
   }
 
-  await router.push(`/spots/${encodeURIComponent(resultId)}`);
+  await router.push(buildSpotPath({ id: resultId, title: place.title, city: place.city, country: place.country }));
 }
 
 function updateScrollState(): void {

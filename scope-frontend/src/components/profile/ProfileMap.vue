@@ -69,7 +69,7 @@
             <h3>{{ selectedSpot.title }}</h3>
             <p>{{ selectedSpotLocation }}</p>
           </div>
-          <RouterLink :to="`/spots/${selectedSpot.id}`" class="profile-map__spotlight-link" aria-label="Open spot detail">
+          <RouterLink :to="buildSpotPath(selectedSpot)" class="profile-map__spotlight-link" aria-label="Open spot detail">
             <ScopeIcon name="navigation" label="Open spot detail" />
             <span>Details</span>
           </RouterLink>
@@ -133,6 +133,7 @@ import { getDefaultDiscoveryMapViewport } from '@/services/mapViewportService';
 import type { MapPoint, MapViewport, SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { getSpotFingerprint } from '@/utils/spotIdentity';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 type ProfileMapMode = 'all' | 'visited' | 'pinned' | 'wishlist';
 type ProfileMapViewInstance = InstanceType<typeof MapView> & {

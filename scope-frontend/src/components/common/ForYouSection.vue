@@ -13,7 +13,7 @@
       <RouterLink
         v-for="(spot, index) in spots"
         :key="spot.id"
-        :to="`/spots/${spot.id}`"
+        :to="buildSpotPath(spot)"
         class="for-you-card"
         :style="{ '--scope-stagger-index': index }"
       >
@@ -68,6 +68,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { formatCategoryLabel, formatCityRegionLocation, formatVibeLabel } from '@/utils/formatters';
+import { buildSpotPath } from '@/utils/spotRoutes';
 import { normalizeUserVibes } from '@/utils/userPreferenceSignals';
 
 const authStore = useAuthStore();

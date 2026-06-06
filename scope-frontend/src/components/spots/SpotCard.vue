@@ -9,6 +9,7 @@
           type="button"
           class="save-button"
           :class="{ active: isSaved }"
+          :disabled="isSaving"
           :aria-pressed="isSaved"
           :aria-label="isSaved ? `Remove ${spot.title} from saved spots` : `Save ${spot.title}`"
           @click="toggleSaved"
@@ -19,7 +20,7 @@
     </div>
 
     <div class="spot-body">
-      <RouterLink :to="`/spots/${spot.id}`" class="location-row" :aria-label="`Open ${spot.title} details`">
+      <RouterLink :to="spotPath" class="location-row" :aria-label="`Open ${spot.title} details`">
         <ScopeIcon name="pin" />
         <span>{{ locationLabel }}</span>
       </RouterLink>
@@ -47,7 +48,7 @@
           <span class="footer-copy">{{ footerCopy }}</span>
         </div>
 
-        <RouterLink :to="`/spots/${spot.id}`" class="cta-link">
+        <RouterLink :to="spotPath" class="cta-link">
           <span>View details</span>
           <ScopeIcon name="arrow-right" />
         </RouterLink>
@@ -58,18 +59,28 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import ScopeIcon from '@/components/common/ScopeIcon.vue';
+import { useRouter } from 'vue-router';
 import LazyImage from '@/components/common/LazyImage.vue';
+import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
+import { useAuthStore } from '@/stores/auth';
+import { useSpotsStore } from '@/stores/spots';
+import { useToastStore } from '@/stores/toasts';
 import type { SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { formatCategoryLabel, formatVibeLabel } from '@/utils/formatters';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const props = defineProps<{
   spot: SpotSummary;
 }>();
 
+const router = useRouter();
+const authStore = useAuthStore();
+const spotsStore = useSpotsStore();
+const toastStore = useToastStore();
 const isSaved = ref(Boolean(props.spot.liked));
+const isSaving = ref(false);
 
 watch(
   () => props.spot.liked,
@@ -78,13 +89,48 @@ watch(
   },
 );
 
-function toggleSaved() {
-  isSaved.value = !isSaved.value;
+function promptLoginToSave(): void {
+  toastStore.showInfo({
+    title: 'Sign in to save',
+    message: 'Create an account or log in to keep this spot in your saved places.',
+  });
+
+  const redirectTarget = router.currentRoute.value.fullPath || spotPath.value;
+  router.push({ path: '/login', query: { redirect: redirectTarget } }).catch(() => undefined);
+}
+
+async function toggleSaved() {
+  if (isSaving.value) {
+    return;
+  }
+
+  if (!authStore.isAuthenticated) {
+    promptLoginToSave();
+    return;
+  }
+
+  const previousSavedState = isSaved.value;
+  isSaved.value = !previousSavedState;
+  isSaving.value = true;
+
+  try {
+    const updatedSpot = await spotsStore.toggleLike(props.spot.id);
+    isSaved.value = Boolean(updatedSpot.liked);
+  } catch {
+    isSaved.value = previousSavedState;
+    toastStore.showError({
+      title: 'Save failed',
+      message: 'Scope could not update that saved spot right now.',
+    });
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 const categoryLabel = computed(() => formatCategoryLabel(props.spot.category));
 const CARD_IMAGE_WIDTH = 640;
 
+const spotPath = computed(() => buildSpotPath(props.spot));
 const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.category, CARD_IMAGE_WIDTH));
 const spotImageUrl = computed(() => resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl, CARD_IMAGE_WIDTH));
 const ratingLabel = computed(() => props.spot.rating.toFixed(1));
