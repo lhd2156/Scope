@@ -136,12 +136,16 @@ async function requestLiveRefreshSession(): Promise<AuthPayload> {
   const now = Date.now();
   pruneRecentLiveRefreshSessions(now);
 
-  const recentSession = refreshToken ? recentLiveRefreshSessions.get(refreshToken) : undefined;
+  if (!refreshToken) {
+    throw new Error('No stored refresh token is available.');
+  }
+
+  const recentSession = recentLiveRefreshSessions.get(refreshToken);
   if (recentSession && recentSession.expiresAt > now) {
     return recentSession.payload;
   }
 
-  const inFlightRefresh = refreshToken ? liveRefreshSessionPromises.get(refreshToken) : undefined;
+  const inFlightRefresh = liveRefreshSessionPromises.get(refreshToken);
   if (inFlightRefresh) {
     return inFlightRefresh;
   }
@@ -163,9 +167,7 @@ async function requestLiveRefreshSession(): Promise<AuthPayload> {
     }
   });
 
-  if (refreshToken) {
-    liveRefreshSessionPromises.set(refreshToken, refreshPromise);
-  }
+  liveRefreshSessionPromises.set(refreshToken, refreshPromise);
 
   return refreshPromise;
 }
