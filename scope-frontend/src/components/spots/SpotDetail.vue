@@ -669,7 +669,7 @@ async function toggleSaved(): Promise<void> {
       title: 'Sign in to save',
       message: 'Create an account or log in to keep this spot in your saved places.',
     });
-    router.push({ path: '/login', query: { redirect: spotPath.value } }).catch(() => undefined);
+    router.push({ path: '/login', query: { redirect: spotPath.value, intent: 'save' } }).catch(() => undefined);
     return;
   }
 
