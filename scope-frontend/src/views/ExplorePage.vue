@@ -306,7 +306,7 @@
                 Results for "{{ searchStore.results.query }}" - {{ searchStore.results.total }} matches
               </p>
             </div>
-            <p class="results-note">Rich cover imagery, soft overlays, and hover motion tuned for fast visual scanning.</p>
+            <p class="results-note">{{ exploreGridRankDescription }}</p>
           </div>
 
           <div v-if="showResultsSkeleton" class="results-masonry" role="status" aria-live="polite" aria-label="Loading explore results">
@@ -358,7 +358,37 @@
               </div>
             </RouterLink>
           </div>
-          <div v-else class="explore-empty-state" data-test="explore-empty-state">
+          <nav
+            v-if="showExplorePagination"
+            class="explore-pagination"
+            data-test="explore-pagination"
+            aria-label="Community-loved spot pages"
+          >
+            <button
+              type="button"
+              class="explore-pagination__button"
+              data-test="explore-page-prev"
+              :disabled="exploreCurrentPage <= 1"
+              aria-label="Previous explore page"
+              @click="goToExplorePage(exploreCurrentPage - 1)"
+            >
+              <ScopeIcon name="arrow-left" />
+            </button>
+            <span class="explore-pagination__status" data-test="explore-page-status">
+              {{ explorePaginationStatus }}
+            </span>
+            <button
+              type="button"
+              class="explore-pagination__button"
+              data-test="explore-page-next"
+              :disabled="exploreCurrentPage >= totalExplorePages"
+              aria-label="Next explore page"
+              @click="goToExplorePage(exploreCurrentPage + 1)"
+            >
+              <ScopeIcon name="arrow-right" />
+            </button>
+          </nav>
+          <div v-if="!showResultsSkeleton && !displayedSpots.length" class="explore-empty-state" data-test="explore-empty-state">
             <p class="eyebrow">Discovery results</p>
             <h3>{{ emptyStateTitle }}</h3>
             <p>{{ emptyStateDescription }}</p>
@@ -450,7 +480,10 @@ import { buildSpotPath } from '@/utils/spotRoutes';
 import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
 
 const EXPLORE_MOBILE_BREAKPOINT = 640;
-const EXPLORE_RESULT_SKELETON_COUNT = 12;
+const EXPLORE_GRID_PAGE_SIZE = 9;
+const EXPLORE_RESULT_SKELETON_COUNT = EXPLORE_GRID_PAGE_SIZE;
+const EXPLORE_DISCOVERY_BATCH_SIZE = 54;
+const EXPLORE_SEARCH_RESULT_LIMIT = EXPLORE_DISCOVERY_BATCH_SIZE;
 const TRENDING_SKELETON_COUNT = 8;
 const EXPLORE_AUDIT_RESULT_LIMIT = 6;
 const EXPLORE_AUDIT_TRENDING_LIMIT = 4;
@@ -497,6 +530,8 @@ const isFetchingInitialResults = ref(true);
 const isMobileExploreLayout = ref(false);
 const isRegionMenuOpen = ref(false);
 const hasFocusedExploreSearch = ref(false);
+const exploreCurrentPage = ref(1);
+const exploreSortMode = ref<ExploreSortMode>('community');
 const exploreSearchRecommendations = ref<SearchPlaceSuggestion[]>([]);
 const exploreSearchRecommendationsLoading = ref(false);
 const exploreSearchRecommendationsError = ref<string | null>(null);
@@ -506,6 +541,7 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let exploreSearchRecommendationRequestId = 0;
 
 type DisplaySpot = SpotSummary & { searchSnippet?: string };
+type ExploreSortMode = 'community' | 'trending' | 'popular';
 type RegionOption = {
   value: string;
   count: number;
@@ -545,6 +581,30 @@ function formatLocation(spot: SpotSummary): string {
 function formatSaves(likesCount?: number): string {
   const totalSaves = likesCount ?? 0;
   return totalSaves > 0 ? `${totalSaves} saves` : 'New pin';
+}
+
+function getSpotCreatedTime(spot: SpotSummary): number {
+  const timestamp = Date.parse(spot.createdAt);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function rankPopularSpots<TSpot extends SpotSummary>(spots: TSpot[]): TSpot[] {
+  return [...spots].sort((left, right) => (
+    (right.likesCount ?? 0) - (left.likesCount ?? 0) ||
+    right.rating - left.rating ||
+    getSpotCreatedTime(right) - getSpotCreatedTime(left) ||
+    left.title.localeCompare(right.title) ||
+    left.id.localeCompare(right.id)
+  ));
+}
+
+function sortExploreSpotsForMode(spots: DisplaySpot[], sortMode: ExploreSortMode): DisplaySpot[] {
+  if (sortMode === 'popular') {
+    return rankPopularSpots(spots);
+  }
+
+  // The community mode currently shares the trending ranker until backend signals replace it.
+  return rankTrendingSpots(spots);
 }
 
 function isSpotCategory(value: string | undefined): value is SpotCategory {
@@ -722,6 +782,11 @@ function resolveIsMobileExploreLayout(): boolean {
 
 function syncMobileExploreLayout() {
   isMobileExploreLayout.value = resolveIsMobileExploreLayout();
+}
+
+function goToExplorePage(page: number) {
+  const nextPage = Math.min(Math.max(1, page), totalExplorePages.value);
+  exploreCurrentPage.value = nextPage;
 }
 
 function clearFilters() {
@@ -1002,14 +1067,26 @@ const filteredSpots = computed(() =>
 
 const hasElasticSearchResults = computed(() => Boolean(searchQuery.value.trim() && searchStore.results?.results.length));
 
-const displayedSpots = computed<DisplaySpot[]>(() => {
+const rankedExploreSpots = computed<DisplaySpot[]>(() => {
   if (hasElasticSearchResults.value && searchStore.results) {
     return searchStore.results.results.map(mapSearchResultToSpot);
   }
 
-  const sortedSpots = rankTrendingSpots(filteredSpots.value);
+  const sortedSpots = sortExploreSpotsForMode(filteredSpots.value, exploreSortMode.value);
 
   return isScopeQaExploreMode ? sortedSpots.slice(0, EXPLORE_AUDIT_RESULT_LIMIT) : sortedSpots;
+});
+
+const totalExplorePages = computed(() => Math.max(1, Math.ceil(rankedExploreSpots.value.length / EXPLORE_GRID_PAGE_SIZE)));
+const explorePageStartIndex = computed(() => (exploreCurrentPage.value - 1) * EXPLORE_GRID_PAGE_SIZE);
+const explorePageEndIndex = computed(() => explorePageStartIndex.value + EXPLORE_GRID_PAGE_SIZE);
+
+const displayedSpots = computed<DisplaySpot[]>(() => {
+  if (isScopeQaExploreMode) {
+    return rankedExploreSpots.value;
+  }
+
+  return rankedExploreSpots.value.slice(explorePageStartIndex.value, explorePageEndIndex.value);
 });
 
 const trendingSpots = computed(() => {
@@ -1025,8 +1102,31 @@ const displayedResultCount = computed(() => {
     return searchStore.results.total;
   }
 
-  return displayedSpots.value.length;
+  return rankedExploreSpots.value.length;
 });
+
+const showExplorePagination = computed(() =>
+  !isScopeQaExploreMode &&
+  !showResultsSkeleton.value &&
+  rankedExploreSpots.value.length > EXPLORE_GRID_PAGE_SIZE,
+);
+
+const explorePaginationStatus = computed(() => {
+  const totalResults = rankedExploreSpots.value.length;
+  if (!totalResults) {
+    return 'Page 1 of 1';
+  }
+
+  const start = Math.min(totalResults, explorePageStartIndex.value + 1);
+  const end = Math.min(totalResults, explorePageEndIndex.value);
+  return `${start}-${end} of ${totalResults} - Page ${exploreCurrentPage.value} of ${totalExplorePages.value}`;
+});
+
+const exploreGridRankDescription = computed(() => (
+  exploreSortMode.value === 'popular'
+    ? 'Sorted by saves and rating, with nine spots per page for cleaner browsing.'
+    : 'Ranked by community saves, rating, and freshness, with nine spots per page for cleaner browsing.'
+));
 
 const showExploreSearchRecommendations = computed(() => {
   if (isScopeQaExploreMode) {
@@ -1108,6 +1208,26 @@ watch(availableCityFilterOptions, (options) => {
   }
 });
 
+watch(
+  () => [
+    searchQuery.value.trim(),
+    activeExploreCategories.value.join('|'),
+    selectedRegion.value,
+    selectedCityKey.value,
+    selectedVibe.value,
+    exploreSortMode.value,
+  ] as const,
+  () => {
+    exploreCurrentPage.value = 1;
+  },
+);
+
+watch(totalExplorePages, (pageCount) => {
+  if (exploreCurrentPage.value > pageCount) {
+    exploreCurrentPage.value = pageCount;
+  }
+});
+
 async function loadInitialExploreResults(): Promise<void> {
   isFetchingInitialResults.value = true;
 
@@ -1117,7 +1237,7 @@ async function loadInitialExploreResults(): Promise<void> {
       city: '',
       vibe: '',
       page: 1,
-      pageSize: isScopeQaExploreMode ? EXPLORE_AUDIT_RESULT_LIMIT : EXPLORE_RESULT_SKELETON_COUNT,
+      pageSize: isScopeQaExploreMode ? EXPLORE_AUDIT_RESULT_LIMIT : EXPLORE_DISCOVERY_BATCH_SIZE,
     });
   } catch {
     // Store error state already drives the inline failure message.
@@ -1151,7 +1271,7 @@ watch(
     }
 
     searchDebounceTimer = setTimeout(() => {
-      void searchStore.search(query, 'spots', 20, 0);
+      void searchStore.search(query, 'spots', EXPLORE_SEARCH_RESULT_LIMIT, 0);
       searchDebounceTimer = null;
     }, 300);
   },
@@ -2134,6 +2254,64 @@ h2 {
   grid-template-columns: 1fr;
 }
 
+.explore-pagination {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  justify-content: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 0.35rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, transparent);
+}
+
+.explore-pagination__button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, var(--glass-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 11%, transparent);
+  color: var(--accent-teal);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.explore-pagination__button:hover,
+.explore-pagination__button:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-teal) 18%, transparent);
+}
+
+.explore-pagination__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
+.explore-pagination__button :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.explore-pagination__status {
+  min-width: min(16rem, 58vw);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+  text-align: center;
+}
+
 .explore-empty-state {
   min-height: clamp(16rem, 28vw, 24rem);
   display: grid;
@@ -2498,6 +2676,16 @@ h2 {
 
   .view-toggle__button {
     flex: 1;
+  }
+
+  .explore-pagination {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .explore-pagination__status {
+    flex: 1;
+    min-width: 0;
   }
 }
 
