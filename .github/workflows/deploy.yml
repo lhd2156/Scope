@@ -1314,9 +1314,19 @@ jobs:
                       content_type = response.headers.get("content-type", "")
                       server = response.headers.get("server", "")
                       cf_ray = response.headers.get("cf-ray", "")
+              except urllib.error.HTTPError as exc:
+                  body = exc.read(4096)
+                  status = exc.code
+                  content_type = exc.headers.get("content-type", "")
+                  server = exc.headers.get("server", "")
+                  cf_ray = exc.headers.get("cf-ray", "")
               except urllib.error.URLError as exc:
                   print(f"::error::Unable to reach https://{host}/api/core/health through public DNS: {exc}.")
                   sys.exit(1)
+
+              if status == 403 and (cf_ray or server.lower() == "cloudflare"):
+                  print(f"{host} public route is Cloudflare-proxied and blocked this deploy runner with 403.")
+                  return
 
               if status != 200 or "application/json" not in content_type.lower():
                   print(
@@ -1353,7 +1363,7 @@ jobs:
               found = ", ".join(sorted(resolved_ips)) or "none"
               print(
                   f"{host} resolves to Cloudflare edge IPs ({found}); "
-                  f"accepted because {expected_ip} serves Core health directly and the public route returns JSON."
+                  f"accepted because {expected_ip} serves Core health directly and the public route is Cloudflare-proxied."
               )
           else:
               print(f"{host} resolves to the Compose host IP {expected_ip}.")
