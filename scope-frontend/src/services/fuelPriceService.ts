@@ -104,9 +104,9 @@ function buildLocalFuelLookup(options: Required<FuelLookupOptions>): FuelStation
 
   return sanitizeFuelLookup({
     configured: true,
-    coverage: 'Local fuel preview. Live routes use the Intel fuel endpoint backed by Google Places when configured.',
-    source: 'Scope local fuel preview',
-    license: 'Local preview fixture',
+    coverage: 'Route fuel estimate. Live routes use the Intel fuel endpoint backed by Google Places when configured.',
+    source: 'Scope route fuel estimate',
+    license: 'Scope starter estimate',
     radiusKm: options.radiusKm,
     sortBy: options.sortBy,
     stations,

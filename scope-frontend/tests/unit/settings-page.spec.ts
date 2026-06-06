@@ -260,7 +260,7 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('keeps the shell theme control dark-only while settings marks light mode coming soon', async () => {
+  it('keeps the shell and settings theme controls dark-only', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -276,17 +276,17 @@ describe('SettingsPage', () => {
 
     const shellToggle = wrapper.get('button.theme-toggle');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(shellToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active');
 
-    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
+    await wrapper.get('[data-test="theme-option-dark"]').trigger('click');
     await nextTick();
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('scope-theme')).toBe('dark');
     expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
-    expect(wrapper.get('[data-test="theme-option-light"]').text()).toContain('Coming soon');
-    expect(shellToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
+    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active');
   });
 
   it('updates the analytics opt-out control locally without hitting the profile save contract', async () => {

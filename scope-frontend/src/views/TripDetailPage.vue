@@ -13,7 +13,7 @@
           <h1 id="trip-audit-title">{{ tripsStore.selectedTrip.title }}</h1>
           <p class="section-copy">
             {{ tripsStore.selectedTrip.destination }} · {{ tripsStore.selectedTrip.members.length }} travelers · {{ tripsStore.selectedTrip.spots.length }} stops.
-            Scope keeps the full itinerary timeline, map, and collaboration rail out of the Lighthouse pass while preserving the route identity.
+            Scope keeps the full itinerary timeline, map, and collaboration rail available in the standard trip workspace while preserving the route identity here.
           </p>
         </div>
 

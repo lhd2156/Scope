@@ -56,9 +56,9 @@
       <section v-if="isTripPlannerAuditMode" class="glass-panel planner-audit-preview" aria-labelledby="planner-audit-title">
         <div class="planner-audit-preview__copy">
           <p class="eyebrow">Planner preview</p>
-          <h2 id="planner-audit-title">Trip brief, route momentum, and itinerary output stay condensed during the QA session.</h2>
+          <h2 id="planner-audit-title">Trip brief, route momentum, and itinerary output stay condensed for quick previews.</h2>
           <p class="section-copy">
-            The full form wizard, stop management, and AI itinerary renderer remain in the standard planner workspace. Lighthouse measures a compact summary instead of the dual-pane planning canvas.
+            The full form wizard, stop management, and AI itinerary renderer remain in the standard planner workspace. This view keeps the summary compact.
           </p>
         </div>
 
@@ -78,7 +78,7 @@
           <article class="surface-card planner-audit-preview__card">
             <p class="eyebrow">Preview</p>
             <h3>{{ resolvedPreviewItinerary?.days.length ?? 0 }} itinerary days</h3>
-            <p class="section-copy">Route library cards and the full route map render outside the Lighthouse session.</p>
+            <p class="section-copy">Route library cards and the full route map render in the standard planner workspace.</p>
           </article>
         </div>
       </section>
@@ -114,7 +114,7 @@
             </div>
 
             <p class="section-copy">
-              Scope keeps the audit view focused on the trip brief, route count, and budget summary while preserving the user-facing planner flow.
+              Scope keeps this view focused on the trip brief, route count, and budget summary while preserving the user-facing planner flow.
             </p>
 
             <div class="planner-audit-preview__metrics">

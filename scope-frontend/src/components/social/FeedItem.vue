@@ -171,7 +171,7 @@ type EngagementKind = 'like' | 'comment' | 'share';
 
 function engagementTitle(kind: EngagementKind): string {
   if (props.preview) {
-    return 'Sample Scope activity.';
+    return 'Scope activity.';
   }
 
   if (!authStore.isAuthenticated) {
@@ -191,7 +191,7 @@ function engagementTitle(kind: EngagementKind): string {
 
 function emitPreviewToast(): void {
   toastStore.showInfo({
-    title: 'Sample Scope activity',
+    title: 'Scope activity',
     message: 'Sign in to like, comment, and share live Scope activity.',
   });
 }

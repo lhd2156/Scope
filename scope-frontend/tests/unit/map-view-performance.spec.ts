@@ -2720,7 +2720,7 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
         showNearbyPlaces: true,
       });
       expect(mapboxMock.state.addImageCalls).toContainEqual([
-        'scope-poi-marker',
+        'marker',
         expect.any(HTMLCanvasElement),
         { pixelRatio: 2 },
       ]);

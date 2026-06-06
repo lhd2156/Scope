@@ -20,7 +20,7 @@ async function expectThemeState(page: Page, themeMode: 'dark') {
 }
 
 test.describe('Scope theme toggle persistence', () => {
-  test('keeps the shell dark-only and presents light mode as coming soon across reload plus protected-route navigation', async ({ page, scopeApi }) => {
+  test('keeps the shell and settings dark-only across reload plus protected-route navigation', async ({ page, scopeApi }) => {
     await scopeApi.seedSession(page, {
       id: 'user-1',
       username: 'louisdo',
@@ -31,7 +31,7 @@ test.describe('Scope theme toggle persistence', () => {
     await page.goto('/map', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Curate the map by mood' })).toBeVisible();
     await expectThemeState(page, 'dark');
-    const themeControl = page.getByRole('button', { name: 'Light mode coming soon' });
+    const themeControl = page.getByRole('button', { name: 'Dark theme active' });
     await expect(themeControl).toBeVisible();
     await expect(themeControl).toBeDisabled();
 
@@ -45,13 +45,13 @@ test.describe('Scope theme toggle persistence', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Shape how Scope looks, feels, and shares your story.' })).toBeVisible();
     await expectThemeState(page, 'dark');
     await expect(page.locator('[data-test="theme-option-dark"].is-active')).toBeVisible();
-    await expect(page.locator('[data-test="theme-option-light"]')).toContainText('Coming soon');
-    await expect(page.getByRole('button', { name: 'Light mode coming soon' })).toBeVisible();
+    await expect(page.locator('[data-test="theme-option-light"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Dark theme active' })).toBeVisible();
 
     await page.locator('[data-test="theme-option-dark"]').click();
     await expectThemeState(page, 'dark');
     await expect(page.locator('[data-test="theme-option-dark"].is-active')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Light mode coming soon' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Dark theme active' })).toBeVisible();
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Shape how Scope looks, feels, and shares your story.' })).toBeVisible();

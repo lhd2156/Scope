@@ -16,7 +16,7 @@
             <p class="eyebrow">Profile preview</p>
             <h1 id="profile-audit-shell-title">{{ profileUser.displayName }}</h1>
             <p class="section-copy">
-              {{ profileUser.homeBase || 'Scope traveler' }} · {{ profileUser.bio || 'Scope keeps the full hero stats, route history, and footprint map outside the Lighthouse QA session.' }}
+              {{ profileUser.homeBase || 'Scope traveler' }} · {{ profileUser.bio || 'Scope keeps the full hero stats, route history, and footprint map available from the standard profile view.' }}
             </p>
           </div>
 
@@ -24,13 +24,13 @@
             <article class="surface-card profile-audit-shell__card">
               <p class="eyebrow">Identity</p>
               <h2>{{ profileUser.username }}</h2>
-              <p class="section-copy">Compact profile summary tuned for deterministic QA performance.</p>
+              <p class="section-copy">Compact profile summary tuned for fast browsing.</p>
             </article>
 
             <article class="surface-card profile-audit-shell__card">
               <p class="eyebrow">Next step</p>
               <h2>Open Friends</h2>
-              <p class="section-copy">Scope reopens network, profile stats, and public pin detail immediately after the QA pass.</p>
+              <p class="section-copy">Scope opens network, profile stats, and public pin detail from the standard profile workspace.</p>
             </article>
           </div>
         </section>

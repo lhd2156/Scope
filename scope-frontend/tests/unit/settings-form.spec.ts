@@ -75,13 +75,12 @@ describe('SettingsForm', () => {
       },
     });
 
-    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
     await wrapper.get('[data-test="preference-pill-shopping"]').trigger('click');
     await wrapper.get('form').trigger('submit');
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(wrapper.get('[data-test="theme-option-light"]').attributes('aria-disabled')).toBe('true');
-    expect(wrapper.get('[data-test="theme-option-light"]').text()).toContain('Coming soon');
+    expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
+    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       displayName: 'Louis Do',
       themeMode: 'dark',
@@ -141,7 +140,7 @@ describe('SettingsForm', () => {
     expect((wrapper.get('input[placeholder="How your name appears in Scope"]').element as HTMLInputElement).value).toBe('Maya Chen');
     expect(wrapper.get('[data-test="preference-pill-nature"]').classes()).toContain('is-active');
     expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
-    expect(wrapper.get('[data-test="theme-option-light"]').classes()).not.toContain('is-active');
+    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('All changes saved');
   });
 
@@ -158,7 +157,6 @@ describe('SettingsForm', () => {
       },
     });
 
-    await wrapper.get('[data-test="theme-option-light"]').trigger('click');
     await wrapper.get('input[placeholder="How your name appears in Scope"]').setValue('Louis D.');
     await wrapper.get('[data-test="settings-cancel"]').trigger('click');
 

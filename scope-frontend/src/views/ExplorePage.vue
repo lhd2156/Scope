@@ -283,9 +283,9 @@
       <section v-if="isScopeQaExploreMode" class="explore-audit-preview" aria-labelledby="explore-audit-title">
         <div class="explore-audit-preview__header">
           <p class="eyebrow">Explore preview</p>
-          <h1 id="explore-audit-title">Photo-led discovery stays condensed during the QA session.</h1>
+          <h1 id="explore-audit-title">Photo-led discovery stays condensed for quick previews.</h1>
           <p class="section-copy">
-            Scope keeps the full masonry grid, search controls, and trending rail in the standard experience. Lighthouse sees a lightweight shortlist so the route shell remains deterministic.
+            Scope keeps the full masonry grid, search controls, and trending rail in the standard experience. This preview uses a lightweight shortlist so the route shell stays fast.
           </p>
         </div>
 

@@ -14,6 +14,8 @@ namespace Scope.Core.API.Controllers;
 [Route("api/core/presence")]
 public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
 {
+    private const int MaxRouteContextLength = 160;
+
     private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
         "planning",
@@ -29,6 +31,7 @@ public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
         var now = DateTimeOffset.UtcNow;
         var requestedStatus = NormalizeStatus(request.Status, request.IsIdle, request.IsPlanning);
         var presence = await dbContext.UserPresences.FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+        var isNewPresence = presence is null;
 
         if (presence is null)
         {
@@ -41,18 +44,25 @@ public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
             dbContext.UserPresences.Add(presence);
         }
 
-        presence.Status = requestedStatus;
-        presence.RouteContext = string.IsNullOrWhiteSpace(request.RouteContext) ? null : request.RouteContext.Trim();
-        presence.IsIdle = request.IsIdle || requestedStatus == "idle";
-        presence.LastActiveAt = now;
-        presence.UpdatedAt = now;
+        ApplyHeartbeat(presence, request, requestedStatus, now);
 
-        if (request.IsPlanning || requestedStatus == "planning")
+        try
         {
-            presence.LastPlanningAt = now;
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateException) when (isNewPresence)
+        {
+            dbContext.Entry(presence).State = EntityState.Detached;
+            presence = await dbContext.UserPresences.FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            if (presence is null)
+            {
+                throw;
+            }
+
+            ApplyHeartbeat(presence, request, requestedStatus, now);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
 
         return Ok(new ApiResponse<object>(new
         {
@@ -64,6 +74,33 @@ public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
             presence.LastPlanningAt,
             presence.UpdatedAt,
         }));
+    }
+
+    private static void ApplyHeartbeat(UserPresence presence, PresenceHeartbeatRequest request, string requestedStatus, DateTimeOffset now)
+    {
+        presence.Status = requestedStatus;
+        presence.RouteContext = NormalizeRouteContext(request.RouteContext);
+        presence.IsIdle = request.IsIdle || requestedStatus == "idle";
+        presence.LastActiveAt = now;
+        presence.UpdatedAt = now;
+
+        if (request.IsPlanning || requestedStatus == "planning")
+        {
+            presence.LastPlanningAt = now;
+        }
+    }
+
+    private static string? NormalizeRouteContext(string? routeContext)
+    {
+        var normalized = routeContext?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        return normalized.Length <= MaxRouteContextLength
+            ? normalized
+            : normalized[..MaxRouteContextLength];
     }
 
     private static string NormalizeStatus(string? status, bool isIdle, bool isPlanning)

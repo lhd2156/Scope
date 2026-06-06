@@ -12,7 +12,7 @@ describe('ThemeToggle', () => {
     document.documentElement.style.colorScheme = '';
   });
 
-  it('forces dark mode and presents light mode as coming soon', async () => {
+  it('forces dark mode and presents a dark theme status control', async () => {
     localStorage.setItem('scope-theme', 'light');
     const ThemeToggle = await loadThemeToggle();
 
@@ -21,8 +21,8 @@ describe('ThemeToggle', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('scope-theme')).toBe('dark');
-    expect(wrapper.attributes('aria-label')).toBe('Light mode coming soon');
-    expect(wrapper.text()).toContain('Coming soon');
+    expect(wrapper.attributes('aria-label')).toBe('Dark theme active');
+    expect(wrapper.text()).not.toContain('Coming soon');
 
     await wrapper.trigger('click');
 
@@ -31,18 +31,18 @@ describe('ThemeToggle', () => {
     expect(localStorage.getItem('scope-theme')).toBe('dark');
   });
 
-  it('keeps multiple mounted coming-soon controls stable', async () => {
+  it('keeps multiple mounted dark status controls stable', async () => {
     const ThemeToggle = await loadThemeToggle();
     const firstToggle = mount(ThemeToggle);
     const secondToggle = mount(ThemeToggle);
 
-    expect(firstToggle.attributes('aria-label')).toBe('Light mode coming soon');
-    expect(secondToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(firstToggle.attributes('aria-label')).toBe('Dark theme active');
+    expect(secondToggle.attributes('aria-label')).toBe('Dark theme active');
 
     await firstToggle.trigger('click');
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(firstToggle.attributes('aria-label')).toBe('Light mode coming soon');
-    expect(secondToggle.attributes('aria-label')).toBe('Light mode coming soon');
+    expect(firstToggle.attributes('aria-label')).toBe('Dark theme active');
+    expect(secondToggle.attributes('aria-label')).toBe('Dark theme active');
   });
 });
