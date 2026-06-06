@@ -336,19 +336,6 @@
               <ScopeIcon name="moon" label="Dark mode" />
               <span>Dark</span>
             </button>
-            <button
-              data-test="theme-option-light"
-              type="button"
-              class="theme-option theme-option--coming-soon"
-              aria-disabled="true"
-              aria-describedby="settings-theme-light-tooltip"
-              title="Light mode coming soon"
-              @click="selectTheme('light')"
-            >
-              <ScopeIcon name="sun" label="Light mode" />
-              <span>Light</span>
-              <span id="settings-theme-light-tooltip" class="theme-option__tooltip" role="tooltip">Coming soon</span>
-            </button>
           </div>
         </div>
 

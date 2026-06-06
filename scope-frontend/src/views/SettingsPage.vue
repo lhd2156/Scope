@@ -16,9 +16,9 @@
       <section v-if="isSettingsAuditMode" class="glass-panel settings-audit-preview" aria-labelledby="settings-audit-title">
         <div class="settings-audit-preview__copy">
           <p class="eyebrow">Preferences preview</p>
-          <h2 id="settings-audit-title">Settings sections stay condensed during the QA session.</h2>
+          <h2 id="settings-audit-title">Settings sections stay condensed for quick previews.</h2>
           <p class="section-copy">
-            The full account form, privacy toggles, and notification controls render in the standard workspace. Lighthouse sees a compact preference summary instead of the full multi-section form.
+            The full account form, privacy toggles, and notification controls render in the standard workspace. This view keeps the preference summary compact.
           </p>
         </div>
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
-    "build": "vue-tsc --noEmit && vite build --configLoader runner",
+    "build": "node ./scripts/build-production.mjs",
     "wasm:build": "node ./scripts/build-scope-wasm.mjs",
     "wasm:test": "node ./scripts/verify-scope-wasm-lexer.mjs",
     "compiler:benchmark": "node ./scripts/benchmark-scope-ai-compiler.mjs",

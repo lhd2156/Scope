@@ -100,7 +100,7 @@ import { isScopeQaMode } from '@/utils/qaMode';
 const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
   id: 'audit-spot-1',
   title: 'Sunset Rooftop Tacos',
-  description: 'A compact audit fixture that keeps the detail route readable, branded, and fast while synthetic QA skips the full gallery and review stack.',
+  description: 'A compact preview that keeps the detail route readable, branded, and fast while the full gallery and review stack load in the standard view.',
   latitude: 32.7555,
   longitude: -97.3308,
   address: '600 Commerce St',

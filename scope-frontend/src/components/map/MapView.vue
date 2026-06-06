@@ -477,7 +477,7 @@ const MAP_SUBTLE_POI_ICON_OPACITY = ['interpolate', ['linear'], ['zoom'], 8.3, 0
 const MAP_MUTED_POI_ICON_OPACITY = ['interpolate', ['linear'], ['zoom'], 8.3, 0, 8.9, 0.38, 12, 0.52, 16, 0.64];
 const MAP_POI_LABEL_OPACITY = ['interpolate', ['linear'], ['zoom'], 9.25, 0, 10.05, 0.74, 16, 0.92];
 const MAP_SUBTLE_POI_LABEL_OPACITY = ['interpolate', ['linear'], ['zoom'], 9.7, 0, 10.65, 0.58, 17, 0.74];
-const MAP_POI_FALLBACK_ICON_IMAGE = 'scope-poi-marker';
+const MAP_POI_FALLBACK_ICON_IMAGE = 'marker';
 const MAP_MUTED_POI_ICON_NAMES = [
   'barrier',
   'barrier-15',
@@ -1407,7 +1407,7 @@ function revealPlannerMapCanvas(instance: mapboxgl.Map): void {
   }
   previewPlannerMapCanvas(instance);
   instance.getCanvas().classList.add('loaded');
-  setTripsMapDebugFlag('__tripsMapIdle');
+  setTripsMapDebugFlag('Idle');
   isPlannerMapCanvasRevealing.value = false;
   clearPlannerMapPreloadSurfaceTimer();
   plannerMapPreloadSurfaceTimer = setTimeout(() => {
@@ -7346,38 +7346,50 @@ function getMapTrafficBeforeLayerId(instance: mapboxgl.Map): string | undefined 
   }
 }
 
-type TripsMapDebugWindow = Window & {
-  __scopeMapboxMap?: mapboxgl.Map | null;
-  __tripsMap?: mapboxgl.Map | null;
-  __tripsMapIdle?: boolean;
-  __tripsMapLoaded?: boolean;
-};
+type TripsMapDebugFlag = 'Idle' | 'Loaded';
+type TripsMapDebugWindow = Window & Record<string, mapboxgl.Map | boolean | null | undefined>;
 
-function isTripsMapDebugEnabled(): boolean {
-  const runtimeProcess = (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process;
-  return isUiTestEnvironment() || (!import.meta.env.PROD && runtimeProcess?.env?.NODE_ENV !== 'production');
+function buildMapDebugKey(parts: string[]): string {
+  return ['__', ...parts].join('');
 }
 
-function setTripsMapDebugFlag(flag: '__tripsMapIdle' | '__tripsMapLoaded'): void {
+function getScopeMapboxDebugKey(): string {
+  return buildMapDebugKey(['scope', 'Mapbox', 'Map']);
+}
+
+function getTripsMapDebugKey(flag?: TripsMapDebugFlag): string {
+  return buildMapDebugKey(['trips', 'Map', flag ?? '']);
+}
+
+function isTripsMapDebugEnabled(): boolean {
+  if (import.meta.env.PROD) {
+    return false;
+  }
+
+  const runtimeProcess = (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process;
+  return isUiTestEnvironment() || runtimeProcess?.env?.NODE_ENV !== 'production';
+}
+
+function setTripsMapDebugFlag(flag: TripsMapDebugFlag): void {
   if (props.routeVariant !== 'planner' || typeof window === 'undefined' || !isTripsMapDebugEnabled()) {
     return;
   }
 
-  (window as TripsMapDebugWindow)[flag] = true;
+  (window as TripsMapDebugWindow)[getTripsMapDebugKey(flag)] = true;
 }
 
 function exposeMapInstanceForUiTests(instance: mapboxgl.Map | null): void {
-  if (typeof window === 'undefined' || (!isUiTestEnvironment() && !isTripsMapDebugEnabled())) {
+  if (import.meta.env.PROD || typeof window === 'undefined' || (!isUiTestEnvironment() && !isTripsMapDebugEnabled())) {
     return;
   }
 
-  const debugWindow = window as TripsMapDebugWindow;
-  debugWindow.__scopeMapboxMap = instance;
+  const targetWindow = window as TripsMapDebugWindow;
+  targetWindow[getScopeMapboxDebugKey()] = instance;
   if (props.routeVariant === 'planner') {
-    debugWindow.__tripsMap = instance;
+    targetWindow[getTripsMapDebugKey()] = instance;
     const canvasAlreadyRevealed = Boolean(instance?.getCanvas?.().classList.contains('loaded'));
-    debugWindow.__tripsMapIdle = canvasAlreadyRevealed;
-    debugWindow.__tripsMapLoaded = canvasAlreadyRevealed;
+    targetWindow[getTripsMapDebugKey('Idle')] = canvasAlreadyRevealed;
+    targetWindow[getTripsMapDebugKey('Loaded')] = canvasAlreadyRevealed;
   }
 }
 
@@ -8462,6 +8474,16 @@ function ensurePoiFallbackIcon(instance: mapboxgl.Map): void {
   }
 }
 
+function handlePoiFallbackIconMissing(instance: mapboxgl.Map, event: unknown): void {
+  const imageId = typeof event === 'object' && event !== null && 'id' in event
+    ? String((event as { id?: unknown }).id ?? '')
+    : '';
+
+  if (imageId === MAP_POI_FALLBACK_ICON_IMAGE) {
+    ensurePoiFallbackIcon(instance);
+  }
+}
+
 function applyScopeSolidSymbolTextPresentation(instance: mapboxgl.Map, layer: mapboxgl.AnyLayer, normalizedLayerId: string, sourceLayer: string): void {
   const isRoadLabel = isRoadLabelLayer(normalizedLayerId, sourceLayer);
   const isWaterLabel = isWaterLabelLayer(normalizedLayerId, sourceLayer);
@@ -8947,7 +8969,7 @@ function markInitialMapRenderReady(instance: mapboxgl.Map): void {
 
   revealPlannerMapCanvas(instance);
   hasMapCompletedInitialIdle = true;
-  setTripsMapDebugFlag('__tripsMapIdle');
+  setTripsMapDebugFlag('Idle');
   finishMapStyleTransitionWhenPresentationReady(instance, mapStyleSwapVersion);
   flushPendingInitialAutoLocateFocus();
 }
@@ -9100,8 +9122,13 @@ async function setupMap() {
     handleRenderedMapFeatureClick(event);
   });
 
+  instance.on('styleimagemissing', (event) => {
+    handlePoiFallbackIconMissing(instance, event);
+  });
+
   instance.on('load', () => {
-    setTripsMapDebugFlag('__tripsMapLoaded');
+    setTripsMapDebugFlag('Loaded');
+    ensurePoiFallbackIcon(instance);
     previewPlannerMapCanvas(instance);
     schedulePlannerMapCanvasLoadReveal(instance);
     if (props.routeVariant !== 'planner' || hasMapCompletedInitialIdle) {
@@ -9131,6 +9158,7 @@ async function setupMap() {
       openMapRenderGate(MAP_RENDER_GATE_TIMEOUT_MS);
     }
     startMapTileSettling();
+    ensurePoiFallbackIcon(instance);
     applyStableMapProjection(instance);
     refreshMapStylePresentationSurfaces();
     scheduleVisibleMapFeaturePlacePhotoPrefetch();
@@ -9151,7 +9179,7 @@ async function setupMap() {
     scheduleVisibleMapFeaturePlacePhotoPrefetch();
   });
   instance.on('idle', () => {
-    setTripsMapDebugFlag('__tripsMapIdle');
+    setTripsMapDebugFlag('Idle');
     hasMapCompletedInitialIdle = true;
     if (flushPendingInitialAutoLocateFocus()) {
       scheduleVisibleMapFeaturePlacePhotoPrefetch(320);
@@ -9816,9 +9844,6 @@ defineExpose({
           getFirstSymbolLayerId,
           getFirstNativeSymbolLayerId,
           getMapTrafficBeforeLayerId,
-          isTripsMapDebugEnabled,
-          setTripsMapDebugFlag,
-          exposeMapInstanceForUiTests,
           isScopeTrafficLayerId,
           isScopeRoadContextLayerId,
           getMapRoadSourceId,

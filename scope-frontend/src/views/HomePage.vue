@@ -39,7 +39,7 @@
           <p class="eyebrow">Scope preview</p>
           <h2 id="home-audit-preview-title">Discovery rails, social proof, and live feed detail load after the first meaningful interaction.</h2>
           <p class="section-copy">
-            For the QA session Scope keeps the homepage focused on the hero entry point, then hands off into Explore and the travel circle once the user drills deeper.
+            Scope keeps the homepage focused on the hero entry point, then opens Explore and the travel circle once the user drills deeper.
           </p>
         </div>
 

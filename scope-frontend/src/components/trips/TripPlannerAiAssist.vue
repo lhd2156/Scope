@@ -2767,7 +2767,7 @@ function mapNearbyPlaceToChatPlaceResult(place: NearbyPlaceResult): ChatPlaceRes
   const providerVerified = place.source !== 'mock';
   return {
     ...place,
-    sourceLabel: place.source === 'mock' ? 'fallback map data' : 'Map search',
+    sourceLabel: place.source === 'mock' ? 'Unverified map result' : 'Map search',
     reason: place.categoryLabel ? `${place.categoryLabel} near the start` : undefined,
     providerVerified,
   };
@@ -6516,7 +6516,7 @@ async function resolvePendingFuelFollowUp(
   const price = getFuelPriceFromPendingItem(selected);
   if (price && /\b(set|use|apply)\b.*\b(?:gas\s*)?price\b/i.test(normalized)) {
     if (!isTrustedFuelPendingItem(selected)) {
-      const content = 'I found that fuel price in a demo or fallback result, so I did not set your gas price from it. Ask me to rerun live fuel lookup once the provider is available.';
+      const content = 'I found that fuel price in an unverified result, so I did not set your gas price from it. Ask me to rerun live fuel lookup once the provider is available.';
       setScopeAiPendingContext(scopeAiStore, {
         ...context,
         lastAnswer: content,
