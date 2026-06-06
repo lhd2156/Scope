@@ -338,7 +338,7 @@ export function resolveCityRegionLocation(location: RegionAwareLocation): CityRe
   return resolveSeededSpotLocation(location);
 }
 
-export function formatCityRegionLocation(location: RegionAwareLocation, fallback = 'Scope community pin'): string {
+export function formatCityRegionLocation(location: RegionAwareLocation, fallback = 'Location syncing'): string {
   const resolvedLocation = resolveCityRegionLocation(location);
 
   return resolvedLocation?.label || formatCountryLabel(location.country) || fallback;

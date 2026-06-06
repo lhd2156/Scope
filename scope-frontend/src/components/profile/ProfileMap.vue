@@ -386,7 +386,7 @@ function formatCategory(category: SpotCategory): string {
 
 function formatSpotLocation(spot: SpotSummary): string {
   const parts = [spot.city, spot.country].filter((value): value is string => Boolean(value?.trim()));
-  return parts.length ? parts.join(', ') : 'Scope community pin';
+  return parts.length ? parts.join(', ') : 'Location syncing';
 }
 
 function buildViewportForSpots(spots: SpotSummary[]): MapViewport {

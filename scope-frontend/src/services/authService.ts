@@ -28,8 +28,8 @@ function randomPreviewToken(prefix: string): string {
   return `${prefix}-${rnd}`;
 }
 
-const DEFAULT_PREVIEW_ACCESS_TOKEN = randomPreviewToken('preview-access');
-const DEFAULT_PREVIEW_REFRESH_TOKEN = randomPreviewToken('preview-refresh');
+const DEFAULT_PREVIEW_ACCESS_TOKEN = randomPreviewToken('session-access');
+const DEFAULT_PREVIEW_REFRESH_TOKEN = randomPreviewToken('session-refresh');
 const LIVE_REFRESH_SESSION_REUSE_MS = 5_000;
 const FALLBACK_USER = {
   id: 'user-1',
@@ -46,7 +46,7 @@ type AuthMockUsersModule = typeof import('@/services/mockAuthUsers');
 const loadAuthMockUsers: () => Promise<AuthMockUsersModule> = AUTH_MOCK_USERS_ALLOWED_IN_BUILD
   ? async () => import('@/services/mockAuthUsers')
   : async () => {
-    throw new Error('Local preview auth users are not available in this production build.');
+    throw new Error('Offline auth users are not available in this build.');
   };
 
 function slugifyIdentifier(identifier: string): string {

@@ -461,6 +461,7 @@ export interface FeedItem {
   imageUrl?: string;
   targetId: string;
   targetPath?: string;
+  targetLocation?: string;
 }
 
 export interface NotificationItem {

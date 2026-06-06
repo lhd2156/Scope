@@ -84,7 +84,7 @@ describe('SpotCard', () => {
 
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
     expect(wrapper.text()).toContain('Food');
-    expect(wrapper.text()).toContain('Fort Worth, US');
+    expect(wrapper.text()).toContain('Fort Worth, TX');
     expect(wrapper.text()).toContain('118 saves');
     expect(wrapper.text()).toContain('View details');
     expect(wrapper.find('a').attributes('href')).toBe('/spots/sunset-rooftop-tacos-fort-worth');
@@ -117,8 +117,8 @@ describe('SpotCard', () => {
       reviews: [],
     });
 
-    expect(wrapper.text()).toContain('Scope community pin');
-    expect(wrapper.text()).toContain('New pin');
+    expect(wrapper.text()).toContain('Location syncing');
+    expect(wrapper.text()).toContain('Other pick');
     expect(wrapper.text()).toContain('Community details are syncing for this spot.');
     expect(wrapper.text()).toContain('Open the full detail view');
     expect(wrapper.find('.save-button').attributes('aria-pressed')).toBe('false');

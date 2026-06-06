@@ -1,8 +1,8 @@
 import type { UserProfile } from '@/types';
 import { sanitizeSingleLineText, sanitizeUserProfile } from '@/utils/sanitizers';
 
-export const LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY = 'scope-local-preview-auth-users-v1';
-export const LOCAL_PREVIEW_AUTH_CURRENT_USER_STORAGE_KEY = 'scope-local-preview-auth-current-user-v1';
+export const LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY = 'scope.auth.users.v1';
+export const LOCAL_PREVIEW_AUTH_CURRENT_USER_STORAGE_KEY = 'scope.auth.current-user.v1';
 
 export interface LocalPreviewStoredUser extends Pick<UserProfile, 'id' | 'username' | 'displayName'> {
   email?: string;

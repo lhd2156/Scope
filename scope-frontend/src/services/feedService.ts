@@ -19,11 +19,13 @@ import {
   sanitizeNotificationPreference,
   sanitizeSpotSummary,
 } from '@/utils/sanitizers';
+import { formatCityRegionLocation } from '@/utils/formatters';
 import { rankTrendingSpots } from '@/utils/spotRanking';
 import { buildSpotPath } from '@/utils/spotRoutes';
 
 const FEED_BASE_PATH = '/api/content/feed';
 const FEED_LIST_PATH = '/api/content/feed/';
+const SPOTS_COLLECTION_PATH = '/api/content/spots/';
 const REVIEWS_BASE_PATH = '/api/content/reviews';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
@@ -41,7 +43,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Alex Morgan',
     avatarUrl: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for food-first city routes, late dinners, and walkable culture loops.',
+    bio: 'Scope starter profile for food-first city routes, late dinners, and walkable culture loops.',
     homeBase: 'Fort Worth, TX',
     interests: ['food', 'culture', 'nightlife'],
     stats: { spots: 18, trips: 5, friends: 96 },
@@ -52,7 +54,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Maya Chen',
     avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for gardens, museums, and design-forward weekend pacing.',
+    bio: 'Scope starter profile for gardens, museums, and design-forward weekend pacing.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
     stats: { spots: 16, trips: 6, friends: 112 },
@@ -63,7 +65,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Elijah Brooks',
     avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for outdoor resets, strong coffee, and high-energy city walks.',
+    bio: 'Scope starter profile for outdoor resets, strong coffee, and high-energy city walks.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
     stats: { spots: 21, trips: 7, friends: 88 },
@@ -74,7 +76,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Sofia Ramirez',
     avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for market mornings, heritage districts, and food-led itineraries.',
+    bio: 'Scope starter profile for market mornings, heritage districts, and food-led itineraries.',
     homeBase: 'San Antonio, TX',
     interests: ['food', 'culture', 'shopping'],
     stats: { spots: 22, trips: 8, friends: 134 },
@@ -85,7 +87,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Jordan Reed',
     avatarUrl: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for scenic overlooks, rail stations, and daylight-efficient routes.',
+    bio: 'Scope starter profile for scenic overlooks, rail stations, and daylight-efficient routes.',
     homeBase: 'Denver, CO',
     interests: ['scenic', 'nature', 'adventure'],
     stats: { spots: 19, trips: 5, friends: 76 },
@@ -96,7 +98,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Aisha Bello',
     avatarUrl: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for waterfront walks, art districts, and polished group dinners.',
+    bio: 'Scope starter profile for waterfront walks, art districts, and polished group dinners.',
     homeBase: 'Houston, TX',
     interests: ['culture', 'food', 'scenic'],
     stats: { spots: 17, trips: 6, friends: 101 },
@@ -107,7 +109,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Theo Alvarez',
     avatarUrl: 'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for markets, architecture, and late-night city energy.',
+    bio: 'Scope starter profile for markets, architecture, and late-night city energy.',
     homeBase: 'Barcelona, ES',
     interests: ['culture', 'shopping', 'nightlife'],
     stats: { spots: 24, trips: 9, friends: 143 },
@@ -118,7 +120,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     email: '',
     displayName: 'Priya Nair',
     avatarUrl: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=600',
-    bio: 'Fictional Scope starter persona for gardens, skyline walks, and compact international stopovers.',
+    bio: 'Scope starter profile for gardens, skyline walks, and compact international stopovers.',
     homeBase: 'Singapore',
     interests: ['scenic', 'culture', 'food'],
     stats: { spots: 20, trips: 7, friends: 118 },
@@ -214,6 +216,35 @@ function buildEmptyNotificationEnvelope(page: number, pageSize: number): ApiEnve
   };
 }
 
+async function getRankedPublicSpotEnvelope(limit: number): Promise<ApiEnvelope<SpotSummary[]>> {
+  const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(SPOTS_COLLECTION_PATH, {
+    params: { page: 1, pageSize: Math.max(1, limit) },
+  });
+  const sanitizedEnvelope = sanitizeSpotEnvelope(data);
+
+  return {
+    ...sanitizedEnvelope,
+    data: rankTrendingSpots(sanitizedEnvelope.data, limit),
+  };
+}
+
+async function getPublicStarterSpots(limit: number): Promise<SpotSummary[]> {
+  try {
+    const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, {
+      params: { limit },
+    });
+    const spots = sanitizeSpotEnvelope(data).data;
+    if (spots.length) {
+      return rankTrendingSpots(spots, limit);
+    }
+  } catch {
+    // Production currently seeds public spots before it exposes a public feed
+    // trending endpoint, so use those same spots to build review activity.
+  }
+
+  return getRankedPublicSpotEnvelope(limit).then((envelope) => envelope.data);
+}
+
 async function buildMockFeedEnvelope(page: number, pageSize: number): Promise<ApiEnvelope<FeedItem[]>> {
   const { mockFeed } = await loadMockData();
   const resolvedPageSize = pageSize || mockFeed.length || 1;
@@ -300,6 +331,7 @@ function buildStarterReviewItem(spot: SpotSummary, review: Review): FeedItem {
     imageUrl: spot.photoUrl,
     targetId: spot.id,
     targetPath: buildSpotPath(spot),
+    targetLocation: formatCityRegionLocation(spot, ''),
   });
 }
 
@@ -371,10 +403,7 @@ async function getSpotReviewsForStarterFeed(spot: SpotSummary): Promise<FeedItem
 }
 
 async function buildPublicStarterReviewFeed(page: number, pageSize: number): Promise<ApiEnvelope<FeedItem[]>> {
-  const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, {
-    params: { limit: STARTER_REVIEW_SPOT_LIMIT },
-  });
-  const spots = sanitizeSpotEnvelope(data).data;
+  const spots = await getPublicStarterSpots(STARTER_REVIEW_SPOT_LIMIT);
   const reviewGroups = await Promise.allSettled(spots.map((spot) => getSpotReviewsForStarterFeed(spot)));
   const reviewItems = reviewGroups
     .flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
@@ -391,6 +420,7 @@ async function buildPublicStarterReviewFeed(page: number, pageSize: number): Pro
       imageUrl: spot.photoUrl,
       targetId: spot.id,
       targetPath: buildSpotPath(spot),
+      targetLocation: formatCityRegionLocation(spot, ''),
     })));
 
   return paginateItems(starterItems, page, pageSize || DEFAULT_FALLBACK_PAGE_SIZE);
@@ -497,6 +527,7 @@ export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSumma
     return mockTrendingEnvelope();
   }
 
+  let liveTrendingError: unknown = null;
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, { params: { limit } });
     const sanitizedEnvelope = sanitizeSpotEnvelope(data);
@@ -509,9 +540,21 @@ export async function getTrendingSpots(limit = 4): Promise<ApiEnvelope<SpotSumma
       return rankedEnvelope;
     }
   } catch (error) {
-    if (!FEED_READ_FALLBACK_ENABLED) {
-      throw error;
+    liveTrendingError = error;
+  }
+
+  try {
+    const rankedPublicSpots = await getRankedPublicSpotEnvelope(limit);
+    rememberLiveTrending(rankedPublicSpots.data);
+    if (rankedPublicSpots.data.length || hasObservedLiveTrendingData || !FEED_READ_FALLBACK_ENABLED) {
+      return rankedPublicSpots;
     }
+  } catch (error) {
+    liveTrendingError = error;
+  }
+
+  if (!FEED_READ_FALLBACK_ENABLED && liveTrendingError) {
+    throw liveTrendingError;
   }
 
   return mockTrendingEnvelope();

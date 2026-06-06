@@ -404,7 +404,7 @@ const noteLabel = computed(() => {
   if (props.item.type === 'trip') {
     return 'Trip signal';
   }
-  return props.item.type === 'review' ? 'Review note' : 'Pinned context';
+  return props.item.type === 'review' ? 'Community take' : 'Pinned context';
 });
 const noteCopy = computed(() => {
   if (props.item.type === 'review') {
@@ -412,7 +412,7 @@ const noteCopy = computed(() => {
   }
   return props.item.excerpt.trim();
 });
-const locationCopy = computed(() => props.item.actor.homeBase?.trim() || 'Scope community');
+const locationCopy = computed(() => props.item.targetLocation?.trim() || props.item.actor.homeBase?.trim() || 'Scope community');
 const FEED_IMAGE_WIDTH = 960;
 
 const feedImageFallback = computed(() => getFeedPhotoFallback(props.item, FEED_IMAGE_WIDTH));

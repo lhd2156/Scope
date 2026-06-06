@@ -6,15 +6,15 @@ import { sanitizeUserProfile } from '@/utils/sanitizers';
 const fallbackCatalogUsers: UserProfile[] = [
   sanitizeUserProfile({
     id: 'user-1',
-    username: 'scopedemo',
-    email: 'demo@scope.local',
-    // Anonymous demo persona used for mock mode. Once real accounts land,
+    username: 'scope-showcase',
+    email: 'traveler@showcase.scopetrips.com',
+    // Anonymous showcase persona used for local preview mode. Once real accounts land,
     // this fallback should simply never surface to the UI.
     displayName: 'Scope traveler',
     // Intentionally blank so the Avatar component falls back to its
     // neutral silhouette placeholder instead of a seeded stock face.
     avatarUrl: '',
-    bio: 'Sample demo profile used until a real account connects.',
+    bio: 'Sample showcase profile used until a real account connects.',
     interests: ['food', 'culture', 'nightlife'],
     stats: { spots: 42, trips: 8, friends: 126 },
   }),

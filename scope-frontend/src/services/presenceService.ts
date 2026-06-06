@@ -38,7 +38,7 @@ function buildHeartbeatPayload(input: PresenceHeartbeatInput) {
 
 function hasDeliverablePresenceSession(): boolean {
   const accessToken = getAccessToken().trim();
-  return Boolean(accessToken) && !accessToken.startsWith('scope-qa-') && !accessToken.startsWith('preview-access-');
+  return Boolean(accessToken) && !accessToken.startsWith('scope-qa-') && !accessToken.startsWith('session-access-');
 }
 
 function buildPresenceApiUrl(path: string): string {
@@ -128,7 +128,7 @@ export function sendPresenceBeacon(input: PresenceHeartbeatInput): void {
   }
 
   const accessToken = getAccessToken();
-  if (!accessToken || accessToken.startsWith('scope-qa-') || accessToken.startsWith('preview-access-')) {
+  if (!accessToken || accessToken.startsWith('scope-qa-') || accessToken.startsWith('session-access-')) {
     return;
   }
 

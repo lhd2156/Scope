@@ -17,7 +17,7 @@
       <section v-else-if="isSpotComposerAuditMode" class="glass-panel composer-audit-preview" aria-labelledby="composer-audit-title">
         <div class="composer-audit-preview__copy">
           <p class="eyebrow">Spot composer preview</p>
-          <h2 id="composer-audit-title">{{ mode === 'edit' ? 'Pin refinement stays condensed for quick previews.' : 'New pin creation stays condensed for quick previews.' }}</h2>
+          <h2 id="composer-audit-title">{{ mode === 'edit' ? 'Pin refinement stays condensed for quick previews.' : 'Pin creation stays condensed for quick previews.' }}</h2>
           <p class="section-copy">
             Scope keeps the full media uploader, map picker, and metadata form in the standard composer while preserving the route identity here.
           </p>

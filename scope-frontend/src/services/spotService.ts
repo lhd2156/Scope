@@ -443,6 +443,18 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
   try {
     const { data } = await api.get<ApiEnvelope<SpotDetail> | SpotDetail>(`${SPOTS_BASE_PATH}/${spotId}`);
     const sanitizedResponse = sanitizeSpotDetailEnvelope({ data: unwrapApiData(data) });
+    try {
+      const photoResponse = await listSpotPhotos(sanitizedResponse.data.id);
+      if (photoResponse.data.length) {
+        sanitizedResponse.data = sanitizeSpotDetail({
+          ...sanitizedResponse.data,
+          photos: [...(sanitizedResponse.data.photos ?? []), ...photoResponse.data],
+        });
+      }
+    } catch {
+      // Detail remains usable with its primary photo when the separate photo
+      // collection is unavailable.
+    }
     rememberLiveSpotDetail();
     return sanitizedResponse;
   } catch (error) {

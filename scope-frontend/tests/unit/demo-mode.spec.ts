@@ -194,7 +194,7 @@ describe('demo mode fixtures', () => {
       email: 'demo.traveler@example.com',
       displayName: 'Demo Traveler',
     });
-    expect(refreshed.accessToken).toContain('preview-access-');
+    expect(refreshed.accessToken).toContain('session-access-');
     expect(refreshed.accessToken).toContain(String(Date.parse('2026-05-20T12:00:00.000Z')));
     expect(cognito.email).toBe('traveler@preview.scope.local');
     expect(apiMock.post).not.toHaveBeenCalled();
