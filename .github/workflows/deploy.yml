@@ -1271,12 +1271,72 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
+          import http.client
+          import json
           import os
           import socket
           import sys
+          import urllib.error
+          import urllib.request
 
           host = os.environ.get("SCOPE_TLS_HOSTNAME") or os.environ["SCOPE_PUBLIC_HOST"]
           expected_ip = os.environ["COMPOSE_HOST_PUBLIC_IP"]
+
+          def require_json_health_via_origin():
+              connection = http.client.HTTPConnection(expected_ip, 80, timeout=10)
+              try:
+                  connection.request("GET", "/api/core/health", headers={"Host": host})
+                  response = connection.getresponse()
+                  body = response.read(4096)
+              finally:
+                  connection.close()
+
+              content_type = response.getheader("content-type", "")
+              if response.status != 200 or "application/json" not in content_type.lower():
+                  print(
+                      f"::error::{expected_ip} did not serve Core health JSON for Host {host}. "
+                      f"Status: {response.status}; Content-Type: {content_type}; Body: {body[:200]!r}."
+                  )
+                  sys.exit(1)
+
+              try:
+                  json.loads(body.decode("utf-8"))
+              except ValueError as exc:
+                  print(f"::error::{expected_ip} served invalid Core health JSON for Host {host}: {exc}.")
+                  sys.exit(1)
+
+          def require_json_health_via_public_hostname():
+              request = urllib.request.Request(f"https://{host}/api/core/health", headers={"Accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(request, timeout=15) as response:
+                      body = response.read(4096)
+                      status = response.status
+                      content_type = response.headers.get("content-type", "")
+                      server = response.headers.get("server", "")
+                      cf_ray = response.headers.get("cf-ray", "")
+              except urllib.error.URLError as exc:
+                  print(f"::error::Unable to reach https://{host}/api/core/health through public DNS: {exc}.")
+                  sys.exit(1)
+
+              if status != 200 or "application/json" not in content_type.lower():
+                  print(
+                      f"::error::{host} public route did not serve Core health JSON. "
+                      f"Status: {status}; Content-Type: {content_type}; Body: {body[:200]!r}."
+                  )
+                  sys.exit(1)
+
+              try:
+                  json.loads(body.decode("utf-8"))
+              except ValueError as exc:
+                  print(f"::error::{host} public route served invalid Core health JSON: {exc}.")
+                  sys.exit(1)
+
+              if not cf_ray and server.lower() != "cloudflare":
+                  print(
+                      f"::error::{host} does not resolve to {expected_ip} and the public response "
+                      "does not look Cloudflare-proxied."
+                  )
+                  sys.exit(1)
 
           try:
               resolved_ips = {
@@ -1288,14 +1348,16 @@ jobs:
               sys.exit(1)
 
           if resolved_ips != {expected_ip}:
+              require_json_health_via_origin()
+              require_json_health_via_public_hostname()
               found = ", ".join(sorted(resolved_ips)) or "none"
               print(
-                  f"::error::{host} must have exactly one A record pointing at {expected_ip} "
-                  f"before trusted TLS can be issued. Current A records: {found}."
+                  f"{host} resolves to Cloudflare edge IPs ({found}); "
+                  f"accepted because {expected_ip} serves Core health directly and the public route returns JSON."
               )
-              sys.exit(1)
+          else:
+              print(f"{host} resolves to the Compose host IP {expected_ip}.")
 
-          print(f"{host} resolves to the Compose host IP {expected_ip}.")
           PY
 
       - name: Build Compose host release bundle
