@@ -136,6 +136,8 @@ function declineAnalyticsCookies(): void {
     inset: auto var(--space-3) calc(var(--space-3) + var(--safe-area-bottom)) var(--space-3);
     padding: var(--space-4);
     gap: var(--space-4);
+    max-height: calc(100dvh - var(--space-6) - var(--safe-area-top) - var(--safe-area-bottom));
+    overflow-y: auto;
   }
 
   .cookie-consent-banner__actions {
@@ -143,8 +145,11 @@ function declineAnalyticsCookies(): void {
   }
 
   .cookie-consent-banner__actions :deep(.scope-button) {
+    flex: 0 0 auto;
     width: 100%;
     min-width: 0;
+    min-height: 2.75rem;
+    padding-block: 0.75rem;
   }
 }
 
