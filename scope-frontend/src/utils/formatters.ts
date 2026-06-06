@@ -140,6 +140,8 @@ export function formatVibeLabel(vibe: string): string {
  * Map pin subline: drop commas in city/region so the line reads "Dallas star 4.6" not "Dallas, TX , star".
  */
 export interface RegionAwareLocation {
+  id?: string;
+  title?: string;
   city?: string;
   country?: string;
   adminArea?: string;
@@ -149,24 +151,121 @@ export interface RegionAwareLocation {
   stateCode?: string;
 }
 
+export interface CityRegionLocation {
+  city: string;
+  region: string;
+  country: string;
+  label: string;
+}
+
 const UNITED_STATES_COUNTRY_ALIASES = new Set(['us', 'usa', 'united states', 'united states of america']);
 
 const CITY_REGION_FALLBACKS = new Map<string, string>([
   ['arlington', 'TX'],
   ['austin', 'TX'],
   ['big bend national park', 'TX'],
+  ['barcelona', 'Catalonia'],
+  ['cape town', 'Western Cape'],
   ['cuero', 'TX'],
   ['dallas', 'TX'],
+  ['denver', 'CO'],
   ['fort worth', 'TX'],
   ['houston', 'TX'],
+  ['london', 'England'],
+  ['los angeles', 'CA'],
+  ['miami', 'FL'],
+  ['new orleans', 'LA'],
+  ['new york', 'NY'],
   ['san antonio', 'TX'],
+  ['seattle', 'WA'],
+  ['singapore', 'Singapore'],
   ['sterling city', 'TX'],
   ['chicago', 'IL'],
   ['lisbon', 'Lisbon'],
   ['mexico city', 'CDMX'],
+  ['sydney', 'NSW'],
   ['tokyo', 'Tokyo'],
   ['vancouver', 'BC'],
 ]);
+
+const SEEDED_SPOT_LOCATIONS = [
+  ['90000000-0000-0000-0000-000000000001', 'Mule Alley Mercantile Row', 'Fort Worth', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000002', 'San Antonio River Walk Blue Hour', 'San Antonio', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000003', 'Fort Worth Water Gardens', 'Fort Worth', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000004', 'Pearl District Market Hall', 'San Antonio', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000005', 'Lady Bird Skyline Boardwalk', 'Austin', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000006', 'Klyde Warren Park Lawn', 'Dallas', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000007', 'Buffalo Bayou Skyline Run', 'Houston', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000008', 'Big Bend Window Trail', 'Big Bend National Park', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000009', 'Historic Market Square San Antonio', 'San Antonio', 'TX', 'US'],
+  ['90000000-0000-0000-0000-000000000010', 'Millennium Park Bean Loop', 'Chicago', 'IL', 'US'],
+  ['90000000-0000-0000-0000-000000000011', 'Empire State Observation Window', 'New York', 'NY', 'US'],
+  ['90000000-0000-0000-0000-000000000012', 'Pike Place Market Morning', 'Seattle', 'WA', 'US'],
+  ['90000000-0000-0000-0000-000000000013', 'Wynwood Walls Color Walk', 'Miami', 'FL', 'US'],
+  ['90000000-0000-0000-0000-000000000014', 'Walt Disney Concert Hall Curve', 'Los Angeles', 'CA', 'US'],
+  ['90000000-0000-0000-0000-000000000015', 'Denver Union Station Great Hall', 'Denver', 'CO', 'US'],
+  ['90000000-0000-0000-0000-000000000016', 'Jackson Square Brass Corner', 'New Orleans', 'LA', 'US'],
+  ['90000000-0000-0000-0000-000000000017', 'Shibuya Crossing Pulse', 'Tokyo', 'Tokyo', 'JP'],
+  ['90000000-0000-0000-0000-000000000018', 'Senso-ji Lantern Approach', 'Tokyo', 'Tokyo', 'JP'],
+  ['90000000-0000-0000-0000-000000000019', 'Park Guell Mosaic Terrace', 'Barcelona', 'Catalonia', 'ES'],
+  ['90000000-0000-0000-0000-000000000020', 'Portobello Road Market Stroll', 'London', 'England', 'GB'],
+  ['90000000-0000-0000-0000-000000000021', 'Gardens by the Bay Supertree Walk', 'Singapore', 'Singapore', 'SG'],
+  ['90000000-0000-0000-0000-000000000022', 'V&A Waterfront Table Mountain View', 'Cape Town', 'Western Cape', 'ZA'],
+  ['90000000-0000-0000-0000-000000000023', 'Palacio de Bellas Artes Marble Steps', 'Mexico City', 'CDMX', 'MX'],
+  ['90000000-0000-0000-0000-000000000024', 'Sydney Opera House Circular Quay', 'Sydney', 'NSW', 'AU'],
+] as const satisfies ReadonlyArray<readonly [string, string, string, string, string]>;
+
+const SEEDED_SPOT_LOCATIONS_BY_ID = new Map(
+  SEEDED_SPOT_LOCATIONS.map(([id, title, city, region, country]) => [
+    id,
+    { city, region, country, title },
+  ]),
+);
+
+function normalizeLocationLookupText(value: string | undefined): string {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+const SEEDED_SPOT_LOCATIONS_BY_TITLE = new Map(
+  SEEDED_SPOT_LOCATIONS.map(([id, title, city, region, country]) => [
+    normalizeLocationLookupText(title),
+    { id, city, region, country },
+  ]),
+);
+
+function formatCityRegionLabel(city: string, region: string, country: string): string {
+  if (city && region) {
+    return `${city}, ${formatLocationRegionLabel(region)}`;
+  }
+
+  const countryLabel = formatCountryLabel(country);
+  return city ? (countryLabel ? `${city}, ${countryLabel}` : city) : countryLabel;
+}
+
+function resolveSeededSpotLocation(location: RegionAwareLocation): CityRegionLocation | null {
+  const seededLocation =
+    SEEDED_SPOT_LOCATIONS_BY_ID.get((location.id ?? '').trim().toLowerCase()) ??
+    SEEDED_SPOT_LOCATIONS_BY_TITLE.get(normalizeLocationLookupText(location.title));
+
+  if (!seededLocation) {
+    return null;
+  }
+
+  const country = formatCountryLabel(seededLocation.country);
+  const label = formatCityRegionLabel(seededLocation.city, seededLocation.region, country);
+
+  return {
+    city: seededLocation.city,
+    region: seededLocation.region,
+    country,
+    label,
+  };
+}
 
 function normalizeRegionCode(value: string | undefined): string {
   const normalized = value?.trim() ?? '';
@@ -219,20 +318,30 @@ export function resolveLocationRegion(location: RegionAwareLocation, options: { 
   return options.allowCountryFallback ? formatCountryLabel(location.country) : '';
 }
 
-export function formatCityRegionLocation(location: RegionAwareLocation, fallback = 'Scope community pin'): string {
+export function resolveCityRegionLocation(location: RegionAwareLocation): CityRegionLocation | null {
   const city = location.city?.trim() ?? '';
-  const region = resolveLocationRegion(location, { allowCountryFallback: false });
-
-  if (city && region) {
-    return `${city}, ${formatLocationRegionLabel(region)}`;
-  }
 
   if (city) {
+    const region = resolveLocationRegion(location, { allowCountryFallback: false });
     const country = formatCountryLabel(location.country);
-    return country ? `${city}, ${country}` : city;
+    const filterRegion = region || country;
+    const label = formatCityRegionLabel(city, region, country);
+
+    return {
+      city,
+      region: filterRegion,
+      country,
+      label,
+    };
   }
 
-  return formatCountryLabel(location.country) || fallback;
+  return resolveSeededSpotLocation(location);
+}
+
+export function formatCityRegionLocation(location: RegionAwareLocation, fallback = 'Scope community pin'): string {
+  const resolvedLocation = resolveCityRegionLocation(location);
+
+  return resolvedLocation?.label || formatCountryLabel(location.country) || fallback;
 }
 
 export function formatMapPinCityLine(city: string | undefined): string {

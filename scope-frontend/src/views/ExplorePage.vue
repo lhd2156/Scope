@@ -430,8 +430,8 @@
                 </div>
                 <div class="trending-item__copy">
                   <strong>{{ spot.title }}</strong>
-                  <p class="trending-item__location">{{ formatLocation(spot) }}</p>
-                  <span class="trending-item__meta">{{ formatCategory(spot.category) }}, {{ formatSaves(spot.likesCount) }}</span>
+                  <p class="trending-item__location">{{ formatCategory(spot.category) }}</p>
+                  <span class="trending-item__meta">{{ formatTrendingMeta(spot) }}</span>
                 </div>
               </RouterLink>
             </li>
@@ -472,6 +472,7 @@ import {
   formatCityRegionLocation,
   formatLocationRegionLabel,
   formatVibeLabel,
+  resolveCityRegionLocation,
   resolveLocationRegion,
 } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
@@ -578,9 +579,8 @@ function formatLocation(spot: SpotSummary): string {
   return formatCityRegionLocation(spot);
 }
 
-function formatSaves(likesCount?: number): string {
-  const totalSaves = likesCount ?? 0;
-  return totalSaves > 0 ? `${totalSaves} saves` : 'New pin';
+function formatTrendingMeta(spot: SpotSummary): string {
+  return formatLocation(spot);
 }
 
 function getSpotCreatedTime(spot: SpotSummary): number {
@@ -873,6 +873,7 @@ function matchesSearch(spot: SpotSummary, query: string): boolean {
     spot.description,
     spot.city,
     spot.country,
+    formatLocation(spot),
     ...resolveSpotVibes(spot),
     spot.author?.displayName,
   ]
@@ -899,10 +900,11 @@ const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
   const cities = new Map<string, CityFilterOption>();
 
   for (const spot of baseSpots.value) {
-    const city = spot.city?.trim();
-    if (!city) continue;
+    const location = resolveCityRegionLocation(spot);
+    if (!location?.city) continue;
 
-    const region = resolveSpotRegion(spot);
+    const city = location.city;
+    const region = location.region || resolveSpotRegion(spot);
     const key = buildCityFilterKey(city, region);
     const existing = cities.get(key);
 
@@ -913,7 +915,7 @@ const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
         key,
         city,
         region,
-        label: formatCityOptionLabel(city, region),
+        label: location.label || formatCityOptionLabel(city, region),
         count: 1,
       });
     }
@@ -1056,10 +1058,12 @@ const filteredSpots = computed(() =>
   baseSpots.value.filter((spot) => {
     const matchesCategory = allCategoriesSelected.value || activeExploreCategories.value.includes(spot.category);
     const spotRegion = resolveSpotRegion(spot);
-    const matchesRegion = !selectedRegion.value || spotRegion === selectedRegion.value;
+    const spotLocation = resolveCityRegionLocation(spot);
+    const locationRegion = spotLocation?.region || spotRegion;
+    const matchesRegion = !selectedRegion.value || locationRegion === selectedRegion.value;
     const matchesCity =
       !selectedCityOption.value ||
-      (spot.city === selectedCityOption.value.city && spotRegion === selectedCityOption.value.region);
+      (spotLocation?.city === selectedCityOption.value.city && locationRegion === selectedCityOption.value.region);
     const matchesVibe = !selectedVibe.value || resolveSpotVibes(spot).includes(selectedVibe.value);
     return matchesCategory && matchesRegion && matchesCity && matchesVibe && matchesSearch(spot, searchQuery.value);
   }),

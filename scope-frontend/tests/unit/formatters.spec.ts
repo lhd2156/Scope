@@ -11,6 +11,7 @@ import {
   formatWeekdayMonthDay,
   getInclusiveDaySpan,
   getInitials,
+  resolveCityRegionLocation,
   resolveLocationRegion,
 } from '@/utils/formatters';
 
@@ -77,6 +78,18 @@ describe('date and identity formatters', () => {
     expect(resolveLocationRegion({ country: 'Canada' }, { allowCountryFallback: true })).toBe('Canada');
     expect(formatCityRegionLocation({ city: 'Dallas', country: 'US' })).toBe('Dallas, TX');
     expect(formatCityRegionLocation({ city: 'Porto', country: 'Portugal' })).toBe('Porto, Portugal');
+    expect(formatCityRegionLocation({
+      id: '90000000-0000-0000-0000-000000000002',
+      title: 'San Antonio River Walk Blue Hour',
+    })).toBe('San Antonio, TX');
+    expect(resolveCityRegionLocation({
+      id: '90000000-0000-0000-0000-000000000024',
+      title: 'Sydney Opera House Circular Quay',
+    })).toMatchObject({
+      city: 'Sydney',
+      region: 'NSW',
+      label: 'Sydney, NSW',
+    });
     expect(formatCityRegionLocation({ country: 'mx' })).toBe('MX');
     expect(formatCityRegionLocation({}, 'Unknown pin')).toBe('Unknown pin');
   });
