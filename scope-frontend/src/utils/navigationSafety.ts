@@ -1,6 +1,6 @@
 import { sanitizeSingleLineText } from '@/utils/sanitizers';
 
-const SAFE_BASE_URL = 'https://scope.local';
+const SAFE_BASE_URL = 'https://scopetrips.com';
 
 function normalizeFallback(fallback: string): string {
   if (fallback === '') {

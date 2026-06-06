@@ -116,7 +116,7 @@ test.describe('production-minded data flows', () => {
     await page.getByLabel('Search spots').fill(PUBLIC_SPOT.title);
     await expect(page.locator('[data-test="results-count"]')).toContainText('1');
     await expect(page.getByText(PUBLIC_SPOT.title).first()).toBeVisible();
-    await expect(page.getByText('Scope community pin').first()).toBeVisible();
+    await expect(page.getByText(/Fort Worth, TX|San Antonio, TX|Austin, TX/).first()).toBeVisible();
 
     const navbarSearch = page.locator('.quick-search-shell--desktop').getByLabel('Search Scope');
     await navbarSearch.fill('River Market Patio');

@@ -3597,7 +3597,7 @@ function buildScopeNearbyPlace(spot: SpotSummary, anchor: RouteNearbyAnchor): Ro
   return {
     id: `scope-${spot.id}`,
     title: spot.title,
-    subtitle: spot.city || 'Scope community pin',
+    subtitle: spot.city || 'Location syncing',
     latitude: spot.latitude,
     longitude: spot.longitude,
     category: spot.category,

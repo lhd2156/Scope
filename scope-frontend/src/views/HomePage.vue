@@ -118,7 +118,7 @@
                 </span>
                 <div class="feed-social-pill__copy">
                   <strong>Live feed</strong>
-                  <p>New pins, itinerary wins, and community proof update in one scroll.</p>
+                  <p>Fresh saves, itinerary wins, and community proof update in one scroll.</p>
                 </div>
               </article>
             </div>

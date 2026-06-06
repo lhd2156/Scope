@@ -7,7 +7,7 @@ interface RouteExpectation {
   assert: (page: Page) => Promise<void>;
 }
 
-const demoTripShareStorageKey = 'scope.local.trip-shares.v1';
+const demoTripShareStorageKey = 'scope.trip-shares.v1';
 const demoShareToken = 'share-trip-1';
 const demoSharedTripId = 'trip-1';
 

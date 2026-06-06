@@ -3806,7 +3806,7 @@ function normalizeNearbyPlaceAttributionUrl(value: string | undefined): string |
   }
 
   try {
-    const baseUrl = globalThis.location?.origin || 'https://scope.local';
+    const baseUrl = globalThis.location?.origin || 'https://scopetrips.com';
     const url = new URL(text, baseUrl);
     return ['http:', 'https:'].includes(url.protocol) ? url.toString() : undefined;
   } catch {

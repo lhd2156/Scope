@@ -430,8 +430,8 @@
                 </div>
                 <div class="trending-item__copy">
                   <strong>{{ spot.title }}</strong>
-                  <p class="trending-item__location">{{ formatCategory(spot.category) }}</p>
-                  <span class="trending-item__meta">{{ formatTrendingMeta(spot) }}</span>
+                  <p class="trending-item__location">{{ formatLocation(spot) }}</p>
+                  <span class="trending-item__meta">{{ formatTrendingSignal(spot) }}</span>
                 </div>
               </RouterLink>
             </li>
@@ -576,11 +576,13 @@ function formatCategory(category: SpotCategory): string {
 }
 
 function formatLocation(spot: SpotSummary): string {
-  return formatCityRegionLocation(spot);
+  return formatCityRegionLocation(spot, 'Location syncing');
 }
 
-function formatTrendingMeta(spot: SpotSummary): string {
-  return formatLocation(spot);
+function formatTrendingSignal(spot: SpotSummary): string {
+  const likesCount = spot.likesCount ?? 0;
+
+  return likesCount > 0 ? `${likesCount} community saves` : `${formatCategory(spot.category)} pick`;
 }
 
 function getSpotCreatedTime(spot: SpotSummary): number {

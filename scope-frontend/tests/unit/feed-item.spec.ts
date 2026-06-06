@@ -106,6 +106,34 @@ describe('FeedItem', () => {
     expect(wrapper.text()).toContain('Maya Chen pinned Botanic River Walk');
   });
 
+  it('shows the reviewed spot location ahead of the actor home base', () => {
+    const wrapper = mount(FeedItem, {
+      props: {
+        item: {
+          ...item,
+          type: 'review',
+          title: 'Sofia Ramirez reviewed Fort Worth Water Gardens',
+          targetId: 'spot-water-gardens',
+          targetLocation: 'Fort Worth, TX',
+          actor: {
+            ...item.actor,
+            displayName: 'Sofia Ramirez',
+            homeBase: 'San Antonio, TX',
+          },
+        },
+      },
+      global: {
+        stubs: {
+          LazyImage: lazyImageStub(),
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Sofia Ramirez reviewed Fort Worth Water Gardens');
+    expect(wrapper.text()).toContain('Fort Worth, TX');
+    expect(wrapper.text()).not.toContain('San Antonio, TX');
+  });
+
   it('gates preview and signed-out engagement with helpful toasts and sign-in routing', async () => {
     const router = createTestRouter();
     await router.push('/feed?tab=community');
@@ -137,7 +165,7 @@ describe('FeedItem', () => {
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('aria-pressed')).toBe('false');
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('title')).toContain('Scope activity');
     expect(previewWrapper.text()).toContain('Wrote a review');
-    expect(previewWrapper.text()).toContain('Review note');
+    expect(previewWrapper.text()).toContain('Community take');
     expect(previewWrapper.text()).toContain('Place review');
     expect(previewWrapper.text()).toContain('Open spot');
 
@@ -212,7 +240,7 @@ describe('FeedItem', () => {
 
     expect(wrapper.text()).toContain('scopefriend finished a review of Downtown Food Hall');
     expect(wrapper.text()).toContain('Wrote a review');
-    expect(wrapper.text()).toContain('Review note');
+    expect(wrapper.text()).toContain('Community take');
     expect(wrapper.text()).toContain('Place review');
     expect(wrapper.text()).toContain('Scope community');
     expect(likeButton.attributes('title')).toBe('Like');

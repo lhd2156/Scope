@@ -95,7 +95,7 @@ describe('tripService behavior fallbacks', () => {
       timeSlot: '09:00',
     });
     expect(response.data.itinerary?.totalEstimatedCost).toBe(18);
-    expect(JSON.parse(localStorage.getItem('scope.local.trips.v1') ?? '[]')[0]).toMatchObject({
+    expect(JSON.parse(localStorage.getItem('scope.trips.v1') ?? '[]')[0]).toMatchObject({
       id: response.data.id,
       title: 'Planner Draft',
     });
@@ -201,8 +201,8 @@ describe('tripService behavior fallbacks', () => {
 
   it('reuses encoded local share links and tolerates malformed local storage fallbacks', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
-    localStorage.setItem('scope.local.trips.v1', '{bad trips');
-    localStorage.setItem('scope.local.trip-shares.v1', '{bad shares');
+    localStorage.setItem('scope.trips.v1', '{bad trips');
+    localStorage.setItem('scope.trip-shares.v1', '{bad shares');
 
     const tripService = await import('@/services/tripService');
     const { mockTrips } = await import('@/services/mockData');
@@ -220,7 +220,7 @@ describe('tripService behavior fallbacks', () => {
       title: trip.title,
     });
 
-    localStorage.setItem('scope.local.trip-shares.v1', JSON.stringify({
+    localStorage.setItem('scope.trip-shares.v1', JSON.stringify({
       'legacy-token': trip.id,
       ignored: 42,
     }));
@@ -346,7 +346,7 @@ describe('tripService behavior fallbacks', () => {
     });
 
     await expect(tripService.createTripShareLink('missing-trip')).rejects.toThrow('Trip missing-trip not found');
-    localStorage.setItem('scope.local.trip-shares.v1', JSON.stringify({
+    localStorage.setItem('scope.trip-shares.v1', JSON.stringify({
       'legacy-missing-token': 'missing-trip',
     }));
     await expect(tripService.getTripByShareToken('legacy-missing-token')).rejects.toThrow('could not be found');

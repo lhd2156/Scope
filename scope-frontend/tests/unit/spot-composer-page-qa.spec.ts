@@ -91,7 +91,7 @@ describe('SpotComposerPage QA preview', () => {
     ]);
 
     expect(wrapper.text()).toContain('Spot composer preview');
-    expect(wrapper.text()).toContain('New pin creation stays condensed for quick previews.');
+    expect(wrapper.text()).toContain('Pin creation stays condensed for quick previews.');
     expect(wrapper.text()).toContain('Creating new pin');
     expect(wrapper.text()).toContain('Fort Worth');
     expect(wrapper.text()).toContain('Return to explore');

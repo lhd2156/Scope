@@ -1006,8 +1006,8 @@ describe('coverage long-tail services and utilities', () => {
       Object.defineProperty(window, 'localStorage', localStorageDescriptor);
     }
 
-    localStorage.setItem('scope.local.trips.v1', JSON.stringify({ bad: 'shape' }));
-    localStorage.setItem('scope.local.trip-shares.v1', JSON.stringify(['not', 'an', 'object']));
+    localStorage.setItem('scope.trips.v1', JSON.stringify({ bad: 'shape' }));
+    localStorage.setItem('scope.trip-shares.v1', JSON.stringify(['not', 'an', 'object']));
     expect(tripCoverage.readLocalTrips()).toEqual([]);
     expect(tripCoverage.readLocalTripShares()).toEqual({});
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {

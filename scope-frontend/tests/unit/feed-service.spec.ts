@@ -218,6 +218,54 @@ describe('feed service contracts', () => {
     expect(feed.data.find((item) => item.actor.displayName === 'Elijah Brooks')?.actor.avatarUrl).toContain('220453');
   });
 
+  it('builds public starter activity from public spots and matching reviews when feed trending is unavailable', async () => {
+    const get = vi.fn()
+      .mockRejectedValueOnce(new Error('feed trending unavailable'))
+      .mockResolvedValueOnce({
+        data: {
+          data: [spotItem],
+          meta: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              id: 'review-1',
+              user_id: '22222222-2222-2222-2222-222222222222',
+              rating: '4.7',
+              comment: 'The same place I would save from the map.',
+              created_at: '2026-06-03T12:00:00Z',
+            },
+          ],
+        },
+      });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockRejectedValue(new Error('mock data disabled')),
+    }));
+
+    const feedService = await import('@/services/feedService');
+    const feed = await feedService.getFeed(1, 6);
+
+    expect(get).toHaveBeenNthCalledWith(1, '/api/content/feed/trending', { params: { limit: 10 } });
+    expect(get).toHaveBeenNthCalledWith(2, '/api/content/spots/', { params: { page: 1, pageSize: 10 } });
+    expect(get).toHaveBeenNthCalledWith(3, '/api/content/reviews/spot/spot-1');
+    expect(feed.data).toHaveLength(1);
+    expect(feed.data[0]).toMatchObject({
+      type: 'review',
+      actor: expect.objectContaining({ displayName: 'Maya Chen' }),
+      title: 'Maya Chen reviewed Sunset overlook',
+      excerpt: '4.7/5: The same place I would save from the map.',
+      targetPath: '/spots/sunset-overlook-austin',
+    });
+  });
+
   it('falls back for public feed and notification reads while surfacing notification mutation failures', async () => {
     const fixtures = mockData({
       mockNotifications: [
@@ -301,6 +349,7 @@ describe('feed service contracts', () => {
       meta: { page: 1, pageSize: 9, total: 0, totalPages: 1 },
     });
     expect(get).toHaveBeenCalledWith('/api/content/feed/trending', { params: { limit: 10 } });
+    expect(get).toHaveBeenCalledWith('/api/content/spots/', { params: { page: 1, pageSize: 10 } });
   });
 
   it('filters demo notifications, performs demo actions, and supplies default preferences', async () => {

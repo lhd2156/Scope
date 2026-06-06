@@ -68,7 +68,7 @@ import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
 import type { SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
-import { formatCategoryLabel, formatVibeLabel } from '@/utils/formatters';
+import { formatCategoryLabel, formatCityRegionLocation, formatVibeLabel } from '@/utils/formatters';
 import { buildSpotPath } from '@/utils/spotRoutes';
 
 const props = defineProps<{
@@ -135,13 +135,10 @@ const spotImageFallback = computed(() => getSpotPhotoFallback(props.spot.categor
 const spotImageUrl = computed(() => resolveSpotPhotoUrl(props.spot.category, props.spot.photoUrl, CARD_IMAGE_WIDTH));
 const ratingLabel = computed(() => props.spot.rating.toFixed(1));
 const formattedVibe = computed(() => (props.spot.vibe?.trim() ? formatVibeLabel(props.spot.vibe) : ''));
-const locationLabel = computed(() => {
-  const parts = [props.spot.city, props.spot.country].filter((value): value is string => Boolean(value?.trim()));
-  return parts.length ? parts.join(', ') : 'Scope community pin';
-});
+const locationLabel = computed(() => formatCityRegionLocation(props.spot, 'Location syncing'));
 const tractionLabel = computed(() => {
   const likesCount = props.spot.likesCount ?? 0;
-  return likesCount > 0 ? `${likesCount} saves` : 'New pin';
+  return likesCount > 0 ? `${likesCount} saves` : `${categoryLabel.value} pick`;
 });
 const descriptionCopy = computed(() => props.spot.description?.trim() || 'Community details are syncing for this spot.');
 const footerCopy = computed(() => {

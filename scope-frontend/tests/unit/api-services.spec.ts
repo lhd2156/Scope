@@ -86,7 +86,7 @@ describe('API service fallbacks', () => {
 
     expect(payload.email).toBe('maya@example.com');
     expect(payload.displayName).toBe('Maya');
-    expect(payload.accessToken).toMatch(/^preview-access-/);
+    expect(payload.accessToken).toMatch(/^session-access-/);
   });
 
   it('keeps a display-name login recognizable in local auth fallback', async () => {
@@ -103,7 +103,7 @@ describe('API service fallbacks', () => {
       username: 'jordan-lee',
       displayName: 'Jordan Lee',
     });
-    expect(payload.accessToken).toMatch(/^preview-access-/);
+    expect(payload.accessToken).toMatch(/^session-access-/);
   });
 
   it('falls back to a local auth session when registration is explicitly enabled for frontend testing', async () => {
@@ -127,7 +127,7 @@ describe('API service fallbacks', () => {
       email: 'maya@example.com',
       displayName: 'Maya Chen',
     });
-    expect(payload.accessToken).toMatch(/^preview-access-/);
+    expect(payload.accessToken).toMatch(/^session-access-/);
 
     await expect(
       authService.login({
@@ -450,7 +450,7 @@ describe('API service fallbacks', () => {
       accessToken: 'live-access-token',
       refreshToken: 'live-refresh-token',
     });
-    expect(localStorage.getItem('scope-local-preview-auth-users-v1')).toContain('live-user-1');
+    expect(localStorage.getItem('scope.auth.users.v1')).toContain('live-user-1');
   });
 
   it('uses live registration tokens directly and preserves strict refresh errors', async () => {
@@ -535,7 +535,7 @@ describe('API service fallbacks', () => {
     expect(response.data).toMatchObject({
       id: 'user-1',
       displayName: 'Scope traveler',
-      username: 'scopedemo',
+      username: 'scope-showcase',
     });
   });
 
@@ -641,8 +641,8 @@ describe('API service fallbacks', () => {
         displayName: 'Maya Chen',
       },
     });
-    await expect(userService.searchUsers('@scopedemo', 1, 5)).resolves.toMatchObject({
-      data: expect.arrayContaining([expect.objectContaining({ id: 'user-1', username: 'scopedemo' })]),
+    await expect(userService.searchUsers('@scope-showcase', 1, 5)).resolves.toMatchObject({
+      data: expect.arrayContaining([expect.objectContaining({ id: 'user-1', username: 'scope-showcase' })]),
     });
     await expect(userService.searchUsers('@maya.chen', 1, 5)).resolves.toMatchObject({
       data: expect.arrayContaining([
@@ -2899,7 +2899,7 @@ describe('API service fallbacks', () => {
     })).rejects.toBe(unavailableError);
 
     expect(apiMock.post).toHaveBeenCalled();
-    expect(localStorage.getItem('scope.local.trips.v1')).toBeNull();
+    expect(localStorage.getItem('scope.trips.v1')).toBeNull();
   });
 
   it('keeps autosaved trip drafts local only when the write fallback flag is enabled', async () => {
@@ -2944,7 +2944,7 @@ describe('API service fallbacks', () => {
       timeSlot: '09:00',
     });
     expect(response.data.itinerary?.totalEstimatedCost).toBe(42);
-    expect(JSON.parse(localStorage.getItem('scope.local.trips.v1') ?? '[]')).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem('scope.trips.v1') ?? '[]')).toHaveLength(1);
   });
 
   it('supports demo trip spot, member, share, and delete workflows locally', async () => {

@@ -241,8 +241,8 @@ describe('auth store security hardening', () => {
       displayName: 'Maya Chen',
       homeBase: 'Dallas, TX',
       interests: ['food', 'scenic'],
-      accessToken: 'preview-access-token',
-      refreshToken: 'preview-refresh-token',
+      accessToken: 'session-access-token',
+      refreshToken: 'session-refresh-token',
     });
 
     vi.doMock('@/services/authService', () => ({
@@ -262,7 +262,7 @@ describe('auth store security hardening', () => {
         persistence: 'session',
       }),
     );
-    sessionStorage.setItem(AUTH_REFRESH_TOKEN_STORAGE_KEY, 'preview-refresh-token');
+    sessionStorage.setItem(AUTH_REFRESH_TOKEN_STORAGE_KEY, 'session-refresh-token');
 
     const store = await bootstrapAuthStore();
     const restored = await store.hydrateSession();

@@ -238,7 +238,7 @@ function sanitizeExternalUrl(value: unknown): string | undefined {
   }
 
   try {
-    const url = new URL(text, 'https://scope.local');
+    const url = new URL(text, 'https://scopetrips.com');
     return ['http:', 'https:'].includes(url.protocol) ? url.toString() : undefined;
   } catch {
     return undefined;
