@@ -1828,7 +1828,7 @@ const routeShapeCoordinates = computed<RouteCoordinate[]>(() => {
     .filter(hasValidCoordinates)
     .map((point): RouteCoordinate => [point.longitude, point.latitude]);
 });
-const fallbackMarkerSpots = computed(() => (markerSpots.value.length ? markerSpots.value : props.spots));
+const fallbackMarkerSpots = computed(() => markerSpots.value);
 const fallbackProjectionBounds = computed<FallbackProjectionBounds>(() => {
   const projectionCoordinates = [
     ...routeShapeCoordinates.value,

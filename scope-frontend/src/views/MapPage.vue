@@ -265,8 +265,8 @@
               </div>
               <div v-else class="sidebar-empty-state map-plain-empty-state" data-test="map-sidebar-empty-state">
                 <p class="eyebrow">Your adventure map</p>
-                <h3>No pins match this category mix</h3>
-                <p>Reset the category blend to bring every saved Scope pin back onto the map and into this quick-access rail.</p>
+                <h3>{{ visibleEmptyTitle }}</h3>
+                <p>{{ visibleEmptyDescription }}</p>
                 <button
                   type="button"
                   class="button button-secondary"
@@ -286,8 +286,8 @@
             :class="{ 'map-view--mobile': isMobileMapLayout }"
             :style="mapViewStyle"
             :spots="mapSpots"
-            :route-points="routePoints"
-            :route-geometry="routeGeometry"
+            :route-points="mapRoutePoints"
+            :route-geometry="mapRouteGeometry"
             :auto-resolve-route-geometry="false"
             :selected-spot-id="mapStore.selectedSpotId"
             :initial-viewport="mapBaseViewport"
@@ -300,7 +300,7 @@
             :use-planner-camera-motion="true"
             :auto-locate-on-load="false"
             marker-variant="default"
-            :show-fit-route-control="routePoints.length > 1"
+            :show-fit-route-control="mapRoutePoints.length > 1"
             :auto-fit-route-on-load="false"
             @spot-select="handleSpotSelect"
             @interaction="handleMapInteraction"
@@ -410,6 +410,51 @@ const MAP_SPOT_PAGE_SIZE = 96;
 const VISIBLE_SPOT_PREVIEW_LIMIT = 8;
 const METERS_PER_MILE = 1609.344;
 const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
+const PUBLIC_FEATURED_ROUTE_FALLBACK: MapRoutePreviewTrip = {
+  title: 'Texas Photo Loop',
+  description: 'A compact starter route through high-signal Texas stops for quick map scanning, route context, and trip inspiration.',
+  destination: 'Texas',
+  coverImageUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+  members: [
+    { id: 'scope-editorial', displayName: 'Scope Editorial' },
+    { id: 'local-picks', displayName: 'Local Picks' },
+  ],
+  spots: [
+    {
+      spotId: '90000000-0000-0000-0000-000000000003',
+      title: 'Fort Worth Water Gardens',
+      latitude: 32.7478,
+      longitude: -97.324,
+      category: 'scenic',
+      city: 'Fort Worth',
+      dayNumber: 1,
+      timeSlot: '09:30',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+    },
+    {
+      spotId: '90000000-0000-0000-0000-000000000001',
+      title: 'Mule Alley Mercantile Row',
+      latitude: 32.7899,
+      longitude: -97.3484,
+      category: 'shopping',
+      city: 'Fort Worth',
+      dayNumber: 1,
+      timeSlot: '11:15',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.shopping,
+    },
+    {
+      spotId: '90000000-0000-0000-0000-000000000005',
+      title: 'Lady Bird Skyline Boardwalk',
+      latitude: 30.249,
+      longitude: -97.7256,
+      category: 'scenic',
+      city: 'Austin',
+      dayNumber: 1,
+      timeSlot: '17:45',
+      photoUrl: CATEGORY_TRAVEL_PHOTOS.scenic,
+    },
+  ],
+};
 const isMapAuditMode = isScopeQaMode();
 const LOCAL_MAP_PREVIEW_ENABLED = LOCAL_PREVIEW_ENABLED || localFallbackEnabled('VITE', 'ENABLE', 'MAP', 'MOCK', 'FALLBACK');
 const MapView = defineAsyncComponent(() => import('@/components/map/MapView.vue'));
@@ -755,7 +800,9 @@ const mapSpots = computed<MapPoint[]>(() => workspaceSpots.value.map((spot) => (
 const activeTrip = computed<MapRoutePreviewTrip | null>(() => (
   isMapAuditMode
     ? MAP_AUDIT_ROUTE
-    : tripsStore.items[0] ?? (hasLoadedTripData.value || !LOCAL_MAP_PREVIEW_ENABLED ? null : localPreviewTrip.value) ?? null
+    : tripsStore.items[0]
+      ?? (hasLoadedTripData.value || !LOCAL_MAP_PREVIEW_ENABLED ? null : localPreviewTrip.value)
+      ?? PUBLIC_FEATURED_ROUTE_FALLBACK
 ));
 const workspaceLoading = computed(() => (isMapAuditMode ? false : spotsStore.loading || tripsStore.loading));
 const workspaceError = computed(() => (
@@ -794,6 +841,9 @@ const routePoints = computed<MapPoint[]>(() => {
   return labelRouteMapPoints(optimizedPoints.length ? optimizedPoints : routeSourcePoints.value);
 });
 const routeGeometry = computed(() => roadRoute.value?.geometry ?? []);
+const hasSelectedMapCategories = computed(() => mapStore.activeCategories.length > 0);
+const mapRoutePoints = computed(() => (hasSelectedMapCategories.value ? routePoints.value : []));
+const mapRouteGeometry = computed(() => (hasSelectedMapCategories.value ? routeGeometry.value : []));
 const mapLabelMode = computed<MapLabelMode>(() => {
   const hasPreferredLocation = Boolean(authStore.currentUser?.homeBase?.trim());
   const hasFocusedMapContext = Boolean(mapStore.selectedSpotId) || mapStore.viewport.zoom >= 7;
@@ -929,9 +979,13 @@ const routeMemberPreview = computed(() => (activeTrip.value?.members ?? []).slic
 })));
 
 const visibleSpots = computed(() => {
+  if (!hasSelectedMapCategories.value) {
+    return [];
+  }
+
   const visibleIds = new Set(mapStore.visibleSpotIds);
   const scopedSpots = mapStore.visibleSpotIdsMeasured
-    ? workspaceSpots.value.filter((spot) => visibleIds.has(spot.id))
+    ? workspaceSpots.value.filter((spot) => visibleIds.has(spot.id) && mapStore.activeCategories.includes(spot.category))
     : workspaceSpots.value.filter((spot) => mapStore.activeCategories.includes(spot.category));
 
   return scopedSpots;
@@ -989,14 +1043,29 @@ const visibleTitle = computed(() => {
   const count = visibleSpots.value.length;
   return `${count} spot${count === 1 ? '' : 's'} ready to explore`;
 });
+const visibleEmptyTitle = computed(() => (
+  hasSelectedMapCategories.value ? 'No pins match this category mix' : 'No categories selected'
+));
+const visibleEmptyDescription = computed(() => (
+  hasSelectedMapCategories.value
+    ? 'Reset the category blend to bring every saved Scope pin back onto the map and into this quick-access rail.'
+    : 'Turn on a category to bring matching Scope pins back onto the map and into this quick-access rail.'
+));
 const activeFilterCountLabel = computed(() => `${mapStore.activeCategories.length}/${categories.length} live`);
 
 const selectedSpot = computed(() => {
+  if (!hasSelectedMapCategories.value) {
+    return null;
+  }
+
   const selectedId = mapStore.selectedSpotId;
   const explicitSelection = selectedId ? workspaceSpots.value.find((spot) => spot.id === selectedId) ?? null : null;
+  const activeExplicitSelection = explicitSelection && mapStore.activeCategories.includes(explicitSelection.category)
+    ? explicitSelection
+    : null;
 
   if (!mapStore.visibleSpotIdsMeasured) {
-    return explicitSelection ?? visibleSpots.value[0] ?? null;
+    return activeExplicitSelection ?? visibleSpots.value[0] ?? null;
   }
 
   if (!mapStore.visibleSpotIds.length) {
@@ -1006,11 +1075,12 @@ const selectedSpot = computed(() => {
   return visibleSpots.value.find((spot) => spot.id === selectedId) ?? visibleSpots.value[0] ?? null;
 });
 const selectedMapOverlaySpot = computed(() => {
-  if (!isSelectedMapOverlayVisible.value || isMobileMapLayout.value || !mapStore.selectedSpotId) {
+  if (!hasSelectedMapCategories.value || !isSelectedMapOverlayVisible.value || isMobileMapLayout.value || !mapStore.selectedSpotId) {
     return null;
   }
 
-  return workspaceSpots.value.find((spot) => spot.id === mapStore.selectedSpotId) ?? null;
+  const spot = workspaceSpots.value.find((entry) => entry.id === mapStore.selectedSpotId) ?? null;
+  return spot && mapStore.activeCategories.includes(spot.category) ? spot : null;
 });
 const selectedSpotPhoto = computed(() => {
   if (!selectedSpot.value) {
@@ -1055,13 +1125,19 @@ const mobileSheetVisibleHeight = computed(() => {
       return '100%';
   }
 });
-const mobileSheetHeadline = computed(() => selectedSpot.value?.title ?? routeTitle.value);
-const mobileSheetDescription = computed(() => {
+const mobileSheetHeadline = computed(() => {
   if (selectedSpot.value) {
-    return `${selectedSpotLocation.value} · Swipe up for details.`;
+    return selectedSpot.value.title;
   }
 
-  return `${visibleTitle.value} · Swipe up for filters.`;
+  return hasSelectedMapCategories.value ? routeTitle.value : visibleEmptyTitle.value;
+});
+const mobileSheetDescription = computed(() => {
+  if (selectedSpot.value) {
+    return `${selectedSpotLocation.value} - Swipe up for details.`;
+  }
+
+  return `${visibleTitle.value} - Swipe up for filters.`;
 });
 const mobileSheetAriaLabel = computed(() => {
   switch (nextMobileSheetState.value) {

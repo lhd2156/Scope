@@ -36,9 +36,6 @@ export const useMapStore = defineStore('map', () => {
   function toggleCategory(category: SpotCategory) {
     if (activeCategories.value.includes(category)) {
       activeCategories.value = activeCategories.value.filter((entry) => entry !== category);
-      if (!activeCategories.value.length) {
-        activeCategories.value = [category];
-      }
       return;
     }
 
@@ -47,7 +44,7 @@ export const useMapStore = defineStore('map', () => {
 
   function setActiveCategories(categories: SpotCategory[]) {
     const nextCategories = allCategories.filter((category) => categories.includes(category));
-    activeCategories.value = nextCategories.length ? nextCategories : [...allCategories];
+    activeCategories.value = nextCategories;
   }
 
   function resetCategories() {
