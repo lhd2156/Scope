@@ -1,4 +1,4 @@
-import api from '@/services/api';
+import api, { getAccessToken } from '@/services/api';
 import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { unwrapApiData } from '@/services/serviceUtils';
 
@@ -578,12 +578,16 @@ export async function getOpenWeatherMapSnapshot(point: WeatherLookupPoint): Prom
     return buildLocalWeatherSnapshot({ ...point, label });
   }
 
-  try {
-    return await getBackendCurrentWeatherSnapshot({ ...point, label });
-  } catch {
-    if (!CLIENT_WEATHER_FALLBACK_ENABLED) {
-      throw new Error('Weather is unavailable right now.');
+  if (getAccessToken().trim()) {
+    try {
+      return await getBackendCurrentWeatherSnapshot({ ...point, label });
+    } catch {
+      if (!CLIENT_WEATHER_FALLBACK_ENABLED) {
+        throw new Error('Weather is unavailable right now.');
+      }
     }
+  } else if (!CLIENT_WEATHER_FALLBACK_ENABLED) {
+    throw new Error('Weather is unavailable right now.');
   }
 
   if (apiKey && !openWeatherMapUnavailable) {
