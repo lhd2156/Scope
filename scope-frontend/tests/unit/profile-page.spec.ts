@@ -598,7 +598,7 @@ describe('ProfilePage', () => {
 
     expect(wrapper.text()).toContain('Profile preview');
     expect(wrapper.text()).toContain('Louis Do');
-    expect(wrapper.text()).toContain('Compact profile summary tuned for deterministic QA performance.');
+    expect(wrapper.text()).toContain('Compact profile summary tuned for fast browsing.');
     expect(wrapper.text()).toContain('Open Friends');
     expect(listUserSpotsMock).not.toHaveBeenCalled();
     expect(listSavedSpotsMock).not.toHaveBeenCalled();

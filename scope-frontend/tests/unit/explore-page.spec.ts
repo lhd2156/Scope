@@ -844,7 +844,7 @@ describe('ExplorePage', () => {
     const { wrapper } = await mountQaExplorePage();
 
     expect(wrapper.find('.discovery-shell').exists()).toBe(false);
-    expect(wrapper.text()).toContain('Photo-led discovery stays condensed during the QA session.');
+    expect(wrapper.text()).toContain('Photo-led discovery stays condensed for quick previews.');
     expect(wrapper.findAll('.explore-audit-preview__item')).toHaveLength(3);
     expect(wrapper.text()).toContain('Lakefront Sunrise Loop');
     expect(listSpotsMock).not.toHaveBeenCalled();

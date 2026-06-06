@@ -132,10 +132,10 @@ describe('FeedItem', () => {
 
     await previewWrapper.get(`[data-test="feed-like-${item.id}"]`).trigger('click');
     expect(toastStore.items[0]).toMatchObject({
-      title: 'Sample Scope activity',
+      title: 'Scope activity',
     });
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('aria-pressed')).toBe('false');
-    expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('title')).toContain('Sample Scope activity');
+    expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('title')).toContain('Scope activity');
     expect(previewWrapper.text()).toContain('Wrote a review');
     expect(previewWrapper.text()).toContain('Review note');
     expect(previewWrapper.text()).toContain('Place review');

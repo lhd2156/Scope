@@ -414,9 +414,9 @@ describe('trip planner intel service contracts', () => {
 
     expect(response).toMatchObject({
       configured: true,
-      coverage: expect.stringContaining('Local fuel preview'),
-      source: 'Scope local fuel preview',
-      license: 'Local preview fixture',
+      coverage: expect.stringContaining('Route fuel estimate'),
+      source: 'Scope route fuel estimate',
+      license: 'Scope starter estimate',
       radiusKm: 9,
       sortBy: 'closest',
     });
