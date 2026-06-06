@@ -200,7 +200,7 @@
                     <span v-if="selectedSpotCountryBadge" class="selected-country-badge">{{ selectedSpotCountryBadge }}</span>
                     <span v-if="selectedSpot.vibe">{{ formatVibeLabel(selectedSpot.vibe) }}</span>
                   </div>
-                  <RouterLink class="detail-link" :to="`/spots/${selectedSpot.id}`" data-test="map-selected-spot-detail-link">
+                  <RouterLink class="detail-link" :to="buildSpotPath(selectedSpot)" data-test="map-selected-spot-detail-link">
                     <span>Open detail</span>
                     <ScopeIcon name="navigation" label="Open selected spot detail" />
                   </RouterLink>
@@ -336,7 +336,7 @@
                     <ScopeIcon name="sparkle" label="Vibe" />
                     {{ formatVibeLabel(selectedMapOverlaySpot.vibe) }}
                   </span>
-                  <RouterLink class="map-selected-overlay__link" :to="`/spots/${selectedMapOverlaySpot.id}`">
+                  <RouterLink class="map-selected-overlay__link" :to="buildSpotPath(selectedMapOverlaySpot)">
                     <span>Open detail</span>
                     <ScopeIcon name="navigation" label="Open selected spot detail" />
                   </RouterLink>
@@ -380,6 +380,7 @@ import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
 import { formatCityRegionLocation, formatCountryLabel, formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
+import { buildSpotPath } from '@/utils/spotRoutes';
 import {
   MAP_AUDIT_ROUTE,
   MAP_AUDIT_SPOTS,

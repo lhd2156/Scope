@@ -181,6 +181,7 @@ type TripWireFields = Partial<Trip> & {
 type FeedWireFields = Partial<FeedItem> & {
   created_at?: unknown;
   image_url?: unknown;
+  target_path?: unknown;
   target_id?: unknown;
   item?: unknown;
 };
@@ -779,6 +780,9 @@ export function sanitizeFeedItem(
     optionalWireString(nestedItem.id) ??
     optionalWireString(nestedItem.spot_id) ??
     '';
+  const targetPath =
+    sanitizeRelativeAppPath(item.targetPath) ??
+    sanitizeRelativeAppPath(optionalWireString(wireItem.target_path));
   const actor = item.actor && typeof item.actor === 'object'
     ? item.actor
     : {
@@ -801,6 +805,7 @@ export function sanitizeFeedItem(
       imageUrl: sanitizeImageUrl(imageUrl),
     }),
     targetId,
+    targetPath,
   };
 }
 

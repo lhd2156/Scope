@@ -460,6 +460,7 @@ export interface FeedItem {
   createdAt: string;
   imageUrl?: string;
   targetId: string;
+  targetPath?: string;
 }
 
 export interface NotificationItem {

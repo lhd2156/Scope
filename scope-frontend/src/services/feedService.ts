@@ -1,4 +1,4 @@
-import api from '@/services/api';
+import api, { getAccessToken } from '@/services/api';
 import { DEMO_MODE_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, sortByCreatedAtDescending } from '@/services/serviceUtils';
@@ -9,7 +9,9 @@ import type {
   NotificationPreference,
   NotificationPreferenceInput,
   PushSubscriptionInput,
+  Review,
   SpotSummary,
+  UserProfile,
 } from '@/types';
 import {
   sanitizeFeedItem,
@@ -18,16 +20,110 @@ import {
   sanitizeSpotSummary,
 } from '@/utils/sanitizers';
 import { rankTrendingSpots } from '@/utils/spotRanking';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const FEED_BASE_PATH = '/api/content/feed';
 const FEED_LIST_PATH = '/api/content/feed/';
+const REVIEWS_BASE_PATH = '/api/content/reviews';
 const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
+const STARTER_REVIEW_SPOT_LIMIT = 10;
 const DEFAULT_NOTIFICATION_CATEGORIES = ['account', 'security', 'trip', 'friend', 'social', 'comment', 'mention', 'digest', 'general'];
 const FEED_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'FEED', 'MOCK', 'FALLBACK');
 const NOTIFICATION_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'NOTIFICATION', 'MOCK', 'FALLBACK');
 let hasObservedLiveFeedData = false;
 let hasObservedLiveTrendingData = false;
+
+const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
+  '11111111111111111111111111111111': {
+    username: 'alex.morgan',
+    email: '',
+    displayName: 'Alex Morgan',
+    avatarUrl: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for food-first city routes, late dinners, and walkable culture loops.',
+    homeBase: 'Fort Worth, TX',
+    interests: ['food', 'culture', 'nightlife'],
+    stats: { spots: 18, trips: 5, friends: 96 },
+    showActivityStatus: true,
+  },
+  '22222222222222222222222222222222': {
+    username: 'maya.chen',
+    email: '',
+    displayName: 'Maya Chen',
+    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for gardens, museums, and design-forward weekend pacing.',
+    homeBase: 'Dallas, TX',
+    interests: ['scenic', 'culture', 'shopping'],
+    stats: { spots: 16, trips: 6, friends: 112 },
+    showActivityStatus: true,
+  },
+  '33333333333333333333333333333333': {
+    username: 'elijah.brooks',
+    email: '',
+    displayName: 'Elijah Brooks',
+    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for outdoor resets, strong coffee, and high-energy city walks.',
+    homeBase: 'Austin, TX',
+    interests: ['adventure', 'food', 'nature'],
+    stats: { spots: 21, trips: 7, friends: 88 },
+    showActivityStatus: true,
+  },
+  '44444444444444444444444444444441': {
+    username: 'sofia.ramirez',
+    email: '',
+    displayName: 'Sofia Ramirez',
+    avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for market mornings, heritage districts, and food-led itineraries.',
+    homeBase: 'San Antonio, TX',
+    interests: ['food', 'culture', 'shopping'],
+    stats: { spots: 22, trips: 8, friends: 134 },
+    showActivityStatus: true,
+  },
+  '55555555555555555555555555555551': {
+    username: 'jordan.reed',
+    email: '',
+    displayName: 'Jordan Reed',
+    avatarUrl: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for scenic overlooks, rail stations, and daylight-efficient routes.',
+    homeBase: 'Denver, CO',
+    interests: ['scenic', 'nature', 'adventure'],
+    stats: { spots: 19, trips: 5, friends: 76 },
+    showActivityStatus: true,
+  },
+  '66666666666666666666666666666661': {
+    username: 'aisha.bello',
+    email: '',
+    displayName: 'Aisha Bello',
+    avatarUrl: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for waterfront walks, art districts, and polished group dinners.',
+    homeBase: 'Houston, TX',
+    interests: ['culture', 'food', 'scenic'],
+    stats: { spots: 17, trips: 6, friends: 101 },
+    showActivityStatus: true,
+  },
+  '77777777777777777777777777777771': {
+    username: 'theo.alvarez',
+    email: '',
+    displayName: 'Theo Alvarez',
+    avatarUrl: 'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for markets, architecture, and late-night city energy.',
+    homeBase: 'Barcelona, ES',
+    interests: ['culture', 'shopping', 'nightlife'],
+    stats: { spots: 24, trips: 9, friends: 143 },
+    showActivityStatus: true,
+  },
+  '88888888888888888888888888888881': {
+    username: 'priya.nair',
+    email: '',
+    displayName: 'Priya Nair',
+    avatarUrl: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Fictional Scope starter persona for gardens, skyline walks, and compact international stopovers.',
+    homeBase: 'Singapore',
+    interests: ['scenic', 'culture', 'food'],
+    stats: { spots: 20, trips: 7, friends: 118 },
+    showActivityStatus: true,
+  },
+};
 
 interface FeedEnvelopeSanitizerOptions {
   allowGeneratedActorAvatar?: boolean;
@@ -126,6 +222,118 @@ async function buildMockFeedEnvelope(page: number, pageSize: number): Promise<Ap
   );
 }
 
+function normalizeActorKey(value: string | undefined): string {
+  return String(value ?? '').replace(/[^a-f0-9]/gi, '').toLowerCase();
+}
+
+function resolveShowcaseActor(userId: string | undefined): UserProfile {
+  const key = normalizeActorKey(userId);
+  const showcaseActor = SHOWCASE_ACTORS[key];
+
+  if (showcaseActor) {
+    return sanitizeFeedItem({
+      id: `actor-${key}`,
+      type: 'spot',
+      actor: { id: userId || key, ...showcaseActor },
+      title: 'Scope activity',
+      excerpt: '',
+      createdAt: new Date(0).toISOString(),
+      targetId: '',
+    }).actor;
+  }
+
+  const suffix = key.slice(0, 8) || 'scope';
+  return sanitizeFeedItem({
+    id: `actor-${suffix}`,
+    type: 'spot',
+    actor: {
+      id: userId || suffix,
+      username: `traveler-${suffix}`,
+      email: '',
+      displayName: `Traveler ${suffix}`,
+      interests: [],
+      stats: { spots: 8, trips: 3, friends: 32 },
+      showActivityStatus: true,
+    },
+    title: 'Scope activity',
+    excerpt: '',
+    createdAt: new Date(0).toISOString(),
+    targetId: '',
+  }).actor;
+}
+
+function getReviewUserId(review: Review): string | undefined {
+  const wireReview = review as Review & { user_id?: unknown; userId?: unknown };
+  if (typeof wireReview.user_id === 'string') {
+    return wireReview.user_id;
+  }
+  if (typeof wireReview.userId === 'string') {
+    return wireReview.userId;
+  }
+  return review.user?.id;
+}
+
+function getReviewCreatedAt(review: Review): string {
+  const wireReview = review as Review & { created_at?: unknown; createdAt?: unknown };
+  if (typeof wireReview.created_at === 'string') {
+    return wireReview.created_at;
+  }
+  if (typeof wireReview.createdAt === 'string') {
+    return wireReview.createdAt;
+  }
+  return new Date(0).toISOString();
+}
+
+function buildStarterReviewItem(spot: SpotSummary, review: Review): FeedItem {
+  const actor = resolveShowcaseActor(getReviewUserId(review));
+  const rating = Number(review.rating);
+  const ratingLabel = Number.isFinite(rating) ? `${rating.toFixed(1).replace(/\.0$/, '')}/5` : 'Review';
+
+  return sanitizeFeedItem({
+    id: `review-${review.id || `${spot.id}-${actor.id}`}`,
+    type: 'review',
+    actor,
+    title: `${actor.displayName} reviewed ${spot.title}`,
+    excerpt: review.comment ? `${ratingLabel}: ${review.comment}` : `${ratingLabel} rating for ${spot.title}`,
+    createdAt: getReviewCreatedAt(review),
+    imageUrl: spot.photoUrl,
+    targetId: spot.id,
+    targetPath: buildSpotPath(spot),
+  });
+}
+
+async function getSpotReviewsForStarterFeed(spot: SpotSummary): Promise<FeedItem[]> {
+  const { data } = await api.get<ApiEnvelope<Review[]> | Review[]>(`${REVIEWS_BASE_PATH}/spot/${spot.id}`);
+  const reviews = normalizeArrayEnvelopeData({ data: 'data' in data ? data.data : data as Review[] });
+  return reviews.map((review) => buildStarterReviewItem(spot, review as Review));
+}
+
+async function buildPublicStarterReviewFeed(page: number, pageSize: number): Promise<ApiEnvelope<FeedItem[]>> {
+  const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${FEED_BASE_PATH}/trending`, {
+    params: { limit: STARTER_REVIEW_SPOT_LIMIT },
+  });
+  const spots = sanitizeSpotEnvelope(data).data;
+  const reviewGroups = await Promise.allSettled(spots.map((spot) => getSpotReviewsForStarterFeed(spot)));
+  const reviewItems = reviewGroups
+    .flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  const starterItems = reviewItems.length
+    ? reviewItems
+    : spots.map((spot) => sanitizeFeedItem({
+      id: `spot-${spot.id}`,
+      type: 'spot',
+      actor: resolveShowcaseActor(spot.userId),
+      title: `${resolveShowcaseActor(spot.userId).displayName} pinned ${spot.title}`,
+      excerpt: spot.description || `${spot.city || 'Scope'} place worth saving.`,
+      createdAt: spot.createdAt,
+      imageUrl: spot.photoUrl,
+      targetId: spot.id,
+      targetPath: buildSpotPath(spot),
+    }));
+
+  return paginateItems(starterItems, page, pageSize || DEFAULT_FALLBACK_PAGE_SIZE);
+}
+
 function rememberLiveFeed(items: FeedItem[]): void {
   if (items.length) {
     hasObservedLiveFeedData = true;
@@ -138,22 +346,67 @@ function rememberLiveTrending(spots: SpotSummary[]): void {
   }
 }
 
+function hasPrivateFeedAccess(): boolean {
+  return Boolean(getAccessToken().trim());
+}
+
 export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): Promise<ApiEnvelope<FeedItem[]>> {
   if (DEMO_MODE_ENABLED) {
     return buildMockFeedEnvelope(page, pageSize);
   }
 
+  if (!hasPrivateFeedAccess()) {
+    let emptyStarterFeed: ApiEnvelope<FeedItem[]> | null = null;
+
+    try {
+      const starterFeed = await buildPublicStarterReviewFeed(page, pageSize);
+      if (starterFeed.data.length) {
+        return starterFeed;
+      }
+      emptyStarterFeed = starterFeed;
+    } catch (error) {
+      if (!FEED_READ_FALLBACK_ENABLED) {
+        throw error;
+      }
+    }
+
+    if (!FEED_READ_FALLBACK_ENABLED && emptyStarterFeed) {
+      return emptyStarterFeed;
+    }
+
+    return buildMockFeedEnvelope(page, pageSize);
+  }
+
+  let liveFeedError: unknown = null;
+  let emptyLiveFeed: ApiEnvelope<FeedItem[]> | null = null;
   try {
     const { data } = await api.get<ApiEnvelope<FeedItem[]>>(FEED_LIST_PATH, { params: { page, pageSize } });
     const sanitizedEnvelope = sanitizeFeedEnvelope(data);
     rememberLiveFeed(sanitizedEnvelope.data);
-    if (sanitizedEnvelope.data.length || hasObservedLiveFeedData || !FEED_READ_FALLBACK_ENABLED) {
+    if (sanitizedEnvelope.data.length || hasObservedLiveFeedData) {
       return sanitizedEnvelope;
     }
+    emptyLiveFeed = sanitizedEnvelope;
   } catch (error) {
-    if (!FEED_READ_FALLBACK_ENABLED) {
-      throw error;
+    liveFeedError = error;
+  }
+
+  try {
+    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize);
+    if (starterFeed.data.length) {
+      return starterFeed;
     }
+  } catch {
+    // If the public starter feed is unavailable, fall through to the existing
+    // configured fallback behavior.
+  }
+
+  if (!FEED_READ_FALLBACK_ENABLED && liveFeedError) {
+    throw liveFeedError;
+  }
+
+  if (!FEED_READ_FALLBACK_ENABLED && emptyLiveFeed) {
+    return emptyLiveFeed;
   }
 
   return buildMockFeedEnvelope(page, pageSize);

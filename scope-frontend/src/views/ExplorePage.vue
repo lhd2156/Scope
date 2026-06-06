@@ -321,7 +321,7 @@
             <RouterLink
               v-for="(spot, index) in displayedSpots"
               :key="spot.id"
-              :to="`/spots/${spot.id}`"
+              :to="buildSpotPath(spot)"
               class="explore-card glass-panel"
               :style="{ '--scope-stagger-index': index }"
               data-test="explore-card"
@@ -386,7 +386,7 @@
           </div>
           <ol v-else-if="trendingSpots.length" class="trending-list stagger-in" data-test="trending-list">
             <li v-for="(spot, index) in trendingSpots" :key="`trending-${spot.id}`" :style="{ '--scope-stagger-index': index }">
-              <RouterLink :to="`/spots/${spot.id}`" class="trending-item" data-test="trending-item">
+              <RouterLink :to="buildSpotPath(spot)" class="trending-item" data-test="trending-item">
                 <div class="trending-item__lead">
                   <span class="trending-item__rank" :aria-label="`Rank ${index + 1}`">#{{ index + 1 }}</span>
                   <div class="trending-item__thumb-wrap">
@@ -446,6 +446,7 @@ import {
 } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { rankTrendingSpots } from '@/utils/spotRanking';
+import { buildSpotPath } from '@/utils/spotRoutes';
 import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
 
 const EXPLORE_MOBILE_BREAKPOINT = 640;
@@ -787,7 +788,7 @@ function formatRecommendationMeta(spot: SearchPlaceSuggestion): string {
 
 async function openExploreRecommendation(spot: SearchPlaceSuggestion): Promise<void> {
   void recordSearchPlaceSuggestionClick(spot);
-  await router.push(`/spots/${encodeURIComponent(spot.id)}`);
+  await router.push(buildSpotPath(spot));
 }
 
 function clearLocationFilters() {

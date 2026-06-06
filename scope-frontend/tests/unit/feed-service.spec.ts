@@ -79,6 +79,7 @@ describe('feed service contracts', () => {
     const fixtures = mockData();
     vi.doMock('@/services/demoMode', () => mockDemoMode(true));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
       default: {
         get: vi.fn(),
         put: vi.fn(),
@@ -130,6 +131,7 @@ describe('feed service contracts', () => {
 
     vi.doMock('@/services/demoMode', () => mockDemoMode(false));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
       default: { get, put: vi.fn() },
     }));
     vi.doMock('@/services/mockDataLoader', () => ({
@@ -163,6 +165,7 @@ describe('feed service contracts', () => {
 
     vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
       default: { get, put },
     }));
     vi.doMock('@/services/mockDataLoader', () => ({
@@ -216,6 +219,7 @@ describe('feed service contracts', () => {
     });
     vi.doMock('@/services/demoMode', () => mockDemoMode(true));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
       default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
     }));
     vi.doMock('@/services/mockDataLoader', () => ({
@@ -317,6 +321,7 @@ describe('feed service contracts', () => {
 
     vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
       default: { get, put, post },
     }));
     vi.doMock('@/services/mockDataLoader', () => ({
@@ -391,6 +396,7 @@ describe('feed service contracts', () => {
 
     vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
     vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
       default: { get, put: vi.fn(), post },
     }));
     vi.doMock('@/services/mockDataLoader', () => ({

@@ -8,7 +8,7 @@
           <p class="section-copy">Jump into the edit flow without leaving the premium detail layout.</p>
         </div>
         <div class="creator-actions">
-          <RouterLink class="action-link" :to="`/spots/${activeSpot.id}/edit`">Edit this spot</RouterLink>
+          <RouterLink class="action-link" :to="`${buildSpotPath(activeSpot)}/edit`">Edit this spot</RouterLink>
           <button
             type="button"
             class="action-link action-link--danger"
@@ -90,12 +90,14 @@ import Modal from '@/components/common/Modal.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import SpotDetail from '@/components/spots/SpotDetail.vue';
 import { logInteraction } from '@/services/interactionService';
+import { listSpots } from '@/services/spotService';
 import { useAuthStore } from '@/stores/auth';
 import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
 import type { SpotDetail as SpotDetailModel } from '@/types';
 import { formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
+import { buildSpotPath, buildSpotSlug, isUuidLike, normalizeSpotRouteParam } from '@/utils/spotRoutes';
 
 const SPOT_DETAIL_AUDIT_FIXTURE: SpotDetailModel = {
   id: 'audit-spot-1',
@@ -140,15 +142,85 @@ const notFound = ref(false);
 const showDeleteModal = ref(false);
 const deleteErrorMessage = ref('');
 const loadSpotRequestId = ref(0);
+const spotRouteIdCache = new Map<string, string>();
 
-const requestedSpotId = computed(() => String(route.params.id ?? ''));
+const requestedSpotId = computed(() => normalizeSpotRouteParam(String(route.params.id ?? '')));
 const auditSpot = computed<SpotDetailModel | null>(() => (
   isSpotDetailAuditMode && requestedSpotId.value === SPOT_DETAIL_AUDIT_FIXTURE.id
     ? SPOT_DETAIL_AUDIT_FIXTURE
     : null
 ));
-const activeSpot = computed(() => auditSpot.value ?? (spotsStore.selectedSpot?.id === requestedSpotId.value ? spotsStore.selectedSpot : null));
+
+function matchesSpotRouteParam(spot: Pick<SpotDetailModel, 'id' | 'title' | 'city' | 'country'>, routeParam: string): boolean {
+  const titleSlug = buildSpotSlug({ id: spot.id, title: spot.title });
+  return (
+    spot.id === routeParam ||
+    buildSpotSlug(spot) === routeParam ||
+    titleSlug === routeParam ||
+    routeParam.startsWith(`${titleSlug}-`)
+  );
+}
+
+const activeSpot = computed(() => {
+  if (auditSpot.value) {
+    return auditSpot.value;
+  }
+
+  const selectedSpot = spotsStore.selectedSpot;
+  if (!selectedSpot) {
+    return null;
+  }
+
+  return matchesSpotRouteParam(selectedSpot, requestedSpotId.value) ? selectedSpot : null;
+});
 const lastAuthenticatedSpotRefreshKey = ref('');
+
+function rememberSpotRoute(spot: Pick<SpotDetailModel, 'id' | 'title' | 'city' | 'country'>): void {
+  spotRouteIdCache.set(spot.id, spot.id);
+  spotRouteIdCache.set(buildSpotSlug(spot), spot.id);
+  spotRouteIdCache.set(buildSpotSlug({ id: spot.id, title: spot.title }), spot.id);
+}
+
+async function resolveSpotLookupId(routeParam: string): Promise<string> {
+  const selectedSpot = spotsStore.selectedSpot;
+  if (selectedSpot) {
+    rememberSpotRoute(selectedSpot);
+    if (matchesSpotRouteParam(selectedSpot, routeParam)) {
+      return selectedSpot.id;
+    }
+  }
+
+  const cachedSpotId = spotRouteIdCache.get(routeParam);
+  if (cachedSpotId) {
+    return cachedSpotId;
+  }
+
+  if (isUuidLike(routeParam)) {
+    return routeParam;
+  }
+
+  const response = await listSpots({ page: 1, pageSize: 100 });
+  response.data.forEach(rememberSpotRoute);
+  const matchedSpot = response.data.find((spot) => {
+    const titleSlug = buildSpotSlug({ id: spot.id, title: spot.title });
+    return matchesSpotRouteParam(spot, routeParam) || routeParam === titleSlug || routeParam.startsWith(`${titleSlug}-`);
+  });
+
+  return matchedSpot?.id ?? spotRouteIdCache.get(routeParam) ?? routeParam;
+}
+
+async function replaceRawSpotUrl(spot: SpotDetailModel): Promise<void> {
+  const polishedPath = buildSpotPath(spot);
+  if (route.name !== 'spot-detail' || route.path === polishedPath) {
+    return;
+  }
+
+  await router.replace({
+    path: polishedPath,
+    query: route.query,
+    hash: route.hash,
+  });
+}
 
 function resolveSpotOwnerId(spot: SpotDetailModel): string | undefined {
   return spot.author?.id ?? spot.userId;
@@ -224,16 +296,23 @@ async function loadSpot(spotId: string) {
   }
 
   try {
-    await spotsStore.fetchSpot(spotId);
+    const lookupSpotId = await resolveSpotLookupId(spotId);
+    const spot = await spotsStore.fetchSpot(lookupSpotId);
     if (!isCurrentRequest()) {
       return;
     }
 
+    rememberSpotRoute(spot);
     notFound.value = false;
+    if (isUuidLike(spotId) || spotId !== buildSpotSlug(spot)) {
+      await replaceRawSpotUrl(spot);
+    }
     // Successful detail load counts as a 'view'. Drives Intel's user affinity
     // model (see scope_intel/app/repositories.INTERACTION_WEIGHTS). Errors
     // are swallowed inside `logInteraction` -- ledger writes are best-effort.
-    logInteraction({ spotId, type: 'view', context: { source: 'detail' } });
+    if (authStore.isAuthenticated) {
+      logInteraction({ spotId: spot.id, type: 'view', context: { source: 'detail' } });
+    }
   } catch {
     if (isCurrentRequest()) {
       notFound.value = true;

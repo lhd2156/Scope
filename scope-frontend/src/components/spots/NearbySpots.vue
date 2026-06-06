@@ -12,7 +12,7 @@
       <RouterLink
         v-for="(spot, index) in nearbySpots"
         :key="spot.id"
-        :to="`/spots/${spot.id}`"
+        :to="buildSpotPath({ id: spot.id, title: spot.name })"
         class="nearby-card glass-panel"
         :style="{ '--scope-stagger-index': index }"
       >
@@ -41,6 +41,7 @@ import { RouterLink } from 'vue-router';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import { useSearchStore } from '@/stores/search';
 import type { SearchResult } from '@/services/searchService';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const props = withDefaults(
   defineProps<{

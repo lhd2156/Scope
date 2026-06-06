@@ -147,6 +147,7 @@ import { formatRelativeTime } from '@/utils/formatters';
 import { getFeedPhotoFallback, resolveFeedImageUrl } from '@/utils/imageFallbacks';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const props = withDefaults(
   defineProps<{
@@ -265,6 +266,8 @@ const ACTION_START_WORDS = new Set([
   'shared',
 ]);
 
+const FEED_SPOT_ACTION_PATTERN = /\b(?:pinned|reviewed|dropped|saved)\s+(.+)$/i;
+
 function trimActorPrefix(title: string, actor: FeedItemModel['actor']): string {
   const normalizedTitle = title.trim();
   const actorPrefixes = [
@@ -338,10 +341,26 @@ function resolveActivityLabel(title: string, type: FeedItemModel['type']): strin
   return type === 'trip' ? 'Trip activity' : 'Spot activity';
 }
 
+function resolveSpotTitleFromFeedItem(item: FeedItemModel): string {
+  const matchedTitle = item.title.match(FEED_SPOT_ACTION_PATTERN)?.[1]?.trim();
+  return matchedTitle || item.title;
+}
+
+function resolveSpotDestinationRoute(item: FeedItemModel): string {
+  if (item.targetPath?.startsWith('/spots/')) {
+    return item.targetPath;
+  }
+
+  return buildSpotPath({
+    id: item.targetId,
+    title: resolveSpotTitleFromFeedItem(item),
+  });
+}
+
 const activityLabel = computed(() => resolveActivityLabel(props.item.title, props.item.type));
 const headlineCopy = computed(() => resolveHeadlineCopy(props.item.title, props.item.actor));
 const relativeTime = computed(() => formatRelativeTime(props.item.createdAt));
-const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : `/spots/${props.item.targetId}`));
+const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : resolveSpotDestinationRoute(props.item)));
 const typeLabel = computed(() => {
   if (props.item.type === 'trip') {
     return 'Trip update';
