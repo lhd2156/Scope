@@ -512,7 +512,8 @@ async fn run_seed(args: SeedArgs, context: &AppContext) -> CliResult {
 
     let mut executed_batches = 0usize;
     for entry in &entries {
-        let sql = fs::read_to_string(&entry.path)?;
+        let sql =
+            expand_seed_sql_variables(&fs::read_to_string(&entry.path)?, &database_config);
         for (batch_index, batch) in split_sql_batches(&sql).into_iter().enumerate() {
             connection
                 .simple_query(batch.as_str())
@@ -639,6 +640,48 @@ fn numeric_prefix(value: &str) -> u32 {
         .take_while(|character| character.is_ascii_digit())
         .collect::<String>();
     digits.parse::<u32>().unwrap_or(u32::MAX)
+}
+
+fn expand_seed_sql_variables(sql: &str, database_config: &DatabaseConfig) -> String {
+    let mut expanded = String::with_capacity(sql.len());
+    let mut cursor = 0usize;
+
+    while let Some(start_offset) = sql[cursor..].find("$(") {
+        let start = cursor + start_offset;
+        let name_start = start + 2;
+
+        let Some(end_offset) = sql[name_start..].find(')') else {
+            break;
+        };
+
+        let end = name_start + end_offset;
+        expanded.push_str(&sql[cursor..start]);
+
+        if let Some(value) = seed_sql_variable_value(&sql[name_start..end], database_config) {
+            expanded.push_str(&escape_sql_string_fragment(value));
+        } else {
+            expanded.push_str(&sql[start..=end]);
+        }
+
+        cursor = end + 1;
+    }
+
+    expanded.push_str(&sql[cursor..]);
+    expanded
+}
+
+fn seed_sql_variable_value<'a>(name: &str, database_config: &'a DatabaseConfig) -> Option<&'a str> {
+    match name {
+        "DB_HOST" | "SCOPE_DB_HOST" => Some(&database_config.host),
+        "DB_NAME" | "SCOPE_DB_NAME" => Some(&database_config.database),
+        "DB_USER" | "SCOPE_DB_USER" => Some(&database_config.user),
+        "DB_PASSWORD" | "SCOPE_DB_PASSWORD" => Some(&database_config.password),
+        _ => None,
+    }
+}
+
+fn escape_sql_string_fragment(value: &str) -> String {
+    value.replace('\'', "''")
 }
 
 fn split_sql_batches(sql: &str) -> Vec<String> {
@@ -1991,6 +2034,27 @@ EXTRA_KEY=1\n\
         assert_eq!(names[0], ("zeta/010_extra.sql".to_string(), 2));
         assert_eq!(names[1], ("core/abc_core.sql".to_string(), 1));
         assert_eq!(numeric_prefix("abc_core.sql"), u32::MAX);
+    }
+
+    #[test]
+    fn seed_sql_variable_expansion_uses_resolved_database_config() {
+        let config = DatabaseConfig {
+            host: "sqlserver".to_string(),
+            port: 1433,
+            database: "ScopeDb".to_string(),
+            user: "scope_app".to_string(),
+            password: "pa'ss$(DB_USER)".to_string(),
+            trust_cert: true,
+        };
+
+        let sql = "SELECT N'$(DB_PASSWORD)' AS password, N'$(DB_USER)' AS username, N'$(UNKNOWN)' AS unknown;";
+
+        let expanded = expand_seed_sql_variables(sql, &config);
+
+        assert_eq!(
+            expanded,
+            "SELECT N'pa''ss$(DB_USER)' AS password, N'scope_app' AS username, N'$(UNKNOWN)' AS unknown;"
+        );
     }
 
     #[test]
