@@ -15,6 +15,9 @@
         <p class="section-copy auth-card__description">
           Keep your routes, wishlists, and collaborative trip plans moving across every device.
         </p>
+        <p v-if="isSaveIntent" class="auth-intent-message" role="status">
+          Sign in to save this spot and keep it synced across your trips.
+        </p>
       </header>
 
       <form class="auth-form" novalidate @submit.prevent="submit">
@@ -76,14 +79,14 @@
 
       <p class="form-note">
         New here?
-        <RouterLink to="/register">Create an account</RouterLink>
+        <RouterLink :to="registerRoute">Create an account</RouterLink>
       </p>
     </article>
   </AuthSplitShell>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AuthField from '@/components/auth/AuthField.vue';
 import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
@@ -111,6 +114,14 @@ const fieldErrors = ref<LoginFormErrors>({});
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
+const isSaveIntent = computed(() => route.query.intent === 'save');
+const registerRoute = computed(() => ({
+  path: '/register',
+  query: {
+    ...(route.query.redirect ? { redirect: String(route.query.redirect) } : {}),
+    ...(isSaveIntent.value ? { intent: 'save' } : {}),
+  },
+}));
 
 function resolveRedirectTarget() {
   return sanitizeInternalRouteTarget(route.query.redirect, '/map');
@@ -234,6 +245,16 @@ async function loginWithGoogle() {
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.auth-intent-message {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 32%, var(--glass-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  color: var(--text-primary);
   font-weight: var(--font-weight-medium);
 }
 

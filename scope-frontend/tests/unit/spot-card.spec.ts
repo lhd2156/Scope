@@ -144,6 +144,7 @@ describe('SpotCard', () => {
 
     expect(router.currentRoute.value.path).toBe('/login');
     expect(router.currentRoute.value.query.redirect).toBe('/');
+    expect(router.currentRoute.value.query.intent).toBe('save');
     expect(toastStore.items[0]).toMatchObject({
       title: 'Sign in to save',
     });

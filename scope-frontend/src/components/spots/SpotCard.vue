@@ -96,7 +96,7 @@ function promptLoginToSave(): void {
   });
 
   const redirectTarget = router.currentRoute.value.fullPath || spotPath.value;
-  router.push({ path: '/login', query: { redirect: redirectTarget } }).catch(() => undefined);
+  router.push({ path: '/login', query: { redirect: redirectTarget, intent: 'save' } }).catch(() => undefined);
 }
 
 async function toggleSaved() {
