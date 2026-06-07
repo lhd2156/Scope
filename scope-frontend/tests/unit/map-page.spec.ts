@@ -392,7 +392,7 @@ describe('MapPage', () => {
     expect(mapInteractionTrackMock).toHaveBeenNthCalledWith(3, 'category_reset');
   });
 
-  it('keeps the featured route off the map until it is previewed or pinned', async () => {
+  it('keeps the featured route off the map until the card is clicked', async () => {
     const wrapper = mountMapPage();
 
     await flushPromises();
@@ -405,14 +405,14 @@ describe('MapPage', () => {
     await routeCard.trigger('mouseenter');
     await flushPromises();
 
-    expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
+    expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');
 
     await routeCard.trigger('mouseleave');
     await flushPromises();
 
     expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');
 
-    await wrapper.get('[data-test="map-featured-route-toggle"]').trigger('click');
+    await routeCard.trigger('click');
     await flushPromises();
 
     expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
@@ -423,7 +423,7 @@ describe('MapPage', () => {
 
     expect(mapViewText()).toContain('2 spots / 2 route points / 2 route coords /');
 
-    await wrapper.get('[data-test="map-featured-route-toggle"]').trigger('click');
+    await routeCard.trigger('click');
     await flushPromises();
 
     expect(mapViewText()).toContain('2 spots / 0 route points / 0 route coords /');

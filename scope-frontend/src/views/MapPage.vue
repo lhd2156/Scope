@@ -89,11 +89,15 @@
                 'route-card--map-preview-pinned': isFeaturedRoutePreviewPinned,
               }"
               style="--scope-stagger-index: 1;"
+              role="button"
+              tabindex="0"
+              :aria-pressed="String(isFeaturedRoutePreviewPinned)"
+              :aria-disabled="String(!canPreviewFeaturedRouteOnMap)"
+              :aria-label="isFeaturedRouteMapVisible ? 'Hide featured route on map' : 'Show featured route on map'"
               data-test="map-featured-route-card"
-              @mouseenter="handleFeaturedRoutePreviewEnter"
-              @mouseleave="handleFeaturedRoutePreviewLeave"
-              @focusin="handleFeaturedRoutePreviewEnter"
-              @focusout="handleFeaturedRoutePreviewFocusOut"
+              @click="handleFeaturedRouteCardClick"
+              @keydown.enter.prevent="handleFeaturedRouteCardClick"
+              @keydown.space.prevent="handleFeaturedRouteCardClick"
             >
               <div class="panel-heading route-heading">
                 <div class="route-heading-copy">
@@ -102,21 +106,6 @@
                 </div>
                 <div class="route-heading-actions">
                   <span class="route-destination-pill">{{ routeDestinationDisplay }}</span>
-                  <button
-                    v-if="canPreviewFeaturedRouteOnMap"
-                    type="button"
-                    class="route-map-toggle"
-                    data-test="map-featured-route-toggle"
-                    :class="{ 'is-active': isFeaturedRouteMapVisible }"
-                    :aria-pressed="String(isFeaturedRoutePreviewPinned)"
-                    @click="handleFeaturedRouteMapToggle"
-                  >
-                    <ScopeIcon
-                      :name="isFeaturedRouteMapVisible ? 'eye-off' : 'route'"
-                      :label="isFeaturedRouteMapVisible ? 'Hide route on map' : 'Show route on map'"
-                    />
-                    <span>{{ isFeaturedRoutePreviewPinned ? 'Hide route' : 'Show route' }}</span>
-                  </button>
                 </div>
               </div>
 
@@ -504,7 +493,6 @@ const hasLoadedSpotData = ref(false);
 const hasLoadedTripData = ref(false);
 const localPreviewSpots = ref<SpotSummary[]>([]);
 const localPreviewTrip = ref<MapRoutePreviewTrip | null>(null);
-const isFeaturedRoutePreviewHovered = ref(false);
 const isFeaturedRoutePreviewPinned = ref(false);
 const mobileSheetState = ref<MobileSheetState>('peek');
 const isDraggingMobileSheet = ref(false);
@@ -846,7 +834,7 @@ const hasSelectedMapCategories = computed(() => mapStore.activeCategories.length
 const canPreviewFeaturedRouteOnMap = computed(() => hasSelectedMapCategories.value && routeSourcePoints.value.length > 1);
 const isFeaturedRouteMapVisible = computed(() => (
   canPreviewFeaturedRouteOnMap.value
-  && (isFeaturedRoutePreviewHovered.value || isFeaturedRoutePreviewPinned.value)
+  && isFeaturedRoutePreviewPinned.value
 ));
 const mapRoutePoints = computed(() => (isFeaturedRouteMapVisible.value ? routePoints.value : []));
 const mapRouteGeometry = computed(() => (isFeaturedRouteMapVisible.value ? routeGeometry.value : []));
@@ -1210,34 +1198,12 @@ function handleMapInteraction(payload: { type: string }) {
   recordMapInteraction(payload.type);
 }
 
-function handleFeaturedRoutePreviewEnter() {
-  if (!canPreviewFeaturedRouteOnMap.value) {
-    return;
-  }
-
-  isFeaturedRoutePreviewHovered.value = true;
-}
-
-function handleFeaturedRoutePreviewLeave() {
-  isFeaturedRoutePreviewHovered.value = false;
-}
-
-function handleFeaturedRoutePreviewFocusOut(event: FocusEvent) {
-  const currentTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-  const relatedTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-
-  if (!currentTarget || !relatedTarget || !currentTarget.contains(relatedTarget)) {
-    isFeaturedRoutePreviewHovered.value = false;
-  }
-}
-
-function handleFeaturedRouteMapToggle() {
+function handleFeaturedRouteCardClick() {
   if (!canPreviewFeaturedRouteOnMap.value) {
     return;
   }
 
   isFeaturedRoutePreviewPinned.value = !isFeaturedRoutePreviewPinned.value;
-  isFeaturedRoutePreviewHovered.value = isFeaturedRoutePreviewPinned.value;
   handleMapInteraction({
     type: isFeaturedRoutePreviewPinned.value ? 'featured_route_pin' : 'featured_route_unpin',
   });
@@ -1724,6 +1690,10 @@ onBeforeUnmount(() => {
   align-items: stretch;
 }
 
+.route-metrics span:last-child {
+  grid-column: 1 / -1;
+}
+
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -1861,12 +1831,30 @@ onBeforeUnmount(() => {
 .route-card {
   min-width: 0;
   width: 100%;
+  cursor: pointer;
   background:
     linear-gradient(
       180deg,
       color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary) 4%),
       color-mix(in srgb, var(--bg-tertiary) 92%, var(--bg-primary) 8%)
     );
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.route-card:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 3px color-mix(in srgb, var(--accent-teal) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
+}
+
+.route-card[aria-disabled='true'] {
+  cursor: default;
 }
 
 .route-card > * {
@@ -1913,53 +1901,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.78rem;
-}
-
-.route-map-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.42rem;
-  min-height: 2.15rem;
-  max-width: 100%;
-  padding: 0.42rem 0.72rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 18%, var(--glass-border));
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg-secondary) 86%, var(--bg-primary) 14%);
-  color: color-mix(in srgb, var(--text-primary) 88%, var(--accent-teal) 12%);
-  font-size: 0.78rem;
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
-  transition:
-    transform var(--transition-fast),
-    border-color var(--transition-fast),
-    background var(--transition-fast),
-    color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-
-.route-map-toggle:hover,
-.route-map-toggle:focus-visible,
-.route-map-toggle.is-active {
-  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--border-hover));
-  background: color-mix(in srgb, var(--accent-teal) 16%, var(--bg-secondary) 84%);
-  color: var(--accent-teal);
-  outline: none;
-  box-shadow:
-    0 0.65rem 1.4rem color-mix(in srgb, var(--accent-teal) 10%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
-}
-
-.route-map-toggle:active {
-  transform: translateY(0) scale(var(--motion-press-scale));
-}
-
-.route-map-toggle :deep(.scope-icon) {
-  width: 0.92rem;
-  height: 0.92rem;
 }
 
 .route-preview {
@@ -2157,7 +2098,7 @@ onBeforeUnmount(() => {
 .route-metrics :deep(.scope-icon) {
   width: 1rem;
   height: 1rem;
-  color: color-mix(in srgb, var(--accent-gold) 48%, var(--accent-teal) 52%);
+  color: var(--accent-teal);
   opacity: 0.92;
 }
 
@@ -3019,12 +2960,6 @@ onBeforeUnmount(() => {
     padding: 0.36rem 0.62rem;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.72rem;
-  }
-
-  .map-sidebar--mobile .route-map-toggle {
-    min-height: 2rem;
-    padding: 0.36rem 0.62rem;
     font-size: 0.72rem;
   }
 
