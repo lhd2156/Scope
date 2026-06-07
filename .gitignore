@@ -81,6 +81,8 @@ playwright-report/
 **/.playwright-cli/
 **/.playwright-mcp/
 **/.playwright-browsers/
+.wrangler-config/
+**/.deploy-pages/
 output/
 **/output/
 **/snaps/
@@ -159,6 +161,7 @@ terraform/backend.hcl
 
 # Local QA screenshots / one-off browser captures
 /spot-composer-*.png
+/scope-frontend/production-review-*.png
 /weather-provider-hidden-check.png
 /scope-frontend/coverage-summary-saved.json
 /scope-metrics/coverage

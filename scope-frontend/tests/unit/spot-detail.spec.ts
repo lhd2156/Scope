@@ -255,6 +255,41 @@ describe('SpotDetail', () => {
     expect(wrapper.find('.hero-gallery__copy').text()).toContain('Side bridge detail');
   });
 
+  it('uses a view-all tile when a spot has more than five photos', async () => {
+    const largeGallerySpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-large-gallery',
+      title: 'Full Gallery Stop',
+      photoUrl: 'https://images.example.com/full-main.jpg',
+      photos: [
+        { id: 'full-main', url: 'https://images.example.com/full-main.jpg', caption: 'Main view' },
+        { id: 'full-extra-1', url: 'https://images.example.com/full-extra-1.jpg', caption: 'Entry angle' },
+        { id: 'full-extra-2', url: 'https://images.example.com/full-extra-2.jpg', caption: 'Side angle' },
+        { id: 'full-extra-3', url: 'https://images.example.com/full-extra-3.jpg', caption: 'Table angle' },
+        { id: 'full-extra-4', url: 'https://images.example.com/full-extra-4.jpg', caption: 'Corner angle' },
+        { id: 'full-extra-5', url: 'https://images.example.com/full-extra-5.jpg', caption: 'Street angle' },
+        { id: 'full-extra-6', url: 'https://images.example.com/full-extra-6.jpg', caption: 'Night angle' },
+      ],
+    };
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: largeGallerySpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('7 photos');
+    expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
+    expect(wrapper.get('[data-test="gallery-view-all"]').text()).toContain('View all');
+    expect(wrapper.get('[data-test="gallery-view-all"]').text()).toContain('7 photos');
+  });
+
   it('uses intentional blank gallery slots when no real spot photos are available', async () => {
     const noPhotoSpot: SpotDetailModel = {
       ...spot,
@@ -537,7 +572,7 @@ describe('SpotDetail', () => {
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('1 photo');
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(0);
     expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(4);
-    expect(wrapper.text()).toContain('Scope location pending');
+    expect(wrapper.text()).toContain('Location syncing');
     expect(wrapper.text()).toContain('No similar spots yet');
     expect(wrapper.text()).toContain('Fresh saves');
     expect(wrapper.text()).toContain('Flexible discovery stop');

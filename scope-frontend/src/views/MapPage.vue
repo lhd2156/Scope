@@ -566,7 +566,7 @@ function formatRouteDistance(meters: number): string {
 }
 
 function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
-  const locationLabel = formatCityRegionLocation(spot, 'Scope location').trim();
+  const locationLabel = formatCityRegionLocation(spot, '').trim();
   const countryBadge = formatSpotCountryBadge(spot.country);
   const countrySuffix = `, ${countryBadge}`;
 
@@ -574,7 +574,7 @@ function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
     return locationLabel.slice(0, -countrySuffix.length);
   }
 
-  return locationLabel;
+  return locationLabel || 'Location syncing';
 }
 
 function formatSpotCountryBadge(country: string | undefined): string {
@@ -694,8 +694,8 @@ function toWorkspaceSpot(spot: SpotSummary): MapWorkspaceSpot {
     latitude: spot.latitude,
     longitude: spot.longitude,
     category: spot.category,
-    city: spot.city ?? 'Scope location',
-    country: spot.country ?? 'US',
+    city: spot.city ?? '',
+    country: spot.country ?? '',
     vibe: spot.vibe ?? formatCategory(spot.category),
     rating: spot.rating,
     photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
@@ -1686,12 +1686,13 @@ onBeforeUnmount(() => {
 .route-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
+  gap: 0.68rem;
   align-items: stretch;
+  width: 100%;
 }
 
 .route-metrics span:last-child {
-  grid-column: 1 / -1;
+  grid-column: 1 / 2;
 }
 
 .filter-chip {
@@ -2074,16 +2075,18 @@ onBeforeUnmount(() => {
 }
 
 .route-footer {
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  align-items: stretch;
+  gap: var(--space-4);
 }
 
 .route-metrics span {
   justify-content: flex-start;
-  gap: 0.45rem;
+  gap: 0.5rem;
   min-width: 0;
   width: 100%;
-  padding: 0.48rem 0.58rem;
+  min-height: 2.28rem;
+  padding: 0.54rem 0.7rem;
   font-size: 0.8rem;
   font-weight: var(--font-weight-medium);
   color: color-mix(in srgb, var(--text-primary) 92%, var(--highlight-sheen) 8%);

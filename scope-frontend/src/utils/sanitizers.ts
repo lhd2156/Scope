@@ -180,8 +180,12 @@ type TripWireFields = Partial<Trip> & {
 };
 
 type FeedWireFields = Partial<FeedItem> & {
+  activity_type?: unknown;
+  activityType?: unknown;
   created_at?: unknown;
   image_url?: unknown;
+  target_type?: unknown;
+  targetType?: unknown;
   target_location?: unknown;
   target_path?: unknown;
   target_id?: unknown;
@@ -190,6 +194,42 @@ type FeedWireFields = Partial<FeedItem> & {
 
 interface FeedSanitizerOptions {
   allowGeneratedActorAvatar?: boolean;
+}
+
+function resolveFeedItemType(
+  item: FeedItem,
+  wireItem: FeedWireFields,
+  nestedItem: Record<string, unknown>,
+): FeedItem['type'] {
+  const rawType = optionalWireString((item as FeedItem & { type?: unknown }).type);
+  const activityType =
+    optionalWireString(wireItem.activityType) ??
+    optionalWireString(wireItem.activity_type) ??
+    optionalWireString(nestedItem.activityType) ??
+    optionalWireString(nestedItem.activity_type);
+  const targetType =
+    optionalWireString(wireItem.targetType) ??
+    optionalWireString(wireItem.target_type) ??
+    optionalWireString(nestedItem.targetType) ??
+    optionalWireString(nestedItem.target_type);
+  const normalizedSignals = [rawType, activityType, targetType]
+    .map((value) => value?.toLowerCase() ?? '')
+    .filter(Boolean);
+  const titleSignal = sanitizeSingleLineText(item.title).toLowerCase();
+
+  if (
+    normalizedSignals.some((signal) => signal.includes('review')) ||
+    /\breviewed\b/.test(titleSignal) ||
+    /\breview\s+(?:of|for)\b/.test(titleSignal)
+  ) {
+    return 'review';
+  }
+
+  if (normalizedSignals.some((signal) => signal.includes('trip'))) {
+    return 'trip';
+  }
+
+  return 'spot';
 }
 
 interface FriendSanitizerOptions {
@@ -781,7 +821,7 @@ export function sanitizeFeedItem(
   const nestedItem = wireItem.item && typeof wireItem.item === 'object'
     ? wireItem.item as Record<string, unknown>
     : {};
-  const type = item.type === 'trip' || item.type === 'review' ? item.type : 'spot';
+  const type = resolveFeedItemType(item, wireItem, nestedItem);
   const nestedTitle = optionalWireString(nestedItem.title);
   const fallbackTitle = nestedTitle
     ? `${type === 'trip' ? 'Planned' : type === 'review' ? 'Reviewed' : 'Pinned'} ${nestedTitle}`
