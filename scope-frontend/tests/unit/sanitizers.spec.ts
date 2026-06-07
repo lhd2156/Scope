@@ -270,4 +270,48 @@ describe('sanitizers', () => {
       interests: [],
     });
   });
+
+  it('resolves seeded repeated-digit review IDs to showcase personas', () => {
+    const sanitized = sanitizeSpotDetail({
+      id: 'spot-live-2',
+      title: 'Seeded River Walk',
+      latitude: 29.4241,
+      longitude: -98.4936,
+      category: 'scenic',
+      rating: '4.7',
+      created_at: '2026-05-22T16:20:00Z',
+      photos: [],
+      reviews: [
+        {
+          id: 'review-live-2',
+          spot_id: 'spot-live-2',
+          user_id: '44444444-4444-4444-4444-444444444444',
+          rating: '4.8',
+          comment: 'Worth saving because it anchors the route.',
+          created_at: '2026-05-22T16:30:00Z',
+        },
+        {
+          id: 'review-live-3',
+          spot_id: 'spot-live-2',
+          user_id: '66666666-6666-6666-6666-666666666666',
+          rating: '4.7',
+          comment: 'The kind of stop that makes the city feel less abstract.',
+          created_at: '2026-05-22T16:35:00Z',
+        },
+      ],
+    } as unknown as SpotDetail);
+
+    expect(sanitized.reviews.map((review) => review.user.displayName)).toEqual([
+      'Sofia Ramirez',
+      'Aisha Bello',
+    ]);
+    expect(sanitized.reviews.map((review) => review.user.username)).toEqual([
+      'sofia.ramirez',
+      'aisha.bello',
+    ]);
+    expect(sanitized.reviews.map((review) => review.user.avatarUrl)).toEqual([
+      expect.stringContaining('pexels-photo-1181686'),
+      expect.stringContaining('pexels-photo-733872'),
+    ]);
+  });
 });

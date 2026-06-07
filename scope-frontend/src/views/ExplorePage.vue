@@ -151,11 +151,11 @@
                   </button>
 
                   <div
-                  v-if="isRegionMenuOpen && availableExploreRegions.length"
+                    v-if="isRegionMenuOpen && availableExploreRegions.length"
                     :id="regionMenuId"
                     class="state-filter__menu"
                     role="listbox"
-                    aria-label="Filter cities by region"
+                    aria-label="Filter cities by country or region"
                     data-test="state-filter-menu"
                   >
                     <button
@@ -167,7 +167,7 @@
                       data-test="state-filter-option"
                       @click="selectRegion('')"
                     >
-                      <span>All regions</span>
+                      <span>All countries & regions</span>
                     </button>
                     <button
                       v-for="region in availableExploreRegions"
@@ -180,7 +180,8 @@
                       data-test="state-filter-option"
                       @click="selectRegion(region.value)"
                     >
-                      <span>{{ formatRegionLabel(region.value) }}</span>
+                      <span>{{ region.label }}</span>
+                      <small>{{ region.count }}</small>
                     </button>
                   </div>
                 </div>
@@ -227,46 +228,26 @@
               </div>
 
               <div class="quick-filter-actions quick-filter-actions--vibes">
-                <input
-                  v-if="availableExploreVibes.length > MAX_VISIBLE_VIBE_FILTERS"
-                  v-model="vibeSearchQuery"
-                  type="search"
-                  class="vibe-filter-input"
-                  aria-label="Filter vibes"
-                  placeholder="Filter vibes"
-                  data-test="vibe-search"
-                >
-                <button v-if="selectedVibe || vibeSearchQuery" type="button" class="text-reset" @click="clearVibeFilters">Reset</button>
+                <label class="vibe-select" for="explore-vibe-filter">
+                  <select
+                    id="explore-vibe-filter"
+                    v-model="selectedVibe"
+                    class="vibe-select__control"
+                    data-test="vibe-select"
+                    aria-label="Filter by vibe"
+                  >
+                    <option value="">Any vibe</option>
+                    <option v-for="vibe in availableExploreVibes" :key="vibe" :value="vibe">
+                      {{ formatVibeLabel(vibe) }}
+                    </option>
+                  </select>
+                  <ScopeIcon class="vibe-select__icon" name="chevron-down" label="" />
+                </label>
               </div>
             </div>
-            <div class="quick-filter-row">
-              <button type="button" class="quick-filter-chip" :class="{ active: !selectedVibe }" @click="selectedVibe = ''">Any vibe</button>
-              <span v-if="vibeSearchQuery && !visibleExploreVibes.length" class="quick-filter-chip quick-filter-chip--empty" data-test="vibe-chip-empty">
-                No matching vibes.
-              </span>
-              <button
-                v-for="vibe in visibleExploreVibes"
-                :key="vibe"
-                type="button"
-                class="quick-filter-chip"
-                :class="{ active: selectedVibe === vibe }"
-                data-test="vibe-chip"
-                @click="toggleVibe(vibe)"
-              >
-                {{ formatVibeLabel(vibe) }}
-              </button>
-              <button
-                v-if="vibeOverflowButtonLabel"
-                type="button"
-                class="quick-filter-chip quick-filter-chip--more"
-                data-test="vibe-chip-more"
-                :aria-expanded="String(isVibeFilterExpanded)"
-                :aria-label="vibeOverflowButtonAriaLabel"
-                @click="toggleVibeFilterExpanded"
-              >
-                {{ vibeOverflowButtonLabel }}
-              </button>
-            </div>
+            <p class="quick-filter-helper">
+              Vibe options follow the selected category and location.
+            </p>
           </section>
         </div>
 
@@ -470,6 +451,7 @@ import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import {
   formatCityRegionLocation,
+  formatCountryLabel,
   formatLocationRegionLabel,
   formatVibeLabel,
   resolveCityRegionLocation,
@@ -489,7 +471,6 @@ const TRENDING_SKELETON_COUNT = 8;
 const EXPLORE_AUDIT_RESULT_LIMIT = 6;
 const EXPLORE_AUDIT_TRENDING_LIMIT = 4;
 const MAX_VISIBLE_CITY_FILTERS = 6;
-const MAX_VISIBLE_VIBE_FILTERS = 10;
 const EXPLORE_AUDIT_PREVIEW_SPOTS = [
   {
     title: 'Lakefront Sunrise Loop',
@@ -524,9 +505,7 @@ const searchQuery = ref('');
 const selectedCityKey = ref('');
 const selectedRegion = ref('');
 const selectedVibe = ref('');
-const vibeSearchQuery = ref('');
 const isCityFilterExpanded = ref(false);
-const isVibeFilterExpanded = ref(false);
 const isFetchingInitialResults = ref(true);
 const isMobileExploreLayout = ref(false);
 const isRegionMenuOpen = ref(false);
@@ -543,28 +522,60 @@ let exploreSearchRecommendationRequestId = 0;
 
 type DisplaySpot = SpotSummary & { searchSnippet?: string };
 type ExploreSortMode = 'community' | 'trending' | 'popular';
+type LocationScopeType = 'country' | 'region';
 type RegionOption = {
   value: string;
   count: number;
+  label: string;
+  type: LocationScopeType;
 };
 type CityFilterOption = {
   key: string;
   city: string;
   region: string;
+  country: string;
   label: string;
   count: number;
 };
+
+const LOCATION_SCOPE_SEPARATOR = '::';
 
 function resolveSpotRegion(spot: SpotSummary): string {
   return resolveLocationRegion(spot, { allowCountryFallback: true }) || 'Global';
 }
 
-function buildCityFilterKey(city: string, region: string): string {
-  return `${region}::${city}`;
+function resolveSpotCountry(spot: SpotSummary): string {
+  return resolveCityRegionLocation(spot)?.country || formatCountryLabel(spot.country) || 'Global';
+}
+
+function buildLocationScopeValue(type: LocationScopeType, value: string): string {
+  return `${type}${LOCATION_SCOPE_SEPARATOR}${value}`;
+}
+
+function parseLocationScope(value: string): { type: LocationScopeType; value: string } | null {
+  const [type, ...rest] = value.split(LOCATION_SCOPE_SEPARATOR);
+  const scopeValue = rest.join(LOCATION_SCOPE_SEPARATOR);
+
+  return (type === 'country' || type === 'region') && scopeValue
+    ? { type, value: scopeValue }
+    : null;
+}
+
+function buildCityFilterKey(city: string, region: string, country: string): string {
+  return `${country}${LOCATION_SCOPE_SEPARATOR}${region}${LOCATION_SCOPE_SEPARATOR}${city}`;
 }
 
 function formatRegionLabel(region: string): string {
   return formatLocationRegionLabel(region);
+}
+
+function formatLocationScopeLabel(scopeValue: string): string {
+  const scope = parseLocationScope(scopeValue);
+  if (!scope) {
+    return formatRegionLabel(scopeValue);
+  }
+
+  return scope.type === 'country' ? scope.value : formatRegionLabel(scope.value);
 }
 
 function formatCityOptionLabel(city: string, region: string): string {
@@ -719,22 +730,8 @@ function toggleCity(city: CityFilterOption) {
   selectedCityKey.value = selectedCityKey.value === city.key ? '' : city.key;
 }
 
-function toggleVibe(vibe: string) {
-  selectedVibe.value = selectedVibe.value === vibe ? '' : vibe;
-}
-
 function toggleCityFilterExpanded() {
   isCityFilterExpanded.value = !isCityFilterExpanded.value;
-}
-
-function toggleVibeFilterExpanded() {
-  isVibeFilterExpanded.value = !isVibeFilterExpanded.value;
-}
-
-function clearVibeFilters() {
-  selectedVibe.value = '';
-  vibeSearchQuery.value = '';
-  isVibeFilterExpanded.value = false;
 }
 
 function openRegionMenu() {
@@ -797,7 +794,7 @@ function clearFilters() {
   selectedCityKey.value = '';
   selectedRegion.value = '';
   isCityFilterExpanded.value = false;
-  clearVibeFilters();
+  selectedVibe.value = '';
   void router.replace({ query: {} });
 }
 
@@ -898,16 +895,72 @@ const hasActiveFilters = computed(() =>
   Boolean(searchQuery.value || !allCategoriesSelected.value || selectedCityKey.value || selectedRegion.value || selectedVibe.value),
 );
 
+function matchesActiveCategoryFilter(spot: SpotSummary): boolean {
+  return allCategoriesSelected.value || activeExploreCategories.value.includes(spot.category);
+}
+
+function matchesActiveVibeFilter(spot: SpotSummary): boolean {
+  return !selectedVibe.value || resolveSpotVibes(spot).includes(selectedVibe.value);
+}
+
+function matchesLocationScope(spot: SpotSummary, scopeValue = selectedRegion.value): boolean {
+  const scope = parseLocationScope(scopeValue);
+  if (!scope) {
+    return true;
+  }
+
+  if (scope.type === 'country') {
+    return resolveSpotCountry(spot) === scope.value;
+  }
+
+  const location = resolveCityRegionLocation(spot);
+  return (location?.region || resolveSpotRegion(spot)) === scope.value;
+}
+
+function matchesSelectedCity(spot: SpotSummary): boolean {
+  if (!selectedCityOption.value) {
+    return true;
+  }
+
+  const spotLocation = resolveCityRegionLocation(spot);
+  const locationRegion = spotLocation?.region || resolveSpotRegion(spot);
+  const country = spotLocation?.country || resolveSpotCountry(spot);
+
+  return (
+    spotLocation?.city === selectedCityOption.value.city &&
+    locationRegion === selectedCityOption.value.region &&
+    country === selectedCityOption.value.country
+  );
+}
+
+const locationOptionSourceSpots = computed(() =>
+  baseSpots.value.filter((spot) =>
+    matchesActiveCategoryFilter(spot) &&
+    matchesActiveVibeFilter(spot) &&
+    matchesSearch(spot, searchQuery.value),
+  ),
+);
+
+const vibeOptionSourceSpots = computed(() =>
+  baseSpots.value.filter((spot) =>
+    matchesActiveCategoryFilter(spot) &&
+    matchesLocationScope(spot) &&
+    matchesSelectedCity(spot) &&
+    matchesSearch(spot, searchQuery.value),
+  ),
+);
+
 const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
   const cities = new Map<string, CityFilterOption>();
 
-  for (const spot of baseSpots.value) {
+  for (const spot of locationOptionSourceSpots.value) {
     const location = resolveCityRegionLocation(spot);
     if (!location?.city) continue;
 
     const city = location.city;
     const region = location.region || resolveSpotRegion(spot);
-    const key = buildCityFilterKey(city, region);
+    const country = location.country || resolveSpotCountry(spot);
+    const key = buildCityFilterKey(city, region, country);
     const existing = cities.get(key);
 
     if (existing) {
@@ -917,6 +970,7 @@ const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
         key,
         city,
         region,
+        country,
         label: location.label || formatCityOptionLabel(city, region),
         count: 1,
       });
@@ -929,80 +983,63 @@ const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
 });
 
 const availableRegionOptions = computed<RegionOption[]>(() => {
+  const countries = new Map<string, number>();
   const regions = new Map<string, number>();
 
   for (const option of availableCityFilterOptions.value) {
+    countries.set(option.country, (countries.get(option.country) ?? 0) + option.count);
     regions.set(option.region, (regions.get(option.region) ?? 0) + option.count);
   }
 
-  return [...regions.entries()]
-    .map(([value, count]) => ({ value, count }))
-    .sort((left, right) => formatRegionLabel(left.value).localeCompare(formatRegionLabel(right.value)));
+  return [
+    ...[...countries.entries()].map(([country, count]) => ({
+      value: buildLocationScopeValue('country', country),
+      label: country,
+      count,
+      type: 'country' as const,
+    })),
+    ...[...regions.entries()].map(([region, count]) => ({
+      value: buildLocationScopeValue('region', region),
+      label: formatRegionLabel(region),
+      count,
+      type: 'region' as const,
+    })),
+  ].sort((left, right) => (
+    left.type.localeCompare(right.type) ||
+    left.label.localeCompare(right.label)
+  ));
 });
 
 const availableVibes = computed(() =>
-  [...new Set(baseSpots.value.flatMap((spot) => resolveSpotVibes(spot)))].sort((left, right) =>
+  [...new Set(vibeOptionSourceSpots.value.flatMap((spot) => resolveSpotVibes(spot)))].sort((left, right) =>
     left.localeCompare(right),
   ),
 );
 
 const availableExploreVibes = computed(() => (isScopeQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_VIBES] : availableVibes.value));
-const filteredExploreVibes = computed(() => {
-  const query = vibeSearchQuery.value.trim().toLowerCase();
-  if (!query) {
-    return availableExploreVibes.value;
-  }
-
-  return availableExploreVibes.value.filter((vibe) => {
-    const formattedVibe = formatVibeLabel(vibe).toLowerCase();
-    return vibe.toLowerCase().includes(query) || formattedVibe.includes(query);
-  });
-});
-const visibleExploreVibes = computed(() => {
-  if (vibeSearchQuery.value.trim()) {
-    return filteredExploreVibes.value;
-  }
-
-  if (isVibeFilterExpanded.value) {
-    return filteredExploreVibes.value;
-  }
-
-  const visibleVibes = filteredExploreVibes.value.slice(0, MAX_VISIBLE_VIBE_FILTERS);
-  if (selectedVibe.value && filteredExploreVibes.value.includes(selectedVibe.value) && !visibleVibes.includes(selectedVibe.value)) {
-    return [selectedVibe.value, ...visibleVibes.slice(0, MAX_VISIBLE_VIBE_FILTERS - 1)];
-  }
-
-  return visibleVibes;
-});
-const hiddenVibeCount = computed(() => Math.max(0, filteredExploreVibes.value.length - new Set(visibleExploreVibes.value).size));
-const vibeOverflowButtonLabel = computed(() => {
-  if (vibeSearchQuery.value.trim()) {
-    return '';
-  }
-
-  if (isVibeFilterExpanded.value && filteredExploreVibes.value.length > MAX_VISIBLE_VIBE_FILTERS) {
-    return 'Show fewer';
-  }
-
-  return hiddenVibeCount.value ? `+${hiddenVibeCount.value} more` : '';
-});
-const vibeOverflowButtonAriaLabel = computed(() =>
-  isVibeFilterExpanded.value
-    ? 'Show fewer vibes'
-    : `Show ${hiddenVibeCount.value} more ${hiddenVibeCount.value === 1 ? 'vibe' : 'vibes'}`,
-);
 const vibeFilterMetaCopy = computed(() => {
   const vibeCount = availableExploreVibes.value.length;
   if (!vibeCount) {
-    return 'No vibes yet';
+    return 'No vibes for this view';
   }
 
-  return `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'}`;
+  return selectedVibe.value
+    ? formatVibeLabel(selectedVibe.value)
+    : `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'} available`;
 });
 const availableExploreRegions = computed(() => availableRegionOptions.value);
 const filteredExploreCityOptions = computed(() =>
   selectedRegion.value
-    ? availableCityFilterOptions.value.filter((city) => city.region === selectedRegion.value)
+    ? availableCityFilterOptions.value.filter((city) => {
+      const scope = parseLocationScope(selectedRegion.value);
+      if (!scope) {
+        return city.region === selectedRegion.value;
+      }
+
+      return scope.type === 'country'
+        ? city.country === scope.value
+        : city.region === scope.value;
+    })
     : availableCityFilterOptions.value,
 );
 const selectedCityOption = computed(() =>
@@ -1036,7 +1073,9 @@ const cityOverflowButtonAriaLabel = computed(() =>
     ? 'Show fewer cities'
     : `Show ${hiddenCityCount.value} more ${hiddenCityCount.value === 1 ? 'city' : 'cities'}`,
 );
-const selectedRegionLabel = computed(() => (selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'all regions'));
+const selectedRegionLabel = computed(() =>
+  selectedRegion.value ? formatLocationScopeLabel(selectedRegion.value) : 'all countries',
+);
 const locationFilterTitle = 'Cities';
 const cityFilterMetaCopy = computed(() => {
   if (!availableCityFilterOptions.value.length) {
@@ -1046,28 +1085,25 @@ const cityFilterMetaCopy = computed(() => {
   const cityCount = filteredExploreCityOptions.value.length;
   return selectedRegion.value
     ? `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} in ${selectedRegionLabel.value}`
-    : `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} across ${selectedRegionLabel.value}`;
+    : `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} across all countries`;
 });
 const regionFilterButtonLabel = computed(() => {
   if (!availableExploreRegions.value.length) {
-    return 'No regions yet';
+    return 'No locations yet';
   }
 
-  return selectedRegion.value ? formatRegionLabel(selectedRegion.value) : 'All regions';
+  return selectedRegion.value ? formatLocationScopeLabel(selectedRegion.value) : 'Country / region';
 });
 
 const filteredSpots = computed(() =>
   baseSpots.value.filter((spot) => {
-    const matchesCategory = allCategoriesSelected.value || activeExploreCategories.value.includes(spot.category);
-    const spotRegion = resolveSpotRegion(spot);
-    const spotLocation = resolveCityRegionLocation(spot);
-    const locationRegion = spotLocation?.region || spotRegion;
-    const matchesRegion = !selectedRegion.value || locationRegion === selectedRegion.value;
-    const matchesCity =
-      !selectedCityOption.value ||
-      (spotLocation?.city === selectedCityOption.value.city && locationRegion === selectedCityOption.value.region);
-    const matchesVibe = !selectedVibe.value || resolveSpotVibes(spot).includes(selectedVibe.value);
-    return matchesCategory && matchesRegion && matchesCity && matchesVibe && matchesSearch(spot, searchQuery.value);
+    return (
+      matchesActiveCategoryFilter(spot) &&
+      matchesLocationScope(spot) &&
+      matchesSelectedCity(spot) &&
+      matchesActiveVibeFilter(spot) &&
+      matchesSearch(spot, searchQuery.value)
+    );
   }),
 );
 
@@ -1170,7 +1206,7 @@ const activeFilterPills = computed(() => {
   if (selectedCityOption.value) {
     pills.push(selectedCityOption.value.label);
   } else if (selectedRegion.value) {
-    pills.push(formatRegionLabel(selectedRegion.value));
+    pills.push(formatLocationScopeLabel(selectedRegion.value));
   }
 
   if (selectedVibe.value) {
@@ -1199,7 +1235,7 @@ watch(selectedRegion, (region) => {
     return;
   }
 
-  if (selectedCityOption.value.region !== region) {
+  if (!filteredExploreCityOptions.value.some((city) => city.key === selectedCityOption.value?.key)) {
     selectedCityKey.value = '';
   }
 });
@@ -1211,6 +1247,12 @@ watch(availableCityFilterOptions, (options) => {
 
   if (selectedRegion.value && !availableRegionOptions.value.some((region) => region.value === selectedRegion.value)) {
     selectedRegion.value = '';
+  }
+});
+
+watch(availableExploreVibes, (vibes) => {
+  if (selectedVibe.value && !vibes.includes(selectedVibe.value)) {
+    selectedVibe.value = '';
   }
 });
 
@@ -1824,6 +1866,12 @@ h2 {
   margin-top: 0.12rem;
 }
 
+.state-filter__option small {
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
 .state-filter__option:hover,
 .state-filter__option:focus-visible {
   border-color: color-mix(in srgb, var(--accent-teal) 20%, var(--border));
@@ -1906,36 +1954,59 @@ h2 {
 }
 
 .quick-filter-actions--vibes {
-  flex: 1 1 auto;
-  min-width: min(100%, 13rem);
+  flex: 0 1 18rem;
+  min-width: min(100%, 15rem);
 }
 
-.vibe-filter-input {
-  width: min(13rem, 100%);
+.vibe-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: min(18rem, 100%);
+}
+
+.vibe-select__control {
+  width: 100%;
   min-height: 2.5rem;
-  padding: 0.5rem 0.95rem;
+  padding: 0.5rem 2.6rem 0.5rem 0.95rem;
   border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, var(--glass-border));
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-primary));
   color: var(--text-primary);
+  appearance: none;
   font: inherit;
   font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
   line-height: 1.2;
   outline: none;
+  cursor: pointer;
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
     background var(--transition-fast);
 }
 
-.vibe-filter-input::placeholder {
-  color: var(--text-muted);
-}
-
-.vibe-filter-input:focus {
+.vibe-select__control:hover,
+.vibe-select__control:focus {
   border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--glass-border));
   background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
+}
+
+.vibe-select__icon {
+  position: absolute;
+  right: 0.95rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.quick-filter-helper {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-normal);
 }
 
 .filter-chip:hover,
@@ -2263,12 +2334,13 @@ h2 {
 .explore-pagination {
   display: inline-flex;
   align-items: center;
-  justify-self: center;
-  justify-content: center;
+  justify-self: stretch;
+  justify-content: space-between;
   gap: var(--space-2);
+  width: 100%;
   max-width: 100%;
-  padding: 0.35rem;
-  border-radius: var(--radius-full);
+  padding: 0.45rem;
+  border-radius: calc(var(--radius-xl) + 0.15rem);
   border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
   background: color-mix(in srgb, var(--bg-tertiary) 72%, transparent);
 }
@@ -2310,7 +2382,8 @@ h2 {
 }
 
 .explore-pagination__status {
-  min-width: min(16rem, 58vw);
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);

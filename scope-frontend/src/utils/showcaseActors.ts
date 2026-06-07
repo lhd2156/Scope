@@ -1,0 +1,128 @@
+import type { UserProfile } from '@/types';
+
+const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
+  '11111111111111111111111111111111': {
+    username: 'alex.morgan',
+    email: '',
+    displayName: 'Alex Morgan',
+    avatarUrl: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for food-first city routes, late dinners, and walkable culture loops.',
+    homeBase: 'Fort Worth, TX',
+    interests: ['food', 'culture', 'nightlife'],
+    stats: { spots: 18, trips: 5, friends: 96 },
+    showActivityStatus: true,
+  },
+  '22222222222222222222222222222222': {
+    username: 'maya.chen',
+    email: '',
+    displayName: 'Maya Chen',
+    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for gardens, museums, and design-forward weekend pacing.',
+    homeBase: 'Dallas, TX',
+    interests: ['scenic', 'culture', 'shopping'],
+    stats: { spots: 16, trips: 6, friends: 112 },
+    showActivityStatus: true,
+  },
+  '33333333333333333333333333333333': {
+    username: 'elijah.brooks',
+    email: '',
+    displayName: 'Elijah Brooks',
+    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for outdoor resets, strong coffee, and high-energy city walks.',
+    homeBase: 'Austin, TX',
+    interests: ['adventure', 'food', 'nature'],
+    stats: { spots: 21, trips: 7, friends: 88 },
+    showActivityStatus: true,
+  },
+  '44444444444444444444444444444441': {
+    username: 'sofia.ramirez',
+    email: '',
+    displayName: 'Sofia Ramirez',
+    avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for market mornings, heritage districts, and food-led itineraries.',
+    homeBase: 'San Antonio, TX',
+    interests: ['food', 'culture', 'shopping'],
+    stats: { spots: 22, trips: 8, friends: 134 },
+    showActivityStatus: true,
+  },
+  '55555555555555555555555555555551': {
+    username: 'jordan.reed',
+    email: '',
+    displayName: 'Jordan Reed',
+    avatarUrl: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for scenic overlooks, rail stations, and daylight-efficient routes.',
+    homeBase: 'Denver, CO',
+    interests: ['scenic', 'nature', 'adventure'],
+    stats: { spots: 19, trips: 5, friends: 76 },
+    showActivityStatus: true,
+  },
+  '66666666666666666666666666666661': {
+    username: 'aisha.bello',
+    email: '',
+    displayName: 'Aisha Bello',
+    avatarUrl: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for waterfront walks, art districts, and polished group dinners.',
+    homeBase: 'Houston, TX',
+    interests: ['culture', 'food', 'scenic'],
+    stats: { spots: 17, trips: 6, friends: 101 },
+    showActivityStatus: true,
+  },
+  '77777777777777777777777777777771': {
+    username: 'theo.alvarez',
+    email: '',
+    displayName: 'Theo Alvarez',
+    avatarUrl: 'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for markets, architecture, and late-night city energy.',
+    homeBase: 'Barcelona, ES',
+    interests: ['culture', 'shopping', 'nightlife'],
+    stats: { spots: 24, trips: 9, friends: 143 },
+    showActivityStatus: true,
+  },
+  '88888888888888888888888888888881': {
+    username: 'priya.nair',
+    email: '',
+    displayName: 'Priya Nair',
+    avatarUrl: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=600',
+    bio: 'Scope starter profile for gardens, skyline walks, and compact international stopovers.',
+    homeBase: 'Singapore',
+    interests: ['scenic', 'culture', 'food'],
+    stats: { spots: 20, trips: 7, friends: 118 },
+    showActivityStatus: true,
+  },
+};
+
+const SHOWCASE_ACTORS_BY_REPEATED_DIGIT: Record<string, Omit<UserProfile, 'id'>> = {
+  '1': SHOWCASE_ACTORS['11111111111111111111111111111111'],
+  '2': SHOWCASE_ACTORS['22222222222222222222222222222222'],
+  '3': SHOWCASE_ACTORS['33333333333333333333333333333333'],
+  '4': SHOWCASE_ACTORS['44444444444444444444444444444441'],
+  '5': SHOWCASE_ACTORS['55555555555555555555555555555551'],
+  '6': SHOWCASE_ACTORS['66666666666666666666666666666661'],
+  '7': SHOWCASE_ACTORS['77777777777777777777777777777771'],
+  '8': SHOWCASE_ACTORS['88888888888888888888888888888881'],
+};
+
+export function normalizeShowcaseActorKey(value: string | undefined): string {
+  return String(value ?? '').replace(/[^a-f0-9]/gi, '').toLowerCase();
+}
+
+function resolveActorTemplate(key: string): Omit<UserProfile, 'id'> | undefined {
+  if (SHOWCASE_ACTORS[key]) {
+    return SHOWCASE_ACTORS[key];
+  }
+
+  const repeatedDigit = key.match(/^([1-8])\1{7,}/)?.[1];
+  return repeatedDigit ? SHOWCASE_ACTORS_BY_REPEATED_DIGIT[repeatedDigit] : undefined;
+}
+
+export function resolveShowcaseUserProfile(userId: string | undefined): UserProfile | undefined {
+  const key = normalizeShowcaseActorKey(userId);
+  const actor = resolveActorTemplate(key);
+
+  return actor
+    ? {
+      id: userId || key,
+      ...actor,
+    }
+    : undefined;
+}

@@ -342,9 +342,10 @@ describe('ExplorePage', () => {
 
     const { wrapper } = await mountExplorePage();
 
-    expect(wrapper.findAll('[data-test="vibe-chip"]').map((chip) => chip.text())).toContain('Photo Worthy');
+    const vibeOptions = wrapper.findAll('[data-test="vibe-select"] option').map((option) => option.text());
+    expect(vibeOptions).toContain('Photo Worthy');
 
-    await wrapper.findAll('[data-test="vibe-chip"]').find((chip) => chip.text() === 'Photo Worthy')?.trigger('click');
+    await wrapper.get('[data-test="vibe-select"]').setValue('photo-worthy');
     await nextTick();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
@@ -401,7 +402,7 @@ describe('ExplorePage', () => {
 
     const { wrapper } = await mountExplorePage();
 
-    expect(wrapper.text()).toContain('2 cities across all regions');
+    expect(wrapper.text()).toContain('2 cities across all countries');
     expect(wrapper.find('[data-test="city-chip-empty"]').exists()).toBe(false);
     expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
       'Fort Worth, TX',
@@ -634,7 +635,7 @@ describe('ExplorePage', () => {
     const { wrapper } = await mountExplorePage();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('4');
-    expect(wrapper.text()).toContain('3 cities across all regions');
+    expect(wrapper.text()).toContain('3 cities across all countries');
     expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
       'Austin, TX',
       'Chicago, IL',
@@ -643,9 +644,10 @@ describe('ExplorePage', () => {
 
     await wrapper.get('[data-test="state-filter-button"]').trigger('click');
     expect(wrapper.findAll('[data-test="state-filter-option"]').map((option) => option.text())).toEqual([
-      'All regions',
-      'IL',
-      'TX',
+      'All countries & regions',
+      'USA4',
+      'IL1',
+      'TX3',
     ]);
     await wrapper.findAll('[data-test="state-filter-option"]').find((option) => option.text().includes('TX'))?.trigger('click');
     await nextTick();
@@ -672,7 +674,7 @@ describe('ExplorePage', () => {
     ]);
 
     await wrapper.get('[data-test="state-filter-button"]').trigger('click');
-    await wrapper.findAll('[data-test="state-filter-option"]').find((option) => option.text() === 'All regions')?.trigger('click');
+    await wrapper.findAll('[data-test="state-filter-option"]').find((option) => option.text().includes('All countries & regions'))?.trigger('click');
     await nextTick();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('4');
@@ -739,7 +741,7 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
   });
 
-  it('expands hidden city and vibe chips from the more controls', async () => {
+  it('expands hidden city chips and filters by the vibe dropdown', async () => {
     const expandedSpots = Array.from({ length: 13 }, (_, index) => buildGeneratedSpot(index + 1));
     listSpotsMock.mockResolvedValueOnce({
       data: expandedSpots,
@@ -756,27 +758,12 @@ describe('ExplorePage', () => {
     expect(wrapper.findAll('[data-test="city-chip"]')).toHaveLength(6);
     expect(wrapper.get('[data-test="city-chip-more"]').text()).toBe('+7 more');
     expect(wrapper.get('[data-test="city-chip-more"]').attributes('aria-expanded')).toBe('false');
-    expect(wrapper.findAll('[data-test="vibe-chip"]')).toHaveLength(10);
-    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('+3 more');
-    expect(wrapper.get('[data-test="vibe-chip-more"]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.findAll('[data-test="vibe-select"] option').map((option) => option.text())).toContain('Vibe 13');
 
-    await wrapper.get('[data-test="vibe-chip-more"]').trigger('click');
-    await nextTick();
-
-    expect(wrapper.findAll('[data-test="vibe-chip"]')).toHaveLength(13);
-    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('Show fewer');
-    expect(wrapper.get('[data-test="vibe-chip-more"]').attributes('aria-expanded')).toBe('true');
-    expect(wrapper.findAll('[data-test="vibe-chip"]').map((chip) => chip.text())).toContain('Vibe 13');
-
-    await wrapper.findAll('[data-test="vibe-chip"]').find((chip) => chip.text() === 'Vibe 13')?.trigger('click');
+    await wrapper.get('[data-test="vibe-select"]').setValue('vibe-13');
     await nextTick();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
-
-    await wrapper.get('[data-test="vibe-chip-more"]').trigger('click');
-    await nextTick();
-
-    expect(wrapper.findAll('[data-test="vibe-chip"]').at(0)?.text()).toBe('Vibe 13');
 
     await wrapper.get('.clear-filters').trigger('click');
     await nextTick();
@@ -800,8 +787,25 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="city-chip-more"]').text()).toBe('+7 more');
   });
 
-  it('filters large vibe lists from the search box and suppresses overflow controls while searching', async () => {
-    const expandedSpots = Array.from({ length: 13 }, (_, index) => buildGeneratedSpot(index + 1));
+  it('narrows city and vibe choices from the active category and location filters', async () => {
+    const expandedSpots = [
+      ...fixtureSpots,
+      {
+        id: 'spot-4',
+        title: 'Quiet Garden Patio',
+        description: 'Calm food stop with garden seating.',
+        latitude: 34.0522,
+        longitude: -118.2437,
+        category: 'food',
+        city: 'Los Angeles',
+        country: 'US',
+        vibe: 'calm',
+        rating: 4.5,
+        photoUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800',
+        likesCount: 12,
+        createdAt: '2026-03-12T12:00:00Z',
+      },
+    ];
     listSpotsMock.mockResolvedValueOnce({
       data: expandedSpots,
       meta: {
@@ -813,25 +817,33 @@ describe('ExplorePage', () => {
     });
 
     const { wrapper } = await mountExplorePage();
-    const vibeInput = wrapper.get('[data-test="vibe-search"]');
 
-    await vibeInput.setValue('zzzzz');
+    await wrapper.get('[data-test="category-chip-food"]').trigger('click');
     await nextTick();
 
-    expect(wrapper.get('[data-test="vibe-chip-empty"]').text()).toBe('No matching vibes.');
-    expect(wrapper.find('[data-test="vibe-chip-more"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
+      'Fort Worth, TX',
+      'Los Angeles, CA',
+    ]);
+    expect(wrapper.findAll('[data-test="vibe-select"] option').map((option) => option.text())).toEqual([
+      'Any vibe',
+      'Calm',
+      'Electric',
+    ]);
 
-    await vibeInput.setValue('vibe 13');
+    await wrapper.findAll('[data-test="city-chip"]').find((chip) => chip.text() === 'Fort Worth, TX')?.trigger('click');
     await nextTick();
 
-    expect(wrapper.findAll('[data-test="vibe-chip"]').map((chip) => chip.text())).toEqual(['Vibe 13']);
-    expect(wrapper.find('[data-test="vibe-chip-more"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="vibe-select"] option').map((option) => option.text())).toEqual([
+      'Any vibe',
+      'Electric',
+    ]);
 
-    await wrapper.get('.quick-filter-actions--vibes .text-reset').trigger('click');
+    await wrapper.get('[data-test="vibe-select"]').setValue('electric');
     await nextTick();
 
-    expect((vibeInput.element as HTMLInputElement).value).toBe('');
-    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('+3 more');
+    expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
+    expect(wrapper.get('[data-test="explore-results"]').text()).toContain('Sunset Rooftop Tacos');
   });
 
   it('labels empty city and region filters when no location data is available', async () => {
@@ -848,7 +860,7 @@ describe('ExplorePage', () => {
     const { wrapper } = await mountExplorePage();
 
     expect(wrapper.text()).toContain('No cities yet');
-    expect(wrapper.get('[data-test="state-filter-button"]').text()).toContain('No regions yet');
+    expect(wrapper.get('[data-test="state-filter-button"]').text()).toContain('No locations yet');
     expect(wrapper.get('[data-test="state-filter-button"]').attributes('disabled')).toBeDefined();
     expect(wrapper.get('[data-test="city-chip-empty"]').text()).toBe('Cities appear after spots sync.');
 
