@@ -64,6 +64,7 @@ const {
   listPublicTripsMock,
   routeMock,
   routerReplaceMock,
+  spotsStoreMock,
   toastStoreMock,
   tripsStoreMock,
 } = vi.hoisted(() => ({
@@ -87,6 +88,10 @@ const {
     query: {} as Record<string, string>,
   },
   routerReplaceMock: vi.fn().mockResolvedValue(undefined),
+  spotsStoreMock: {
+    error: '',
+    fetchSpot: vi.fn(),
+  },
   toastStoreMock: {
     showSuccess: vi.fn(),
     showError: vi.fn(),
@@ -171,6 +176,10 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStoreMock,
 }));
 
+vi.mock('@/stores/spots', () => ({
+  useSpotsStore: () => spotsStoreMock,
+}));
+
 vi.mock('@/stores/user', () => ({
   useUserStore: () => ({
     fetchCurrentProfile: fetchCurrentProfileMock,
@@ -232,6 +241,9 @@ describe('TripPlannerPage', () => {
     routeMock.name = 'trip-planner';
     routeMock.params = {};
     routeMock.query = {};
+    spotsStoreMock.error = '';
+    spotsStoreMock.fetchSpot.mockReset();
+    spotsStoreMock.fetchSpot.mockResolvedValue(undefined);
     localStorage.clear();
     sessionStorage.clear();
     tripsStoreMock.items = [
@@ -412,6 +424,44 @@ describe('TripPlannerPage', () => {
     expect(wrapper.get('[data-test="planner-vibes"]').text()).toBe('nightlife,culture,other');
     expect(wrapper.get('[data-test="itinerary-vibes"]').text()).toContain('nightlife,culture,other');
     expect(wrapper.get('[data-test="ai-preferred-vibes"]').text()).toBe('nightlife,culture');
+  });
+
+  it('adds a spot from the Add to Trip query into a new planner draft', async () => {
+    routeMock.query = { spot: 'spot-water-gardens' };
+    spotsStoreMock.fetchSpot.mockResolvedValue({
+      id: 'spot-water-gardens',
+      title: 'Fort Worth Water Gardens',
+      latitude: 32.7477,
+      longitude: -97.3256,
+      category: 'scenic',
+      city: 'Fort Worth',
+      rating: 4.7,
+      createdAt: '2026-06-07T00:00:00Z',
+      photos: [],
+      reviews: [],
+    });
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: {
+            props: ['stops'],
+            template: '<div data-test="route-query-stops">{{ stops.length }}|{{ stops[0]?.title }}</div>',
+          },
+          ItineraryView: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+          LazyImage: { template: '<img />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith('spot-water-gardens');
+    expect(wrapper.get('[data-test="route-query-stops"]').text()).toBe('1|Fort Worth Water Gardens');
   });
 
   it('hydrates lean refreshed sessions before applying account vibes to new trip drafts', async () => {

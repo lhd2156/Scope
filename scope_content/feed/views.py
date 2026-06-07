@@ -142,9 +142,9 @@ def _isoformat(value) -> str:
     return value.isoformat().replace('+00:00', 'Z')
 
 
-def _serialize_spot_feed_entry(entry, actor_profiles: dict[str, dict]) -> dict:
+def _serialize_spot_feed_entry(entry, actor_profiles: dict[str, dict], request=None) -> dict:
     spot = entry.item
-    spot_data = SpotSerializer(spot).data
+    spot_data = SpotSerializer(spot, context={'request': request}).data
     actor = _actor_for(actor_profiles, spot.user_id)
     return {
         'id': f'spot-{spot.id}',
@@ -174,10 +174,10 @@ def _serialize_trip_feed_entry(entry, actor_profiles: dict[str, dict]) -> dict:
     }
 
 
-def _serialize_review_feed_entry(entry, actor_profiles: dict[str, dict]) -> dict:
+def _serialize_review_feed_entry(entry, actor_profiles: dict[str, dict], request=None) -> dict:
     review = entry.item
     spot = review.spot
-    spot_data = SpotSerializer(spot).data
+    spot_data = SpotSerializer(spot, context={'request': request}).data
     actor = _actor_for(actor_profiles, review.user_id)
     rating = str(review.rating).rstrip('0').rstrip('.')
     return {
@@ -192,12 +192,12 @@ def _serialize_review_feed_entry(entry, actor_profiles: dict[str, dict]) -> dict
     }
 
 
-def _serialize_feed_entry(entry, actor_profiles: dict[str, dict]) -> dict:
+def _serialize_feed_entry(entry, actor_profiles: dict[str, dict], request=None) -> dict:
     if entry.type == 'trip':
         return _serialize_trip_feed_entry(entry, actor_profiles)
     if entry.type == 'review':
-        return _serialize_review_feed_entry(entry, actor_profiles)
-    return _serialize_spot_feed_entry(entry, actor_profiles)
+        return _serialize_review_feed_entry(entry, actor_profiles, request)
+    return _serialize_spot_feed_entry(entry, actor_profiles, request)
 
 
 @api_view(['GET'])
@@ -213,7 +213,7 @@ def social_feed(request):
         )
         paginator.set_page_state(page.entries, page.has_more)
         actor_profiles = _resolve_user_profiles(_collect_feed_user_ids(page.entries))
-        serialized_page = [_serialize_feed_entry(entry, actor_profiles) for entry in page.entries]
+        serialized_page = [_serialize_feed_entry(entry, actor_profiles, request) for entry in page.entries]
         return paginator.get_paginated_response(serialized_page)
 
     return cached_api_response(
@@ -229,7 +229,7 @@ def social_feed(request):
 def trending_spots(request):
     def build_response():
         spots = FeedAggregator().trending_spots_queryset()[:20]
-        return data_response(SpotSerializer(spots, many=True).data)
+        return data_response(SpotSerializer(spots, many=True, context={'request': request}).data)
 
     return cached_api_response(
         request,

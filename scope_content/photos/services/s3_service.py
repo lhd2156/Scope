@@ -4,6 +4,7 @@ import os
 import uuid
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import boto3
 from django.conf import settings
@@ -160,6 +161,31 @@ class S3StorageService:
             'put_object',
             Params={'Bucket': settings.AWS_STORAGE_BUCKET_NAME, 'Key': key},
             ExpiresIn=3600,
+        )
+
+    def is_managed_url(self, url: str | None) -> bool:
+        if not self.enabled or not url:
+            return False
+        parsed = urlsplit(url)
+        hostname = (parsed.hostname or '').lower()
+        bucket = settings.AWS_STORAGE_BUCKET_NAME.lower()
+        return hostname == f'{bucket}.s3.{settings.AWS_REGION}.amazonaws.com' or hostname == f'{bucket}.s3.amazonaws.com'
+
+    def storage_key_from_url(self, url: str | None) -> str | None:
+        if not self.is_managed_url(url):
+            return None
+        return unquote(urlsplit(url).path.lstrip('/')) or None
+
+    def presigned_read_url(self, url_or_key: str, expires_in: int = 3600) -> str | None:
+        if not self.enabled or not self.client:
+            return None
+        key = self.storage_key_from_url(url_or_key) or url_or_key.strip().lstrip('/')
+        if not key:
+            return None
+        return self.client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': settings.AWS_STORAGE_BUCKET_NAME, 'Key': key},
+            ExpiresIn=expires_in,
         )
 
     def health_status(self):

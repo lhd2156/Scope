@@ -27,6 +27,7 @@ from common.indexing import delete_spot, index_spot
 from common.kafka_producer import ScopeKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
+from photos.delivery import photo_delivery_url
 from photos.models import Photo
 from photos.serializers import PhotoUploadSerializer
 from photos.services.s3_service import S3StorageService
@@ -301,7 +302,7 @@ class SpotListCreateView(generics.ListCreateAPIView):
         def build_response():
             queryset = self.filter_queryset(self.get_queryset())
             page = self.paginate_queryset(queryset)
-            serializer = AppendixBSpotListItemSerializer(page, many=True)
+            serializer = AppendixBSpotListItemSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
 
         return cached_api_response(
@@ -509,7 +510,7 @@ def compose_spot(request):
             with_spot_detail_relations(Spot.objects.filter(pk=spot.pk)),
             request,
         ).get()
-    return data_response(SpotDetailSerializer(refreshed_spot).data, status_code=status.HTTP_201_CREATED)
+    return data_response(SpotDetailSerializer(refreshed_spot, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])
@@ -521,7 +522,7 @@ def nearby_spots(request):
         queryset = with_spot_viewer_state(with_spot_list_relations(queryset), request).order_by('-created_at')
         paginator = SpotListCreateView.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
-        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True, context={'request': request}).data)
 
     return cached_api_response(
         request,
@@ -541,7 +542,7 @@ def user_spots(request, user_id):
         ).order_by('-created_at')
         paginator = SpotListCreateView.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
-        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True, context={'request': request}).data)
 
     return cached_api_response(
         request,
@@ -560,7 +561,7 @@ def explore_spots(request):
         queryset = view.get_queryset().filter(is_public=True)
         paginator = SpotListCreateView.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
-        return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+        return paginator.get_paginated_response(SpotSerializer(page, many=True, context={'request': request}).data)
 
     return cached_api_response(
         request,
@@ -594,13 +595,13 @@ def like_spot(request, pk):
             )
         refreshed_spot = get_object_or_404(_detail_queryset_for_request(request), pk=pk)
         return data_response(
-            SpotDetailSerializer(refreshed_spot).data,
+            SpotDetailSerializer(refreshed_spot, context={'request': request}).data,
             status_code=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
     Like.objects.filter(spot=spot, user_id=request.user.id).delete()
     invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
     refreshed_spot = get_object_or_404(_detail_queryset_for_request(request), pk=pk)
-    return data_response(SpotDetailSerializer(refreshed_spot).data)
+    return data_response(SpotDetailSerializer(refreshed_spot, context={'request': request}).data)
 
 
 @api_view(['GET'])
@@ -614,7 +615,7 @@ def saved_spots(request):
     ).order_by('-likes__created_at', '-created_at')
     paginator = SpotListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
-    return paginator.get_paginated_response(SpotSerializer(page, many=True).data)
+    return paginator.get_paginated_response(SpotSerializer(page, many=True, context={'request': request}).data)
 
 
 @api_view(['GET'])
@@ -623,7 +624,7 @@ def spot_photos(request, pk):
         photo_rows = list(
             visible_to_request(Spot.objects.filter(pk=pk), request)
             .order_by('photos__sort_order', 'photos__created_at')
-            .values('photos__id', 'photos__storage_url', 'photos__caption')
+            .values('is_public', 'photos__id', 'photos__storage_url', 'photos__caption')
         )
         if not photo_rows:
             get_object_or_404(visible_to_request(Spot.objects.only('id'), request), pk=pk)
@@ -632,7 +633,12 @@ def spot_photos(request, pk):
             [
                 {
                     'id': str(photo['photos__id']),
-                    'storageUrl': photo['photos__storage_url'],
+                    'storageUrl': photo_delivery_url(
+                        photo_id=photo['photos__id'],
+                        source_url=photo['photos__storage_url'],
+                        is_public=photo['is_public'],
+                        request=request,
+                    ),
                     'caption': photo['photos__caption'],
                 }
                 for photo in photo_rows

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import mimetypes
 import os
 
 from django.conf import settings
-from django.http import Http404
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny
+from botocore.exceptions import BotoCoreError, ClientError
 
 from common.cache_utils import (
     FEED_CACHE_NAMESPACE,
@@ -93,7 +96,7 @@ def upload_photo(request):
                 'thumbnailUrl': photo.thumbnail_url,
             },
         )
-        return data_response(PhotoSerializer(photo).data, status_code=status.HTTP_201_CREATED)
+        return data_response(PhotoSerializer(photo, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
 
     # Legacy sync path. Kept as default so existing deployments don't require
     # a worker service to be healthy before photos can be uploaded.
@@ -118,7 +121,7 @@ def upload_photo(request):
             'thumbnailUrl': photo.thumbnail_url,
         },
     )
-    return data_response(PhotoSerializer(photo).data, status_code=status.HTTP_201_CREATED)
+    return data_response(PhotoSerializer(photo, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])
@@ -139,8 +142,39 @@ def photo_detail(request, pk):
         photo.delete()
         invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         return data_response({'deleted': True})
-    serializer = PhotoSerializer(photo, data=request.data, partial=True)
+    serializer = PhotoSerializer(photo, data=request.data, partial=True, context={'request': request})
     serializer.is_valid(raise_exception=True)
     serializer.save()
     invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
     return data_response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def photo_content(request, pk):
+    photo = get_object_or_404(Photo.objects.select_related('spot'), pk=pk, spot__is_public=True)
+    storage = S3StorageService()
+    variant = request.query_params.get('variant', '').strip().lower()
+    key = photo.storage_key
+
+    if variant == 'thumbnail' and photo.thumbnail_url:
+        key = storage.storage_key_from_url(photo.thumbnail_url) or key
+
+    if storage.enabled:
+        signed_url = storage.presigned_read_url(key)
+        if not signed_url:
+            raise Http404
+        response = HttpResponseRedirect(signed_url)
+        response['Cache-Control'] = 'public, max-age=900'
+        return response
+
+    try:
+        payload = storage.fetch_original_bytes(key)
+    except (BotoCoreError, ClientError, OSError):
+        raise Http404 from None
+
+    content_type = mimetypes.guess_type(key)[0] or 'application/octet-stream'
+    response = HttpResponse(payload, content_type=content_type)
+    response['Cache-Control'] = 'public, max-age=86400, immutable'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response

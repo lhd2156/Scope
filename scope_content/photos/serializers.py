@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from rest_framework import serializers
 
+from photos.delivery import photo_delivery_url
 from photos.models import Photo
 from spots.models import Spot
 
@@ -74,6 +75,8 @@ class PhotoUploadSerializer(serializers.Serializer):
 class PhotoSerializer(serializers.ModelSerializer):
     caption = serializers.CharField(required=False, allow_blank=True, max_length=500)
     sort_order = serializers.IntegerField(required=False, min_value=0)
+    storage_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Photo
@@ -82,3 +85,20 @@ class PhotoSerializer(serializers.ModelSerializer):
 
     def validate_caption(self, value: str) -> str:
         return value.strip()
+
+    def get_storage_url(self, obj: Photo) -> str:
+        return photo_delivery_url(
+            photo_id=obj.id,
+            source_url=obj.storage_url,
+            is_public=obj.spot.is_public,
+            request=self.context.get('request'),
+        ) or ''
+
+    def get_thumbnail_url(self, obj: Photo) -> str:
+        return photo_delivery_url(
+            photo_id=obj.id,
+            source_url=obj.thumbnail_url,
+            is_public=obj.spot.is_public,
+            request=self.context.get('request'),
+            variant='thumbnail',
+        ) or ''

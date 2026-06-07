@@ -353,6 +353,7 @@ import { listPublicTrips, type TripMutationInput } from '@/services/tripService'
 import { useAuthStore } from '@/stores/auth';
 import { useMapStore } from '@/stores/map';
 import { useScopeAiPlannerStore, type ScopeAiMapCommand, type ScopeAiMapCommandPayload, type ScopeAiPlannerState, type ScopeAiStop } from '@/stores/scopeAiPlanner';
+import { useSpotsStore } from '@/stores/spots';
 import { useToastStore } from '@/stores/toasts';
 import { useTripsStore } from '@/stores/trips';
 import { useUserStore } from '@/stores/user';
@@ -542,6 +543,7 @@ const mobileWizardSteps: MobileWizardStep[] = [
 ];
 
 const tripsStore = useTripsStore();
+const spotsStore = useSpotsStore();
 const authStore = useAuthStore();
 const mapStore = useMapStore();
 const scopeAiStore = useScopeAiPlannerStore();
@@ -661,6 +663,10 @@ const currentUserTripRole = computed(() => {
 const canEditCurrentTrip = computed(() => currentUserTripRole.value === 'owner' || currentUserTripRole.value === 'editor');
 const canManageCurrentTrip = computed(() => currentUserTripRole.value === 'owner');
 const shouldOpenTripAssistant = computed(() => route.query.assistant === 'open' || route.query.ai === 'open');
+const routeSpotId = computed(() => {
+  const value = Array.isArray(route.query.spot) ? route.query.spot[0] : route.query.spot;
+  return typeof value === 'string' ? value.trim() : '';
+});
 const plannerLocationSearchProximity = computed<PlannerLocationSearchProximity | undefined>(() => {
   const userLocation = mapStore.userLocation;
   if (userLocation && isCoordinatePair(userLocation[1], userLocation[0])) {
@@ -2786,6 +2792,36 @@ async function handleShareDraft() {
   }
 }
 
+async function loadRouteSpotIntoPlanner(): Promise<void> {
+  const spotId = routeSpotId.value;
+  if (!spotId || route.name === 'trip-edit' || plannerStops.value.some((stop) => stop.spotId === spotId)) {
+    return;
+  }
+
+  try {
+    const spot = await spotsStore.fetchSpot(spotId);
+    if (!spot || routeSpotId.value !== spotId || plannerStops.value.some((stop) => stop.spotId === spot.id)) {
+      return;
+    }
+
+    handleRouteStopAdd({
+      spotId: spot.id,
+      title: spot.title,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      category: spot.category,
+      photoUrl: spot.photoUrl ?? spot.photos?.[0]?.url,
+      city: spot.city,
+      dayNumber: 1,
+    });
+  } catch {
+    toastStore.showError({
+      title: 'Spot unavailable',
+      message: spotsStore.error ?? 'Scope could not add that spot to the planner.',
+    });
+  }
+}
+
 async function handleDeleteCurrentDraft() {
   touchPlannerPresence('delete-open');
   if (!currentDraftTrip.value) {
@@ -3878,6 +3914,14 @@ watch(
       inFlightDraftAutosaveSignature = '';
     }
   },
+);
+
+watch(
+  routeSpotId,
+  () => {
+    void loadRouteSpotIntoPlanner();
+  },
+  { immediate: true },
 );
 
 onMounted(() => {

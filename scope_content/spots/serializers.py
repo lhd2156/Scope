@@ -7,9 +7,10 @@ from rest_framework import serializers
 
 from common.geo import haversine_distance_km
 from common.serializer_utils import copy_with_aliases, normalize_text
+from photos.delivery import photo_delivery_url
 from spots.models import Spot
 
-ANNOTATED_PHOTO_FIELDS = ('list_photo_storage_url', 'list_photo_thumbnail_url')
+ANNOTATED_PHOTO_FIELDS = ('list_photo_id', 'list_photo_storage_url', 'list_photo_thumbnail_url')
 ANNOTATED_FIELDS_MISSING = object()
 SPOT_INPUT_ALIASES = {
     'visitedAt': 'visited_at',
@@ -199,10 +200,21 @@ class SpotSerializer(serializers.ModelSerializer):
         annotated_photo_urls = _annotated_photo_urls(obj)
         if annotated_photo_urls is not ANNOTATED_FIELDS_MISSING:
             storage_url, _ = annotated_photo_urls
-            return storage_url
+            photo_id = getattr(obj, 'list_photo_id', None)
+            return photo_delivery_url(
+                photo_id=photo_id,
+                source_url=storage_url,
+                is_public=obj.is_public,
+                request=self.context.get('request'),
+            ) if photo_id else storage_url
         photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         first = photos[0] if photos else None
-        return first.storage_url if first else None
+        return photo_delivery_url(
+            photo_id=first.id,
+            source_url=first.storage_url,
+            is_public=obj.is_public,
+            request=self.context.get('request'),
+        ) if first else None
 
     def get_liked(self, obj) -> bool:
         return bool(getattr(obj, 'liked', False))
@@ -218,7 +230,16 @@ class SpotDetailSerializer(SpotSerializer):
     def get_photos(self, obj):
         photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         return [
-            {'id': str(photo.id), 'storageUrl': photo.storage_url, 'caption': photo.caption}
+            {
+                'id': str(photo.id),
+                'storageUrl': photo_delivery_url(
+                    photo_id=photo.id,
+                    source_url=photo.storage_url,
+                    is_public=obj.is_public,
+                    request=self.context.get('request'),
+                ),
+                'caption': photo.caption,
+            }
             for photo in photos
         ]
 
@@ -256,23 +277,37 @@ class AppendixBSpotListItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Spot
-        fields = ['id', 'title', 'latitude', 'longitude', 'category', 'pillars', 'rating', 'photoUrl', 'isPublic', 'verificationStatus', 'safetyStatus', 'createdAt']
+        fields = ['id', 'title', 'latitude', 'longitude', 'address', 'city', 'country', 'category', 'pillars', 'vibe', 'rating', 'photoUrl', 'isPublic', 'verificationStatus', 'safetyStatus', 'createdAt']
 
     @staticmethod
     def get_rating(obj) -> float | None:
         return float(obj.rating) if obj.rating is not None else None
 
-    @staticmethod
-    def get_photoUrl(obj) -> str | None:
+    def get_photoUrl(self, obj) -> str | None:
         annotated_photo_urls = _annotated_photo_urls(obj)
         if annotated_photo_urls is not ANNOTATED_FIELDS_MISSING:
             storage_url, thumbnail_url = annotated_photo_urls
-            return thumbnail_url or storage_url
+            source_url = thumbnail_url or storage_url
+            photo_id = getattr(obj, 'list_photo_id', None)
+            return photo_delivery_url(
+                photo_id=photo_id,
+                source_url=source_url,
+                is_public=obj.is_public,
+                request=self.context.get('request'),
+                variant='thumbnail' if thumbnail_url else 'original',
+            ) if photo_id else source_url
         photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
         first = photos[0] if photos else None
         if first is None:
             return None
-        return first.thumbnail_url or first.storage_url
+        source_url = first.thumbnail_url or first.storage_url
+        return photo_delivery_url(
+            photo_id=first.id,
+            source_url=source_url,
+            is_public=obj.is_public,
+            request=self.context.get('request'),
+            variant='thumbnail' if first.thumbnail_url else 'original',
+        )
 
 
 class NearbyQuerySerializer(serializers.Serializer):
