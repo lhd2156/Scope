@@ -115,6 +115,7 @@ const spotDetailStubs = {
 
 describe('SpotDetail', () => {
   beforeEach(() => {
+    document.body.innerHTML = '';
     authStoreMock.isAuthenticated = true;
     authStoreMock.currentUser = {
       id: 'user-auth',
@@ -202,7 +203,7 @@ describe('SpotDetail', () => {
     expect(similarRating.findAll('.star-rating__clip')[4].attributes('style')).toContain('width: 70%');
   });
 
-  it('deduplicates repeated gallery URLs and leaves missing thumbnail slots blank', async () => {
+  it('deduplicates repeated gallery URLs without padding missing thumbnail slots', async () => {
     const duplicateGallerySpot: SpotDetailModel = {
       ...spot,
       id: 'spot-duplicate-gallery',
@@ -246,7 +247,8 @@ describe('SpotDetail', () => {
 
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('3 photos');
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(2);
-    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
+    expect(wrapper.findAll('.thumbnail-card__empty-icon')).toHaveLength(0);
     expect(wrapper.text()).toContain('Side bridge detail');
     expect(wrapper.text()).toContain('Blue hour lights');
     expect(wrapper.text()).not.toContain('Duplicate blue hour lights');
@@ -286,11 +288,25 @@ describe('SpotDetail', () => {
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('7 photos');
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(3);
     expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
-    expect(wrapper.get('[data-test="gallery-view-all"]').text()).toContain('View all');
+    expect(wrapper.get('[data-test="gallery-view-all"]').element.tagName).toBe('BUTTON');
     expect(wrapper.get('[data-test="gallery-view-all"]').text()).toContain('7 photos');
+
+    await wrapper.get('[data-test="gallery-view-all"]').trigger('click');
+    await flushPromises();
+
+    expect(document.body.textContent).toContain('All photos');
+    expect(document.body.textContent).toContain('Main view');
+    expect(document.body.textContent).toContain('Night angle');
+
+    const nightAngleButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.spot-gallery-dialog__thumb'))
+      .find((button) => button.textContent?.includes('Night angle'));
+    expect(nightAngleButton).toBeTruthy();
+    nightAngleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(document.body.textContent).toContain('Night angle');
   });
 
-  it('uses intentional blank gallery slots when no real spot photos are available', async () => {
+  it('uses a clean hero placeholder when no real spot photos are available', async () => {
     const noPhotoSpot: SpotDetailModel = {
       ...spot,
       id: 'spot-no-photo',
@@ -316,7 +332,8 @@ describe('SpotDetail', () => {
     expect(wrapper.find('.hero-gallery__placeholder').text()).toContain('Culture');
     expect(wrapper.find('[data-test="spot-photo-count"]').exists()).toBe(false);
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(0);
-    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
+    expect(wrapper.findAll('.thumbnail-card__empty-icon')).toHaveLength(0);
   });
 
   it('shows the login prompt when the traveler is not authenticated', async () => {
@@ -513,7 +530,7 @@ describe('SpotDetail', () => {
 
     expect(wrapper.find('.hero-gallery__copy').text()).toContain('Fresh hero angle');
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(1);
-    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
   });
 
   it('handles sparse media, local reviews, save toggles, sharing, and similar spot failures', async () => {
@@ -571,7 +588,8 @@ describe('SpotDetail', () => {
 
     expect(wrapper.find('[data-test="spot-photo-count"]').text()).toContain('1 photo');
     expect(wrapper.findAll('[data-test="gallery-thumb"]')).toHaveLength(0);
-    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-test="gallery-empty-slot"]')).toHaveLength(0);
+    expect(wrapper.findAll('.thumbnail-card__empty-icon')).toHaveLength(0);
     expect(wrapper.text()).toContain('Location syncing');
     expect(wrapper.text()).toContain('No similar spots yet');
     expect(wrapper.text()).toContain('Fresh saves');

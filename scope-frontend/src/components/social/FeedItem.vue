@@ -2,7 +2,7 @@
   <article class="feed-item glass-panel" :class="{ 'feed-item--review': isReviewItem }" :data-test="`feed-item-${item.id}`">
     <header class="feed-header">
       <div class="actor-row">
-        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="isReviewItem ? 44 : 36" />
+        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="36" />
 
         <div class="header-copy">
           <p v-if="isReviewItem" class="reviewer-action">
@@ -961,22 +961,31 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   }
 }
 
-/* Review card reset: keep the reusable feed component, but strip the
-   extra chrome from review activity so the card reads like one clean note. */
+/* Compact home feed card reset. Keep every activity type on the same grid so
+   signed-in and signed-out homepage rails stay visually aligned. */
 .feed-item {
   --feed-media-aspect-ratio: 4 / 3;
 
   position: relative;
   display: grid;
-  grid-template-rows: auto auto minmax(5rem, 1fr) auto;
+  grid-template-rows: auto auto minmax(5rem, auto) auto;
+  align-content: start;
   gap: var(--space-4);
   padding: var(--space-4);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, var(--border));
   border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 4%, var(--bg-secondary)), color-mix(in srgb, var(--bg-tertiary) 62%, var(--bg-secondary))),
+    var(--bg-secondary);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent) inset,
+    0 16px 34px color-mix(in srgb, var(--bg-primary) 44%, transparent);
   transform: none;
+}
+
+.feed-item--review {
+  border-color: color-mix(in srgb, var(--text-primary) 12%, var(--border));
 }
 
 .feed-item::before {
@@ -992,7 +1001,7 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .feed-header {
   height: auto;
-  min-height: 0;
+  min-height: 5.125rem;
   overflow: visible;
 }
 
@@ -1007,40 +1016,51 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .header-copy {
   display: grid;
-  grid-template-rows: auto;
-  gap: 0.2rem;
+  grid-template-rows: 0.95rem 2.4rem 1.35rem;
+  align-content: start;
+  gap: 0.35rem;
   min-width: 0;
   min-height: 0;
 }
 
 .reviewer-action {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0.32rem;
   margin: 0;
-  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text-primary) 62%, var(--text-secondary));
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-eyebrow);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
-  line-height: 1.2;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reviewer-action__name {
   min-width: 0;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
   overflow-wrap: anywhere;
 }
 
 .headline-copy,
 .header-copy h3 {
-  min-height: 0;
-  max-height: none;
+  min-height: 2.4rem;
+  max-height: 2.4rem;
   color: var(--text-primary);
   font-size: 1.06rem;
   font-weight: var(--font-weight-semibold);
   line-height: 1.28;
   letter-spacing: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 

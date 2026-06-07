@@ -109,7 +109,7 @@
 
               <div class="quick-filter-actions">
                 <button
-                  v-if="selectedCountry || selectedCityKey"
+                  v-if="selectedCountry || selectedRegion || selectedCityKey"
                   type="button"
                   class="state-reset-button"
                   data-test="state-reset-location"
@@ -119,6 +119,66 @@
                   <ScopeIcon name="reset" label="" />
                   <span>Reset location</span>
                 </button>
+                <div
+                  v-if="hasRegionFilterOptions"
+                  ref="regionFilterControlRef"
+                  class="region-filter-control"
+                  :class="{ 'is-open': isRegionFilterOpen }"
+                  data-test="state-filter-control"
+                >
+                  <button
+                    type="button"
+                    class="region-filter-button"
+                    data-test="state-filter-select"
+                    aria-haspopup="listbox"
+                    :aria-expanded="String(isRegionFilterOpen)"
+                    :aria-controls="regionFilterListboxId"
+                    :aria-label="`${regionFilterControlLabel}: ${selectedRegionFilterLabel}`"
+                    @click="toggleRegionFilterOpen"
+                    @keydown.escape.prevent="closeRegionFilter"
+                  >
+                    <span class="region-filter-button__label">{{ regionFilterControlLabel }}</span>
+                    <span class="region-filter-button__value">{{ selectedRegionFilterLabel }}</span>
+                    <ScopeIcon name="chevron-down" label="" />
+                  </button>
+
+                  <div
+                    v-if="isRegionFilterOpen"
+                    :id="regionFilterListboxId"
+                    class="region-filter-menu"
+                    role="listbox"
+                    :aria-label="`${regionFilterControlLabel} options`"
+                  >
+                    <button
+                      type="button"
+                      class="region-filter-option"
+                      :class="{ active: !selectedRegion }"
+                      role="option"
+                      :aria-selected="String(!selectedRegion)"
+                      data-test="state-filter-option"
+                      data-region=""
+                      @click="selectRegionOption('')"
+                    >
+                      <span>{{ regionFilterAllLabel }}</span>
+                      <small>{{ regionFilterAllMetaLabel }}</small>
+                    </button>
+                    <button
+                      v-for="region in availableRegionOptions"
+                      :key="region.value"
+                      type="button"
+                      class="region-filter-option"
+                      :class="{ active: selectedRegion === region.value }"
+                      role="option"
+                      :aria-selected="String(selectedRegion === region.value)"
+                      data-test="state-filter-option"
+                      :data-region="region.value"
+                      @click="selectRegionOption(region.value)"
+                    >
+                      <span>{{ region.label }}</span>
+                      <small>{{ formatRegionOptionMeta(region) }}</small>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="quick-filter-row quick-filter-row--countries" data-test="country-filter-row">
@@ -160,36 +220,42 @@
                 </button>
               </template>
             </div>
-            <div class="quick-filter-row quick-filter-row--cities">
-              <span v-if="!availableCityFilterOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
-                Cities appear after spots sync.
-              </span>
-              <span v-else-if="!visibleExploreCityOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
-                No cities with spots yet.
-              </span>
-              <button
-                v-for="city in visibleExploreCityOptions"
-                :key="city.key"
-                type="button"
-                class="quick-filter-chip"
-                :class="{ active: selectedCityKey === city.key }"
-                data-test="city-chip"
-                :data-city-key="city.key"
-                @click="toggleCity(city)"
-              >
-                {{ city.label }}
-              </button>
-              <button
-                v-if="cityOverflowButtonLabel"
-                type="button"
-                class="quick-filter-chip quick-filter-chip--more"
-                data-test="city-chip-more"
-                :aria-expanded="String(isCityFilterExpanded)"
-                :aria-label="cityOverflowButtonAriaLabel"
-                @click="toggleCityFilterExpanded"
-              >
-                {{ cityOverflowButtonLabel }}
-              </button>
+            <div class="quick-filter-section quick-filter-section--cities">
+              <div class="quick-filter-section__label">
+                <span>Cities</span>
+                <small>{{ cityFilterScopeCopy }}</small>
+              </div>
+              <div class="quick-filter-row quick-filter-row--cities">
+                <span v-if="!availableCityFilterOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
+                  Cities appear after spots sync.
+                </span>
+                <span v-else-if="!visibleExploreCityOptions.length" class="quick-filter-chip quick-filter-chip--empty" data-test="city-chip-empty">
+                  No cities with spots yet.
+                </span>
+                <button
+                  v-for="city in visibleExploreCityOptions"
+                  :key="city.key"
+                  type="button"
+                  class="quick-filter-chip"
+                  :class="{ active: selectedCityKey === city.key }"
+                  data-test="city-chip"
+                  :data-city-key="city.key"
+                  @click="toggleCity(city)"
+                >
+                  {{ city.label }}
+                </button>
+                <button
+                  v-if="cityOverflowButtonLabel"
+                  type="button"
+                  class="quick-filter-chip quick-filter-chip--more"
+                  data-test="city-chip-more"
+                  :aria-expanded="String(isCityFilterExpanded)"
+                  :aria-label="cityOverflowButtonAriaLabel"
+                  @click="toggleCityFilterExpanded"
+                >
+                  {{ cityOverflowButtonLabel }}
+                </button>
+              </div>
             </div>
           </section>
 
@@ -199,80 +265,46 @@
                 <p class="chip-label">Vibes</p>
                 <span class="quick-filter-group__meta">{{ vibeFilterMetaCopy }}</span>
               </div>
-
-              <div class="quick-filter-actions quick-filter-actions--vibes">
-                <div
-                  ref="vibeFilterRef"
-                  class="vibe-menu"
-                  :class="{
-                    'is-active': selectedVibe,
-                    'is-open': isVibeMenuOpen,
-                    'is-disabled': !availableExploreVibes.length,
-                  }"
-                  data-test="vibe-filter"
-                >
-                  <button
-                    id="explore-vibe-filter"
-                    type="button"
-                    class="vibe-menu__button"
-                    data-test="vibe-select"
-                    aria-haspopup="listbox"
-                    aria-label="Filter by vibe"
-                    :disabled="!availableExploreVibes.length"
-                    :aria-expanded="String(isVibeMenuOpen)"
-                    :aria-controls="isVibeMenuOpen ? vibeMenuId : undefined"
-                    @click="toggleVibeMenu"
-                    @keydown.down.prevent="openVibeMenu"
-                    @keydown.enter.prevent="toggleVibeMenu"
-                    @keydown.space.prevent="toggleVibeMenu"
-                    @keydown.esc.prevent="closeVibeMenu"
-                  >
-                    <span class="vibe-menu__value">{{ vibeFilterButtonLabel }}</span>
-                    <ScopeIcon class="vibe-menu__chevron" name="chevron-down" label="" />
-                  </button>
-
-                  <div
-                    v-if="isVibeMenuOpen && availableExploreVibes.length"
-                    :id="vibeMenuId"
-                    class="vibe-menu__menu"
-                    role="listbox"
-                    aria-label="Filter by vibe"
-                    data-test="vibe-menu"
-                  >
-                    <button
-                      type="button"
-                      class="vibe-menu__option"
-                      :class="{ 'is-selected': !selectedVibe }"
-                      role="option"
-                      :aria-selected="String(!selectedVibe)"
-                      data-test="vibe-option"
-                      data-vibe=""
-                      @click="selectVibe('')"
-                    >
-                      <span>Any vibe</span>
-                      <small>{{ availableExploreVibes.length }}</small>
-                    </button>
-                    <button
-                      v-for="vibe in availableExploreVibes"
-                      :key="vibe"
-                      type="button"
-                      class="vibe-menu__option"
-                      :class="{ 'is-selected': selectedVibe === vibe }"
-                      role="option"
-                      :aria-selected="String(selectedVibe === vibe)"
-                      data-test="vibe-option"
-                      :data-vibe="vibe"
-                      @click="selectVibe(vibe)"
-                    >
-                      <span>{{ formatVibeLabel(vibe) }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
-            <p class="quick-filter-helper">
-              Vibe options follow the selected category, country, and city.
-            </p>
+            <div class="quick-filter-row quick-filter-row--vibes" data-test="vibe-chip-row">
+              <span v-if="!availableExploreVibes.length" class="quick-filter-chip quick-filter-chip--empty" data-test="vibe-chip-empty">
+                Vibes appear after spots sync.
+              </span>
+              <template v-else>
+                <button
+                  type="button"
+                  class="quick-filter-chip"
+                  :class="{ active: !selectedVibe }"
+                  data-test="vibe-chip-all"
+                  @click="selectVibe('')"
+                >
+                  Any vibe
+                </button>
+                <button
+                  v-for="vibe in visibleExploreVibes"
+                  :key="vibe"
+                  type="button"
+                  class="quick-filter-chip"
+                  :class="{ active: selectedVibe === vibe }"
+                  data-test="vibe-chip"
+                  :data-vibe="vibe"
+                  @click="selectVibe(vibe)"
+                >
+                  {{ formatVibeLabel(vibe) }}
+                </button>
+                <button
+                  v-if="vibeOverflowButtonLabel"
+                  type="button"
+                  class="quick-filter-chip quick-filter-chip--more"
+                  data-test="vibe-chip-more"
+                  :aria-expanded="String(isVibeFilterExpanded)"
+                  :aria-label="vibeOverflowButtonAriaLabel"
+                  @click="toggleVibeFilterExpanded"
+                >
+                  {{ vibeOverflowButtonLabel }}
+                </button>
+              </template>
+            </div>
           </section>
         </div>
 
@@ -497,6 +529,8 @@ const EXPLORE_AUDIT_RESULT_LIMIT = 6;
 const EXPLORE_AUDIT_TRENDING_LIMIT = 4;
 const MAX_VISIBLE_COUNTRY_FILTERS = 5;
 const MAX_VISIBLE_CITY_FILTERS = 6;
+const MAX_VISIBLE_VIBE_FILTERS = 12;
+const regionFilterListboxId = 'explore-region-filter-options';
 const EXPLORE_AUDIT_PREVIEW_SPOTS = [
   {
     title: 'Lakefront Sunrise Loop',
@@ -530,20 +564,21 @@ const categories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'a
 const searchQuery = ref('');
 const selectedCityKey = ref('');
 const selectedCountry = ref('');
+const selectedRegion = ref('');
 const selectedVibe = ref('');
 const isCountryFilterExpanded = ref(false);
 const isCityFilterExpanded = ref(false);
+const isVibeFilterExpanded = ref(false);
+const isRegionFilterOpen = ref(false);
 const isFetchingInitialResults = ref(true);
 const isMobileExploreLayout = ref(false);
-const isVibeMenuOpen = ref(false);
 const hasFocusedExploreSearch = ref(false);
 const exploreCurrentPage = ref(1);
 const exploreSortMode = ref<ExploreSortMode>('community');
 const exploreSearchRecommendations = ref<SearchPlaceSuggestion[]>([]);
 const exploreSearchRecommendationsLoading = ref(false);
 const exploreSearchRecommendationsError = ref<string | null>(null);
-const vibeFilterRef = ref<HTMLElement | null>(null);
-const vibeMenuId = 'explore-vibe-filter-menu';
+const regionFilterControlRef = ref<HTMLElement | null>(null);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let exploreSearchRecommendationRequestId = 0;
 
@@ -559,6 +594,11 @@ type CityFilterOption = {
   city: string;
   region: string;
   country: string;
+  label: string;
+  count: number;
+};
+type RegionFilterOption = {
+  value: string;
   label: string;
   count: number;
 };
@@ -674,21 +714,27 @@ function resolveSearchSnippet(result: SearchResult): string | undefined {
 }
 
 function mapSearchResultToSpot(result: SearchResult): DisplaySpot {
-  return {
+  const spot: DisplaySpot = {
     id: result.id,
     title: result.name,
     description: result.description ?? '',
     latitude: result.location?.lat ?? 0,
     longitude: result.location?.lon ?? 0,
-    city: '',
-    country: '',
+    city: result.city ?? '',
+    country: result.country ?? '',
     category: isSpotCategory(result.category) ? result.category : 'other',
     rating: result.avg_rating ?? 0,
     createdAt: new Date(0).toISOString(),
     likesCount: result.review_count ?? 0,
-    photoUrl: '',
-    searchSnippet: resolveSearchSnippet(result),
+    photoUrl: result.photoUrl ?? result.photo_url ?? '',
   };
+  const searchSnippet = resolveSearchSnippet(result);
+
+  if (searchSnippet) {
+    spot.searchSnippet = searchSnippet;
+  }
+
+  return spot;
 }
 
 const EXPLORE_CARD_IMAGE_WIDTH = 720;
@@ -741,45 +787,49 @@ function toggleCountryFilterExpanded() {
   isCountryFilterExpanded.value = !isCountryFilterExpanded.value;
 }
 
+function toggleVibeFilterExpanded() {
+  isVibeFilterExpanded.value = !isVibeFilterExpanded.value;
+}
+
 function selectCountry(country: string) {
   selectedCountry.value = country;
+  selectedRegion.value = '';
+  selectedCityKey.value = '';
+  isCityFilterExpanded.value = false;
+  isRegionFilterOpen.value = false;
+}
+
+function selectRegion(region: string) {
+  selectedRegion.value = region;
   selectedCityKey.value = '';
   isCityFilterExpanded.value = false;
 }
 
-function openVibeMenu() {
-  if (!availableExploreVibes.value.length) {
+function closeRegionFilter() {
+  isRegionFilterOpen.value = false;
+}
+
+function toggleRegionFilterOpen() {
+  isRegionFilterOpen.value = !isRegionFilterOpen.value;
+}
+
+function selectRegionOption(region: string) {
+  selectRegion(region);
+  closeRegionFilter();
+}
+
+function handleDocumentClick(event: MouseEvent) {
+  const control = regionFilterControlRef.value;
+  const target = event.target;
+  if (!control || !(target instanceof Node) || control.contains(target)) {
     return;
   }
 
-  isVibeMenuOpen.value = true;
-}
-
-function closeVibeMenu() {
-  isVibeMenuOpen.value = false;
-}
-
-function toggleVibeMenu() {
-  if (!availableExploreVibes.value.length) {
-    isVibeMenuOpen.value = false;
-    return;
-  }
-
-  isVibeMenuOpen.value = !isVibeMenuOpen.value;
+  closeRegionFilter();
 }
 
 function selectVibe(vibe: string) {
   selectedVibe.value = vibe;
-  closeVibeMenu();
-}
-
-function handleDocumentPointerDown(event: PointerEvent) {
-  const target = event.target;
-  if (!(target instanceof Node) || vibeFilterRef.value?.contains(target)) {
-    return;
-  }
-
-  closeVibeMenu();
 }
 
 function resolveIsMobileExploreLayout(): boolean {
@@ -804,10 +854,12 @@ function clearFilters() {
   mapStore.resetCategories();
   selectedCityKey.value = '';
   selectedCountry.value = '';
+  selectedRegion.value = '';
   isCountryFilterExpanded.value = false;
   isCityFilterExpanded.value = false;
+  isVibeFilterExpanded.value = false;
+  isRegionFilterOpen.value = false;
   selectedVibe.value = '';
-  closeVibeMenu();
   void router.replace({ query: {} });
 }
 
@@ -871,8 +923,10 @@ async function openExploreRecommendation(spot: SearchPlaceSuggestion): Promise<v
 function clearLocationFilters() {
   selectedCityKey.value = '';
   selectedCountry.value = '';
+  selectedRegion.value = '';
   isCountryFilterExpanded.value = false;
   isCityFilterExpanded.value = false;
+  isRegionFilterOpen.value = false;
 }
 
 function matchesSearch(spot: SpotSummary, query: string): boolean {
@@ -906,7 +960,7 @@ function resolveSpotVibes(spot: SpotSummary): string[] {
 
 const baseSpots = computed(() => spotsStore.items);
 const hasActiveFilters = computed(() =>
-  Boolean(searchQuery.value || !allCategoriesSelected.value || selectedCityKey.value || selectedCountry.value || selectedVibe.value),
+  Boolean(searchQuery.value || !allCategoriesSelected.value || selectedCityKey.value || selectedCountry.value || selectedRegion.value || selectedVibe.value),
 );
 
 function matchesActiveCategoryFilter(spot: SpotSummary): boolean {
@@ -941,6 +995,18 @@ function matchesSelectedCity(spot: SpotSummary): boolean {
   );
 }
 
+function matchesSelectedRegion(spot: SpotSummary): boolean {
+  if (!selectedRegion.value) {
+    return true;
+  }
+
+  const spotLocation = resolveCityRegionLocation(spot);
+  const locationRegion = spotLocation?.region || resolveSpotRegion(spot);
+  const country = spotLocation?.country || resolveSpotCountry(spot);
+
+  return locationRegion === selectedRegion.value && (!selectedCountry.value || country === selectedCountry.value);
+}
+
 const locationOptionSourceSpots = computed(() =>
   baseSpots.value.filter((spot) =>
     matchesActiveCategoryFilter(spot) &&
@@ -953,6 +1019,7 @@ const vibeOptionSourceSpots = computed(() =>
   baseSpots.value.filter((spot) =>
     matchesActiveCategoryFilter(spot) &&
     matchesSelectedCountry(spot) &&
+    matchesSelectedRegion(spot) &&
     matchesSelectedCity(spot) &&
     matchesSearch(spot, searchQuery.value),
   ),
@@ -1003,7 +1070,11 @@ const availableCountryOptions = computed<CountryOption[]>(() => {
       label: country,
       count,
     }))
-    .sort((left, right) => left.label.localeCompare(right.label));
+    .sort((left, right) => {
+      const leftWeight = left.value === 'USA' ? 0 : 1;
+      const rightWeight = right.value === 'USA' ? 0 : 1;
+      return leftWeight - rightWeight || left.label.localeCompare(right.label);
+    });
 });
 
 const availableVibes = computed(() =>
@@ -1013,8 +1084,32 @@ const availableVibes = computed(() =>
 );
 
 const availableExploreVibes = computed(() => (isScopeQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_VIBES] : availableVibes.value));
-const vibeFilterButtonLabel = computed(() =>
-  selectedVibe.value ? formatVibeLabel(selectedVibe.value) : 'Any vibe',
+const visibleExploreVibes = computed(() => {
+  if (isVibeFilterExpanded.value) {
+    return availableExploreVibes.value;
+  }
+
+  const visibleVibes = availableExploreVibes.value.slice(0, MAX_VISIBLE_VIBE_FILTERS);
+  if (selectedVibe.value && availableExploreVibes.value.includes(selectedVibe.value) && !visibleVibes.includes(selectedVibe.value)) {
+    return [selectedVibe.value, ...visibleVibes.slice(0, MAX_VISIBLE_VIBE_FILTERS - 1)];
+  }
+
+  return visibleVibes;
+});
+const hiddenVibeCount = computed(() =>
+  Math.max(0, availableExploreVibes.value.length - new Set(visibleExploreVibes.value).size),
+);
+const vibeOverflowButtonLabel = computed(() => {
+  if (isVibeFilterExpanded.value && availableExploreVibes.value.length > MAX_VISIBLE_VIBE_FILTERS) {
+    return 'Show fewer';
+  }
+
+  return hiddenVibeCount.value ? `+${hiddenVibeCount.value} more` : '';
+});
+const vibeOverflowButtonAriaLabel = computed(() =>
+  isVibeFilterExpanded.value
+    ? 'Show fewer vibes'
+    : `Show ${hiddenVibeCount.value} more ${hiddenVibeCount.value === 1 ? 'vibe' : 'vibes'}`,
 );
 const vibeFilterMetaCopy = computed(() => {
   const vibeCount = availableExploreVibes.value.length;
@@ -1024,6 +1119,10 @@ const vibeFilterMetaCopy = computed(() => {
 
   if (selectedCityOption.value) {
     return `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'} in ${selectedCityOption.value.label}`;
+  }
+
+  if (selectedRegion.value) {
+    return `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'} in ${formatRegionLabel(selectedRegion.value)}`;
   }
 
   if (selectedCountry.value) {
@@ -1062,7 +1161,10 @@ const countryOverflowButtonAriaLabel = computed(() =>
 );
 const filteredExploreCityOptions = computed(() =>
   selectedCountry.value
-    ? availableCityFilterOptions.value.filter((city) => city.country === selectedCountry.value)
+    ? availableCityFilterOptions.value.filter((city) => (
+      city.country === selectedCountry.value &&
+      (!selectedRegion.value || city.region === selectedRegion.value)
+    ))
     : availableCityFilterOptions.value,
 );
 const selectedCityOption = computed(() =>
@@ -1097,6 +1199,67 @@ const cityOverflowButtonAriaLabel = computed(() =>
     : `Show ${hiddenCityCount.value} more ${hiddenCityCount.value === 1 ? 'city' : 'cities'}`,
 );
 const selectedCountryLabel = computed(() => selectedCountry.value || 'all countries');
+const availableRegionOptions = computed<RegionFilterOption[]>(() => {
+  if (!selectedCountry.value) {
+    return [];
+  }
+
+  const regions = new Map<string, RegionFilterOption>();
+  availableCityFilterOptions.value
+    .filter((city) => (
+      city.country === selectedCountry.value &&
+      city.region &&
+      city.region !== city.country &&
+      city.region !== 'Global'
+    ))
+    .forEach((city) => {
+      const existing = regions.get(city.region);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+
+      regions.set(city.region, {
+        value: city.region,
+        label: formatRegionLabel(city.region),
+        count: 1,
+      });
+    });
+
+  return [...regions.values()].sort((left, right) => left.label.localeCompare(right.label));
+});
+const hasRegionFilterOptions = computed(() => Boolean(selectedCountry.value && availableRegionOptions.value.length));
+const regionFilterTitle = computed(() => (selectedCountry.value === 'USA' ? 'States' : 'Regions'));
+const regionFilterControlLabel = 'Filter type';
+const regionFilterAllLabel = computed(() => `All ${regionFilterTitle.value.toLowerCase()}`);
+const selectedRegionFilterLabel = computed(() => {
+  if (!selectedRegion.value) {
+    return regionFilterAllLabel.value;
+  }
+
+  return availableRegionOptions.value.find((region) => region.value === selectedRegion.value)?.label ?? regionFilterAllLabel.value;
+});
+const selectedCountryCityCount = computed(() =>
+  selectedCountry.value
+    ? availableCityFilterOptions.value.filter((city) => city.country === selectedCountry.value).length
+    : availableCityFilterOptions.value.length,
+);
+function formatAvailableCityCount(count: number): string {
+  return `${count} ${count === 1 ? 'city' : 'cities'} available`;
+}
+
+const regionFilterAllMetaLabel = computed(() => formatAvailableCityCount(selectedCountryCityCount.value));
+
+function formatRegionOptionMeta(region: RegionFilterOption): string {
+  return formatAvailableCityCount(region.count);
+}
+const cityFilterScopeCopy = computed(() => {
+  if (selectedRegion.value) {
+    return `in ${formatRegionLabel(selectedRegion.value)}`;
+  }
+
+  return selectedCountry.value ? `in ${selectedCountryLabel.value}` : 'across all countries';
+});
 const locationFilterTitle = 'Cities';
 const cityFilterMetaCopy = computed(() => {
   if (!availableCityFilterOptions.value.length) {
@@ -1104,6 +1267,10 @@ const cityFilterMetaCopy = computed(() => {
   }
 
   const cityCount = filteredExploreCityOptions.value.length;
+  if (selectedRegion.value) {
+    return `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} in ${formatRegionLabel(selectedRegion.value)}`;
+  }
+
   return selectedCountry.value
     ? `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} in ${selectedCountryLabel.value}`
     : `${cityCount} ${cityCount === 1 ? 'city' : 'cities'} across all countries`;
@@ -1114,6 +1281,7 @@ const filteredSpots = computed(() =>
     return (
       matchesActiveCategoryFilter(spot) &&
       matchesSelectedCountry(spot) &&
+      matchesSelectedRegion(spot) &&
       matchesSelectedCity(spot) &&
       matchesActiveVibeFilter(spot) &&
       matchesSearch(spot, searchQuery.value)
@@ -1223,6 +1391,10 @@ const activeFilterPills = computed(() => {
     pills.push(selectedCountry.value);
   }
 
+  if (selectedRegion.value && !selectedCityOption.value) {
+    pills.push(formatRegionLabel(selectedRegion.value));
+  }
+
   if (selectedVibe.value) {
     pills.push(formatVibeLabel(selectedVibe.value));
   }
@@ -1261,7 +1433,20 @@ watch(availableCityFilterOptions, (options) => {
 
   if (selectedCountry.value && !availableCountryOptions.value.some((country) => country.value === selectedCountry.value)) {
     selectedCountry.value = '';
+    selectedRegion.value = '';
     isCountryFilterExpanded.value = false;
+  }
+});
+
+watch(availableRegionOptions, (regions) => {
+  if (!regions.length) {
+    closeRegionFilter();
+  }
+
+  if (selectedRegion.value && !regions.some((region) => region.value === selectedRegion.value)) {
+    selectedRegion.value = '';
+    selectedCityKey.value = '';
+    closeRegionFilter();
   }
 });
 
@@ -1276,6 +1461,7 @@ watch(
     searchQuery.value.trim(),
     activeExploreCategories.value.join('|'),
     selectedCountry.value,
+    selectedRegion.value,
     selectedCityKey.value,
     selectedVibe.value,
     exploreSortMode.value,
@@ -1373,7 +1559,7 @@ watch(searchQuery, (query) => {
 onMounted(() => {
   syncMobileExploreLayout();
   window.addEventListener('resize', syncMobileExploreLayout, { passive: true });
-  document.addEventListener('pointerdown', handleDocumentPointerDown);
+  document.addEventListener('click', handleDocumentClick);
 
   if (isScopeQaExploreMode) {
     return;
@@ -1388,7 +1574,7 @@ onBeforeUnmount(() => {
     searchDebounceTimer = null;
   }
   window.removeEventListener('resize', syncMobileExploreLayout);
-  document.removeEventListener('pointerdown', handleDocumentPointerDown);
+  document.removeEventListener('click', handleDocumentClick);
 });
 </script>
 
@@ -1768,89 +1954,70 @@ h2 {
   transform: translateY(0) scale(var(--motion-press-scale));
 }
 
-.quick-filter-actions--vibes {
-  flex: 0 1 18rem;
-  min-width: min(100%, 15rem);
+.region-filter-control {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 11rem;
 }
 
-.vibe-menu {
-  position: relative;
+.region-filter-button {
   display: inline-flex;
   align-items: center;
-  width: min(18rem, 100%);
-  z-index: 4;
-}
-
-.vibe-menu__button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
   gap: var(--space-2);
   width: 100%;
   min-height: 2.7rem;
-  padding: 0.55rem 2.6rem 0.55rem 0.95rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 16%, var(--glass-border));
+  padding: 0.55rem 2.5rem 0.55rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 24%, var(--glass-border));
   border-radius: var(--radius-full);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent)),
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent-teal) 12%, transparent), transparent 58%);
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent));
   color: var(--text-secondary);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--bg-primary) 18%, transparent);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  font: inherit;
-  font-size: var(--font-size-small);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.2;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
   cursor: pointer;
+  font: inherit;
+  text-align: left;
   transition:
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
     background var(--transition-fast),
-    color var(--transition-fast);
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
-.vibe-menu:hover .vibe-menu__button,
-.vibe-menu__button:focus-visible,
-.vibe-menu.is-open .vibe-menu__button {
-  color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--glass-border));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 100%, transparent), color-mix(in srgb, var(--bg-secondary) 86%, transparent)),
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 58%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
-  outline: none;
+.region-filter-button__label {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--accent-teal) 82%, var(--text-primary) 18%);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
 }
 
-.vibe-menu.is-active .vibe-menu__button {
-  color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent-teal) 45%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg)), color-mix(in srgb, var(--accent-teal) 9%, var(--bg-secondary))),
-    color-mix(in srgb, var(--bg-secondary) 88%, transparent);
-}
-
-.vibe-menu.is-disabled .vibe-menu__button,
-.vibe-menu__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.68;
-}
-
-.vibe-menu__value {
+.region-filter-button__value {
   min-width: 0;
+  flex: 1 1 auto;
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.vibe-menu__chevron {
+.region-filter-button:hover,
+.region-filter-button:focus-visible,
+.region-filter-control.is-open .region-filter-button {
+  border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--border-hover));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 10%, var(--glass-bg)), color-mix(in srgb, var(--bg-secondary) 92%, transparent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent-teal) 9%, transparent);
+  outline: none;
+}
+
+.region-filter-button :deep(.scope-icon) {
   position: absolute;
-  right: 0.95rem;
+  right: 0.8rem;
   width: 1rem;
   height: 1rem;
   color: currentColor;
@@ -1859,49 +2026,54 @@ h2 {
   transition: transform var(--transition-fast);
 }
 
-.vibe-menu.is-open .vibe-menu__chevron {
+.region-filter-control.is-open .region-filter-button :deep(.scope-icon) {
   transform: rotate(180deg);
 }
 
-.vibe-menu__menu {
+.region-filter-menu {
   position: absolute;
-  top: calc(100% + 0.55rem);
+  top: calc(100% + 0.45rem);
   right: 0;
+  z-index: 40;
   display: grid;
-  width: min(18rem, calc(100vw - 2rem));
-  max-height: min(20rem, calc(100vh - 12rem));
+  gap: var(--space-1);
+  width: max(100%, 15rem);
+  max-height: min(18rem, 52vh);
+  padding: var(--space-2);
   overflow-y: auto;
-  padding: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 22%, var(--glass-border));
-  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 28%, var(--glass-border));
+  border-radius: var(--radius-lg);
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary) 4%),
-      color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary) 12%)
-    );
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 94%, var(--bg-secondary)), color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary))),
+    var(--bg-secondary);
   box-shadow:
-    0 16px 36px color-mix(in srgb, var(--bg-primary) 34%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
-  z-index: calc(var(--z-dropdown) + 2);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent),
+    0 18px 38px color-mix(in srgb, var(--bg-primary) 58%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent-teal) 34%, transparent) transparent;
 }
 
-.vibe-menu__option {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  min-height: 2.5rem;
-  padding: 0.58rem 0.72rem;
+.region-filter-menu::-webkit-scrollbar {
+  width: 0.45rem;
+}
+
+.region-filter-menu::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-teal) 34%, transparent);
+}
+
+.region-filter-option {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
   border: 1px solid transparent;
-  border-radius: 0.85rem;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-small);
-  font-weight: var(--font-weight-medium);
   line-height: 1.2;
   text-align: left;
   transition:
@@ -1911,54 +2083,69 @@ h2 {
     box-shadow var(--transition-fast);
 }
 
-.vibe-menu__option + .vibe-menu__option {
-  margin-top: 0.12rem;
+.region-filter-option span,
+.region-filter-option small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.vibe-menu__option small {
-  color: var(--text-muted);
-  font-size: var(--font-size-caption);
+.region-filter-option span {
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
 }
 
-.vibe-menu__option:hover,
-.vibe-menu__option:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-teal) 20%, var(--border));
-  background: color-mix(in srgb, var(--accent-teal) 8%, var(--bg-tertiary));
+.region-filter-option small {
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.region-filter-option:hover,
+.region-filter-option:focus-visible,
+.region-filter-option.active {
+  border-color: color-mix(in srgb, var(--accent-teal) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-secondary));
   color: var(--text-primary);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
   outline: none;
 }
 
-.vibe-menu__option.is-selected {
-  padding-left: 1rem;
-  border-color: color-mix(in srgb, var(--accent-teal) 28%, var(--border));
-  background: color-mix(in srgb, var(--accent-teal) 10%, var(--bg-secondary));
-  color: var(--text-primary);
+.region-filter-option.active small {
+  color: color-mix(in srgb, var(--accent-teal) 76%, var(--text-secondary));
 }
 
-.vibe-menu__option.is-selected::before {
-  content: '';
-  position: absolute;
-  left: 0.45rem;
-  top: 50%;
-  width: 0.18rem;
-  height: 1.15rem;
-  border-radius: var(--radius-full);
-  background: var(--accent-teal);
-  transform: translateY(-50%);
+.quick-filter-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--glass-border) 72%, transparent);
 }
 
-.vibe-menu__option.is-selected:hover,
-.vibe-menu__option.is-selected:focus-visible {
-  background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-secondary));
+.quick-filter-section__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  color: color-mix(in srgb, var(--text-secondary) 82%, var(--text-primary) 18%);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
 }
 
-.quick-filter-helper {
-  margin: var(--space-3) 0 0;
+.quick-filter-section__label small {
   color: var(--text-muted);
   font-size: var(--font-size-caption);
-  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.quick-filter-row--countries {
+  padding-bottom: var(--space-3);
 }
 
 .filter-chip:hover,
@@ -2237,18 +2424,6 @@ h2 {
 
 .explore-page[data-explore-layout='mobile'] .quick-filter-actions {
   justify-content: flex-start;
-}
-
-.explore-page[data-explore-layout='mobile'] .quick-filter-actions--vibes,
-.explore-page[data-explore-layout='mobile'] .vibe-menu {
-  width: 100%;
-  min-width: 0;
-}
-
-.explore-page[data-explore-layout='mobile'] .vibe-menu__menu {
-  right: auto;
-  left: 0;
-  width: min(100%, calc(100vw - 2rem));
 }
 
 .explore-page[data-explore-layout='mobile'] :is(.filter-chip, .quick-filter-chip, .active-pill) {

@@ -131,6 +131,7 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import MapView from '@/components/map/MapView.vue';
 import { getDefaultDiscoveryMapViewport } from '@/services/mapViewportService';
 import type { MapPoint, MapViewport, SpotCategory, SpotSummary } from '@/types';
+import { resolveCityRegionLocation, resolveLocationRegion } from '@/utils/formatters';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { getSpotFingerprint } from '@/utils/spotIdentity';
 import { buildSpotPath } from '@/utils/spotRoutes';
@@ -176,6 +177,71 @@ const props = withDefaults(
     showWishlist: true,
   },
 );
+
+const PROFILE_MAP_COUNTRY_LABELS: Record<string, string> = {
+  AU: 'Australia',
+  ES: 'Spain',
+  GB: 'United Kingdom',
+  JP: 'Japan',
+  MX: 'Mexico',
+  SG: 'Singapore',
+  US: 'United States',
+  USA: 'United States',
+  ZA: 'South Africa',
+};
+const US_STATE_CODES = new Set([
+  'AL',
+  'AK',
+  'AZ',
+  'AR',
+  'CA',
+  'CO',
+  'CT',
+  'DE',
+  'FL',
+  'GA',
+  'HI',
+  'IA',
+  'ID',
+  'IL',
+  'IN',
+  'KS',
+  'KY',
+  'LA',
+  'MA',
+  'MD',
+  'ME',
+  'MI',
+  'MN',
+  'MO',
+  'MS',
+  'MT',
+  'NC',
+  'ND',
+  'NE',
+  'NH',
+  'NJ',
+  'NM',
+  'NV',
+  'NY',
+  'OH',
+  'OK',
+  'OR',
+  'PA',
+  'RI',
+  'SC',
+  'SD',
+  'TN',
+  'TX',
+  'UT',
+  'VA',
+  'VT',
+  'WA',
+  'WI',
+  'WV',
+  'WY',
+  'DC',
+]);
 
 const activeMode = ref<ProfileMapMode>('visited');
 const selectedSpotId = ref<string | null>(null);
@@ -385,8 +451,59 @@ function formatCategory(category: SpotCategory): string {
 }
 
 function formatSpotLocation(spot: SpotSummary): string {
-  const parts = [spot.city, spot.country].filter((value): value is string => Boolean(value?.trim()));
+  const resolvedLocation = resolveCityRegionLocation(spot);
+  const city = resolvedLocation?.city || spot.city?.trim() || '';
+  const region = resolveLocationRegion(spot, { allowCountryFallback: false }) ||
+    resolveDisplayRegion(resolvedLocation?.region, resolvedLocation?.country);
+  const country = formatProfileMapCountry(resolvedLocation?.country || spot.country || inferProfileMapCountryFromRegion(region));
+  const parts = dedupeLocationParts([city, region, country]);
+
   return parts.length ? parts.join(', ') : 'Location syncing';
+}
+
+function resolveDisplayRegion(region: string | undefined, country: string | undefined): string {
+  const normalizedRegion = region?.trim() ?? '';
+  const normalizedCountry = country?.trim() ?? '';
+
+  if (!normalizedRegion || normalizedRegion.toLowerCase() === normalizedCountry.toLowerCase()) {
+    return '';
+  }
+
+  return normalizedRegion;
+}
+
+function formatProfileMapCountry(country: string | undefined): string {
+  const normalizedCountry = country?.trim();
+
+  if (!normalizedCountry) {
+    return '';
+  }
+
+  return PROFILE_MAP_COUNTRY_LABELS[normalizedCountry.toUpperCase()] ?? normalizedCountry;
+}
+
+function inferProfileMapCountryFromRegion(region: string | undefined): string {
+  return US_STATE_CODES.has(region?.trim().toUpperCase() ?? '') ? 'US' : '';
+}
+
+function dedupeLocationParts(parts: string[]): string[] {
+  const seenParts = new Set<string>();
+
+  return parts
+    .map((part) => part.trim())
+    .filter((part) => {
+      if (!part) {
+        return false;
+      }
+
+      const key = part.toLowerCase();
+      if (seenParts.has(key)) {
+        return false;
+      }
+
+      seenParts.add(key);
+      return true;
+    });
 }
 
 function buildViewportForSpots(spots: SpotSummary[]): MapViewport {

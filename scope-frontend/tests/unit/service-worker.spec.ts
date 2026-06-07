@@ -7,9 +7,9 @@ const testFilePath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(testFilePath), '../..');
 const serviceWorkerSource = readFileSync(path.join(projectRoot, 'public/sw.js'), 'utf8');
 const ORIGIN = 'https://scope.local';
-const APP_SHELL_CACHE = 'scope-shell-v3';
-const STATIC_ASSET_CACHE = 'scope-static-v3';
-const NAVIGATION_CACHE = 'scope-navigation-v3';
+const APP_SHELL_CACHE = 'scope-shell-v4';
+const STATIC_ASSET_CACHE = 'scope-static-v4';
+const NAVIGATION_CACHE = 'scope-navigation-v4';
 
 type RequestLike =
   | string

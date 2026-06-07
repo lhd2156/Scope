@@ -53,6 +53,8 @@ describe('formatMapPinCityLine', () => {
 describe('date and identity formatters', () => {
   it('formats relative time, month/day labels, and inclusive day spans', () => {
     expect(formatRelativeTime('2026-05-20T12:01:00Z', '2026-05-20T12:00:00Z')).toContain('in 1 minute');
+    expect(formatRelativeTime('2026-05-19T23:59:00', '2026-05-20T00:01:00')).toBe('1 day ago');
+    expect(formatRelativeTime('2026-05-23T09:00:00', '2026-05-20T23:00:00')).toBe('in 3 days');
     expect(formatRelativeTime('not-a-date', '2026-05-20T12:00:00Z')).toBe('');
     expect(formatMonthDay('2026-05-20')).toContain('May');
     expect(formatMonthDay('not-a-date')).toBe('');
@@ -78,6 +80,25 @@ describe('date and identity formatters', () => {
     expect(resolveLocationRegion({ country: 'Canada' }, { allowCountryFallback: true })).toBe('Canada');
     expect(formatCityRegionLocation({ city: 'Dallas', country: 'US' })).toBe('Dallas, TX');
     expect(formatCityRegionLocation({ city: 'Porto', country: 'Portugal' })).toBe('Porto, Portugal');
+    expect(resolveCityRegionLocation({
+      title: 'Pearl District Market Hall',
+      city: 'San Antonio',
+    })).toMatchObject({
+      city: 'San Antonio',
+      region: 'TX',
+      country: 'USA',
+      label: 'San Antonio, TX',
+    });
+    expect(resolveCityRegionLocation({
+      city: 'Toronto',
+      stateCode: 'ON',
+      country: 'Canada',
+    })).toMatchObject({
+      city: 'Toronto',
+      region: 'ON',
+      country: 'Canada',
+      label: 'Toronto, ON',
+    });
     expect(formatCityRegionLocation({
       id: '90000000-0000-0000-0000-000000000002',
       title: 'San Antonio River Walk Blue Hour',

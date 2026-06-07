@@ -101,6 +101,50 @@ describe('LazyImage', () => {
     expect(disconnect).toHaveBeenCalled();
   });
 
+  it('reveals a visible placeholder even when the observer callback has not fired', async () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    const getBoundingClientRect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        x: 0,
+        y: 120,
+        width: 320,
+        height: 180,
+        top: 120,
+        right: 320,
+        bottom: 300,
+        left: 0,
+        toJSON: () => undefined,
+      });
+
+    class MockIntersectionObserver {
+      observe = observe;
+      disconnect = disconnect;
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '240px 0px';
+      thresholds = [0.01];
+    }
+
+    setIntersectionObserver(MockIntersectionObserver as unknown as typeof IntersectionObserver);
+
+    const wrapper = mount(LazyImage, {
+      props: {
+        src: 'https://images.example.com/visible-card.jpg',
+        alt: 'Visible card image',
+      },
+    });
+
+    await nextTick();
+    await nextTick();
+
+    expect(wrapper.find('img').attributes('src')).toContain('visible-card.jpg');
+    expect(observe).not.toHaveBeenCalled();
+    getBoundingClientRect.mockRestore();
+  });
+
   it('swaps to a fallback image source before surfacing a terminal error', async () => {
     removeIntersectionObserver();
 

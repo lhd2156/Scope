@@ -61,6 +61,8 @@
                 :public-spot-count="authoredSpots.length"
                 :average-rating="averageRating"
                 :favorite-category="favoriteCategory"
+                :focus-label="profileFocusLabel"
+                :focus-category="profileFocusCategory"
               />
             </div>
 
@@ -163,6 +165,7 @@ import { getInclusiveDaySpan } from '@/utils/formatters';
 import { getSpotDeduplicationKey, getSpotFingerprint } from '@/utils/spotIdentity';
 
 const PROFILE_MOBILE_BREAKPOINT = 640;
+const PROFILE_FOCUS_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const isProfileAuditMode = typeof window !== 'undefined' && window.location.search.includes('scopeQaSession=');
 
 type ProfileCollectionId = 'recent' | 'pinned' | 'wishlist';
@@ -178,6 +181,11 @@ interface ProfileCollectionMeta {
   emptyDescription: string;
   emptyIcon: string;
   emptyArtwork: 'profile' | 'itinerary';
+}
+
+interface ProfileFocusSummary {
+  label: string;
+  category: SpotCategory | null;
 }
 
 const ProfileMap = defineAsyncComponent(() => import('@/components/profile/ProfileMap.vue'));
@@ -258,6 +266,96 @@ function dedupeSpotList(spots: SpotSummary[], excludedSpots: SpotSummary[] = [])
   });
 }
 
+function isSpotCategory(value: string): value is SpotCategory {
+  return PROFILE_FOCUS_CATEGORIES.includes(value as SpotCategory);
+}
+
+function formatFocusCategory(category: SpotCategory): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function getUniqueFocusCategories(values: readonly string[] | undefined): SpotCategory[] {
+  const categories: SpotCategory[] = [];
+  const seenCategories = new Set<SpotCategory>();
+
+  (values ?? []).forEach((value) => {
+    const category = value.trim().toLowerCase();
+    if (!isSpotCategory(category) || seenCategories.has(category)) {
+      return;
+    }
+
+    seenCategories.add(category);
+    categories.push(category);
+  });
+
+  return categories;
+}
+
+function buildPreferenceFocusSummary(interests: readonly string[] | undefined): ProfileFocusSummary | null {
+  const categories = getUniqueFocusCategories(interests);
+
+  if (!categories.length) {
+    return null;
+  }
+
+  if (categories.length === 1) {
+    return {
+      label: `${formatFocusCategory(categories[0])} focus`,
+      category: categories[0],
+    };
+  }
+
+  if (categories.length >= PROFILE_FOCUS_CATEGORIES.length) {
+    return {
+      label: 'All-around focus',
+      category: null,
+    };
+  }
+
+  if (categories.length === 2) {
+    return {
+      label: `${formatFocusCategory(categories[0])} + ${formatFocusCategory(categories[1])} focus`,
+      category: categories[0],
+    };
+  }
+
+  return {
+    label: 'Balanced focus',
+    category: null,
+  };
+}
+
+function buildCategorySignalFocusSummary(categories: SpotCategory[]): ProfileFocusSummary | null {
+  if (!categories.length) {
+    return null;
+  }
+
+  const counts = categories.reduce<Record<SpotCategory, number>>((accumulator, category) => {
+    accumulator[category] = (accumulator[category] ?? 0) + 1;
+    return accumulator;
+  }, {} as Record<SpotCategory, number>);
+  const rankedCategories = Object.entries(counts)
+    .sort((left, right) => right[1] - left[1]) as Array<[SpotCategory, number]>;
+  const [topCategory, topCount] = rankedCategories[0] ?? [];
+  const [, secondCount] = rankedCategories[1] ?? [];
+
+  if (!topCategory) {
+    return null;
+  }
+
+  if (secondCount && secondCount === topCount) {
+    return {
+      label: 'Balanced focus',
+      category: null,
+    };
+  }
+
+  return {
+    label: `${formatFocusCategory(topCategory)} focus`,
+    category: topCategory,
+  };
+}
+
 const routeUserId = computed(() => String(route.params.id ?? authStore.currentUser?.id ?? ''));
 const isCurrentUser = computed(() => profileUser.value?.id === authStore.currentUser?.id);
 
@@ -316,23 +414,13 @@ const averageRating = computed(() => {
   return total / authoredSpots.value.length;
 });
 
-const favoriteCategory = computed<SpotCategory | null>(() => {
-  const categories = authoredSpots.value.length
-    ? authoredSpots.value.map((spot) => spot.category)
-    : (profileUser.value?.interests as SpotCategory[] | undefined) ?? [];
-
-  if (!categories.length) {
-    return null;
-  }
-
-  const counts = categories.reduce<Record<string, number>>((accumulator, category) => {
-    accumulator[category] = (accumulator[category] ?? 0) + 1;
-    return accumulator;
-  }, {});
-
-  const [topCategory] = Object.entries(counts).sort((left, right) => right[1] - left[1])[0] ?? [];
-  return (topCategory as SpotCategory | undefined) ?? null;
-});
+const profileFocus = computed<ProfileFocusSummary | null>(() =>
+  buildPreferenceFocusSummary(profileUser.value?.interests) ??
+  buildCategorySignalFocusSummary(authoredSpots.value.map((spot) => spot.category)),
+);
+const favoriteCategory = computed<SpotCategory | null>(() => profileFocus.value?.category ?? null);
+const profileFocusLabel = computed(() => profileFocus.value?.label ?? '');
+const profileFocusCategory = computed<SpotCategory | null>(() => profileFocus.value?.category ?? null);
 
 const primaryActionLabel = computed(() => (isCurrentUser.value ? 'Edit preferences' : 'Plan a trip'));
 const primaryActionTo = computed(() => (isCurrentUser.value ? '/settings' : { path: '/trips/new', query: { friend: routeUserId.value } }));

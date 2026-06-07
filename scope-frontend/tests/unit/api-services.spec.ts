@@ -1011,6 +1011,70 @@ describe('API service fallbacks', () => {
     });
   });
 
+  it('fills empty live quick-search responses from local preview search data when enabled', async () => {
+    vi.stubEnv('VITE_ENABLE_SEARCH_MOCK_FALLBACK', 'true');
+    apiMock.get.mockResolvedValue({
+      data: {
+        query: 'ben',
+        type: 'spots',
+        total: 0,
+        offset: 0,
+        limit: 6,
+        results: [],
+      },
+    });
+
+    const searchService = await import('@/services/searchService');
+    const response = await searchService.searchContent('ben', 'spots', 6, 0);
+
+    expect(response.results[0]).toMatchObject({
+      name: 'Big Bend Window Trail',
+      photoUrl: expect.stringContaining('images.pexels.com'),
+    });
+  });
+
+  it('filters unrelated fuzzy live hits for short quick-search queries', async () => {
+    apiMock.get.mockResolvedValue({
+      data: {
+        query: 'ben',
+        type: 'spots',
+        total: 2,
+        offset: 0,
+        limit: 6,
+        results: [
+          {
+            id: 'live-big-bend',
+            name: 'Big Bend Window Trail',
+            description: 'Desert canyon overlook',
+            category: 'adventure',
+            city: 'Big Bend National Park',
+            country: 'US',
+            avg_rating: 4.9,
+            review_count: 12,
+            _score: 9,
+          },
+          {
+            id: 'live-sydney',
+            name: 'Sydney Opera House Circular Quay',
+            description: 'Harbor landmark',
+            category: 'scenic',
+            city: 'Sydney',
+            country: 'AU',
+            avg_rating: 4.9,
+            review_count: 8,
+            _score: 7,
+          },
+        ],
+      },
+    });
+
+    const searchService = await import('@/services/searchService');
+    const response = await searchService.searchContent('ben', 'spots', 6, 0);
+
+    expect(response.total).toBe(1);
+    expect(response.results.map((result) => result.name)).toEqual(['Big Bend Window Trail']);
+  });
+
   it('uses Mapbox geocoding when the Intel geocoder is unavailable and a token exists', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test-token');
     apiMock.get.mockRejectedValue(new Error('intel unavailable'));
@@ -2029,6 +2093,46 @@ describe('API service fallbacks', () => {
       photos: [],
       reviews: [],
     });
+  });
+
+  it('enriches production starter spot detail galleries returned by the API', async () => {
+    const starterId = '90000000-0000-0000-0000-000000000008';
+    const primaryPhotoUrl = 'https://images.pexels.com/photos/13352638/pexels-photo-13352638.jpeg?auto=compress&cs=tinysrgb&w=1600';
+    apiMock.get
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            id: starterId,
+            title: 'Big Bend Window Trail',
+            description: 'A desert trail with a framed canyon payoff.',
+            latitude: 29.2707,
+            longitude: -103.3013,
+            city: 'Big Bend National Park',
+            country: 'US',
+            category: 'adventure',
+            rating: 4.9,
+            photoUrl: primaryPhotoUrl,
+            createdAt: '2026-04-02T17:45:00Z',
+            photos: [
+              {
+                id: `${starterId}-photo-1`,
+                url: primaryPhotoUrl,
+                caption: 'Big Bend Window Trail starter showcase photo.',
+              },
+            ],
+            reviews: [],
+          },
+        },
+      })
+      .mockRejectedValueOnce(new Error('photo endpoint unavailable'));
+
+    const spotService = await import('@/services/spotService');
+    const response = await spotService.getSpotDetail(starterId);
+
+    expect(response.data.photos).toHaveLength(5);
+    expect(response.data.photos.map((photo) => photo.caption)).toContain('Canyon approach before the Window view');
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, `/api/content/spots/${starterId}`);
+    expect(apiMock.get).toHaveBeenNthCalledWith(2, `/api/content/spots/${starterId}/photos`);
   });
 
   it('preserves private visibility after create when the API returns the compact create shape', async () => {

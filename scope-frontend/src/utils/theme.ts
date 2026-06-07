@@ -5,6 +5,7 @@ import { syncThemeColorMeta } from '@/utils/seo';
 
 const STORAGE_KEY = 'scope-theme';
 const activeTheme = ref<ThemeMode>('dark');
+const THEMES = new Set<ThemeMode>(['dark', 'light']);
 
 export interface ApplyThemeOptions {
   track?: boolean;
@@ -13,7 +14,12 @@ export interface ApplyThemeOptions {
 }
 
 export function getStoredTheme(): ThemeMode {
-  return 'dark';
+  try {
+    const storedTheme = localStorage.getItem(STORAGE_KEY);
+    return THEMES.has(storedTheme as ThemeMode) ? storedTheme as ThemeMode : 'dark';
+  } catch {
+    return 'dark';
+  }
 }
 
 function commitThemeToDocument(theme: ThemeMode): void {
@@ -30,8 +36,8 @@ function applyDocumentTheme(theme: ThemeMode): void {
   commitThemeToDocument(theme);
 }
 
-export function applyTheme(_theme: ThemeMode, options: ApplyThemeOptions = {}): void {
-  const nextTheme: ThemeMode = 'dark';
+export function applyTheme(theme: ThemeMode, options: ApplyThemeOptions = {}): void {
+  const nextTheme: ThemeMode = THEMES.has(theme) ? theme : 'dark';
   const previousTheme = activeTheme.value;
   const themeChanged = previousTheme !== nextTheme;
 
@@ -62,8 +68,9 @@ export function initializeTheme(): ThemeMode {
 }
 
 export function toggleTheme(source: 'navbar' | 'settings' = 'navbar'): ThemeMode {
-  applyTheme('dark', { animate: true, track: false, source });
-  return 'dark';
+  const nextTheme: ThemeMode = activeTheme.value === 'dark' ? 'light' : 'dark';
+  applyTheme(nextTheme, { animate: true, track: true, source });
+  return nextTheme;
 }
 
 export function useTheme() {

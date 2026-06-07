@@ -1,3 +1,4 @@
+https://app.scopetrips.com/* https://scopetrips.com/:splat 301
 /api/* https://api.scopetrips.com/api/:splat 302
 https://www.scopetrips.com/* https://scopetrips.com/:splat 301
 /* /index.html 200

@@ -33,7 +33,7 @@ describe('demo mode fixtures', () => {
   it('loads the seeded starter fixture counts when VITE_DEMO_MODE is enabled', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
 
-    const { mockUsers, mockSpots, mockTrips, mockFeed, mockNotifications, mockViewport } = await import('@/services/mockData');
+    const { mockUsers, mockSpots, mockSpotDetails, mockTrips, mockFeed, mockNotifications, mockViewport } = await import('@/services/mockData');
 
     expect(mockUsers).toHaveLength(8);
     expect(mockSpots).toHaveLength(24);
@@ -45,6 +45,14 @@ describe('demo mode fixtures', () => {
       email: 'alex.morgan@showcase.scope.local',
     });
     expect(mockViewport.style).toBe('mapbox://styles/mapbox/dark-v11');
+
+    const starterGallerySizes = Object.values(mockSpotDetails).map((spot) => spot.photos.length);
+    expect(new Set(starterGallerySizes).size).toBeGreaterThanOrEqual(5);
+    expect(starterGallerySizes).toEqual(expect.arrayContaining([1, 2, 3, 4, 5]));
+    expect(mockSpotDetails['demo-spot-8']?.photos).toHaveLength(5);
+    expect(mockSpotDetails['demo-spot-8']?.photos.map((photo) => photo.caption)).toContain(
+      'Canyon approach before the Window view',
+    );
   });
 
   it('builds, updates, filters, and previews demo spots and itineraries through sanitized helpers', async () => {

@@ -536,7 +536,53 @@ describe('MapPage', () => {
     const visibleCardText = wrapper.get('.visible-card').text();
     expect(visibleCardText).toContain('Mule Alley Mercantile Row');
     expect(visibleCardText).toContain('Fort Worth, TX');
+    expect(wrapper.get('.visible-country-badge').text()).toBe('USA');
+    expect(wrapper.get('.selected-country-badge').text()).toBe('USA');
     expect(visibleCardText).not.toContain('Scope location');
+  });
+
+  it('shows country badges for seeded visible spots that already have city and region copy', async () => {
+    mapStoreMock.resetVisibleSpotIds.mockImplementation(() => undefined);
+    spotsStoreMock.items = [
+      {
+        id: 'seed-pearl-district-market-hall',
+        title: 'Pearl District Market Hall',
+        description: 'Food hall and river access.',
+        latitude: 29.4427,
+        longitude: -98.4797,
+        category: 'food',
+        city: 'San Antonio',
+        rating: 4.7,
+        photoUrl: 'https://images.example.com/pearl.jpg',
+        createdAt: '2026-05-20T00:00:00.000Z',
+      },
+      {
+        id: 'seed-millennium-park-bean-loop',
+        title: 'Millennium Park Bean Loop',
+        description: 'Public art and skyline framing.',
+        latitude: 41.8827,
+        longitude: -87.6233,
+        category: 'culture',
+        city: 'Chicago',
+        rating: 4.8,
+        photoUrl: 'https://images.example.com/bean.jpg',
+        createdAt: '2026-05-20T00:00:00.000Z',
+      },
+    ];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.visibleSpotIds = ['seed-pearl-district-market-hall', 'seed-millennium-park-bean-loop'];
+    mapStoreMock.selectedSpotId = null;
+    mapStoreMock.activeCategories = ['food', 'culture'];
+
+    const wrapper = mountMapPage();
+
+    await flushPromises();
+
+    const visibleItems = wrapper.findAll('button.visible-item');
+    expect(visibleItems).toHaveLength(2);
+    expect(visibleItems[0].text()).toContain('San Antonio, TX');
+    expect(visibleItems[1].text()).toContain('Chicago, IL');
+    expect(wrapper.findAll('.visible-country-badge').map((badge) => badge.text())).toEqual(['USA', 'USA']);
   });
 
   it('renders measured-empty mobile summary copy without selecting a hidden spot', async () => {

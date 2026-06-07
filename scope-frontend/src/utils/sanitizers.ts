@@ -103,16 +103,21 @@ type SpotWireVisibility = {
 };
 
 type SpotWireFields = SpotWireVisibility & {
+  admin_area?: unknown;
   average_rating?: unknown;
   created_at?: unknown;
   likes_count?: unknown;
   photo_url?: unknown;
+  province?: unknown;
   provider_place_address?: unknown;
   provider_place_id?: unknown;
   provider_place_name?: unknown;
   postal_code?: unknown;
+  region?: unknown;
   safety_reason?: unknown;
   safety_status?: unknown;
+  state?: unknown;
+  state_code?: unknown;
   user_id?: unknown;
   userId?: unknown;
   verified_at?: unknown;
@@ -646,6 +651,11 @@ export function sanitizeSpotSummary(
     address: optionalSingleLineText(spot.address),
     city: optionalSingleLineText(spot.city),
     country: optionalSingleLineText(spot.country),
+    adminArea: optionalSingleLineText(spot.adminArea ?? (typeof wireSpot.admin_area === 'string' ? wireSpot.admin_area : undefined)),
+    province: optionalSingleLineText(spot.province ?? (typeof wireSpot.province === 'string' ? wireSpot.province : undefined)),
+    region: optionalSingleLineText(spot.region ?? (typeof wireSpot.region === 'string' ? wireSpot.region : undefined)),
+    state: optionalSingleLineText(spot.state ?? (typeof wireSpot.state === 'string' ? wireSpot.state : undefined)),
+    stateCode: optionalSingleLineText(spot.stateCode ?? (typeof wireSpot.state_code === 'string' ? wireSpot.state_code : undefined)),
     postalCode: optionalSingleLineText(spot.postalCode ?? (typeof wireSpot.postal_code === 'string' ? wireSpot.postal_code : undefined)),
     vibe: optionalSingleLineText(spot.vibe),
     category,

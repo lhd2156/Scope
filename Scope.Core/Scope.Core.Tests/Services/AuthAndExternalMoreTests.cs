@@ -29,6 +29,8 @@ public sealed class AuthAndExternalMoreTests
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-130))));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)), "12"));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)), "+1 (555) 123-4567"));
 
         var registered = await service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ConflictException>(() =>

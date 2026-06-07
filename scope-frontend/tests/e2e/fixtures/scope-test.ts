@@ -169,6 +169,18 @@ interface ScopeNotificationItem {
   type: string;
 }
 
+interface ScopeNotificationPreference {
+  id: string;
+  category: string;
+  inAppEnabled: boolean;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+  digestCadence: 'instant' | 'daily' | 'weekly' | 'off';
+  quietHoursStartMinutes: number | null;
+  quietHoursEndMinutes: number | null;
+  timeZoneId: string;
+}
+
 interface ScopeFriendConnection {
   id: string;
   user: ScopeUserProfile;
@@ -885,6 +897,44 @@ function buildSeedNotifications(): ScopeNotificationItem[] {
   ].map(cloneNotification);
 }
 
+function buildSeedNotificationPreferences(): ScopeNotificationPreference[] {
+  return [
+    {
+      id: 'notification-preference-trip',
+      category: 'trip',
+      inAppEnabled: true,
+      pushEnabled: true,
+      emailEnabled: true,
+      digestCadence: 'instant',
+      quietHoursStartMinutes: null,
+      quietHoursEndMinutes: null,
+      timeZoneId: 'America/Chicago',
+    },
+    {
+      id: 'notification-preference-social',
+      category: 'social',
+      inAppEnabled: true,
+      pushEnabled: true,
+      emailEnabled: false,
+      digestCadence: 'daily',
+      quietHoursStartMinutes: null,
+      quietHoursEndMinutes: null,
+      timeZoneId: 'America/Chicago',
+    },
+    {
+      id: 'notification-preference-friend',
+      category: 'friend',
+      inAppEnabled: true,
+      pushEnabled: false,
+      emailEnabled: true,
+      digestCadence: 'instant',
+      quietHoursStartMinutes: null,
+      quietHoursEndMinutes: null,
+      timeZoneId: 'America/Chicago',
+    },
+  ];
+}
+
 function buildSeedFeed(knownUsers: ScopeUserProfile[]): ScopeFeedItem[] {
   const [louis = cloneUserProfile(seedUsers[0]!), maya = cloneUserProfile(seedUsers[1]!), elijah = cloneUserProfile(seedUsers[2]!)] = knownUsers;
 
@@ -1441,6 +1491,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
     friendSuggestions: ScopeFriendSuggestion[];
     feed: ScopeFeedItem[];
     notifications: ScopeNotificationItem[];
+    notificationPreferences: ScopeNotificationPreference[];
     tripShares: Record<string, string>;
   } = {
     currentSession: null,
@@ -1451,6 +1502,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
     friendSuggestions: buildSeedFriendSuggestions(),
     feed: buildSeedFeed(registeredUsers),
     notifications: buildSeedNotifications(),
+    notificationPreferences: buildSeedNotificationPreferences(),
     tripShares: {
       'share-trip-1': 'trip-1',
     },
@@ -2468,18 +2520,71 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
     if (requestPath === '/api/core/notifications' && requestMethod === 'GET') {
       const pageNumber = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
       const requestedPageSize = Number(requestUrl.searchParams.get('pageSize') ?? String(state.notifications.length || 1)) || state.notifications.length || 1;
+      const requestedCategory = normalizeString(requestUrl.searchParams.get('category')).toLowerCase();
+      const requestedUnread = normalizeString(requestUrl.searchParams.get('unread')).toLowerCase();
+      const filteredNotifications = state.notifications.filter((notification) => {
+        if (requestedCategory && !notification.type.toLowerCase().startsWith(requestedCategory)) {
+          return false;
+        }
+
+        if (requestedUnread === 'true' && notification.isRead) {
+          return false;
+        }
+
+        if (requestedUnread === 'false' && !notification.isRead) {
+          return false;
+        }
+
+        return true;
+      });
       const pageSize = Math.max(1, requestedPageSize);
       const startIndex = Math.max(0, (pageNumber - 1) * pageSize);
-      const pagedNotifications = state.notifications.slice(startIndex, startIndex + pageSize).map(cloneNotification);
+      const pagedNotifications = filteredNotifications.slice(startIndex, startIndex + pageSize).map(cloneNotification);
 
       await fulfillJson(route, 200, {
         data: pagedNotifications,
         meta: {
           page: pageNumber,
           pageSize,
-          total: state.notifications.length,
-          totalPages: Math.max(1, Math.ceil(state.notifications.length / pageSize)),
+          total: filteredNotifications.length,
+          totalPages: Math.max(1, Math.ceil(filteredNotifications.length / pageSize)),
         },
+      });
+      return;
+    }
+
+    if (requestPath === '/api/core/notifications/preferences' && requestMethod === 'GET') {
+      await fulfillJson(route, 200, {
+        data: state.notificationPreferences.map((preference) => ({ ...preference })),
+      });
+      return;
+    }
+
+    if (requestPath === '/api/core/notifications/preferences' && requestMethod === 'PUT') {
+      const category = normalizeString(requestBody.category) || 'general';
+      const existingIndex = state.notificationPreferences.findIndex((preference) => preference.category === category);
+      const updatedPreference: ScopeNotificationPreference = {
+        id: existingIndex >= 0 ? state.notificationPreferences[existingIndex]!.id : `notification-preference-${category}`,
+        category,
+        inAppEnabled: readBooleanInput(requestBody.inAppEnabled, true),
+        pushEnabled: readBooleanInput(requestBody.pushEnabled, true),
+        emailEnabled: readBooleanInput(requestBody.emailEnabled, false),
+        digestCadence: ['instant', 'daily', 'weekly', 'off'].includes(normalizeString(requestBody.digestCadence))
+          ? normalizeString(requestBody.digestCadence) as ScopeNotificationPreference['digestCadence']
+          : 'instant',
+        quietHoursStartMinutes: typeof requestBody.quietHoursStartMinutes === 'number' ? requestBody.quietHoursStartMinutes : null,
+        quietHoursEndMinutes: typeof requestBody.quietHoursEndMinutes === 'number' ? requestBody.quietHoursEndMinutes : null,
+        timeZoneId: normalizeString(requestBody.timeZoneId) || 'America/Chicago',
+      };
+
+      if (existingIndex >= 0) {
+        state.notificationPreferences.splice(existingIndex, 1, updatedPreference);
+      } else {
+        state.notificationPreferences.push(updatedPreference);
+      }
+
+      await fulfillJson(route, 200, {
+        data: updatedPreference,
       });
       return;
     }
@@ -2546,6 +2651,44 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
 
     if (requestPath === '/api/content/trips' && requestMethod === 'GET') {
       await fulfillJson(route, 200, paginateTrips(requestUrl, state.trips));
+      return;
+    }
+
+    if (requestPath.startsWith('/api/core/notifications/') && requestPath.endsWith('/actions') && requestMethod === 'POST') {
+      const pathSegments = requestPath.split('/').filter(Boolean);
+      const notificationId = pathSegments[3] ?? '';
+      const action = normalizeString(requestBody.action);
+      const notificationIndex = state.notifications.findIndex((notification) => notification.id === notificationId);
+
+      if (notificationIndex === -1) {
+        await fulfillJson(route, 404, JSON.stringify({
+          error: {
+            code: 'NOTIFICATION_NOT_FOUND',
+            message: `Notification ${notificationId} was not found.`,
+          },
+        }));
+        return;
+      }
+
+      if (action === 'decline_friend_request') {
+        state.notifications.splice(notificationIndex, 1);
+      } else if (['mark_read', 'open', 'accept_friend_request'].includes(action)) {
+        state.notifications.splice(notificationIndex, 1, {
+          ...cloneNotification(state.notifications[notificationIndex]!),
+          isRead: true,
+        });
+      }
+
+      await fulfillJson(route, 200, {
+        data: { ok: true, action },
+      });
+      return;
+    }
+
+    if (requestPath === '/api/core/notifications/push-subscriptions' && requestMethod === 'POST') {
+      await fulfillJson(route, 201, {
+        data: { id: `push-${Date.now()}` },
+      });
       return;
     }
 

@@ -209,6 +209,29 @@ describe('DateField', () => {
     wrapper.unmount();
   });
 
+  it('inserts slashes for compact birthday digits and emits ISO once complete', async () => {
+    const wrapper = mountDateField({
+      placeholder: 'MM/DD/YYYY',
+      autocomplete: 'bday',
+    });
+
+    const input = wrapper.get('input');
+    await input.setValue('04302004');
+    await flushPromises();
+
+    expect(input.element.value).toBe('04/30/2004');
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['2004-04-30']);
+
+    const validUpdateCount = wrapper.emitted('update:modelValue')?.length;
+    await input.setValue('04 31 2004');
+    await flushPromises();
+
+    expect(input.element.value).toBe('04/31/2004');
+    expect(wrapper.emitted('update:modelValue')?.length).toBe(validUpdateCount);
+
+    wrapper.unmount();
+  });
+
   it('keeps helper/error messaging wired through aria-describedby', () => {
     const wrapper = mountDateField({
       modelValue: '',

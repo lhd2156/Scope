@@ -68,7 +68,7 @@ describe('registerAppServiceWorker', () => {
       }),
     ).resolves.toBe(registration);
 
-    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' });
   });
 
   it('uses a plain service worker URL when the window global is unavailable', async () => {
@@ -84,7 +84,7 @@ describe('registerAppServiceWorker', () => {
       }),
     ).resolves.toBe(registration);
 
-    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' });
   });
 
   it('skips registration when service workers are unavailable or explicitly disabled', async () => {
@@ -127,7 +127,7 @@ describe('registerAppServiceWorker', () => {
       createScriptURL: expect.any(Function),
     });
     expect(createScriptURL).toHaveBeenCalledWith('/sw.js');
-    expect(register).toHaveBeenCalledWith(trustedScriptUrl, { scope: '/' });
+    expect(register).toHaveBeenCalledWith(trustedScriptUrl, { scope: '/', updateViaCache: 'none' });
   });
 
   it('falls back to a string service worker URL when Trusted Types policy creation fails', async () => {
@@ -152,7 +152,7 @@ describe('registerAppServiceWorker', () => {
       }),
     ).resolves.toBe(registration);
 
-    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' });
   });
 
   it('returns null when registration fails', async () => {

@@ -48,11 +48,10 @@ public sealed class AuthService(
     private const int DisplayNameMaxLength = 60;
     private const int MinAgeYears = 13;
     private const int MaxAgeYears = 120;
-    private const int PhoneDigitMinLength = 10;
-    private const int PhoneDigitMaxLength = 15;
+    private const int PhoneDigitLength = 10;
     private static readonly Regex UsernamePattern = new("^[A-Za-z0-9._-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex DisplayNamePattern = new(@"^\p{L}[\p{L}\s'.-]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex PhoneCandidatePattern = new(@"^\+?[0-9\s().-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex PhoneCandidatePattern = new(@"^[0-9\s().-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly TimeSpan refreshTokenLifetime = TimeSpan.FromDays(jwtOptions.Value.RefreshTokenDays);
 
@@ -111,7 +110,7 @@ public sealed class AuthService(
         if (!string.IsNullOrWhiteSpace(phoneNumber) && normalizedPhoneNumber is null)
         {
             Audit("register", "denied", null, "invalid_phone", email);
-            throw new ValidationException("Invalid phone number", [("phoneNumber", $"Phone number must include {PhoneDigitMinLength} to {PhoneDigitMaxLength} digits.")]);
+            throw new ValidationException("Invalid phone number", [("phoneNumber", $"Phone number must include exactly {PhoneDigitLength} digits.")]);
         }
 
         var exists = await dbContext.Users.AsNoTracking().AnyAsync(
@@ -346,7 +345,7 @@ public sealed class AuthService(
         if (!PhoneCandidatePattern.IsMatch(trimmed)) return null;
 
         var digits = new string(trimmed.Where(char.IsDigit).ToArray());
-        if (digits.Length is < PhoneDigitMinLength or > PhoneDigitMaxLength) return null;
+        if (digits.Length != PhoneDigitLength) return null;
 
         return digits;
     }

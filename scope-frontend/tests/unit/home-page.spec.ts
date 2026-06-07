@@ -15,6 +15,7 @@ const { authStoreMock, feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi
     loading: false,
     error: '',
     fetchFeed: vi.fn().mockResolvedValue(undefined),
+    fetchHomeActivityFeed: vi.fn().mockResolvedValue(undefined),
   },
   spotsStoreMock: {
     featuredSpots: [
@@ -97,6 +98,7 @@ describe('HomePage', () => {
     spotsStoreMock.loading = false;
     onboardingStoreMock.hasCompleted = false;
     feedStoreMock.fetchFeed.mockReset().mockResolvedValue(undefined);
+    feedStoreMock.fetchHomeActivityFeed.mockReset().mockResolvedValue(undefined);
     spotsStoreMock.fetchTrending.mockReset().mockResolvedValue(undefined);
     onboardingStoreMock.start.mockReset();
     onboardingStoreMock.startIfPending.mockReset();
@@ -118,7 +120,8 @@ describe('HomePage', () => {
 
     expect(onboardingStoreMock.startIfPending).toHaveBeenCalledTimes(1);
     expect(spotsStoreMock.fetchTrending).toHaveBeenCalledTimes(1);
-    expect(feedStoreMock.fetchFeed).toHaveBeenCalledTimes(1);
+    expect(feedStoreMock.fetchHomeActivityFeed).toHaveBeenCalledTimes(1);
+    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
     expect(wrapper.find('.hero-band').exists()).toBe(true);
     expect(wrapper.find('.hero-band__image').exists()).toBe(true);
     expect(wrapper.find('.hero-heading').text()).toContain('Find a place worth going.');
@@ -164,7 +167,7 @@ describe('HomePage', () => {
   it('shows reusable skeleton loaders while the home workspace is hydrating', () => {
     feedStoreMock.items = [];
     spotsStoreMock.featuredSpots = [];
-    feedStoreMock.fetchFeed.mockImplementation(() => new Promise(() => {}));
+    feedStoreMock.fetchHomeActivityFeed.mockImplementation(() => new Promise(() => {}));
     spotsStoreMock.fetchTrending.mockImplementation(() => new Promise(() => {}));
 
     const wrapper = mountHomePage();
@@ -190,7 +193,7 @@ describe('HomePage', () => {
 
     await flushPromises();
 
-    expect(feedStoreMock.fetchFeed).toHaveBeenCalledWith(false, 1, 6);
+    expect(feedStoreMock.fetchHomeActivityFeed).toHaveBeenCalledWith(false, 1, 6);
     expect(wrapper.findAll('.feed-item-stub')).toHaveLength(6);
     expect(wrapper.text()).toContain('Traveler reviewed spot 6');
     expect(wrapper.text()).not.toContain('Traveler reviewed spot 7');
@@ -264,7 +267,7 @@ describe('HomePage', () => {
     await flushPromises();
 
     expect(spotsStoreMock.fetchTrending).not.toHaveBeenCalled();
-    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
+    expect(feedStoreMock.fetchHomeActivityFeed).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('Trending Destinations');
     expect(wrapper.text()).toContain('Activity Feed');
   });

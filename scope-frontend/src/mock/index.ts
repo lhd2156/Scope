@@ -5,6 +5,7 @@ import rawSpots from '@/mock/spots.json';
 import rawTrips from '@/mock/trips.json';
 import rawUsers from '@/mock/users.json';
 import { DEFAULT_MAP_STYLE } from '@/services/mapboxLoader';
+import { enrichStarterSpotGallery } from '@/utils/starterSpotGalleries';
 import type {
   FeedItem,
   Itinerary,
@@ -88,7 +89,7 @@ const seededUsers = (rawUsers as DemoUserFixture[]).map((user) =>
 const demoUserLookup = new Map(seededUsers.map((user) => [user.id, user]));
 
 const seededSpotDetails = (rawSpots as SpotDetail[]).map((spot) =>
-  sanitizeSpotDetail({ ...spot } as SpotDetail, {
+  sanitizeSpotDetail(enrichStarterSpotGallery({ ...spot } as SpotDetail), {
     allowGeneratedAuthorAvatar: true,
     allowGeneratedReviewAvatars: true,
   }),

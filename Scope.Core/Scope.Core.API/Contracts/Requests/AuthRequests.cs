@@ -12,7 +12,7 @@ public sealed record RegisterRequest(
     [Required][MinLength(10)] string Password,
     [Required][MinLength(2)][MaxLength(60)] string DisplayName,
     [Required] DateOnly? DateOfBirth,
-    [MaxLength(32)] string? PhoneNumber = null);
+    [MaxLength(14)] string? PhoneNumber = null);
 public sealed record LoginRequest(
     [Required(ErrorMessage = "Email, phone number, or display name is required.")][MaxLength(200)] string Email,
     [Required] string Password,

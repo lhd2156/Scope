@@ -66,7 +66,7 @@ describe('auth validators', () => {
     expect(validateLoginForm({
       email: '555',
       password: 'SecurePass123!',
-    }).email).toContain('10 to 15 digits');
+    }).email).toContain('10-digit phone number');
   });
 
   it('flags malformed registration input', () => {
@@ -91,11 +91,17 @@ describe('auth validators', () => {
     const missing = validateRegisterForm(buildRegisterForm({ phoneNumber: '' }));
     expect(missing.phoneNumber).toBeUndefined();
 
-    const valid = validateRegisterForm(buildRegisterForm({ phoneNumber: '+1 (555) 123-4567' }));
+    const valid = validateRegisterForm(buildRegisterForm({ phoneNumber: '(555) 123-4567' }));
     expect(valid.phoneNumber).toBeUndefined();
 
     const invalid = validateRegisterForm(buildRegisterForm({ phoneNumber: '555' }));
-    expect(invalid.phoneNumber).toContain('10 to 15 digits');
+    expect(invalid.phoneNumber).toContain('10-digit phone number');
+
+    const tooLong = validateRegisterForm(buildRegisterForm({ phoneNumber: '55512345678' }));
+    expect(tooLong.phoneNumber).toContain('10-digit phone number');
+
+    const countryCode = validateRegisterForm(buildRegisterForm({ phoneNumber: '+1 (555) 123-4567' }));
+    expect(countryCode.phoneNumber).toContain('digits, spaces');
 
     const unsupportedCharacters = validateRegisterForm(buildRegisterForm({ phoneNumber: '555-TRAVEL' }));
     expect(unsupportedCharacters.phoneNumber).toContain('digits, spaces');

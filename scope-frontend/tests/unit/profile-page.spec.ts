@@ -160,7 +160,7 @@ function profilePageStubs() {
       `,
     },
     ProfileStats: {
-      props: ['countryCount', 'cityCount', 'tripCount', 'travelDays', 'publicSpotCount', 'averageRating', 'favoriteCategory'],
+      props: ['countryCount', 'cityCount', 'tripCount', 'travelDays', 'publicSpotCount', 'averageRating', 'favoriteCategory', 'focusLabel', 'focusCategory'],
       template: `
         <div data-test="profile-stats">
           countries:{{ countryCount }}
@@ -170,6 +170,8 @@ function profilePageStubs() {
           pins:{{ publicSpotCount }}
           rating:{{ averageRating }}
           favorite:{{ favoriteCategory || 'none' }}
+          focus:{{ focusLabel || 'none' }}
+          focus-category:{{ focusCategory || 'none' }}
         </div>
       `,
     },
@@ -459,6 +461,26 @@ describe('ProfilePage', () => {
 
     await tabs[2].trigger('click');
     expect(wrapper.text()).toContain('No saved spots yet');
+  });
+
+  it('uses updated broad profile preferences instead of stale public pins for the focus chip', async () => {
+    const allPreferences = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
+    authStoreMock.currentUser = {
+      ...authStoreMock.currentUser,
+      interests: allPreferences,
+    };
+    userStoreMock.fetchCurrentProfile.mockResolvedValueOnce({
+      ...fixtures.profile,
+      interests: allPreferences,
+    });
+
+    const wrapper = mountProfilePage();
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="profile-stats"]').text()).toContain('favorite:none');
+    expect(wrapper.get('[data-test="profile-stats"]').text()).toContain('focus:All-around focus');
+    expect(wrapper.get('[data-test="profile-stats"]').text()).toContain('focus-category:none');
   });
 
   it('keeps saved trip stops visible in the current profile wishlist', async () => {

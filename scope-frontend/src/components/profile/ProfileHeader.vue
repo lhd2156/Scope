@@ -20,7 +20,7 @@
         <p class="username">@{{ user.username }}</p>
         <p class="location">
           <ScopeIcon name="pin" label="Location" />
-          <span>{{ user.homeBase || 'Scope community' }}</span>
+          <span>{{ user.homeBase || 'No location' }}</span>
           <span v-if="presenceLabel" class="presence-chip" :class="`presence-chip--${presence}`">
             <span class="presence-dot" aria-hidden="true" />
             {{ presenceLabel }}
@@ -40,7 +40,20 @@
       </div>
     </div>
 
-    <p class="bio-copy">{{ bioCopy }}</p>
+    <p class="bio-copy">
+      <template v-for="(segment, index) in bioSegments" :key="`${segment.type}-${index}-${segment.text}`">
+        <a
+          v-if="segment.type === 'link'"
+          class="bio-copy__link"
+          :href="segment.href"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ segment.text }}
+        </a>
+        <span v-else>{{ segment.text }}</span>
+      </template>
+    </p>
 
     <div v-if="user.interests.length" class="interest-row">
       <span
@@ -82,9 +95,15 @@ const props = withDefaults(
 );
 
 const availableCategories: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
+const bioUrlPattern = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+
+type BioSegment =
+  | { type: 'text'; text: string }
+  | { type: 'link'; text: string; href: string };
 
 const bioCopy = computed(() => props.user.bio?.trim() || 'Building a Scope footprint one memorable pin at a time.');
 const avatarSource = computed(() => props.user.avatarUrl?.trim() ?? '');
+const bioSegments = computed(() => linkifyBioCopy(bioCopy.value));
 const presenceLabel = computed(() => {
   switch (props.presence) {
     case 'planning':
@@ -120,6 +139,59 @@ function categoryIcon(value: string): string {
 function interestChipClass(value: string): string {
   return `badge-${toBadgeCategory(value)}`;
 }
+
+function normalizeExternalBioUrl(value: string): string {
+  const candidate = value.startsWith('www.') ? `https://${value}` : value;
+
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function splitTrailingUrlPunctuation(value: string): { urlText: string; trailingText: string } {
+  const match = value.match(/^(.*?)([.,!?;:)\]]*)$/);
+  return {
+    urlText: match?.[1] ?? value,
+    trailingText: match?.[2] ?? '',
+  };
+}
+
+function linkifyBioCopy(value: string): BioSegment[] {
+  const segments: BioSegment[] = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(bioUrlPattern)) {
+    const rawMatch = match[0] ?? '';
+    const matchIndex = match.index ?? 0;
+
+    if (matchIndex > lastIndex) {
+      segments.push({ type: 'text', text: value.slice(lastIndex, matchIndex) });
+    }
+
+    const { urlText, trailingText } = splitTrailingUrlPunctuation(rawMatch);
+    const href = normalizeExternalBioUrl(urlText);
+
+    if (href) {
+      segments.push({ type: 'link', text: urlText, href });
+      if (trailingText) {
+        segments.push({ type: 'text', text: trailingText });
+      }
+    } else {
+      segments.push({ type: 'text', text: rawMatch });
+    }
+
+    lastIndex = matchIndex + rawMatch.length;
+  }
+
+  if (lastIndex < value.length) {
+    segments.push({ type: 'text', text: value.slice(lastIndex) });
+  }
+
+  return segments.length ? segments : [{ type: 'text', text: value }];
+}
 </script>
 
 <style scoped>
@@ -136,7 +208,7 @@ function interestChipClass(value: string): string {
 .profile-header__row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: clamp(var(--space-4), 2vw, var(--space-5));
 }
 
@@ -278,8 +350,10 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: start;
   justify-content: flex-end;
   gap: var(--space-2);
+  padding-top: 0.18rem;
 }
 
 .profile-action {
@@ -322,10 +396,27 @@ h1 {
 
 .bio-copy {
   margin-top: 0.1rem;
-  max-width: 42rem;
+  max-width: min(42rem, 100%);
+  min-width: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-small);
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bio-copy__link {
+  color: var(--accent-teal);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.bio-copy__link:hover,
+.bio-copy__link:focus-visible {
+  color: var(--accent-teal-hover);
+  outline: none;
 }
 
 .interest-row {

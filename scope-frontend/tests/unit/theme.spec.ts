@@ -40,95 +40,76 @@ describe('theme utility', () => {
     expect(localStorage.getItem('scope-theme')).toBe('dark');
   });
 
-  it('ignores stored light preferences and keeps user-triggered theme changes dark-only', async () => {
+  it('hydrates a stored light preference', async () => {
     localStorage.setItem('scope-theme', 'light');
 
-    const { applyTheme, initializeTheme, toggleTheme, useTheme } = await loadThemeModule();
+    const { getStoredTheme, initializeTheme, useTheme } = await loadThemeModule();
+
+    expect(getStoredTheme()).toBe('light');
+    initializeTheme();
+
+    expect(useTheme().value).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+    expect(localStorage.getItem('scope-theme')).toBe('light');
+    expect(trackThemeToggleMock).not.toHaveBeenCalled();
+  });
+
+  it('toggles between light and dark from the navbar and tracks each real change', async () => {
+    const { initializeTheme, toggleTheme, useTheme } = await loadThemeModule();
 
     initializeTheme();
-    expect(useTheme().value).toBe('dark');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(trackThemeToggleMock).not.toHaveBeenCalled();
+    expect(toggleTheme('navbar')).toBe('light');
+    await flushPromises();
 
-    toggleTheme('navbar');
+    expect(useTheme().value).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+    expect(localStorage.getItem('scope-theme')).toBe('light');
+    expect(trackThemeToggleMock).toHaveBeenLastCalledWith({
+      theme: 'light',
+      previousTheme: 'dark',
+      source: 'navbar',
+      routeName: undefined,
+    });
+
+    expect(toggleTheme('navbar')).toBe('dark');
     await flushPromises();
 
     expect(useTheme().value).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('scope-theme')).toBe('dark');
-    expect(trackThemeToggleMock).not.toHaveBeenCalled();
+    expect(trackThemeToggleMock).toHaveBeenLastCalledWith({
+      theme: 'dark',
+      previousTheme: 'light',
+      source: 'navbar',
+      routeName: undefined,
+    });
+  });
 
+  it('applies and tracks settings theme changes', async () => {
+    const { applyTheme, initializeTheme, useTheme } = await loadThemeModule();
+
+    initializeTheme();
     applyTheme('light', { track: true, source: 'settings' });
     await flushPromises();
 
-    expect(useTheme().value).toBe('dark');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(trackThemeToggleMock).not.toHaveBeenCalled();
+    expect(useTheme().value).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(localStorage.getItem('scope-theme')).toBe('light');
+    expect(trackThemeToggleMock).toHaveBeenCalledWith({
+      theme: 'light',
+      previousTheme: 'dark',
+      source: 'settings',
+      routeName: 'settings',
+    });
   });
 
-  it('does not run view transitions for the coming-soon theme control', async () => {
-    const startViewTransition = vi.fn((callback: () => void) => {
-      callback();
-      return { finished: Promise.resolve() };
-    });
-    Object.defineProperty(document, 'startViewTransition', {
-      configurable: true,
-      value: startViewTransition,
-    });
-
-    const { initializeTheme, toggleTheme } = await loadThemeModule();
-
-    initializeTheme();
-    toggleTheme('navbar');
-
-    expect(startViewTransition).not.toHaveBeenCalled();
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
-
-    await flushPromises();
-
-    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
-  });
-
-  it('does not run the map overlay path for the coming-soon theme control', async () => {
-    vi.useFakeTimers();
-    const mapView = document.createElement('div');
-    mapView.className = 'map-view';
-    document.body.append(mapView);
-    const startViewTransition = vi.fn((callback: () => void) => {
-      callback();
-      return { finished: Promise.resolve() };
-    });
-    Object.defineProperty(document, 'startViewTransition', {
-      configurable: true,
-      value: startViewTransition,
-    });
-
-    const { initializeTheme, toggleTheme } = await loadThemeModule();
-
-    initializeTheme();
-    toggleTheme('navbar');
-
-    expect(startViewTransition).not.toHaveBeenCalled();
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
-    expect(document.documentElement.dataset.themeTransitionMode).toBeUndefined();
-    expect(document.documentElement.dataset.themeTransitionFrom).toBeUndefined();
-
-    vi.advanceTimersByTime(260);
-
-    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
-    expect(document.documentElement.dataset.themeTransitionMode).toBeUndefined();
-    expect(document.documentElement.dataset.themeTransitionFrom).toBeUndefined();
-    mapView.remove();
-  });
-
-  it('keeps theme state stable when storage, motion, document, or transitions fail', async () => {
+  it('keeps live theme state usable when storage, document, or transitions fail', async () => {
     const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('storage blocked');
     });
-    const { applyTheme, getStoredTheme, initializeTheme } = await loadThemeModule();
+    const { applyTheme, getStoredTheme, toggleTheme } = await loadThemeModule();
 
     expect(getStoredTheme()).toBe('dark');
     getItemSpy.mockRestore();
@@ -137,7 +118,8 @@ describe('theme utility', () => {
       throw new Error('quota');
     });
     applyTheme('light');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
     setItemSpy.mockRestore();
 
     const originalDocument = document;
@@ -145,27 +127,18 @@ describe('theme utility', () => {
     expect(() => applyTheme('dark')).not.toThrow();
     vi.stubGlobal('document', originalDocument);
 
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      value: vi.fn(() => ({ matches: true })),
+    const startViewTransition = vi.fn((callback: () => void) => {
+      callback();
+      return { finished: Promise.resolve() };
     });
-    applyTheme('light', { animate: true });
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-
     Object.defineProperty(document, 'startViewTransition', {
       configurable: true,
-      value: vi.fn(() => {
-        throw new Error('transition failed');
-      }),
+      value: startViewTransition,
     });
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      value: vi.fn(() => ({ matches: false })),
-    });
-    applyTheme('dark', { animate: true });
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
 
-    initializeTheme();
+    toggleTheme('navbar');
+
+    expect(startViewTransition).not.toHaveBeenCalled();
+    expect(document.documentElement.dataset.themeTransition).toBeUndefined();
   });
 });

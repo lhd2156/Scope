@@ -177,6 +177,7 @@ describe('FriendsPage', () => {
     expect(wrapper.get('[data-test="tab-all"]').text()).toContain('0');
     expect(wrapper.get('[data-test="tab-requests"]').text()).toContain('0');
     expect(wrapper.text()).toContain('Your travel circle is still forming');
+    expect(wrapper.text()).not.toContain('People already connected to your shared trips');
     expect(wrapper.text()).toContain('@handle');
     expect(wrapper.get('[data-test="main-people-search"]').exists()).toBe(true);
   });

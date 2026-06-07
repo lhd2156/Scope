@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = 'v3';
+const SERVICE_WORKER_VERSION = 'v4';
 const APP_SHELL_CACHE = `scope-shell-${SERVICE_WORKER_VERSION}`;
 const STATIC_ASSET_CACHE = `scope-static-${SERVICE_WORKER_VERSION}`;
 const NAVIGATION_CACHE = `scope-navigation-${SERVICE_WORKER_VERSION}`;

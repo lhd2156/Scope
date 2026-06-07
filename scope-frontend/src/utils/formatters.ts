@@ -39,12 +39,32 @@ const relativeTimeUnits = [
 ] as const satisfies ReadonlyArray<{ amount: number; unit: Intl.RelativeTimeFormatUnit }>;
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+const numericRelativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'always' });
 const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
   month: 'short',
   day: 'numeric',
 });
+
+function formatCalendarDayRelativeTime(calendarDayDelta: number): string {
+  const absoluteDayDelta = Math.abs(calendarDayDelta);
+  const direction = Math.sign(calendarDayDelta) || 1;
+
+  if (absoluteDayDelta < 7) {
+    return numericRelativeTimeFormatter.format(calendarDayDelta, 'day');
+  }
+
+  if (absoluteDayDelta < 31) {
+    return numericRelativeTimeFormatter.format(direction * Math.max(1, Math.round(absoluteDayDelta / 7)), 'week');
+  }
+
+  if (absoluteDayDelta < 365) {
+    return numericRelativeTimeFormatter.format(direction * Math.max(1, Math.round(absoluteDayDelta / 30.4375)), 'month');
+  }
+
+  return numericRelativeTimeFormatter.format(direction * Math.max(1, Math.round(absoluteDayDelta / 365.25)), 'year');
+}
 
 export function formatRelativeTime(value: string | Date, baseDate: string | Date = new Date()): string {
   const targetDate = toDate(value);
@@ -54,9 +74,18 @@ export function formatRelativeTime(value: string | Date, baseDate: string | Date
     return '';
   }
 
+  const calendarDayDelta = toCalendarDayNumber(targetDate) - toCalendarDayNumber(comparisonDate);
+  if (calendarDayDelta !== 0) {
+    return formatCalendarDayRelativeTime(calendarDayDelta);
+  }
+
   let delta = (targetDate.getTime() - comparisonDate.getTime()) / 1000;
 
   for (const { amount, unit } of relativeTimeUnits) {
+    if (unit === 'day') {
+      break;
+    }
+
     if (Math.abs(delta) < amount) {
       return relativeTimeFormatter.format(Math.round(delta), unit);
     }
@@ -64,7 +93,7 @@ export function formatRelativeTime(value: string | Date, baseDate: string | Date
     delta /= amount;
   }
 
-  return relativeTimeFormatter.format(Math.round(delta), 'year');
+  return numericRelativeTimeFormatter.format(Math.round(delta), 'day');
 }
 
 export function formatMonthDay(value: string | Date): string {
@@ -238,6 +267,18 @@ const SEEDED_SPOT_LOCATIONS_BY_TITLE = new Map(
   ]),
 );
 
+function getSeededSpotLocation(location: RegionAwareLocation) {
+  return (
+    SEEDED_SPOT_LOCATIONS_BY_ID.get((location.id ?? '').trim().toLowerCase()) ??
+    SEEDED_SPOT_LOCATIONS_BY_TITLE.get(normalizeLocationLookupText(location.title)) ??
+    null
+  );
+}
+
+function isSeededLocationCityMatch(city: string, seededCity: string): boolean {
+  return normalizeLocationLookupText(city) === normalizeLocationLookupText(seededCity);
+}
+
 function formatCityRegionLabel(city: string, region: string, country: string): string {
   if (city && region) {
     return `${city}, ${formatLocationRegionLabel(region)}`;
@@ -248,9 +289,7 @@ function formatCityRegionLabel(city: string, region: string, country: string): s
 }
 
 function resolveSeededSpotLocation(location: RegionAwareLocation): CityRegionLocation | null {
-  const seededLocation =
-    SEEDED_SPOT_LOCATIONS_BY_ID.get((location.id ?? '').trim().toLowerCase()) ??
-    SEEDED_SPOT_LOCATIONS_BY_TITLE.get(normalizeLocationLookupText(location.title));
+  const seededLocation = getSeededSpotLocation(location);
 
   if (!seededLocation) {
     return null;
@@ -320,10 +359,14 @@ export function resolveLocationRegion(location: RegionAwareLocation, options: { 
 
 export function resolveCityRegionLocation(location: RegionAwareLocation): CityRegionLocation | null {
   const city = location.city?.trim() ?? '';
+  const seededLocation = getSeededSpotLocation(location);
+  const citySeededLocation = seededLocation && isSeededLocationCityMatch(city, seededLocation.city)
+    ? seededLocation
+    : null;
 
   if (city) {
-    const region = resolveLocationRegion(location, { allowCountryFallback: false });
-    const country = formatCountryLabel(location.country);
+    const region = resolveLocationRegion(location, { allowCountryFallback: false }) || citySeededLocation?.region || '';
+    const country = formatCountryLabel(location.country) || formatCountryLabel(citySeededLocation?.country);
     const filterRegion = region || country;
     const label = formatCityRegionLabel(city, region, country);
 

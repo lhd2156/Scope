@@ -16,6 +16,7 @@ const { authStoreMock, feedStoreMock, spotsStoreMock, onboardingStoreMock } = vi
     loading: false,
     error: '',
     fetchFeed: vi.fn().mockResolvedValue(undefined),
+    fetchHomeActivityFeed: vi.fn().mockResolvedValue(undefined),
   },
   spotsStoreMock: {
     featuredSpots: [
@@ -105,6 +106,7 @@ describe('HomePage deferred feed loading', () => {
     feedStoreMock.loading = false;
     feedStoreMock.error = '';
     feedStoreMock.fetchFeed.mockReset().mockResolvedValue(undefined);
+    feedStoreMock.fetchHomeActivityFeed.mockReset().mockResolvedValue(undefined);
     spotsStoreMock.featuredSpots = [
       {
         id: 'spot-1',
@@ -137,7 +139,7 @@ describe('HomePage deferred feed loading', () => {
 
     expect(onboardingStoreMock.startIfPending).toHaveBeenCalledTimes(1);
     expect(spotsStoreMock.fetchTrending).toHaveBeenCalledTimes(1);
-    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
+    expect(feedStoreMock.fetchHomeActivityFeed).not.toHaveBeenCalled();
     expect(observers).toHaveLength(1);
     expect(observers[0].observe).toHaveBeenCalledTimes(1);
     expect(observers[0].options).toMatchObject({
@@ -149,7 +151,7 @@ describe('HomePage deferred feed loading', () => {
       [{ isIntersecting: true, intersectionRatio: 0.1 } as IntersectionObserverEntry],
       observers[0] as unknown as IntersectionObserver,
     );
-    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
+    expect(feedStoreMock.fetchHomeActivityFeed).not.toHaveBeenCalled();
 
     observers[0].callback(
       [{ isIntersecting: true, intersectionRatio: 0.14 } as IntersectionObserverEntry],
@@ -158,7 +160,8 @@ describe('HomePage deferred feed loading', () => {
     await flushPromises();
 
     expect(observers[0].disconnect).toHaveBeenCalledTimes(1);
-    expect(feedStoreMock.fetchFeed).toHaveBeenCalledTimes(1);
+    expect(feedStoreMock.fetchHomeActivityFeed).toHaveBeenCalledTimes(1);
+    expect(feedStoreMock.fetchFeed).not.toHaveBeenCalled();
 
     wrapper.unmount();
 

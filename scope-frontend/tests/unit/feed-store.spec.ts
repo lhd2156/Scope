@@ -19,6 +19,7 @@ describe('feed store API contracts', () => {
   it('captures a user-safe error and resets loading when feed fetch fails', async () => {
     vi.doMock('@/services/feedService', () => ({
       getFeed: vi.fn().mockRejectedValue(new Error('Feed service unavailable')),
+      getHomeActivityFeed: vi.fn().mockRejectedValue(new Error('Feed service unavailable')),
       getTrendingSpots: vi.fn(),
     }));
 
@@ -59,6 +60,10 @@ describe('feed store API contracts', () => {
     });
     vi.doMock('@/services/feedService', () => ({
       getFeed,
+      getHomeActivityFeed: vi.fn().mockResolvedValue({
+        data: [],
+        meta: null,
+      }),
       getTrendingSpots: vi.fn().mockResolvedValue({
         data: [
           {
@@ -97,8 +102,10 @@ describe('feed store API contracts', () => {
     const getFeed = vi.fn()
       .mockResolvedValueOnce({ data: [{ id: 'feed-old' }], meta: null })
       .mockResolvedValueOnce({ data: [{ id: 'feed-new' }], meta: undefined });
+    const getHomeActivityFeed = vi.fn().mockResolvedValue({ data: [], meta: null });
     vi.doMock('@/services/feedService', () => ({
       getFeed,
+      getHomeActivityFeed,
       getTrendingSpots: vi.fn().mockRejectedValue(new Error('Trending service unavailable')),
     }));
 
@@ -114,5 +121,27 @@ describe('feed store API contracts', () => {
     expect(store.meta).toBeNull();
     expect(store.trendingLoading).toBe(false);
     expect(store.trendingError).toBe('Trending service unavailable');
+  });
+
+  it('loads the home activity rail through the starter activity service', async () => {
+    const getHomeActivityFeed = vi.fn().mockResolvedValue({
+      data: [{ id: 'home-feed-1' }],
+      meta: { page: 1, pageSize: 6, total: 1, totalPages: 1 },
+    });
+    const getFeed = vi.fn().mockResolvedValue({ data: [{ id: 'private-feed-1' }], meta: null });
+    vi.doMock('@/services/feedService', () => ({
+      getFeed,
+      getHomeActivityFeed,
+      getTrendingSpots: vi.fn(),
+    }));
+
+    const store = await bootstrapFeedStore();
+
+    await store.fetchHomeActivityFeed(false, 1, 6);
+
+    expect(getHomeActivityFeed).toHaveBeenCalledWith(1, 6);
+    expect(getFeed).not.toHaveBeenCalled();
+    expect(store.items).toEqual([{ id: 'home-feed-1' }]);
+    expect(store.meta).toMatchObject({ page: 1, pageSize: 6, total: 1 });
   });
 });

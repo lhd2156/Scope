@@ -1,5 +1,5 @@
 <template>
-  <form class="settings-form stagger-in" @submit.prevent="submitForm">
+  <form class="settings-form stagger-in" @submit.prevent="submitForm('manual')">
     <section id="settings-account" class="surface-card settings-section" tabindex="-1" data-test="settings-section-account">
       <div class="section-header">
         <div class="section-heading">
@@ -24,7 +24,7 @@
 
         <label class="field-group">
           <span>Phone number</span>
-          <input v-model.trim="form.phoneNumber" type="tel" maxlength="32" autocomplete="tel" placeholder="+1 555 123 4567" />
+          <input v-model.trim="form.phoneNumber" type="tel" maxlength="32" autocomplete="tel" placeholder="+1 555 123 4567" @change="submitForm('autosave')" />
         </label>
       </div>
 
@@ -99,24 +99,24 @@
       <div class="field-grid">
         <label class="field-group">
           <span>First name</span>
-          <input v-model.trim="form.firstName" type="text" maxlength="80" autocomplete="given-name" placeholder="First name" />
+          <input v-model.trim="form.firstName" type="text" maxlength="80" autocomplete="given-name" placeholder="First name" @change="submitForm('autosave')" />
         </label>
 
         <label class="field-group">
           <span>Last name</span>
-          <input v-model.trim="form.lastName" type="text" maxlength="80" autocomplete="family-name" placeholder="Last name" />
+          <input v-model.trim="form.lastName" type="text" maxlength="80" autocomplete="family-name" placeholder="Last name" @change="submitForm('autosave')" />
         </label>
 
         <label class="field-group">
           <span>Display name</span>
-          <input v-model.trim="form.displayName" type="text" maxlength="80" placeholder="How your name appears in Scope" />
+          <input v-model.trim="form.displayName" type="text" maxlength="80" placeholder="How your name appears in Scope" @change="submitForm('autosave')" />
         </label>
 
         <label class="field-group">
           <span>Username</span>
           <div class="input-shell input-shell--prefix">
             <span class="input-prefix" aria-hidden="true">@</span>
-            <input v-model.trim="form.username" type="text" maxlength="40" autocomplete="username" placeholder="your-handle" @input="normalizeUsername" />
+            <input v-model.trim="form.username" type="text" maxlength="40" autocomplete="username" placeholder="your-handle" @input="normalizeUsername" @change="submitForm('autosave')" />
           </div>
         </label>
 
@@ -127,6 +127,7 @@
           autocomplete="bday"
           placeholder="MM/DD/YYYY"
           :show-message="false"
+          @change="submitForm('autosave')"
         />
 
         <div class="field-group">
@@ -136,7 +137,7 @@
               <ScopeIcon name="pin" label="Location" />
               <input
                 ref="locationInputRef"
-                v-model.trim="form.homeBase"
+                v-model="form.homeBase"
                 type="text"
                 maxlength="160"
                 autocomplete="off"
@@ -190,8 +191,21 @@
 
         <label class="field-group field-group--wide">
           <span>Bio</span>
-          <textarea v-model.trim="form.bio" rows="4" maxlength="280" placeholder="Tell other travelers what kind of adventures you chase." />
+          <textarea v-model.trim="form.bio" rows="4" maxlength="280" placeholder="Tell other travelers what kind of adventures you chase." @change="submitForm('autosave')" />
         </label>
+      </div>
+
+      <p v-if="errorMessage" class="error-copy">{{ errorMessage }}</p>
+
+      <div class="form-actions settings-action-bar" :class="{ 'settings-action-bar--dirty': isFormDirty }">
+        <div class="settings-action-bar__status" aria-live="polite">
+          <span v-if="isFormDirty" class="settings-action-bar__dot" aria-hidden="true" />
+          <span class="settings-action-bar__label">{{ submitting ? 'Saving changes' : isFormDirty ? 'Unsaved profile changes' : 'Profile changes saved' }}</span>
+        </div>
+        <div class="settings-action-bar__buttons">
+          <Button data-test="settings-cancel" type="button" variant="secondary" :disabled="!isFormDirty || submitting" @click="resetForm">Cancel</Button>
+          <Button data-test="settings-save" type="submit" :loading="submitting" :disabled="!isFormDirty">Save Changes</Button>
+        </div>
       </div>
     </section>
 
@@ -217,7 +231,7 @@
           type="button"
           class="option-card"
           :class="{ 'is-active': form.privacy === option.value }"
-          @click="form.privacy = option.value"
+          @click="setPrivacy(option.value)"
         >
           <strong>{{ option.label }}</strong>
           <span>{{ option.description }}</span>
@@ -230,7 +244,7 @@
           type="button"
           class="toggle-row"
           :class="{ 'is-active': form.showActivityStatus }"
-          @click="form.showActivityStatus = !form.showActivityStatus"
+          @click="setShowActivityStatus(!form.showActivityStatus)"
         >
           <div>
             <strong>Activity status</strong>
@@ -290,14 +304,14 @@
               type="button"
               class="option-pill"
               :class="{ 'is-active': form.tripInvites === option.value }"
-              @click="form.tripInvites = option.value"
+              @click="setTripInvites(option.value)"
             >
               {{ option.label }}
             </button>
           </div>
         </div>
 
-        <button type="button" class="toggle-row" :class="{ 'is-active': form.emailAlerts }" @click="form.emailAlerts = !form.emailAlerts">
+        <button type="button" class="toggle-row" :class="{ 'is-active': form.emailAlerts }" @click="setEmailAlerts(!form.emailAlerts)">
           <div>
             <strong>Email alerts</strong>
             <p>Send friend activity, collaboration updates, and itinerary reminders to your inbox.</p>
@@ -335,6 +349,16 @@
             >
               <ScopeIcon name="moon" label="Dark mode" />
               <span>Dark</span>
+            </button>
+            <button
+              data-test="theme-option-light"
+              type="button"
+              class="theme-option"
+              :class="{ 'is-active': form.themeMode === 'light' }"
+              @click="selectTheme('light')"
+            >
+              <ScopeIcon name="sun" label="Light mode" />
+              <span>Light</span>
             </button>
           </div>
         </div>
@@ -395,19 +419,6 @@
         </div>
       </div>
     </section>
-
-    <p v-if="errorMessage" class="error-copy">{{ errorMessage }}</p>
-
-    <div class="form-actions settings-action-bar" :class="{ 'settings-action-bar--dirty': isFormDirty }">
-      <div class="settings-action-bar__status" aria-live="polite">
-        <span v-if="isFormDirty" class="settings-action-bar__dot" aria-hidden="true" />
-        <span class="settings-action-bar__label">{{ isFormDirty ? 'Unsaved changes' : 'All changes saved' }}</span>
-      </div>
-      <div class="settings-action-bar__buttons">
-        <Button data-test="settings-cancel" type="button" variant="secondary" :disabled="!isFormDirty" @click="resetForm">Cancel</Button>
-        <Button data-test="settings-save" type="submit" :loading="submitting" :disabled="!isFormDirty">Save Changes</Button>
-      </div>
-    </div>
   </form>
 </template>
 
@@ -419,14 +430,23 @@ import Button from '@/components/common/Button.vue';
 import DateField from '@/components/auth/DateField.vue';
 import { setAnalyticsConsent, useAnalyticsConsent } from '@/utils/analyticsConsent';
 import { applyTheme, initializeTheme, useTheme } from '@/utils/theme';
-import { geocode, type GeocodeResult } from '@/services/mapService';
+import { searchLocations, type PlaceSearchResult } from '@/services/mapService';
 import { getPresignedUploadTarget, uploadFileToPresignedTarget } from '@/services/s3Service';
 import type { SpotCategory, ThemeMode } from '@/types';
 
 const AVATAR_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const AVATAR_ACCEPT = '.jpg,.jpeg,.png,.webp';
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-const ACTIVE_THEME_MODE: ThemeMode = 'dark';
+const LOCATION_SEARCH_MIN_LENGTH = 2;
+const LOCATION_SEARCH_DEBOUNCE_MS = 240;
+const LOCATION_SEARCH_TYPES = 'address,street,place,city,locality,neighborhood,postcode';
+const LOCAL_UPLOAD_URL_PATTERN = /^(?:blob:|local:\/\/)/;
+
+type SettingsSubmitSource = 'manual' | 'autosave' | 'avatar' | 'location' | 'preference';
+
+export interface SettingsSubmitOptions {
+  source: SettingsSubmitSource;
+}
 
 export interface SettingsFormValue {
   displayName: string;
@@ -473,7 +493,7 @@ const defaultSettingsFormValue: SettingsFormValue = {
   tripInvites: 'instant',
   emailAlerts: true,
   categoryPreferences: [],
-  themeMode: ACTIVE_THEME_MODE,
+  themeMode: 'dark',
 };
 
 const props = withDefaults(
@@ -497,7 +517,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: 'submit', payload: SettingsFormValue): void;
+  (event: 'submit', payload: SettingsFormValue, options: SettingsSubmitOptions): void;
   (event: 'replay-tutorial'): void;
   (event: 'delete-account'): void;
 }>();
@@ -511,11 +531,12 @@ let avatarPreviewUrl: string | null = null;
 const locationInputRef = ref<HTMLInputElement | null>(null);
 const form = reactive<SettingsFormValue>(cloneSettingsFormValue(props.initialValue));
 const errorMessage = defineModel<string>('errorMessage', { default: '' });
+const selectedLocationLabel = ref(props.initialValue.homeBase.trim());
 
 const locationOpen = ref(false);
 const locationLoading = ref(false);
 const locationStatus = ref('');
-const locationResults = ref<GeocodeResult[]>([]);
+const locationResults = ref<PlaceSearchResult[]>([]);
 const locationActiveIndex = ref(-1);
 let locationDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let locationBlurTimer: ReturnType<typeof setTimeout> | null = null;
@@ -526,7 +547,7 @@ function handleLocationFocus(): void {
     clearTimeout(locationBlurTimer);
     locationBlurTimer = null;
   }
-  if (form.homeBase.trim().length >= 2) {
+  if (form.homeBase.trim().length >= LOCATION_SEARCH_MIN_LENGTH) {
     locationOpen.value = true;
     if (!locationResults.value.length && !locationLoading.value) {
       void runLocationSearch(form.homeBase);
@@ -542,11 +563,15 @@ function handleLocationBlur(): void {
 
 function handleLocationInput(): void {
   locationActiveIndex.value = -1;
+  if (form.homeBase.trim() !== selectedLocationLabel.value) {
+    selectedLocationLabel.value = '';
+  }
   if (locationDebounceTimer) {
     clearTimeout(locationDebounceTimer);
   }
   const query = form.homeBase.trim();
-  if (query.length < 2) {
+  locationRequestId += 1;
+  if (query.length < LOCATION_SEARCH_MIN_LENGTH) {
     locationOpen.value = false;
     locationResults.value = [];
     locationStatus.value = '';
@@ -557,21 +582,28 @@ function handleLocationInput(): void {
   locationStatus.value = '';
   locationDebounceTimer = setTimeout(() => {
     void runLocationSearch(query);
-  }, 220);
+  }, LOCATION_SEARCH_DEBOUNCE_MS);
 }
 
 async function runLocationSearch(query: string): Promise<void> {
   const requestId = ++locationRequestId;
   try {
-    const envelope = await geocode(query, 6);
-    if (requestId !== locationRequestId) return;
-    const results = Array.isArray(envelope.data) ? envelope.data : [];
+    const envelope = await searchLocations(query, {
+      limit: 6,
+      preferPoi: false,
+      sortByDistance: false,
+      types: LOCATION_SEARCH_TYPES,
+    });
+    if (requestId !== locationRequestId || query !== form.homeBase.trim()) return;
+    const results = dedupeLocationResults(Array.isArray(envelope.data) ? envelope.data : []);
     locationResults.value = results;
-    locationStatus.value = results.length ? '' : 'No matching places. Try a city or address.';
+    locationActiveIndex.value = results.length ? 0 : -1;
+    locationStatus.value = results.length ? '' : 'No clean matches yet. Try a city, ZIP code, or nearby street.';
   } catch {
     if (requestId !== locationRequestId) return;
     locationResults.value = [];
-    locationStatus.value = 'Place search is offline right now.';
+    locationActiveIndex.value = -1;
+    locationStatus.value = 'Location suggestions are offline right now.';
   } finally {
     if (requestId === locationRequestId) {
       locationLoading.value = false;
@@ -581,7 +613,7 @@ async function runLocationSearch(query: string): Promise<void> {
 
 function handleLocationKeydown(event: KeyboardEvent): void {
   if (!locationOpen.value || !locationResults.value.length) {
-    if (event.key === 'ArrowDown' && form.homeBase.trim().length >= 2) {
+    if (event.key === 'ArrowDown' && form.homeBase.trim().length >= LOCATION_SEARCH_MIN_LENGTH) {
       locationOpen.value = true;
       void runLocationSearch(form.homeBase);
     }
@@ -606,27 +638,65 @@ function handleLocationKeydown(event: KeyboardEvent): void {
   }
 }
 
-function selectLocation(result: GeocodeResult): void {
-  form.homeBase = formatLocationTitle(result);
+function selectLocation(result: PlaceSearchResult): void {
+  const label = formatLocationLabel(result);
+  if (!label) {
+    return;
+  }
+
+  form.homeBase = label;
+  selectedLocationLabel.value = label;
   locationOpen.value = false;
   locationResults.value = [];
+  locationActiveIndex.value = -1;
+  locationStatus.value = '';
+  submitForm('location');
 }
 
 function clearLocation(): void {
   form.homeBase = '';
+  selectedLocationLabel.value = '';
+  locationRequestId += 1;
   locationOpen.value = false;
   locationResults.value = [];
   locationStatus.value = '';
+  submitForm('location');
   void nextTick(() => locationInputRef.value?.focus());
 }
 
-function formatLocationTitle(result: GeocodeResult): string {
-  return result.placeName?.split(',')[0]?.trim() || result.city || result.placeName || '';
+function formatLocationLabel(result: PlaceSearchResult): string {
+  return result.formattedAddress?.trim() ||
+    [result.placeName, result.city, result.country].filter(Boolean).join(', ') ||
+    result.placeName ||
+    '';
 }
 
-function formatLocationMeta(result: GeocodeResult): string {
+function formatLocationTitle(result: PlaceSearchResult): string {
+  return result.placeName?.trim() || result.address || result.formattedAddress?.split(',')[0]?.trim() || result.city || '';
+}
+
+function formatLocationMeta(result: PlaceSearchResult): string {
+  const label = formatLocationTitle(result).toLowerCase();
+  const formattedAddress = result.formattedAddress?.trim();
+  if (formattedAddress && formattedAddress.toLowerCase() !== label) {
+    return formattedAddress;
+  }
+
   const segments = [result.city, result.country].filter(Boolean) as string[];
-  return segments.length ? segments.join(', ') : result.placeName || '';
+  return segments.length ? segments.join(', ') : result.placeName || 'Verified location';
+}
+
+function dedupeLocationResults(results: PlaceSearchResult[]): PlaceSearchResult[] {
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    const label = formatLocationLabel(result).toLowerCase();
+    if (!label || seen.has(label)) {
+      return false;
+    }
+
+    seen.add(label);
+    return true;
+  });
 }
 
 function normalizeUsername(): void {
@@ -702,7 +772,7 @@ const isFormDirty = computed(() => {
   if (form.privacy !== initial.privacy) return true;
   if (form.tripInvites !== initial.tripInvites) return true;
   if (form.emailAlerts !== initial.emailAlerts) return true;
-  if (form.themeMode !== ACTIVE_THEME_MODE) return true;
+  if (form.themeMode !== initial.themeMode) return true;
   const initialCategories = [...initial.categoryPreferences].sort().join('|');
   const currentCategories = [...form.categoryPreferences].sort().join('|');
   return initialCategories !== currentCategories;
@@ -712,6 +782,7 @@ watch(
   () => props.initialValue,
   (nextValue) => {
     Object.assign(form, cloneSettingsFormValue(nextValue));
+    selectedLocationLabel.value = nextValue.homeBase.trim();
     releaseAvatarPreview();
     errorMessage.value = '';
   },
@@ -730,7 +801,7 @@ function cloneSettingsFormValue(value: Partial<SettingsFormValue>): SettingsForm
   return {
     ...defaultSettingsFormValue,
     ...value,
-    themeMode: ACTIVE_THEME_MODE,
+    themeMode: value.themeMode ?? defaultSettingsFormValue.themeMode,
     categoryPreferences: Array.isArray(value.categoryPreferences) ? [...value.categoryPreferences] : [],
   };
 }
@@ -755,6 +826,21 @@ function releaseAvatarPreview(): void {
     URL.revokeObjectURL(avatarPreviewUrl);
   }
   avatarPreviewUrl = null;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  if (typeof FileReader === 'undefined') {
+    return Promise.resolve('');
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      resolve(typeof reader.result === 'string' ? reader.result : '');
+    }, { once: true });
+    reader.addEventListener('error', () => resolve(''), { once: true });
+    reader.readAsDataURL(file);
+  });
 }
 
 async function handleAvatarFileSelection(event: Event): Promise<void> {
@@ -791,10 +877,16 @@ async function handleAvatarFileSelection(event: Event): Promise<void> {
       sizeBytes: file.size,
     });
     const finalUrl = await uploadFileToPresignedTarget(target, file);
-    if (finalUrl && finalUrl !== previewUrl) {
-      form.avatarUrl = finalUrl;
+    const persistedUrl = LOCAL_UPLOAD_URL_PATTERN.test(target.uploadUrl) || LOCAL_UPLOAD_URL_PATTERN.test(finalUrl)
+      ? await readFileAsDataUrl(file)
+      : finalUrl;
+
+    if (persistedUrl) {
+      form.avatarUrl = persistedUrl;
       releaseAvatarPreview();
     }
+
+    submitForm('avatar');
   } catch {
     errorMessage.value = 'Scope could not finish uploading that photo. Try again in a moment.';
   } finally {
@@ -803,20 +895,43 @@ async function handleAvatarFileSelection(event: Event): Promise<void> {
 }
 
 function selectTheme(themeMode: ThemeMode): void {
-  form.themeMode = ACTIVE_THEME_MODE;
-  applyTheme(ACTIVE_THEME_MODE, {
-    track: themeMode === ACTIVE_THEME_MODE,
+  form.themeMode = themeMode;
+  applyTheme(themeMode, {
+    track: theme.value !== themeMode,
     source: 'settings',
   });
+  submitForm('preference');
 }
 
 function toggleCategory(category: SpotCategory): void {
   if (form.categoryPreferences.includes(category)) {
     form.categoryPreferences = form.categoryPreferences.filter((entry) => entry !== category);
+    submitForm('preference');
     return;
   }
 
   form.categoryPreferences = [...form.categoryPreferences, category];
+  submitForm('preference');
+}
+
+function setPrivacy(value: SettingsFormValue['privacy']): void {
+  form.privacy = value;
+  submitForm('preference');
+}
+
+function setShowActivityStatus(value: boolean): void {
+  form.showActivityStatus = value;
+  submitForm('preference');
+}
+
+function setTripInvites(value: SettingsFormValue['tripInvites']): void {
+  form.tripInvites = value;
+  submitForm('preference');
+}
+
+function setEmailAlerts(value: boolean): void {
+  form.emailAlerts = value;
+  submitForm('preference');
 }
 
 function toggleAnalyticsConsent(): void {
@@ -831,14 +946,33 @@ function handleReplayTutorial(): void {
 function resetForm(): void {
   const initialValue = cloneSettingsFormValue(props.initialValue);
   Object.assign(form, initialValue);
+  selectedLocationLabel.value = initialValue.homeBase.trim();
   releaseAvatarPreview();
-  applyTheme(ACTIVE_THEME_MODE);
+  applyTheme(initialValue.themeMode);
   errorMessage.value = '';
 }
 
-function submitForm(): void {
+function resolveHomeBaseForSubmit(source: SettingsSubmitSource): string | null {
+  const currentHomeBase = form.homeBase.trim();
+  const selectedHomeBase = selectedLocationLabel.value.trim();
+  const initialHomeBase = props.initialValue.homeBase.trim();
+
+  if (!currentHomeBase || currentHomeBase === selectedHomeBase || currentHomeBase === initialHomeBase) {
+    return currentHomeBase;
+  }
+
+  return source === 'manual' ? null : initialHomeBase;
+}
+
+function submitForm(source: SettingsSubmitSource = 'manual'): void {
   if (!form.displayName.trim()) {
     errorMessage.value = 'Display name is required so your profile stays recognizable.';
+    return;
+  }
+
+  const homeBase = resolveHomeBaseForSubmit(source);
+  if (homeBase === null) {
+    errorMessage.value = 'Choose a suggested location before saving your profile location.';
     return;
   }
 
@@ -853,10 +987,10 @@ function submitForm(): void {
     dateOfBirth: form.dateOfBirth,
     avatarUrl: form.avatarUrl.trim(),
     bio: form.bio.trim(),
-    homeBase: form.homeBase.trim(),
+    homeBase,
     showActivityStatus: form.showActivityStatus,
     categoryPreferences: [...form.categoryPreferences],
-  });
+  }, { source });
 }
 
 defineExpose({
@@ -867,8 +1001,10 @@ defineExpose({
           clearLocation,
           cloneSettingsFormValue,
           confirmDeleteAccount,
+          dedupeLocationResults,
           errorMessage,
           form,
+          formatLocationLabel,
           formatLocationMeta,
           formatLocationTitle,
           handleAvatarFileSelection,
@@ -883,9 +1019,11 @@ defineExpose({
           locationStatus,
           normalizeUsername,
           openAvatarPicker,
+          readFileAsDataUrl,
           releaseAvatarPreview,
           runLocationSearch,
           selectLocation,
+          selectedLocationLabel,
         },
       }
     : {}),
@@ -1336,6 +1474,11 @@ defineExpose({
   outline: none;
 }
 
+.input-shell input:focus-visible {
+  border: 0;
+  box-shadow: none;
+}
+
 .input-shell--prefix .input-prefix {
   padding-inline-end: 0.25rem;
   color: var(--text-secondary);
@@ -1569,39 +1712,6 @@ defineExpose({
   min-width: 6.25rem;
 }
 
-.theme-option--coming-soon {
-  cursor: default;
-  color: var(--text-secondary);
-}
-
-.theme-option__tooltip {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 0.55rem);
-  z-index: 3;
-  min-width: max-content;
-  padding: 0.3rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--glass-border) 76%, transparent);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
-  color: var(--text-primary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 0.25rem);
-  transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
-}
-
-.theme-option--coming-soon:hover .theme-option__tooltip,
-.theme-option--coming-soon:focus-visible .theme-option__tooltip {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 /* Preference pills get per-category map-badge colors when selected. */
 .preference-pill {
   gap: 0.45rem;
@@ -1790,20 +1900,16 @@ defineExpose({
 }
 
 .settings-action-bar {
-  position: sticky;
-  bottom: var(--space-3);
-  z-index: 4;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  margin-top: var(--space-1);
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-xl);
   border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
   background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   transition: border-color var(--transition-fast);
 }
 

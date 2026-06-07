@@ -10,7 +10,6 @@ const spots: SpotSummary[] = [
     longitude: -97.3308,
     category: 'food',
     city: 'Fort Worth',
-    country: 'US',
     rating: 4.8,
     photoUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
     createdAt: '2026-03-26T20:00:00Z',
@@ -74,6 +73,7 @@ describe('ProfileMap', () => {
     expect(wrapper.text()).toContain("Alex Morgan's Scope Map");
     expect(wrapper.find('[data-test="map-view"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
+    expect(wrapper.text()).toContain('Fort Worth, TX, United States');
     expect(wrapper.findAll('.map-mode-button')).toHaveLength(4);
     expect(wrapper.find('.map-mode-button.is-active').text()).toContain('Visited');
     expect(wrapper.find('[data-test="map-view"]').attributes('data-style-toggle')).toBe('true');

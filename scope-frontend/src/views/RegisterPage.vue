@@ -83,9 +83,9 @@
             label="Phone number"
             icon="phone"
             autocomplete="tel"
-            inputmode="tel"
+            inputmode="numeric"
             placeholder="(555) 123-4567"
-            :maxlength="32"
+            :maxlength="14"
             :error="fieldErrors.phoneNumber"
             help="Optional sign-in method."
           />
@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AuthField from '@/components/auth/AuthField.vue';
 import AuthSplitShell from '@/components/auth/AuthSplitShell.vue';
@@ -200,7 +200,7 @@ const firstName = ref('');
 const lastName = ref('');
 const email = ref('');
 const dateOfBirth = ref('');
-const phoneNumber = ref('');
+const phoneNumberDraft = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const showPassword = ref(false);
@@ -213,6 +213,20 @@ const fieldErrors = ref<RegisterFormErrors>({});
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
+
+function formatPhoneNumberInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+const phoneNumber = computed({
+  get: () => phoneNumberDraft.value,
+  set: (value: string) => {
+    phoneNumberDraft.value = formatPhoneNumberInput(value);
+  },
+});
 
 function resolveRedirectTarget() {
   return sanitizeInternalRouteTarget(route.query.redirect, '/map');
