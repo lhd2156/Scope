@@ -509,6 +509,36 @@ describe('MapPage', () => {
     expect(wrapper.find('[data-test="map-view-stub"]').text()).toContain('2 spots');
   });
 
+  it('resolves seeded visible spot locations instead of showing placeholder location copy', async () => {
+    mapStoreMock.resetVisibleSpotIds.mockImplementation(() => undefined);
+    spotsStoreMock.items = [
+      {
+        id: 'seed-mule-alley-mercantile-row',
+        title: 'Mule Alley Mercantile Row',
+        description: 'Western storefronts and a walkable stockyards shopping lane.',
+        latitude: 32.789,
+        longitude: -97.348,
+        category: 'shopping',
+        rating: 4.6,
+        photoUrl: 'https://images.example.com/mule-alley.jpg',
+        createdAt: '2026-05-20T00:00:00.000Z',
+      },
+    ];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.visibleSpotIds = ['seed-mule-alley-mercantile-row'];
+    mapStoreMock.selectedSpotId = null;
+    mapStoreMock.activeCategories = ['shopping'];
+
+    const wrapper = mountMapPage();
+
+    await flushPromises();
+
+    const visibleCardText = wrapper.get('.visible-card').text();
+    expect(visibleCardText).toContain('Mule Alley Mercantile Row');
+    expect(visibleCardText).toContain('Fort Worth, TX');
+    expect(visibleCardText).not.toContain('Scope location');
+  });
+
   it('renders measured-empty mobile summary copy without selecting a hidden spot', async () => {
     mapStoreMock.resetVisibleSpotIds.mockImplementation(() => undefined);
     mapStoreMock.visibleSpotIdsMeasured = true;

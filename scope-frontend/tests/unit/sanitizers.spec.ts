@@ -89,6 +89,41 @@ describe('sanitizers', () => {
     expect(sanitizedFeedItem.imageUrl).toBe(getFeedPhotoFallback(feedItem));
   });
 
+  it('normalizes review feed activity from wire and demo feed signals', () => {
+    const actor: UserProfile = {
+      id: 'user-reviewer',
+      username: 'reviewer',
+      email: 'reviewer@example.com',
+      displayName: 'Sofia Ramirez',
+      interests: [],
+    };
+
+    const wireReview = sanitizeFeedItem({
+      id: 'feed-wire-review',
+      type: 'spot.reviewed',
+      activity_type: 'spot.reviewed',
+      actor,
+      title: 'Sofia Ramirez reviewed Fort Worth Water Gardens',
+      excerpt: '4.8/5: Worth saving because it gives the map a clear anchor.',
+      createdAt: '2026-03-30T12:00:00Z',
+      targetId: 'spot-water-gardens',
+    } as unknown as FeedItem);
+
+    const demoReview = sanitizeFeedItem({
+      id: 'feed-demo-review',
+      type: 'spot',
+      activityType: 'review-posted',
+      actor,
+      title: 'Reviewed Mule Alley Mercantile Row',
+      excerpt: 'A polished Stockyards retail lane.',
+      createdAt: '2026-03-30T12:00:00Z',
+      targetId: 'demo-spot-1',
+    } as unknown as FeedItem);
+
+    expect(wireReview.type).toBe('review');
+    expect(demoReview.type).toBe('review');
+  });
+
   it('repairs handle-like display names when the real display name was collapsed into the username', () => {
     const sanitized = sanitizeUserProfile({
       id: 'user-1',

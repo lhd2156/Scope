@@ -19,6 +19,7 @@ const categoryPhotoIds: Record<SpotCategory, string> = {
 const feedFallbackCategories: Record<FeedItem['type'], SpotCategory> = {
   spot: 'scenic',
   trip: 'adventure',
+  review: 'scenic',
 };
 
 function buildUnsplashUrl(photoId: string, width = DEFAULT_PHOTO_WIDTH): string {

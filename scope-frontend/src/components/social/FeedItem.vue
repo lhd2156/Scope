@@ -1,12 +1,16 @@
 <template>
-  <article class="feed-item glass-panel" :data-test="`feed-item-${item.id}`">
+  <article class="feed-item glass-panel" :class="{ 'feed-item--review': isReviewItem }" :data-test="`feed-item-${item.id}`">
     <header class="feed-header">
       <div class="actor-row">
-        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="36" />
+        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="isReviewItem ? 44 : 36" />
 
         <div class="header-copy">
-          <p class="eyebrow">{{ activityLabel }}</p>
-          <h3 class="headline-copy">{{ headlineCopy }}</h3>
+          <p v-if="isReviewItem" class="reviewer-action">
+            <span class="reviewer-action__name">{{ actorDisplayName }}</span>
+            reviewed
+          </p>
+          <p v-else class="eyebrow">{{ activityLabel }}</p>
+          <h3 class="headline-copy">{{ isReviewItem ? spotTitleCopy : headlineCopy }}</h3>
           <p class="meta">
             <span class="meta__location">{{ locationCopy }}</span>
             <span class="meta__time">{{ relativeTime }}</span>
@@ -15,25 +19,31 @@
       </div>
     </header>
 
-    <RouterLink class="feed-media" :to="destinationRoute">
+    <RouterLink class="feed-media" :to="destinationRoute" :aria-label="mediaAriaLabel">
       <LazyImage :src="feedImageUrl" :fallback-src="feedImageFallback" :alt="item.title" class="feed-image" />
 
-      <div class="feed-media-chrome">
+      <div v-if="!isReviewItem" class="feed-media-chrome">
         <span class="type-pill" :class="`type-pill--${item.type}`">
           <ScopeIcon :name="typeIcon" />
           <span>{{ typeLabel }}</span>
         </span>
       </div>
 
-      <div class="feed-overlay">
+      <div v-if="!isReviewItem" class="feed-overlay">
         <p class="overlay-title">{{ overlayTitle }}</p>
       </div>
+
+      <span v-if="isReviewItem" class="rating-badge" :aria-label="reviewRatingLabel">
+        <ScopeIcon name="star" />
+        <span class="rating-badge__score">{{ reviewRatingScore || 'Review' }}</span>
+        <span v-if="reviewRatingScore" class="rating-badge__max">/5</span>
+      </span>
     </RouterLink>
 
-    <div class="feed-note" :class="{ 'feed-note--review': item.type === 'review' }">
+    <div class="feed-note" :class="{ 'feed-note--review': isReviewItem }">
       <div class="feed-note__header">
         <span class="feed-note__label">{{ noteLabel }}</span>
-        <span v-if="reviewRatingCopy" class="feed-note__rating">{{ reviewRatingCopy }}</span>
+        <span v-if="reviewRatingCopy && !isReviewItem" class="feed-note__rating">{{ reviewRatingCopy }}</span>
       </div>
       <p>{{ noteCopy }}</p>
     </div>
@@ -369,10 +379,14 @@ function resolveSpotDestinationRoute(item: FeedItemModel): string {
   });
 }
 
+const isReviewItem = computed(() => props.item.type === 'review');
+const actorDisplayName = computed(() => resolveActorDisplayName(props.item.actor));
+const spotTitleCopy = computed(() => resolveSpotTitleFromFeedItem(props.item));
 const activityLabel = computed(() => resolveActivityLabel(props.item.title, props.item.type));
 const headlineCopy = computed(() => resolveHeadlineCopy(props.item.title, props.item.actor));
 const relativeTime = computed(() => formatRelativeTime(props.item.createdAt));
 const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : resolveSpotDestinationRoute(props.item)));
+const mediaAriaLabel = computed(() => `${destinationLabel.value}: ${isReviewItem.value ? spotTitleCopy.value : props.item.title}`);
 const typeLabel = computed(() => {
   if (props.item.type === 'trip') {
     return 'Trip update';
@@ -393,13 +407,17 @@ const overlayTitle = computed(() => {
   return props.item.type === 'review' ? 'Community take' : 'Pinned moment';
 });
 const reviewParts = computed(() => {
-  const match = props.item.excerpt.trim().match(/^([0-5](?:\.\d)?\/5):\s*(.+)$/);
+  const excerpt = props.item.excerpt.trim();
+  const match = excerpt.match(/^([0-5](?:\.\d)?)(?:\s*\/\s*5)?\s*[:-]\s*(.+)$/);
+
   return {
     rating: match?.[1] ?? '',
-    note: match?.[2]?.trim() || props.item.excerpt.trim(),
+    note: match?.[2]?.trim() || excerpt,
   };
 });
-const reviewRatingCopy = computed(() => (props.item.type === 'review' ? reviewParts.value.rating : ''));
+const reviewRatingScore = computed(() => (isReviewItem.value ? reviewParts.value.rating : ''));
+const reviewRatingCopy = computed(() => (reviewRatingScore.value ? `${reviewRatingScore.value}/5` : ''));
+const reviewRatingLabel = computed(() => (reviewRatingScore.value ? `Rated ${reviewRatingScore.value} out of 5` : 'Review activity'));
 const noteLabel = computed(() => {
   if (props.item.type === 'trip') {
     return 'Trip signal';
@@ -940,6 +958,306 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   .cta-link:focus-visible,
   .cta-link:active {
     transform: none;
+  }
+}
+
+/* Review card reset: keep the reusable feed component, but strip the
+   extra chrome from review activity so the card reads like one clean note. */
+.feed-item {
+  --feed-media-aspect-ratio: 4 / 3;
+
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(5rem, 1fr) auto;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+.feed-item::before {
+  content: none;
+}
+
+.feed-item:hover,
+.feed-item:focus-within {
+  transform: none;
+  border-color: color-mix(in srgb, var(--border-hover) 92%, var(--accent-teal));
+  box-shadow: var(--shadow-md);
+}
+
+.feed-header {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.actor-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  height: auto;
+  min-height: 0;
+}
+
+.header-copy {
+  display: grid;
+  grid-template-rows: auto;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.reviewer-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.32rem;
+  margin: 0;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+.reviewer-action__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.headline-copy,
+.header-copy h3 {
+  min-height: 0;
+  max-height: none;
+  color: var(--text-primary);
+  font-size: 1.06rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.28;
+  letter-spacing: 0;
+  -webkit-line-clamp: 2;
+}
+
+.meta {
+  gap: 0.5rem;
+  min-height: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+}
+
+.feed-media {
+  border-radius: var(--radius-md);
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: var(--bg-tertiary);
+  box-shadow: none;
+}
+
+.feed-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 48%, color-mix(in srgb, var(--bg-primary) 42%, transparent) 100%);
+  pointer-events: none;
+}
+
+.feed-image {
+  filter: none;
+}
+
+.feed-item:hover .feed-image,
+.feed-item:focus-within .feed-image {
+  transform: none;
+}
+
+.rating-badge {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2rem;
+  padding: 0.28rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  color: var(--accent-teal);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-badge :deep(.scope-icon) {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--accent-gold);
+  fill: currentColor;
+}
+
+.rating-badge__max {
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.feed-note {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: 5rem;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-secondary));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
+}
+
+.feed-note--review {
+  border-color: color-mix(in srgb, var(--border-hover) 72%, var(--border));
+  background: color-mix(in srgb, var(--bg-tertiary) 68%, var(--bg-secondary));
+}
+
+.feed-note__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.feed-note__label {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-eyebrow);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.feed-note p {
+  color: color-mix(in srgb, var(--text-primary) 86%, var(--text-secondary));
+  font-size: 0.95rem;
+  line-height: 1.45;
+  -webkit-line-clamp: 3;
+}
+
+.feed-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  align-self: end;
+  padding-top: 0;
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.36rem;
+  width: auto;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.action-button:hover,
+.action-button:focus-visible {
+  color: var(--text-primary);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+  transform: none;
+}
+
+.action-button--active {
+  color: var(--accent-teal);
+  background: transparent;
+}
+
+.action-button--gated:hover,
+.action-button--gated:focus-visible {
+  color: var(--text-primary);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.action-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.cta-link {
+  min-height: 2.45rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--radius-md);
+  border-color: color-mix(in srgb, var(--border-hover) 74%, var(--border));
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, transparent);
+  color: var(--text-primary);
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+.cta-link:hover,
+.cta-link:focus-visible {
+  transform: none;
+  border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--border-hover));
+  background: color-mix(in srgb, var(--accent-teal) 12%, var(--bg-tertiary));
+  box-shadow: none;
+  outline: none;
+}
+
+@media (max-width: 720px) {
+  .feed-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .action-group {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .action-button,
+  .cta-link {
+    width: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .feed-item {
+    padding: var(--space-3);
+  }
+
+  .feed-footer {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .cta-link {
+    width: 100%;
   }
 }
 </style>

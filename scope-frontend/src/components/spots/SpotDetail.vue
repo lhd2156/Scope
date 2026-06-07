@@ -43,7 +43,7 @@
       <div class="thumbnail-grid">
         <template v-for="photo in thumbnailPhotos" :key="photo.id">
           <button
-            v-if="!photo.isPlaceholder"
+            v-if="isGalleryPhotoSlot(photo)"
             type="button"
             class="thumbnail-card"
             :class="{ 'is-active': photo.id === activeGalleryPhoto?.id }"
@@ -55,6 +55,17 @@
             <span class="thumbnail-card__overlay"></span>
             <span class="thumbnail-card__copy">{{ photo.caption || 'Travel angle' }}</span>
           </button>
+          <div
+            v-else-if="isViewAllGallerySlot(photo)"
+            class="thumbnail-card thumbnail-card--view-all"
+            data-test="gallery-view-all"
+            :aria-label="`View all ${photo.totalPhotos} photos`"
+          >
+            <span class="thumbnail-card__view-all-copy">
+              <span>View all</span>
+              <strong>{{ photo.totalPhotos }} photos</strong>
+            </span>
+          </div>
           <div v-else class="thumbnail-card thumbnail-card--empty" data-test="gallery-empty-slot" aria-hidden="true">
             <span class="thumbnail-card__empty-glow"></span>
           </div>
@@ -329,7 +340,7 @@ import { useToastStore } from '@/stores/toasts';
 import type { MapPoint, Photo, Review, SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
-import { formatVibeLabel } from '@/utils/formatters';
+import { formatCityRegionLocation, formatVibeLabel } from '@/utils/formatters';
 import { buildSpotPath } from '@/utils/spotRoutes';
 import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';
 
@@ -341,7 +352,8 @@ const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Int
 
 type GalleryPhoto = Photo & { isPlaceholder?: false };
 type EmptyGallerySlot = { id: string; isPlaceholder: true };
-type GallerySlot = GalleryPhoto | EmptyGallerySlot;
+type ViewAllGallerySlot = { id: string; isViewAll: true; totalPhotos: number };
+type GallerySlot = GalleryPhoto | EmptyGallerySlot | ViewAllGallerySlot;
 
 const props = defineProps<{
   spot: SpotDetailModel | null;
@@ -424,6 +436,14 @@ function normalizeGalleryPhoto(photo: Photo): GalleryPhoto | null {
   };
 }
 
+function isGalleryPhotoSlot(slot: GallerySlot): slot is GalleryPhoto {
+  return !('isPlaceholder' in slot) && !('isViewAll' in slot);
+}
+
+function isViewAllGallerySlot(slot: GallerySlot): slot is ViewAllGallerySlot {
+  return 'isViewAll' in slot;
+}
+
 const SPOT_DETAIL_HERO_IMAGE_WIDTH = 1200;
 
 const categoryLabel = computed(() => (props.spot ? formatCategory(props.spot.category) : 'Spot'));
@@ -467,29 +487,37 @@ const galleryPhotos = computed<GalleryPhoto[]>(() => {
     }
   }
 
-  return Array.from(uniquePhotos.values()).slice(0, DESIRED_GALLERY_SIZE);
+  return Array.from(uniquePhotos.values());
 });
 const activeGalleryPhoto = computed(() => galleryPhotos.value.find((photo) => photo.id === selectedPhotoId.value) ?? galleryPhotos.value[0] ?? null);
 const thumbnailPhotos = computed<GallerySlot[]>(() => {
-  const realThumbnailPhotos = galleryPhotos.value.slice(1, DESIRED_GALLERY_SIZE);
+  const realThumbnailPhotos = galleryPhotos.value.slice(1);
+
+  if (galleryPhotos.value.length > DESIRED_GALLERY_SIZE) {
+    return [
+      ...realThumbnailPhotos.slice(0, THUMBNAIL_GALLERY_SIZE - 1),
+      {
+        id: 'gallery-view-all',
+        isViewAll: true as const,
+        totalPhotos: galleryPhotos.value.length,
+      },
+    ];
+  }
+
+  const visibleThumbnailPhotos = realThumbnailPhotos.slice(0, THUMBNAIL_GALLERY_SIZE);
   const emptySlots = Array.from({ length: Math.max(0, THUMBNAIL_GALLERY_SIZE - realThumbnailPhotos.length) }, (_, index) => ({
     id: `empty-gallery-slot-${index + 1}`,
     isPlaceholder: true as const,
   }));
 
-  return [...realThumbnailPhotos, ...emptySlots];
+  return [...visibleThumbnailPhotos, ...emptySlots];
 });
 const locationLine = computed(() => {
   if (!props.spot) {
     return '';
   }
 
-  const locationParts = [props.spot.city, formatRegion(props.spot.country)].filter((value): value is string => Boolean(value));
-  if (locationParts.length) {
-    return locationParts.join(', ');
-  }
-
-  return props.spot.address || 'Scope location pending';
+  return formatCityRegionLocation(props.spot, props.spot.address || 'Location syncing');
 });
 const addressLine = computed(() => props.spot?.address || 'Shared in-app once the content engine syncs the full address data.');
 const vibeLabel = computed(() =>
@@ -844,7 +872,7 @@ onBeforeUnmount(() => {
 }
 
 .hero-gallery__button,
-.thumbnail-card:not(.thumbnail-card--empty) {
+.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all) {
   cursor: pointer;
 }
 
@@ -1002,29 +1030,56 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   cursor: default;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 94%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent)),
-    repeating-linear-gradient(
-      -35deg,
-      color-mix(in srgb, var(--text-primary) 7%, transparent) 0,
-      color-mix(in srgb, var(--text-primary) 7%, transparent) 1px,
-      transparent 1px,
-      transparent 12px
-    );
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--text-secondary) 16%, var(--glass-border) 84%);
+  background: color-mix(in srgb, var(--bg-primary) 36%, var(--bg-secondary) 64%);
+  opacity: 0.64;
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 4%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 30%, transparent);
 }
 
 .thumbnail-card__empty-glow {
-  width: clamp(2.25rem, 38%, 4.8rem);
+  width: clamp(1.8rem, 18%, 2.8rem);
   aspect-ratio: 1;
-  border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--accent-teal) 26%, transparent);
+  border-radius: var(--radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--text-secondary) 12%, transparent);
+  opacity: 0.16;
+}
+
+.thumbnail-card--view-all {
+  display: grid;
+  place-items: center;
+  border-color: color-mix(in srgb, var(--highlight-sheen) 7%, var(--glass-border) 93%);
   background:
-    radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 55%),
-    color-mix(in srgb, var(--bg-primary) 32%, transparent);
-  opacity: 0.56;
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 64%, transparent), color-mix(in srgb, var(--bg-primary) 86%, transparent)),
+    color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary) 28%);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 38%, transparent);
+}
+
+.thumbnail-card__view-all-copy {
+  display: grid;
+  gap: 0.18rem;
+  text-align: center;
+  line-height: 1.12;
+}
+
+.thumbnail-card__view-all-copy span,
+.thumbnail-card__view-all-copy strong {
+  color: var(--text-primary);
+}
+
+.thumbnail-card__view-all-copy span {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.thumbnail-card__view-all-copy strong {
+  font-size: clamp(0.98rem, 1vw, 1.16rem);
+  font-weight: var(--font-weight-semibold);
 }
 
 .thumbnail-card.is-active {
@@ -1568,8 +1623,8 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.thumbnail-card:not(.thumbnail-card--empty):hover,
-.thumbnail-card:not(.thumbnail-card--empty):focus-visible,
+.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover,
+.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible,
 .glass-info-card:hover,
 .route-cue-card:hover,
 .similar-card:hover,
@@ -1584,8 +1639,8 @@ onBeforeUnmount(() => {
 
 .hero-gallery__button:hover .hero-gallery__image,
 .hero-gallery__button:focus-visible .hero-gallery__image,
-.thumbnail-card:not(.thumbnail-card--empty):hover .thumbnail-card__image,
-.thumbnail-card:not(.thumbnail-card--empty):focus-visible .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
 .similar-card:hover .similar-card__image,
 .similar-card:focus-visible .similar-card__image {
   transform: scale(1.05);
@@ -1691,8 +1746,8 @@ onBeforeUnmount(() => {
     transition: none;
   }
 
-  .thumbnail-card:not(.thumbnail-card--empty):hover,
-  .thumbnail-card:not(.thumbnail-card--empty):focus-visible,
+  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover,
+  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible,
   .glass-info-card:hover,
   .route-cue-card:hover,
   .similar-card:hover,
@@ -1704,8 +1759,8 @@ onBeforeUnmount(() => {
 
   .hero-gallery__button:hover .hero-gallery__image,
   .hero-gallery__button:focus-visible .hero-gallery__image,
-  .thumbnail-card:not(.thumbnail-card--empty):hover .thumbnail-card__image,
-  .thumbnail-card:not(.thumbnail-card--empty):focus-visible .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
   .similar-card:hover .similar-card__image,
   .similar-card:focus-visible .similar-card__image {
     transform: none;

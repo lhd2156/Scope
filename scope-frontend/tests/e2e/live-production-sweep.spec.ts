@@ -1854,10 +1854,11 @@ async function openProfileMenu(page: Page, displayName: string): Promise<void> {
 async function selectExploreVibe(page: Page, label: RegExp): Promise<void> {
   const vibeSelect = page.locator('[data-test="vibe-select"]').first();
   await expect(vibeSelect).toBeVisible();
+  await vibeSelect.click();
 
-  const matchingOption = vibeSelect.locator('option').filter({ hasText: label }).first();
-  await expect(matchingOption).toBeAttached();
-  await vibeSelect.selectOption(await matchingOption.getAttribute('value') ?? '');
+  const matchingOption = page.locator('[data-test="vibe-option"]').filter({ hasText: label }).first();
+  await expect(matchingOption).toBeVisible();
+  await matchingOption.click();
 }
 
 function installNoMockGuards(page: Page): void {
