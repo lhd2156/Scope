@@ -65,6 +65,17 @@ public sealed class NotificationsControllerTests
             Title = "Welcome",
             CreatedAt = DateTimeOffset.UtcNow
         });
+        dbContext.NotificationDeliveries.Add(new NotificationDelivery
+        {
+            Id = Guid.NewGuid(),
+            NotificationId = notificationId,
+            UserId = userId,
+            Channel = "in_app",
+            Status = "sent",
+            NextAttemptAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
         await dbContext.SaveChangesAsync();
 
         var controller = new NotificationsController(dbContext)
@@ -85,5 +96,6 @@ public sealed class NotificationsControllerTests
 
         Assert.IsType<NoContentResult>(result);
         Assert.Empty(await dbContext.Notifications.ToListAsync());
+        Assert.Empty(await dbContext.NotificationDeliveries.ToListAsync());
     }
 }

@@ -62,9 +62,15 @@ public sealed class NotificationsController(CoreDbContext dbContext, INotificati
     public async Task<IActionResult> UnreadCount(CancellationToken cancellationToken)
     {
         var userId = User.GetRequiredUserId();
+        var now = DateTimeOffset.UtcNow;
         var count = await dbContext.Notifications
             .AsNoTracking()
-            .CountAsync(x => x.UserId == userId && !x.IsRead, cancellationToken);
+            .CountAsync(
+                x => x.UserId == userId
+                    && !x.IsRead
+                    && x.ArchivedAt == null
+                    && (x.ExpiresAt == null || x.ExpiresAt > now),
+                cancellationToken);
         return Ok(new ApiResponse<object>(new { count }));
     }
 
@@ -255,6 +261,10 @@ public sealed class NotificationsController(CoreDbContext dbContext, INotificati
             return NotFound(new ApiResponse<object>(new { message = "Notification not found" }));
         }
 
+        var deliveries = await dbContext.NotificationDeliveries
+            .Where(x => x.NotificationId == notification.Id)
+            .ToListAsync(cancellationToken);
+        dbContext.NotificationDeliveries.RemoveRange(deliveries);
         dbContext.Notifications.Remove(notification);
         await dbContext.SaveChangesAsync(cancellationToken);
         return NoContent();
@@ -297,17 +307,24 @@ public sealed class NotificationsController(CoreDbContext dbContext, INotificati
         }
 
         var friendship = await dbContext.Friendships.FirstOrDefaultAsync(x => x.Id == friendshipId, cancellationToken);
-        if (friendship is null || friendship.AddresseeId != userId || friendship.Status != FriendshipStatusPending)
+        if (friendship is null
+            || friendship.AddresseeId != userId
+            || (friendship.Status != FriendshipStatusPending && friendship.Status != FriendshipStatusAccepted))
         {
             return NotFound(new ApiResponse<object>(new { message = "Friend request not found" }));
         }
 
-        friendship.Status = FriendshipStatusAccepted;
+        var wasPending = friendship.Status == FriendshipStatusPending;
+        if (wasPending)
+        {
+            friendship.Status = FriendshipStatusAccepted;
+        }
         notification.IsRead = true;
-        notification.ReadAt = DateTimeOffset.UtcNow;
+        notification.ReadAt ??= DateTimeOffset.UtcNow;
+        notification.ArchivedAt ??= DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        if (notificationService is not null)
+        if (wasPending && notificationService is not null)
         {
             await notificationService.CreateAsync(new NotificationCreateRequest(
                 friendship.RequesterId,
@@ -345,7 +362,8 @@ public sealed class NotificationsController(CoreDbContext dbContext, INotificati
 
         dbContext.Friendships.Remove(friendship);
         notification.IsRead = true;
-        notification.ReadAt = DateTimeOffset.UtcNow;
+        notification.ReadAt ??= DateTimeOffset.UtcNow;
+        notification.ArchivedAt ??= DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         return NoContent();
     }

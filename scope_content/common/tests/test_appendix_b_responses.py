@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from django.test import override_settings
 
 from photos.models import Photo
 
@@ -80,8 +81,12 @@ def test_get_spots_response_matches_appendix_b_exact_shape(api_client, spot):
         'title',
         'latitude',
         'longitude',
+        'address',
+        'city',
+        'country',
         'category',
         'pillars',
+        'vibe',
         'rating',
         'photoUrl',
         'isPublic',
@@ -93,7 +98,11 @@ def test_get_spots_response_matches_appendix_b_exact_shape(api_client, spot):
     assert spot_item['title'] == 'Fort Worth Tacos'
     assert spot_item['latitude'] == 32.75
     assert spot_item['longitude'] == -97.33
+    assert spot_item['address'] == spot.address
+    assert spot_item['city'] == spot.city
+    assert spot_item['country'] == spot.country
     assert spot_item['category'] == 'food'
+    assert spot_item['vibe'] == spot.vibe
     assert spot_item['rating'] == 4.5
     assert spot_item['photoUrl'] == 'https://example.com/photos/test_thumb.png'
     assert spot_item['isPublic'] is True
@@ -107,3 +116,52 @@ def test_get_spots_response_matches_appendix_b_exact_shape(api_client, spot):
         'total': 1,
         'totalPages': 1,
     }
+
+
+@override_settings(
+    AWS_STORAGE_BUCKET_NAME='scope-bucket',
+    AWS_ACCESS_KEY_ID='test-key',
+    AWS_SECRET_ACCESS_KEY='test-secret',
+    AWS_REGION='us-east-1',
+)
+def test_get_spots_proxies_private_s3_photos_through_content_api(api_client, spot, monkeypatch):
+    photo = Photo.objects.create(
+        spot=spot,
+        user_id=spot.user_id,
+        storage_key='photos/private.png',
+        storage_url='https://scope-bucket.s3.us-east-1.amazonaws.com/photos/private.png',
+        thumbnail_url='https://scope-bucket.s3.us-east-1.amazonaws.com/photos/private_thumb.png',
+        caption='Private bucket photo',
+        sort_order=0,
+    )
+    monkeypatch.setattr('photos.delivery.S3StorageService', lambda: object())
+
+    response = api_client.get('/api/content/spots/')
+
+    assert response.status_code == 200
+    assert response.json()['data'][0]['photoUrl'] == (
+        f'http://testserver/api/content/photos/{photo.id}/content?variant=thumbnail'
+    )
+
+
+@override_settings(AWS_STORAGE_BUCKET_NAME='', AWS_ACCESS_KEY_ID='', AWS_SECRET_ACCESS_KEY='')
+def test_public_photo_content_streams_managed_bytes(api_client, spot, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    storage_path = tmp_path / 'photos' / 'streamed.png'
+    storage_path.parent.mkdir(parents=True)
+    storage_path.write_bytes(b'\x89PNG\r\n\x1a\nscope')
+    photo = Photo.objects.create(
+        spot=spot,
+        user_id=spot.user_id,
+        storage_key='photos/streamed.png',
+        storage_url='/media/photos/streamed.png',
+        thumbnail_url='',
+        caption='Streamed photo',
+        sort_order=0,
+    )
+
+    response = api_client.get(f'/api/content/photos/{photo.id}/content')
+
+    assert response.status_code == 200
+    assert response.content == b'\x89PNG\r\n\x1a\nscope'
+    assert response['Content-Type'] == 'image/png'

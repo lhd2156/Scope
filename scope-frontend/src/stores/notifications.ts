@@ -436,7 +436,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     try {
       await performNotificationAction(normalizedNotificationId, normalizedAction);
       rememberReadNotificationIds([normalizedNotificationId]);
-      if (normalizedAction === 'decline_friend_request') {
+      if (normalizedAction === 'accept_friend_request' || normalizedAction === 'decline_friend_request') {
         items.value = items.value.filter((notification) => normalizeNotificationId(notification.id) !== normalizedNotificationId);
       }
     } catch (nextError) {

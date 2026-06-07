@@ -33,7 +33,7 @@ public sealed class NotificationsControllerMoreTests
         Assert.Equal(100, TestData.Prop<int>(response.Meta!, "pageSize"));
 
         var unread = await controller.UnreadCount(CancellationToken.None);
-        Assert.Equal(4, TestData.Prop<int>(TestData.Response(Assert.IsType<OkObjectResult>(unread)).Data, "count"));
+        Assert.Equal(2, TestData.Prop<int>(TestData.Response(Assert.IsType<OkObjectResult>(unread)).Data, "count"));
 
         var missing = await controller.MarkRead(Guid.NewGuid(), CancellationToken.None);
         Assert.IsType<NotFoundObjectResult>(missing);
@@ -136,11 +136,17 @@ public sealed class NotificationsControllerMoreTests
         var accepted = await controller.PerformAction(acceptNotice.Id, new NotificationActionRequest("accept_friend_request"), CancellationToken.None);
         Assert.Equal("accepted", TestData.Prop<string>(TestData.Response(Assert.IsType<OkObjectResult>(accepted)).Data, "Status"));
         Assert.True(acceptNotice.IsRead);
+        Assert.NotNull(acceptNotice.ArchivedAt);
+        Assert.Single(notificationService.Created);
+
+        var acceptedAgain = await controller.PerformAction(acceptNotice.Id, new NotificationActionRequest("accept_friend_request"), CancellationToken.None);
+        Assert.Equal("accepted", TestData.Prop<string>(TestData.Response(Assert.IsType<OkObjectResult>(acceptedAgain)).Data, "Status"));
         Assert.Single(notificationService.Created);
 
         var declined = await controller.PerformAction(declineNotice.Id, new NotificationActionRequest("decline_friend_request"), CancellationToken.None);
         Assert.IsType<NoContentResult>(declined);
         Assert.Null(await dbContext.Friendships.FindAsync([declineFriendship.Id], CancellationToken.None));
+        Assert.NotNull(declineNotice.ArchivedAt);
 
         Assert.IsType<BadRequestObjectResult>(await controller.PerformAction(invalidNotice.Id, new NotificationActionRequest("accept_friend_request"), CancellationToken.None));
         Assert.IsType<NotFoundObjectResult>(await controller.PerformAction(Guid.NewGuid(), new NotificationActionRequest("open"), CancellationToken.None));

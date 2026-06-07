@@ -91,6 +91,10 @@ def test_s3_store_upload_fetch_thumbnail_and_presign(monkeypatch):
     assert service.fetch_original_bytes("photos/fixed-id.png") == b"downloaded"
     assert downloads == [("scope-bucket", "photos/fixed-id.png")]
     assert service.presigned_upload_url("photos/new.png") == "https://signed.example/photos/new.png?expires=3600"
+    assert service.presigned_read_url(stored["storage_url"], expires_in=900) == (
+        "https://signed.example/photos/fixed-id.png?expires=900"
+    )
+    assert service.storage_key_from_url(stored["storage_url"]) == "photos/fixed-id.png"
 
 
 @override_settings(

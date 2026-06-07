@@ -628,7 +628,7 @@ describe('notifications store async error handling', () => {
     expect(store.items.every((notification) => notification.isRead)).toBe(true);
   });
 
-  it('performs optimistic notification actions, removes declined requests, and persists handled ids', async () => {
+  it('performs optimistic notification actions, removes handled friend requests, and persists handled ids', async () => {
     const performNotificationAction = vi.fn().mockResolvedValue({ ok: true });
 
     vi.doMock('@/services/feedService', () => ({
@@ -666,8 +666,7 @@ describe('notifications store async error handling', () => {
     expect(performNotificationAction).toHaveBeenCalledTimes(2);
     expect(performNotificationAction).toHaveBeenNthCalledWith(1, 'notification-1', 'accept_friend_request');
     expect(performNotificationAction).toHaveBeenNthCalledWith(2, 'notification-2', 'decline_friend_request');
-    expect(store.items).toHaveLength(1);
-    expect(store.items[0]).toMatchObject({ id: 'notification-1', isRead: true });
+    expect(store.items).toHaveLength(0);
 
     setActivePinia(createPinia());
     const { useNotificationsStore } = await import('@/stores/notifications');

@@ -541,10 +541,6 @@ const profileMetaLine = computed(() => {
     return '';
   }
 
-  if (authStore.currentUser.homeBase) {
-    return authStore.currentUser.homeBase;
-  }
-
   if (authStore.currentUser.username) {
     return formatProfileHandle(authStore.currentUser.username);
   }

@@ -275,19 +275,21 @@ def test_spot_serializer_and_nearby_query_helper_edges():
     photo = SimpleNamespace(storage_url="storage", thumbnail_url="thumb", caption="cap", id="p1")
     review = SimpleNamespace(id="r1", rating="4.5", comment="nice", user_id="user-1")
     obj = SimpleNamespace(
+        is_public=True,
         list_photo_storage_url=None,
         list_photo_thumbnail_url="annotated-thumb",
         photos=SimpleNamespace(order_by=lambda *_args: [photo]),
         reviews=SimpleNamespace(order_by=lambda *_args: [review] * 6),
     )
     assert serializer.get_photo_url(obj) is None
-    assert spot_serializers.AppendixBSpotListItemSerializer.get_photoUrl(obj) == "annotated-thumb"
+    appendix_serializer = spot_serializers.AppendixBSpotListItemSerializer()
+    assert appendix_serializer.get_photoUrl(obj) == "annotated-thumb"
     delattr(obj, "list_photo_storage_url")
     delattr(obj, "list_photo_thumbnail_url")
     assert serializer.get_photo_url(obj) == "storage"
     assert spot_serializers.SpotDetailSerializer().get_photos(obj)[0]["storageUrl"] == "storage"
     assert len(spot_serializers.SpotDetailSerializer().get_reviews(obj)) == 5
-    assert spot_serializers.AppendixBSpotListItemSerializer.get_photoUrl(
+    assert appendix_serializer.get_photoUrl(
         SimpleNamespace(photos=SimpleNamespace(order_by=lambda *_args: []))
     ) is None
 

@@ -79,6 +79,7 @@ EXPECTED_CONTENT_ROUTE_CONTRACT = {
     'GET /api/content/trips/public',
     'POST /api/content/photos/upload',
     'GET /api/content/photos/presigned-url',
+    'GET /api/content/photos/{}/content',
     'PUT /api/content/photos/{}',
     'DELETE /api/content/photos/{}',
     'POST /api/content/reviews/spot/{}',

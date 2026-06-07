@@ -9,7 +9,7 @@ from trips.models import Like
 
 PHOTO_PREFETCH = Prefetch(
     'photos',
-    queryset=Photo.objects.only('id', 'spot_id', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'created_at')
+    queryset=Photo.objects.only('id', 'spot_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'created_at')
     .order_by('sort_order', 'created_at'),
 )
 REVIEW_PREFETCH = Prefetch(
@@ -40,6 +40,7 @@ def with_spot_summary(queryset: QuerySet[Spot]) -> QuerySet[Spot]:
 
 def with_spot_list_annotations(queryset: QuerySet[Spot]) -> QuerySet[Spot]:
     return with_spot_summary(queryset).annotate(
+        list_photo_id=Subquery(FIRST_PHOTO_QUERYSET.values('id')[:1]),
         list_photo_storage_url=Subquery(FIRST_PHOTO_QUERYSET.values('storage_url')[:1]),
         list_photo_thumbnail_url=Subquery(FIRST_PHOTO_QUERYSET.values('thumbnail_url')[:1]),
     )

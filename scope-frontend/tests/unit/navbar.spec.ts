@@ -197,7 +197,8 @@ describe('Navbar', () => {
 
     expect(wrapper.find('[data-test="notification-stub"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Louis Do');
-    expect(wrapper.text()).toContain('Chicago, IL');
+    expect(wrapper.get('.profile-chip').text()).toContain('@louisdo');
+    expect(wrapper.get('.profile-chip').text()).not.toContain('Chicago, IL');
 
     await wrapper.get('[data-test="notification-stub"]').trigger('click');
     expect(wrapper.get('.navbar').classes()).toContain('navbar--notifications-open');
