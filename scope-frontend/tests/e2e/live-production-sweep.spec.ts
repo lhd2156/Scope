@@ -1852,20 +1852,12 @@ async function openProfileMenu(page: Page, displayName: string): Promise<void> {
 }
 
 async function selectExploreVibe(page: Page, label: RegExp): Promise<void> {
-  let chip = page.locator('[data-test="vibe-chip"]').filter({ hasText: label }).first();
-  if (!(await chip.isVisible().catch(() => false))) {
-    const search = page.locator('[data-test="vibe-search"]');
-    if (await search.isVisible().catch(() => false)) {
-      await search.fill(label.source.replace(/\\b|\\|\/|i/g, '').replace(/[^a-z -]/gi, '').trim() || 'photo');
-    }
-    const more = page.locator('[data-test="vibe-chip-more"]');
-    if (!(await chip.isVisible().catch(() => false)) && await more.isVisible().catch(() => false)) {
-      await more.click();
-    }
-    chip = page.locator('[data-test="vibe-chip"]').filter({ hasText: label }).first();
-  }
-  await expect(chip).toBeVisible();
-  await chip.click();
+  const vibeSelect = page.locator('[data-test="vibe-select"]').first();
+  await expect(vibeSelect).toBeVisible();
+
+  const matchingOption = vibeSelect.locator('option').filter({ hasText: label }).first();
+  await expect(matchingOption).toBeAttached();
+  await vibeSelect.selectOption(await matchingOption.getAttribute('value') ?? '');
 }
 
 function installNoMockGuards(page: Page): void {

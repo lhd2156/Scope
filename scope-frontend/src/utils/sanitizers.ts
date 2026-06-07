@@ -31,6 +31,7 @@ import {
   resolveSpotPhotoUrl,
   resolveTripCoverImageUrl,
 } from '@/utils/imageFallbacks';
+import { resolveShowcaseUserProfile } from '@/utils/showcaseActors';
 
 const CONTROL_CHARACTER_CLASS = [
   `${String.fromCharCode(0)}-${String.fromCharCode(8)}`,
@@ -397,6 +398,10 @@ function sanitizeDisplayName(
   return fallback;
 }
 
+function isGeneratedTravelerDisplayName(value: string | undefined): boolean {
+  return /^Traveler\s+[0-9a-f]{4,}$/i.test(sanitizeSingleLineText(value));
+}
+
 export function sanitizeAuthForm(payload: AuthForm): AuthForm {
   return {
     email: sanitizeLoginIdentifier(payload.email),
@@ -525,19 +530,30 @@ export function sanitizeReview(
     optionalWireString(wireUser?.avatar_url) ??
     optionalWireString(wireReview.avatarUrl) ??
     optionalWireString(wireReview.avatar_url);
+  const showcaseReviewer = resolveShowcaseUserProfile(userId);
+  const shouldUseShowcaseReviewer = Boolean(
+    showcaseReviewer &&
+    (!displayName || isGeneratedTravelerDisplayName(displayName) || !wireUser),
+  );
   const reviewer: UserProfile = {
-    id: userId,
-    username,
-    email,
-    displayName,
-    avatarUrl,
-    bio: optionalMultilineText(optionalWireString(wireUser?.bio)),
-    homeBase: optionalWireString(wireUser?.homeBase) ?? optionalWireString(wireUser?.home_base),
-    interests: Array.isArray(wireUser?.interests)
+    id: showcaseReviewer?.id ?? userId,
+    username: shouldUseShowcaseReviewer ? showcaseReviewer!.username : username,
+    email: shouldUseShowcaseReviewer ? showcaseReviewer!.email : email,
+    displayName: shouldUseShowcaseReviewer ? showcaseReviewer!.displayName : displayName,
+    avatarUrl: shouldUseShowcaseReviewer ? showcaseReviewer!.avatarUrl : avatarUrl,
+    bio: shouldUseShowcaseReviewer ? showcaseReviewer!.bio : optionalMultilineText(optionalWireString(wireUser?.bio)),
+    homeBase: shouldUseShowcaseReviewer
+      ? showcaseReviewer!.homeBase
+      : optionalWireString(wireUser?.homeBase) ?? optionalWireString(wireUser?.home_base),
+    interests: shouldUseShowcaseReviewer
+      ? [...showcaseReviewer!.interests]
+      : Array.isArray(wireUser?.interests)
       ? wireUser.interests.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean)
       : [],
-    stats: wireUser?.stats ? { ...wireUser.stats } : undefined,
-    showActivityStatus: sanitizeBoolean(
+    stats: shouldUseShowcaseReviewer
+      ? showcaseReviewer!.stats ? { ...showcaseReviewer!.stats } : undefined
+      : wireUser?.stats ? { ...wireUser.stats } : undefined,
+    showActivityStatus: shouldUseShowcaseReviewer ? showcaseReviewer!.showActivityStatus : sanitizeBoolean(
       wireUser?.showActivityStatus,
       sanitizeBoolean(wireUser?.show_activity_status, true),
     ),
