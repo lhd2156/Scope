@@ -34,7 +34,7 @@ describe('ProfileStats', () => {
     expect(wrapper.findAll('.stat-card')).toHaveLength(4);
   });
 
-  it('uses launch-state copy when ratings and favorite category are not available yet', () => {
+  it('uses active-state copy when ratings are not available but the profile has a footprint', () => {
     const wrapper = mount(ProfileStats, {
       props: {
         countryCount: 0,
@@ -54,8 +54,26 @@ describe('ProfileStats', () => {
 
     expect(wrapper.attributes('aria-label')).toBe('Traveler footprint stats');
     expect(wrapper.text()).toContain('1 public pin');
-    expect(wrapper.text()).toContain('Freshly launched profile');
+    expect(wrapper.text()).toContain('Profile in motion');
     expect(wrapper.find('[data-test="rating-stub"]').exists()).toBe(false);
     expect(wrapper.find('.support-pill--accent').exists()).toBe(false);
+  });
+
+  it('keeps launch-state copy for a truly empty profile and supports broad focus labels', () => {
+    const wrapper = mount(ProfileStats, {
+      props: {
+        countryCount: 0,
+        cityCount: 0,
+        tripCount: 0,
+        travelDays: 0,
+        publicSpotCount: 0,
+        averageRating: 0,
+        favoriteCategory: null,
+        focusLabel: 'All-around focus',
+      },
+    });
+
+    expect(wrapper.text()).toContain('Freshly launched profile');
+    expect(wrapper.text()).toContain('All-around focus');
   });
 });

@@ -149,6 +149,13 @@ describe('SettingsPage', () => {
       title: 'Settings saved',
       message: 'Profile details synced across your Scope account.',
     });
+    expect(JSON.parse(localStorage.getItem('scope-settings-local-preferences-v1') ?? '{}')).toMatchObject({
+      firstName: 'Louis',
+      lastName: 'Do',
+      privacy: 'friends',
+      tripInvites: 'instant',
+      emailAlerts: true,
+    });
 
     await wrapper.get('[data-test="settings-form-error"]').trigger('click');
     await nextTick();
@@ -260,7 +267,7 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('keeps the shell and settings theme controls dark-only', async () => {
+  it('keeps the shell and settings theme controls synced across dark and light', async () => {
     const wrapper = mount(SettingsPage, {
       global: {
         stubs: {
@@ -276,17 +283,34 @@ describe('SettingsPage', () => {
 
     const shellToggle = wrapper.get('button.theme-toggle');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active');
+    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active. Switch to light mode.');
+
+    const lightOption = wrapper.get('[data-test="theme-option-light"]');
+    expect(lightOption.attributes('aria-disabled')).toBeUndefined();
+    expect(lightOption.text()).not.toContain('Coming soon');
+
+    await lightOption.trigger('click');
+    await flushPromises();
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+    expect(localStorage.getItem('scope-theme')).toBe('light');
+    expect(wrapper.get('[data-test="theme-option-light"]').classes()).toContain('is-active');
+    expect(shellToggle.attributes('aria-label')).toBe('Light theme active. Switch to dark mode.');
+    expect(userStoreMock.saveProfile).toHaveBeenCalledWith(expect.objectContaining({
+      username: 'louisdo',
+      displayName: 'Louis Do',
+      interests: ['food', 'culture', 'adventure'],
+      showActivityStatus: true,
+    }), 'user-1');
+    expect(toastStoreMock.showSuccess).not.toHaveBeenCalled();
 
     await wrapper.get('[data-test="theme-option-dark"]').trigger('click');
-    await nextTick();
+    await flushPromises();
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(localStorage.getItem('scope-theme')).toBe('dark');
-    expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
-    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
-    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active');
+    expect(shellToggle.attributes('aria-label')).toBe('Dark theme active. Switch to light mode.');
   });
 
   it('updates the analytics opt-out control locally without hitting the profile save contract', async () => {

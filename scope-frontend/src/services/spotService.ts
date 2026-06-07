@@ -24,6 +24,7 @@ import {
 } from '@/utils/sanitizers';
 import { calculateHaversineDistanceKm } from '@/utils/geoDistance';
 import { rankTrendingSpots } from '@/utils/spotRanking';
+import { enrichStarterSpotGallery } from '@/utils/starterSpotGalleries';
 
 const SPOTS_BASE_PATH = '/api/content/spots';
 const SPOTS_COLLECTION_PATH = `${SPOTS_BASE_PATH}/`;
@@ -105,10 +106,12 @@ function sanitizeSpotDetailEnvelope(
 ): ApiEnvelope<SpotDetail> {
   return {
     ...response,
-    data: sanitizeSpotDetail(response.data, {
-      allowGeneratedAuthorAvatar: options.allowGeneratedAvatars,
-      allowGeneratedReviewAvatars: options.allowGeneratedAvatars,
-    }),
+    data: enrichStarterSpotGallery(
+      sanitizeSpotDetail(response.data, {
+        allowGeneratedAuthorAvatar: options.allowGeneratedAvatars,
+        allowGeneratedReviewAvatars: options.allowGeneratedAvatars,
+      }),
+    ),
   };
 }
 

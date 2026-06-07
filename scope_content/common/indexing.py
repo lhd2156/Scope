@@ -32,6 +32,29 @@ def _safe_delete(index: str, doc_id: str) -> None:
         logger.exception('Failed to delete %s/%s', index, doc_id)
 
 
+def _spot_photo_url(spot) -> str | None:
+    photos = getattr(spot, 'photos', None)
+    if photos is None:
+        return None
+
+    try:
+        first_photo = photos.order_by('sort_order', 'created_at').first()
+    except AttributeError:
+        try:
+            first_photo = next(iter(photos), None)
+        except TypeError:
+            return None
+
+    if first_photo is None:
+        return None
+
+    return (
+        getattr(first_photo, 'thumbnail_url', '') or
+        getattr(first_photo, 'storage_url', '') or
+        None
+    )
+
+
 def index_spot(spot) -> None:
     """Index a Spot model instance."""
     if not getattr(spot, 'is_public', False):
@@ -45,7 +68,20 @@ def index_spot(spot) -> None:
         'name': getattr(spot, 'name', getattr(spot, 'title', '')),
         'description': getattr(spot, 'description', '') or '',
         'category': getattr(spot, 'category', '') or '',
-        'tags': [tag for tag in [getattr(spot, 'vibe', ''), getattr(spot, 'city', ''), *pillars] if tag],
+        'tags': [
+            tag for tag in [
+                getattr(spot, 'vibe', ''),
+                getattr(spot, 'city', ''),
+                getattr(spot, 'country', ''),
+                getattr(spot, 'provider_place_name', ''),
+                getattr(spot, 'provider_place_address', ''),
+                *pillars,
+            ] if tag
+        ],
+        'city': getattr(spot, 'city', '') or '',
+        'country': getattr(spot, 'country', '') or '',
+        'vibe': getattr(spot, 'vibe', '') or '',
+        'photo_url': _spot_photo_url(spot),
         'pillars': pillars,
         'verification_status': getattr(spot, 'verification_status', ''),
         'safety_status': getattr(spot, 'safety_status', ''),

@@ -17,6 +17,8 @@
         type="text"
         :autocomplete="autocomplete"
         :placeholder="placeholder"
+        :inputmode="inputmode"
+        :maxlength="maxlength"
         :value="displayValue"
         :aria-invalid="Boolean(error)"
         :aria-describedby="describedBy"
@@ -196,6 +198,8 @@ const props = withDefaults(
     help?: string;
     showMessage?: boolean;
     preferHelpWhenError?: boolean;
+    inputmode?: string;
+    maxlength?: number;
     /* Optional space-separated element ids (e.g. page-level hint below a form row). */
     extraDescribedBy?: string;
   }>(),
@@ -206,6 +210,8 @@ const props = withDefaults(
     help: '',
     showMessage: true,
     preferHelpWhenError: false,
+    inputmode: 'numeric',
+    maxlength: 10,
     extraDescribedBy: '',
   },
 );
@@ -284,23 +290,7 @@ function parseIso(value: string): Date | null {
   return date;
 }
 
-function parseDateInput(value: string): Date | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const isoDate = parseIso(trimmed);
-  if (isoDate) {
-    return isoDate;
-  }
-
-  const usMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
-  if (!usMatch) {
-    return null;
-  }
-
-  const [, monthStr, dayStr, yearStr] = usMatch;
+function parseDateParts(monthStr: string, dayStr: string, yearStr: string): Date | null {
   const year = Number(yearStr);
   const month = Number(monthStr) - 1;
   const day = Number(dayStr);
@@ -315,6 +305,53 @@ function parseDateInput(value: string): Date | null {
   }
 
   return date;
+}
+
+function formatCompactDateDraft(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  const sanitized = trimmed.replace(/[^\d/-]/g, '');
+  if (!sanitized) return '';
+
+  if (/^\d{4}-/.test(sanitized)) {
+    return sanitized.slice(0, 10);
+  }
+
+  if (/[/-]/.test(sanitized)) {
+    return sanitized.slice(0, 10);
+  }
+
+  const digits = sanitized.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function parseDateInput(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const isoDate = parseIso(trimmed);
+  if (isoDate) {
+    return isoDate;
+  }
+
+  const compactMatch = /^(\d{2})(\d{2})(\d{4})$/.exec(trimmed);
+  if (compactMatch) {
+    const [, monthStr, dayStr, yearStr] = compactMatch;
+    return parseDateParts(monthStr, dayStr, yearStr);
+  }
+
+  const usMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+  if (!usMatch) {
+    return null;
+  }
+
+  const [, monthStr, dayStr, yearStr] = usMatch;
+  return parseDateParts(monthStr, dayStr, yearStr);
 }
 
 const today = new Date();
@@ -557,16 +594,21 @@ function handleInputKeydown(event: KeyboardEvent) {
 }
 
 function handleInputEvent(event: Event) {
-  const raw = (event.target as HTMLInputElement).value.trim();
+  const input = event.target as HTMLInputElement;
+  const raw = input.value;
+  const nextDraft = formatCompactDateDraft(raw);
+  if (input.value !== nextDraft) {
+    input.value = nextDraft;
+  }
   isEditingInput.value = true;
-  draftValue.value = raw;
+  draftValue.value = nextDraft;
 
-  if (!raw) {
+  if (!nextDraft) {
     emit('update:modelValue', '');
     return;
   }
 
-  const parsed = parseDateInput(raw);
+  const parsed = parseDateInput(nextDraft);
   if (parsed) {
     const iso = toIso(parsed);
     emit('update:modelValue', iso);

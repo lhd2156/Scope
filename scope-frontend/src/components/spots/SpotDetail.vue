@@ -7,7 +7,7 @@
           type="button"
           class="hero-gallery__button"
           :aria-label="`Open featured photo of ${spot.title}`"
-          @click="selectedPhotoId = activeGalleryPhoto.id"
+          @click="openGalleryDialog(activeGalleryPhoto.id)"
         >
           <LazyImage
             :src="activeGalleryPhoto.url"
@@ -55,20 +55,19 @@
             <span class="thumbnail-card__overlay"></span>
             <span class="thumbnail-card__copy">{{ photo.caption || 'Travel angle' }}</span>
           </button>
-          <div
+          <button
             v-else-if="isViewAllGallerySlot(photo)"
+            type="button"
             class="thumbnail-card thumbnail-card--view-all"
             data-test="gallery-view-all"
             :aria-label="`View all ${photo.totalPhotos} photos`"
+            @click="openGalleryDialog()"
           >
+            <ScopeIcon name="image" label="View all photos" />
             <span class="thumbnail-card__view-all-copy">
-              <span>View all</span>
-              <strong>{{ photo.totalPhotos }} photos</strong>
+              <strong>View all {{ photo.totalPhotos }} photos</strong>
             </span>
-          </div>
-          <div v-else class="thumbnail-card thumbnail-card--empty" data-test="gallery-empty-slot" aria-hidden="true">
-            <span class="thumbnail-card__empty-glow"></span>
-          </div>
+          </button>
         </template>
       </div>
     </section>
@@ -323,6 +322,47 @@
       tone="success"
       @close="showShareToast = false"
     />
+
+    <Modal
+      :open="isGalleryDialogOpen"
+      title="All photos"
+      eyebrow="Photo gallery"
+      size="lg"
+      @close="isGalleryDialogOpen = false"
+    >
+      <div v-if="spot && galleryPhotos.length" class="spot-gallery-dialog">
+        <figure v-if="activeGalleryPhoto" class="spot-gallery-dialog__feature">
+          <LazyImage
+            :src="activeGalleryPhoto.url"
+            :fallback-src="heroImageFallback"
+            :alt="activeGalleryPhoto.caption || spot.title"
+            class="spot-gallery-dialog__image"
+            eager
+          />
+          <figcaption>{{ activeGalleryPhoto.caption || spot.title }}</figcaption>
+        </figure>
+
+        <div class="spot-gallery-dialog__grid" :aria-label="`All ${galleryPhotos.length} photos for ${spot.title}`">
+          <button
+            v-for="photo in galleryPhotos"
+            :key="`all-${photo.id}`"
+            type="button"
+            class="spot-gallery-dialog__thumb"
+            :class="{ 'is-active': photo.id === activeGalleryPhoto?.id }"
+            :aria-label="`Show ${photo.caption || spot.title}`"
+            @click="selectedPhotoId = photo.id"
+          >
+            <LazyImage
+              :src="photo.url"
+              :fallback-src="heroImageFallback"
+              :alt="photo.caption || spot.title"
+              class="spot-gallery-dialog__thumb-image"
+            />
+            <span>{{ photo.caption || 'Travel angle' }}</span>
+          </button>
+        </div>
+      </div>
+    </Modal>
   </section>
 </template>
 
@@ -331,6 +371,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue
 import { RouterLink, useRouter } from 'vue-router';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
+import Modal from '@/components/common/Modal.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import Toast from '@/components/common/Toast.vue';
 import { createSpotReview, listNearbySpots, listSpotReviews } from '@/services/spotService';
@@ -350,10 +391,9 @@ const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Int
   ? new Intl.DisplayNames(['en'], { type: 'region' })
   : null;
 
-type GalleryPhoto = Photo & { isPlaceholder?: false };
-type EmptyGallerySlot = { id: string; isPlaceholder: true };
+type GalleryPhoto = Photo;
 type ViewAllGallerySlot = { id: string; isViewAll: true; totalPhotos: number };
-type GallerySlot = GalleryPhoto | EmptyGallerySlot | ViewAllGallerySlot;
+type GallerySlot = GalleryPhoto | ViewAllGallerySlot;
 
 const props = defineProps<{
   spot: SpotDetailModel | null;
@@ -372,6 +412,7 @@ const isSaved = ref(false);
 const savingSavedState = ref(false);
 const submittingReview = ref(false);
 const selectedPhotoId = ref('');
+const isGalleryDialogOpen = ref(false);
 const similarSpots = ref<SpotSummary[]>([]);
 const loadingSimilar = ref(false);
 const showReviewToast = ref(false);
@@ -437,7 +478,7 @@ function normalizeGalleryPhoto(photo: Photo): GalleryPhoto | null {
 }
 
 function isGalleryPhotoSlot(slot: GallerySlot): slot is GalleryPhoto {
-  return !('isPlaceholder' in slot) && !('isViewAll' in slot);
+  return !isViewAllGallerySlot(slot);
 }
 
 function isViewAllGallerySlot(slot: GallerySlot): slot is ViewAllGallerySlot {
@@ -504,13 +545,7 @@ const thumbnailPhotos = computed<GallerySlot[]>(() => {
     ];
   }
 
-  const visibleThumbnailPhotos = realThumbnailPhotos.slice(0, THUMBNAIL_GALLERY_SIZE);
-  const emptySlots = Array.from({ length: Math.max(0, THUMBNAIL_GALLERY_SIZE - realThumbnailPhotos.length) }, (_, index) => ({
-    id: `empty-gallery-slot-${index + 1}`,
-    isPlaceholder: true as const,
-  }));
-
-  return [...visibleThumbnailPhotos, ...emptySlots];
+  return realThumbnailPhotos.slice(0, THUMBNAIL_GALLERY_SIZE);
 });
 const locationLine = computed(() => {
   if (!props.spot) {
@@ -759,6 +794,14 @@ async function toggleSaved(): Promise<void> {
   }
 }
 
+function openGalleryDialog(photoId = activeGalleryPhoto.value?.id ?? ''): void {
+  if (photoId) {
+    selectedPhotoId.value = photoId;
+  }
+
+  isGalleryDialogOpen.value = Boolean(galleryPhotos.value.length);
+}
+
 watch(
   () => props.spot,
   (spot) => {
@@ -770,6 +813,7 @@ watch(
     reviewErrorMessage.value = '';
     showReviewToast.value = false;
     showShareToast.value = false;
+    isGalleryDialogOpen.value = false;
     selectedPhotoId.value = galleryPhotos.value[0]?.id ?? '';
 
     if (!spot) {
@@ -872,7 +916,7 @@ onBeforeUnmount(() => {
 }
 
 .hero-gallery__button,
-.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all) {
+.thumbnail-card {
   cursor: pointer;
 }
 
@@ -1024,32 +1068,15 @@ onBeforeUnmount(() => {
 .thumbnail-card {
   aspect-ratio: 1.18 / 1;
   border: 1px solid var(--glass-border);
-}
-
-.thumbnail-card--empty {
-  display: grid;
-  place-items: center;
-  cursor: default;
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--text-secondary) 16%, var(--glass-border) 84%);
-  background: color-mix(in srgb, var(--bg-primary) 36%, var(--bg-secondary) 64%);
-  opacity: 0.64;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 4%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 30%, transparent);
-}
-
-.thumbnail-card__empty-glow {
-  width: clamp(1.8rem, 18%, 2.8rem);
-  aspect-ratio: 1;
-  border-radius: var(--radius-lg);
-  border: 1px dashed color-mix(in srgb, var(--text-secondary) 12%, transparent);
-  opacity: 0.16;
+  color: inherit;
+  font: inherit;
 }
 
 .thumbnail-card--view-all {
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: var(--space-3);
   border-color: color-mix(in srgb, var(--highlight-sheen) 7%, var(--glass-border) 93%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 64%, transparent), color-mix(in srgb, var(--bg-primary) 86%, transparent)),
@@ -1060,25 +1087,27 @@ onBeforeUnmount(() => {
     inset 0 -1px 0 color-mix(in srgb, var(--bg-primary) 38%, transparent);
 }
 
+.thumbnail-card--view-all :deep(.scope-icon) {
+  width: clamp(1.35rem, 11%, 1.75rem);
+  height: clamp(1.35rem, 11%, 1.75rem);
+  color: var(--accent-teal);
+  opacity: 0.86;
+}
+
 .thumbnail-card__view-all-copy {
   display: grid;
-  gap: 0.18rem;
+  max-width: min(10rem, calc(100% - var(--space-6)));
+  gap: 0.2rem;
   text-align: center;
   line-height: 1.12;
 }
 
-.thumbnail-card__view-all-copy span,
 .thumbnail-card__view-all-copy strong {
   color: var(--text-primary);
 }
 
-.thumbnail-card__view-all-copy span {
-  font-size: var(--font-size-small);
-  font-weight: var(--font-weight-medium);
-}
-
 .thumbnail-card__view-all-copy strong {
-  font-size: clamp(0.98rem, 1vw, 1.16rem);
+  font-size: clamp(0.98rem, 1vw, 1.12rem);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -1102,6 +1131,88 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-small);
   line-height: var(--line-height-normal);
   text-align: left;
+}
+
+.spot-gallery-dialog {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.spot-gallery-dialog__feature {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.spot-gallery-dialog__image {
+  width: 100%;
+  max-height: min(54vh, 34rem);
+  object-fit: contain;
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-teal) 8%, transparent), transparent 38%),
+    color-mix(in srgb, var(--bg-primary) 72%, transparent);
+}
+
+.spot-gallery-dialog__feature figcaption {
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.spot-gallery-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+.spot-gallery-dialog__thumb {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 90%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-secondary) 46%, transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.spot-gallery-dialog__thumb:hover,
+.spot-gallery-dialog__thumb:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  background: color-mix(in srgb, var(--bg-tertiary) 58%, transparent);
+  outline: none;
+}
+
+.spot-gallery-dialog__thumb.is-active {
+  border-color: var(--accent-teal);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.spot-gallery-dialog__thumb-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: calc(var(--radius-xl) - var(--space-1));
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+}
+
+.spot-gallery-dialog__thumb span {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .headline-shell {
@@ -1623,8 +1734,8 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover,
-.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible,
+.thumbnail-card:hover,
+.thumbnail-card:focus-visible,
 .glass-info-card:hover,
 .route-cue-card:hover,
 .similar-card:hover,
@@ -1639,8 +1750,8 @@ onBeforeUnmount(() => {
 
 .hero-gallery__button:hover .hero-gallery__image,
 .hero-gallery__button:focus-visible .hero-gallery__image,
-.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover .thumbnail-card__image,
-.thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--view-all):hover .thumbnail-card__image,
+.thumbnail-card:not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
 .similar-card:hover .similar-card__image,
 .similar-card:focus-visible .similar-card__image {
   transform: scale(1.05);
@@ -1746,8 +1857,8 @@ onBeforeUnmount(() => {
     transition: none;
   }
 
-  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover,
-  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible,
+  .thumbnail-card:not(.thumbnail-card--view-all):hover,
+  .thumbnail-card:not(.thumbnail-card--view-all):focus-visible,
   .glass-info-card:hover,
   .route-cue-card:hover,
   .similar-card:hover,
@@ -1759,8 +1870,8 @@ onBeforeUnmount(() => {
 
   .hero-gallery__button:hover .hero-gallery__image,
   .hero-gallery__button:focus-visible .hero-gallery__image,
-  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):hover .thumbnail-card__image,
-  .thumbnail-card:not(.thumbnail-card--empty):not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--view-all):hover .thumbnail-card__image,
+  .thumbnail-card:not(.thumbnail-card--view-all):focus-visible .thumbnail-card__image,
   .similar-card:hover .similar-card__image,
   .similar-card:focus-visible .similar-card__image {
     transform: none;

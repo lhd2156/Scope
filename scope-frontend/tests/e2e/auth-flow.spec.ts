@@ -8,7 +8,7 @@ const REGISTERED_ACCOUNT = {
   lastName: 'Traveler',
   displayName: 'Playwright Traveler',
   email: 'playwright.traveler@example.com',
-  phoneNumber: '+1 (555) 867-5309',
+  phoneNumber: '(555) 867-5309',
   password: 'SecurePass123!',
   dateOfBirth: '1998-05-14',
   acceptedTerms: true,
@@ -138,7 +138,7 @@ test.describe('Scope auth flow', () => {
     await expect(page.getByText('Enter your first name.')).toBeVisible();
     await expect(page.getByText('Enter your last name.')).toBeVisible();
     await expect(page.getByText('Enter a valid email address.')).toBeVisible();
-    await expect(page.getByText('Use a phone number with 10 to 15 digits.')).toBeVisible();
+    await expect(page.getByText('Use a 10-digit phone number.')).toBeVisible();
     await expect(page.getByText('Use at least 10 characters for a stronger password.')).toBeVisible();
     await expect(page.getByText('You must be 13 or older to use Scope.')).toBeVisible();
     await expect(page.getByText('Agree to the Terms and Privacy Policy.')).toBeVisible();

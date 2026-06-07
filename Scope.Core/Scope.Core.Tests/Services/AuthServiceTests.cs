@@ -67,10 +67,10 @@ public sealed class AuthServiceTests
     {
         var service = BuildService(out var dbContext, out _);
 
-        await service.RegisterAsync("louis", "louis@example.com", "SecurePass123!", "Louis", AdultDateOfBirth, "+1 (555) 123-4567");
+        await service.RegisterAsync("louis", "louis@example.com", "SecurePass123!", "Louis", AdultDateOfBirth, "(555) 123-4567");
 
         var stored = await dbContext.Users.SingleAsync();
-        Assert.Equal("15551234567", stored.PhoneNumber);
+        Assert.Equal("5551234567", stored.PhoneNumber);
     }
 
     [Fact]

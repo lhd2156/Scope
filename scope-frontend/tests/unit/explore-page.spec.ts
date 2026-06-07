@@ -221,18 +221,47 @@ function buildGeneratedSpot(index: number) {
 }
 
 async function getVibeOptionTexts(wrapper: VueWrapper) {
-  await wrapper.get('[data-test="vibe-select"]').trigger('click');
   await nextTick();
-  const options = wrapper.findAll('[data-test="vibe-option"]').map((option) => option.get('span').text());
-  await wrapper.get('[data-test="vibe-select"]').trigger('keydown.esc');
-  await nextTick();
-  return options;
+  return [
+    wrapper.find('[data-test="vibe-chip-all"]').exists() ? wrapper.get('[data-test="vibe-chip-all"]').text() : '',
+    ...wrapper.findAll('[data-test="vibe-chip"]').map((chip) => chip.text()),
+  ].filter(Boolean);
 }
 
 async function selectVibeOption(wrapper: VueWrapper, vibe: string) {
-  await wrapper.get('[data-test="vibe-select"]').trigger('click');
   await nextTick();
-  const option = wrapper.findAll('[data-test="vibe-option"]').find((entry) => entry.attributes('data-vibe') === vibe);
+  let option = wrapper.findAll('[data-test="vibe-chip"]').find((entry) => entry.attributes('data-vibe') === vibe);
+
+  if (!option && wrapper.find('[data-test="vibe-chip-more"]').exists()) {
+    await wrapper.get('[data-test="vibe-chip-more"]').trigger('click');
+    await nextTick();
+    option = wrapper.findAll('[data-test="vibe-chip"]').find((entry) => entry.attributes('data-vibe') === vibe);
+  }
+
+  expect(option).toBeTruthy();
+  await option!.trigger('click');
+  await nextTick();
+}
+
+async function openRegionFilter(wrapper: VueWrapper) {
+  await wrapper.get('[data-test="state-filter-select"]').trigger('click');
+  await nextTick();
+}
+
+async function getRegionFilterOptionLabels(wrapper: VueWrapper) {
+  await openRegionFilter(wrapper);
+  return wrapper.findAll('[data-test="state-filter-option"]').map((option) => option.get('span').text());
+}
+
+async function selectRegionFilterOption(wrapper: VueWrapper, region: string) {
+  if (!wrapper.find('[data-test="state-filter-option"]').exists()) {
+    await openRegionFilter(wrapper);
+  }
+
+  const option = wrapper
+    .findAll('[data-test="state-filter-option"]')
+    .find((entry) => entry.attributes('data-region') === region);
+
   expect(option).toBeTruthy();
   await option!.trigger('click');
   await nextTick();
@@ -586,31 +615,32 @@ describe('ExplorePage', () => {
     expect(mapStore.activeCategories).toEqual(['food']);
   });
 
-  it('opens the vibe menu from keyboard and dismisses it only for outside pointer events', async () => {
+  it('shows vibe chips by default and narrows them as filters change', async () => {
     const { wrapper } = await mountExplorePage();
-    const vibeButton = wrapper.get('[data-test="vibe-select"]');
 
-    await vibeButton.trigger('keydown.down');
+    expect(wrapper.find('[data-test="vibe-chip-row"]').exists()).toBe(true);
+    expect(await getVibeOptionTexts(wrapper)).toEqual([
+      'Any vibe',
+      'Calm',
+      'Curated',
+      'Electric',
+    ]);
+
+    await wrapper.get('[data-test="category-chip-food"]').trigger('click');
     await nextTick();
 
-    expect(wrapper.find('[data-test="vibe-menu"]').exists()).toBe(true);
+    expect(await getVibeOptionTexts(wrapper)).toEqual([
+      'Any vibe',
+      'Electric',
+    ]);
 
-    vibeButton.element.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    await wrapper.findAll('[data-test="city-chip"]').find((chip) => chip.text() === 'Fort Worth, TX')?.trigger('click');
     await nextTick();
 
-    expect(wrapper.find('[data-test="vibe-menu"]').exists()).toBe(true);
-
-    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    await nextTick();
-
-    expect(wrapper.find('[data-test="vibe-menu"]').exists()).toBe(false);
-
-    await vibeButton.trigger('keydown.down');
-    await nextTick();
-    await vibeButton.trigger('keydown.esc');
-    await nextTick();
-
-    expect(wrapper.find('[data-test="vibe-menu"]').exists()).toBe(false);
+    expect(await getVibeOptionTexts(wrapper)).toEqual([
+      'Any vibe',
+      'Electric',
+    ]);
   });
 
   it('filters large city sets by country before city selection', async () => {
@@ -618,13 +648,13 @@ describe('ExplorePage', () => {
       ...fixtureSpots,
       {
         id: 'spot-4',
-        title: 'Barcelona Morning Market',
-        description: 'A market lane with espresso counters and a compact food loop.',
-        latitude: 41.3851,
-        longitude: 2.1734,
+        title: 'Sydney Morning Market',
+        description: 'A harbour market lane with espresso counters and a compact food loop.',
+        latitude: -33.8568,
+        longitude: 151.2153,
         category: 'scenic',
-        city: 'Barcelona',
-        country: 'Spain',
+        city: 'Sydney',
+        country: 'AU',
         vibe: 'cinematic',
         rating: 4.9,
         photoUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800',
@@ -653,12 +683,12 @@ describe('ExplorePage', () => {
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('4');
     expect(wrapper.text()).toContain('3 cities across all countries');
-    expect(wrapper.find('[data-test="state-filter-button"]').exists()).toBe(false);
-    expect(wrapper.findAll('[data-test="country-chip"]').map((chip) => chip.text())).toEqual(['Spain', 'USA']);
+    expect(wrapper.find('[data-test="state-filter-control"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="country-chip"]').map((chip) => chip.text())).toEqual(['USA', 'AU']);
     expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
       'Austin, TX',
-      'Barcelona, Catalonia',
       'Fort Worth, TX',
+      'Sydney, NSW',
     ]);
 
     await wrapper.findAll('[data-test="country-chip"]').find((chip) => chip.text() === 'USA')?.trigger('click');
@@ -666,6 +696,22 @@ describe('ExplorePage', () => {
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('3');
     expect(wrapper.text()).toContain('2 cities in USA');
+    expect(wrapper.find('[data-test="state-filter-control"]').exists()).toBe(true);
+    expect(wrapper.get('[data-test="state-filter-control"]').text()).toContain('Filter type');
+    expect(await getRegionFilterOptionLabels(wrapper)).toEqual(['All states', 'TX']);
+    expect(wrapper.findAll('[data-test="state-filter-option"]').map((option) => option.get('small').text())).toEqual([
+      '2 cities available',
+      '2 cities available',
+    ]);
+    expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
+      'Austin, TX',
+      'Fort Worth, TX',
+    ]);
+
+    await selectRegionFilterOption(wrapper, 'TX');
+
+    expect(wrapper.get('[data-test="results-count"]').text()).toBe('3');
+    expect(wrapper.text()).toContain('2 cities in TX');
     expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
       'Austin, TX',
       'Fort Worth, TX',
@@ -674,24 +720,29 @@ describe('ExplorePage', () => {
     expect(
       wrapper.find('.quick-filter-actions').element.firstElementChild?.getAttribute('data-test'),
     ).toBe('state-reset-location');
+    expect(
+      wrapper.find('.quick-filter-actions').element.lastElementChild?.getAttribute('data-test'),
+    ).toBe('state-filter-control');
 
     await wrapper.get('[data-test="state-reset-location"]').trigger('click');
     await nextTick();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('4');
     expect(wrapper.find('[data-test="state-reset-location"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="state-filter-control"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="country-chip-all"]').classes()).toContain('active');
     expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual([
       'Austin, TX',
-      'Barcelona, Catalonia',
       'Fort Worth, TX',
+      'Sydney, NSW',
     ]);
 
-    await wrapper.findAll('[data-test="country-chip"]').find((chip) => chip.text() === 'Spain')?.trigger('click');
+    await wrapper.findAll('[data-test="country-chip"]').find((chip) => chip.text() === 'AU')?.trigger('click');
     await nextTick();
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
-    expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual(['Barcelona, Catalonia']);
+    expect(await getRegionFilterOptionLabels(wrapper)).toEqual(['All regions', 'NSW']);
+    expect(wrapper.findAll('[data-test="city-chip"]').map((chip) => chip.text())).toEqual(['Sydney, NSW']);
   });
 
   it('clears city and country filters when their backing options disappear', async () => {
@@ -742,7 +793,7 @@ describe('ExplorePage', () => {
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
   });
 
-  it('expands hidden city chips and filters by the vibe dropdown', async () => {
+  it('expands hidden city and vibe chips before filtering', async () => {
     const expandedSpots = Array.from({ length: 13 }, (_, index) => buildGeneratedSpot(index + 1));
     listSpotsMock.mockResolvedValueOnce({
       data: expandedSpots,
@@ -759,14 +810,18 @@ describe('ExplorePage', () => {
     expect(wrapper.findAll('[data-test="city-chip"]')).toHaveLength(6);
     expect(wrapper.get('[data-test="city-chip-more"]').text()).toBe('+7 more');
     expect(wrapper.get('[data-test="city-chip-more"]').attributes('aria-expanded')).toBe('false');
-    expect(await getVibeOptionTexts(wrapper)).toContain('Vibe 13');
+    expect(wrapper.findAll('[data-test="vibe-chip"]')).toHaveLength(12);
+    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('+1 more');
+    expect(await getVibeOptionTexts(wrapper)).not.toContain('Vibe 13');
 
     await selectVibeOption(wrapper, 'vibe-13');
 
     expect(wrapper.get('[data-test="results-count"]').text()).toBe('1');
+    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('Show fewer');
 
     await wrapper.get('.clear-filters').trigger('click');
     await nextTick();
+    expect(wrapper.get('[data-test="vibe-chip-more"]').text()).toBe('+1 more');
     await wrapper.get('[data-test="city-chip-more"]').trigger('click');
     await nextTick();
 
@@ -861,8 +916,9 @@ describe('ExplorePage', () => {
     expect(wrapper.text()).toContain('No cities yet');
     expect(wrapper.get('[data-test="country-chip-empty"]').text()).toBe('Countries appear after spots sync.');
     expect(wrapper.get('[data-test="city-chip-empty"]').text()).toBe('Cities appear after spots sync.');
-    expect(wrapper.find('[data-test="state-filter-button"]').exists()).toBe(false);
-    expect(wrapper.find('[data-test="vibe-menu"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="state-filter-control"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="vibe-chip-empty"]').text()).toBe('Vibes appear after spots sync.');
+    expect(wrapper.find('[data-test="vibe-chip"]').exists()).toBe(false);
   });
 
   it('renders a ranked trending sidebar from the loaded explore dataset', async () => {

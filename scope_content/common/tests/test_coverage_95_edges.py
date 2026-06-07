@@ -694,11 +694,13 @@ def test_indexing_router_and_list_filter_remaining_edges(monkeypatch):
         rating="4.5",
         latitude=1,
         longitude=2,
+        photos=[SimpleNamespace(thumbnail_url="", storage_url="https://photos.example.com/title.jpg")],
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
     indexing.index_spot(public_spot)
     assert client.indexed[-1]["document"]["location"] == {"lat": 1.0, "lon": 2.0}
+    assert client.indexed[-1]["document"]["photo_url"] == "https://photos.example.com/title.jpg"
 
     private_spot = SimpleNamespace(id="spot-2", is_public=False)
     indexing.index_spot(private_spot)

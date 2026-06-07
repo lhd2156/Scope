@@ -258,7 +258,7 @@ function loadFeedItems() {
     return;
   }
 
-  feedStore.fetchFeed(false, 1, FEED_PREVIEW_LIMIT).catch(() => undefined).finally(() => {
+  feedStore.fetchHomeActivityFeed(false, 1, FEED_PREVIEW_LIMIT).catch(() => undefined).finally(() => {
     hasResolvedFeed.value = true;
   });
 }
@@ -473,8 +473,11 @@ onBeforeUnmount(() => {
   align-items: start;
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 16%, var(--bg-secondary)), var(--bg-secondary));
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
 .feed-grid {

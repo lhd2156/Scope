@@ -62,19 +62,107 @@ const activeSrc = ref('');
 const shouldUseAuditPlaceholder =
   typeof document !== 'undefined' && document.documentElement.dataset.scopeQa === 'true';
 let observer: IntersectionObserver | null = null;
+let fallbackVisibilityFrame = 0;
+let removeFallbackVisibilityListeners: (() => void) | null = null;
 
 function supportsIntersectionObserver(): boolean {
   return typeof window !== 'undefined' && 'IntersectionObserver' in window;
 }
 
+function clearFallbackVisibilityListeners() {
+  if (fallbackVisibilityFrame && typeof window !== 'undefined' && 'cancelAnimationFrame' in window) {
+    window.cancelAnimationFrame(fallbackVisibilityFrame);
+  }
+
+  fallbackVisibilityFrame = 0;
+  removeFallbackVisibilityListeners?.();
+  removeFallbackVisibilityListeners = null;
+}
+
 function disconnectObserver() {
   observer?.disconnect();
   observer = null;
+  clearFallbackVisibilityListeners();
 }
 
 function revealImage() {
   shouldRenderImage.value = Boolean(activeSrc.value);
   disconnectObserver();
+}
+
+function parseRootMarginPart(part: string | undefined, viewportSize: number): number {
+  const value = part?.trim();
+  if (!value) {
+    return 0;
+  }
+
+  if (value.endsWith('%')) {
+    return (Number.parseFloat(value) / 100) * viewportSize;
+  }
+
+  return Number.parseFloat(value) || 0;
+}
+
+function getVerticalRootMargin(): number {
+  if (typeof window === 'undefined') {
+    return 0;
+  }
+
+  const marginParts = props.rootMargin.trim().split(/\s+/);
+  const topMargin = parseRootMarginPart(marginParts[0], window.innerHeight);
+  const bottomMargin = parseRootMarginPart(marginParts[2] ?? marginParts[0], window.innerHeight);
+  return Math.max(0, topMargin, bottomMargin);
+}
+
+function isElementNearViewport(element: HTMLElement): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 && rect.height <= 0) {
+    return false;
+  }
+
+  const verticalMargin = getVerticalRootMargin();
+  return rect.bottom >= -verticalMargin && rect.top <= window.innerHeight + verticalMargin;
+}
+
+function checkFallbackVisibility() {
+  if (rootRef.value && isElementNearViewport(rootRef.value)) {
+    revealImage();
+  }
+}
+
+function scheduleFallbackVisibilityCheck() {
+  if (fallbackVisibilityFrame) {
+    return;
+  }
+
+  if (typeof window === 'undefined' || !('requestAnimationFrame' in window)) {
+    checkFallbackVisibility();
+    return;
+  }
+
+  fallbackVisibilityFrame = window.requestAnimationFrame(() => {
+    fallbackVisibilityFrame = 0;
+    checkFallbackVisibility();
+  });
+}
+
+function installFallbackVisibilityListeners() {
+  if (typeof window === 'undefined' || removeFallbackVisibilityListeners) {
+    return;
+  }
+
+  const handleVisibilityChange = () => scheduleFallbackVisibilityCheck();
+  window.addEventListener('scroll', handleVisibilityChange, true);
+  window.addEventListener('resize', handleVisibilityChange);
+  removeFallbackVisibilityListeners = () => {
+    window.removeEventListener('scroll', handleVisibilityChange, true);
+    window.removeEventListener('resize', handleVisibilityChange);
+  };
+  scheduleFallbackVisibilityCheck();
 }
 
 function observeVisibility() {
@@ -96,6 +184,11 @@ function observeVisibility() {
     return;
   }
 
+  if (isElementNearViewport(rootRef.value)) {
+    revealImage();
+    return;
+  }
+
   observer = new window.IntersectionObserver(
     (entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
@@ -109,6 +202,7 @@ function observeVisibility() {
   );
 
   observer.observe(rootRef.value);
+  installFallbackVisibilityListeners();
 }
 
 function getPrimarySource(): string {

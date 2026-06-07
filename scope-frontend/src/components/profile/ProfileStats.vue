@@ -25,7 +25,7 @@
         />
         <span>{{ averageRatingLabel }}</span>
       </span>
-      <span v-if="favoriteCategory" class="support-pill support-pill--accent" :class="favoriteCategoryClass">{{ favoriteCategoryLabel }}</span>
+      <span v-if="focusPillLabel" class="support-pill support-pill--accent" :class="focusPillClass">{{ focusPillLabel }}</span>
     </div>
   </section>
 </template>
@@ -45,6 +45,8 @@ const props = defineProps<{
   publicSpotCount: number;
   averageRating: number;
   favoriteCategory?: SpotCategory | null;
+  focusLabel?: string;
+  focusCategory?: SpotCategory | null;
 }>();
 
 function formatCategory(category: SpotCategory): string {
@@ -58,9 +60,25 @@ const statCards = computed(() => [
   { label: 'Days', value: `${props.travelDays}`, icon: 'calendar' },
 ]);
 
-const averageRatingLabel = computed(() => (props.averageRating ? `${props.averageRating.toFixed(1)} avg rating` : 'Freshly launched profile'));
-const favoriteCategoryLabel = computed(() => (props.favoriteCategory ? `${formatCategory(props.favoriteCategory)} focus` : ''));
-const favoriteCategoryClass = computed(() => (props.favoriteCategory ? `badge-${props.favoriteCategory}` : ''));
+const hasProfileFootprint = computed(() => Boolean(
+  props.countryCount ||
+  props.cityCount ||
+  props.tripCount ||
+  props.travelDays ||
+  props.publicSpotCount,
+));
+const averageRatingLabel = computed(() => {
+  if (props.averageRating) {
+    return `${props.averageRating.toFixed(1)} avg rating`;
+  }
+
+  return hasProfileFootprint.value ? 'Profile in motion' : 'Freshly launched profile';
+});
+const focusPillLabel = computed(() => props.focusLabel || (props.favoriteCategory ? `${formatCategory(props.favoriteCategory)} focus` : ''));
+const focusPillClass = computed(() => {
+  const category = props.focusCategory ?? props.favoriteCategory;
+  return category ? `badge-${category}` : '';
+});
 const statsAriaLabel = computed(() => `${props.user?.displayName ?? 'Traveler'} footprint stats`);
 </script>
 

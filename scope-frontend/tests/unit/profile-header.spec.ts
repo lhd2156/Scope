@@ -69,7 +69,7 @@ describe('ProfileHeader', () => {
     });
 
     expect(wrapper.text()).not.toContain('Your scope');
-    expect(wrapper.text()).toContain('Scope community');
+    expect(wrapper.text()).toContain('No location');
     expect(wrapper.text()).toContain('Building a Scope footprint one memorable pin at a time.');
     expect(wrapper.text()).toContain('Planning now');
     expect(wrapper.find('.avatar-presence--planning').exists()).toBe(true);
@@ -87,5 +87,27 @@ describe('ProfileHeader', () => {
 
     await wrapper.setProps({ presence: undefined });
     expect(wrapper.find('.presence-chip').exists()).toBe(false);
+  });
+
+  it('turns safe bio URLs into external links without breaking long copy layout', () => {
+    const wrapper = mountProfileHeader({
+      user: {
+        ...user,
+        bio: 'Routes at https://example.com/scope-trips and www.scopetrips.com/profile.',
+      },
+      primaryActionLabel: 'Edit preferences',
+      primaryActionTo: '/settings',
+    });
+
+    const links = wrapper.findAll('.bio-copy__link');
+
+    expect(links).toHaveLength(2);
+    expect(links[0].text()).toBe('https://example.com/scope-trips');
+    expect(links[0].attributes('href')).toBe('https://example.com/scope-trips');
+    expect(links[0].attributes('target')).toBe('_blank');
+    expect(links[0].attributes('rel')).toBe('noopener noreferrer');
+    expect(links[1].text()).toBe('www.scopetrips.com/profile');
+    expect(links[1].attributes('href')).toBe('https://www.scopetrips.com/profile');
+    expect(wrapper.text()).toContain('profile.');
   });
 });

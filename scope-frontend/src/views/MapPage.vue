@@ -206,7 +206,7 @@
                   <h2>{{ selectedSpot.title }}</h2>
                   <p>{{ selectedSpot.description }}</p>
                   <div class="selected-meta">
-                    <span>{{ selectedSpotLocation }}</span>
+                    <span class="selected-location-badge">{{ selectedSpotLocation }}</span>
                     <span v-if="selectedSpotCountryBadge" class="selected-country-badge">{{ selectedSpotCountryBadge }}</span>
                     <span v-if="selectedSpot.vibe">{{ formatVibeLabel(selectedSpot.vibe) }}</span>
                   </div>
@@ -264,11 +264,11 @@
                   </span>
                   <div
                     class="visible-location"
-                    :class="{ 'has-country': formatSpotCountryBadge(spot.country) }"
+                    :class="{ 'has-country': formatSpotCountryBadge(spot) }"
                   >
                     <span class="visible-location-badge">{{ formatSpotCityRegion(spot) }}</span>
-                    <span v-if="formatSpotCountryBadge(spot.country)" class="visible-country-badge">
-                      {{ formatSpotCountryBadge(spot.country) }}
+                    <span v-if="formatSpotCountryBadge(spot)" class="visible-country-badge">
+                      {{ formatSpotCountryBadge(spot) }}
                     </span>
                   </div>
                 </button>
@@ -387,7 +387,7 @@ import { useSpotsStore } from '@/stores/spots';
 import { useTripsStore } from '@/stores/trips';
 import type { MapPoint, MapViewport, SpotCategory, SpotSummary, TripSpot } from '@/types';
 import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
-import { formatCityRegionLocation, formatCountryLabel, formatVibeLabel } from '@/utils/formatters';
+import { formatCityRegionLocation, formatCountryLabel, formatVibeLabel, resolveCityRegionLocation } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { buildSpotPath } from '@/utils/spotRoutes';
@@ -567,7 +567,7 @@ function formatRouteDistance(meters: number): string {
 
 function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
   const locationLabel = formatCityRegionLocation(spot, '').trim();
-  const countryBadge = formatSpotCountryBadge(spot.country);
+  const countryBadge = formatSpotCountryBadge(spot);
   const countrySuffix = `, ${countryBadge}`;
 
   if (countryBadge && locationLabel.toLowerCase().endsWith(countrySuffix.toLowerCase())) {
@@ -577,8 +577,19 @@ function formatSpotCityRegion(spot: MapWorkspaceSpot): string {
   return locationLabel || 'Location syncing';
 }
 
-function formatSpotCountryBadge(country: string | undefined): string {
-  return formatCountryLabel(country);
+function formatSpotFullLocation(spot: MapWorkspaceSpot): string {
+  const cityRegion = formatSpotCityRegion(spot);
+  const countryBadge = formatSpotCountryBadge(spot);
+
+  return [cityRegion === 'Location syncing' ? '' : cityRegion, countryBadge].filter(Boolean).join(', ') || 'Location syncing';
+}
+
+function formatSpotCountryBadge(spot: MapWorkspaceSpot | null | undefined): string {
+  if (!spot) {
+    return '';
+  }
+
+  return formatCountryLabel(resolveCityRegionLocation(spot)?.country || spot.country);
 }
 
 function resolveIsMobileMapLayout(): boolean {
@@ -696,6 +707,11 @@ function toWorkspaceSpot(spot: SpotSummary): MapWorkspaceSpot {
     category: spot.category,
     city: spot.city ?? '',
     country: spot.country ?? '',
+    adminArea: spot.adminArea,
+    province: spot.province,
+    region: spot.region,
+    state: spot.state,
+    stateCode: spot.stateCode,
     vibe: spot.vibe ?? formatCategory(spot.category),
     rating: spot.rating,
     photoUrl: getSpotPhotoUrl(spot.category, spot.photoUrl),
@@ -761,6 +777,11 @@ const workspaceSpots = computed<MapWorkspaceSpot[]>(() => {
     address: spotsStore.selectedSpot.address,
     city: spotsStore.selectedSpot.city,
     country: spotsStore.selectedSpot.country,
+    adminArea: spotsStore.selectedSpot.adminArea,
+    province: spotsStore.selectedSpot.province,
+    region: spotsStore.selectedSpot.region,
+    state: spotsStore.selectedSpot.state,
+    stateCode: spotsStore.selectedSpot.stateCode,
     category: spotsStore.selectedSpot.category,
     vibe: spotsStore.selectedSpot.vibe,
     rating: spotsStore.selectedSpot.rating,
@@ -1090,9 +1111,9 @@ const selectedSpotLocation = computed(() => {
 });
 const selectedMapOverlayLocation = computed(() => {
   const spot = selectedMapOverlaySpot.value;
-  return spot ? formatSpotCityRegion(spot) : 'Scope';
+  return spot ? formatSpotFullLocation(spot) : 'Scope';
 });
-const selectedSpotCountryBadge = computed(() => formatSpotCountryBadge(selectedSpot.value?.country));
+const selectedSpotCountryBadge = computed(() => formatSpotCountryBadge(selectedSpot.value));
 const nextMobileSheetState = computed<MobileSheetState>(() => {
   switch (mobileSheetState.value) {
     case 'peek':
@@ -1830,6 +1851,8 @@ onBeforeUnmount(() => {
 }
 
 .route-card {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
   width: 100%;
   cursor: pointer;
@@ -1840,18 +1863,51 @@ onBeforeUnmount(() => {
       color-mix(in srgb, var(--bg-tertiary) 92%, var(--bg-primary) 8%)
     );
   transition:
+    background var(--transition-fast),
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
     transform var(--transition-fast);
+  will-change: transform;
+}
+
+.route-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 44%),
+    linear-gradient(135deg, color-mix(in srgb, var(--highlight-sheen) 10%, transparent), transparent 52%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.route-card:not([aria-disabled='true']):hover,
+.route-card:not([aria-disabled='true']):focus-visible {
+  transform: translateY(-0.32rem) scale(1.012) !important;
+  border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--glass-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-teal) 11%, var(--bg-secondary) 89%),
+      color-mix(in srgb, var(--bg-tertiary) 88%, var(--accent-teal) 12%)
+    );
+  box-shadow:
+    0 1.2rem 2.8rem color-mix(in srgb, var(--bg-primary) 38%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 18%, transparent),
+    0 0 2.1rem color-mix(in srgb, var(--accent-teal) 20%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 10%, transparent);
+}
+
+.route-card:not([aria-disabled='true']):hover::before,
+.route-card:not([aria-disabled='true']):focus-visible::before {
+  opacity: 1;
 }
 
 .route-card:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
-  box-shadow:
-    var(--shadow-md),
-    0 0 0 3px color-mix(in srgb, var(--accent-teal) 14%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
 }
 
 .route-card[aria-disabled='true'] {
@@ -1859,6 +1915,8 @@ onBeforeUnmount(() => {
 }
 
 .route-card > * {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   max-width: 100%;
 }
@@ -1869,6 +1927,17 @@ onBeforeUnmount(() => {
     var(--shadow-md),
     inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent),
     0 0 0 1px color-mix(in srgb, var(--accent-teal) 8%, transparent);
+}
+
+.route-card:not([aria-disabled='true']):hover .route-destination-pill,
+.route-card:not([aria-disabled='true']):focus-visible .route-destination-pill,
+.route-card:not([aria-disabled='true']):hover .route-timeline-index,
+.route-card:not([aria-disabled='true']):focus-visible .route-timeline-index {
+  border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 12%, transparent),
+    0 0 1.35rem color-mix(in srgb, var(--accent-teal) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 10%, transparent);
 }
 
 .route-heading .eyebrow {
@@ -1931,6 +2000,10 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   flex-shrink: 0;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .selected-image {
@@ -2003,6 +2076,10 @@ onBeforeUnmount(() => {
   box-shadow:
     0 0 0 0.2rem color-mix(in srgb, var(--bg-primary) 24%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .route-timeline-copy strong,
@@ -2326,14 +2403,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
   width: 100%;
 }
 
 .visible-location-badge {
   flex: 0 1 auto;
-  width: auto;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -2346,8 +2422,12 @@ onBeforeUnmount(() => {
 }
 
 .visible-location-badge,
+.selected-location-badge,
 .visible-country-badge,
 .selected-country-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 1.55rem;
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-full);
@@ -2356,15 +2436,13 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-.visible-location-badge {
-  display: block;
+.visible-location-badge,
+.selected-location-badge {
+  justify-content: flex-start;
 }
 
 .visible-country-badge,
 .selected-country-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
   color: color-mix(in srgb, var(--text-primary) 82%, var(--accent-teal) 18%);
   font-size: var(--font-size-caption);
@@ -2626,19 +2704,25 @@ onBeforeUnmount(() => {
   .detail-link:hover,
   .detail-link:focus-visible,
   .detail-link:active,
+  .route-card:not([aria-disabled='true']):hover,
+  .route-card:not([aria-disabled='true']):focus-visible,
   .visible-item:hover,
   .visible-item:focus-visible,
   .visible-item:active,
   .visible-item:hover .visible-image,
   .visible-item:focus-visible .visible-image,
   .selected-card:hover .selected-image {
-    transform: none;
+    transform: none !important;
   }
 
   .mobile-sheet-toggle,
   .mobile-sheet-toggle:hover,
   .mobile-sheet-toggle:focus-visible,
   .mobile-sheet-toggle:active,
+  .route-card,
+  .route-card::before,
+  .route-destination-pill,
+  .route-timeline-index,
   .map-sidebar--mobile {
     transition: none;
   }

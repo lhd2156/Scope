@@ -46,6 +46,13 @@ function resizeImageSource(source: string, width = DEFAULT_PHOTO_WIDTH): string 
       return url.toString();
     }
 
+    if (url.hostname === 'images.pexels.com') {
+      url.searchParams.set('auto', 'compress');
+      url.searchParams.set('cs', 'tinysrgb');
+      url.searchParams.set('w', String(width));
+      return url.toString();
+    }
+
     return source;
   } catch {
     return source;

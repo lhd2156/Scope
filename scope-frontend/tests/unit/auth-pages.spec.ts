@@ -324,6 +324,31 @@ describe('auth page views', () => {
     expect(wrapper.text()).toContain('letters, spaces');
   });
 
+  it('formats registration phone input and caps it at 10 digits', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/register', component: RegisterPage }],
+    });
+
+    await router.push('/register');
+    await router.isReady();
+
+    const wrapper = mount(RegisterPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+        },
+      },
+    });
+
+    const phoneInput = wrapper.findAll('input')[5];
+    await phoneInput.setValue('555123456789');
+    await flushPromises();
+
+    expect((phoneInput.element as HTMLInputElement).value).toBe('(555) 123-4567');
+  });
+
   it('blocks malformed registration input before the auth request fires', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
@@ -360,7 +385,7 @@ describe('auth page views', () => {
     expect(wrapper.text()).toContain('Use at least 3 characters.');
     expect(wrapper.text()).toContain('Enter a valid email address.');
     expect(wrapper.text()).toContain('Use at least 10 characters for a stronger password.');
-    expect(wrapper.text()).toContain('10 to 15 digits');
+    expect(wrapper.text()).toContain('10-digit phone number');
     expect(wrapper.text()).toContain('You must be 13 or older to use Scope.');
     expect(wrapper.get('.date-field__message').classes()).toContain('is-error');
     expect(wrapper.text()).toContain('Re-enter your password');

@@ -11,7 +11,7 @@ import {
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
 import type { FeedItem, SpotDetail, SpotFormSubmission, SpotSummary, Trip, TripMember, UserProfile } from '@/types';
-import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback } from '@/utils/imageFallbacks';
+import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 
 describe('sanitizers', () => {
   it('normalizes multiline user content and strips control characters', () => {
@@ -25,6 +25,20 @@ describe('sanitizers', () => {
     expect(sanitizeImageUrl('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBeUndefined();
   });
 
+  it('resizes Pexels spot photos for card-sized surfaces', () => {
+    const resolvedUrl = resolveSpotPhotoUrl(
+      'scenic',
+      'https://images.pexels.com/photos/32448258/pexels-photo-32448258.jpeg?auto=compress&cs=tinysrgb&w=1600',
+      720,
+    );
+    const url = new URL(resolvedUrl);
+
+    expect(url.hostname).toBe('images.pexels.com');
+    expect(url.searchParams.get('auto')).toBe('compress');
+    expect(url.searchParams.get('cs')).toBe('tinysrgb');
+    expect(url.searchParams.get('w')).toBe('720');
+  });
+
   it('hydrates display models with demo photo and avatar fallbacks when media is missing', () => {
     const user: UserProfile = {
       id: 'user-99',
@@ -34,7 +48,7 @@ describe('sanitizers', () => {
       interests: ['scenic'],
     };
 
-    const spot: SpotSummary = {
+    const spot: SpotSummary & { admin_area?: string; state_code?: string } = {
       id: 'spot-99',
       title: 'Fallback Canyon Stop',
       latitude: 35.1,
@@ -42,6 +56,8 @@ describe('sanitizers', () => {
       category: 'adventure',
       createdAt: '2026-03-30T12:00:00Z',
       rating: 4.7,
+      state_code: 'NM',
+      admin_area: 'New Mexico',
     };
 
     const trip: Trip = {
@@ -84,6 +100,8 @@ describe('sanitizers', () => {
     // random pravatar face that isn't actually theirs.
     expect(sanitizedUser.avatarUrl).toBe('');
     expect(sanitizedSpot.photoUrl).toBe(getSpotPhotoFallback('adventure'));
+    expect(sanitizedSpot.stateCode).toBe('NM');
+    expect(sanitizedSpot.adminArea).toBe('New Mexico');
     expect(sanitizedTrip.coverImageUrl).toBe(getTripCoverFallback(trip));
     expect(sanitizedTrip.members[0]?.avatarUrl).toBe('');
     expect(sanitizedFeedItem.imageUrl).toBe(getFeedPhotoFallback(feedItem));

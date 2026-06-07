@@ -2,12 +2,12 @@ import { flushPromises, mount } from '@vue/test-utils';
 import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
 import { resetAnalyticsConsent } from '@/utils/analyticsConsent';
 
-const geocodeMock = vi.hoisted(() => vi.fn());
+const searchLocationsMock = vi.hoisted(() => vi.fn());
 const getPresignedUploadTargetMock = vi.hoisted(() => vi.fn());
 const uploadFileToPresignedTargetMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/mapService', () => ({
-  geocode: geocodeMock,
+  searchLocations: searchLocationsMock,
 }));
 
 vi.mock('@/services/s3Service', () => ({
@@ -42,7 +42,7 @@ describe('SettingsForm', () => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
-    geocodeMock.mockReset();
+    searchLocationsMock.mockReset();
     getPresignedUploadTargetMock.mockReset();
     uploadFileToPresignedTargetMock.mockReset();
     createObjectURL.mockClear();
@@ -59,7 +59,7 @@ describe('SettingsForm', () => {
     });
   });
 
-  it('emits the premium settings payload with dark-only theme and category preferences', async () => {
+  it('emits the premium settings payload with selectable theme and category preferences', async () => {
     const wrapper = mount(SettingsForm, {
       props: {
         initialValue,
@@ -80,12 +80,16 @@ describe('SettingsForm', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
-    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
-    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+    expect(wrapper.get('[data-test="theme-option-light"]').exists()).toBe(true);
+    const submitEvents = wrapper.emitted('submit') ?? [];
+    const payload = submitEvents.at(-1)?.[0] as SettingsFormValue;
+    const options = submitEvents.at(-1)?.[1] as { source: string };
+    expect(payload).toMatchObject({
       displayName: 'Louis Do',
       themeMode: 'dark',
     });
-    expect(wrapper.emitted('submit')?.[0]?.[0].categoryPreferences).toEqual(['food', 'culture', 'adventure', 'shopping']);
+    expect(payload.categoryPreferences).toEqual(['food', 'culture', 'adventure', 'shopping']);
+    expect(options.source).toBe('manual');
   });
 
   it('updates account, privacy, notification, birthday, and preference controls', async () => {
@@ -116,7 +120,9 @@ describe('SettingsForm', () => {
 
     await wrapper.get('form').trigger('submit');
 
-    const payload = wrapper.emitted('submit')?.[0]?.[0];
+    const submitEvents = wrapper.emitted('submit') ?? [];
+    const payload = submitEvents.at(-1)?.[0] as SettingsFormValue;
+    const options = submitEvents.at(-1)?.[1] as { source: string };
     expect(payload).toMatchObject({
       firstName: 'Lou',
       lastName: 'Traveler',
@@ -126,6 +132,7 @@ describe('SettingsForm', () => {
       emailAlerts: false,
     });
     expect(payload.categoryPreferences).toEqual(['culture', 'adventure', 'other']);
+    expect(options.source).toBe('manual');
 
     await wrapper.setProps({
       initialValue: {
@@ -139,9 +146,8 @@ describe('SettingsForm', () => {
 
     expect((wrapper.get('input[placeholder="How your name appears in Scope"]').element as HTMLInputElement).value).toBe('Maya Chen');
     expect(wrapper.get('[data-test="preference-pill-nature"]').classes()).toContain('is-active');
-    expect(wrapper.get('[data-test="theme-option-dark"]').classes()).toContain('is-active');
-    expect(wrapper.find('[data-test="theme-option-light"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain('All changes saved');
+    expect(wrapper.get('[data-test="theme-option-light"]').classes()).toContain('is-active');
+    expect(wrapper.text()).toContain('Profile changes saved');
   });
 
   it('resets draft edits and restores the initial theme when cancel is pressed', async () => {
@@ -206,10 +212,18 @@ describe('SettingsForm', () => {
     });
 
     expect(wrapper.text()).toContain('3-step guide');
+    expect(wrapper.get('[data-test="settings-tutorial-card"]').text()).toContain('Completed');
 
     await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
 
     expect(wrapper.emitted('replay-tutorial')).toHaveLength(1);
+
+    await wrapper.setProps({ tutorialCompleted: false, tutorialStepCount: 0 });
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="settings-tutorial-card"]').text()).toContain('Ready to start');
+    expect(wrapper.get('[data-test="settings-tutorial-card"]').text()).toContain('Guided tour ready');
+    expect(wrapper.get('[data-test="settings-tutorial-card"]').text()).toContain('Start the guided walkthrough');
   });
 
   it('requires a display name before submit', async () => {
@@ -234,22 +248,27 @@ describe('SettingsForm', () => {
 
   it('covers location autocomplete keyboard, empty, offline, clear, and username normalization branches', async () => {
     vi.useFakeTimers();
-    geocodeMock
+    searchLocationsMock
       .mockResolvedValueOnce({
         data: [
           {
             latitude: 30.2672,
             longitude: -97.7431,
             placeName: 'Austin, Texas, United States',
+            formattedAddress: 'Austin, TX, United States',
             city: 'Austin',
-            country: 'US',
+            country: 'United States',
+            source: 'mock',
           },
           {
             latitude: 32.7767,
             longitude: -96.797,
-            placeName: '',
+            placeName: 'Dallas',
+            formattedAddress: 'Dallas, TX, United States',
+            address: 'Dallas',
             city: 'Dallas',
-            country: 'US',
+            country: 'United States',
+            source: 'mock',
           },
         ],
       })
@@ -273,9 +292,14 @@ describe('SettingsForm', () => {
 
     await locationInput.setValue('Austin');
     expect(coverage.locationLoading.value).toBe(true);
-    await vi.advanceTimersByTimeAsync(230);
+    await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
-    expect(geocodeMock).toHaveBeenCalledWith('Austin', 6);
+    expect(searchLocationsMock).toHaveBeenCalledWith('Austin', expect.objectContaining({
+      limit: 6,
+      preferPoi: false,
+      sortByDistance: false,
+      types: expect.stringContaining('address'),
+    }));
     expect(wrapper.findAll('.location-suggestion')).toHaveLength(2);
     expect(coverage.formatLocationTitle(coverage.locationResults.value[1])).toBe('Dallas');
     expect(coverage.formatLocationMeta({ placeName: 'Fallback place' })).toBe('Fallback place');
@@ -290,39 +314,50 @@ describe('SettingsForm', () => {
     await locationInput.trigger('keydown', { key: 'ArrowUp' });
     expect(coverage.locationActiveIndex.value).toBe(1);
     await locationInput.trigger('keydown', { key: 'Enter' });
-    expect((locationInput.element as HTMLInputElement).value).toBe('Dallas');
+    expect((locationInput.element as HTMLInputElement).value).toBe('Dallas, TX, United States');
+    expect((wrapper.emitted('submit')?.at(-1)?.[1] as { source: string }).source).toBe('location');
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).homeBase).toBe('Dallas, TX, United States');
 
     coverage.locationResults.value = [{
       latitude: 30.2672,
       longitude: -97.7431,
       placeName: 'Austin, Texas, United States',
       city: 'Austin',
-      country: 'US',
+      country: 'United States',
+      source: 'mock',
     }];
     coverage.locationOpen.value = true;
     await locationInput.trigger('keydown', { key: 'Escape' });
     expect(coverage.locationOpen.value).toBe(false);
 
     await locationInput.setValue('Nowhere');
-    await vi.advanceTimersByTimeAsync(230);
+    await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
-    expect(wrapper.text()).toContain('No matching places. Try a city or address.');
+    expect(wrapper.text()).toContain('No clean matches yet. Try a city, ZIP code, or nearby street.');
+
+    const submitCountBeforeFreeTextSave = wrapper.emitted('submit')?.length ?? 0;
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.text()).toContain('Choose a suggested location before saving your profile location.');
+    expect(wrapper.emitted('submit')).toHaveLength(submitCountBeforeFreeTextSave);
 
     await locationInput.setValue('Offline');
-    await vi.advanceTimersByTimeAsync(230);
+    await vi.advanceTimersByTimeAsync(250);
     await flushPromises();
-    expect(wrapper.text()).toContain('Place search is offline right now.');
+    expect(wrapper.text()).toContain('Location suggestions are offline right now.');
 
     await wrapper.get('button[aria-label="Clear location"]').trigger('click');
     await flushPromises();
     expect((locationInput.element as HTMLInputElement).value).toBe('');
+    expect((wrapper.emitted('submit')?.at(-1)?.[1] as { source: string }).source).toBe('location');
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).homeBase).toBe('');
 
     coverage.locationResults.value = [{
       latitude: 30.2672,
       longitude: -97.7431,
       placeName: 'Austin, Texas, United States',
       city: 'Austin',
-      country: 'US',
+      country: 'United States',
+      source: 'mock',
     }];
     coverage.locationOpen.value = true;
     await locationInput.trigger('blur');
@@ -333,13 +368,15 @@ describe('SettingsForm', () => {
       latitude: 30.2672,
       longitude: -97.7431,
       placeName: 'Austin, Texas, United States',
+      formattedAddress: 'Austin, TX, United States',
       city: 'Austin',
-      country: 'US',
+      country: 'United States',
+      source: 'mock',
     }];
     coverage.locationOpen.value = true;
     await flushPromises();
     await wrapper.get('.location-suggestion').trigger('click');
-    expect((locationInput.element as HTMLInputElement).value).toBe('Austin');
+    expect((locationInput.element as HTMLInputElement).value).toBe('Austin, TX, United States');
 
     const usernameInput = wrapper.get('input[placeholder="your-handle"]');
     await usernameInput.setValue('@Louis Do!!');
@@ -390,6 +427,8 @@ describe('SettingsForm', () => {
     expect(uploadFileToPresignedTargetMock).toHaveBeenCalledWith(expect.any(Object), avatarFile);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:avatar-preview');
     expect(wrapper.text()).toContain('https://cdn.example/avatar.webp');
+    expect((wrapper.emitted('submit')?.at(-1)?.[1] as { source: string }).source).toBe('avatar');
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).avatarUrl).toBe('https://cdn.example/avatar.webp');
 
     uploadFileToPresignedTargetMock.mockRejectedValueOnce(new Error('upload failed'));
     Object.defineProperty(avatarInput.element, 'files', {

@@ -23,8 +23,7 @@ const HANDLE_MAX_LENGTH = 30;
 const NAME_MAX_LENGTH = 40;
 const DISPLAY_NAME_MIN_LENGTH = 2;
 const DISPLAY_NAME_MAX_LENGTH = 60;
-const PHONE_DIGIT_MIN_LENGTH = 10;
-const PHONE_DIGIT_MAX_LENGTH = 15;
+const PHONE_DIGIT_LENGTH = 10;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Scope handles allow letters, digits, underscores, periods, and hyphens.
 // No @ signs, spaces, emoji, or other punctuation.
@@ -33,7 +32,7 @@ const HANDLE_PATTERN = /^[a-zA-Z0-9._-]+$/;
 // unicode letters, spaces, apostrophes, hyphens, and periods - but no @,
 // digits, or other punctuation that would make it feel like a handle.
 const DISPLAY_NAME_PATTERN = /^[\p{L}][\p{L}\s'.-]*$/u;
-const PHONE_IDENTIFIER_PATTERN = /^\+?[0-9\s().-]+$/;
+const PHONE_IDENTIFIER_PATTERN = /^[0-9\s().-]+$/;
 
 const HANDLE_RULES_MESSAGE =
   'Use only letters, numbers, underscores, periods, or hyphens (e.g. johndoe).';
@@ -164,8 +163,8 @@ function validatePhoneNumber(value: string): string | undefined {
   }
 
   const digits = digitCount(value);
-  if (digits < PHONE_DIGIT_MIN_LENGTH || digits > PHONE_DIGIT_MAX_LENGTH) {
-    return `Use a phone number with ${PHONE_DIGIT_MIN_LENGTH} to ${PHONE_DIGIT_MAX_LENGTH} digits.`;
+  if (digits !== PHONE_DIGIT_LENGTH) {
+    return `Use a ${PHONE_DIGIT_LENGTH}-digit phone number.`;
   }
 
   return undefined;

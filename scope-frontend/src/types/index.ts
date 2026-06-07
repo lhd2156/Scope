@@ -228,6 +228,11 @@ export interface SpotSummary {
   address?: string;
   city?: string;
   country?: string;
+  adminArea?: string;
+  province?: string;
+  region?: string;
+  state?: string;
+  stateCode?: string;
   postalCode?: string;
   category: SpotCategory;
   pillars?: SpotPillar[];

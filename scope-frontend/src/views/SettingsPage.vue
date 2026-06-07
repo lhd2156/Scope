@@ -93,7 +93,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import PageHero from '@/components/common/PageHero.vue';
-import SettingsForm, { type SettingsFormValue } from '@/components/profile/SettingsForm.vue';
+import SettingsForm, { type SettingsFormValue, type SettingsSubmitOptions } from '@/components/profile/SettingsForm.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useToastStore } from '@/stores/toasts';
@@ -103,12 +103,13 @@ import { useReducedMotion } from '@/utils/motion';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { getStoredTheme } from '@/utils/theme';
 import { normalizeUserVibes } from '@/utils/userPreferenceSignals';
-import type { SpotCategory } from '@/types';
+import type { SpotCategory, UserProfile } from '@/types';
 
 const PROFILE_PREVIEW_MODE_ENABLED = USER_MOCK_FALLBACK_ENABLED;
 
 const PREFERENCE_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const DEFAULT_CATEGORY_PREFERENCES: SpotCategory[] = ['food', 'culture', 'adventure'];
+const SETTINGS_LOCAL_STORAGE_KEY = 'scope-settings-local-preferences-v1';
 const settingsSections = [
   { id: 'settings-account', label: 'Account', sub: 'Email & sync', glyph: 'AC' },
   { id: 'settings-profile', label: 'Profile', sub: 'Identity & bio', glyph: 'PR' },
@@ -118,6 +119,10 @@ const settingsSections = [
 ] as const;
 
 type SettingsSectionId = (typeof settingsSections)[number]['id'];
+type LocalSettingsPreferences = Pick<
+  SettingsFormValue,
+  'firstName' | 'lastName' | 'phoneNumber' | 'dateOfBirth' | 'privacy' | 'tripInvites' | 'emailAlerts'
+>;
 
 const authStore = useAuthStore();
 const onboardingStore = useOnboardingStore();
@@ -159,28 +164,70 @@ const successToastMessage = computed(() =>
     : 'Profile details synced across your Scope account.',
 );
 
+function readLocalSettingsPreferences(): Partial<LocalSettingsPreferences> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(SETTINGS_LOCAL_STORAGE_KEY);
+    const parsedValue = rawValue ? JSON.parse(rawValue) as Partial<LocalSettingsPreferences> : {};
+    return parsedValue && typeof parsedValue === 'object' ? parsedValue : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalSettingsPreferences(payload: SettingsFormValue): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const localPreferences: LocalSettingsPreferences = {
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    phoneNumber: payload.phoneNumber,
+    dateOfBirth: payload.dateOfBirth,
+    privacy: payload.privacy,
+    tripInvites: payload.tripInvites,
+    emailAlerts: payload.emailAlerts,
+  };
+
+  try {
+    window.localStorage.setItem(SETTINGS_LOCAL_STORAGE_KEY, JSON.stringify(localPreferences));
+  } catch {
+    // Local settings are a convenience layer for fields not yet owned by the profile API.
+  }
+}
+
+function buildSettingsValueFromProfile(currentUser: UserProfile | null): SettingsFormValue {
+  const displayName = currentUser?.displayName ?? 'New explorer';
+  const [derivedFirst, ...rest] = displayName.split(/\s+/);
+  const localPreferences = readLocalSettingsPreferences();
+
+  return {
+    displayName,
+    username: currentUser?.username ?? '',
+    firstName: localPreferences.firstName ?? derivedFirst ?? '',
+    lastName: localPreferences.lastName ?? rest.join(' '),
+    phoneNumber: localPreferences.phoneNumber ?? '',
+    dateOfBirth: localPreferences.dateOfBirth ?? '',
+    avatarUrl: currentUser?.avatarUrl ?? '',
+    bio: currentUser?.bio ?? '',
+    homeBase: currentUser?.homeBase ?? '',
+    showActivityStatus: currentUser?.showActivityStatus ?? true,
+    privacy: localPreferences.privacy ?? 'friends',
+    tripInvites: localPreferences.tripInvites ?? 'instant',
+    emailAlerts: localPreferences.emailAlerts ?? true,
+    categoryPreferences: toCategoryPreferences(currentUser?.interests),
+    themeMode: getStoredTheme(),
+  };
+}
+
 watch(
   () => userStore.profile,
   (currentUser) => {
-    const displayName = currentUser?.displayName ?? 'New explorer';
-    const [derivedFirst, ...rest] = displayName.split(/\s+/);
-    settingsValue.value = {
-      displayName,
-      username: currentUser?.username ?? '',
-      firstName: derivedFirst ?? '',
-      lastName: rest.join(' '),
-      phoneNumber: '',
-      dateOfBirth: '',
-      avatarUrl: currentUser?.avatarUrl ?? '',
-      bio: currentUser?.bio ?? '',
-      homeBase: currentUser?.homeBase ?? '',
-      showActivityStatus: currentUser?.showActivityStatus ?? true,
-      privacy: 'friends',
-      tripInvites: 'instant',
-      emailAlerts: true,
-      categoryPreferences: toCategoryPreferences(currentUser?.interests),
-      themeMode: getStoredTheme(),
-    };
+    settingsValue.value = buildSettingsValueFromProfile(currentUser);
   },
   { immediate: true },
 );
@@ -249,7 +296,7 @@ async function handleReplayTutorial(): Promise<void> {
   }
 }
 
-async function handleSave(payload: SettingsFormValue) {
+async function handleSave(payload: SettingsFormValue, options: SettingsSubmitOptions = { source: 'manual' }) {
   if (!authStore.currentUser?.id) {
     const missingSessionMessage = 'Sign in again to update your Scope settings.';
     formError.value = missingSessionMessage;
@@ -261,6 +308,7 @@ async function handleSave(payload: SettingsFormValue) {
   }
 
   formError.value = '';
+  writeLocalSettingsPreferences(payload);
 
   try {
     await userStore.saveProfile({
@@ -274,10 +322,12 @@ async function handleSave(payload: SettingsFormValue) {
     }, authStore.currentUser.id);
 
     settingsValue.value = payload;
-    toastStore.showSuccess({
-      title: 'Settings saved',
-      message: successToastMessage.value,
-    });
+    if (options.source === 'manual') {
+      toastStore.showSuccess({
+        title: 'Settings saved',
+        message: successToastMessage.value,
+      });
+    }
   } catch {
     const saveErrorMessage = userStore.error ?? 'Scope could not save your settings right now.';
     formError.value = saveErrorMessage;

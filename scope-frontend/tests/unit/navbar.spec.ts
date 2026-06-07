@@ -123,6 +123,7 @@ describe('Navbar', () => {
         city: 'Fort Worth',
         country: 'US',
         rating: 4.7,
+        photoUrl: 'https://images.example.com/botanic-river-walk.jpg',
         createdAt: '2026-03-24T14:10:00Z',
         likesCount: 63,
         recommendationReason: 'Popular nature pick with calm energy',
@@ -145,6 +146,9 @@ describe('Navbar', () => {
           description: 'Open-air tacos with a downtown skyline.',
           category: 'food',
           tags: ['Fort Worth', 'tacos'],
+          city: 'Fort Worth',
+          country: 'US',
+          photoUrl: 'https://images.example.com/sunset-rooftop-tacos.jpg',
           avg_rating: 4.8,
           review_count: 42,
           _score: 12,
@@ -203,6 +207,7 @@ describe('Navbar', () => {
     expect(router.currentRoute.value.fullPath).toBe('/');
     expect(searchContentMock).toHaveBeenCalledWith('rooftop tacos', 'spots', 6, 0);
     expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('Sunset Rooftop Tacos');
+    expect(wrapper.get('[data-test="quick-search-result-photo"]').attributes('src')).toBe('https://images.example.com/sunset-rooftop-tacos.jpg');
 
     await wrapper.get('.profile-chip').trigger('click');
     expect(wrapper.text()).toContain('Signed in as');
@@ -215,6 +220,80 @@ describe('Navbar', () => {
       title: 'Signed out',
       message: 'Your Scope Trips session is closed for now. Come back anytime to keep exploring.',
     });
+
+    wrapper.unmount();
+  });
+
+  it('promotes matching recommendations into quick-search results for short typed queries', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+    searchContentMock.mockResolvedValueOnce({
+      query: 'ben',
+      type: 'spots',
+      total: 0,
+      offset: 0,
+      limit: 6,
+      results: [],
+    });
+    loadSearchPlaceRecommendationsMock.mockResolvedValueOnce([
+      {
+        id: 'big-bend-window',
+        title: 'Big Bend Window Trail',
+        description: 'A desert hike with a cinematic canyon finish.',
+        latitude: 29.2701,
+        longitude: -103.3028,
+        category: 'adventure',
+        city: 'Big Bend National Park',
+        country: 'US',
+        rating: 4.9,
+        photoUrl: 'https://images.example.com/big-bend-window.jpg',
+        createdAt: '2026-03-24T14:10:00Z',
+        likesCount: 52,
+        vibe: 'desert overlook',
+        searchSuggestionSource: 'trending',
+      },
+      {
+        id: 'fort-worth-water',
+        title: 'Fort Worth Water Gardens',
+        description: 'Terraced pools and shaded plazas.',
+        latitude: 32.7477,
+        longitude: -97.3268,
+        category: 'scenic',
+        city: 'Fort Worth',
+        country: 'US',
+        rating: 4.7,
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'trending',
+      },
+    ]);
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          ThemeToggle: { template: '<div>Theme</div>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="search-input"]').setValue('ben');
+    await wrapper.get('[data-test="search-trigger"]').trigger('click');
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    const dropdown = wrapper.get('[data-test="quick-search-dropdown"]');
+    expect(dropdown.text()).toContain('Big Bend Window Trail');
+    expect(dropdown.text()).not.toContain('No quick matches yet.');
+    expect(dropdown.text()).not.toContain('Recommended instead');
+    expect(wrapper.get('[data-test="quick-search-result-photo"]').attributes('src')).toBe('https://images.example.com/big-bend-window.jpg');
 
     wrapper.unmount();
   });
@@ -1071,7 +1150,7 @@ describe('Navbar', () => {
     await resultButtons.at(-1)!.trigger('click');
     await flushPromises();
 
-    expect(router.currentRoute.value.fullPath).toBe('/spots/sunset-rooftop-tacos');
+    expect(router.currentRoute.value.fullPath).toBe('/spots/sunset-rooftop-tacos-fort-worth');
     expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
     expect(document.body.style.overflow).toBe('');
 
@@ -1270,7 +1349,7 @@ describe('Navbar', () => {
       vibe: 'bright',
       tags: ['  patio  '],
       source: 'recommendation',
-    })).toBe('Cafe / Fort Worth / 4.2 rating / 1 review / 3 saves / bright /   patio  ');
+    })).toBe('Cafe / Fort Worth / 4.2 rating');
 
     const emptyDrawerTab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
     coverage.handleMobileDrawerKeydown(emptyDrawerTab);

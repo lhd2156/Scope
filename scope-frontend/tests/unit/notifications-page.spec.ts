@@ -24,6 +24,8 @@ const notificationsStoreState = reactive({
   }>,
   unreadCount: 0,
   loading: false,
+  connectionState: 'idle',
+  connectionError: null as string | null,
   error: '',
 });
 
@@ -36,6 +38,12 @@ const notificationsStoreMock = {
   },
   get loading() {
     return notificationsStoreState.loading;
+  },
+  get connectionState() {
+    return notificationsStoreState.connectionState;
+  },
+  get connectionError() {
+    return notificationsStoreState.connectionError;
   },
   get error() {
     return notificationsStoreState.error;
@@ -88,7 +96,7 @@ function mountPage() {
         AppShell: { template: '<main><slot /></main>' },
         PageHero: {
           props: ['eyebrow', 'title', 'description'],
-          template: '<header><h1>{{ title }}</h1><slot name="stats" /></header>',
+          template: '<header><h1>{{ title }}</h1><slot name="stats" /><slot name="actions" /></header>',
         },
       },
     },
@@ -130,6 +138,8 @@ describe('NotificationsPage', () => {
     ];
     notificationsStoreState.unreadCount = 1;
     notificationsStoreState.loading = false;
+    notificationsStoreState.connectionState = 'idle';
+    notificationsStoreState.connectionError = null;
     notificationsStoreState.error = '';
     getNotificationPreferences.mockResolvedValue({
       data: [
@@ -158,7 +168,7 @@ describe('NotificationsPage', () => {
     expect(wrapper.text()).toContain('Maya sent a friend request');
     expect(wrapper.text()).toContain('Trip digest');
 
-    await wrapper.findAll('.filter-chip').find((button) => button.text() === 'Friends')!.trigger('click');
+    await wrapper.get('[data-test="notifications-filter-friend"]').trigger('click');
     expect(wrapper.text()).toContain('Maya sent a friend request');
     expect(wrapper.text()).not.toContain('Trip digest');
 
@@ -169,7 +179,7 @@ describe('NotificationsPage', () => {
     expect(notificationsStoreMock.performAction).toHaveBeenCalledWith('notification-1', 'decline_friend_request');
     expect(notificationsStoreMock.performAction).toHaveBeenCalledWith('notification-1', 'mute_category');
 
-    await wrapper.get('.toggle-button').trigger('click');
+    await wrapper.get('[data-test="notifications-unread-toggle"] input').setValue(true);
     expect(wrapper.text()).toContain('Maya sent a friend request');
 
     await wrapper.get('.notification-card__main').trigger('click');
@@ -184,7 +194,7 @@ describe('NotificationsPage', () => {
       timeZoneId: expect.any(String),
     }));
 
-    await wrapper.get('.primary-button').trigger('click');
+    await wrapper.get('[data-test="notifications-enable-push"]').trigger('click');
     await flushPromises();
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Push enabled',
@@ -196,7 +206,7 @@ describe('NotificationsPage', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('.secondary-button').trigger('click');
+    await wrapper.get('[data-test="notifications-mark-all-read"]').trigger('click');
     expect(notificationsStoreMock.markAllRead).toHaveBeenCalled();
 
     notificationsStoreState.items = notificationsStoreState.items.map((notification) =>
@@ -228,20 +238,33 @@ describe('NotificationsPage', () => {
     notificationsStoreState.items = [];
     notificationsStoreState.unreadCount = 0;
     notificationsStoreState.loading = true;
+    notificationsStoreState.connectionError = null;
     notificationsStoreState.error = '';
     const loadingWrapper = mountPage();
     await flushPromises();
-    expect(loadingWrapper.text()).toContain('Loading notifications...');
+    expect(loadingWrapper.find('.notification-skeleton-stack').exists()).toBe(true);
+    expect(loadingWrapper.text()).toContain('Loading');
 
     notificationsStoreState.loading = false;
+    notificationsStoreState.connectionError = 'Realtime inbox disconnected.';
+    await loadingWrapper.vm.$nextTick();
+    expect(loadingWrapper.get('[role="alert"]').text()).toBe('Realtime inbox disconnected.');
+
+    notificationsStoreState.connectionError = null;
     notificationsStoreState.error = 'Inbox offline';
     await loadingWrapper.vm.$nextTick();
     expect(loadingWrapper.text()).toContain('Inbox offline');
 
     notificationsStoreState.error = '';
     await loadingWrapper.vm.$nextTick();
-    expect(loadingWrapper.find('[data-test="notifications-empty-state"]').text()).toContain('No matching notifications');
+    expect(loadingWrapper.find('[data-test="notifications-empty-state"]').text()).toContain('Inbox is clear');
+    expect(loadingWrapper.find('[data-test="notifications-empty-state"]').text()).toContain('Trip invite');
     expect(loadingWrapper.find('[data-test="empty-state-panel"]').exists()).toBe(false);
+
+    await loadingWrapper.get('[data-test="notifications-unread-toggle"] input').setValue(true);
+    expect(loadingWrapper.find('[data-test="notifications-empty-state"]').text()).toContain('No notifications match');
+    await loadingWrapper.get('[data-test="notifications-clear-filters"]').trigger('click');
+    expect((loadingWrapper.get('[data-test="notifications-unread-toggle"] input').element as HTMLInputElement).checked).toBe(false);
   });
 
   it('surfaces push opt-in failures with an error toast', async () => {
@@ -249,7 +272,7 @@ describe('NotificationsPage', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('.primary-button').trigger('click');
+    await wrapper.get('[data-test="notifications-enable-push"]').trigger('click');
     await flushPromises();
 
     expect(toastStoreMock.showError).toHaveBeenCalledWith({

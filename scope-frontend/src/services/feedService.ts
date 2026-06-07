@@ -35,6 +35,7 @@ const NOTIFICATIONS_BASE_PATH = '/api/core/notifications';
 const DEFAULT_FALLBACK_PAGE_SIZE = 20;
 const STARTER_REVIEW_SPOT_LIMIT = 10;
 const STARTER_FEED_HIGHLIGHT_LIMIT = 6;
+const STARTER_FEED_FIXED_HEAD_COUNT = 4;
 const DEFAULT_NOTIFICATION_CATEGORIES = ['account', 'security', 'trip', 'friend', 'social', 'comment', 'mention', 'digest', 'general'];
 const FEED_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'FEED', 'MOCK', 'FALLBACK');
 const NOTIFICATION_READ_FALLBACK_ENABLED = localFallbackEnabled('VITE', 'ENABLE', 'NOTIFICATION', 'MOCK', 'FALLBACK');
@@ -260,7 +261,30 @@ function scoreStarterFeedItem(item: FeedItem): number {
   return ratingScore + socialScore + noteScore + typeScore;
 }
 
-function selectStarterFeedHighlights(items: FeedItem[]): FeedItem[] {
+function shuffleFeedItems(items: FeedItem[]): FeedItem[] {
+  const shuffledItems = [...items];
+
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffledItems[index], shuffledItems[swapIndex]] = [shuffledItems[swapIndex], shuffledItems[index]];
+  }
+
+  return shuffledItems;
+}
+
+function buildStarterCandidateOrder(items: FeedItem[], randomize: boolean): FeedItem[] {
+  if (!randomize || items.length <= STARTER_FEED_HIGHLIGHT_LIMIT) {
+    return items;
+  }
+
+  const fixedHeadCount = Math.min(STARTER_FEED_FIXED_HEAD_COUNT, items.length);
+  return [
+    ...items.slice(0, fixedHeadCount),
+    ...shuffleFeedItems(items.slice(fixedHeadCount)),
+  ];
+}
+
+function selectStarterFeedHighlights(items: FeedItem[], options: { randomize?: boolean } = {}): FeedItem[] {
   const rankedItems = [...items].sort((left, right) => {
     const scoreDelta = scoreStarterFeedItem(right) - scoreStarterFeedItem(left);
     if (scoreDelta !== 0) {
@@ -269,12 +293,13 @@ function selectStarterFeedHighlights(items: FeedItem[]): FeedItem[] {
 
     return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
   });
+  const candidateItems = buildStarterCandidateOrder(rankedItems, Boolean(options.randomize));
 
   const selectedItems: FeedItem[] = [];
   const selectedTargets = new Set<string>();
   const selectedActors = new Set<string>();
 
-  for (const item of rankedItems) {
+  for (const item of candidateItems) {
     if (selectedItems.length >= STARTER_FEED_HIGHLIGHT_LIMIT) {
       break;
     }
@@ -289,7 +314,7 @@ function selectStarterFeedHighlights(items: FeedItem[]): FeedItem[] {
   }
 
   if (selectedItems.length < STARTER_FEED_HIGHLIGHT_LIMIT) {
-    for (const item of rankedItems) {
+    for (const item of candidateItems) {
       if (selectedItems.length >= STARTER_FEED_HIGHLIGHT_LIMIT) {
         break;
       }
@@ -311,7 +336,11 @@ async function getSpotReviewsForStarterFeed(spot: SpotSummary): Promise<FeedItem
   return reviews.map((review) => buildStarterReviewItem(spot, review as Review));
 }
 
-async function buildPublicStarterReviewFeed(page: number, pageSize: number): Promise<ApiEnvelope<FeedItem[]>> {
+async function buildPublicStarterReviewFeed(
+  page: number,
+  pageSize: number,
+  options: { randomize?: boolean } = {},
+): Promise<ApiEnvelope<FeedItem[]>> {
   const spots = await getPublicStarterSpots(STARTER_REVIEW_SPOT_LIMIT);
   const reviewGroups = await Promise.allSettled(spots.map((spot) => getSpotReviewsForStarterFeed(spot)));
   const reviewItems = reviewGroups
@@ -330,7 +359,7 @@ async function buildPublicStarterReviewFeed(page: number, pageSize: number): Pro
       targetId: spot.id,
       targetPath: buildSpotPath(spot),
       targetLocation: formatCityRegionLocation(spot, ''),
-    })));
+    })), { randomize: options.randomize });
 
   return paginateItems(starterItems, page, pageSize || DEFAULT_FALLBACK_PAGE_SIZE);
 }
@@ -351,6 +380,32 @@ function hasPrivateFeedAccess(): boolean {
   return Boolean(getAccessToken().trim());
 }
 
+export async function getHomeActivityFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): Promise<ApiEnvelope<FeedItem[]>> {
+  if (DEMO_MODE_ENABLED) {
+    return buildMockFeedEnvelope(page, pageSize);
+  }
+
+  let emptyStarterFeed: ApiEnvelope<FeedItem[]> | null = null;
+
+  try {
+    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
+    if (starterFeed.data.length) {
+      return starterFeed;
+    }
+    emptyStarterFeed = starterFeed;
+  } catch (error) {
+    if (!FEED_READ_FALLBACK_ENABLED) {
+      throw error;
+    }
+  }
+
+  if (!FEED_READ_FALLBACK_ENABLED && emptyStarterFeed) {
+    return emptyStarterFeed;
+  }
+
+  return buildMockFeedEnvelope(page, pageSize);
+}
+
 export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): Promise<ApiEnvelope<FeedItem[]>> {
   if (DEMO_MODE_ENABLED) {
     return buildMockFeedEnvelope(page, pageSize);
@@ -360,7 +415,7 @@ export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): 
     let emptyStarterFeed: ApiEnvelope<FeedItem[]> | null = null;
 
     try {
-      const starterFeed = await buildPublicStarterReviewFeed(page, pageSize);
+      const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
       if (starterFeed.data.length) {
         return starterFeed;
       }
@@ -393,7 +448,7 @@ export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): 
   }
 
   try {
-    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize);
+    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
     if (starterFeed.data.length) {
       return starterFeed;
     }

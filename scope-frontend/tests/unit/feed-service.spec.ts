@@ -266,6 +266,53 @@ describe('feed service contracts', () => {
     });
   });
 
+  it('uses starter public activity for the home rail even when an account token exists', async () => {
+    const starterSpot = {
+      ...spotItem,
+      id: 'home-spot-1',
+      title: 'Home Starter Spot',
+      userId: '22222222-2222-2222-2222-222222222222',
+    };
+    const get = vi.fn((path: string) => {
+      if (path === '/api/content/feed/trending') {
+        return Promise.resolve({ data: { data: [starterSpot] } });
+      }
+
+      return Promise.resolve({
+        data: {
+          data: [
+            {
+              id: 'home-review-1',
+              user_id: '22222222-2222-2222-2222-222222222222',
+              rating: '4.8',
+              comment: 'Starter activity should stay consistent on the homepage.',
+              created_at: '2026-06-03T12:00:00Z',
+            },
+          ],
+        },
+      });
+    });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get, put: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockRejectedValue(new Error('mock data disabled')),
+    }));
+
+    const feedService = await import('@/services/feedService');
+    const feed = await feedService.getHomeActivityFeed(1, 6);
+
+    expect(get).not.toHaveBeenCalledWith('/api/content/feed/', expect.anything());
+    expect(get).toHaveBeenCalledWith('/api/content/feed/trending', { params: { limit: 10 } });
+    expect(feed.data[0]).toMatchObject({
+      type: 'review',
+      title: 'Maya Chen reviewed Home Starter Spot',
+    });
+  });
+
   it('falls back for public feed and notification reads while surfacing notification mutation failures', async () => {
     const fixtures = mockData({
       mockNotifications: [

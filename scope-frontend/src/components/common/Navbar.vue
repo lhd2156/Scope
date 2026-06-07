@@ -106,7 +106,10 @@
                   role="listitem"
                   @click="openQuickSearchResult(result)"
                 >
-                  <span class="quick-search-result__icon" aria-hidden="true">
+                  <span v-if="result.photoUrl" class="quick-search-result__media" aria-hidden="true">
+                    <img :src="result.photoUrl" alt="" data-test="quick-search-result-photo" />
+                  </span>
+                  <span v-else class="quick-search-result__icon" aria-hidden="true">
                     <ScopeIcon name="pin" />
                   </span>
                   <span class="quick-search-result__copy">
@@ -140,7 +143,10 @@
                     role="listitem"
                     @click="openQuickSearchResult(result)"
                   >
-                    <span class="quick-search-result__icon" aria-hidden="true">
+                    <span v-if="result.photoUrl" class="quick-search-result__media" aria-hidden="true">
+                      <img :src="result.photoUrl" alt="" data-test="quick-search-recommendation-photo" />
+                    </span>
+                    <span v-else class="quick-search-result__icon" aria-hidden="true">
                       <ScopeIcon name="sparkle" />
                     </span>
                     <span class="quick-search-result__copy">
@@ -352,7 +358,10 @@
                   role="listitem"
                   @click="openQuickSearchResult(result)"
                 >
-                  <span class="quick-search-result__icon" aria-hidden="true">
+                  <span v-if="result.photoUrl" class="quick-search-result__media" aria-hidden="true">
+                    <img :src="result.photoUrl" alt="" data-test="quick-search-result-photo" />
+                  </span>
+                  <span v-else class="quick-search-result__icon" aria-hidden="true">
                     <ScopeIcon name="pin" />
                   </span>
                   <span class="quick-search-result__copy">
@@ -386,7 +395,10 @@
                     role="listitem"
                     @click="openQuickSearchResult(result)"
                   >
-                    <span class="quick-search-result__icon" aria-hidden="true">
+                    <span v-if="result.photoUrl" class="quick-search-result__media" aria-hidden="true">
+                      <img :src="result.photoUrl" alt="" data-test="quick-search-recommendation-photo" />
+                    </span>
+                    <span v-else class="quick-search-result__icon" aria-hidden="true">
                       <ScopeIcon name="sparkle" />
                     </span>
                     <span class="quick-search-result__copy">
@@ -509,6 +521,7 @@ interface QuickSearchPlace {
   description?: string;
   category?: string;
   tags?: string[];
+  photoUrl?: string;
   rating?: number;
   reviewCount?: number;
   likesCount?: number;
@@ -552,16 +565,33 @@ const mobileDrawerStatus = computed(() => {
 });
 const normalizedSearchQuery = computed(() => searchQuery.value.trim());
 const hasQuickSearchQuery = computed(() => Boolean(normalizedSearchQuery.value));
-const quickSearchPlaceResults = computed<QuickSearchPlace[]>(() =>
-  quickSearchResults.value.map(mapSearchResultToQuickPlace),
-);
 const quickSearchRecommendationPlaces = computed<QuickSearchPlace[]>(() =>
   quickSearchRecommendations.value.map(mapSuggestionToQuickPlace),
 );
+const quickSearchRecommendationMatches = computed<QuickSearchPlace[]>(() => {
+  const queryTokens = tokenizeQuickSearchQuery(normalizedSearchQuery.value);
+
+  if (!queryTokens.length) {
+    return [];
+  }
+
+  return quickSearchRecommendationPlaces.value
+    .filter((place) => matchesQuickSearchPlace(place, queryTokens))
+    .sort((left, right) => scoreQuickSearchPlace(right, queryTokens) - scoreQuickSearchPlace(left, queryTokens))
+    .slice(0, QUICK_SEARCH_RESULT_LIMIT);
+});
+const quickSearchPlaceResults = computed<QuickSearchPlace[]>(() =>
+  mergeQuickSearchPlaces([
+    ...quickSearchResults.value.map(mapSearchResultToQuickPlace),
+    ...quickSearchRecommendationMatches.value,
+  ]).slice(0, QUICK_SEARCH_RESULT_LIMIT),
+);
 const showQuickSearchRecommendations = computed(() =>
-  quickSearchRecommendationsLoading.value ||
-  Boolean(quickSearchRecommendationsError.value) ||
-  Boolean(quickSearchRecommendationPlaces.value.length),
+  !hasQuickSearchQuery.value && (
+    quickSearchRecommendationsLoading.value ||
+    Boolean(quickSearchRecommendationsError.value) ||
+    Boolean(quickSearchRecommendationPlaces.value.length)
+  ),
 );
 const quickSearchPanelEyebrow = computed(() =>
   hasQuickSearchQuery.value ? 'Quick search' : 'Recommended places',
@@ -605,32 +635,44 @@ function handleQuickSearchFocus(): void {
 }
 
 function mapSearchResultToQuickPlace(result: SearchResult): QuickSearchPlace {
-  return {
+  const photoUrl = result.photoUrl?.trim() || result.photo_url?.trim() || undefined;
+  const place: QuickSearchPlace = {
     id: result.id.trim(),
     title: result.name,
-    description: result.description,
-    category: result.category,
-    tags: result.tags,
-    rating: result.avg_rating,
-    reviewCount: result.review_count,
     source: 'search',
   };
+
+  if (result.description) place.description = result.description;
+  if (result.category) place.category = result.category;
+  if (result.tags?.length) place.tags = result.tags;
+  if (photoUrl) place.photoUrl = photoUrl;
+  if (typeof result.avg_rating === 'number') place.rating = result.avg_rating;
+  if (typeof result.review_count === 'number') place.reviewCount = result.review_count;
+  if (result.city) place.city = result.city;
+  if (result.country) place.country = result.country;
+  if (result.vibe) place.vibe = result.vibe;
+
+  return place;
 }
 
 function mapSuggestionToQuickPlace(spot: SearchPlaceSuggestion): QuickSearchPlace {
-  return {
+  const place: QuickSearchPlace = {
     id: spot.id,
     title: spot.title,
-    description: spot.description,
     category: spot.category,
     rating: spot.rating,
-    likesCount: spot.likesCount,
-    city: spot.city,
-    country: spot.country,
-    vibe: spot.vibe,
     source: spot.searchSuggestionSource,
-    recommendationReason: spot.recommendationReason,
   };
+
+  if (spot.description) place.description = spot.description;
+  if (spot.photoUrl) place.photoUrl = spot.photoUrl;
+  if (typeof spot.likesCount === 'number') place.likesCount = spot.likesCount;
+  if (spot.city) place.city = spot.city;
+  if (spot.country) place.country = spot.country;
+  if (spot.vibe) place.vibe = spot.vibe;
+  if (spot.recommendationReason) place.recommendationReason = spot.recommendationReason;
+
+  return place;
 }
 
 function normalizeQuickSearchTarget(result: SearchResult | QuickSearchPlace): QuickSearchPlace {
@@ -641,29 +683,173 @@ function normalizeQuickSearchTarget(result: SearchResult | QuickSearchPlace): Qu
   return result;
 }
 
-function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): string {
-  if ('name' in result) {
-    const metaParts = [
-      result.category,
-      result.avg_rating ? `${result.avg_rating.toFixed(1)} rating` : '',
-      result.review_count ? `${result.review_count} review${result.review_count === 1 ? '' : 's'}` : '',
-      result.tags?.find((tag) => tag.trim()),
-    ].filter(Boolean);
+function normalizeQuickSearchText(value: string | number | null | undefined): string {
+  return String(value ?? '').trim().toLocaleLowerCase();
+}
 
-    return metaParts.length ? metaParts.join(' / ') : 'Scope Trips spot';
+function tokenizeQuickSearchQuery(query: string): string[] {
+  return normalizeQuickSearchText(query).split(/\s+/).filter(Boolean);
+}
+
+function isShortQuickSearchQuery(queryTokens: readonly string[]): boolean {
+  return queryTokens.some((token) => token.length > 0 && token.length <= 3);
+}
+
+function getQuickSearchHaystack(place: QuickSearchPlace, options: { includeDescription?: boolean } = {}): string {
+  const includeDescription = options.includeDescription ?? true;
+
+  return [
+    place.title,
+    includeDescription ? place.description : undefined,
+    place.category,
+    place.city,
+    place.country,
+    place.vibe,
+    ...(place.tags ?? []),
+  ].map(normalizeQuickSearchText).filter(Boolean).join(' ');
+}
+
+function quickSearchTextHasTokenPrefix(text: string, token: string): boolean {
+  return text.split(/[^a-z0-9]+/).some((word) => word.startsWith(token));
+}
+
+function matchesQuickSearchPlace(place: QuickSearchPlace, queryTokens: readonly string[]): boolean {
+  if (!queryTokens.length) {
+    return false;
   }
 
+  const requirePrefixMatch = isShortQuickSearchQuery(queryTokens);
+  const haystack = getQuickSearchHaystack(place, { includeDescription: !requirePrefixMatch });
+  return queryTokens.every((token) => (
+    requirePrefixMatch ? quickSearchTextHasTokenPrefix(haystack, token) : haystack.includes(token)
+  ));
+}
+
+function scoreQuickSearchPlace(place: QuickSearchPlace, queryTokens: readonly string[]): number {
+  const title = normalizeQuickSearchText(place.title);
+  const location = normalizeQuickSearchText([place.city, place.country].filter(Boolean).join(' '));
+  const requirePrefixMatch = isShortQuickSearchQuery(queryTokens);
+  const haystack = getQuickSearchHaystack(place, { includeDescription: !requirePrefixMatch });
+
+  return queryTokens.reduce((score, token) => {
+    if (title === token) {
+      return score + 12;
+    }
+
+    if (title.startsWith(token) || title.split(/\s+/).some((word) => word.startsWith(token))) {
+      return score + 8;
+    }
+
+    if (!requirePrefixMatch && title.includes(token)) {
+      return score + 6;
+    }
+
+    if (requirePrefixMatch ? quickSearchTextHasTokenPrefix(location, token) : location.includes(token)) {
+      return score + 4;
+    }
+
+    return score + (
+      requirePrefixMatch
+        ? (quickSearchTextHasTokenPrefix(haystack, token) ? 1 : 0)
+        : (haystack.includes(token) ? 1 : 0)
+    );
+  }, place.rating ?? 0);
+}
+
+function mergeQuickSearchPlace(existingPlace: QuickSearchPlace, incomingPlace: QuickSearchPlace): QuickSearchPlace {
+  const mergedPlace: QuickSearchPlace = {
+    ...existingPlace,
+  };
+
+  const description = existingPlace.description || incomingPlace.description;
+  const category = existingPlace.category || incomingPlace.category;
+  const tags = existingPlace.tags?.length ? existingPlace.tags : incomingPlace.tags;
+  const photoUrl = existingPlace.photoUrl || incomingPlace.photoUrl;
+  const rating = existingPlace.rating ?? incomingPlace.rating;
+  const reviewCount = existingPlace.reviewCount ?? incomingPlace.reviewCount;
+  const likesCount = existingPlace.likesCount ?? incomingPlace.likesCount;
+  const city = existingPlace.city || incomingPlace.city;
+  const country = existingPlace.country || incomingPlace.country;
+  const vibe = existingPlace.vibe || incomingPlace.vibe;
+  const recommendationReason = existingPlace.recommendationReason || incomingPlace.recommendationReason;
+
+  if (description) mergedPlace.description = description;
+  if (category) mergedPlace.category = category;
+  if (tags?.length) mergedPlace.tags = tags;
+  if (photoUrl) mergedPlace.photoUrl = photoUrl;
+  if (typeof rating === 'number') mergedPlace.rating = rating;
+  if (typeof reviewCount === 'number') mergedPlace.reviewCount = reviewCount;
+  if (typeof likesCount === 'number') mergedPlace.likesCount = likesCount;
+  if (city) mergedPlace.city = city;
+  if (country) mergedPlace.country = country;
+  if (vibe) mergedPlace.vibe = vibe;
+  if (recommendationReason) mergedPlace.recommendationReason = recommendationReason;
+
+  return mergedPlace;
+}
+
+function buildQuickSearchPlaceKeys(place: QuickSearchPlace): string[] {
+  const keys = [`id:${place.id.trim()}`];
+  const titleKey = normalizeQuickSearchText([place.title, place.city, place.country].filter(Boolean).join('|'));
+
+  if (titleKey) {
+    keys.push(`title:${titleKey}`);
+  }
+
+  return keys;
+}
+
+function mergeQuickSearchPlaces(places: QuickSearchPlace[]): QuickSearchPlace[] {
+  const mergedPlaces: QuickSearchPlace[] = [];
+  const placeByKey = new Map<string, QuickSearchPlace>();
+
+  for (const place of places) {
+    const keys = buildQuickSearchPlaceKeys(place);
+    const matchingPlace = keys.map((key) => placeByKey.get(key)).find(Boolean);
+
+    if (matchingPlace) {
+      const mergedPlace = mergeQuickSearchPlace(matchingPlace, place);
+      const index = mergedPlaces.indexOf(matchingPlace);
+      if (index >= 0) {
+        mergedPlaces[index] = mergedPlace;
+      }
+      for (const key of buildQuickSearchPlaceKeys(mergedPlace)) {
+        placeByKey.set(key, mergedPlace);
+      }
+      continue;
+    }
+
+    mergedPlaces.push(place);
+    for (const key of keys) {
+      placeByKey.set(key, place);
+    }
+  }
+
+  return mergedPlaces;
+}
+
+function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): string {
+  if ('name' in result) {
+    const searchLocation = [result.city, result.country].filter(Boolean).join(', ');
+    const metaParts = [
+      result.category,
+      searchLocation,
+      result.avg_rating ? `${result.avg_rating.toFixed(1)} rating` : '',
+      result.tags?.find((tag) => tag.trim() && ![result.category, result.city, result.country].includes(tag)),
+    ].filter(Boolean);
+
+    return metaParts.slice(0, 3).join(' / ') || 'Scope Trips spot';
+  }
+
+  const location = [result.city, result.country].filter(Boolean).join(', ');
   const metaParts = [
     result.category,
-    result.city,
+    location,
     result.rating ? `${result.rating.toFixed(1)} rating` : '',
-    result.reviewCount ? `${result.reviewCount} review${result.reviewCount === 1 ? '' : 's'}` : '',
-    result.likesCount ? `${result.likesCount} saves` : '',
-    result.vibe,
     result.tags?.find((tag) => tag.trim()),
   ].filter(Boolean);
 
-  return metaParts.length ? metaParts.join(' / ') : 'Scope Trips spot';
+  return metaParts.slice(0, 3).join(' / ') || 'Scope Trips spot';
 }
 
 async function loadQuickSearchRecommendations(options: { force?: boolean } = {}): Promise<void> {
@@ -719,7 +905,12 @@ async function openQuickSearchResult(result: SearchResult | QuickSearchPlace): P
     }
   }
 
-  await router.push(buildSpotPath({ id: resultId, title: place.title, city: place.city, country: place.country }));
+  await router.push(buildSpotPath({
+    id: resultId,
+    title: place.title,
+    ...(place.city ? { city: place.city } : {}),
+    ...(place.country ? { country: place.country } : {}),
+  }));
 }
 
 function updateScrollState(): void {
@@ -1205,6 +1396,10 @@ async function handleSearch(query: string): Promise<void> {
   isQuickSearchOpen.value = true;
   quickSearchLoading.value = true;
   quickSearchError.value = null;
+
+  if (!quickSearchRecommendations.value.length && !quickSearchRecommendationsLoading.value) {
+    void loadQuickSearchRecommendations();
+  }
 
   try {
     const response = await searchContent(normalizedQuery, 'spots', QUICK_SEARCH_RESULT_LIMIT, 0);
@@ -1703,12 +1898,18 @@ onBeforeUnmount(() => {
   top: calc(100% + var(--space-2));
   right: 0;
   z-index: var(--z-dropdown);
-  width: min(38rem, calc(100vw - 2rem));
+  width: min(43rem, calc(100vw - 2rem));
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: 0.85rem;
+  padding: 0.95rem;
   border: 1px solid color-mix(in srgb, var(--glass-border) 100%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-secondary) 98%, transparent) 0%,
+      color-mix(in srgb, var(--bg-primary) 94%, transparent) 100%
+    );
   box-shadow:
     var(--shadow-lg),
     0 0 0 1px color-mix(in srgb, var(--accent-teal) 9%, transparent);
@@ -1738,10 +1939,11 @@ onBeforeUnmount(() => {
 
 .quick-search-results {
   display: grid;
-  gap: var(--space-2);
-  max-height: min(24rem, calc(100vh - 9rem));
+  gap: 0.55rem;
+  max-height: min(22rem, calc(100vh - 9rem));
   overflow-y: auto;
   scrollbar-gutter: stable;
+  padding-right: 0.2rem;
 }
 
 .quick-search-section {
@@ -1775,20 +1977,25 @@ onBeforeUnmount(() => {
 }
 
 .quick-search-results--recommendations {
-  max-height: min(21rem, calc(100vh - 13rem));
+  max-height: min(20rem, calc(100vh - 13rem));
 }
 
 .quick-search-result {
   width: 100%;
-  min-height: 5.35rem;
+  min-height: 4.8rem;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--glass-border) 76%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-primary) 42%, transparent);
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem 0.55rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 64%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-primary) 62%, transparent) 0%,
+      color-mix(in srgb, var(--bg-secondary) 72%, transparent) 100%
+    );
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
@@ -1802,19 +2009,46 @@ onBeforeUnmount(() => {
 .quick-search-result:hover,
 .quick-search-result:focus-visible {
   border-color: color-mix(in srgb, var(--accent-teal) 42%, var(--glass-border));
-  background: color-mix(in srgb, var(--accent-teal-light) 64%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-teal-light) 62%, var(--bg-primary)) 0%,
+      color-mix(in srgb, var(--bg-secondary) 82%, transparent) 100%
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 12%, transparent),
+    0 0.7rem 1.4rem color-mix(in srgb, var(--bg-primary) 22%, transparent);
   outline: none;
   transform: translateY(var(--motion-button-lift));
 }
 
+.quick-search-result__media {
+  width: 5rem;
+  height: 3.95rem;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 12%, transparent),
+    0 0.35rem 0.8rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
+}
+
+.quick-search-result__media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
 .quick-search-result__icon {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 3.25rem;
+  height: 3.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-full);
+  justify-self: center;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent-teal-light) 82%, transparent);
   color: var(--accent-teal);
 }
@@ -1827,7 +2061,7 @@ onBeforeUnmount(() => {
 .quick-search-result__copy {
   min-width: 0;
   display: grid;
-  gap: 0.3rem;
+  gap: 0.18rem;
 }
 
 .quick-search-result__copy strong,
@@ -1840,12 +2074,14 @@ onBeforeUnmount(() => {
 .quick-search-result__copy strong {
   color: var(--text-primary);
   font-size: 0.95rem;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
 .quick-search-result__copy small {
   color: var(--text-secondary);
   font-size: var(--font-size-caption);
+  line-height: 1.3;
   white-space: nowrap;
 }
 
@@ -1859,12 +2095,12 @@ onBeforeUnmount(() => {
 .quick-search-result__copy span {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
 .quick-search-state {
-  padding: var(--space-3);
-  border-radius: var(--radius-lg);
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-primary) 38%, transparent);
 }
 

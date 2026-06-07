@@ -58,7 +58,7 @@ class SearchView(APIView):
         body = {
             'query': {
                 'bool': {
-                    'must': [
+                    'should': [
                         {
                             'multi_match': {
                                 'query': q,
@@ -66,8 +66,25 @@ class SearchView(APIView):
                                 'fuzziness': 'AUTO',
                                 'type': 'best_fields',
                             }
-                        }
+                        },
+                        {
+                            'multi_match': {
+                                'query': q,
+                                'fields': self._fields_for(doc_type),
+                                'type': 'bool_prefix',
+                                'boost': 1.4,
+                            }
+                        },
+                        {
+                            'multi_match': {
+                                'query': q,
+                                'fields': self._fields_for(doc_type),
+                                'type': 'phrase_prefix',
+                                'boost': 1.2,
+                            }
+                        },
                     ],
+                    'minimum_should_match': 1,
                     'filter': [_visibility_filter_for(doc_type)],
                 }
             },
@@ -109,7 +126,7 @@ class SearchView(APIView):
     @staticmethod
     def _fields_for(doc_type: str) -> list[str]:
         if doc_type == 'spots':
-            return ['name^3', 'description', 'tags^2', 'category^2']
+            return ['name^3', 'description', 'tags^2', 'category^2', 'city^2', 'country', 'vibe^2']
         if doc_type == 'reviews':
             return ['text']
         if doc_type == 'trips':

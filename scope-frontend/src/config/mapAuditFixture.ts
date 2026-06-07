@@ -13,6 +13,11 @@ export interface MapWorkspaceSpot {
   category: SpotCategory;
   city: string;
   country: string;
+  adminArea?: string;
+  province?: string;
+  region?: string;
+  state?: string;
+  stateCode?: string;
   vibe: string;
   rating: number;
   photoUrl?: string;

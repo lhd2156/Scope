@@ -29,7 +29,7 @@
           icon="user"
           autocomplete="username"
           inputmode="text"
-          placeholder="Your name, +1 555 123 4567, or email@example.com"
+          placeholder="Your name, 555 123 4567, or email@example.com"
           :error="fieldErrors.email"
         />
 

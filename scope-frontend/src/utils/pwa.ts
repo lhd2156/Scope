@@ -64,7 +64,7 @@ export async function registerAppServiceWorker(options: RegisterAppServiceWorker
   }
 
   try {
-    return await serviceWorkerContainer.register(resolveServiceWorkerScriptUrl(), { scope: '/' });
+    return await serviceWorkerContainer.register(resolveServiceWorkerScriptUrl(), { scope: '/', updateViaCache: 'none' });
   } catch {
     return null;
   }

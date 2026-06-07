@@ -104,6 +104,9 @@ describe('coverage long-tail services and utilities', () => {
           longitude: -97.74,
           rating: 4.8,
           likesCount: 125,
+          photoUrl: 'https://images.example.com/austin-garden-cafe.jpg',
+          address: '101 Garden Way',
+          pillars: ['photo-worthy'],
         },
         {
           id: 'spot-2',
@@ -117,6 +120,22 @@ describe('coverage long-tail services and utilities', () => {
           longitude: -96.79,
           rating: 4.2,
           likesCount: 10,
+        },
+        {
+          id: 'spot-3',
+          title: 'Big Bend Window Trail',
+          description: 'A desert hike with a canyon finish',
+          category: 'adventure',
+          city: 'Big Bend National Park',
+          country: 'US',
+          vibe: 'desert overlook',
+          latitude: 29.2701,
+          longitude: -103.3028,
+          rating: 4.9,
+          likesCount: 52,
+          photoUrl: 'https://images.example.com/big-bend-window.jpg',
+          address: 'Window Trail',
+          pillars: ['worth-the-drive'],
         },
       ],
       mockTrips: [
@@ -153,6 +172,7 @@ describe('coverage long-tail services and utilities', () => {
     const { searchContent } = await import('@/services/searchService');
 
     const spots = await searchContent('austin food', 'spots', 1, 0);
+    const shortMatch = await searchContent('ben', 'spots', 10, 0);
     const trips = await searchContent('austin draft', 'trips', 10, 0);
     const reviews = await searchContent('maya brunch', 'reviews', 10, 0);
     const empty = await searchContent('   ', 'spots', -5, -10);
@@ -171,7 +191,15 @@ describe('coverage long-tail services and utilities', () => {
       location: { lat: 30.27, lon: -97.74 },
       avg_rating: 4.8,
       review_count: 125,
+      photoUrl: 'https://images.example.com/austin-garden-cafe.jpg',
+      city: 'Austin',
+      country: 'US',
+      vibe: 'relaxed',
     });
+    expect(shortMatch.results[0]).toMatchObject({
+      name: 'Big Bend Window Trail',
+    });
+    expect(shortMatch.results[0]?.photoUrl).toBeTruthy();
     expect(trips.results[0]).toMatchObject({ id: 'trip-1', name: 'Austin Food Weekend', review_count: 2 });
     expect(reviews.results[0]).toMatchObject({ id: 'review-1', name: 'Austin Garden Cafe review', avg_rating: 5 });
     expect(empty).toMatchObject({ total: 0, limit: 1, offset: 0, results: [] });

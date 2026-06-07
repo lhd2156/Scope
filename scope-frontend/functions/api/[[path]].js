@@ -1,4 +1,16 @@
 const API_ORIGIN = 'https://api.scopetrips.com';
+const CANONICAL_APP_HOST = 'scopetrips.com';
+const LEGACY_APP_HOST = 'app.scopetrips.com';
+
+function canonicalHostRedirect(request) {
+  const incomingUrl = new URL(request.url);
+  if (incomingUrl.hostname !== LEGACY_APP_HOST) {
+    return null;
+  }
+
+  incomingUrl.hostname = CANONICAL_APP_HOST;
+  return Response.redirect(incomingUrl.toString(), 301);
+}
 
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
@@ -30,6 +42,11 @@ function buildUpstreamRequest(request) {
 }
 
 export async function onRequest({ request }) {
+  const redirectResponse = canonicalHostRedirect(request);
+  if (redirectResponse) {
+    return redirectResponse;
+  }
+
   try {
     const upstreamResponse = await fetch(buildUpstreamRequest(request));
     const upstreamContentType = upstreamResponse.headers.get('Content-Type') || '';

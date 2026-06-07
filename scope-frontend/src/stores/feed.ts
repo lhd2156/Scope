@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { getFeed, getTrendingSpots } from '@/services/feedService';
+import { getFeed, getHomeActivityFeed, getTrendingSpots } from '@/services/feedService';
 import type { FeedItem, PaginationMeta, SpotSummary } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
 
@@ -24,6 +24,28 @@ export const useFeedStore = defineStore('feed', () => {
 
     try {
       const response = await getFeed(page, pageSize);
+      items.value = response.data;
+      meta.value = response.meta ?? null;
+      hasLoaded.value = true;
+      return response.data;
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not load the activity feed right now.');
+      throw nextError;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function fetchHomeActivityFeed(force = false, page = 1, pageSize?: number) {
+    if (loading.value || (hasLoaded.value && !force)) {
+      return items.value;
+    }
+
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const response = await getHomeActivityFeed(page, pageSize);
       items.value = response.data;
       meta.value = response.meta ?? null;
       hasLoaded.value = true;
@@ -62,6 +84,7 @@ export const useFeedStore = defineStore('feed', () => {
     error,
     trendingError,
     fetchFeed,
+    fetchHomeActivityFeed,
     fetchTrendingSpots,
   };
 });

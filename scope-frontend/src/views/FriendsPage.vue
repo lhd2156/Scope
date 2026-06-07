@@ -64,7 +64,7 @@
       </p>
 
       <section class="network-panel" :class="{ 'network-panel--plain-empty': showPlainEmptyState }" data-test="network-panel">
-        <header class="panel-title-row">
+        <header v-if="showPanelHeader" class="panel-title-row">
           <div class="panel-title-row__copy">
             <p class="eyebrow">{{ activePanelEyebrow }}</p>
             <h2>{{ activePanelTitle }}</h2>
@@ -721,6 +721,7 @@ const showPlainEmptyState = computed(() => {
 
   return !visibleFriendConnections.value.length;
 });
+const showPanelHeader = computed(() => !showPlainEmptyState.value);
 
 function syncMobileFriendsLayout() {
   isMobileFriendsLayout.value = typeof window !== 'undefined' && window.innerWidth <= FRIENDS_MOBILE_BREAKPOINT;
