@@ -11,7 +11,17 @@ function setViewportWidth(width: number) {
   });
 }
 
-const { fixtures, routeMock, routeController, authStoreMock, userStoreMock, listUserSpotsMock, listSavedSpotsMock, listPublicTripsMock } = vi.hoisted(() => ({
+const {
+  fixtures,
+  routeMock,
+  routeController,
+  authStoreMock,
+  userStoreMock,
+  listUserSpotsMock,
+  listSavedSpotsMock,
+  listPublicTripsMock,
+  listFriendsMock,
+} = vi.hoisted(() => ({
   fixtures: {
     profile: {
       id: 'user-1',
@@ -106,6 +116,7 @@ const { fixtures, routeMock, routeController, authStoreMock, userStoreMock, list
   listUserSpotsMock: vi.fn(),
   listSavedSpotsMock: vi.fn(),
   listPublicTripsMock: vi.fn(),
+  listFriendsMock: vi.fn(),
 }));
 
 vi.mock('vue-router', async () => {
@@ -135,6 +146,10 @@ vi.mock('@/services/spotService', () => ({
 
 vi.mock('@/services/tripService', () => ({
   listPublicTrips: listPublicTripsMock,
+}));
+
+vi.mock('@/services/friendService', () => ({
+  listFriends: listFriendsMock,
 }));
 
 import ProfilePage from '@/views/ProfilePage.vue';
@@ -236,6 +251,9 @@ describe('ProfilePage', () => {
     listPublicTripsMock.mockReset().mockResolvedValue({
       data: fixtures.trips,
     });
+    listFriendsMock.mockReset().mockResolvedValue({
+      data: [],
+    });
   });
 
   afterEach(() => {
@@ -264,7 +282,7 @@ describe('ProfilePage', () => {
 
     expect(userStoreMock.fetchCurrentProfile).toHaveBeenCalledTimes(1);
     expect(listUserSpotsMock).toHaveBeenCalledWith('user-1', 1, 9);
-    expect(listPublicTripsMock).toHaveBeenCalledWith(1, 12);
+    expect(listPublicTripsMock).toHaveBeenCalledWith(1, 12, 'user-1');
     expect(wrapper.text()).toContain('Louis Do');
     expect(wrapper.text()).toContain("Louis Do's Scope Map");
     expect(wrapper.text()).toContain('Recent adventures');

@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     rag_generation_rate_limit_per_minute: int = 10
     rag_ingest_rate_limit_per_minute: int = 5
     rag_rate_limit_redis_url: str = "redis://redis:6379/5"
+    rag_trusted_proxy_cidrs: str = "10.0.0.0/8,172.16.0.0/12"
     rag_ingest_required_role: str = "admin"
 
     # Kafka

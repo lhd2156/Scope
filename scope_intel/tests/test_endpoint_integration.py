@@ -5,7 +5,7 @@ import requests
 from app import create_app
 
 TEST_SECRET_KEY = "scope-intel-test-secret"
-TEST_JWT_SECRET = "scope-intel-test-jwt-secret"
+TEST_JWT_SECRET = "scope-intel-test-jwt-secret-at-least-32-bytes"
 TEST_JWT_ISSUER = "scope-core"
 TEST_JWT_AUDIENCE = "scope-frontend"
 TEST_FRONTEND_ORIGIN = "https://scope-frontend.example"

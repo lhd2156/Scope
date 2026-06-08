@@ -1,6 +1,4 @@
-# Pin to the -slim Debian variant; for release builds, append @sha256:<digest>
-# (Dependabot's docker ecosystem keeps these current).
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -12,6 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # RUN instruction so it never persists in the image or metadata.
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl ca-certificates gnupg unixodbc \
     && . /etc/os-release \
     && curl -sSL -O "https://packages.microsoft.com/config/debian/${VERSION_ID%%.*}/packages-microsoft-prod.deb" \

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -187,6 +188,60 @@ class S3StorageService:
             Params={'Bucket': settings.AWS_STORAGE_BUCKET_NAME, 'Key': key},
             ExpiresIn=expires_in,
         )
+
+    def delete_asset(self, url_or_key: str | None) -> None:
+        raw_value = (url_or_key or '').strip()
+        if not raw_value:
+            return
+
+        key = self.storage_key_from_url(raw_value)
+        if key is None:
+            parsed = urlsplit(raw_value)
+            if parsed.scheme or parsed.netloc:
+                return
+
+            path_value = unquote(parsed.path)
+            media_url = str(settings.MEDIA_URL or '/media/')
+            if path_value.startswith(media_url):
+                path_value = path_value[len(media_url):]
+            key = path_value.lstrip('/')
+
+        if not key:
+            return
+
+        if self.enabled and self.client:
+            self.client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
+            return
+
+        media_root = Path(settings.MEDIA_ROOT).resolve()
+        local_path = (media_root / key).resolve()
+        if local_path != media_root and media_root not in local_path.parents:
+            raise ValueError('Storage key resolves outside the managed media directory')
+        local_path.unlink(missing_ok=True)
+
+    def delete_prefix(self, prefix: str) -> None:
+        normalized_prefix = prefix.strip().lstrip('/')
+        if not normalized_prefix or '..' in Path(normalized_prefix).parts:
+            raise ValueError('Storage prefix must stay inside the managed media directory')
+        if not normalized_prefix.endswith('/'):
+            normalized_prefix += '/'
+
+        if self.enabled and self.client:
+            paginator = self.client.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Prefix=normalized_prefix):
+                objects = [{'Key': entry['Key']} for entry in page.get('Contents', []) if entry.get('Key')]
+                if objects:
+                    self.client.delete_objects(
+                        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                        Delete={'Objects': objects, 'Quiet': True},
+                    )
+            return
+
+        media_root = Path(settings.MEDIA_ROOT).resolve()
+        prefix_path = (media_root / normalized_prefix).resolve()
+        if prefix_path != media_root and media_root not in prefix_path.parents:
+            raise ValueError('Storage prefix resolves outside the managed media directory')
+        shutil.rmtree(prefix_path, ignore_errors=True)
 
     def health_status(self):
         if self.enabled and self.client:

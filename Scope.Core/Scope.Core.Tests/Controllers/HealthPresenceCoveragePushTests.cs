@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using StackExchange.Redis;
 using Xunit;
@@ -60,7 +61,7 @@ public sealed class HealthPresenceCoveragePushTests
         });
         await dbContext.SaveChangesAsync();
 
-        var controller = new PresenceController(dbContext).WithUser(userId);
+        var controller = new PresenceController(dbContext, NullLogger<PresenceController>.Instance).WithUser(userId);
 
         var result = await controller.Heartbeat(
             new PresenceHeartbeatRequest(Status: "mystery", RouteContext: "   ", IsIdle: false, IsPlanning: false),

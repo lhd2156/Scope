@@ -274,6 +274,14 @@ class TripDetailView(generics.RetrieveUpdateDestroyAPIView):
 @api_view(['GET'])
 def public_trips(request):
     queryset = with_trip_relations(Trip.objects.filter(is_public=True))
+    raw_user_id = str(request.query_params.get('userId') or '').strip()
+    if raw_user_id:
+        user_id = _coerce_uuid(raw_user_id)
+        if user_id is None:
+            raise ValidationError({'userId': ['Must be a valid UUID.']})
+        queryset = queryset.filter(
+            Q(creator_id=user_id) | Q(members__user_id=user_id)
+        ).distinct()
     paginator = TripListCreateView.pagination_class()
     page = paginator.paginate_queryset(queryset, request)
     return paginator.get_paginated_response(TripSerializer(page, many=True).data)

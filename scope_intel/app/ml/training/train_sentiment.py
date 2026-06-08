@@ -14,6 +14,9 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trai
 
 logger = logging.getLogger(__name__)
 
+MODEL_NAME = "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+MODEL_REVISION = "714eb0fa89d2f80546fda750413ed43d93601a13"
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -27,9 +30,12 @@ def main():
     df = pd.read_csv(args.data)
     assert "text" in df.columns and "label" in df.columns
 
-    model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, revision=MODEL_REVISION)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_NAME,
+        revision=MODEL_REVISION,
+        num_labels=2,
+    )
 
     dataset = Dataset.from_pandas(df)
     dataset = dataset.map(

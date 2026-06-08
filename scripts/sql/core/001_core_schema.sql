@@ -24,6 +24,7 @@ BEGIN
         HomeBase NVARCHAR(120) NULL,
         InterestsJson NVARCHAR(1000) NULL,
         ShowActivityStatus BIT NOT NULL CONSTRAINT DF_core_Users_ShowActivityStatus DEFAULT 1,
+        ProfileVisibility NVARCHAR(16) NOT NULL CONSTRAINT DF_core_Users_ProfileVisibility DEFAULT 'friends',
         IsShowcase BIT NOT NULL CONSTRAINT DF_core_Users_IsShowcase DEFAULT 0,
         CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_CreatedAt DEFAULT SYSDATETIMEOFFSET(),
         UpdatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_core_Users_UpdatedAt DEFAULT SYSDATETIMEOFFSET(),

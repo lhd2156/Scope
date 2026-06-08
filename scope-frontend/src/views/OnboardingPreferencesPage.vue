@@ -224,6 +224,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import Button from '@/components/common/Button.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import { searchLocations, type PlaceSearchResult } from '@/services/mapService';
+import { formatHomeBaseLocation } from '@/utils/formatters';
 import { useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
 import type { SpotCategory } from '@/types';
@@ -392,21 +393,28 @@ function getHomeBaseSuggestionType(suggestion: PlaceSearchResult): string {
 }
 
 function formatHomeBaseSuggestionLabel(suggestion: PlaceSearchResult): string {
-  return suggestion.formattedAddress?.trim() ||
-    [suggestion.placeName, suggestion.city, suggestion.country].filter(Boolean).join(', ') ||
-    suggestion.placeName ||
-    '';
+  return formatHomeBaseLocation(suggestion);
 }
 
 function dedupeHomeBaseSuggestions(suggestions: PlaceSearchResult[]): PlaceSearchResult[] {
   const seen = new Set<string>();
   return suggestions.filter((suggestion) => {
-    const label = formatHomeBaseSuggestionLabel(suggestion).toLowerCase();
-    if (!label || seen.has(label)) {
+    const visibleLabel = (suggestion.formattedAddress || suggestion.placeName || suggestion.address || '').trim();
+    if (!visibleLabel) {
       return false;
     }
 
-    seen.add(label);
+    const identity = (
+      suggestion.formattedAddress ||
+      suggestion.providerPlaceId ||
+      suggestion.id ||
+      [suggestion.placeName, suggestion.latitude, suggestion.longitude].filter((value) => value !== undefined).join('|')
+    ).trim().toLowerCase();
+    if (!identity || seen.has(identity)) {
+      return false;
+    }
+
+    seen.add(identity);
     return true;
   });
 }

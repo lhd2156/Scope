@@ -391,7 +391,7 @@ try {
             if ($sentryMode -and $sentryMode.Trim().ToLowerInvariant() -eq "temporary-placeholder") {
                 Write-Check "WARN" "observability" "SENTRY_DSN_MODE" "temporary placeholder DSNs are configured; rotate to real free Sentry project DSNs before relying on error monitoring"
             }
-            Write-Check "WARN" "secret-value" "SCOPE_GRPC_INTERNAL_TOKEN length" "GitHub does not expose secret values; verify this is 32+ random characters before deployment"
+            Write-Check "WARN" "secret-value" "SCOPE_GRPC_INTERNAL_TOKEN" "GitHub does not expose secret values; verify this is 32+ random characters and distinct from CORE_JWT_SECRET before deployment"
             Write-Check "WARN" "secret-value" "Sentry DSNs" "GitHub does not expose secret values; verify server and browser DSNs point at production Sentry projects"
         }
     }

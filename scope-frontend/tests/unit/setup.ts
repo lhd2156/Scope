@@ -7,6 +7,12 @@ enableAutoUnmount(afterEach);
 
 config.global.stubs = { RouterLink: { template: '<a><slot /></a>' } };
 
+if (typeof XMLHttpRequest !== 'undefined') {
+  XMLHttpRequest.prototype.open = function open(method: string, url: string | URL): void {
+    throw new Error(`Unexpected unit-test XMLHttpRequest: ${method} ${String(url)}`);
+  };
+}
+
 const windowTimerRegistry = (() => {
   if (typeof window === 'undefined') {
     return null;

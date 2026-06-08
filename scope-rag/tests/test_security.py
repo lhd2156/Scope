@@ -1,7 +1,9 @@
 from types import SimpleNamespace
+from hashlib import sha256
 
 import jwt
 import pytest
+import redis.asyncio as redis_asyncio
 from fastapi import HTTPException
 from fastapi.responses import Response
 
@@ -29,6 +31,7 @@ def setup_function():
     security.settings.rag_rate_limit_per_minute = 60
     security.settings.rag_generation_rate_limit_per_minute = 10
     security.settings.rag_ingest_rate_limit_per_minute = 5
+    security.settings.rag_trusted_proxy_cidrs = "10.0.0.0/8,172.16.0.0/12"
 
 
 @pytest.mark.asyncio
@@ -67,6 +70,21 @@ async def test_require_auth_returns_valid_claims():
 
 
 @pytest.mark.asyncio
+async def test_require_ingest_admin_supports_disabled_and_list_role_policies():
+    security.settings.rag_ingest_required_role = ""
+    claims = {"sub": "user-1"}
+    assert await security.require_ingest_admin(claims) is claims
+
+    security.settings.rag_ingest_required_role = "admin"
+    admin_claims = {"roles": ["viewer", "ADMIN"]}
+    assert await security.require_ingest_admin(admin_claims) is admin_claims
+
+    with pytest.raises(HTTPException) as forbidden:
+        await security.require_ingest_admin({"roles": ["viewer", 7]})
+    assert forbidden.value.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_rate_limit_middleware_bypasses_disabled_and_non_rag_paths():
     calls = []
 
@@ -97,12 +115,58 @@ async def test_rate_limit_middleware_sets_limit_header_and_ignores_spoofed_forwa
     monkeypatch.setattr(security, "_permit", fake_permit)
 
     response = await security.rate_limit_middleware(
-        RequestStub(headers={"x-forwarded-for": "203.0.113.9, 10.0.0.1"}),
+        RequestStub(
+            headers={"x-forwarded-for": "203.0.113.9, 10.0.0.1"},
+            client_host="198.51.100.7",
+        ),
         call_next,
     )
 
-    assert captured == {"key": "generation:10.0.0.7", "limit": 10}
+    expected_digest = sha256(b"ip:198.51.100.7").hexdigest()[:32]
+    assert captured == {"key": f"generation:ip:{expected_digest}", "limit": 10}
     assert response.headers["X-RateLimit-Limit"] == "10"
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_middleware_uses_trusted_proxy_ip_and_verified_user_identity(monkeypatch):
+    captured = []
+
+    async def fake_permit(key, limit):
+        captured.append((key, limit))
+        return True, 60
+
+    async def call_next(request):
+        return Response("ok")
+
+    monkeypatch.setattr(security, "_permit", fake_permit)
+
+    await security.rate_limit_middleware(
+        RequestStub(
+            headers={"x-forwarded-for": "203.0.113.9, 172.20.0.2"},
+            client_host="172.20.0.3",
+        ),
+        call_next,
+    )
+    trusted_proxy_digest = sha256(b"ip:203.0.113.9").hexdigest()[:32]
+    assert captured[-1] == (f"generation:ip:{trusted_proxy_digest}", 10)
+
+    token = jwt.encode(
+        {"sub": "user-42", "iss": security.settings.core_jwt_issuer, "aud": security.settings.core_jwt_audience},
+        TEST_SECRET,
+        algorithm="HS256",
+    )
+    await security.rate_limit_middleware(
+        RequestStub(
+            headers={
+                "authorization": f"Bearer {token}",
+                "x-forwarded-for": "203.0.113.10",
+            },
+            client_host="172.20.0.3",
+        ),
+        call_next,
+    )
+    user_digest = sha256(b"user:user-42").hexdigest()[:32]
+    assert captured[-1] == (f"generation:user:{user_digest}", 10)
 
 
 @pytest.mark.asyncio
@@ -124,7 +188,36 @@ def test_limit_for_path_and_request_key_cover_bucket_variants():
     assert security._limit_for_path("/api/rag/scope-ai", "post").bucket == "generation"
     assert security._limit_for_path("/api/rag/ingest", "POST").bucket == "ingest"
     assert security._limit_for_path("/api/rag/search", "GET").bucket == "global"
-    assert security._request_key(RequestStub(headers={}, client_host=None), "global") == "global:unknown"
+    unknown_digest = sha256(b"ip:unknown").hexdigest()[:32]
+    assert security._request_key(RequestStub(headers={}, client_host=None), "global") == f"global:ip:{unknown_digest}"
+
+
+def test_client_ip_rejects_invalid_forwarded_values_and_invalid_proxy_config():
+    security.settings.rag_trusted_proxy_cidrs = "not-a-cidr,172.16.0.0/12"
+    request = RequestStub(
+        headers={"x-forwarded-for": "not-an-ip, 203.0.113.9"},
+        client_host="172.20.0.3",
+    )
+
+    assert security._client_ip(request) == "172.20.0.3"
+    assert security._remote_addr_is_trusted_proxy("not-an-ip") is False
+
+
+def test_request_identity_rejects_malformed_invalid_and_subjectless_tokens():
+    assert security._verified_request_identity(RequestStub(headers={"authorization": "Basic abc"})) is None
+    assert security._verified_request_identity(RequestStub(headers={"authorization": "Bearer invalid"})) is None
+
+    subjectless_token = jwt.encode(
+        {"iss": security.settings.core_jwt_issuer, "aud": security.settings.core_jwt_audience},
+        TEST_SECRET,
+        algorithm="HS256",
+    )
+    assert security._verified_request_identity(
+        RequestStub(headers={"authorization": f"Bearer {subjectless_token}"})
+    ) is None
+
+    security.settings.rag_trusted_proxy_cidrs = ["", "172.16.0.0/12"]
+    assert security._remote_addr_is_trusted_proxy("172.20.0.3") is True
 
 
 @pytest.mark.asyncio
@@ -173,6 +266,20 @@ async def test_get_redis_returns_none_when_disabled_or_marked_unavailable():
     security.settings.rag_rate_limit_redis_url = "redis://example/0"
     security._redis_unavailable = True
     assert await security._get_redis() is None
+
+
+@pytest.mark.asyncio
+async def test_get_redis_initializes_client_and_marks_factory_failures(monkeypatch):
+    security.settings.rag_rate_limit_redis_url = "redis://example/0"
+    client = await security._get_redis()
+    assert client is security._redis_client
+    await client.aclose()
+
+    security._redis_client = None
+    monkeypatch.setattr(redis_asyncio, "from_url", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("bad url")))
+
+    assert await security._get_redis() is None
+    assert security._redis_unavailable is True
 
 
 @pytest.mark.asyncio

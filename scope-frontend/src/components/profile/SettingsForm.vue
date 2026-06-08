@@ -37,9 +37,10 @@
           type="button"
           class="danger-button"
           data-test="settings-delete-account"
+          :disabled="submitting || deletingAccount"
           @click="confirmDeleteAccount"
         >
-          Delete account
+          {{ deletingAccount ? 'Deleting account' : 'Delete account' }}
         </button>
       </div>
     </section>
@@ -430,6 +431,7 @@ import Button from '@/components/common/Button.vue';
 import DateField from '@/components/auth/DateField.vue';
 import { setAnalyticsConsent, useAnalyticsConsent } from '@/utils/analyticsConsent';
 import { applyTheme, initializeTheme, useTheme } from '@/utils/theme';
+import { formatHomeBaseLocation } from '@/utils/formatters';
 import { searchLocations, type PlaceSearchResult } from '@/services/mapService';
 import { getPresignedUploadTarget, uploadFileToPresignedTarget } from '@/services/s3Service';
 import type { SpotCategory, ThemeMode } from '@/types';
@@ -500,6 +502,7 @@ const props = withDefaults(
   defineProps<{
     initialValue: SettingsFormValue;
     submitting?: boolean;
+    deletingAccount?: boolean;
     accountEmail?: string;
     syncModeLabel?: string;
     syncModeDescription?: string;
@@ -508,6 +511,7 @@ const props = withDefaults(
   }>(),
   {
     submitting: false,
+    deletingAccount: false,
     accountEmail: '',
     syncModeLabel: 'API-backed',
     syncModeDescription: 'Changes sync through the Scope account API.',
@@ -665,10 +669,7 @@ function clearLocation(): void {
 }
 
 function formatLocationLabel(result: PlaceSearchResult): string {
-  return result.formattedAddress?.trim() ||
-    [result.placeName, result.city, result.country].filter(Boolean).join(', ') ||
-    result.placeName ||
-    '';
+  return formatHomeBaseLocation(result);
 }
 
 function formatLocationTitle(result: PlaceSearchResult): string {
@@ -689,12 +690,22 @@ function formatLocationMeta(result: PlaceSearchResult): string {
 function dedupeLocationResults(results: PlaceSearchResult[]): PlaceSearchResult[] {
   const seen = new Set<string>();
   return results.filter((result) => {
-    const label = formatLocationLabel(result).toLowerCase();
-    if (!label || seen.has(label)) {
+    const visibleLabel = (result.formattedAddress || result.placeName || result.address || '').trim();
+    if (!visibleLabel) {
       return false;
     }
 
-    seen.add(label);
+    const identity = (
+      result.formattedAddress ||
+      result.providerPlaceId ||
+      result.id ||
+      [result.placeName, result.latitude, result.longitude].filter((value) => value !== undefined).join('|')
+    ).trim().toLowerCase();
+    if (!identity || seen.has(identity)) {
+      return false;
+    }
+
+    seen.add(identity);
     return true;
   });
 }
@@ -1012,6 +1023,7 @@ defineExpose({
           handleLocationFocus,
           handleLocationInput,
           handleLocationKeydown,
+          isFormDirty,
           locationActiveIndex,
           locationLoading,
           locationOpen,

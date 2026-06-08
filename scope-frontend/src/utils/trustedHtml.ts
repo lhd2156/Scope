@@ -10,6 +10,21 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function allowScopeWasmModuleScript(value: string): string {
+  const origin = globalThis.location.origin;
+  const moduleUrl = new URL(value, origin);
+  const isAllowedModule = (
+    moduleUrl.origin === origin
+    && /\/wasm\/dist\/scope_wasm(?:\.generated)?\.js$/.test(moduleUrl.pathname)
+  );
+
+  if (!isAllowedModule) {
+    throw new TypeError('Trusted script URL is not an allowed Scope WASM module.');
+  }
+
+  return value;
+}
+
 export function installTrustedTypesDefaultPolicy(): void {
   if (defaultPolicyAttempted || typeof window === 'undefined' || !window.trustedTypes) {
     return;
@@ -20,6 +35,7 @@ export function installTrustedTypesDefaultPolicy(): void {
   try {
     window.trustedTypes.createPolicy('default', {
       createHTML: (input) => escapeHtml(input),
+      createScript: (input) => allowScopeWasmModuleScript(input),
     });
   } catch {
     // Browsers throw if another runtime already installed the default policy.

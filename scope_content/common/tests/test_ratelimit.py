@@ -18,9 +18,7 @@ class TestRateLimitMiddleware:
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         mock_redis = MagicMock()
-        mock_pipe = MagicMock()
-        mock_pipe.execute.return_value = [None, 5, None, None]
-        mock_redis.pipeline.return_value = mock_pipe
+        mock_redis.eval.return_value = [1, 6, 0]
 
         middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
         middleware._redis = mock_redis
@@ -37,9 +35,7 @@ class TestRateLimitMiddleware:
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         mock_redis = MagicMock()
-        mock_pipe = MagicMock()
-        mock_pipe.execute.return_value = [None, settings.RATE_LIMIT_GLOBAL_PER_IP, None, None]
-        mock_redis.pipeline.return_value = mock_pipe
+        mock_redis.eval.return_value = [0, settings.RATE_LIMIT_GLOBAL_PER_IP, 17]
 
         middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
         middleware._redis = mock_redis
@@ -47,7 +43,8 @@ class TestRateLimitMiddleware:
         response = middleware(request)
 
         assert response.status_code == 429
-        assert response["Retry-After"] == "60"
+        assert response["Retry-After"] == "17"
+        assert mock_redis.eval.call_args.args[1:3] == (1, "rl:global:127.0.0.1")
 
     @override_settings(RATE_LIMIT_AUTH_PER_IP=10)
     def test_auth_endpoints_have_stricter_limit(self):
@@ -56,9 +53,10 @@ class TestRateLimitMiddleware:
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         mock_redis = MagicMock()
-        mock_pipe = MagicMock()
-        mock_pipe.execute.return_value = [None, 10, None, None]
-        mock_redis.pipeline.return_value = mock_pipe
+        mock_redis.eval.side_effect = [
+            [1, 1, 0],
+            [0, 10, 12],
+        ]
 
         middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
         middleware._redis = mock_redis
@@ -74,9 +72,10 @@ class TestRateLimitMiddleware:
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         mock_redis = MagicMock()
-        mock_pipe = MagicMock()
-        mock_pipe.execute.return_value = [None, 29, None, None]
-        mock_redis.pipeline.return_value = mock_pipe
+        mock_redis.eval.side_effect = [
+            [1, 1, 0],
+            [1, 30, 0],
+        ]
 
         middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
         middleware._redis = mock_redis
@@ -93,12 +92,10 @@ class TestRateLimitMiddleware:
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         mock_redis = MagicMock()
-        mock_pipe = MagicMock()
-        mock_pipe.execute.side_effect = [
-            [None, 0, None, None],
-            [None, 1, None, None],
+        mock_redis.eval.side_effect = [
+            [1, 1, 0],
+            [0, 1, 8],
         ]
-        mock_redis.pipeline.return_value = mock_pipe
 
         middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
         middleware._redis = mock_redis
@@ -106,4 +103,17 @@ class TestRateLimitMiddleware:
         response = middleware(request)
 
         assert response.status_code == 429
-        assert response["Retry-After"] == "60"
+        assert response["Retry-After"] == "8"
+
+    @override_settings(TRUSTED_PROXY_CIDRS=["10.0.0.0/8"])
+    def test_forwarded_for_is_trusted_only_from_configured_proxy(self):
+        factory = RequestFactory()
+        middleware = RateLimitMiddleware(lambda r: HttpResponse(status=200))
+
+        untrusted = factory.get("/api/content/spots/", REMOTE_ADDR="198.51.100.5", HTTP_X_FORWARDED_FOR="203.0.113.7")
+        trusted = factory.get("/api/content/spots/", REMOTE_ADDR="10.0.0.8", HTTP_X_FORWARDED_FOR="203.0.113.7, 10.0.0.8")
+        invalid = factory.get("/api/content/spots/", REMOTE_ADDR="10.0.0.8", HTTP_X_FORWARDED_FOR="not-an-ip")
+
+        assert middleware._get_client_ip(untrusted) == "198.51.100.5"
+        assert middleware._get_client_ip(trusted) == "203.0.113.7"
+        assert middleware._get_client_ip(invalid) == "10.0.0.8"

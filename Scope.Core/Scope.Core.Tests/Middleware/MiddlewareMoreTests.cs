@@ -61,6 +61,44 @@ public sealed class MiddlewareMoreTests
     }
 
     [Fact]
+    public async Task ExceptionHandlingMiddleware_MapsMalformedAndCanceledRequestsWithoutServerErrors()
+    {
+        var malformedContext = NewJsonContext();
+        var malformedMiddleware = new ExceptionHandlingMiddleware(
+            _ => throw new BadHttpRequestException("Unexpected end of request content."),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await malformedMiddleware.InvokeAsync(malformedContext);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, malformedContext.Response.StatusCode);
+        Assert.Equal("BAD_REQUEST", (await ReadEnvelope(malformedContext)).Error.Code);
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var canceledContext = NewJsonContext();
+        canceledContext.RequestAborted = cancellation.Token;
+        var canceledMiddleware = new ExceptionHandlingMiddleware(
+            _ => throw new OperationCanceledException(cancellation.Token),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await canceledMiddleware.InvokeAsync(canceledContext);
+
+        Assert.Equal(ExceptionHandlingMiddleware.ClientClosedRequestStatusCode, canceledContext.Response.StatusCode);
+        Assert.Equal(0, canceledContext.Response.Body.Length);
+
+        var truncatedContext = NewJsonContext();
+        truncatedContext.RequestAborted = cancellation.Token;
+        var truncatedMiddleware = new ExceptionHandlingMiddleware(
+            _ => throw new BadHttpRequestException("Unexpected end of request content."),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await truncatedMiddleware.InvokeAsync(truncatedContext);
+
+        Assert.Equal(ExceptionHandlingMiddleware.ClientClosedRequestStatusCode, truncatedContext.Response.StatusCode);
+        Assert.Equal(0, truncatedContext.Response.Body.Length);
+    }
+
+    [Fact]
     public async Task MetricsAllowlistMiddleware_AllowsConfiguredNetworksUnknownAndBlocksOthers()
     {
         var called = 0;
@@ -135,6 +173,11 @@ public sealed class MiddlewareMoreTests
         await middleware.InvokeAsync(limitedAuth);
         Assert.Equal(StatusCodes.Status429TooManyRequests, limitedAuth.Response.StatusCode);
         Assert.Equal("9", limitedAuth.Response.Headers["Retry-After"].ToString());
+        limitedAuth.Response.Body.Position = 0;
+        var limitedBody = await new StreamReader(limitedAuth.Response.Body).ReadToEndAsync();
+        Assert.Contains("\"error\"", limitedBody);
+        Assert.Contains("\"code\":\"RATE_LIMITED\"", limitedBody);
+        Assert.DoesNotContain("\"Error\"", limitedBody);
 
         var currentUser = Context("/api/core/auth/me", "203.0.113.45");
         await middleware.InvokeAsync(currentUser);

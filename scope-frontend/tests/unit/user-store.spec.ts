@@ -52,6 +52,7 @@ describe('user store API contracts', () => {
       searchUsers: vi.fn(),
       updateUserProfile: vi.fn(),
       deactivateUserProfile: vi.fn(),
+      deleteCurrentUserContent: vi.fn(),
     }));
 
     const store = await bootstrapUserStore();
@@ -117,6 +118,7 @@ describe('user store API contracts', () => {
         },
       }),
       deactivateUserProfile: vi.fn(),
+      deleteCurrentUserContent: vi.fn(),
     }));
 
     const store = await bootstrapUserStore();
@@ -180,6 +182,7 @@ describe('user store API contracts', () => {
       searchUsers: vi.fn(),
       updateUserProfile: vi.fn(),
       deactivateUserProfile: vi.fn(),
+      deleteCurrentUserContent: vi.fn(),
     }));
 
     const store = await bootstrapUserStore();
@@ -206,6 +209,8 @@ describe('user store API contracts', () => {
 
   it('deactivates profiles, removes search results, and logs out the current user when needed', async () => {
     const logout = vi.fn().mockResolvedValue(undefined);
+    const deleteCurrentUserContent = vi.fn().mockResolvedValue(undefined);
+    const deactivateUserProfile = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock('@/stores/auth', () => ({
       useAuthStore: () => ({
@@ -239,7 +244,8 @@ describe('user store API contracts', () => {
         ],
       }),
       updateUserProfile: vi.fn(),
-      deactivateUserProfile: vi.fn().mockResolvedValue(undefined),
+      deactivateUserProfile,
+      deleteCurrentUserContent,
     }));
 
     const store = await bootstrapUserStore();
@@ -256,6 +262,14 @@ describe('user store API contracts', () => {
     await store.deactivateProfile('user-1');
     expect(logout).toHaveBeenCalledTimes(1);
     expect(store.saving).toBe(false);
+
+    await store.deleteCurrentAccount();
+    expect(deleteCurrentUserContent).toHaveBeenCalledTimes(1);
+    expect(deactivateUserProfile).toHaveBeenLastCalledWith('user-1');
+    expect(logout).toHaveBeenCalledTimes(2);
+    expect(deleteCurrentUserContent.mock.invocationCallOrder[0]).toBeLessThan(
+      deactivateUserProfile.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER,
+    );
   });
 
   it('reports profile, stats, search, save, and deactivation failures with stable flags', async () => {
@@ -274,6 +288,7 @@ describe('user store API contracts', () => {
       searchUsers: vi.fn().mockRejectedValue(new Error('Search offline')),
       updateUserProfile: vi.fn().mockRejectedValue(new Error('Save offline')),
       deactivateUserProfile: vi.fn().mockRejectedValue(new Error('Deactivate offline')),
+      deleteCurrentUserContent: vi.fn().mockRejectedValue(new Error('Content deletion offline')),
     }));
 
     const store = await bootstrapUserStore();
@@ -307,5 +322,6 @@ describe('user store API contracts', () => {
     await expect(store.deactivateProfile('user-404')).rejects.toThrow('Deactivate offline');
     expect(store.saving).toBe(false);
     expect(store.error).toBe('Deactivate offline');
+    await expect(store.deleteCurrentAccount()).rejects.toThrow('No signed-in Scope account is available to delete');
   });
 });

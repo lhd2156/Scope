@@ -57,6 +57,9 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
   }
 }
 
+# SSE-S3 avoids locking Terraform out of its own backend before every
+# deployment principal has been verified with KMS permissions.
+#trivy:ignore:AVD-AWS-0132:exp:2026-07-07
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
@@ -65,6 +68,35 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
       sse_algorithm = "AES256"
     }
   }
+}
+
+data "aws_iam_policy_document" "terraform_state" {
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.terraform_state.arn,
+      "${aws_s3_bucket.terraform_state.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  policy = data.aws_iam_policy_document.terraform_state.json
 }
 
 resource "aws_dynamodb_table" "terraform_locks" {

@@ -60,6 +60,8 @@ export interface UserStats {
   friends: number;
 }
 
+export type ProfileVisibility = 'public' | 'friends' | 'private';
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -71,6 +73,7 @@ export interface UserProfile {
   interests: string[];
   stats?: UserStats;
   showActivityStatus?: boolean;
+  profileVisibility?: ProfileVisibility;
 }
 
 export type FriendPresence = 'planning' | 'online' | 'idle' | 'offline' | 'hidden';
@@ -125,6 +128,7 @@ export interface AuthPayload {
   homeBase?: string;
   interests?: string[];
   showActivityStatus?: boolean;
+  profileVisibility?: ProfileVisibility;
   accessToken: string;
   refreshToken: string;
 }

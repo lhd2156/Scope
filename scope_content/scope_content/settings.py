@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -123,7 +123,13 @@ if not DEBUG and not FRONTEND_ORIGIN:
     raise ImproperlyConfigured('FRONTEND_ORIGIN or CORE_FRONTEND_ORIGIN must be set when DEBUG=false for scope_content CORS.')
 CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS))
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = ['authorization', 'content-type', 'x-requested-with', 'x-signalr-user-agent']
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+    'x-requested-with',
+    'x-signalr-user-agent',
+    'x-scope-account-deletion',
+]
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'POST', 'PUT']
 CORS_URLS_REGEX = r'^/api/content/.*$'
 CONTENT_SECURITY_POLICY = _build_content_security_policy()
@@ -406,6 +412,11 @@ RATE_LIMIT_AUTH_PER_IP = int(os.getenv('RATE_LIMIT_AUTH_PER_IP', '10'))
 RATE_LIMIT_SEARCH_PER_IP = int(os.getenv('RATE_LIMIT_SEARCH_PER_IP', '120'))
 RATE_LIMIT_UPLOAD_PER_USER = int(os.getenv('RATE_LIMIT_UPLOAD_PER_USER', '20'))
 RATE_LIMIT_COMMENTS_PER_USER = int(os.getenv('RATE_LIMIT_COMMENTS_PER_USER', '30'))
+TRUSTED_PROXY_CIDRS = [
+    cidr.strip()
+    for cidr in os.getenv('TRUSTED_PROXY_CIDRS', '').replace(';', ',').split(',')
+    if cidr.strip()
+]
 
 # Cache backend.
 #
@@ -461,7 +472,20 @@ _session_engine_default = (
 SESSION_ENGINE = os.getenv('DJANGO_SESSION_ENGINE', _session_engine_default)
 SESSION_CACHE_ALIAS = 'default'
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@localhost:5672//')
+def _build_celery_broker_url() -> str:
+    configured_url = os.environ.get('CELERY_BROKER_URL', '').strip()
+    if configured_url:
+        return configured_url
+
+    username = quote(os.environ.get('RABBITMQ_USER', 'guest'), safe='')
+    password = quote(os.environ.get('RABBITMQ_PASS', 'guest'), safe='')
+    host = os.environ.get('RABBITMQ_HOST', 'localhost').strip() or 'localhost'
+    port = os.environ.get('RABBITMQ_PORT', '5672').strip() or '5672'
+    vhost = quote(os.environ.get('RABBITMQ_VHOST', ''), safe='')
+    return f'amqp://{username}:{password}@{host}:{port}/{vhost}'
+
+
+CELERY_BROKER_URL = _build_celery_broker_url()
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/2')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

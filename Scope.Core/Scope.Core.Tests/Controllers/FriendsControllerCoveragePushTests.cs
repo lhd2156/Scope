@@ -83,8 +83,8 @@ public sealed class FriendsControllerCoveragePushTests
             TestData.User(idleId, "idle", displayName: "Idle", interestsJson: """["art"]"""),
             TestData.User(planningId, "planning", displayName: "Planning", interestsJson: """["trails"]"""),
             TestData.User(onlineId, "online", displayName: "Online", interestsJson: """["food"]"""),
-            TestData.User(sameHomeCandidateId, "samehome", displayName: "Same Home", homeBase: "Austin"),
-            TestData.User(freshCandidateId, "fresh", displayName: "Fresh"));
+            TestData.User(sameHomeCandidateId, "samehome", displayName: "Same Home", homeBase: "Austin", profileVisibility: "public"),
+            TestData.User(freshCandidateId, "fresh", displayName: "Fresh", profileVisibility: "public"));
 
         dbContext.Friendships.AddRange(
             Accepted(callerId, offlineId),

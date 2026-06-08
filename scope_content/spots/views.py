@@ -23,7 +23,7 @@ from common.content_safety import evaluate_text_fields
 from common.db_router import read_from_primary
 from common.etag import apply_conditional_etag
 from common.events import record_and_publish
-from common.indexing import delete_spot, index_spot
+from common.indexing import delete_review, delete_spot, index_spot
 from common.kafka_producer import ScopeKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -31,6 +31,7 @@ from photos.delivery import photo_delivery_url
 from photos.models import Photo
 from photos.serializers import PhotoUploadSerializer
 from photos.services.s3_service import S3StorageService
+from reviews.models import Review
 from spots.models import Spot
 from spots.querysets import visible_to_request, with_spot_detail_relations, with_spot_list_relations, with_spot_viewer_state
 from spots.serializers import (
@@ -391,7 +392,10 @@ class SpotDetailView(generics.RetrieveUpdateDestroyAPIView):
         spot = self.get_object()
         if str(spot.user_id) != str(getattr(request.user, 'id', '')) and not getattr(request.user, 'is_admin', False):
             raise PermissionDenied
+        review_ids = list(Review.objects.filter(spot_id=spot.id).values_list('id', flat=True))
         response = super().destroy(request, *args, **kwargs)
+        for review_id in review_ids:
+            delete_review(str(review_id))
         delete_spot(str(spot.id))
         invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
         return response

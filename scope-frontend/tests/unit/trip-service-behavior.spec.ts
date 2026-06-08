@@ -576,4 +576,60 @@ describe('tripService behavior fallbacks', () => {
     const fallbackListed = await tripService.listTrips(1, 6);
     expect(fallbackListed.data.map((trip) => trip.id)).toContain(local.data.id);
   });
+
+  it('preserves strict production trip failures instead of fabricating planner data', async () => {
+    const outage = apiUnavailableError();
+    apiMock.get.mockRejectedValue(outage);
+    apiMock.put.mockRejectedValue(outage);
+
+    const tripService = await import('@/services/tripService');
+
+    await expect(tripService.listTrips()).rejects.toBe(outage);
+    await expect(tripService.listPublicTrips()).rejects.toBe(outage);
+    await expect(tripService.getTripDetail('strict-trip')).rejects.toBe(outage);
+    await expect(tripService.updateTrip('strict-trip', {
+      title: 'Strict route',
+      destination: 'Austin, TX',
+      isPublic: false,
+      startDate: '2026-08-01',
+      endDate: '2026-08-02',
+    })).rejects.toBe(outage);
+  });
+
+  it('uses public-trip and detail mocks only behind the explicit fallback flag', async () => {
+    vi.stubEnv('VITE_ENABLE_TRIP_MOCK_FALLBACK', 'true');
+    const { mockTrips } = await import('@/services/mockData');
+    const publicTrip = mockTrips.find((trip) => trip.isPublic) ?? mockTrips[0]!;
+
+    apiMock.get
+      .mockResolvedValueOnce({ data: { data: [] } })
+      .mockRejectedValueOnce(apiUnavailableError())
+      .mockRejectedValueOnce(apiUnavailableError());
+
+    const tripService = await import('@/services/tripService');
+    const emptyLivePublic = await tripService.listPublicTrips(1, 4);
+    const failedLivePublic = await tripService.listPublicTrips(1, 4);
+    const detail = await tripService.getTripDetail(publicTrip.id);
+
+    expect(emptyLivePublic.data.length).toBeGreaterThan(0);
+    expect(emptyLivePublic.data.length).toBeLessThanOrEqual(4);
+    expect(emptyLivePublic.data.every((trip) => trip.isPublic)).toBe(true);
+    expect(failedLivePublic.data.map((trip) => trip.id)).toEqual(
+      emptyLivePublic.data.map((trip) => trip.id),
+    );
+    expect(detail.data.id).toBe(publicTrip.id);
+    expect(tripService.__tripServiceCoverage?.decodeLocalShareTrip('not-a-valid-local-share')).toBeNull();
+  });
+
+  it('rejects invitations that do not resolve to a registered traveler', async () => {
+    searchUsersMock.mockResolvedValue({ data: [] });
+
+    const tripService = await import('@/services/tripService');
+
+    await expect(tripService.inviteTripMember('live-trip', {
+      recipient: 'missing@example.com',
+      role: 'viewer',
+    })).rejects.toThrow('That traveler was not found');
+    expect(apiMock.post).not.toHaveBeenCalled();
+  });
 });

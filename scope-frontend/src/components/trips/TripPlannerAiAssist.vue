@@ -1519,7 +1519,7 @@ function buildAssumptionSummary(defaults: ItineraryBuildDraftDefaults): string[]
     summary.push(days ? `${days} days` : `${defaults.startDate} to ${defaults.endDate}`);
   } else if (normalizeDurationDays(defaults.durationDays)) {
     const days = normalizeDurationDays(defaults.durationDays) as number;
-    summary.push(`${days} days`);
+    summary.push(`${days} day${days === 1 ? '' : 's'}`);
   }
 
   if (defaults.interests?.length) {
@@ -4035,9 +4035,9 @@ function findStopForAction(action: ScopeRouteActionPayload): TripSpot | undefine
     const stopLabel = normalizeActionLookupValue(stop.title);
     return Boolean(
       (targetId && stopId === targetId)
-      || (targetLabel && stopLabel === targetLabel)
-      || (targetLabel && stopLabel.includes(targetLabel))
-      || (targetLabel && targetLabel.includes(stopLabel)),
+      || (targetLabel && stopLabel && stopLabel === targetLabel)
+      || (targetLabel && stopLabel && stopLabel.includes(targetLabel))
+      || (targetLabel && stopLabel && targetLabel.includes(stopLabel)),
     );
   });
 }

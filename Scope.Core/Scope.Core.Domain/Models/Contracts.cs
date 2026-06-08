@@ -16,6 +16,7 @@ public sealed record UserProfile(
     string? HomeBase,
     IReadOnlyList<string> Interests,
     bool ShowActivityStatus,
+    string ProfileVisibility,
     DateTimeOffset CreatedAt);
 
 // Login can return either a fully-authenticated session or an "MFA required"

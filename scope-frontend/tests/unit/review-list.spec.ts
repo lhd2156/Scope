@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils';
+import { afterEach, beforeEach, vi } from 'vitest';
 import ReviewList from '@/components/spots/ReviewList.vue';
 import type { Review } from '@/types';
 
@@ -21,6 +22,15 @@ const reviews: Review[] = [
 ];
 
 describe('ReviewList', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-08T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders review cards with author, star summary, and comment details', () => {
     const wrapper = mount(ReviewList, {
       props: {
@@ -29,6 +39,8 @@ describe('ReviewList', () => {
     });
 
     expect(wrapper.text()).toContain('Louis Do');
+    expect(wrapper.text()).toContain('@louisdo');
+    expect(wrapper.text()).toContain('Mar 29, 2026');
     expect(wrapper.find('[aria-label="Rated 4.8 out of 5"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('4.8');
     expect(wrapper.text()).toContain('Perfect rooftop energy right before sunset');

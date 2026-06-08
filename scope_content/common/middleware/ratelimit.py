@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from ipaddress import ip_address, ip_network
 from math import ceil
 from threading import Lock
 import logging
@@ -17,6 +18,30 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
 _FALLBACK_LOCK = Lock()
+
+_SLIDING_WINDOW_SCRIPT = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local retry_after = window
+    if oldest[2] then
+        retry_after = math.max(1, math.ceil(tonumber(oldest[2]) + window - now))
+    end
+    redis.call('EXPIRE', key, window)
+    return {0, count, retry_after}
+end
+
+redis.call('ZADD', key, now, member)
+redis.call('EXPIRE', key, window)
+return {1, count + 1, 0}
+"""
 
 
 class RateLimitMiddleware:
@@ -94,7 +119,7 @@ class RateLimitMiddleware:
         elif "/search" in request.path:
             rules.append((f"rl:search:{ip}", int(getattr(settings, "RATE_LIMIT_SEARCH_PER_IP", 30)), window))
 
-        if request.path.startswith("/api/content/photos/upload"):
+        if request.path in {"/api/content/photos/upload", "/api/content/photos/avatar-upload"}:
             rules.append((f"rl:upload:{self._upload_identity(request, ip)}", int(getattr(settings, "RATE_LIMIT_UPLOAD_PER_USER", 20)), window))
         if request.path.startswith("/api/content/comments") and request.method in {"POST", "PUT", "DELETE"}:
             rules.append((f"rl:comments:{self._upload_identity(request, ip)}", int(getattr(settings, "RATE_LIMIT_COMMENTS_PER_USER", 30)), window))
@@ -107,26 +132,28 @@ class RateLimitMiddleware:
 
         now = time.time()
         member = f"{now}:{uuid.uuid4()}"
-        pipe = client.pipeline()
-        pipe.zremrangebyscore(key, 0, now - window)
-        pipe.zcard(key)
-        pipe.zadd(key, {member: now})
-        pipe.expire(key, window)
 
         try:
-            pipe_run = getattr(pipe, "execute")
-            results = pipe_run()
+            allowed, request_count, retry_after = client.eval(
+                _SLIDING_WINDOW_SCRIPT,
+                1,
+                key,
+                now,
+                window,
+                limit,
+                member,
+            )
         except Exception:
             logger.warning("Redis rate limit operation failed", exc_info=True)
             return self._enforce_fallback(key, limit, window, request)
 
-        request_count = int(results[1])
-        if request_count >= limit:
-            return self._limited_response(request, window), {}
+        request_count = int(request_count)
+        if not int(allowed):
+            return self._limited_response(request, int(retry_after)), {}
 
         return None, {
             "X-RateLimit-Limit": str(limit),
-            "X-RateLimit-Remaining": str(max(0, limit - request_count - 1)),
+            "X-RateLimit-Remaining": str(max(0, limit - request_count)),
         }
 
     def _enforce_fallback(self, key: str, limit: int, window: int, request):
@@ -162,11 +189,44 @@ class RateLimitMiddleware:
         )
 
     @staticmethod
-    def _get_client_ip(request):
+    def _trusted_proxy_networks():
+        raw_value = getattr(settings, "TRUSTED_PROXY_CIDRS", []) or os.environ.get("TRUSTED_PROXY_CIDRS", "")
+        if isinstance(raw_value, str):
+            raw_items = [item.strip() for item in raw_value.replace(";", ",").split(",")]
+        else:
+            raw_items = [str(item).strip() for item in raw_value]
+
+        networks = []
+        for raw_item in raw_items:
+            if not raw_item:
+                continue
+            try:
+                networks.append(ip_network(raw_item, strict=False))
+            except ValueError:
+                logger.warning("Ignoring invalid trusted proxy CIDR", extra={"cidr": raw_item})
+        return networks
+
+    @classmethod
+    def _remote_addr_is_trusted_proxy(cls, remote_addr: str) -> bool:
+        try:
+            remote_ip = ip_address(remote_addr)
+        except ValueError:
+            return False
+
+        return any(remote_ip in network for network in cls._trusted_proxy_networks())
+
+    @classmethod
+    def _get_client_ip(cls, request):
+        remote_addr = request.META.get("REMOTE_ADDR", "unknown")
         xff = request.META.get("HTTP_X_FORWARDED_FOR")
-        if xff:
-            return xff.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "unknown")
+        if xff and cls._remote_addr_is_trusted_proxy(remote_addr):
+            candidate = xff.split(",")[0].strip()
+            try:
+                ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
+        return remote_addr
 
     @staticmethod
     def _upload_identity(request, ip_address: str) -> str:

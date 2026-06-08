@@ -8,6 +8,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Scope.Core.Tests.Controllers;
@@ -122,10 +124,49 @@ public sealed class PresenceControllerTests
         Assert.Equal(longRoute[..160], presence.RouteContext);
     }
 
+    [Fact]
+    public async Task Heartbeat_ReturnsAcceptedWhenPersistenceTimesOut()
+    {
+        var userId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+
+        await using (var setupContext = CreateDbContext(databaseName))
+        {
+            setupContext.Users.Add(CreateUser(userId, "transient"));
+            setupContext.UserPresences.Add(new UserPresence
+            {
+                UserId = userId,
+                Status = "offline",
+                LastActiveAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+                UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            });
+            await setupContext.SaveChangesAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddInterceptors(new TimeoutOnSaveInterceptor())
+            .Options;
+        await using var dbContext = new CoreDbContext(options);
+        var controller = CreateController(dbContext, userId);
+
+        var result = await controller.Heartbeat(
+            new PresenceHeartbeatRequest(Status: "planning", RouteContext: "/trips/new", IsPlanning: true),
+            CancellationToken.None);
+
+        var accepted = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status202Accepted, accepted.StatusCode);
+        var response = Assert.IsType<ApiResponse<object>>(accepted.Value);
+        Assert.False(GetBooleanProperty(response.Data, "Persisted"));
+    }
+
     private static CoreDbContext CreateDbContext()
+        => CreateDbContext(Guid.NewGuid().ToString());
+
+    private static CoreDbContext CreateDbContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName)
             .Options;
         return new CoreDbContext(options);
     }
@@ -142,7 +183,7 @@ public sealed class PresenceControllerTests
     };
 
     private static PresenceController CreateController(CoreDbContext dbContext, Guid userId)
-        => new(dbContext)
+        => new(dbContext, NullLogger<PresenceController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -155,4 +196,17 @@ public sealed class PresenceControllerTests
                 }
             }
         };
+
+    private static bool GetBooleanProperty(object? value, string propertyName)
+        => (bool)(value?.GetType().GetProperty(propertyName)?.GetValue(value)
+            ?? throw new InvalidOperationException($"Missing {propertyName} property."));
+
+    private sealed class TimeoutOnSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromException<InterceptionResult<int>>(new TimeoutException("Simulated transient timeout."));
+    }
 }

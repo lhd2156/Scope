@@ -69,6 +69,18 @@ data "aws_iam_policy_document" "ec2_compose_photos_bucket" {
       "${aws_s3_bucket.photos.arn}/*",
     ]
   }
+
+  statement {
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+    ]
+    resources = [
+      aws_kms_key.photos.arn,
+    ]
+  }
 }
 
 locals {
@@ -124,6 +136,11 @@ resource "aws_key_pair" "ec2_compose" {
   })
 }
 
+# HTTPS egress remains destination-open because production workloads call
+# dynamic AWS, registry, map, mail, and AI endpoints. Protocol and port are
+# restricted here; enforce destination allowlisting through an egress proxy
+# if the production architecture later provides one.
+#trivy:ignore:AVD-AWS-0104
 resource "aws_security_group" "ec2_compose" {
   count       = local.deploy_ec2_compose ? 1 : 0
   name        = "${local.name_prefix}-ec2-compose"
@@ -131,19 +148,19 @@ resource "aws_security_group" "ec2_compose" {
   vpc_id      = aws_vpc.scope.id
 
   ingress {
-    description = "HTTP"
+    description = "HTTP from Cloudflare"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.cloudflare_ipv4_cidrs
   }
 
   ingress {
-    description = "HTTPS"
+    description = "HTTPS from Cloudflare"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.cloudflare_ipv4_cidrs
   }
 
   dynamic "ingress" {
@@ -159,10 +176,27 @@ resource "aws_security_group" "ec2_compose" {
   }
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS to external APIs, registries, and AWS services"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "DNS over UDP to the VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "DNS over TCP to the VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = merge(local.common_tags, {

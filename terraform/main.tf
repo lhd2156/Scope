@@ -69,6 +69,23 @@ locals {
     xlarge_ipv6_3_0 = 80
   }
   lightsail_expected_bundle_monthly_usd = lookup(local.lightsail_bundle_monthly_usd, var.lightsail_bundle_id, null)
+  cloudflare_ipv4_cidrs = [
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+  ]
 }
 
 check "single_host_profiles_require_explicit_ssh_key" {
@@ -157,13 +174,6 @@ resource "aws_security_group" "sqlserver" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-sqlserver"
   })
@@ -209,12 +219,94 @@ resource "aws_db_instance" "sqlserver" {
   })
 }
 
+resource "aws_kms_key" "photos" {
+  description             = "Customer-managed encryption key for Scope photo objects"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-photos"
+  })
+}
+
+resource "aws_kms_alias" "photos" {
+  name          = "alias/${local.name_prefix}-photos"
+  target_key_id = aws_kms_key.photos.key_id
+}
+
+resource "aws_kms_key" "eks_secrets" {
+  count                   = local.deploy_eks ? 1 : 0
+  description             = "Customer-managed envelope encryption key for Scope EKS secrets"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-eks-secrets"
+  })
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  count         = local.deploy_eks ? 1 : 0
+  name          = "alias/${local.name_prefix}-eks-secrets"
+  target_key_id = aws_kms_key.eks_secrets[0].key_id
+}
+
 resource "aws_s3_bucket" "photos" {
   bucket = var.photos_bucket_name
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-photos"
   })
+}
+
+resource "aws_s3_bucket_ownership_controls" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "photos" {
+  bucket = aws_s3_bucket.photos.id
+
+  rule {
+    bucket_key_enabled = true
+
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.photos.arn
+      sse_algorithm     = "aws:kms"
+    }
+  }
+}
+
+data "aws_iam_policy_document" "photos_bucket" {
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.photos.arn,
+      "${aws_s3_bucket.photos.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "photos" {
+  bucket = aws_s3_bucket.photos.id
+  policy = data.aws_iam_policy_document.photos_bucket.json
 }
 
 resource "aws_s3_bucket_public_access_block" "photos" {
@@ -329,6 +421,14 @@ resource "aws_eks_cluster" "scope" {
   role_arn = aws_iam_role.eks_cluster[0].arn
   version  = var.eks_cluster_version
 
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets[0].arn
+    }
+
+    resources = ["secrets"]
+  }
+
   vpc_config {
     subnet_ids              = concat([for subnet in aws_subnet.public : subnet.id], [for subnet in aws_subnet.private : subnet.id])
     endpoint_private_access = true
@@ -354,6 +454,78 @@ resource "aws_eks_cluster" "scope" {
   })
 }
 
+data "aws_eks_addon_version" "vpc_cni" {
+  count              = local.deploy_eks ? 1 : 0
+  addon_name         = "vpc-cni"
+  kubernetes_version = var.eks_cluster_version
+  most_recent        = true
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  count         = local.deploy_eks ? 1 : 0
+  cluster_name  = aws_eks_cluster.scope[0].name
+  addon_name    = "vpc-cni"
+  addon_version = data.aws_eks_addon_version.vpc_cni[0].version
+
+  configuration_values = jsonencode({
+    enableNetworkPolicy = "true"
+  })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_iam_role_policy_attachment.eks_worker_node_policy
+  ]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.cluster_name}-vpc-cni"
+  })
+}
+
+data "aws_eks_addon_version" "pod_identity_agent" {
+  count              = local.deploy_eks ? 1 : 0
+  addon_name         = "eks-pod-identity-agent"
+  kubernetes_version = var.eks_cluster_version
+  most_recent        = true
+}
+
+resource "aws_eks_addon" "pod_identity_agent" {
+  count         = local.deploy_eks ? 1 : 0
+  cluster_name  = aws_eks_cluster.scope[0].name
+  addon_name    = "eks-pod-identity-agent"
+  addon_version = data.aws_eks_addon_version.pod_identity_agent[0].version
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node_policy
+  ]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.cluster_name}-pod-identity-agent"
+  })
+}
+
+resource "aws_eks_pod_identity_association" "content" {
+  count           = local.deploy_eks ? 1 : 0
+  cluster_name    = aws_eks_cluster.scope[0].name
+  namespace       = "scope"
+  service_account = "content-aws"
+  role_arn        = aws_iam_role.eks_content[0].arn
+
+  depends_on = [
+    aws_eks_addon.pod_identity_agent,
+    aws_iam_role_policy.eks_content_photos_bucket
+  ]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.cluster_name}-content"
+  })
+}
+
 resource "aws_eks_node_group" "default" {
   count           = local.deploy_eks ? 1 : 0
   cluster_name    = aws_eks_cluster.scope[0].name
@@ -372,7 +544,9 @@ resource "aws_eks_node_group" "default" {
     aws_iam_role_policy_attachment.eks_worker_node_policy,
     aws_iam_role_policy_attachment.eks_cni_policy,
     aws_iam_role_policy_attachment.eks_ecr_read_only,
-    aws_iam_role_policy_attachment.eks_ssm_managed
+    aws_iam_role_policy_attachment.eks_ssm_managed,
+    aws_eks_addon.vpc_cni,
+    aws_eks_addon.pod_identity_agent
   ]
 
   tags = merge(local.common_tags, {

@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import istanbul from 'vite-plugin-istanbul';
 import path from 'node:path';
 import fs from 'node:fs';
 import { copyFile, mkdir } from 'node:fs/promises';
@@ -808,7 +809,23 @@ export default defineConfig(({ mode }) => {
 
   return {
   root: realConfigDirectory,
-  plugins: [vue(), copyOptionalWasmArtifacts(), googleFuelDevProxyPlugin(mode)],
+  plugins: [
+    vue(),
+    ...(process.env.VITE_COVERAGE === 'true'
+      ? [
+          istanbul({
+            include: ['src/**/*.{ts,vue}'],
+            exclude: ['node_modules/**', 'tests/**'],
+            extension: ['.ts', '.vue'],
+            requireEnv: true,
+            forceBuildInstrument: true,
+            cwd: realConfigDirectory,
+          }),
+        ]
+      : []),
+    copyOptionalWasmArtifacts(),
+    googleFuelDevProxyPlugin(mode),
+  ],
   define: workspaceMapboxToken
     ? {
         'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(workspaceMapboxToken),
@@ -919,8 +936,8 @@ export default defineConfig(({ mode }) => {
     globals: true,
     setupFiles: './tests/unit/setup.ts',
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html', 'json-summary'],
+      provider: 'istanbul',
+      reporter: ['text', 'html', 'json', 'json-summary'],
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,vue}'],
       exclude: [

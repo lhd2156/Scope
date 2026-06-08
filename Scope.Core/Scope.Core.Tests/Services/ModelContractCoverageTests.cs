@@ -20,6 +20,7 @@ public sealed class ModelContractCoverageTests
             "Austin",
             ["food", "music"],
             false,
+            "private",
             createdAt);
 
         Assert.Equal(userId, profile.Id);
@@ -31,6 +32,7 @@ public sealed class ModelContractCoverageTests
         Assert.Equal("Austin", profile.HomeBase);
         Assert.Equal(["food", "music"], profile.Interests);
         Assert.False(profile.ShowActivityStatus);
+        Assert.Equal("private", profile.ProfileVisibility);
         Assert.Equal(createdAt, profile.CreatedAt);
 
         var preference = new NotificationPreferencePayload("security", true, false, true, "instant", 10, 20, "UTC");

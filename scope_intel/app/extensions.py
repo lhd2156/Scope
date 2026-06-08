@@ -8,10 +8,10 @@ from flask_sqlalchemy import SQLAlchemy
 
 try:
     from flask_limiter import Limiter
-    from flask_limiter.util import get_remote_address
 except ImportError:  # pragma: no cover - dependency is installed in Docker
     Limiter = None
-    get_remote_address = None
+
+from app.client_ip import get_client_ip
 
 RouteHandler = TypeVar("RouteHandler", bound=Callable[..., Any])
 
@@ -41,9 +41,9 @@ def _limiter_storage_uri() -> str:
 
 limiter = (
     Limiter(
-        key_func=get_remote_address,
+        key_func=get_client_ip,
         default_limits=["100/minute"],
     )
-    if Limiter is not None and get_remote_address is not None
+    if Limiter is not None
     else _NoopLimiter()
 )

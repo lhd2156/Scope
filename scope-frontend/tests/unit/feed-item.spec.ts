@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { afterEach, vi } from 'vitest';
 import FeedItem from '@/components/social/FeedItem.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
@@ -47,11 +48,21 @@ describe('FeedItem', () => {
     };
   }
 
+  function normalizedReviewerAction(wrapper: ReturnType<typeof mount>): string {
+    return wrapper.get('.reviewer-action').text().replace(/\s+/g, ' ').trim();
+  }
+
   beforeEach(() => {
     // FeedItem now touches the auth and toast pinia stores (for gated
     // engagement state). Without an active pinia the component throws
     // on setup, so give the test its own scratch store instance.
     setActivePinia(createPinia());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-08T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders a premium social feed card with travel media and engagement actions', () => {
@@ -118,6 +129,7 @@ describe('FeedItem', () => {
           targetLocation: 'Fort Worth, TX',
           actor: {
             ...item.actor,
+            username: 'sofiaramirez',
             displayName: 'Sofia Ramirez',
             homeBase: 'San Antonio, TX',
           },
@@ -130,9 +142,10 @@ describe('FeedItem', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('Sofia Ramirez reviewed');
+    expect(normalizedReviewerAction(wrapper)).toBe('Sofia Ramirez (@sofiaramirez) reviewed.');
     expect(wrapper.text()).toContain('Fort Worth Water Gardens');
     expect(wrapper.text()).toContain('Fort Worth, TX');
+    expect(wrapper.text()).toContain('Mar 26, 2026');
     expect(wrapper.get('.rating-badge').text()).toContain('4.8/5');
     expect(wrapper.text()).toContain('Worth saving because it gives the map a clear anchor.');
     expect(wrapper.text()).not.toContain('San Antonio, TX');
@@ -168,7 +181,7 @@ describe('FeedItem', () => {
     });
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('aria-pressed')).toBe('false');
     expect(previewWrapper.get(`[data-test="feed-like-${item.id}"]`).attributes('title')).toContain('Scope activity');
-    expect(previewWrapper.text()).toContain('Louis Do reviewed');
+    expect(normalizedReviewerAction(previewWrapper)).toBe('Louis Do (@louisdo) reviewed.');
     expect(previewWrapper.text()).toContain('Botanic River Walk');
     expect(previewWrapper.text()).toContain('Community take');
     expect(previewWrapper.text()).not.toContain('Place review');
@@ -244,7 +257,7 @@ describe('FeedItem', () => {
     const likeButton = wrapper.get(`[data-test="feed-like-${item.id}"]`);
     const shareButton = wrapper.get(`[data-test="feed-share-${item.id}"]`);
 
-    expect(wrapper.text()).toContain('scopefriend reviewed');
+    expect(normalizedReviewerAction(wrapper)).toBe('scopefriend (@scopefriend) reviewed.');
     expect(wrapper.text()).toContain('Downtown Food Hall');
     expect(wrapper.text()).toContain('Community take');
     expect(wrapper.text()).not.toContain('Place review');

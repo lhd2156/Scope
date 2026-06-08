@@ -8210,6 +8210,218 @@ describe('TripPlannerAiAssist', () => {
     await expect(coverage.resolveWeatherPoint('weather in Nowhereville')).resolves.toMatchObject({ status: 'message' });
   });
 
+  it('covers planner assistant state, provider, attachment, and route-action fallback branches', async () => {
+    const blankWrapper = mountPlannerAssist({
+      tripTitle: '',
+      userId: '',
+      draft: {
+        destination: '',
+        endDestination: '',
+        destinationLatitude: undefined,
+        destinationLongitude: undefined,
+        endDestinationLatitude: undefined,
+        endDestinationLongitude: undefined,
+        startDate: 'not-a-date',
+        endDate: '',
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+        pace: '',
+        groupSize: 0,
+      },
+      stops: [
+        { spotId: 'invalid-stop', title: '', latitude: Number.NaN, longitude: Number.NaN, category: 'other' },
+      ],
+    });
+    const blankCoverage = (blankWrapper.vm as any).__coverage;
+
+    expect(blankCoverage.getDateRangeDurationDays('', '')).toBeNull();
+    expect(blankCoverage.getDateRangeDurationDays('2026-05-08', '2026-05-08')).toBe(1);
+    expect(blankCoverage.getWeekendDateDefaults()).toMatchObject({ durationDays: 2 });
+    expect(blankCoverage.hasItineraryBuildDefaults({ startDate: '2026-05-08' })).toBe(true);
+    expect(blankCoverage.hasItineraryBuildDefaults({ endDate: '2026-05-09' })).toBe(true);
+    expect(blankCoverage.hasItineraryBuildDefaults({ interests: ['food'] })).toBe(true);
+    expect(blankCoverage.hasItineraryBuildDefaults({ pace: 'packed' })).toBe(true);
+    expect(blankCoverage.hasItineraryBuildDefaults({ groupSize: 3 })).toBe(true);
+    expect(blankCoverage.buildAssumptionSummary({ startDate: 'bad', endDate: 'also-bad' })).toContain('bad to also-bad');
+    expect(blankCoverage.buildAssumptionSummary({ durationDays: 1 })).toContain('1 day');
+    expect(blankCoverage.buildRoutePromptWithDefaults('Build it', {})).toBe('Build it');
+    expect(blankCoverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      expect.stringContaining('Planner state:'),
+      expect.stringContaining('Existing stops on canvas: 1 stop'),
+      expect.stringContaining('category: other'),
+    ]));
+
+    for (const file of [
+      new File(['jpg'], 'photo.jpg'),
+      new File(['jpeg'], 'photo.jpeg'),
+      new File(['png'], 'photo.png'),
+      new File(['webp'], 'photo.webp'),
+    ]) {
+      expect(blankCoverage.isImageFile(file)).toBe(true);
+    }
+    expect(blankCoverage.isImageFile(new File(['text'], 'notes.txt'))).toBe(false);
+    await expect(blankCoverage.buildChatAttachment(new File(['raw'], 'photo.png'))).resolves.toMatchObject({
+      type: 'image/png',
+    });
+
+    class ErrorFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onerror?.();
+      }
+    }
+    vi.stubGlobal('FileReader', ErrorFileReader);
+    await expect(blankCoverage.readImageFileAsBase64(new File(['bad'], 'broken.png', { type: 'image/png' }))).resolves.toBeUndefined();
+    vi.stubGlobal('FileReader', MockFileReader);
+
+    const memoryKey = blankCoverage.getUserMemoryStorageKey('');
+    window.localStorage.setItem(memoryKey, JSON.stringify({
+      detailPreference: 'unexpected',
+      recentStableInterests: 'food',
+      updatedAt: 'yesterday',
+    }));
+    expect(blankCoverage.readUserMemory()).toMatchObject({
+      detailPreference: 'balanced',
+      recentStableInterests: undefined,
+    });
+
+    expect(blankCoverage.getWeatherPointFromRoute('weather at the route')).toBeNull();
+    expect(blankCoverage.extractLocationLookupQuery('where is x?')).toBeNull();
+    expect(blankCoverage.extractPlaceSearchIntent('find x')).toBeNull();
+    expect(blankCoverage.resolvePlaceSearchAnchor('near the start')).toBeNull();
+    expect(blankCoverage.buildRouteMidpointAnchor([])).toBeUndefined();
+    expect(blankCoverage.resolveRouteActionReason('build a balanced first draft')).toBe('build');
+    expect(blankCoverage.resolveRouteActionReason('generate an itinerary')).toBe('build');
+    expect(blankCoverage.resolveRouteActionReason('make me a weekend plan')).toBe('weekend');
+    expect(blankCoverage.resolveRouteActionReason('remove filler')).toBe('tighten');
+    expect(blankCoverage.resolveRouteActionReason('just chatting')).toBeNull();
+
+    for (const [prompt, expected] of [
+      ['find dinner', 'restaurant'],
+      ['find a scenic overlook', 'scenic overlook'],
+      ['find an arcade', 'entertainment'],
+      ['find a nature trail', 'park'],
+    ]) {
+      expect(blankCoverage.inferRouteStopSearchQuery(prompt)).toBe(expected);
+    }
+
+    const providerPlace = {
+      id: 'provider-place',
+      placeName: 'Provider Place',
+      formattedAddress: '',
+      address: '',
+      city: '',
+      country: '',
+      category: '',
+      latitude: 32.75,
+      longitude: -97.33,
+      source: 'mapbox',
+      sourceLabel: 'Map search',
+      providerVerified: true,
+    };
+    const fallbackPlace = {
+      ...providerPlace,
+      id: 'fallback-place',
+      placeName: '',
+      formattedAddress: 'Fallback address',
+      source: 'mock',
+      sourceLabel: 'Fallback map data',
+      providerVerified: false,
+    };
+    expect(blankCoverage.mapNearbyPlaceToChatPlaceResult(fallbackPlace)).toMatchObject({
+      sourceLabel: 'Unverified map result',
+      providerVerified: false,
+    });
+    expect(blankCoverage.isTrustedPendingContextItem({
+      id: 'trusted-defaults',
+      label: 'Trusted defaults',
+      latitude: 32.75,
+      longitude: -97.33,
+      meta: {},
+    })).toBe(true);
+    expect(blankCoverage.isTrustedPendingContextItem({
+      id: 'untrusted-source',
+      label: 'Untrusted source',
+      latitude: 32.75,
+      longitude: -97.33,
+      source: 'Fallback map data',
+      meta: {},
+    })).toBe(false);
+    expect(blankCoverage.getEndpointCandidateScore({
+      ...providerPlace,
+      distanceKm: undefined,
+      rating: undefined,
+    })).toEqual(expect.any(Number));
+    expect(blankCoverage.mergeEndpointCandidates(
+      [{ ...providerPlace, distanceKm: 5 }],
+      [{ ...providerPlace, distanceKm: 1 }],
+    )).toHaveLength(1);
+    expect(blankCoverage.mergeEndpointCandidates(
+      [{ ...providerPlace, distanceKm: 1 }],
+      [{ ...providerPlace, distanceKm: 5 }],
+    )).toHaveLength(1);
+    expect(blankCoverage.buildEndpointCandidatesContent([fallbackPlace], { label: 'Blank route' })).toContain('fallback');
+
+    const routedWrapper = mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+        startDate: '2026-05-08',
+        endDate: '2026-05-08',
+        budgetFloor: 0,
+        budget: 0,
+        interests: ['entertainment'],
+        pace: 'packed',
+        groupSize: 1,
+      },
+      locationSearchProximity: {
+        label: '',
+        latitude: 31.5,
+        longitude: -97,
+      },
+      stops: [
+        { spotId: 'invalid', title: '', latitude: Number.NaN, longitude: Number.NaN, category: 'other' },
+        { spotId: 'valid', title: '', latitude: 31.5, longitude: -97, category: 'entertainment' },
+      ],
+    });
+    const routedCoverage = (routedWrapper.vm as any).__coverage;
+
+    expect(routedCoverage.getRouteSearchLabel()).toBe('along this route');
+    expect(routedCoverage.getWeatherPointFromRoute('weather at the start')).toMatchObject({ label: 'route start' });
+    expect(routedCoverage.getWeatherPointFromRoute('weather at the end')).toMatchObject({ label: 'Austin, TX' });
+    expect(routedCoverage.resolvePlaceSearchAnchor('near the start')).toMatchObject({ role: 'start' });
+    expect(routedCoverage.resolvePlaceSearchAnchor('near the end')).toMatchObject({ role: 'end' });
+    expect(routedCoverage.resolvePlaceSearchAnchor('near stop 1')).toMatchObject({ role: 'stop' });
+    expect(routedCoverage.resolvePlaceSearchAnchor('near the midpoint')).toMatchObject({ role: 'midpoint' });
+    expect(routedCoverage.resolvePlaceSearchAnchor('near the route')).toMatchObject({ role: 'midpoint' });
+    expect(routedCoverage.getBestNextMoveSuggestion({ kind: 'startCity' })).toBe('Check first-leg timing');
+    expect(routedCoverage.buildSuggestionPool().join(' ')).toContain('Austin');
+    expect(routedCoverage.inferRouteStopSearchQuery('find something fun')).toBe('entertainment');
+
+    routedCoverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: 'Austin, TX' });
+    routedCoverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: 'Austin' });
+    routedCoverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: 'Downtown Austin TX' });
+    routedCoverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: 'Nowhere' });
+    routedCoverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: '' });
+    expect(routedWrapper.emitted('route-endpoint-remove')?.length).toBeGreaterThanOrEqual(3);
+
+    getTravelNearbySuggestionsMock.mockRejectedValueOnce(new Error('travel nearby unavailable'));
+    searchNearbyPlacesMock.mockRejectedValueOnce(new Error('map nearby unavailable'));
+    await expect(routedCoverage.findEndpointCandidates(
+      { id: 'start', label: 'Fort Worth', latitude: 32.7555, longitude: -97.3308, role: 'start' },
+      'scenic',
+      'find an endpoint',
+    )).resolves.toEqual([]);
+  });
+
   it('smoke-exercises exposed planner assistant coverage helpers across guard inputs', async () => {
     const scopeAiStore = createScopeAiStore();
     const wrapper = mountPlannerAssist({

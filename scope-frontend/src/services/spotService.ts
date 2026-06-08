@@ -234,11 +234,10 @@ function hasSpotDiscoveryFilters(filters: SpotFilters): boolean {
 
 async function buildMockSpotEnvelope(
   filters: SpotFilters,
-  options: { ranked?: boolean } = {},
 ): Promise<ApiEnvelope<SpotSummary[]>> {
   const { filterSpots } = await loadMockData();
   const filteredSpots = filterSpots(filters);
-  const fallbackSpots = options.ranked ? rankTrendingSpots(filteredSpots) : filteredSpots;
+  const fallbackSpots = rankTrendingSpots(filteredSpots);
 
   return sanitizeSpotEnvelope(
     paginateItems(fallbackSpots, filters.page ?? 1, filters.pageSize ?? (fallbackSpots.length || 1)),
@@ -249,7 +248,6 @@ async function buildMockSpotEnvelope(
 async function resolveSpotListEnvelope(
   response: ApiEnvelope<SpotSummary[]>,
   filters: SpotFilters,
-  options: { rankedFallback?: boolean } = {},
 ): Promise<ApiEnvelope<SpotSummary[]>> {
   const sanitizedResponse = sanitizeSpotEnvelope(response);
   rememberLiveSpotList(sanitizedResponse.data);
@@ -261,7 +259,7 @@ async function resolveSpotListEnvelope(
     !sanitizedResponse.data.length &&
     (!hasObservedLiveSpotData || isEmptyUnfilteredDiscovery)
   ) {
-    return buildMockSpotEnvelope(filters, { ranked: options.rankedFallback });
+    return buildMockSpotEnvelope(filters);
   }
 
   return sanitizedResponse;
@@ -281,7 +279,7 @@ function distanceInKilometers(
 
 async function updateSpotCollections(
   updatedSpot: SpotDetail,
-  options: MockAvatarSanitizerOptions = {},
+  options: MockAvatarSanitizerOptions,
 ): Promise<SpotDetail> {
   const { mockSpotDetails, mockSpots } = await loadMockData();
   const sanitizedSpot = sanitizeSpotDetail(updatedSpot, {
@@ -304,7 +302,7 @@ async function updateSpotCollections(
       category: sanitizedSpot.category,
       vibe: sanitizedSpot.vibe,
       rating: sanitizedSpot.rating,
-      photoUrl: sanitizedSpot.photoUrl ?? sanitizedSpot.photos[0]?.url,
+      photoUrl: sanitizedSpot.photoUrl,
       createdAt: sanitizedSpot.createdAt,
       author: sanitizedSpot.author,
       liked: sanitizedSpot.liked,
@@ -331,12 +329,12 @@ export async function listSpots(filters: SpotFilters = {}): Promise<ApiEnvelope<
 
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(SPOTS_COLLECTION_PATH, { params: sanitizedFilters });
-    return resolveSpotListEnvelope(data, sanitizedFilters, { rankedFallback: true });
+    return resolveSpotListEnvelope(data, sanitizedFilters);
   } catch (error) {
     if (!SPOT_READ_FALLBACK_ENABLED) {
       throw error;
     }
-    return buildMockSpotEnvelope(sanitizedFilters, { ranked: true });
+    return buildMockSpotEnvelope(sanitizedFilters);
   }
 }
 
@@ -353,12 +351,12 @@ export async function exploreSpots(filters: SpotFilters = {}): Promise<ApiEnvelo
 
   try {
     const { data } = await api.get<ApiEnvelope<SpotSummary[]>>(`${SPOTS_BASE_PATH}/explore`, { params: sanitizedFilters });
-    return resolveSpotListEnvelope(data, sanitizedFilters, { rankedFallback: true });
+    return resolveSpotListEnvelope(data, sanitizedFilters);
   } catch (error) {
     if (!SPOT_READ_FALLBACK_ENABLED) {
       throw error;
     }
-    return buildMockSpotEnvelope(sanitizedFilters, { ranked: true });
+    return buildMockSpotEnvelope(sanitizedFilters);
   }
 }
 
@@ -451,7 +449,7 @@ export async function getSpotDetail(spotId: string): Promise<ApiEnvelope<SpotDet
       if (photoResponse.data.length) {
         sanitizedResponse.data = sanitizeSpotDetail({
           ...sanitizedResponse.data,
-          photos: [...(sanitizedResponse.data.photos ?? []), ...photoResponse.data],
+          photos: [...sanitizedResponse.data.photos, ...photoResponse.data],
         });
       }
     } catch {

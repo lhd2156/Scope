@@ -196,16 +196,15 @@ function rememberCsrfToken(nextToken: string | null | undefined): string {
 }
 
 function isMutatingRequest(requestConfig: InternalAxiosRequestConfig): boolean {
-  return MUTATING_METHODS.has((requestConfig.method ?? 'get').toLowerCase());
+  return MUTATING_METHODS.has(requestConfig.method.toLowerCase());
 }
 
 function isIdempotentRequest(requestConfig: InternalAxiosRequestConfig): boolean {
-  return IDEMPOTENT_METHODS.has((requestConfig.method ?? 'get').toLowerCase());
+  return IDEMPOTENT_METHODS.has(requestConfig.method.toLowerCase());
 }
 
-function isRefreshRequest(requestConfig: InternalAxiosRequestConfig | undefined): boolean {
-  const url = requestConfig?.url ?? '';
-  return url.includes(REFRESH_ENDPOINT_PATH);
+function isRefreshRequest(requestConfig: InternalAxiosRequestConfig): boolean {
+  return requestConfig.url.includes(REFRESH_ENDPOINT_PATH);
 }
 
 function delay(ms: number): Promise<void> {
@@ -213,10 +212,6 @@ function delay(ms: number): Promise<void> {
 }
 
 async function bootstrapCsrfToken(): Promise<string> {
-  if (csrfToken) {
-    return csrfToken;
-  }
-
   const cookieBackedToken = readCookieCsrfToken();
 
   if (cookieBackedToken) {
@@ -260,12 +255,8 @@ async function runUnauthorizedHandler(): Promise<void> {
 }
 
 async function refreshAccessTokenOnce(): Promise<string | null> {
-  if (!refreshAccessTokenHandler) {
-    return null;
-  }
-
   if (!accessTokenRefreshPromise) {
-    accessTokenRefreshPromise = refreshAccessTokenHandler().finally(() => {
+    accessTokenRefreshPromise = refreshAccessTokenHandler!().finally(() => {
       accessTokenRefreshPromise = null;
     });
   }

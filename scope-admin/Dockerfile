@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:24-alpine AS build
+FROM node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -17,7 +17,8 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
 RUN npm run build
 
 # Stage 2: Serve
-FROM nginx:1.27-alpine
+FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:0a1e718ff1e1a22fc519d0c2e5b6872681f01e37c8a2817ec43ce6e716103929
+USER root
 RUN apk add --no-cache curl \
     && find / -xdev \( -perm -4000 -o -perm -2000 \) -exec chmod ug-s {} + 2>/dev/null || true
 COPY --from=build /app/dist /usr/share/nginx/html

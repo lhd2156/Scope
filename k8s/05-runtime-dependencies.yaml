@@ -33,9 +33,22 @@ spec:
         app.kubernetes.io/name: redis
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
-          image: redis:7.2-alpine
+          image: redis:8.6.4-alpine3.23@sha256:d103b9cd0b54b98b2c38e2b19220ee7adfe4b0fb22c406baa75f321179da2f00
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           args:
             - redis-server
             - --maxmemory
@@ -63,6 +76,139 @@ spec:
                 - ping
             initialDelaySeconds: 5
             periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  selector:
+    app.kubernetes.io/name: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rabbitmq
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.1-management-alpine@sha256:c27a1e0a4f4a4486aeaa4c3c30f1d9b7211e06d341f005e5fca9ce36d95024bb
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          ports:
+            - name: amqp
+              containerPort: 5672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: scope-shared-config
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: RABBITMQ_PASS
+            - name: RABBITMQ_DEFAULT_VHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: scope-shared-config
+                  key: RABBITMQ_VHOST
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+            - name: logs
+              mountPath: /var/log/rabbitmq
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
+        - name: logs
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -115,9 +261,39 @@ spec:
         app.kubernetes.io/name: elasticsearch
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 0
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: initialize-config
+          image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:8.19.15@sha256:619cda3f9b5d47abcee662ada5c1e7daeae576d02f5597a0f6d3e0c7b67bbe31
+          command:
+            - /bin/sh
+            - -ec
+            - cp -a /usr/share/elasticsearch/config/. /config-writable/
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /config-writable
       containers:
         - name: elasticsearch
-          image: docker.elastic.co/elasticsearch/elasticsearch:8.18.0
+          image: docker.elastic.co/elasticsearch/elasticsearch-wolfi:8.19.15@sha256:619cda3f9b5d47abcee662ada5c1e7daeae576d02f5597a0f6d3e0c7b67bbe31
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           env:
             - name: discovery.type
               value: single-node
@@ -135,6 +311,12 @@ spec:
           volumeMounts:
             - name: elasticsearch-data
               mountPath: /usr/share/elasticsearch/data
+            - name: config
+              mountPath: /usr/share/elasticsearch/config
+            - name: logs
+              mountPath: /usr/share/elasticsearch/logs
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 250m
@@ -152,6 +334,14 @@ spec:
         - name: elasticsearch-data
           persistentVolumeClaim:
             claimName: elasticsearch-data
+        - name: config
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: logs
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -203,10 +393,28 @@ spec:
         app.kubernetes.io/name: ollama
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: ollama
-          image: ollama/ollama:latest
+          image: ollama/ollama:0.30.6@sha256:fbaaecc6c632a73c2b4ca25ef52dbee0b68d07783fcb850f916404c004040f90
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           env:
+            - name: HOME
+              value: /home/ollama
+            - name: OLLAMA_MODELS
+              value: /home/ollama/.ollama/models
             - name: OLLAMA_CONTEXT_LENGTH
               value: "1024"
             - name: OLLAMA_NUM_PARALLEL
@@ -218,7 +426,9 @@ spec:
               containerPort: 11434
           volumeMounts:
             - name: ollama-data
-              mountPath: /root/.ollama
+              mountPath: /home/ollama/.ollama
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 250m
@@ -236,3 +446,5 @@ spec:
         - name: ollama-data
           persistentVolumeClaim:
             claimName: ollama-data
+        - name: tmp
+          emptyDir: {}

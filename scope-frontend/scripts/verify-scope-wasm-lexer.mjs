@@ -1,4 +1,4 @@
-import { closeSync, openSync } from 'node:fs';
+import { closeSync, openSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -176,6 +176,12 @@ const wasmArtifacts = wasmArtifactCandidates
 
 if (!wasmArtifacts) {
   console.error('Compiled Scope WASM artifacts are missing. Run `npm run wasm:build` first.');
+  process.exit(1);
+}
+
+const moduleSource = readFileSync(wasmArtifacts.modulePath, 'utf8');
+if (/\beval\s*\(|\bnew\s+Function\s*\(/.test(moduleSource)) {
+  console.error('Scope WASM glue contains dynamic JavaScript execution and is not compatible with the production CSP.');
   process.exit(1);
 }
 

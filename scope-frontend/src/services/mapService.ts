@@ -61,6 +61,8 @@ export interface GeocodeResult {
   formattedAddress?: string;
   address?: string;
   city?: string;
+  adminArea?: string;
+  stateCode?: string;
   country?: string;
   countryCode?: string;
   postalCode?: string;
@@ -75,7 +77,7 @@ export interface PlaceSearchResult extends GeocodeResult {
   photoUrl?: string;
   photoAttribution?: string;
   photoAttributionUrl?: string;
-  source: 'mapbox' | 'mock';
+  source: 'mapbox' | 'intel' | 'mock';
 }
 
 export interface PlacePhotoLookupOptions {
@@ -201,6 +203,8 @@ function sanitizeGeocodeResult(result: GeocodeResult): GeocodeResult {
     formattedAddress: formattedAddress || undefined,
     address: address || undefined,
     city: sanitizeSingleLineText(result.city) || undefined,
+    adminArea: sanitizeSingleLineText(result.adminArea) || undefined,
+    stateCode: sanitizeSingleLineText(result.stateCode) || undefined,
     country: sanitizeSingleLineText(result.country) || undefined,
     countryCode: sanitizeSingleLineText(result.countryCode)?.toLowerCase() || undefined,
     postalCode: sanitizeSingleLineText(result.postalCode) || undefined,
@@ -495,7 +499,7 @@ function mapboxFeatureToGeocodeResult(
   const placeName = sanitizeSingleLineText(feature.text) || 'Pinned location';
   const houseNumber = sanitizeSingleLineText(feature.address);
   const formattedAddress = sanitizeSingleLineText(feature.place_name) || placeName;
-  const address = [houseNumber, placeName].filter(Boolean).join(' ') || undefined;
+  const address = [houseNumber, placeName].filter(Boolean).join(' ');
 
   return sanitizeGeocodeResult({
     latitude: resolvedCoordinate.latitude,
@@ -504,6 +508,8 @@ function mapboxFeatureToGeocodeResult(
     formattedAddress,
     address,
     city: readMapboxContextValue(feature.context, ['place', 'locality', 'neighborhood']),
+    adminArea: readMapboxContextValue(feature.context, ['region']),
+    stateCode: readMapboxContextShortCode(feature.context, ['region']),
     country: readMapboxContextValue(feature.context, ['country']),
     countryCode: readMapboxContextShortCode(feature.context, ['country']),
     postalCode: readMapboxProperty(feature, 'postcode') ||
@@ -538,6 +544,14 @@ function mapboxFeatureToPlaceSearchResult(
     photoUrl: readMapboxFeaturePhotoUrl(feature.properties),
     distanceKm: distanceKm === undefined ? undefined : Number(distanceKm.toFixed(2)),
     source: 'mapbox',
+  };
+}
+
+function geocodeResultToPlaceSearchResult(result: GeocodeResult): PlaceSearchResult {
+  return {
+    ...result,
+    id: result.providerPlaceId,
+    source: 'intel',
   };
 }
 
@@ -957,6 +971,9 @@ function mapboxSearchBoxFeatureToPlaceSearchResult(
       readFlexibleText(readFlexibleProperty(context, 'city'), 'name') ||
       readFlexibleText(readFlexibleProperty(context, 'locality'), 'name') ||
       readFlexibleText(readFlexibleProperty(context, 'neighborhood'), 'name'),
+    adminArea: readFlexibleText(readFlexibleProperty(context, 'region'), 'name'),
+    stateCode: readFlexibleText(readFlexibleProperty(context, 'region'), 'region_code') ||
+      readFlexibleText(readFlexibleProperty(context, 'region'), 'short_code'),
     country: readFlexibleText(readFlexibleProperty(context, 'country'), 'name'),
     countryCode: readFlexibleText(readFlexibleProperty(context, 'country'), 'country_code') ||
       readFlexibleText(readFlexibleProperty(context, 'country'), 'short_code'),
@@ -1018,6 +1035,9 @@ function mapboxSearchBoxCategoryFeatureToNearbyPlaceResult(
       readFlexibleText(readFlexibleProperty(context, 'city'), 'name') ||
       readFlexibleText(readFlexibleProperty(context, 'locality'), 'name') ||
       readFlexibleText(readFlexibleProperty(context, 'neighborhood'), 'name'),
+    adminArea: readFlexibleText(readFlexibleProperty(context, 'region'), 'name'),
+    stateCode: readFlexibleText(readFlexibleProperty(context, 'region'), 'region_code') ||
+      readFlexibleText(readFlexibleProperty(context, 'region'), 'short_code'),
     country: readFlexibleText(readFlexibleProperty(context, 'country'), 'name'),
     postalCode,
     providerPlaceId: readFlexibleText(properties, 'mapbox_id') || undefined,
@@ -1492,6 +1512,13 @@ export async function searchLocations(query: string, options: LocationSearchOpti
   }).catch(() => []);
   if (mapboxResults.length) {
     return { data: rankLocationSearchResults(sanitizedQuery, mapboxResults).slice(0, limit) };
+  }
+
+  const geocodeResults = await geocode(sanitizedQuery, limit)
+    .then((response) => response.data.map(geocodeResultToPlaceSearchResult))
+    .catch(() => []);
+  if (geocodeResults.length) {
+    return { data: rankLocationSearchResults(sanitizedQuery, geocodeResults).slice(0, limit) };
   }
 
   const fallbackResults = await searchPlaces(sanitizedQuery, { ...options, limit, types: options.types }).catch(() => ({ data: [] }));

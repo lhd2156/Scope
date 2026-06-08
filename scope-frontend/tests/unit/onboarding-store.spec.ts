@@ -1,6 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
-import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
+import {
+  ONBOARDING_COMPLETION_STORAGE_KEY,
+  ONBOARDING_DISMISSED_STORAGE_KEY,
+  useOnboardingStore,
+} from '@/stores/onboarding';
 import { clearStoredAuthSessionHint, persistAuthSessionHint } from '@/utils/authSessionStorage';
 
 describe('useOnboardingStore', () => {
@@ -92,19 +96,23 @@ describe('useOnboardingStore', () => {
     expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
   });
 
-  it('persists skip state and allows a replay after completion is reset', () => {
+  it('persists dismissal without claiming completion and allows a replay after reset', () => {
     const onboardingStore = useOnboardingStore();
 
     onboardingStore.start();
     onboardingStore.skip();
 
-    expect(onboardingStore.hasCompleted).toBe(true);
-    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
+    expect(onboardingStore.hasCompleted).toBe(false);
+    expect(onboardingStore.hasDismissed).toBe(true);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(ONBOARDING_DISMISSED_STORAGE_KEY)).toBe('dismissed');
     expect(onboardingStore.startIfPending()).toBe(false);
 
     onboardingStore.resetCompletion();
     expect(onboardingStore.hasCompleted).toBe(false);
+    expect(onboardingStore.hasDismissed).toBe(false);
     expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(ONBOARDING_DISMISSED_STORAGE_KEY)).toBeNull();
 
     expect(onboardingStore.restart('map-filters')).toBe(true);
     expect(onboardingStore.isActive).toBe(true);

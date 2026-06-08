@@ -15,7 +15,7 @@ export interface PresignedUploadRequest {
 export interface PresignedUploadTarget {
   uploadUrl: string;
   fileUrl: string;
-  method: 'PUT';
+  method: 'PUT' | 'POST';
   headers?: Record<string, string>;
   expiresInSeconds: number;
 }
@@ -56,6 +56,20 @@ export async function getPresignedUploadTarget(request: PresignedUploadRequest):
 export async function uploadFileToPresignedTarget(target: PresignedUploadTarget, file: Blob): Promise<string> {
   if (target.uploadUrl.startsWith('blob:') || target.uploadUrl.startsWith('local://')) {
     return target.fileUrl;
+  }
+
+  if (target.method === 'POST') {
+    const body = new FormData();
+    body.append('file', file);
+    const { data } = await api.post<ApiEnvelope<{ fileUrl: string }> | { fileUrl: string }>(
+      target.uploadUrl,
+      body,
+      {
+        headers: target.headers,
+        timeout: 20_000,
+      },
+    );
+    return unwrapApiData(data).fileUrl;
   }
 
   await axios.put(target.uploadUrl, file, {

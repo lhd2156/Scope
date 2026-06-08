@@ -11,6 +11,7 @@ from PIL import Image
 from rest_framework.test import APIClient
 
 from photos.models import Photo
+from reviews.models import Review
 from spots.models import Spot
 from trips.models import TripSpot
 
@@ -80,9 +81,26 @@ def test_spot_read_endpoints_cover_detail_explore_user_and_photos(api_client, sp
     assert missing_response.json()['error']['code'] == 'NOT_FOUND'
 
 
-def test_spot_write_endpoints_handle_happy_and_error_paths(authenticated_client, auth_header, api_client, spot):
+def test_spot_write_endpoints_handle_happy_and_error_paths(
+    authenticated_client,
+    auth_header,
+    api_client,
+    spot,
+    monkeypatch,
+):
     _, owner_user_id = auth_header
     outsider_client = _auth_client_for_user(str(uuid4()))
+    indexed_review = Review.objects.create(
+        spot=spot,
+        user_id=uuid4(),
+        rating='4.0',
+        comment='Removed with the spot',
+    )
+    deleted_review_indexes = []
+    monkeypatch.setattr(
+        'spots.views.delete_review',
+        lambda review_id: deleted_review_indexes.append(review_id),
+    )
 
     like_response = authenticated_client.post(f'/api/content/spots/{spot.id}/like')
     unlike_response = authenticated_client.delete(f'/api/content/spots/{spot.id}/like')
@@ -130,6 +148,8 @@ def test_spot_write_endpoints_handle_happy_and_error_paths(authenticated_client,
     assert forbidden_update.json()['error']['message'] == 'Insufficient permissions'
     assert invalid_nearby.status_code == 400
     assert invalid_nearby.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert deleted_review_indexes == [str(indexed_review.id)]
+    assert not Review.objects.filter(pk=indexed_review.id).exists()
     assert {'field': 'lat', 'message': 'Latitude out of range'} in invalid_nearby.json()['error']['details']
     assert missing_like.status_code == 404
     assert missing_like.json()['error']['code'] == 'NOT_FOUND'
@@ -281,11 +301,6 @@ def test_photo_endpoints_cover_upload_presigned_update_delete_and_errors(auth_he
             'thumbnail_url': 'https://example.com/photos/integration_thumb.png',
         },
     )
-    monkeypatch.setattr(
-        'photos.views.S3StorageService.presigned_upload_url',
-        lambda self, key: f'https://example.com/presigned/{key}',
-    )
-
     presigned_response = owner_client.get('/api/content/photos/presigned-url')
     upload_response = owner_client.post(
         '/api/content/photos/upload',
@@ -314,7 +329,8 @@ def test_photo_endpoints_cover_upload_presigned_update_delete_and_errors(auth_he
 
     assert presigned_response.status_code == 200
     assert presigned_response.json()['data']['enabled'] is True
-    assert presigned_response.json()['data']['url'].startswith('https://example.com/presigned/')
+    assert presigned_response.json()['data']['uploadUrl'] == '/api/content/photos/avatar-upload'
+    assert presigned_response.json()['data']['method'] == 'POST'
     assert upload_response.status_code == 201
     assert upload_response.json()['data']['caption'] == 'Great shot'
     assert invalid_upload_response.status_code == 400

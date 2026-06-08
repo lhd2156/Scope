@@ -12,7 +12,7 @@ from app import create_app  # noqa: E402
 from app.rate_limit import reset_rate_limit_state  # noqa: E402
 
 TEST_SECRET_KEY = "scope-intel-test-secret"
-TEST_JWT_SECRET = "scope-intel-test-jwt-secret"
+TEST_JWT_SECRET = "scope-intel-test-jwt-secret-at-least-32-bytes"
 TEST_JWT_ISSUER = "scope-core"
 TEST_JWT_AUDIENCE = "scope-frontend"
 
@@ -37,6 +37,7 @@ def app():
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "RATE_LIMIT_PER_MINUTE": 9999,
             "ML_REQUEST_TIMEOUT_SECONDS": 5.0,
+            "WEATHER_CACHE_REDIS_URL": "",
         }
     )
     return app

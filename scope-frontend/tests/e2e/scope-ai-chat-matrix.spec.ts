@@ -1336,7 +1336,11 @@ function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error' && !/^Failed to load resource:/i.test(message.text())) {
-      errors.push(message.text());
+      const location = message.location();
+      const source = location.url
+        ? ` (${location.url}:${location.lineNumber}:${location.columnNumber})`
+        : '';
+      errors.push(`${message.text()}${source}`);
     }
   });
   page.on('response', (response) => {
@@ -1345,7 +1349,7 @@ function collectBrowserErrors(page: Page): string[] {
     }
   });
   page.on('pageerror', (error) => {
-    errors.push(error.message);
+    errors.push(error.stack || error.message);
   });
   return errors;
 }

@@ -8,13 +8,14 @@
           </span>
           <div class="review-author__copy">
             <strong>{{ review.user.displayName }}</strong>
+            <p class="review-author__handle">@{{ review.user.username }}</p>
             <p class="review-timestamp">
               <time
                 :datetime="review.createdAt"
-                :title="formatMonthDay(review.createdAt) || undefined"
+                :title="formatMonthDayYear(review.createdAt) || undefined"
                 class="review-timestamp__value"
               >
-                {{ formatRelativeTime(review.createdAt) }}
+                {{ formatPostTimestamp(review.createdAt) }}
               </time>
             </p>
           </div>
@@ -48,7 +49,7 @@
 import Avatar from '@/components/common/Avatar.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import ReviewSentiment from '@/components/spots/ReviewSentiment.vue';
-import { formatMonthDay, formatRelativeTime } from '@/utils/formatters';
+import { formatMonthDayYear, formatPostTimestamp } from '@/utils/formatters';
 import type { Review } from '@/types';
 
 withDefaults(
@@ -154,8 +155,16 @@ function formatReviewComment(comment: string): string {
 
 .review-author__copy {
   display: grid;
-  gap: var(--space-1);
+  gap: 0.12rem;
   min-width: 0;
+}
+
+.review-author__handle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
 }
 
 .review-timestamp {

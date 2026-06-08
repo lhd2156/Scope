@@ -3,6 +3,11 @@ output "vpc_id" {
   value       = aws_vpc.scope.id
 }
 
+output "vpc_cidr" {
+  description = "CIDR for Scope workloads and trusted reverse proxies."
+  value       = aws_vpc.scope.cidr_block
+}
+
 output "stack_profile" {
   description = "Active Terraform deployment profile."
   value       = local.stack_profile
@@ -33,6 +38,11 @@ output "eks_cluster_endpoint" {
   value       = local.deploy_eks ? aws_eks_cluster.scope[0].endpoint : null
 }
 
+output "eks_secrets_kms_key_arn" {
+  description = "Customer-managed KMS key used for EKS secrets envelope encryption."
+  value       = local.deploy_eks ? aws_kms_key.eks_secrets[0].arn : null
+}
+
 output "sqlserver_endpoint" {
   description = "RDS SQL Server endpoint."
   value       = local.deploy_sqlserver ? aws_db_instance.sqlserver[0].address : null
@@ -41,6 +51,11 @@ output "sqlserver_endpoint" {
 output "photos_bucket_name" {
   description = "S3 bucket used for Scope photo storage."
   value       = aws_s3_bucket.photos.bucket
+}
+
+output "photos_kms_key_arn" {
+  description = "Customer-managed KMS key used for Scope photo objects."
+  value       = aws_kms_key.photos.arn
 }
 
 output "ecr_repository_urls" {

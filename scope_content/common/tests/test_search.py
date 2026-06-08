@@ -53,6 +53,11 @@ class TestSearchView:
         assert response.status_code == 200
         body = mock_es.search.call_args.kwargs['body']
         assert {'term': {'is_public': True}} in body['query']['bool']['filter']
+        phrase_prefix = body['query']['bool']['should'][2]['multi_match']
+        assert phrase_prefix['fields'] == ['name^3', 'description']
+        assert 'tags^2' not in phrase_prefix['fields']
+        assert 'category^2' not in phrase_prefix['fields']
+        assert 'country' not in phrase_prefix['fields']
 
     def test_search_filters_non_public_hits_returned_by_stale_indexes(self, rf, mock_es):
         mock_es.search.return_value = {

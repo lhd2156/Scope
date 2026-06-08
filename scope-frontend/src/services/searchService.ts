@@ -149,12 +149,9 @@ function toSearchResult(seed: LocalSearchSeed, queryTokens: readonly string[]): 
   };
 }
 
-function buildSearchResultHaystack(result: SearchResult, options: { includeDescription?: boolean } = {}): string {
-  const includeDescription = options.includeDescription ?? true;
-
+function buildShortQueryResultHaystack(result: SearchResult): string {
   return [
     result.name,
-    includeDescription ? result.description : undefined,
     result.category,
     result.city,
     result.country,
@@ -175,7 +172,7 @@ function filterShortQueryResults(response: SearchResponse): SearchResponse {
   }
 
   const results = response.results.filter((result) => {
-    const haystack = buildSearchResultHaystack(result, { includeDescription: false });
+    const haystack = buildShortQueryResultHaystack(result);
     return queryTokens.every((token) => textHasTokenPrefix(haystack, token));
   });
 
@@ -204,10 +201,6 @@ function mergeLocalSearchSpotCatalogs(primarySpots: SpotSummary[], supplementalS
 }
 
 async function loadSupplementalDemoSearchSpots(): Promise<SpotSummary[]> {
-  if (!shouldUseLocalSearchFallback()) {
-    return [];
-  }
-
   try {
     const { demoSpots } = await import('@/mock');
     return demoSpots;
@@ -338,7 +331,9 @@ export async function searchContent(
 
     if (!response) {
       const fallbackResponse = await getFallbackResponse();
-      return fallbackResponse ?? await liveSearchPromise;
+      return fallbackResponse?.results.length
+        ? fallbackResponse
+        : await liveSearchPromise;
     }
 
     if (canUseLocalFallback && !response.results.length) {

@@ -72,6 +72,23 @@ class PhotoUploadSerializer(serializers.Serializer):
         return value.strip()
 
 
+class AvatarUploadSerializer(serializers.Serializer):
+    file = serializers.ImageField()
+
+    def validate_file(self, value):
+        max_avatar_bytes = min(settings.MAX_UPLOAD_BYTES, 5 * 1024 * 1024)
+        if value.size > max_avatar_bytes:
+            raise serializers.ValidationError('Avatar uploads must be 5 MB or smaller')
+        sniffed = _sniff_image_mime(value)
+        if sniffed is None or sniffed not in settings.ALLOWED_IMAGE_TYPES:
+            raise serializers.ValidationError('Unsupported file type')
+        try:
+            value.content_type = sniffed
+        except Exception:  # pragma: no cover - some storage backends are read-only
+            pass
+        return value
+
+
 class PhotoSerializer(serializers.ModelSerializer):
     caption = serializers.CharField(required=False, allow_blank=True, max_length=500)
     sort_order = serializers.IntegerField(required=False, min_value=0)

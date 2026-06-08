@@ -710,6 +710,16 @@ test.describe('Trip planner nearby place popover alignment (Mapbox)', () => {
       'Set VITE_MAPBOX_TOKEN and VITE_ENABLE_MAPBOX_IN_UI_TESTS=true to run Mapbox style checks.',
     );
 
+    const mapRuntimeDiagnostics: string[] = [];
+    page.on('pageerror', (error) => {
+      mapRuntimeDiagnostics.push(`pageerror: ${error.message}`);
+    });
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        mapRuntimeDiagnostics.push(`${message.type()}: ${message.text()}`);
+      }
+    });
+
     await scopeApi.seedSession(page, { email: 'louis@example.com' });
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({ latitude: 32.838, longitude: -97.19, accuracy: 133 });
@@ -719,7 +729,15 @@ test.describe('Trip planner nearby place popover alignment (Mapbox)', () => {
     });
 
     await page.goto('/trips/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.mapboxgl-canvas')).toBeVisible({ timeout: 120_000 });
+    try {
+      await expect(page.locator('.mapboxgl-canvas')).toBeVisible({ timeout: 30_000 });
+    } catch (error) {
+      throw new Error([
+        error instanceof Error ? error.message : String(error),
+        'Map runtime diagnostics:',
+        ...(mapRuntimeDiagnostics.length > 0 ? mapRuntimeDiagnostics : ['(none captured)']),
+      ].join('\n'));
+    }
     await expect(page.locator('[data-test="map-traffic-key"]')).toContainText('Live traffic');
     await expect(page.locator('[data-test="map-traffic-key"]')).toContainText('Slow');
     await expect(page.locator('[data-test="map-traffic-key"]')).toContainText('Heavy');

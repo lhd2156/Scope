@@ -502,8 +502,8 @@ def test_photo_views_async_permissions_detail_and_presigned(authenticated_client
                 "thumbnail_url": "https://cdn.example/sync-thumb.png",
             }
 
-        def presigned_upload_url(self, key):
-            return f"https://upload.example/{key}"
+        def delete_prefix(self, prefix):
+            return None
 
     monkeypatch.setattr(photo_views, "S3StorageService", lambda: FakeStorage())
     monkeypatch.setattr(photo_views.producer, "publish", lambda topic, payload: events.append((topic, payload)))
@@ -551,6 +551,7 @@ def test_photo_views_async_permissions_detail_and_presigned(authenticated_client
     presigned = authenticated_client.get("/api/content/photos/presigned-url")
     assert presigned.status_code == 200
     assert presigned.json()["data"]["enabled"] is True
+    assert presigned.json()["data"]["method"] == "POST"
 
     photo = Photo.objects.create(
         spot=owned_spot,
@@ -581,6 +582,7 @@ def test_ratelimit_redis_rules_fallback_and_headers(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_REDIS_URL", "redis://env-cache")
     assert middleware._redis_url() == "redis://env-cache"
     monkeypatch.delenv("RATE_LIMIT_REDIS_URL")
+    monkeypatch.delenv("DJANGO_CACHE_LOCATION")
 
     with override_settings(CACHES={"default": {"BACKEND": "django_redis.cache.RedisCache", "LOCATION": "redis://settings-cache"}}):
         assert middleware._redis_url() == "redis://settings-cache"
@@ -598,52 +600,33 @@ def test_ratelimit_redis_rules_fallback_and_headers(monkeypatch):
     assert middleware._rules_for_request(upload_request)[-1][0] == "rl:upload:user-1"
     assert middleware._rules_for_request(comments_request)[-1][0] == "rl:comments:198.51.100.1"
 
-    class FakePipe:
+    class FakeClient:
         def __init__(self, results=None, error: Exception | None = None):
-            self.results = results or [0, 0, 1, 1]
+            self.results = results or [1, 1, 0]
             self.error = error
             self.calls: list[tuple] = []
 
-        def zremrangebyscore(self, *args):
-            self.calls.append(("zremrangebyscore", args))
-            return self
-
-        def zcard(self, *args):
-            self.calls.append(("zcard", args))
-            return self
-
-        def zadd(self, *args):
-            self.calls.append(("zadd", args))
-            return self
-
-        def expire(self, *args):
-            self.calls.append(("expire", args))
-            return self
-
-        def execute(self):
+        def eval(self, *args):
+            self.calls.append(("eval", args))
             if self.error:
                 raise self.error
             return self.results
 
-    class FakeClient:
-        def __init__(self, pipe):
-            self._pipe = pipe
-
-        def pipeline(self):
-            return self._pipe
-
-    ok_response, ok_headers = middleware._enforce_rule(FakeClient(FakePipe([0, 1, 1, 1])), "key", 3, 60, search_request)
+    ok_client = FakeClient([1, 2, 0])
+    ok_response, ok_headers = middleware._enforce_rule(ok_client, "key", 3, 60, search_request)
     assert ok_response is None
     assert ok_headers["X-RateLimit-Remaining"] == "1"
+    assert ok_client.calls[0][1][1:3] == (1, "key")
 
-    limited_response, limited_headers = middleware._enforce_rule(FakeClient(FakePipe([0, 3, 1, 1])), "key", 3, 60, search_request)
+    limited_response, limited_headers = middleware._enforce_rule(FakeClient([0, 3, 11]), "key", 3, 60, search_request)
     assert limited_response.status_code == 429
+    assert limited_response["Retry-After"] == "11"
     assert limited_headers == {}
 
     ratelimit._FALLBACK_BUCKETS.clear()
     fallback_request = request_factory.get("/api/content/search", REMOTE_ADDR="198.51.100.2")
     monkeypatch.setattr(ratelimit.time, "time", iter([100.0, 100.1, 100.2, 100.3, 100.4]).__next__)
-    fallback_response, _headers = middleware._enforce_rule(FakeClient(FakePipe(error=RuntimeError("redis down"))), "fallback", 1, 60, fallback_request)
+    fallback_response, _headers = middleware._enforce_rule(FakeClient(error=RuntimeError("redis down")), "fallback", 1, 60, fallback_request)
     assert fallback_response is None
     blocked, _headers = middleware._enforce_fallback("fallback", 1, 60, fallback_request)
     assert blocked.status_code == 429
@@ -784,7 +767,7 @@ def test_serializer_telemetry_kafka_and_legacy_rate_limit_edges(monkeypatch, set
         HTTP_X_FORWARDED_FOR="203.0.113.9, 198.51.100.9",
     )
     request.user = SimpleNamespace(id="user-legacy")
-    assert legacy._client_ip(request) == "203.0.113.9"
+    assert legacy._client_ip(request) == "198.51.100.9"
     assert legacy._upload_identity(request, "198.51.100.9") == "user-legacy"
     assert legacy._limits_for_request(request)[-1][0] == "comments:user-legacy"
 
@@ -863,8 +846,9 @@ def test_new_ratelimit_redis_import_cache_and_fallback_edges(monkeypatch):
     assert failing._get_redis() is None
     assert failing._get_redis() is None
 
-    request = RequestFactory().get("/api/content/health", REMOTE_ADDR="198.51.100.10", HTTP_X_FORWARDED_FOR="203.0.113.10, 198.51.100.10")
-    assert ratelimit.RateLimitMiddleware._get_client_ip(request) == "203.0.113.10"
+    with override_settings(TRUSTED_PROXY_CIDRS=["10.0.0.0/8"]):
+        request = RequestFactory().get("/api/content/health", REMOTE_ADDR="10.0.0.10", HTTP_X_FORWARDED_FOR="203.0.113.10, 10.0.0.10")
+        assert ratelimit.RateLimitMiddleware._get_client_ip(request) == "203.0.113.10"
 
     ratelimit._FALLBACK_BUCKETS.clear()
     bucket = ratelimit._FALLBACK_BUCKETS["stale"]

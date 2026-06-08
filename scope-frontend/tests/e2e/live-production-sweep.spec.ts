@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import zlib from 'node:zlib';
 import { expect, test, type Browser, type Locator, type Page, type Response } from '@playwright/test';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8088';
 const PASSWORD = process.env.PLAYWRIGHT_PRODUCTION_TEST_PASSWORD ?? `ScopePass${Date.now()}!`;
@@ -201,12 +202,20 @@ test.use({ actionTimeout: ACTION_TIMEOUT_MS, navigationTimeout: NAVIGATION_TIMEO
 let liveData: LiveSweepData;
 const liveUsersByAccessToken = new Map<string, LiveUser>();
 const liveUsersByRefreshToken = new Map<string, LiveUser>();
+const cleanupUsers = new Map<string, LiveUser>();
+const cleanupSpotIds = new Set<string>();
+const cleanupTripIds = new Set<string>();
 
 test.beforeAll(async ({ browser }, testInfo) => {
   testInfo.setTimeout(LIVE_SWEEP_TIMEOUT_MS);
   assertNoMockFallbackEnv();
   await assertStackHealth();
   liveData = await createLiveSweepData(browser);
+});
+
+test.afterAll(async ({ browser: _browser }, testInfo) => {
+  testInfo.setTimeout(LIVE_SWEEP_TIMEOUT_MS);
+  await cleanupLiveSweepData();
 });
 
 test.describe('live production sweep without route mocks', () => {
@@ -263,6 +272,89 @@ test.describe('live production sweep without route mocks', () => {
 
     await gotoAllowingImmediateRedirect(page, '/friends');
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  });
+
+  test('settings autosave location and avatar globally while theme and tour state remain truthful', async ({ page }) => {
+    await seedSession(page, liveData.owner);
+    await gotoProtectedPath(page, liveData.owner, '/settings');
+
+    const profileChip = page.locator('button.profile-chip').first();
+    await expect(profileChip.locator('strong')).toHaveText(liveData.owner.displayName);
+    await expect(page.locator('[data-test="settings-tutorial-card"]')).toContainText('Completed');
+    await expect.poll(() =>
+      page.evaluate((key) => window.localStorage.getItem(key), ONBOARDING_COMPLETION_STORAGE_KEY),
+    ).toBe(ONBOARDING_COMPLETION_VALUE);
+
+    const locationInput = page.getByPlaceholder('City, neighborhood, or address');
+    await locationInput.fill('1502 Commerce St Fort Worth TX');
+    const locationList = page.getByRole('listbox', { name: 'Location suggestions' });
+    await expect(locationList).toBeVisible({ timeout: 30_000 });
+    const locationOption = locationList.getByRole('option').filter({ hasText: /Fort Worth/i }).first();
+    await expect(locationOption).toContainText(/Fort Worth/i);
+
+    const locationSavePromise = page.waitForResponse((response) =>
+      response.url().includes(`/api/core/users/${liveData.owner.id}`) && response.request().method() === 'PUT',
+    );
+    await locationOption.click();
+    const locationSave = await locationSavePromise;
+    expect(locationSave.ok(), `location autosave returned ${locationSave.status()}`).toBeTruthy();
+
+    const selectedLocation = await locationInput.inputValue();
+    expect(selectedLocation).toMatch(/Fort Worth/i);
+    expect(selectedLocation).toMatch(/\bTX\b/i);
+    await expect(profileChip.locator('strong')).toHaveText(liveData.owner.displayName);
+
+    const locationReadback = await api('GET', `/api/core/users/${liveData.owner.id}`, {
+      token: liveData.owner.accessToken,
+    });
+    expect(locationReadback.data.displayName).toBe(liveData.owner.displayName);
+    expect(locationReadback.data.homeBase).toBe(selectedLocation);
+
+    await reloadAllowingImmediateRedirect(page);
+    await expectAuthenticatedHeader(page, liveData.owner, 'after settings location reload');
+    await expect(page.getByPlaceholder('City, neighborhood, or address')).toHaveValue(selectedLocation);
+    await expect(page.locator('button.profile-chip').first().locator('strong')).toHaveText(liveData.owner.displayName);
+
+    const avatarSavePromise = page.waitForResponse((response) =>
+      response.url().includes(`/api/core/users/${liveData.owner.id}`) && response.request().method() === 'PUT',
+    );
+    await page.locator('[data-test="settings-avatar-input"]').setInputFiles({
+      name: `scope-live-avatar-${liveData.suffix}.png`,
+      mimeType: PNG_MIME,
+      buffer: makePng(),
+    });
+    const avatarSave = await avatarSavePromise;
+    expect(avatarSave.ok(), `avatar autosave returned ${avatarSave.status()}`).toBeTruthy();
+    const avatarPayload = await avatarSave.text()
+      .then((text) => unwrap(parseJson(text)))
+      .catch(async () => {
+        const avatarReadback = await api('GET', `/api/core/users/${liveData.owner.id}`, {
+          token: liveData.owner.accessToken,
+        });
+        return avatarReadback.data;
+      });
+    expect(String(avatarPayload.avatarUrl ?? '')).toBeTruthy();
+
+    await expect(page.locator('button.profile-chip').first().locator('.avatar img')).toBeVisible();
+    await reloadAllowingImmediateRedirect(page);
+    await expect(page.locator('button.profile-chip').first().locator('.avatar img')).toBeVisible();
+    await gotoProtectedPath(page, liveData.owner, `/profile/${liveData.owner.id}`);
+    await expect(page.locator('[data-test="profile-header"]')).toContainText(liveData.owner.displayName);
+    await expect(page.locator('[data-test="profile-avatar"] img').first()).toBeVisible();
+
+    await gotoProtectedPath(page, liveData.owner, '/settings');
+    await page.locator('[data-test="theme-option-light"]').click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
+    await expect.poll(() => page.evaluate(() => window.localStorage.getItem('scope-theme'))).toBe('light');
+    await reloadAllowingImmediateRedirect(page);
+    await expect(page.locator('[data-test="theme-option-light"].is-active')).toBeVisible();
+
+    await page.locator('[data-test="settings-replay-tutorial"]').click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('dialog')).toContainText('Step 1 of 3');
+    await expect(page.getByRole('dialog')).toContainText('Plan the day before you go');
+    await page.getByRole('button', { name: 'Skip tour' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
   test('owner creates a verified public spot through UI and other users see it on explore, search, map, and detail', async ({ page }) => {
@@ -458,6 +550,7 @@ test.describe('live production sweep without route mocks', () => {
     const savePayload = await saveResponse.json();
     const createdTripId = String((savePayload.data ?? savePayload).id);
     expect(createdTripId).toBeTruthy();
+    cleanupTripIds.add(createdTripId);
     await expect(page.locator('[data-test="trip-autosave-status"]')).toContainText(/Autosaved|Saved/i);
 
     await page.locator('[data-test="trip-visibility-public"]').click();
@@ -787,6 +880,7 @@ async function createLiveSweepData(browser: Browser): Promise<LiveSweepData> {
       spots: [{ spotId: spot.id, dayNumber: 1, sortOrder: 0, notes: 'Anchor stop from live public spot.' }],
     },
   });
+  cleanupTripIds.add(String(trip.data.id));
   await api('POST', `/api/content/trips/${trip.data.id}/members`, {
     token: owner.accessToken,
     body: { user_id: collaborator.id, role: 'editor' },
@@ -1033,11 +1127,17 @@ async function createPublicSpotThroughUi(page: Page, suffix: string, owner: Live
   expect(spot.verificationStatus).toBe('verified');
   expect(spot.safetyStatus).toBe('clean');
   expect(spot.providerPlaceId).toBeTruthy();
+  cleanupSpotIds.add(String(spot.id));
 
-  await expect(page).toHaveURL(new RegExp(`/spots/${spot.id}$`));
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(buildSpotPath(spot))}$`));
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
 
-  return { id: String(spot.id), title };
+  return {
+    id: String(spot.id),
+    title,
+    city: String(spot.city ?? 'Fort Worth'),
+    country: String(spot.country ?? 'US'),
+  };
 }
 
 async function assertProviderSourceDisclosure(owner: LiveUser): Promise<void> {
@@ -1174,6 +1274,7 @@ async function registerUser(browser: Browser, label: string, displayName: string
       displayName,
     };
     rememberLiveUser(liveUser);
+    cleanupUsers.set(liveUser.id, liveUser);
     return liveUser;
   } finally {
     console.log(`[live-sweep] register UI done ${email}`);
@@ -1310,6 +1411,7 @@ async function createVerifiedMetroSpot(
     form,
   });
   expect(response.data.id).toBeTruthy();
+  cleanupSpotIds.add(String(response.data.id));
   expect(response.data.verificationStatus).toBe('verified');
   expect(response.data.safetyStatus).toBe('clean');
   expect(response.data.providerPlaceId).toBeTruthy();
@@ -1330,6 +1432,64 @@ async function createVerifiedMetroSpot(
     latitude: seed.latitude,
     longitude: seed.longitude,
   };
+}
+
+async function cleanupLiveSweepData(): Promise<void> {
+  const errors: string[] = [];
+  const owner = liveData?.owner ?? Array.from(cleanupUsers.values())[0];
+
+  if (owner) {
+    for (const tripId of Array.from(cleanupTripIds).reverse()) {
+      try {
+        await api('DELETE', `/api/content/trips/${tripId}`, {
+          token: owner.accessToken,
+          ok: [204, 404],
+        });
+      } catch (error) {
+        errors.push(`trip ${tripId}: ${String(error)}`);
+      }
+    }
+
+    for (const spotId of Array.from(cleanupSpotIds).reverse()) {
+      try {
+        await api('DELETE', `/api/content/spots/${spotId}`, {
+          token: owner.accessToken,
+          ok: [204, 404],
+        });
+      } catch (error) {
+        errors.push(`spot ${spotId}: ${String(error)}`);
+      }
+    }
+  } else if (cleanupSpotIds.size || cleanupTripIds.size) {
+    errors.push('content cleanup had no registered owner token');
+  }
+
+  for (const user of Array.from(cleanupUsers.values()).reverse()) {
+    try {
+      await api('DELETE', '/api/content/users/me', {
+        token: user.accessToken,
+        headers: {
+          'X-Scope-Account-Deletion': 'confirm',
+        },
+        ok: [204],
+      });
+    } catch (error) {
+      errors.push(`content user ${user.id}: ${String(error)}`);
+    }
+
+    try {
+      await api('DELETE', `/api/core/users/${user.id}`, {
+        token: user.accessToken,
+        ok: [204, 404],
+      });
+    } catch (error) {
+      errors.push(`user ${user.id}: ${String(error)}`);
+    }
+  }
+
+  if (errors.length) {
+    throw new Error(`Live sweep cleanup failed:\n${errors.join('\n')}`);
+  }
 }
 
 async function seedSession(page: Page, user: LiveUser): Promise<void> {
@@ -1671,7 +1831,10 @@ async function fillExploreSearch(page: Page, query: string): Promise<void> {
   await exploreSearch.fill(query);
 }
 
-async function openLiveSpotOnMap(page: Page, spot: { id: string; title: string }): Promise<void> {
+async function openLiveSpotOnMap(
+  page: Page,
+  spot: { id: string; title: string; city?: string; country?: string },
+): Promise<void> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await gotoAllowingImmediateRedirect(page, `/map?spotId=${spot.id}&e2eMapFocus=${attempt}`);
@@ -1685,7 +1848,7 @@ async function openLiveSpotOnMap(page: Page, spot: { id: string; title: string }
 
     try {
       await expect(page.locator('[data-test="map-selected-spot-card"]')).toContainText(spot.title, { timeout: 30_000 });
-      await expect(page.locator('[data-test="map-selected-spot-detail-link"]')).toHaveAttribute('href', `/spots/${spot.id}`);
+      await expect(page.locator('[data-test="map-selected-spot-detail-link"]')).toHaveAttribute('href', buildSpotPath(spot));
       return;
     } catch (error) {
       lastError = error;
@@ -1852,13 +2015,26 @@ async function openProfileMenu(page: Page, displayName: string): Promise<void> {
 }
 
 async function selectExploreVibe(page: Page, label: RegExp): Promise<void> {
-  const vibeSelect = page.locator('[data-test="vibe-select"]').first();
-  await expect(vibeSelect).toBeVisible();
-  await vibeSelect.click();
+  const vibeRow = page.locator('[data-test="vibe-chip-row"]');
+  const matchingChip = vibeRow.locator('[data-test="vibe-chip"]').filter({ hasText: label }).first();
+  const expandButton = vibeRow.locator('[data-test="vibe-chip-more"]').first();
 
-  const matchingOption = page.locator('[data-test="vibe-option"]').filter({ hasText: label }).first();
-  await expect(matchingOption).toBeVisible();
-  await matchingOption.click();
+  await expect(vibeRow).toBeVisible();
+  await expect.poll(async () => (
+    await matchingChip.isVisible().catch(() => false)
+    || await expandButton.isVisible().catch(() => false)
+  ), {
+    message: `Expected the ${label} vibe or the overflow control after Explore finished loading`,
+    timeout: 60_000,
+  }).toBe(true);
+
+  if (!await matchingChip.isVisible().catch(() => false)) {
+    await expandButton.click();
+  }
+
+  await expect(matchingChip).toBeVisible({ timeout: 30_000 });
+  await matchingChip.click();
+  await expect(matchingChip).toHaveClass(/active/);
 }
 
 function installNoMockGuards(page: Page): void {
@@ -1982,6 +2158,7 @@ interface ApiOptions {
   token?: string;
   body?: unknown;
   form?: () => FormData;
+  headers?: Record<string, string>;
   ok?: number[];
   assert?: (data: any, payload: any) => void | unknown;
 }
@@ -1990,8 +2167,14 @@ async function api(method: string, path: string, options: ApiOptions = {}) {
   const ok = options.ok ?? [200, 201, 202, 204];
   let lastPayload: unknown;
   let bearerToken = options.token;
+  const baseUrl = new URL(BASE_URL);
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      Origin: baseUrl.origin,
+      Referer: `${baseUrl.origin}/`,
+      ...options.headers,
+    };
     if (bearerToken) {
       headers.Authorization = `Bearer ${bearerToken}`;
     }

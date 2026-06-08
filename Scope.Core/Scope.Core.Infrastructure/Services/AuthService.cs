@@ -308,6 +308,7 @@ public sealed class AuthService(
                 x.HomeBase,
                 ParseInterests(x.InterestsJson),
                 x.ShowActivityStatus,
+                x.ProfileVisibility,
                 x.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("User not found");

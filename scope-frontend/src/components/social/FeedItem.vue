@@ -2,18 +2,24 @@
   <article class="feed-item glass-panel" :class="{ 'feed-item--review': isReviewItem }" :data-test="`feed-item-${item.id}`">
     <header class="feed-header">
       <div class="actor-row">
-        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="36" />
+        <Avatar :name="item.actor.displayName" :src="item.actor.avatarUrl" :size="48" />
 
         <div class="header-copy">
           <p v-if="isReviewItem" class="reviewer-action">
             <span class="reviewer-action__name">{{ actorDisplayName }}</span>
-            reviewed
+            {{ ' ' }}
+            <span class="reviewer-action__handle">({{ actorDisplayHandle }})</span>
+            {{ ' reviewed.' }}
           </p>
           <p v-else class="eyebrow">{{ activityLabel }}</p>
           <h3 class="headline-copy">{{ isReviewItem ? spotTitleCopy : headlineCopy }}</h3>
           <p class="meta">
             <span class="meta__location">{{ locationCopy }}</span>
-            <span class="meta__time">{{ relativeTime }}</span>
+            <time
+              class="meta__time"
+              :datetime="item.createdAt"
+              :title="absoluteTimestamp || undefined"
+            >{{ postTimestamp }}</time>
           </p>
         </div>
       </div>
@@ -160,7 +166,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import type { FeedItem as FeedItemModel } from '@/types';
-import { formatRelativeTime } from '@/utils/formatters';
+import { formatMonthDayYear, formatPostTimestamp } from '@/utils/formatters';
 import { getFeedPhotoFallback, resolveFeedImageUrl } from '@/utils/imageFallbacks';
 import { useAuthStore } from '@/stores/auth';
 import { useToastStore } from '@/stores/toasts';
@@ -332,6 +338,15 @@ function resolveActorDisplayName(actor: FeedItemModel['actor']): string {
   return actor.displayName?.trim() || actor.username?.trim() || 'Scope traveler';
 }
 
+function resolveActorDisplayHandle(actor: FeedItemModel['actor']): string {
+  const username = actor.username?.trim().replace(/^@+/, '');
+  if (username) {
+    return `@${username}`;
+  }
+
+  return `@${resolveActorDisplayName(actor).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') || 'scope.traveler'}`;
+}
+
 function resolveHeadlineCopy(title: string, actor: FeedItemModel['actor']): string {
   const actorName = resolveActorDisplayName(actor);
   const activityCopy = normalizeActivityCopy(title, actor);
@@ -381,10 +396,12 @@ function resolveSpotDestinationRoute(item: FeedItemModel): string {
 
 const isReviewItem = computed(() => props.item.type === 'review');
 const actorDisplayName = computed(() => resolveActorDisplayName(props.item.actor));
+const actorDisplayHandle = computed(() => resolveActorDisplayHandle(props.item.actor));
 const spotTitleCopy = computed(() => resolveSpotTitleFromFeedItem(props.item));
 const activityLabel = computed(() => resolveActivityLabel(props.item.title, props.item.type));
 const headlineCopy = computed(() => resolveHeadlineCopy(props.item.title, props.item.actor));
-const relativeTime = computed(() => formatRelativeTime(props.item.createdAt));
+const postTimestamp = computed(() => formatPostTimestamp(props.item.createdAt));
+const absoluteTimestamp = computed(() => formatMonthDayYear(props.item.createdAt));
 const destinationRoute = computed(() => (props.item.type === 'trip' ? `/trips/${props.item.targetId}` : resolveSpotDestinationRoute(props.item)));
 const mediaAriaLabel = computed(() => `${destinationLabel.value}: ${isReviewItem.value ? spotTitleCopy.value : props.item.title}`);
 const typeLabel = computed(() => {
@@ -985,6 +1002,8 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 }
 
 .feed-item--review {
+  --feed-media-aspect-ratio: 16 / 9;
+
   border-color: color-mix(in srgb, var(--text-primary) 12%, var(--border));
 }
 
@@ -1027,16 +1046,15 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   display: flex;
   flex-wrap: nowrap;
   align-items: baseline;
-  gap: 0.32rem;
+  gap: 0.28rem;
   margin: 0;
   min-width: 0;
   overflow: hidden;
   color: color-mix(in srgb, var(--text-primary) 62%, var(--text-secondary));
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-eyebrow);
-  font-size: var(--font-size-caption);
+  letter-spacing: 0;
+  font-size: 0.82rem;
   font-weight: var(--font-weight-semibold);
-  line-height: 1.1;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1046,6 +1064,30 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
   overflow-wrap: anywhere;
+}
+
+.reviewer-action__handle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.feed-item--review .feed-header {
+  min-height: 4.35rem;
+}
+
+.feed-item--review .header-copy {
+  grid-template-rows: auto auto auto;
+  gap: 0.18rem;
+}
+
+.feed-item--review .headline-copy,
+.feed-item--review .header-copy h3 {
+  min-height: 0;
+  max-height: 2.7rem;
 }
 
 .headline-copy,
@@ -1077,6 +1119,10 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
   border-color: color-mix(in srgb, var(--border) 86%, transparent);
   background: var(--bg-tertiary);
   box-shadow: none;
+}
+
+.feed-item--review .feed-media {
+  max-height: 14rem;
 }
 
 .feed-media::after {
@@ -1142,6 +1188,8 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 }
 
 .feed-note--review {
+  min-height: 3.9rem;
+  padding: 0.78rem;
   border-color: color-mix(in srgb, var(--border-hover) 72%, var(--border));
   background: color-mix(in srgb, var(--bg-tertiary) 68%, var(--bg-secondary));
 }
@@ -1163,9 +1211,13 @@ const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0
 
 .feed-note p {
   color: color-mix(in srgb, var(--text-primary) 86%, var(--text-secondary));
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: 0.9rem;
+  line-height: 1.38;
   -webkit-line-clamp: 3;
+}
+
+.feed-note--review p {
+  -webkit-line-clamp: 2;
 }
 
 .feed-footer {

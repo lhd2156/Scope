@@ -23,14 +23,19 @@ prepare_data_disk() {
     printf '[scope-lightsail] Data disk %s not present; using %s on the root volume.\n' "$data_device" "$data_root"
     sudo mkdir -p \
       "$data_root/sqlserver" \
+      "$data_root/zookeeper-data" \
+      "$data_root/zookeeper-log" \
+      "$data_root/kafka" \
       "$data_root/media" \
       "$data_root/intel" \
       "$data_root/rag" \
       "$data_root/ollama"
-    sudo chown -R 10001:0 "$data_root/sqlserver" || true
+    sudo chown -R 10001:10001 "$data_root/sqlserver" || true
+    sudo chown -R 1000:1000 "$data_root/zookeeper-data" "$data_root/zookeeper-log" "$data_root/kafka" || true
     sudo chown -R 10002:10002 "$data_root/media" || true
     sudo chown -R 10003:10003 "$data_root/intel" || true
     sudo chown -R 10004:10004 "$data_root/rag" || true
+    sudo chown -R 1000:1000 "$data_root/ollama" || true
     return 0
   fi
 
@@ -53,15 +58,20 @@ prepare_data_disk() {
 
   sudo mkdir -p \
     "$data_root/sqlserver" \
+    "$data_root/zookeeper-data" \
+    "$data_root/zookeeper-log" \
+    "$data_root/kafka" \
     "$data_root/media" \
     "$data_root/intel" \
     "$data_root/rag" \
     "$data_root/ollama"
 
-  sudo chown -R 10001:0 "$data_root/sqlserver" || true
+  sudo chown -R 10001:10001 "$data_root/sqlserver" || true
+  sudo chown -R 1000:1000 "$data_root/zookeeper-data" "$data_root/zookeeper-log" "$data_root/kafka" || true
   sudo chown -R 10002:10002 "$data_root/media" || true
   sudo chown -R 10003:10003 "$data_root/intel" || true
   sudo chown -R 10004:10004 "$data_root/rag" || true
+  sudo chown -R 1000:1000 "$data_root/ollama" || true
 }
 
 write_data_volume_override() {
@@ -73,6 +83,24 @@ volumes:
       type: none
       o: bind
       device: ${SCOPE_DATA_ROOT:-/opt/scope/shared}/sqlserver
+  zookeeper-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCOPE_DATA_ROOT:-/opt/scope/shared}/zookeeper-data
+  zookeeper-log:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCOPE_DATA_ROOT:-/opt/scope/shared}/zookeeper-log
+  kafka-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SCOPE_DATA_ROOT:-/opt/scope/shared}/kafka
   content-media:
     driver: local
     driver_opts:
@@ -209,7 +237,7 @@ install_tls_renewal_cron() {
   local cron_file="/etc/cron.d/scope-certbot-renew"
   local cron_command
 
-  cron_command='cd /opt/scope/current && compose_files="-f docker-compose.yml"; [ -f docker-compose.data.yml ] && compose_files="$compose_files -f docker-compose.data.yml"; docker compose $compose_files --profile tls run --rm certbot renew --webroot --webroot-path /var/www/certbot --config-dir /etc/letsencrypt --work-dir /var/lib/letsencrypt --logs-dir /var/log/letsencrypt --quiet && docker compose $compose_files --profile tls run --rm --entrypoint /bin/sh certbot -c "cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/fullchain.pem /etc/letsencrypt/fullchain.pem && cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/privkey.pem /etc/letsencrypt/privkey.pem && chmod 600 /etc/letsencrypt/privkey.pem" && docker compose $compose_files exec -T nginx nginx -s reload'
+  cron_command='cd /opt/scope/current && compose_files="-f docker-compose.yml"; [ -f docker-compose.data.yml ] && compose_files="$compose_files -f docker-compose.data.yml"; docker compose $compose_files --profile tls run --rm certbot renew --webroot --webroot-path /var/www/certbot --config-dir /etc/letsencrypt --work-dir /var/lib/letsencrypt --logs-dir /var/log/letsencrypt --quiet && docker compose $compose_files --profile tls run --rm --entrypoint /bin/sh certbot -c "cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/fullchain.pem /etc/letsencrypt/fullchain.pem && cp -L /etc/letsencrypt/live/'"${tls_hostname}"'/privkey.pem /etc/letsencrypt/privkey.pem && chmod 644 /etc/letsencrypt/fullchain.pem && chmod 600 /etc/letsencrypt/privkey.pem" && docker compose $compose_files exec -T nginx nginx -s reload'
 
   sudo mkdir -p "$(dirname "$cron_file")"
   {
@@ -255,7 +283,7 @@ ensure_trusted_tls() {
     -d "$tls_hostname"
 
   compose --profile tls run --rm --entrypoint /bin/sh certbot -c \
-    "cp -L /etc/letsencrypt/live/${tls_hostname}/fullchain.pem /etc/letsencrypt/fullchain.pem && cp -L /etc/letsencrypt/live/${tls_hostname}/privkey.pem /etc/letsencrypt/privkey.pem && chmod 600 /etc/letsencrypt/privkey.pem"
+    "cp -L /etc/letsencrypt/live/${tls_hostname}/fullchain.pem /etc/letsencrypt/fullchain.pem && cp -L /etc/letsencrypt/live/${tls_hostname}/privkey.pem /etc/letsencrypt/privkey.pem && chmod 644 /etc/letsencrypt/fullchain.pem && chmod 600 /etc/letsencrypt/privkey.pem"
 
   compose exec -T nginx nginx -s reload
   install_tls_renewal_cron "$tls_hostname"
@@ -281,11 +309,21 @@ prepare_data_disk
 write_data_volume_override
 
 SA_PASSWORD="$(read_env_value SA_PASSWORD "${SA_PASSWORD:-}")"
+CORE_JWT_SECRET="$(read_env_value CORE_JWT_SECRET "${CORE_JWT_SECRET:-}")"
+GRPC_INTERNAL_TOKEN="$(read_env_value GRPC_INTERNAL_TOKEN "${GRPC_INTERNAL_TOKEN:-}")"
+RABBITMQ_USER="$(read_env_value RABBITMQ_USER "${RABBITMQ_USER:-scope}")"
+RABBITMQ_PASS="$(read_env_value RABBITMQ_PASS "${RABBITMQ_PASS:-}")"
+RABBITMQ_VHOST="$(read_env_value RABBITMQ_VHOST "${RABBITMQ_VHOST:-scope}")"
 SCOPE_TLS_HOSTNAME="$(read_env_value SCOPE_TLS_HOSTNAME "${SCOPE_TLS_HOSTNAME:-}")"
 SCOPE_TLS_EMAIL="$(read_env_value SCOPE_TLS_EMAIL "${SCOPE_TLS_EMAIL:-}")"
 SCOPE_REQUIRE_TRUSTED_TLS="$(read_env_value SCOPE_REQUIRE_TRUSTED_TLS "${SCOPE_REQUIRE_TRUSTED_TLS:-false}")"
 SCOPE_RUN_STARTER_SEED="$(read_env_value SCOPE_RUN_STARTER_SEED "${SCOPE_RUN_STARTER_SEED:-false}")"
 export SA_PASSWORD
+export CORE_JWT_SECRET
+export GRPC_INTERNAL_TOKEN
+export RABBITMQ_USER
+export RABBITMQ_PASS
+export RABBITMQ_VHOST
 export SCOPE_TLS_HOSTNAME
 export SCOPE_TLS_EMAIL
 export SCOPE_REQUIRE_TRUSTED_TLS
@@ -296,16 +334,49 @@ if [[ -z "${SA_PASSWORD:-}" ]]; then
   exit 1
 fi
 
+if [[ ${#GRPC_INTERNAL_TOKEN} -lt 32 ]]; then
+  printf '[scope-lightsail] GRPC_INTERNAL_TOKEN must be at least 32 characters.\n' >&2
+  exit 1
+fi
+
+if [[ "$GRPC_INTERNAL_TOKEN" == "$CORE_JWT_SECRET" ]]; then
+  printf '[scope-lightsail] GRPC_INTERNAL_TOKEN must be distinct from CORE_JWT_SECRET.\n' >&2
+  exit 1
+fi
+
+if [[ -z "$RABBITMQ_PASS" ]]; then
+  printf '[scope-lightsail] RABBITMQ_PASS must be present in the runtime environment.\n' >&2
+  exit 1
+fi
+
 mkdir -p /opt/scope
 ln -sfn "$release_dir" /opt/scope/current
 
 printf '[scope-lightsail] Starting Scope infrastructure services from %s\n' "$release_dir"
-compose up -d --build sqlserver zookeeper kafka redis
+compose up -d --build sqlserver zookeeper kafka redis rabbitmq elasticsearch ollama
 
 wait_for_health sqlserver 900
 wait_for_health zookeeper 300
 wait_for_health kafka 600
 wait_for_health redis 300
+wait_for_health rabbitmq 300
+wait_for_health elasticsearch 600
+wait_for_health ollama 600
+
+printf '[scope-lightsail] Reconciling RabbitMQ runtime credentials and vhost.\n'
+if compose exec -T rabbitmq rabbitmqctl list_users --silent |
+  awk '{print $1}' |
+  grep -Fxq "$RABBITMQ_USER"; then
+  compose exec -T rabbitmq rabbitmqctl change_password "$RABBITMQ_USER" "$RABBITMQ_PASS"
+else
+  compose exec -T rabbitmq rabbitmqctl add_user "$RABBITMQ_USER" "$RABBITMQ_PASS"
+fi
+if ! compose exec -T rabbitmq rabbitmqctl list_vhosts --silent |
+  grep -Fxq "$RABBITMQ_VHOST"; then
+  compose exec -T rabbitmq rabbitmqctl add_vhost "$RABBITMQ_VHOST"
+fi
+compose exec -T rabbitmq rabbitmqctl set_permissions \
+  -p "$RABBITMQ_VHOST" "$RABBITMQ_USER" '.*' '.*' '.*'
 
 printf '[scope-lightsail] Ensuring Kafka topics exist.\n'
 compose --profile init up --abort-on-container-exit --exit-code-from kafka-init kafka-init
@@ -318,7 +389,8 @@ for core_script in \
   003_security_enhancements.sql \
   004_notifications_platform.sql \
   005_datetimeoffset_alignment.sql \
-  006_showcase_users.sql
+  006_showcase_users.sql \
+  007_profile_privacy.sql
 do
   if [[ -f "$release_dir/scripts/sql/core/$core_script" ]]; then
     compose exec -T sqlserver "$sqlcmd_path" -C -S localhost -U sa -P "$SA_PASSWORD" -d ScopeDb -i "/docker-entrypoint-initdb.d/core/$core_script"
@@ -326,14 +398,17 @@ do
 done
 
 printf '[scope-lightsail] Starting Scope application services.\n'
-compose up -d --build content intel core content-worker rag scope-metrics frontend site admin
+compose up -d --build content intel core content-worker content-celery rag scope-metrics frontend site admin prometheus grafana
 compose up -d nginx
 
 wait_for_health content 900
+wait_for_health content-celery 600
 wait_for_health intel 600
 wait_for_health rag 600
 wait_for_health core 600
 wait_for_health scope-metrics 600
+wait_for_health prometheus 300
+wait_for_health grafana 300
 wait_for_health frontend 300
 wait_for_health site 300
 wait_for_health admin 300

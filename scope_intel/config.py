@@ -64,6 +64,7 @@ class Settings:
     google_places_base_url: str = os.getenv("GOOGLE_PLACES_BASE_URL", "https://places.googleapis.com/v1")
     google_places_cache_seconds: int = int(os.getenv("GOOGLE_PLACES_CACHE_SECONDS", "180"))
     google_places_usage_file: str | None = os.getenv("GOOGLE_PLACES_USAGE_FILE")
+    google_places_usage_redis_url: str | None = os.getenv("GOOGLE_PLACES_USAGE_REDIS_URL")
     google_places_text_search_pro_monthly_cap: int = int(os.getenv("GOOGLE_PLACES_TEXT_SEARCH_PRO_MONTHLY_CAP", "5000"))
     google_places_place_details_photos_monthly_cap: int = int(os.getenv("GOOGLE_PLACES_PLACE_DETAILS_PHOTOS_MONTHLY_CAP", "1000"))
     google_places_nearby_search_enterprise_monthly_cap: int = int(

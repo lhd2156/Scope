@@ -7,7 +7,11 @@ from app.kafka import consumer_worker
 
 def test_app_entrypoint_exposes_configured_flask_app(monkeypatch):
     monkeypatch.setattr(factory_module.settings, "secret_key", "scope-intel-test-secret")
-    monkeypatch.setattr(factory_module.settings, "jwt_secret", "scope-intel-test-jwt-secret")
+    monkeypatch.setattr(
+        factory_module.settings,
+        "jwt_secret",
+        "scope-intel-test-jwt-secret-at-least-32-bytes",
+    )
     monkeypatch.setattr(factory_module.settings, "frontend_origin", "https://scope-frontend.example")
     monkeypatch.setattr(factory_module.settings, "database_url", "sqlite:///:memory:")
 
@@ -20,7 +24,7 @@ def test_app_entrypoint_exposes_configured_flask_app(monkeypatch):
 
     assert module.app is not None
     assert module.app.config["SECRET_KEY"] == "scope-intel-test-secret"
-    assert module.app.config["JWT_SECRET"] == "scope-intel-test-jwt-secret"
+    assert module.app.config["JWT_SECRET"] == "scope-intel-test-jwt-secret-at-least-32-bytes"
     assert module.app.config["FRONTEND_ORIGIN"] == "https://scope-frontend.example"
 
 

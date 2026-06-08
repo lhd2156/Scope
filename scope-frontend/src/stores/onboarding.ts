@@ -4,7 +4,9 @@ import { resolveOnboardingSteps } from '@/config/onboarding';
 import { AUTH_SESSION_HINT_CHANGE_EVENT, hasStoredAuthSessionHint } from '@/utils/authSessionStorage';
 
 export const ONBOARDING_COMPLETION_STORAGE_KEY = 'scope-onboarding-completed-v1';
+export const ONBOARDING_DISMISSED_STORAGE_KEY = 'scope-onboarding-dismissed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
+const ONBOARDING_DISMISSED_VALUE = 'dismissed';
 
 function readPersistedCompletion(): boolean {
   try {
@@ -27,10 +29,32 @@ function writePersistedCompletion(isCompleted: boolean): void {
   }
 }
 
+function readPersistedDismissal(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_DISMISSED_STORAGE_KEY) === ONBOARDING_DISMISSED_VALUE;
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedDismissal(isDismissed: boolean): void {
+  try {
+    if (isDismissed) {
+      localStorage.setItem(ONBOARDING_DISMISSED_STORAGE_KEY, ONBOARDING_DISMISSED_VALUE);
+      return;
+    }
+
+    localStorage.removeItem(ONBOARDING_DISMISSED_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures and keep the in-memory onboarding state usable.
+  }
+}
+
 export const useOnboardingStore = defineStore('onboarding', () => {
   const isActive = ref(false);
   const activeStepIndex = ref(0);
   const hasCompleted = ref(readPersistedCompletion());
+  const hasDismissed = ref(readPersistedDismissal());
   const hasStartedThisSession = ref(false);
   const hasSessionHint = ref(hasStoredAuthSessionHint());
   const steps = computed(() => resolveOnboardingSteps(hasSessionHint.value));
@@ -56,7 +80,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   function persistCompletion(): void {
     hasCompleted.value = true;
+    hasDismissed.value = false;
     writePersistedCompletion(true);
+    writePersistedDismissal(false);
   }
 
   function start(stepId?: string): boolean {
@@ -71,7 +97,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function startIfPending(stepId?: string): boolean {
-    if (hasCompleted.value || hasStartedThisSession.value || isActive.value) {
+    if (hasCompleted.value || hasDismissed.value || hasStartedThisSession.value || isActive.value) {
       return false;
     }
 
@@ -113,13 +139,16 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function skip(): void {
-    persistCompletion();
+    hasDismissed.value = true;
+    writePersistedDismissal(true);
     close();
   }
 
   function resetCompletion(): void {
     hasCompleted.value = false;
+    hasDismissed.value = false;
     writePersistedCompletion(false);
+    writePersistedDismissal(false);
   }
 
   function restart(stepId?: string): boolean {
@@ -163,6 +192,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     steps,
     totalSteps,
     hasCompleted,
+    hasDismissed,
     start,
     startIfPending,
     goToStep,

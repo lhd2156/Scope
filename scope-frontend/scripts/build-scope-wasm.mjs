@@ -11,18 +11,7 @@ const emsdkRoot = resolve(frontendRoot, 'emsdk');
 const isWindows = process.platform === 'win32';
 const emsdkEnv = resolve(emsdkRoot, isWindows ? 'emsdk_env.bat' : 'emsdk_env.sh');
 
-if (!existsSync(emsdkEnv)) {
-  console.error([
-    'Local Emscripten SDK was not found.',
-    `Expected: ${emsdkEnv}`,
-    'Install it with:',
-    '  git clone https://github.com/emscripten-core/emsdk.git emsdk',
-    '  cd emsdk',
-    '  ./emsdk install latest',
-    '  ./emsdk activate latest',
-  ].join('\n'));
-  process.exit(1);
-}
+const hasLocalEmsdk = existsSync(emsdkEnv);
 
 mkdirSync(wasmDistRoot, { recursive: true });
 mkdirSync(emscriptenTempRoot, { recursive: true });
@@ -63,6 +52,7 @@ const compileCommand = [
   '-sEXPORT_NAME=createScopeWasmModule',
   '-sENVIRONMENT=web,worker,node',
   '-sALLOW_MEMORY_GROWTH=1',
+  '-sDYNAMIC_EXECUTION=0',
   '-sFILESYSTEM=0',
   '-sINITIAL_MEMORY=16777216',
   '-sASSERTIONS=1',
@@ -70,9 +60,13 @@ const compileCommand = [
   '-o',
   commandPath(outputPath),
 ].join(' ');
-const chainedCommand = isWindows
-  ? `set "EMSDK_QUIET=1" && call ${emsdkEnv} >nul && ${compileCommand}`
-  : `export EMSDK_QUIET=1 && . "${emsdkEnv}" >/dev/null && ${compileCommand}`;
+const chainedCommand = hasLocalEmsdk
+  ? (
+      isWindows
+        ? `set "EMSDK_QUIET=1" && call ${emsdkEnv} >nul && ${compileCommand}`
+        : `export EMSDK_QUIET=1 && . "${emsdkEnv}" >/dev/null && ${compileCommand}`
+    )
+  : compileCommand;
 
 const result = spawnSync(isWindows ? 'cmd.exe' : 'bash', isWindows ? ['/d', '/c', chainedCommand] : ['-lc', chainedCommand], {
   cwd: frontendRoot,

@@ -29,7 +29,8 @@ public static class TestData
         bool isActive = true,
         string? interestsJson = null,
         string? homeBase = null,
-        bool showActivityStatus = true)
+        bool showActivityStatus = true,
+        string profileVisibility = "friends")
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var storedUsername = $"{username}-{suffix}";
@@ -49,6 +50,7 @@ public static class TestData
             InterestsJson = interestsJson,
             HomeBase = homeBase,
             ShowActivityStatus = showActivityStatus,
+            ProfileVisibility = profileVisibility,
             DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,

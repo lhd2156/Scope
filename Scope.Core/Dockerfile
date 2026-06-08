@@ -1,7 +1,4 @@
-# Base images are pinned to minor tags; for production release builds, replace
-# with explicit sha256 digests (e.g. `...sdk:8.0@sha256:<digest>`) so that a
-# compromised tag cannot silently swap our build base. Dependabot tracks these.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:fc69dc5e0c9789adaac5c8efce71ead4d016a51318667c4f26ce93574b1b9403 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore Scope.Core/Scope.Core.API/Scope.Core.API.csproj
@@ -18,9 +15,10 @@ RUN dotnet publish Scope.Core/Scope.Core.API/Scope.Core.API.csproj \
         /p:TieredCompilation=true \
         /p:PublishTrimmed=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:19be23fe71e885186495d8da1f2d417e553daaa99e16e5148c5ca3ee2f062512 AS runtime
 WORKDIR /app
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 scope \

@@ -111,6 +111,7 @@ export default defineConfig({
   use: {
     baseURL,
     ignoreHTTPSErrors: process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === 'true',
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -141,8 +142,8 @@ export default defineConfig({
           VITE_ENABLE_DEMO_FUEL_PRICES: process.env.VITE_ENABLE_DEMO_FUEL_PRICES ?? 'false',
           VITE_ENABLE_AGENT_LOCAL_FALLBACK: process.env.VITE_ENABLE_AGENT_LOCAL_FALLBACK ?? 'false',
           VITE_ENABLE_INTEL_MOCK_FALLBACK: process.env.VITE_ENABLE_INTEL_MOCK_FALLBACK ?? 'false',
-          VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? '/',
-          VITE_CSRF_ENDPOINT: process.env.VITE_CSRF_ENDPOINT ?? '',
+          VITE_API_BASE_URL: process.env.PLAYWRIGHT_FRONTEND_API_BASE_URL ?? '/',
+          VITE_CSRF_ENDPOINT: process.env.PLAYWRIGHT_FRONTEND_CSRF_ENDPOINT ?? '',
           VITE_MAPBOX_TOKEN: mapboxToken,
           VITE_ENABLE_MAPBOX_IN_UI_TESTS: enableMapboxUiTests,
           VITE_DISABLE_SERVICE_WORKER: process.env.VITE_DISABLE_SERVICE_WORKER ?? 'true',

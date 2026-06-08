@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/scope-test';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const SPOT_PHOTO = {
   name: 'playwright-spot.png',
@@ -62,7 +63,8 @@ test.describe('spot CRUD flow', () => {
     await fillCreateSpotForm(page);
     await page.locator('[data-test="spot-submit"]').click();
 
-    await expect(page).toHaveURL(/\/spots\/spot-\d+$/);
+    const createdSpotPath = buildSpotPath({ id: 'spot-1', ...createdSpot });
+    await expect(page).toHaveURL(new RegExp(`${createdSpotPath}$`));
     await expect(page.getByRole('heading', { level: 1, name: createdSpot.title })).toBeVisible();
     await expect(page.locator('[data-test="spot-gallery"]')).toBeVisible();
     await expect(page.locator('.headline-description')).toContainText(createdSpot.description);
@@ -71,7 +73,7 @@ test.describe('spot CRUD flow', () => {
     await page.getByRole('link', { name: 'Edit this spot' }).click();
 
     const editForm = page.locator('[data-test="spot-form"]');
-    await expect(page).toHaveURL(/\/spots\/spot-\d+\/edit$/);
+    await expect(page).toHaveURL(new RegExp(`${createdSpotPath}/edit$`));
     await expect(page.getByRole('heading', { name: 'Edit spot' })).toBeVisible();
     await expect(editForm).toBeVisible();
     await expect(editForm.getByRole('textbox', { name: 'Place' })).toHaveValue(createdSpot.title);
@@ -82,7 +84,12 @@ test.describe('spot CRUD flow', () => {
     await editForm.getByLabel('Rating').fill(updatedSpot.rating);
     await editForm.locator('[data-test="spot-submit"]').click();
 
-    await expect(page).toHaveURL(/\/spots\/spot-\d+$/);
+    const updatedSpotPath = buildSpotPath({
+      id: 'spot-1',
+      ...createdSpot,
+      ...updatedSpot,
+    });
+    await expect(page).toHaveURL(new RegExp(`${updatedSpotPath}$`));
     await expect(page.getByRole('heading', { level: 1, name: updatedSpot.title })).toBeVisible();
     await expect(page.locator('.headline-description')).toContainText(updatedSpot.description);
     await expect(page.locator('[data-test="spot-gallery"]')).toBeVisible();

@@ -57,6 +57,7 @@ public sealed class CoreRouteContractTests
         "DELETE /api/core/social-safety/blocks/{blockedUserId:guid}",
         "GET /api/core/users/{id:guid}",
         "PUT /api/core/users/{id:guid}",
+        "DELETE /api/core/users/{id:guid}",
         "GET /api/core/users/{id:guid}/stats",
         "GET /api/core/users/search",
     ];

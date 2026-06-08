@@ -551,6 +551,19 @@ describe('API service fallbacks', () => {
     expect(response.data.displayName).toBe('Louis Scope');
   });
 
+  it('requires the explicit account-deletion confirmation header when erasing current-user content', async () => {
+    apiMock.delete.mockResolvedValue({ data: { data: { deleted: true } } });
+
+    const userService = await import('@/services/userService');
+    await userService.deleteCurrentUserContent();
+
+    expect(apiMock.delete).toHaveBeenCalledWith('/api/content/users/me', {
+      headers: {
+        'X-Scope-Account-Deletion': 'confirm',
+      },
+    });
+  });
+
   it('normalizes live user profiles, handle searches, and stats aliases', async () => {
     apiMock.get
       .mockResolvedValueOnce({
@@ -2688,11 +2701,11 @@ describe('API service fallbacks', () => {
 
     const tripService = await import('@/services/tripService');
     const { mockTrips } = await import('@/services/mockData');
-    const response = await tripService.listPublicTrips(1, 3);
+    const response = await tripService.listPublicTrips(1, 3, ' user-1 ');
     const publicMockIds = mockTrips.filter((trip) => trip.isPublic).slice(0, 3).map((trip) => trip.id);
 
     expect(apiMock.get).toHaveBeenCalledWith('/api/content/trips/public', {
-      params: { page: 1, pageSize: 3 },
+      params: { page: 1, pageSize: 3, userId: 'user-1' },
     });
     expect(response.data.map((trip) => trip.id)).toEqual(publicMockIds);
     expect(response.data.every((trip) => trip.isPublic)).toBe(true);

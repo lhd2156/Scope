@@ -72,7 +72,31 @@ resource "aws_iam_role_policy_attachment" "eks_ssm_managed" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-data "aws_iam_policy_document" "eks_node_photos_bucket" {
+data "aws_iam_policy_document" "eks_pod_identity_assume_role" {
+  count = local.deploy_eks ? 1 : 0
+
+  statement {
+    actions = [
+      "sts:AssumeRole",
+      "sts:TagSession"
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "eks_content" {
+  count              = local.deploy_eks ? 1 : 0
+  name               = "${local.name_prefix}-eks-content"
+  assume_role_policy = data.aws_iam_policy_document.eks_pod_identity_assume_role[0].json
+
+  tags = local.common_tags
+}
+
+data "aws_iam_policy_document" "eks_content_photos_bucket" {
   count = local.deploy_eks ? 1 : 0
 
   statement {
@@ -97,11 +121,24 @@ data "aws_iam_policy_document" "eks_node_photos_bucket" {
       "${aws_s3_bucket.photos.arn}/*"
     ]
   }
+
+  statement {
+    sid = "UseScopePhotosKmsKey"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey"
+    ]
+    resources = [
+      aws_kms_key.photos.arn
+    ]
+  }
 }
 
-resource "aws_iam_role_policy" "eks_node_photos_bucket" {
+resource "aws_iam_role_policy" "eks_content_photos_bucket" {
   count  = local.deploy_eks ? 1 : 0
-  name   = "${local.name_prefix}-eks-photos-bucket"
-  role   = aws_iam_role.eks_node_group[0].id
-  policy = data.aws_iam_policy_document.eks_node_photos_bucket[0].json
+  name   = "${local.name_prefix}-eks-content-photos"
+  role   = aws_iam_role.eks_content[0].id
+  policy = data.aws_iam_policy_document.eks_content_photos_bucket[0].json
 }

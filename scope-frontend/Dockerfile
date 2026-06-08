@@ -1,16 +1,21 @@
+# Build the optional client-side engine from source in every container release.
+FROM emscripten/emsdk:5.0.7@sha256:4e332f7343b6f66320bf72f7ecc01a3d9f3866721a13b0e5c7b96505d6ab148a AS wasm-build
+WORKDIR /workspace/scope-frontend
+COPY scope-frontend/scripts/build-scope-wasm.mjs ./scripts/build-scope-wasm.mjs
+COPY scope-frontend/wasm ./wasm
+RUN node ./scripts/build-scope-wasm.mjs
+
 # Pin node to 20-alpine; in release builds, append @sha256:<digest> so a
 # compromised alpine tag cannot swap the build toolchain silently.
-FROM node:20-alpine AS build
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS build
 WORKDIR /workspace/scope-frontend
 
 ARG VITE_API_BASE_URL=/
-ARG VITE_MAPBOX_TOKEN=
+ARG MAPBOX_PUBLIC_TOKEN=
 ARG VITE_CSRF_ENDPOINT=
+ARG VITE_ENABLE_MAPBOX_IN_UI_TESTS=false
 ARG VITE_ENABLE_LOCAL_PREVIEW=false
-ARG VITE_LOCAL_PREVIEW_LOGIN_EMAIL=
-ARG VITE_LOCAL_PREVIEW_LOGIN_PASSWORD=
 ARG VITE_ENABLE_COGNITO_OAUTH=false
-ARG VITE_OPENWEATHERMAP_API_KEY=
 ARG VITE_WEB_PUSH_PUBLIC_KEY=
 ARG VITE_DISABLE_SERVICE_WORKER=false
 ARG VITE_SENTRY_DSN=
@@ -19,13 +24,10 @@ ARG VITE_SENTRY_RELEASE=
 ARG VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
 
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
-    VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN \
     VITE_CSRF_ENDPOINT=$VITE_CSRF_ENDPOINT \
+    VITE_ENABLE_MAPBOX_IN_UI_TESTS=$VITE_ENABLE_MAPBOX_IN_UI_TESTS \
     VITE_ENABLE_LOCAL_PREVIEW=$VITE_ENABLE_LOCAL_PREVIEW \
-    VITE_LOCAL_PREVIEW_LOGIN_EMAIL=$VITE_LOCAL_PREVIEW_LOGIN_EMAIL \
-    VITE_LOCAL_PREVIEW_LOGIN_PASSWORD=$VITE_LOCAL_PREVIEW_LOGIN_PASSWORD \
     VITE_ENABLE_COGNITO_OAUTH=$VITE_ENABLE_COGNITO_OAUTH \
-    VITE_OPENWEATHERMAP_API_KEY=$VITE_OPENWEATHERMAP_API_KEY \
     VITE_WEB_PUSH_PUBLIC_KEY=$VITE_WEB_PUSH_PUBLIC_KEY \
     VITE_DISABLE_SERVICE_WORKER=$VITE_DISABLE_SERVICE_WORKER \
     VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
@@ -37,10 +39,12 @@ COPY scope-frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY scope-frontend/ ./
 COPY scope-assets ../scope-assets
-RUN npm run build
+COPY --from=wasm-build /workspace/scope-frontend/wasm/dist ./wasm/dist
+RUN VITE_MAPBOX_TOKEN="$MAPBOX_PUBLIC_TOKEN" npm run build
 
-# Nginx pinned to 1.27-alpine; append @sha256:<digest> in release builds.
-FROM nginx:1.27-alpine
+# Nginx is pinned to a weekly rebuilt, unprivileged multi-architecture digest.
+FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:0a1e718ff1e1a22fc519d0c2e5b6872681f01e37c8a2817ec43ce6e716103929
+USER root
 # Install curl for healthcheck and drop setuid bits that are unnecessary for a static SPA.
 RUN apk add --no-cache curl \
     && find / -xdev \( -perm -4000 -o -perm -2000 \) -exec chmod ug-s {} + 2>/dev/null || true
@@ -50,6 +54,7 @@ RUN printf 'server {\n\
   server_name _;\n\
   root /usr/share/nginx/html;\n\
   index index.html;\n\
+  server_tokens off;\n\
   add_header X-Content-Type-Options "nosniff" always;\n\
   add_header X-Frame-Options "DENY" always;\n\
   add_header Referrer-Policy "strict-origin-when-cross-origin" always;\n\

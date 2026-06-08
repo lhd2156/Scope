@@ -214,7 +214,7 @@ public sealed class FriendsController(
                 friendshipId = friendship.Id,
                 requesterId = friendship.RequesterId,
                 direction = "incoming",
-                user = ToUserPayload(user),
+                user = ToUserPayload(user, CanNonFriendSeePlanningContext(user)),
                 mutualFriends,
                 requestedAt = friendship.CreatedAt,
                 createdAt = friendship.CreatedAt,
@@ -243,10 +243,25 @@ public sealed class FriendsController(
         var excludedIds = linkedUserIds.Append(userId).ToHashSet();
         var candidates = await dbContext.Users
             .AsNoTracking()
-            .Where(x => x.IsActive && !x.IsShowcase && !excludedIds.Contains(x.Id))
+            .Where(x => x.IsActive
+                && !x.IsShowcase
+                && x.ProfileVisibility != ProfileVisibilityPolicy.Private
+                && !excludedIds.Contains(x.Id))
             .OrderByDescending(x => x.CreatedAt)
             .Take(200)
-            .Select(x => new UserProjection(x.Id, x.Username, string.Empty, x.DisplayName, x.Bio, x.AvatarUrl, x.HomeBase, x.InterestsJson, x.ShowActivityStatus, x.CreatedAt))
+            .Select(x => new UserProjection(
+                x.Id,
+                x.Username,
+                string.Empty,
+                x.DisplayName,
+                x.Bio,
+                x.AvatarUrl,
+                x.HomeBase,
+                x.InterestsJson,
+                x.ShowActivityStatus,
+                x.ProfileVisibility,
+                x.IsShowcase,
+                x.CreatedAt))
             .ToListAsync(cancellationToken);
 
         var suggestions = new List<SuggestionCandidate>();
@@ -289,7 +304,7 @@ public sealed class FriendsController(
             id = friendship.Id,
             friendshipId = friendship.Id,
             friendId,
-            user = ToUserPayload(user),
+            user = ToUserPayload(user, includePlanningContext: true),
             presence = ResolvePresence(user, presence),
             sharedTrips = 0,
             mutualFriends,
@@ -303,10 +318,14 @@ public sealed class FriendsController(
     private object ToSuggestionPayload(SuggestionCandidate candidate) => new
     {
         id = candidate.User.Id,
-        user = ToUserPayload(candidate.User),
+        user = ToUserPayload(candidate.User, CanNonFriendSeePlanningContext(candidate.User)),
         mutualFriends = candidate.MutualFriends,
-        sharedInterests = candidate.SharedInterests,
-        favoriteCategories = ParseInterests(candidate.User.InterestsJson).Take(4).ToArray(),
+        sharedInterests = CanNonFriendSeePlanningContext(candidate.User)
+            ? candidate.SharedInterests
+            : Array.Empty<string>(),
+        favoriteCategories = CanNonFriendSeePlanningContext(candidate.User)
+            ? ParseInterests(candidate.User.InterestsJson).Take(4).ToArray()
+            : Array.Empty<string>(),
         presence = ResolvePresence(candidate.User, candidate.Presence),
         reason = BuildSuggestionReason(candidate),
         score = candidate.Score,
@@ -316,7 +335,19 @@ public sealed class FriendsController(
         => await dbContext.Users
             .AsNoTracking()
             .Where(x => x.Id == userId && x.IsActive)
-            .Select(x => new UserProjection(x.Id, x.Username, includeEmail ? x.Email : string.Empty, x.DisplayName, x.Bio, x.AvatarUrl, x.HomeBase, x.InterestsJson, x.ShowActivityStatus, x.CreatedAt))
+            .Select(x => new UserProjection(
+                x.Id,
+                x.Username,
+                includeEmail ? x.Email : string.Empty,
+                x.DisplayName,
+                x.Bio,
+                x.AvatarUrl,
+                x.HomeBase,
+                x.InterestsJson,
+                x.ShowActivityStatus,
+                x.ProfileVisibility,
+                x.IsShowcase,
+                x.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken);
 
     private async Task<PresenceProjection?> GetPresenceProjectionAsync(Guid userId, CancellationToken cancellationToken)
@@ -348,19 +379,28 @@ public sealed class FriendsController(
         return otherFriendIds.Count(currentFriendIds.Contains);
     }
 
-    private static object ToUserPayload(UserProjection? user) => new
+    private static object ToUserPayload(UserProjection? user, bool includePlanningContext) => new
     {
         id = user?.Id ?? Guid.Empty,
         username = user?.Username ?? "scope-user",
         email = user?.Email ?? string.Empty,
         displayName = user?.DisplayName ?? "Scope traveler",
-        bio = user?.Bio,
+        bio = includePlanningContext ? user?.Bio : null,
         avatarUrl = user?.AvatarUrl,
-        homeBase = user?.HomeBase,
-        interests = ParseInterests(user?.InterestsJson),
+        homeBase = includePlanningContext ? ProfileVisibilityPolicy.ToPublicHomeBase(user?.HomeBase) : null,
+        interests = includePlanningContext ? ParseInterests(user?.InterestsJson) : Array.Empty<string>(),
         stats = new { spots = 0, trips = 0, friends = 0 },
-        showActivityStatus = user?.ShowActivityStatus ?? true,
+        showActivityStatus = includePlanningContext && (user?.ShowActivityStatus ?? true),
+        profileVisibility = ProfileVisibilityPolicy.Normalize(user?.ProfileVisibility),
     };
+
+    private static bool CanNonFriendSeePlanningContext(UserProjection? user)
+        => user is not null
+            && ProfileVisibilityPolicy.CanSeePlanningContext(
+                user.ProfileVisibility,
+                isOwnerOrAdmin: false,
+                isAcceptedFriend: false,
+                user.IsShowcase);
 
     private static string ResolvePresence(UserProjection? user, PresenceProjection? presence)
     {
@@ -397,7 +437,7 @@ public sealed class FriendsController(
     {
         var interests = ParseInterests(user?.InterestsJson);
         var topInterest = interests.FirstOrDefault();
-        var homeBase = string.IsNullOrWhiteSpace(user?.HomeBase) ? "their next city" : user!.HomeBase;
+        var homeBase = ProfileVisibilityPolicy.ToPublicHomeBase(user?.HomeBase) ?? "their next city";
         return string.IsNullOrWhiteSpace(topInterest)
             ? $"Mapping fresh routes around {homeBase}"
             : $"{homeBase} {topInterest} route";
@@ -421,10 +461,14 @@ public sealed class FriendsController(
 
         if (candidate.SharedInterests.Length > 0)
         {
-            return $"Shared {string.Join(", ", candidate.SharedInterests.Take(2))} vibe";
+            return CanNonFriendSeePlanningContext(candidate.User)
+                ? $"Shared {string.Join(", ", candidate.SharedInterests.Take(2))} vibe"
+                : "Suggested Scope traveler";
         }
 
-        return candidate.SameHomeBase ? "Same home base" : "Fresh Scope traveler";
+        return candidate.SameHomeBase && CanNonFriendSeePlanningContext(candidate.User)
+            ? "Same home base"
+            : "Fresh Scope traveler";
     }
 
     private static IReadOnlyList<string> ParseInterests(string? interestsJson)
@@ -454,6 +498,8 @@ public sealed class FriendsController(
         string? HomeBase,
         string? InterestsJson,
         bool ShowActivityStatus,
+        string ProfileVisibility,
+        bool IsShowcase,
         DateTimeOffset CreatedAt);
 
     private sealed record PresenceProjection(

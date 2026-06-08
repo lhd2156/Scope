@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+!wasm/dist/
+!wasm/dist/scope_wasm.js
+!wasm/dist/scope_wasm.wasm
 .tmp/
 dist-ssr
 .playwright-browsers/
