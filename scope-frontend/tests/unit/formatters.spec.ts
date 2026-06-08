@@ -3,9 +3,12 @@ import {
   addCalendarDays,
   formatCategoryLabel,
   formatCityRegionLocation,
+  formatHomeBaseLocation,
   formatCountryLabel,
   formatMapPinCityLine,
   formatMonthDay,
+  formatMonthDayYear,
+  formatPostTimestamp,
   formatRelativeTime,
   formatVibeLabel,
   formatWeekdayMonthDay,
@@ -57,6 +60,9 @@ describe('date and identity formatters', () => {
     expect(formatRelativeTime('2026-05-23T09:00:00', '2026-05-20T23:00:00')).toBe('in 3 days');
     expect(formatRelativeTime('not-a-date', '2026-05-20T12:00:00Z')).toBe('');
     expect(formatMonthDay('2026-05-20')).toContain('May');
+    expect(formatMonthDayYear('2026-06-08T12:00:00Z')).toBe('Jun 8, 2026');
+    expect(formatPostTimestamp('2026-06-01T12:00:00Z', '2026-06-08T12:00:00Z')).toBe('1 week ago');
+    expect(formatPostTimestamp('2026-05-20T12:00:00Z', '2026-06-08T12:00:00Z')).toBe('May 20, 2026');
     expect(formatMonthDay('not-a-date')).toBe('');
     expect(formatWeekdayMonthDay('2026-05-20')).toContain('May');
     expect(getInclusiveDaySpan('2026-05-20', '2026-05-22')).toBe(3);
@@ -113,5 +119,12 @@ describe('date and identity formatters', () => {
     });
     expect(formatCityRegionLocation({ country: 'mx' })).toBe('MX');
     expect(formatCityRegionLocation({}, 'Unknown pin')).toBe('Unknown pin');
+    expect(formatHomeBaseLocation({
+      address: '7620 Deaver Drive',
+      city: 'North Richland Hills',
+      stateCode: 'us-tx',
+      country: 'United States',
+      precision: 'address',
+    })).toBe('7620 Deaver Drive, North Richland Hills, TX');
   });
 });

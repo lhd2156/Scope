@@ -1804,4 +1804,78 @@ describe('agentService', () => {
     apiPostMock.mockRejectedValueOnce(nonApiError);
     await expect(planTrip({ prompt })).rejects.toBe(nonApiError);
   });
+
+  it('keeps itinerary parsing useful across planner brief and traveler-party edge cases', async () => {
+    const { __agentServiceCoverage } = await import('@/services/agentService');
+    const coverage = __agentServiceCoverage!;
+
+    expect(coverage.isItineraryBuildRequest('Create a starter itinerary')).toBe(true);
+    expect(coverage.isItineraryBuildRequest('Is this itinerary realistic?')).toBe(false);
+    expect(coverage.inferInterestsFromText('Give me a balanced mix')).toBe('food, culture, scenic');
+    expect(coverage.inferPaceFromText('Keep every day packed and busy')).toBe('packed');
+    expect(coverage.inferPaceFromText('Use a normal, moderate pace')).toBe('balanced');
+    expect(coverage.inferPaceFromText('No preference yet')).toBe('');
+
+    expect(coverage.getTravelersLabel('Travel party: Two parents and kids')).toBe('Two parents and kids');
+    expect(coverage.getTravelersLabel('Travelers: 1')).toBe('solo traveler');
+    expect(coverage.getTravelersLabel('Travelers: 4')).toBe('4 travelers');
+    expect(coverage.getTravelersLabel('Traveler request: Plan this for a couple')).toBe('couple');
+    expect(coverage.getTravelersLabel('Traveler request: I am going alone')).toBe('solo traveler');
+    expect(coverage.getTravelersLabel('Traveler request: Plan it with friends')).toBe('group');
+    expect(coverage.getTravelersLabel('Traveler request: Still deciding')).toBe('travel party not locked');
+
+    expect(coverage.getPaceStopTarget('packed')).toContain('up to 3 meaningful stops');
+    expect(coverage.getPaceStopTarget('balanced')).toContain('2 main anchors');
+
+    const missing = coverage.getMissingItineraryBriefQuestions(
+      'Traveler request: Build an itinerary',
+      'Fort Worth, TX',
+      'Austin, TX',
+      '2026-06-01 to 2026-06-01',
+      '',
+      '',
+    );
+    expect(missing).toEqual(expect.arrayContaining([
+      'How many days is the trip?',
+      expect.stringContaining('What are your interests'),
+      expect.stringContaining('Do you want the pace'),
+      expect.stringContaining('Who are you traveling with'),
+    ]));
+
+    const canceledChat = [
+      'Scope AI: How many days should I plan for?',
+      'User: cancel this itinerary build',
+      'Scope AI: I stopped that itinerary build. Ask me to build again when the route brief is ready.',
+    ].join('\n');
+    expect(coverage.promptHasPendingItineraryBrief('Traveler request: relaxed', canceledChat)).toBe(false);
+
+    const longPlan = coverage.buildConciseItineraryAnswer(
+      [
+        'Trip duration: 7 days',
+        'Travelers: 3',
+        'Traveler request: Build a packed itinerary',
+      ].join('\n'),
+      'Fort Worth, TX to Austin, TX',
+      '2026-06-01 to 2026-06-07',
+      '$800 - $1,400',
+      'packed',
+      'culture, scenic, shopping, nightlife, adventure',
+      '',
+    );
+    expect(longPlan).toContain('Later days');
+    expect(longPlan).toContain('culture or history stop');
+    expect(longPlan).toContain('scenic or outdoor stop');
+    expect(longPlan).toContain('shopping district or market');
+    expect(longPlan).toContain('nightlife option');
+    expect(longPlan).toContain('active stop');
+
+    const repeated = coverage.ensureFreshFinalAnswer(
+      'Keep the route focused.',
+      'Scope AI: Keep the route focused.',
+      'tighten it again',
+      4,
+    );
+    expect(repeated).toContain('Keep the route focused.');
+    expect(repeated).toContain('Fresh angle');
+  });
 });

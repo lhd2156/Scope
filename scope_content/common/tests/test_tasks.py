@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
+from scope_content import settings as content_settings
 
 
 class TestReindexSpotTask:
@@ -39,3 +40,23 @@ def test_celery_routes_match_worker_queues():
     assert settings.CELERY_TASK_ROUTES['common.tasks.bulk_reindex_task']['queue'] == 'reindex'
     assert settings.CELERY_TASK_ROUTES['common.tasks.analyze_review_sentiment_task']['queue'] == 'sentiment'
     assert settings.CELERY_TASK_ROUTES['common.tasks.classify_photo_task']['queue'] == 'classification'
+
+
+def test_celery_broker_url_prefers_explicit_value(monkeypatch):
+    monkeypatch.setenv('CELERY_BROKER_URL', 'amqps://configured.example/scope')
+
+    assert content_settings._build_celery_broker_url() == 'amqps://configured.example/scope'
+
+
+def test_celery_broker_url_encodes_credentials_and_vhost(monkeypatch):
+    monkeypatch.delenv('CELERY_BROKER_URL', raising=False)
+    monkeypatch.setenv('RABBITMQ_USER', 'scope user')
+    monkeypatch.setenv('RABBITMQ_PASS', 'p@ss:/word')
+    monkeypatch.setenv('RABBITMQ_HOST', 'rabbitmq')
+    monkeypatch.setenv('RABBITMQ_PORT', '5672')
+    monkeypatch.setenv('RABBITMQ_VHOST', 'scope/prod')
+
+    assert (
+        content_settings._build_celery_broker_url()
+        == 'amqp://scope%20user:p%40ss%3A%2Fword@rabbitmq:5672/scope%2Fprod'
+    )

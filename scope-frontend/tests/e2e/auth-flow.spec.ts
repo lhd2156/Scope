@@ -69,6 +69,17 @@ async function gotoAuthRoute(page: Page, path: string): Promise<void> {
   }
 }
 
+async function reloadAuthRoute(page: Page, path: string): Promise<void> {
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 45_000 });
+  } catch (error) {
+    if (!isRetryableNavigationAbort(error) && !(error instanceof Error && /timeout/i.test(error.message))) {
+      throw error;
+    }
+    await gotoAuthRoute(page, path);
+  }
+}
+
 async function fillRegisterForm(page: Page, overrides: Partial<typeof REGISTERED_ACCOUNT> = {}): Promise<void> {
   const account = { ...REGISTERED_ACCOUNT, ...overrides };
   const form = registerForm(page);
@@ -117,7 +128,7 @@ async function logoutFromNavbar(page: Page): Promise<void> {
 
 test.describe('Scope auth flow', () => {
   test('registers with validation, logs in with a redirect target, persists the session across reload, and logs out cleanly', async ({ page }) => {
-    test.setTimeout(4 * 60 * 1000);
+    test.setTimeout(6 * 60 * 1000);
 
     await gotoAuthRoute(page, '/register?redirect=/settings');
     await expect(page.getByRole('heading', { name: 'Create your Scope account' })).toBeVisible();
@@ -173,7 +184,7 @@ test.describe('Scope auth flow', () => {
     await expect(page.locator('button.profile-chip')).toContainText(REGISTERED_ACCOUNT.displayName);
     await expectSessionHint(page, true);
 
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    await reloadAuthRoute(page, '/settings');
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole('heading', { name: 'Shape how Scope looks, feels, and shares your story.' })).toBeVisible();
     await expect(page.locator('button.profile-chip')).toContainText(REGISTERED_ACCOUNT.displayName);

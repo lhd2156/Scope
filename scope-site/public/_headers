@@ -1,8 +1,12 @@
 /*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=(self)
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-site
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://api.scopetrips.com wss://api.scopetrips.com https://api.mapbox.com https://events.mapbox.com https://*.mapbox.com https://*.amazonaws.com https://*.ingest.sentry.io; worker-src 'self' blob:; manifest-src 'self'; require-trusted-types-for 'script'; trusted-types default scope scope-html scope-pwa scope-mapbox vue; block-all-mixed-content; upgrade-insecure-requests; report-uri https://api.scopetrips.com/api/csp-report
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

@@ -29,6 +29,7 @@ describe('coverage long-tail services and utilities', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     apiMock.get.mockReset();
     apiMock.post.mockReset();
     apiMock.put.mockReset();
@@ -203,6 +204,225 @@ describe('coverage long-tail services and utilities', () => {
     expect(trips.results[0]).toMatchObject({ id: 'trip-1', name: 'Austin Food Weekend', review_count: 2 });
     expect(reviews.results[0]).toMatchObject({ id: 'review-1', name: 'Austin Garden Cafe review', avg_rating: 5 });
     expect(empty).toMatchObject({ total: 0, limit: 1, offset: 0, results: [] });
+  });
+
+  it('ranks sparse local search records and skips invalid catalog rows', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    apiMock.get.mockRejectedValue(new Error('content search unavailable'));
+    loadMockDataMock.mockResolvedValue({
+      mockSpots: [
+        {
+          id: '',
+          title: 'Invalid catalog row',
+          latitude: 0,
+          longitude: 0,
+          category: 'other',
+        },
+        {
+          id: 'museum-exact',
+          title: 'Museum',
+          latitude: 32.75,
+          longitude: -97.33,
+          category: undefined,
+          description: undefined,
+          city: undefined,
+          country: undefined,
+          vibe: undefined,
+          pillars: undefined,
+          rating: undefined,
+          likesCount: undefined,
+          photoUrl: undefined,
+        },
+        {
+          id: 'museum-substring',
+          title: 'Museum',
+          description: 'Indoor exhibits',
+          latitude: 32.76,
+          longitude: -97.34,
+          category: 'culture',
+          city: 'Fort Worth',
+          country: 'US',
+          pillars: [],
+          rating: 4,
+          likesCount: 10,
+        },
+      ],
+      mockTrips: [],
+      mockSpotDetails: {},
+    });
+
+    const { searchContent } = await import('@/services/searchService');
+    const exact = await searchContent('museum');
+    const substring = await searchContent('useu', 'spots');
+
+    expect(exact.results.slice(0, 2).map((result) => result.id)).toEqual([
+      'museum-substring',
+      'museum-exact',
+    ]);
+    expect(exact.results.find((result) => result.id === 'museum-exact')).toEqual({
+      id: 'museum-exact',
+      name: 'Museum',
+      location: { lat: 32.75, lon: -97.33 },
+      _score: 9,
+    });
+    expect(substring.results.map((result) => result.id)).toEqual(
+      expect.arrayContaining(['museum-exact', 'museum-substring']),
+    );
+    expect(substring.results
+      .filter((result) => result.id.startsWith('museum-'))
+      .every((result) => result._score >= 4)).toBe(true);
+  });
+
+  it('uses live search defaults and surfaces live failures when fallback is disabled', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
+    apiMock.get
+      .mockResolvedValueOnce({
+        data: {
+          query: 'museum',
+          type: 'spots',
+          total: 1,
+          offset: 0,
+          limit: 20,
+          results: [{ id: 'live-museum', name: 'Museum', _score: 8 }],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          center: { lat: 32.75, lon: -97.33 },
+          radius: '10km',
+          total: 0,
+          results: [],
+        },
+      });
+
+    const { searchContent, searchNearby } = await import('@/services/searchService');
+
+    await expect(searchContent('museum')).resolves.toMatchObject({
+      total: 1,
+      results: [expect.objectContaining({ id: 'live-museum' })],
+    });
+    await expect(searchNearby(32.75, -97.33)).resolves.toMatchObject({
+      radius: '10km',
+    });
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, '/api/content/search', {
+      params: { q: 'museum', type: 'spots', limit: 20, offset: 0 },
+    });
+    expect(apiMock.get).toHaveBeenNthCalledWith(2, '/api/content/search/nearby', {
+      params: { lat: 32.75, lon: -97.33, radius: '10km', limit: 20 },
+    });
+
+    apiMock.get.mockRejectedValueOnce(new Error('live search unavailable'));
+    await expect(searchContent('offline')).rejects.toThrow('live search unavailable');
+  });
+
+  it('uses the preview latency race and reuses a resolved empty fallback', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    loadMockDataMock.mockResolvedValue({
+      mockSpots: [
+        {
+          id: 'museum-fallback',
+          title: 'Museum fallback',
+          latitude: 32.75,
+          longitude: -97.33,
+          category: 'culture',
+        },
+      ],
+      mockTrips: [],
+      mockSpotDetails: {},
+    });
+
+    try {
+      apiMock.get.mockImplementationOnce(() => new Promise((resolve) => {
+        setTimeout(() => resolve({
+          data: {
+            query: 'museum',
+            type: 'spots',
+            total: 1,
+            offset: 0,
+            limit: 20,
+            results: [{ id: 'live-late', name: 'Late live result', _score: 1 }],
+          },
+        }), 250);
+      }));
+
+      const { searchContent } = await import('@/services/searchService');
+      const racedSearch = searchContent('museum');
+      await vi.advanceTimersByTimeAsync(181);
+      const racedResult = await racedSearch;
+      expect(racedResult.results.some((result) => result.id === 'museum-fallback')).toBe(true);
+
+      loadMockDataMock.mockResolvedValueOnce({
+        mockSpots: [],
+        mockTrips: [],
+        mockSpotDetails: {},
+      });
+      apiMock.get.mockImplementationOnce(() => new Promise((resolve) => {
+        setTimeout(() => resolve({
+          data: {
+            query: 'unmatched',
+            type: 'spots',
+            total: 1,
+            offset: 0,
+            limit: 20,
+            results: [{ id: 'live-after-race', name: 'Live after race', _score: 1 }],
+          },
+        }), 250);
+      }));
+      const liveAfterEmptyFallback = searchContent('unmatched');
+      await vi.advanceTimersByTimeAsync(251);
+      await expect(liveAfterEmptyFallback).resolves.toMatchObject({
+        results: [expect.objectContaining({ id: 'live-after-race' })],
+      });
+
+      loadMockDataMock.mockResolvedValueOnce({
+        mockSpots: [{
+          id: 'long-fallback',
+          title: 'Long fallback destination',
+          latitude: 30,
+          longitude: -97,
+          category: 'scenic',
+        }],
+        mockTrips: [],
+        mockSpotDetails: {},
+      });
+      apiMock.get.mockResolvedValueOnce({
+        data: {
+          query: 'destination',
+          type: 'spots',
+          total: 0,
+          offset: 0,
+          limit: 20,
+          results: [],
+        },
+      });
+      await expect(searchContent('destination')).resolves.toMatchObject({
+        results: [expect.objectContaining({ id: 'long-fallback' })],
+      });
+
+      loadMockDataMock.mockResolvedValueOnce({
+        mockSpots: [],
+        mockTrips: [],
+        mockSpotDetails: {},
+      });
+      apiMock.get.mockResolvedValueOnce({
+        data: {
+          query: 'xy',
+          type: 'spots',
+          total: 0,
+          offset: 0,
+          limit: 20,
+          results: [],
+        },
+      });
+
+      await expect(searchContent('xy')).resolves.toMatchObject({
+        total: 0,
+        results: [],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('uses live search endpoints when available and forwards nearby query params', async () => {
@@ -952,7 +1172,7 @@ describe('coverage long-tail services and utilities', () => {
       presence: 'hidden',
     } as never)).toMatchObject({
       id: 'user-wire-1',
-      displayName: 'New explorer',
+      displayName: 'Wire Traveler',
       status: 'editor',
       inviteStatus: 'accepted',
       presence: undefined,

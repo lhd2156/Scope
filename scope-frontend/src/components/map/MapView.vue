@@ -7368,7 +7368,7 @@ function getTripsMapDebugKey(flag?: TripsMapDebugFlag): string {
 }
 
 function isTripsMapDebugEnabled(): boolean {
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && !allowInteractiveMapInUiTests) {
     return false;
   }
 
@@ -7385,7 +7385,11 @@ function setTripsMapDebugFlag(flag: TripsMapDebugFlag): void {
 }
 
 function exposeMapInstanceForUiTests(instance: mapboxgl.Map | null): void {
-  if (import.meta.env.PROD || typeof window === 'undefined' || (!isUiTestEnvironment() && !isTripsMapDebugEnabled())) {
+  if (
+    (import.meta.env.PROD && !allowInteractiveMapInUiTests) ||
+    typeof window === 'undefined' ||
+    (!isUiTestEnvironment() && !isTripsMapDebugEnabled())
+  ) {
     return;
   }
 

@@ -17,10 +17,12 @@ public sealed class RateLimitRedisCoverageTests
     {
         var nextCalls = 0;
         var database = new Mock<IDatabase>();
-        database.Setup(x => x.StringIncrementAsync(It.IsAny<RedisKey>(), It.IsAny<long>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(1);
-        database.Setup(x => x.KeyExpireAsync(It.IsAny<RedisKey>(), It.IsAny<TimeSpan?>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(true);
+        database.Setup(x => x.ScriptEvaluateAsync(
+                It.IsAny<string>(),
+                It.IsAny<RedisKey[]>(),
+                It.IsAny<RedisValue[]>(),
+                It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisResult.Create((RedisValue)1));
         var redis = Redis(database);
         var middleware = Middleware(redis.Object, _ =>
         {
@@ -34,15 +36,22 @@ public sealed class RateLimitRedisCoverageTests
 
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         Assert.Equal(1, nextCalls);
-        database.Verify(x => x.StringIncrementAsync(It.Is<RedisKey>(key => key.ToString().Contains("global:203.0.113.80")), 1, It.IsAny<CommandFlags>()), Times.Once);
-        database.Verify(x => x.KeyExpireAsync(It.IsAny<RedisKey>(), It.IsAny<TimeSpan?>(), CommandFlags.FireAndForget), Times.Once);
+        database.Verify(x => x.ScriptEvaluateAsync(
+            It.Is<string>(script => script.Contains("INCR") && script.Contains("PEXPIRE")),
+            It.Is<RedisKey[]>(keys => keys.Length == 1 && keys[0].ToString().Contains("global:203.0.113.80")),
+            It.Is<RedisValue[]>(values => values.Length == 1 && (long)values[0] == 60_000),
+            CommandFlags.None), Times.Once);
     }
 
     [Fact]
     public async Task RateLimitMiddleware_FallsBackToLocalWhenRedisThrows()
     {
         var database = new Mock<IDatabase>();
-        database.Setup(x => x.StringIncrementAsync(It.IsAny<RedisKey>(), It.IsAny<long>(), It.IsAny<CommandFlags>()))
+        database.Setup(x => x.ScriptEvaluateAsync(
+                It.IsAny<string>(),
+                It.IsAny<RedisKey[]>(),
+                It.IsAny<RedisValue[]>(),
+                It.IsAny<CommandFlags>()))
             .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "redis down"));
         var redis = Redis(database);
         var middleware = Middleware(redis.Object, _ => Task.CompletedTask);

@@ -34,7 +34,7 @@ public sealed class AuthHealthLiveControllerMoreTests
             .ReturnsAsync(new AuthResult(userId, "lou", "lou@example.com", "Lou", "access3", "refresh3"));
         auth.Setup(x => x.LogoutAsync("refresh", It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         auth.Setup(x => x.GetCurrentUserAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new UserProfile(userId, "lou", "lou@example.com", "Lou", null, null, null, [], true, DateTimeOffset.UtcNow));
+            .ReturnsAsync(new UserProfile(userId, "lou", "lou@example.com", "Lou", null, null, null, [], true, "friends", DateTimeOffset.UtcNow));
         reset.Setup(x => x.RequestResetAsync("lou@example.com", "203.0.113.9", It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         reset.Setup(x => x.CompleteResetAsync("token", "SecurePass123!", It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         email.Setup(x => x.SendAsync(userId, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);

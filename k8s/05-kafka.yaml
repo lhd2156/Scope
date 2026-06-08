@@ -14,6 +14,36 @@ spec:
       port: 2181
       targetPort: 2181
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-log
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,9 +63,23 @@ spec:
         app.kubernetes.io/name: zookeeper
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: zookeeper
-          image: confluentinc/cp-zookeeper:7.5.0
+          image: confluentinc/cp-zookeeper:7.9.7@sha256:b692a1dafdccd09dd2a9e109a4da1e74835d82907099028a6aa691df002d9375
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 2181
               name: client
@@ -58,6 +102,31 @@ spec:
               port: 2181
             initialDelaySeconds: 10
             periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kafka
+            - name: data
+              mountPath: /var/lib/zookeeper/data
+            - name: log
+              mountPath: /var/lib/zookeeper/log
+            - name: runtime-logs
+              mountPath: /var/log/kafka
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: zookeeper-data
+        - name: log
+          persistentVolumeClaim:
+            claimName: zookeeper-log
+        - name: runtime-logs
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -74,6 +143,21 @@ spec:
     - name: broker
       port: 9092
       targetPort: 9092
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -94,9 +178,23 @@ spec:
         app.kubernetes.io/name: kafka
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: kafka
-          image: confluentinc/cp-kafka:7.5.0
+          image: confluentinc/cp-kafka:7.9.7@sha256:d879d4b81bccb61c9b11f2e69dfcbc4219ea474f6c0df48cc89e75efed82cecb
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 9092
               name: broker
@@ -139,6 +237,26 @@ spec:
               port: 9092
             initialDelaySeconds: 20
             periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kafka
+            - name: data
+              mountPath: /var/lib/kafka/data
+            - name: runtime-logs
+              mountPath: /var/log/kafka
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: kafka-data
+        - name: runtime-logs
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -157,10 +275,23 @@ spec:
         app.kubernetes.io/name: kafka-topic-init
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: kafka-topic-init
-          image: confluentinc/cp-kafka:7.5.0
+          image: confluentinc/cp-kafka:7.9.7@sha256:d879d4b81bccb61c9b11f2e69dfcbc4219ea474f6c0df48cc89e75efed82cecb
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           command:
             - /bin/sh
             - -c
@@ -185,6 +316,8 @@ spec:
               create spot.updated 3
               create spot.liked 3
               create review.created 3
+              create comment.created 3
+              create mention.created 3
               create trip.created 3
               create trip.deleted 3
               create trip.member.added 3
@@ -205,3 +338,14 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+          volumeMounts:
+            - name: runtime-logs
+              mountPath: /var/log/kafka
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime-logs
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir: {}

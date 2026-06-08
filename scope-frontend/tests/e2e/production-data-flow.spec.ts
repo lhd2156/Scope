@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import type { Page, Response } from '@playwright/test';
 import { expect, test } from './fixtures/scope-test';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 const SPOT_PHOTO = {
   name: 'production-public-spot.png',
@@ -80,7 +81,7 @@ async function createPublicSpot(page: Page): Promise<{ id: string; verificationS
   expect(spot.safetyStatus).toBe('clean');
   expect(spot.providerPlaceId).toBeTruthy();
 
-  await expect(page).toHaveURL(new RegExp(`/spots/${spot.id}$`));
+  await page.waitForURL((url) => url.pathname === buildSpotPath(spot));
   await expect(page.getByRole('heading', { level: 1, name: PUBLIC_SPOT.title })).toBeVisible();
 
   return {
@@ -154,8 +155,11 @@ test.describe('production-minded data flows', () => {
 
     await page.locator('[data-test="send-request-suggestion-aisha"]').click();
     await page.getByLabel('Search friends and Scope members').fill('');
+    await expect(page.locator('[data-test="main-search-results"]')).toBeHidden();
+    await expect(page.locator('[data-test="friends-online-rail"]')).toBeVisible();
 
     await page.locator('[data-test="tab-requests"]').click();
+    await expect(page.locator('[data-test="tab-requests"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('[data-test="request-card"]')).toHaveCount(4);
     await expect(page.locator('[data-test="requests-grid"]')).toContainText('Aisha Green');
 

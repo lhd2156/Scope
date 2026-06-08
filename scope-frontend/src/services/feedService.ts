@@ -256,7 +256,7 @@ function scoreStarterFeedItem(item: FeedItem): number {
   const socialScore = ((actorStats?.friends ?? 0) * 0.08) + ((actorStats?.spots ?? 0) * 0.5) + ((actorStats?.trips ?? 0) * 0.75);
   const ratingScore = parseStarterRating(item) * 18;
   const noteScore = Math.min(18, Math.max(0, item.excerpt.trim().length / 14));
-  const typeScore = item.type === 'review' ? 14 : item.type === 'trip' ? 8 : 5;
+  const typeScore = item.type === 'review' ? 14 : 5;
 
   return ratingScore + socialScore + noteScore + typeScore;
 }
@@ -284,7 +284,7 @@ function buildStarterCandidateOrder(items: FeedItem[], randomize: boolean): Feed
   ];
 }
 
-function selectStarterFeedHighlights(items: FeedItem[], options: { randomize?: boolean } = {}): FeedItem[] {
+function selectStarterFeedHighlights(items: FeedItem[], randomize: boolean): FeedItem[] {
   const rankedItems = [...items].sort((left, right) => {
     const scoreDelta = scoreStarterFeedItem(right) - scoreStarterFeedItem(left);
     if (scoreDelta !== 0) {
@@ -293,7 +293,7 @@ function selectStarterFeedHighlights(items: FeedItem[], options: { randomize?: b
 
     return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
   });
-  const candidateItems = buildStarterCandidateOrder(rankedItems, Boolean(options.randomize));
+  const candidateItems = buildStarterCandidateOrder(rankedItems, randomize);
 
   const selectedItems: FeedItem[] = [];
   const selectedTargets = new Set<string>();
@@ -339,7 +339,7 @@ async function getSpotReviewsForStarterFeed(spot: SpotSummary): Promise<FeedItem
 async function buildPublicStarterReviewFeed(
   page: number,
   pageSize: number,
-  options: { randomize?: boolean } = {},
+  randomize: boolean,
 ): Promise<ApiEnvelope<FeedItem[]>> {
   const spots = await getPublicStarterSpots(STARTER_REVIEW_SPOT_LIMIT);
   const reviewGroups = await Promise.allSettled(spots.map((spot) => getSpotReviewsForStarterFeed(spot)));
@@ -359,7 +359,7 @@ async function buildPublicStarterReviewFeed(
       targetId: spot.id,
       targetPath: buildSpotPath(spot),
       targetLocation: formatCityRegionLocation(spot, ''),
-    })), { randomize: options.randomize });
+    })), randomize);
 
   return paginateItems(starterItems, page, pageSize || DEFAULT_FALLBACK_PAGE_SIZE);
 }
@@ -388,7 +388,7 @@ export async function getHomeActivityFeed(page = 1, pageSize = DEFAULT_FALLBACK_
   let emptyStarterFeed: ApiEnvelope<FeedItem[]> | null = null;
 
   try {
-    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
+    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, true);
     if (starterFeed.data.length) {
       return starterFeed;
     }
@@ -415,7 +415,7 @@ export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): 
     let emptyStarterFeed: ApiEnvelope<FeedItem[]> | null = null;
 
     try {
-      const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
+      const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, true);
       if (starterFeed.data.length) {
         return starterFeed;
       }
@@ -448,7 +448,7 @@ export async function getFeed(page = 1, pageSize = DEFAULT_FALLBACK_PAGE_SIZE): 
   }
 
   try {
-    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, { randomize: true });
+    const starterFeed = await buildPublicStarterReviewFeed(page, pageSize, true);
     if (starterFeed.data.length) {
       return starterFeed;
     }

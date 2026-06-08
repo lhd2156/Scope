@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Generate throwaway values so `docker compose config` can interpolate.
       # Real deploys inject secrets via the environment/cluster, not this file.
@@ -200,7 +200,7 @@ jobs:
             file: ./scope-frontend/Dockerfile
             build_args: |
               VITE_API_BASE_URL=/
-              VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
+              MAPBOX_PUBLIC_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
               VITE_CSRF_ENDPOINT=${{ vars.VITE_CSRF_ENDPOINT }}
               VITE_ENABLE_LOCAL_PREVIEW=false
               VITE_ENABLE_COGNITO_OAUTH=false
@@ -210,14 +210,14 @@ jobs:
               VITE_SENTRY_TRACES_SAMPLE_RATE=${{ vars.SENTRY_TRACES_SAMPLE_RATE || '0.1' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GHCR
         if: github.event_name == 'push' || github.event.inputs.publish_images == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -225,7 +225,7 @@ jobs:
 
       - name: Extract image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
           tags: |
@@ -235,7 +235,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and optionally publish image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -291,7 +291,7 @@ jobs:
       TF_SQLSERVER_MASTER_PASSWORD: ${{ secrets.TF_SQLSERVER_MASTER_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Terraform workflow configuration
         shell: bash
@@ -357,13 +357,13 @@ jobs:
           fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.15.5
 
@@ -406,7 +406,7 @@ jobs:
           cp tfplan.txt ../terraform-artifacts/
 
       - name: Upload Terraform plan artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: scope-terraform-${{ github.event.inputs.terraform_environment }}-${{ github.event.inputs.terraform_profile }}-plan
           path: terraform-artifacts
@@ -446,7 +446,7 @@ jobs:
       ALLOW_FULL_PRODUCTION_INFRA: ${{ vars.ALLOW_FULL_PRODUCTION_INFRA || 'false' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Terraform apply configuration
         shell: bash
@@ -508,18 +508,18 @@ jobs:
           fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.15.5
 
       - name: Download Terraform plan artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: scope-terraform-${{ github.event.inputs.terraform_environment }}-${{ github.event.inputs.terraform_profile }}-plan
           path: terraform
@@ -590,7 +590,7 @@ jobs:
             file: ./scope-frontend/Dockerfile
             build_args: |
               VITE_API_BASE_URL=/
-              VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
+              MAPBOX_PUBLIC_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}
               VITE_CSRF_ENDPOINT=${{ vars.VITE_CSRF_ENDPOINT }}
               VITE_ENABLE_LOCAL_PREVIEW=false
               VITE_ENABLE_COGNITO_OAUTH=false
@@ -630,18 +630,18 @@ jobs:
 
       - name: Checkout
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configure AWS credentials
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.15.5
 
@@ -692,15 +692,15 @@ jobs:
 
       - name: Login to Amazon ECR
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
 
       - name: Set up Docker Buildx
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build and publish ECR image
         if: github.event.inputs.terraform_registry == 'ecr' && github.event.inputs.publish_images == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -730,6 +730,7 @@ jobs:
       SCOPE_GRPC_INTERNAL_TOKEN: ${{ secrets.SCOPE_GRPC_INTERNAL_TOKEN || secrets.GRPC_INTERNAL_TOKEN }}
       SCOPE_DJANGO_SECRET_KEY: ${{ secrets.SCOPE_DJANGO_SECRET_KEY || secrets.DJANGO_SECRET_KEY || secrets.ATLAS_DJANGO_SECRET_KEY }}
       SCOPE_FLASK_SECRET_KEY: ${{ secrets.SCOPE_FLASK_SECRET_KEY || secrets.FLASK_SECRET_KEY || secrets.ATLAS_FLASK_SECRET_KEY }}
+      SCOPE_RABBITMQ_PASS: ${{ secrets.SCOPE_RABBITMQ_PASS || secrets.RABBITMQ_PASS }}
       SCOPE_GRAFANA_ADMIN_USER: ${{ secrets.SCOPE_GRAFANA_ADMIN_USER || vars.GRAFANA_ADMIN_USER || 'admin' }}
       SCOPE_GRAFANA_ADMIN_PASSWORD: ${{ secrets.SCOPE_GRAFANA_ADMIN_PASSWORD || secrets.GRAFANA_ADMIN_PASSWORD }}
       SCOPE_WEB_PUSH_PRIVATE_KEY: ${{ secrets.SCOPE_WEB_PUSH_PRIVATE_KEY || secrets.WEB_PUSH_PRIVATE_KEY }}
@@ -737,18 +738,16 @@ jobs:
       SCOPE_TLS_HOSTNAME: ${{ vars.SCOPE_TLS_HOSTNAME }}
       SCOPE_TLS_EMAIL: ${{ vars.SCOPE_TLS_EMAIL }}
       SCOPE_PUBLIC_BASE_URL: ${{ vars.SCOPE_PUBLIC_BASE_URL }}
-      SCOPE_AWS_ACCESS_KEY_ID: ${{ secrets.SCOPE_AWS_ACCESS_KEY_ID || secrets.AWS_ACCESS_KEY_ID }}
-      SCOPE_AWS_SECRET_ACCESS_KEY: ${{ secrets.SCOPE_AWS_SECRET_ACCESS_KEY || secrets.AWS_SECRET_ACCESS_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Kubernetes deployment configuration
         shell: bash
         run: |
           missing=0
-          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET SCOPE_SA_PASSWORD SCOPE_CORE_JWT_SECRET SCOPE_GRPC_INTERNAL_TOKEN SCOPE_DJANGO_SECRET_KEY SCOPE_FLASK_SECRET_KEY SCOPE_GRAFANA_ADMIN_PASSWORD SCOPE_WEB_PUSH_PRIVATE_KEY SCOPE_TLS_HOSTNAME SCOPE_TLS_EMAIL; do
+          for variable in AWS_ROLE_TO_ASSUME TF_STATE_BUCKET SCOPE_SA_PASSWORD SCOPE_CORE_JWT_SECRET SCOPE_GRPC_INTERNAL_TOKEN SCOPE_DJANGO_SECRET_KEY SCOPE_FLASK_SECRET_KEY SCOPE_RABBITMQ_PASS SCOPE_GRAFANA_ADMIN_PASSWORD SCOPE_WEB_PUSH_PRIVATE_KEY SCOPE_TLS_HOSTNAME SCOPE_TLS_EMAIL; do
             if [ -z "${!variable}" ]; then
               echo "::error::$variable is required for Kubernetes production deployment."
               missing=1
@@ -762,6 +761,10 @@ jobs:
 
           if [ -n "${SCOPE_GRPC_INTERNAL_TOKEN}" ] && [ "${#SCOPE_GRPC_INTERNAL_TOKEN}" -lt 32 ]; then
             echo "::error::SCOPE_GRPC_INTERNAL_TOKEN must be at least 32 characters."
+            missing=1
+          fi
+          if [ -n "${SCOPE_GRPC_INTERNAL_TOKEN}" ] && [ "${SCOPE_GRPC_INTERNAL_TOKEN}" = "${SCOPE_CORE_JWT_SECRET}" ]; then
+            echo "::error::SCOPE_GRPC_INTERNAL_TOKEN must be distinct from SCOPE_CORE_JWT_SECRET."
             missing=1
           fi
 
@@ -780,18 +783,18 @@ jobs:
           fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.15.5
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
 
       - name: Render Terraform backend config
         shell: bash
@@ -820,6 +823,7 @@ jobs:
         run: |
           cluster_name="$(terraform output -raw eks_cluster_name)"
           photos_bucket="$(terraform output -raw photos_bucket_name)"
+          vpc_cidr="$(terraform output -raw vpc_cidr)"
           terraform output -json ecr_repository_urls > /tmp/ecr-repository-urls.json
 
           if [ -z "${SCOPE_PUBLIC_BASE_URL}" ]; then
@@ -830,6 +834,7 @@ jobs:
 
           echo "EKS_CLUSTER_NAME=${cluster_name}" >> "$GITHUB_ENV"
           echo "PHOTOS_BUCKET_NAME=${photos_bucket}" >> "$GITHUB_ENV"
+          echo "VPC_CIDR=${vpc_cidr}" >> "$GITHUB_ENV"
           echo "SCOPE_PUBLIC_BASE_URL=${scope_public_base_url}" >> "$GITHUB_ENV"
 
       - name: Configure kubectl for EKS
@@ -868,6 +873,7 @@ jobs:
               "scope.example.com": os.environ["SCOPE_TLS_HOSTNAME"],
               "scope-production-photos": os.environ["PHOTOS_BUCKET_NAME"],
               "ops@example.com": os.environ["SCOPE_TLS_EMAIL"],
+              "10.42.0.0/16": os.environ["VPC_CIDR"],
           }
           for path in rendered.glob("*.yaml"):
               text = path.read_text()
@@ -912,6 +918,8 @@ jobs:
           kubectl apply -f k8s-rendered/02-configmap.yaml
 
           core_connection="Server=sqlserver,1433;Database=ScopeDb;User Id=sa;Password=${SCOPE_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Min Pool Size=5;Max Pool Size=100;Connection Timeout=15;MultipleActiveResultSets=true"
+          django_password_encoded="$(python -c 'import os; from urllib.parse import quote; print(quote(os.environ["SCOPE_SA_PASSWORD"], safe=""))')"
+          django_database_url="mssql://sa:${django_password_encoded}@sqlserver:1433/ScopeDb"
           kubectl create secret generic scope-secrets -n scope \
             --from-literal=SA_PASSWORD="${SCOPE_SA_PASSWORD}" \
             --from-literal=CORE_DB_CONNECTION="${core_connection}" \
@@ -919,9 +927,9 @@ jobs:
             --from-literal=CORE_JWT_SECRET="${SCOPE_CORE_JWT_SECRET}" \
             --from-literal=GRPC_INTERNAL_TOKEN="${SCOPE_GRPC_INTERNAL_TOKEN}" \
             --from-literal=DJANGO_SECRET_KEY="${SCOPE_DJANGO_SECRET_KEY}" \
+            --from-literal=DJANGO_DATABASE_URL="${django_database_url}" \
             --from-literal=FLASK_SECRET_KEY="${SCOPE_FLASK_SECRET_KEY}" \
-            --from-literal=AWS_ACCESS_KEY_ID="${SCOPE_AWS_ACCESS_KEY_ID}" \
-            --from-literal=AWS_SECRET_ACCESS_KEY="${SCOPE_AWS_SECRET_ACCESS_KEY}" \
+            --from-literal=RABBITMQ_PASS="${SCOPE_RABBITMQ_PASS}" \
             --from-literal=GRAFANA_ADMIN_USER="${SCOPE_GRAFANA_ADMIN_USER}" \
             --from-literal=GRAFANA_ADMIN_PASSWORD="${SCOPE_GRAFANA_ADMIN_PASSWORD}" \
             --from-literal=WEB_PUSH_PRIVATE_KEY="${SCOPE_WEB_PUSH_PRIVATE_KEY}" \
@@ -936,12 +944,14 @@ jobs:
           kubectl apply -f k8s-rendered/06-applications.yaml
           kubectl apply -f k8s-rendered/07-edge.yaml
           kubectl apply -f k8s-rendered/08-monitoring.yaml
+          kubectl apply -f k8s-rendered/09-network-policies.yaml
 
       - name: Pin Kubernetes workload images
         run: |
           kubectl set image deployment/core core="${SCOPE_CORE_IMAGE}" -n scope
           kubectl set image deployment/content content="${SCOPE_CONTENT_IMAGE}" -n scope
           kubectl set image deployment/content-worker content-worker="${SCOPE_CONTENT_IMAGE}" -n scope
+          kubectl set image deployment/content-celery content-celery="${SCOPE_CONTENT_IMAGE}" -n scope
           kubectl set image deployment/intel intel="${SCOPE_INTEL_IMAGE}" -n scope
           kubectl set image deployment/intel-worker intel-worker="${SCOPE_INTEL_IMAGE}" -n scope
           kubectl set image deployment/rag rag="${SCOPE_RAG_IMAGE}" -n scope
@@ -955,12 +965,15 @@ jobs:
         run: |
           kubectl rollout status statefulset/sqlserver -n scope --timeout=600s
           kubectl rollout status deployment/redis -n scope --timeout=300s
+          kubectl rollout status statefulset/rabbitmq -n scope --timeout=300s
           kubectl rollout status statefulset/elasticsearch -n scope --timeout=600s
           kubectl rollout status deployment/ollama -n scope --timeout=600s
           kubectl rollout status deployment/zookeeper -n scope --timeout=600s
           kubectl rollout status deployment/kafka -n scope --timeout=600s
           kubectl rollout status deployment/core -n scope --timeout=600s
           kubectl rollout status deployment/content -n scope --timeout=600s
+          kubectl rollout status deployment/content-worker -n scope --timeout=600s
+          kubectl rollout status deployment/content-celery -n scope --timeout=600s
           kubectl rollout status deployment/intel -n scope --timeout=600s
           kubectl rollout status deployment/rag -n scope --timeout=600s
           kubectl rollout status deployment/scope-metrics -n scope --timeout=600s
@@ -1005,7 +1018,6 @@ jobs:
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       COMPOSE_HOST_SSH_PRIVATE_KEY: ${{ secrets.COMPOSE_HOST_SSH_PRIVATE_KEY || secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}
       VITE_MAPBOX_TOKEN: ${{ vars.VITE_MAPBOX_TOKEN }}
-      VITE_OPENWEATHERMAP_API_KEY: ${{ secrets.VITE_OPENWEATHERMAP_API_KEY || secrets.OPENWEATHERMAP_API_KEY }}
       SCOPE_PUBLIC_BASE_URL: ${{ vars.SCOPE_PUBLIC_BASE_URL }}
       SCOPE_APP_BASE_URL: ${{ vars.SCOPE_APP_BASE_URL || vars.SCOPE_FRONTEND_ORIGIN || 'https://scopetrips.com' }}
       SCOPE_TLS_HOSTNAME: ${{ vars.SCOPE_TLS_HOSTNAME }}
@@ -1023,7 +1035,7 @@ jobs:
       OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Compose host deployment configuration
         shell: bash
@@ -1081,6 +1093,10 @@ jobs:
             echo "::error::SCOPE_GRPC_INTERNAL_TOKEN must be at least 32 characters."
             missing=1
           fi
+          if [ -n "${SCOPE_GRPC_INTERNAL_TOKEN}" ] && [ "${SCOPE_GRPC_INTERNAL_TOKEN}" = "${SCOPE_CORE_JWT_SECRET}" ]; then
+            echo "::error::SCOPE_GRPC_INTERNAL_TOKEN must be distinct from SCOPE_CORE_JWT_SECRET."
+            missing=1
+          fi
 
           if [ -n "${TF_STATE_KEY_OVERRIDE}" ]; then
             echo "TF_STATE_KEY=${TF_STATE_KEY_OVERRIDE}" >> "$GITHUB_ENV"
@@ -1093,13 +1109,13 @@ jobs:
           fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.15.5
 
@@ -1218,7 +1234,6 @@ jobs:
           RABBITMQ_USER=scope
           RABBITMQ_PASS=${SCOPE_RABBITMQ_PASS}
           RABBITMQ_VHOST=scope
-          CELERY_BROKER_URL=amqp://scope:${SCOPE_RABBITMQ_PASS}@rabbitmq:5672/scope
           CELERY_RESULT_BACKEND=redis://redis:6379/2
           GRAFANA_ADMIN_USER=${SCOPE_GRAFANA_ADMIN_USER}
           GRAFANA_ADMIN_PASSWORD=${SCOPE_GRAFANA_ADMIN_PASSWORD}
@@ -1233,7 +1248,6 @@ jobs:
           AWS_COGNITO_CLIENT_ID=${COGNITO_USER_POOL_CLIENT_ID}
           VITE_API_BASE_URL=/
           VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
-          VITE_OPENWEATHERMAP_API_KEY=${VITE_OPENWEATHERMAP_API_KEY}
           MAPBOX_ACCESS_TOKEN=${VITE_MAPBOX_TOKEN}
           VITE_MAPBOX_ACCESS_TOKEN=${VITE_MAPBOX_TOKEN}
           VITE_ENABLE_LOCAL_PREVIEW=false
@@ -1241,6 +1255,8 @@ jobs:
           SCOPE_AI_PROVIDER=${SCOPE_AI_PROVIDER}
           GEMINI_API_KEY=${GEMINI_API_KEY}
           GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}
+          GOOGLE_PLACES_USAGE_FILE=/app/data/google_places_usage.json
+          GOOGLE_PLACES_USAGE_REDIS_URL=redis://redis:6379/6
           OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY}
           OLLAMA_MEM_LIMIT=${OLLAMA_MEM_LIMIT}
           OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX}
@@ -1358,12 +1374,12 @@ jobs:
               sys.exit(1)
 
           if resolved_ips != {expected_ip}:
-              require_json_health_via_origin()
               require_json_health_via_public_hostname()
               found = ", ".join(sorted(resolved_ips)) or "none"
               print(
                   f"{host} resolves to Cloudflare edge IPs ({found}); "
-                  f"accepted because {expected_ip} serves Core health directly and the public route is Cloudflare-proxied."
+                  "accepted because the remote deployment already verified the origin locally "
+                  "and the public route is Cloudflare-proxied."
               )
           else:
               print(f"{host} resolves to the Compose host IP {expected_ip}.")
@@ -1505,7 +1521,7 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build deployment bundle
         run: |
@@ -1536,7 +1552,7 @@ jobs:
           cp .github/workflows/deploy.yml deploy-bundle/deploy.yml
 
       - name: Upload deployment bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: scope-deployment-bundle
           path: deploy-bundle

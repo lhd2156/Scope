@@ -19,12 +19,18 @@ def test_non_content_paths_bypass_rate_limit():
     assert response.content == b"ok"
 
 
-@override_settings(RATE_LIMIT_GLOBAL_PER_IP=100, RATE_LIMIT_UPLOAD_PER_USER=7, RATE_LIMIT_COMMENTS_PER_USER=3)
+@override_settings(
+    RATE_LIMIT_GLOBAL_PER_IP=100,
+    RATE_LIMIT_UPLOAD_PER_USER=7,
+    RATE_LIMIT_COMMENTS_PER_USER=3,
+    TRUSTED_PROXY_CIDRS=["10.0.0.0/8"],
+)
 def test_limits_for_request_include_global_upload_and_comment_buckets():
     middleware = RateLimitMiddleware(lambda req: HttpResponse("ok"))
     factory = RequestFactory()
 
     upload = factory.post("/api/content/photos/upload")
+    upload.META["REMOTE_ADDR"] = "10.0.0.8"
     upload.META["HTTP_X_FORWARDED_FOR"] = "203.0.113.7, 10.0.0.1"
     upload.user = SimpleNamespace(id="user-1")
     assert middleware._limits_for_request(upload) == [("global:203.0.113.7", 100), ("upload:user-1", 7)]
@@ -33,6 +39,17 @@ def test_limits_for_request_include_global_upload_and_comment_buckets():
     comment.META["REMOTE_ADDR"] = "198.51.100.8"
     comment.user = SimpleNamespace(id=None)
     assert middleware._limits_for_request(comment) == [("global:198.51.100.8", 100), ("comments:198.51.100.8", 3)]
+
+
+@override_settings(TRUSTED_PROXY_CIDRS=["10.0.0.0/8"])
+def test_legacy_client_ip_ignores_spoofed_forwarded_for_from_untrusted_remote():
+    middleware = RateLimitMiddleware(lambda req: HttpResponse("ok"))
+    factory = RequestFactory()
+    untrusted = factory.get("/api/content/spots/", REMOTE_ADDR="198.51.100.5", HTTP_X_FORWARDED_FOR="203.0.113.7")
+    trusted = factory.get("/api/content/spots/", REMOTE_ADDR="10.0.0.8", HTTP_X_FORWARDED_FOR="203.0.113.7, 10.0.0.8")
+
+    assert middleware._client_ip(untrusted) == "198.51.100.5"
+    assert middleware._client_ip(trusted) == "203.0.113.7"
 
 
 @override_settings(RATE_LIMIT_WINDOW_SECONDS=60, RATE_LIMIT_GLOBAL_PER_IP=1)

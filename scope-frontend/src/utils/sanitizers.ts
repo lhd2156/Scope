@@ -492,6 +492,9 @@ export function sanitizeAuthPayload(payload: AuthPayload): AuthPayload {
       ? payload.interests.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean)
       : undefined,
     showActivityStatus: sanitizeBoolean(payload.showActivityStatus, true),
+    profileVisibility: payload.profileVisibility === 'public' || payload.profileVisibility === 'private'
+      ? payload.profileVisibility
+      : 'friends',
     accessToken: String(payload.accessToken ?? '').trim(),
     refreshToken: String(payload.refreshToken ?? '').trim(),
   };
@@ -516,6 +519,9 @@ export function sanitizeUserProfile(
     interests: (user.interests ?? []).map((interest) => sanitizeSingleLineText(interest)).filter(Boolean),
     stats: user.stats ? { ...user.stats } : undefined,
     showActivityStatus: sanitizeBoolean(user.showActivityStatus, true),
+    profileVisibility: user.profileVisibility === 'public' || user.profileVisibility === 'private'
+      ? user.profileVisibility
+      : 'friends',
   };
 }
 
@@ -755,13 +761,20 @@ export function sanitizeTripMember(
       ? wireMember.userId
       : member.id;
   const role = optionalSingleLineText(member.status) ?? optionalSingleLineText(String(wireMember.role ?? ''));
-  const displayName = sanitizeDisplayName(member.displayName);
+  const explicitDisplayName =
+    optionalSingleLineText(member.displayName) ??
+    optionalWireString(wireMember.display_name);
+  const displayName = explicitDisplayName
+    ? sanitizeDisplayName(explicitDisplayName)
+    : memberId
+      ? `Traveler ${memberId.slice(0, 8)}`
+      : DEFAULT_DISPLAY_NAME;
   const avatarSeed = member.id || displayName || DEFAULT_DISPLAY_NAME;
 
   return {
     ...member,
     id: memberId,
-    displayName: displayName || sanitizeDisplayName(String(wireMember.display_name ?? '')) || `Traveler ${memberId.slice(0, 8)}`,
+    displayName,
     avatarUrl: resolveAvatarUrl(sanitizeAvatarUrl(member.avatarUrl, options), avatarSeed),
     status: role,
     inviteStatus: member.inviteStatus === 'pending' || member.inviteStatus === 'accepted'

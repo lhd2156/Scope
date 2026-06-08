@@ -14,7 +14,10 @@ npm run wasm:build
 ```
 
 The build emits `wasm/dist/scope_wasm.js` and `wasm/dist/scope_wasm.wasm`.
-Run `npm run wasm:test` after building to verify the native Scope AI lexer corpus.
+It compiles with dynamic JavaScript execution disabled so the module remains
+compatible with the production Content Security Policy. Run `npm run wasm:test`
+after building to verify both the native Scope AI lexer corpus and the CSP-safe
+JavaScript glue.
 
 ## Exported API
 

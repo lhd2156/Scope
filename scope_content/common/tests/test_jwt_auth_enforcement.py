@@ -53,6 +53,7 @@ PROTECTED_CASES = [
     ('delete', lambda ctx: f"/api/content/trips/{ctx['trip'].id}/members/{uuid4()}", lambda ctx: None, None),
     ('post', lambda ctx: '/api/content/photos/upload', lambda ctx: {'spot_id': str(ctx['spot'].id), 'file': _image_upload('upload.png')}, None),
     ('get', lambda ctx: '/api/content/photos/presigned-url', lambda ctx: None, None),
+    ('post', lambda ctx: '/api/content/photos/avatar-upload', lambda ctx: {'file': _image_upload('avatar.png')}, None),
     ('put', lambda ctx: f"/api/content/photos/{ctx['photo'].id}", lambda ctx: {'caption': 'Updated caption'}, 'json'),
     ('delete', lambda ctx: f"/api/content/photos/{ctx['photo'].id}", lambda ctx: None, None),
     ('post', lambda ctx: f"/api/content/reviews/spot/{ctx['spot'].id}", lambda ctx: {'rating': '4.5', 'comment': 'Nice'}, 'json'),

@@ -15,7 +15,6 @@ import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeImageUrl, sani
 
 const FRIENDS_BASE_PATH = '/api/core/friends';
 const SPOT_CATEGORIES = new Set<SpotCategory>(['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other']);
-const IS_TEST_MODE = import.meta.env.MODE === 'test' || Boolean(import.meta.env.VITEST);
 
 type FriendConnectionWire = Partial<FriendConnection> & {
   friendshipId?: string;
@@ -156,10 +155,6 @@ function emptyListEnvelope<T>(page?: number, pageSize?: number): ApiEnvelope<T[]
 }
 
 export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<FriendConnection[]>> {
-  if (IS_TEST_MODE) {
-    return emptyListEnvelope<FriendConnection>(page, pageSize);
-  }
-
   try {
     const { data } = await api.get<ApiEnvelope<FriendConnectionWire[]>>(FRIENDS_BASE_PATH, { params: { page, pageSize } });
     return normalizeConnectionEnvelope(data);
@@ -169,10 +164,6 @@ export async function listFriends(page = 1, pageSize = 50): Promise<ApiEnvelope<
 }
 
 export async function listPendingFriendRequests(): Promise<ApiEnvelope<FriendRequest[]>> {
-  if (IS_TEST_MODE) {
-    return emptyListEnvelope<FriendRequest>();
-  }
-
   try {
     const { data } = await api.get<ApiEnvelope<FriendRequestWire[]>>(`${FRIENDS_BASE_PATH}/pending`);
     return normalizeRequestEnvelope(data);
@@ -182,10 +173,6 @@ export async function listPendingFriendRequests(): Promise<ApiEnvelope<FriendReq
 }
 
 export async function listFriendSuggestions(mode: 'best' | 'mutuals' | 'vibes' | 'random' = 'best', limit = 8): Promise<ApiEnvelope<FriendSuggestion[]>> {
-  if (IS_TEST_MODE) {
-    return emptyListEnvelope<FriendSuggestion>();
-  }
-
   try {
     const { data } = await api.get<ApiEnvelope<FriendSuggestionWire[]>>(`${FRIENDS_BASE_PATH}/suggestions`, {
       params: { mode, limit },
@@ -201,10 +188,6 @@ export async function searchFriendCandidates(query: string, page = 1, pageSize =
 }
 
 export async function sendFriendRequest(userId: string): Promise<void> {
-  if (IS_TEST_MODE) {
-    return;
-  }
-
   await api.post(`${FRIENDS_BASE_PATH}/request/${userId}`);
 }
 

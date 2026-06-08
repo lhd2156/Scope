@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import {
   deactivateUserProfile as deactivateUserProfileRequest,
+  deleteCurrentUserContent as deleteCurrentUserContentRequest,
   getCurrentUserProfile,
   getUserProfile,
   getUserStats as getUserStatsRequest,
@@ -175,6 +176,28 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function deleteCurrentAccount() {
+    const userId = authStore.currentUser?.id ?? '';
+    if (!userId) {
+      throw new Error('No signed-in Scope account is available to delete');
+    }
+
+    saving.value = true;
+    error.value = null;
+
+    try {
+      await deleteCurrentUserContentRequest();
+      await deactivateUserProfileRequest(userId);
+      clearProfileContext();
+      await authStore.logout();
+    } catch (nextError) {
+      error.value = toAsyncErrorMessage(nextError, 'Scope could not permanently delete your account right now.');
+      throw nextError;
+    } finally {
+      saving.value = false;
+    }
+  }
+
   return {
     profile,
     stats,
@@ -192,5 +215,6 @@ export const useUserStore = defineStore('user', () => {
     saveProfile,
     searchProfiles,
     deactivateProfile,
+    deleteCurrentAccount,
   };
 });

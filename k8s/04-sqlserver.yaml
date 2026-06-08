@@ -49,9 +49,25 @@ spec:
         app.kubernetes.io/name: sqlserver
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 0
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: sqlserver
-          image: mcr.microsoft.com/mssql/server:2022-latest
+          image: mcr.microsoft.com/mssql/server:2022-CU25-ubuntu-22.04@sha256:e07b9699a2b749969f19d86563ceeea22bd3a69f7f1db85a8d1ac4bdaf0c6f56
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 1433
               name: tds
@@ -67,9 +83,20 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: SA_PASSWORD
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: SA_PASSWORD
           volumeMounts:
             - name: sqlserver-data
               mountPath: /var/opt/mssql
+            - name: tmp
+              mountPath: /tmp
+            - name: system
+              mountPath: /.system
+            - name: log
+              mountPath: /log
           resources:
             requests:
               cpu: 250m
@@ -91,3 +118,11 @@ spec:
         - name: sqlserver-data
           persistentVolumeClaim:
             claimName: sqlserver-data
+        - name: tmp
+          emptyDir: {}
+        - name: system
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: log
+          emptyDir:
+            sizeLimit: 64Mi

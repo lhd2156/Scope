@@ -37,4 +37,4 @@ EXPOSE 5000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=45s \
     CMD curl -fsS http://localhost:5000/api/intel/health || exit 1
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--no-control-socket", "--workers", "2", "--timeout", "120", "wsgi:app"]

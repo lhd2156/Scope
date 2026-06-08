@@ -14,3 +14,11 @@ scope-frontend/test-results
 scope-frontend/.vite
 scope-frontend/emsdk
 scope-frontend/wasm/build
+scope-frontend/.npm-cache
+scope-frontend/.ms-playwright
+scope-frontend/.playwright-browsers
+scope-frontend/.playwright-cli
+scope-frontend/output
+scope-frontend/.deploy-pages
+scope-frontend/*.log
+scope-frontend/*.png

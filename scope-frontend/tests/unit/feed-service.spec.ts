@@ -73,6 +73,7 @@ describe('feed service contracts', () => {
     vi.doUnmock('@/services/api');
     vi.doUnmock('@/services/demoMode');
     vi.doUnmock('@/services/mockDataLoader');
+    vi.restoreAllMocks();
   });
 
   it('serves demo feed, trending, notifications, and read mutations from mutable fixtures', async () => {
@@ -633,5 +634,423 @@ describe('feed service contracts', () => {
     const feedService = await import('@/services/feedService');
 
     await expect(feedService.getNotificationPreferences()).rejects.toThrow('preferences offline');
+  });
+
+  it('normalizes alternate review wire fields and fills duplicate starter actors', async () => {
+    const spots = Array.from({ length: 8 }, (_, index) => ({
+      ...spotItem,
+      id: `alternate-spot-${index + 1}`,
+      title: `Alternate spot ${index + 1}`,
+      createdAt: `2026-05-${String(index + 1).padStart(2, '0')}T12:00:00Z`,
+      userId: undefined,
+    }));
+    const get = vi.fn((path: string) => {
+      if (path === '/api/content/feed/trending') {
+        return Promise.resolve({ data: { data: spots } });
+      }
+
+      const index = Number(path.split('-').pop()) - 1;
+      return Promise.resolve({
+        data: {
+          data: [
+            {
+              id: index === 0 ? '' : `alternate-review-${index + 1}`,
+              userId: index === 0 ? 'custom-user-12345678' : undefined,
+              user: index === 1 ? { id: 'custom-user-12345678' } : undefined,
+              rating: 'not-a-rating',
+              comment: '',
+              createdAt: index === 0 ? '2026-06-01T12:00:00Z' : undefined,
+            },
+          ],
+        },
+      });
+    });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+    const feed = await feedService.getFeed(1, 20);
+
+    expect(feed.data).toHaveLength(6);
+    expect(feed.data.some((item) => item.actor.displayName.startsWith('Traveler '))).toBe(true);
+    expect(feed.data.some((item) => item.excerpt.startsWith('Review rating for'))).toBe(true);
+    expect(new Set(feed.data.map((item) => item.actor.id)).size).toBeLessThan(feed.data.length);
+  });
+
+  it('applies the configured home starter-feed outage policy', async () => {
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: {
+        get: vi.fn().mockRejectedValue(new Error('starter offline')),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const fallbackFeedService = await import('@/services/feedService');
+    await expect(fallbackFeedService.getHomeActivityFeed(1, 1)).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'feed-1' })],
+    });
+
+    vi.resetModules();
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: {
+        get: vi.fn().mockResolvedValue({ data: { data: [] } }),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const strictEmptyFeedService = await import('@/services/feedService');
+    await expect(strictEmptyFeedService.getHomeActivityFeed(1, 4)).resolves.toMatchObject({
+      data: [],
+      meta: { page: 1, pageSize: 4, total: 0, totalPages: 1 },
+    });
+  });
+
+  it('surfaces strict home and private feed failures', async () => {
+    const get = vi.fn().mockRejectedValue(new Error('feed unavailable'));
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    await expect(feedService.getHomeActivityFeed()).rejects.toThrow('feed unavailable');
+    await expect(feedService.getFeed()).rejects.toThrow('feed unavailable');
+  });
+
+  it('remembers observed live trending data across a later empty response', async () => {
+    const get = vi.fn()
+      .mockResolvedValueOnce({ data: { data: [spotItem] } })
+      .mockResolvedValueOnce({ data: { data: [] } });
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    await expect(feedService.getTrendingSpots(4)).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'spot-1' })],
+    });
+    await expect(feedService.getTrendingSpots(4)).resolves.toMatchObject({ data: [] });
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it('filters read demo notifications and accepts both live read response shapes', async () => {
+    const fixtures = mockData({
+      mockNotifications: [
+        { ...notificationItem, id: 'unread', isRead: false },
+        { ...notificationItem, id: 'read', isRead: true },
+      ],
+    });
+    vi.doMock('@/services/demoMode', () => mockDemoMode(true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(fixtures),
+    }));
+
+    const demoFeedService = await import('@/services/feedService');
+    const readNotifications = await demoFeedService.getNotifications(1, 10, { unread: false });
+    expect(readNotifications.data.map((notification) => notification.id)).toEqual(['read']);
+
+    vi.resetModules();
+    const put = vi.fn()
+      .mockResolvedValueOnce({ data: { data: { ...notificationItem, id: 'wrapped', isRead: true } } })
+      .mockResolvedValueOnce({ data: { ...notificationItem, id: 'raw', isRead: true } });
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get: vi.fn(), put, post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const liveFeedService = await import('@/services/feedService');
+    await expect(liveFeedService.markNotificationRead('wrapped')).resolves.toMatchObject({ id: 'wrapped' });
+    await expect(liveFeedService.markNotificationRead('raw')).resolves.toMatchObject({ id: 'raw' });
+  });
+
+  it('uses stable minimum pagination and UTC defaults for empty demo fixtures', async () => {
+    const fixtures = mockData();
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      locale: 'en-US',
+      calendar: 'gregory',
+      numberingSystem: 'latn',
+      timeZone: '',
+    });
+    vi.doMock('@/services/demoMode', () => mockDemoMode(true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(fixtures),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    const sizedFromFeed = await feedService.getHomeActivityFeed(1, 0);
+    expect(sizedFromFeed.meta).toMatchObject({ pageSize: 2, total: 2 });
+
+    const sizedFromNotifications = await feedService.getNotifications(1, 0);
+    expect(sizedFromNotifications.meta).toMatchObject({ pageSize: 1, total: 1 });
+
+    fixtures.mockFeed.splice(0);
+    fixtures.mockNotifications.splice(0);
+
+    const minimumFeed = await feedService.getFeed(2, 0);
+    expect(minimumFeed.meta).toMatchObject({ page: 2, pageSize: 1, total: 0 });
+
+    const minimumNotifications = await feedService.getNotifications(2, 0);
+    expect(minimumNotifications.meta).toMatchObject({ page: 2, pageSize: 1, total: 0 });
+
+    const preferences = await feedService.getNotificationPreferences();
+    expect(preferences.data.every((preference) => preference.timeZoneId === 'UTC')).toBe(true);
+  });
+
+  it('builds useful pinned-spot activity when every public review request fails', async () => {
+    const starterSpots = [
+      {
+        ...spotItem,
+        id: 'description-spot',
+        userId: '11111111-1111-1111-1111-111111111111',
+      },
+      {
+        ...spotItem,
+        id: 'city-spot',
+        title: 'City fallback',
+        description: '',
+        userId: '22222222-2222-2222-2222-222222222222',
+      },
+      {
+        ...spotItem,
+        id: 'scope-spot',
+        title: 'Scope fallback',
+        description: '',
+        city: '',
+        userId: '33333333-3333-3333-3333-333333333333',
+      },
+    ];
+    const get = vi.fn((path: string) => {
+      if (path === '/api/content/feed/trending') {
+        return Promise.resolve({ data: { data: starterSpots } });
+      }
+      return Promise.reject(new Error(`reviews unavailable for ${path}`));
+    });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+    const feed = await feedService.getFeed(1, 10);
+
+    expect(feed.data).toHaveLength(3);
+    expect(feed.data.every((item) => item.type === 'spot' && item.title.includes('pinned'))).toBe(true);
+    expect(feed.data.find((item) => item.targetId === 'description-spot')?.excerpt).toBe('Golden hour view');
+    expect(feed.data.find((item) => item.targetId === 'city-spot')?.excerpt).toBe('Austin place worth saving.');
+    expect(feed.data.find((item) => item.targetId === 'scope-spot')?.excerpt).toBe('Scope place worth saving.');
+  });
+
+  it('uses raw public reviews after an empty private page, then preserves a later strict empty page', async () => {
+    let privateFeedCalls = 0;
+    let starterFeedCalls = 0;
+    const get = vi.fn((path: string) => {
+      if (path === '/api/content/feed/') {
+        privateFeedCalls += 1;
+        return Promise.resolve({
+          data: {
+            data: [],
+            meta: { page: privateFeedCalls, pageSize: 20, total: 0, totalPages: 1 },
+          },
+        });
+      }
+      if (path === '/api/content/feed/trending') {
+        starterFeedCalls += 1;
+        return Promise.resolve({
+          data: {
+            data: starterFeedCalls === 1
+              ? [{ ...spotItem, id: 'raw-review-spot', userId: undefined }]
+              : [],
+          },
+        });
+      }
+      if (path === '/api/content/reviews/spot/raw-review-spot') {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'raw-review',
+              user: { id: '44444444-4444-4444-4444-444444444444' },
+              rating: 5,
+              comment: 'A raw-array review still belongs in the starter feed.',
+              createdAt: '2026-06-04T12:00:00Z',
+            },
+          ],
+        });
+      }
+      if (path === '/api/content/spots/') {
+        return Promise.resolve({ data: { data: [] } });
+      }
+      return Promise.reject(new Error(`unexpected path ${path}`));
+    });
+
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: { get, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+
+    const starterPage = await feedService.getFeed();
+    expect(starterPage.data).toEqual([
+      expect.objectContaining({
+        id: 'review-raw-review',
+        type: 'review',
+        targetId: 'raw-review-spot',
+      }),
+    ]);
+
+    const emptyPage = await feedService.getFeed(2);
+    expect(emptyPage).toMatchObject({
+      data: [],
+      meta: { page: 2, pageSize: 20, total: 0, totalPages: 1 },
+    });
+  });
+
+  it('applies strict and fallback outage policies to public and private feeds', async () => {
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: {
+        get: vi.fn().mockRejectedValue(new Error('public feed offline')),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const strictFeedService = await import('@/services/feedService');
+    await expect(strictFeedService.getFeed()).rejects.toThrow('public feed offline');
+
+    vi.resetModules();
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: {
+        get: vi.fn().mockRejectedValue(new Error('private feed offline')),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const fallbackFeedService = await import('@/services/feedService');
+    await expect(fallbackFeedService.getFeed(1, 1)).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'feed-1' })],
+    });
+  });
+
+  it('uses ranked public spots for trending fallback and surfaces a strict total outage', async () => {
+    const fallbackGet = vi.fn()
+      .mockResolvedValueOnce({ data: { data: [] } })
+      .mockResolvedValueOnce({ data: { data: [spotItem] } });
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: { get: fallbackGet, put: vi.fn(), post: vi.fn() },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const fallbackFeedService = await import('@/services/feedService');
+    await expect(fallbackFeedService.getTrendingSpots()).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'spot-1' })],
+    });
+    expect(fallbackGet).toHaveBeenNthCalledWith(2, '/api/content/spots/', {
+      params: { page: 1, pageSize: 4 },
+    });
+
+    vi.resetModules();
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, false));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue(''),
+      default: {
+        get: vi.fn().mockRejectedValue(new Error('all trending sources offline')),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const strictFeedService = await import('@/services/feedService');
+    await expect(strictFeedService.getTrendingSpots()).rejects.toThrow('all trending sources offline');
+  });
+
+  it('uses the configured notification page size after a fallback read failure', async () => {
+    vi.doMock('@/services/demoMode', () => mockDemoMode(false, true));
+    vi.doMock('@/services/api', () => ({
+      getAccessToken: vi.fn().mockReturnValue('live-access-token'),
+      default: {
+        get: vi.fn().mockRejectedValue(new Error('notifications offline')),
+        put: vi.fn(),
+        post: vi.fn(),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue(mockData()),
+    }));
+
+    const feedService = await import('@/services/feedService');
+    await expect(feedService.getNotifications(3, 0)).resolves.toMatchObject({
+      data: [],
+      meta: { page: 3, pageSize: 20, total: 0, totalPages: 1 },
+    });
   });
 });

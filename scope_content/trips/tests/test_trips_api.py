@@ -259,6 +259,51 @@ def test_trip_member_permissions_are_enforced(auth_header):
 
 
 @pytest.mark.django_db
+def test_public_trips_can_filter_by_profile_member_before_pagination(auth_header):
+    _, owner_user_id = auth_header
+    profile_user_id = str(uuid4())
+    other_user_id = str(uuid4())
+    profile_trip = Trip.objects.create(
+        creator_id=owner_user_id,
+        title='Profile public route',
+        status='planning',
+        is_public=True,
+    )
+    TripMember.objects.create(trip=profile_trip, user_id=profile_user_id, role='viewer')
+    Trip.objects.create(
+        creator_id=other_user_id,
+        title='Other public route',
+        status='planning',
+        is_public=True,
+    )
+    Trip.objects.create(
+        creator_id=profile_user_id,
+        title='Private profile route',
+        status='planning',
+        is_public=False,
+    )
+
+    response = APIClient().get(
+        '/api/content/trips/public',
+        {'page': 1, 'pageSize': 1, 'userId': profile_user_id},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['meta']['total'] == 1
+    assert [trip['id'] for trip in payload['data']] == [str(profile_trip.id)]
+
+
+@pytest.mark.django_db
+def test_public_trips_rejects_invalid_profile_user_id():
+    response = APIClient().get('/api/content/trips/public', {'userId': 'not-a-uuid'})
+
+    assert response.status_code == 400
+    assert response.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert {'field': 'userId', 'message': 'Must be a valid UUID.'} in response.json()['error']['details']
+
+
+@pytest.mark.django_db
 def test_creator_membership_cannot_be_downgraded_or_removed(auth_header):
     _, owner_user_id = auth_header
     trip = Trip.objects.create(creator_id=owner_user_id, title='Owner invariant', status='planning', is_public=False)

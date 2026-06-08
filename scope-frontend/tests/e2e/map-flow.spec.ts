@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/scope-test';
+import { buildSpotPath } from '@/utils/spotRoutes';
 
 test.describe('Scope map interactions', () => {
   test('loads the map workspace, selects a marker, shows the sidebar detail, and navigates to the spot detail route', async ({ page }) => {
@@ -16,10 +17,15 @@ test.describe('Scope map interactions', () => {
     await expect(selectedSpotCard).toContainText('Open-air tacos, frozen palomas');
 
     const detailLink = page.locator('[data-test="map-selected-spot-detail-link"]');
-    await expect(detailLink).toHaveAttribute('href', '/spots/spot-1');
+    const expectedSpotPath = buildSpotPath({
+      id: 'spot-1',
+      title: 'Sunset Rooftop Tacos',
+      city: 'Fort Worth',
+    });
+    await expect(detailLink).toHaveAttribute('href', expectedSpotPath);
     await detailLink.click();
 
-    await expect(page).toHaveURL(/\/spots\/spot-1$/);
+    await expect(page).toHaveURL(new RegExp(`${expectedSpotPath}$`));
     await expect(page.getByRole('heading', { level: 1, name: 'Sunset Rooftop Tacos' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Quick planning notes' })).toBeVisible();
     await expect(page.locator('[data-test="spot-gallery"]')).toBeVisible();

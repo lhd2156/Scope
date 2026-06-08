@@ -5,6 +5,7 @@ using Scope.Core.Domain.Models;
 using Scope.Core.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace Scope.Core.API.Controllers;
@@ -12,7 +13,9 @@ namespace Scope.Core.API.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/core/presence")]
-public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
+public sealed class PresenceController(
+    CoreDbContext dbContext,
+    ILogger<PresenceController> logger) : ControllerBase
 {
     private const int MaxRouteContextLength = 160;
 
@@ -30,41 +33,60 @@ public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
         var userId = User.GetRequiredUserId();
         var now = DateTimeOffset.UtcNow;
         var requestedStatus = NormalizeStatus(request.Status, request.IsIdle, request.IsPlanning);
-        var presence = await dbContext.UserPresences.FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
-        var isNewPresence = presence is null;
-
-        if (presence is null)
-        {
-            presence = new UserPresence
-            {
-                UserId = userId,
-                LastActiveAt = now,
-                UpdatedAt = now,
-            };
-            dbContext.UserPresences.Add(presence);
-        }
-
-        ApplyHeartbeat(presence, request, requestedStatus, now);
+        UserPresence? presence = null;
 
         try
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException) when (isNewPresence)
-        {
-            dbContext.Entry(presence).State = EntityState.Detached;
             presence = await dbContext.UserPresences.FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+            var isNewPresence = presence is null;
 
             if (presence is null)
             {
-                throw;
+                presence = new UserPresence
+                {
+                    UserId = userId,
+                    LastActiveAt = now,
+                    UpdatedAt = now,
+                };
+                dbContext.UserPresences.Add(presence);
             }
 
             ApplyHeartbeat(presence, request, requestedStatus, now);
-            await dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException) when (isNewPresence)
+            {
+                dbContext.Entry(presence).State = EntityState.Detached;
+                presence = await dbContext.UserPresences.FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+                if (presence is null)
+                {
+                    throw;
+                }
+
+                ApplyHeartbeat(presence, request, requestedStatus, now);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (Exception exception) when (IsTransientPresenceFailure(exception))
+        {
+            logger.LogWarning(
+                exception,
+                "Presence heartbeat persistence was deferred for user {UserId}; the next heartbeat will retry.",
+                userId);
+
+            presence ??= BuildTransientPresence(userId, request, requestedStatus, now);
+            return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<object>(BuildResponse(presence, persisted: false)));
         }
 
-        return Ok(new ApiResponse<object>(new
+        return Ok(new ApiResponse<object>(BuildResponse(presence, persisted: true)));
+    }
+
+    private static object BuildResponse(UserPresence presence, bool persisted)
+        => new
         {
             presence.UserId,
             presence.Status,
@@ -73,7 +95,37 @@ public sealed class PresenceController(CoreDbContext dbContext) : ControllerBase
             presence.LastActiveAt,
             presence.LastPlanningAt,
             presence.UpdatedAt,
-        }));
+            Persisted = persisted,
+        };
+
+    private static UserPresence BuildTransientPresence(
+        Guid userId,
+        PresenceHeartbeatRequest request,
+        string requestedStatus,
+        DateTimeOffset now)
+    {
+        var presence = new UserPresence { UserId = userId };
+        ApplyHeartbeat(presence, request, requestedStatus, now);
+        return presence;
+    }
+
+    private static bool IsTransientPresenceFailure(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException)
+            {
+                return true;
+            }
+
+            if (current is SqlException sqlException
+                && (sqlException.IsTransient || sqlException.Number is -2 or 1205))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void ApplyHeartbeat(UserPresence presence, PresenceHeartbeatRequest request, string requestedStatus, DateTimeOffset now)

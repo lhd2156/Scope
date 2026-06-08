@@ -154,17 +154,13 @@ async function requestLiveRefreshSession(): Promise<AuthPayload> {
     refreshToken,
   }).then(({ data }) => {
     const payload = sanitizeAuthPayload(unwrapApiData(data));
-    if (refreshToken) {
-      recentLiveRefreshSessions.set(refreshToken, {
-        payload,
-        expiresAt: Date.now() + LIVE_REFRESH_SESSION_REUSE_MS,
-      });
-    }
+    recentLiveRefreshSessions.set(refreshToken, {
+      payload,
+      expiresAt: Date.now() + LIVE_REFRESH_SESSION_REUSE_MS,
+    });
     return payload;
   }).finally(() => {
-    if (refreshToken) {
-      liveRefreshSessionPromises.delete(refreshToken);
-    }
+    liveRefreshSessionPromises.delete(refreshToken);
   });
 
   liveRefreshSessionPromises.set(refreshToken, refreshPromise);
@@ -396,3 +392,21 @@ export async function loginWithCognito(idToken: string): Promise<AuthPayload> {
     throw error;
   }
 }
+
+export const __authServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      randomPreviewToken,
+      slugifyIdentifier,
+      titleizeIdentifier,
+      rememberLocalPreviewAuthPayload,
+      buildLocalPreviewUserFromRegistration,
+      findMatchingMockUser,
+      pruneRecentLiveRefreshSessions,
+      buildLoginFallbackIdentity,
+      buildFallbackAuthPayload,
+      buildLocalPreviewAuthPayload,
+      assertLocalPreviewCredentials,
+      hasUsableAuthTokens,
+      recentLiveRefreshSessions,
+    }
+  : undefined;

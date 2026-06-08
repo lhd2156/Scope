@@ -1,10 +1,12 @@
-import { expect as baseExpect, test as base, type Page, type Request, type Route } from '@playwright/test';
+import type { Page, Request, Route } from '@playwright/test';
+import { expect as baseExpect, test as base } from './coverage-test';
 
 const VISUAL_QA_FLAG = '__SCOPE_VISUAL_QA__';
 const DEFAULT_PASSWORD = 'SecurePass123!';
 const AUTH_SESSION_HINT_STORAGE_KEY = 'scope-auth-session-hint';
 const AUTH_SESSION_HINT_CHANGE_EVENT = 'scope-auth-session-hint-change';
 const AUTH_SESSION_HINT_VERSION = 1;
+const AUTH_REFRESH_TOKEN_STORAGE_KEY = 'scope-auth-refresh-token-v1';
 const ANALYTICS_CONSENT_STORAGE_KEY = 'scope-analytics-consent';
 const ANALYTICS_CONSENT_VALUE = 'denied';
 const ONBOARDING_COMPLETION_STORAGE_KEY = 'scope-onboarding-completed-v1';
@@ -1428,25 +1430,29 @@ async function clearMockSessionCookie(page: Page): Promise<void> {
   await page.context().clearCookies();
 }
 
-async function persistSessionHint(page: Page): Promise<void> {
+async function persistSessionHint(page: Page, refreshToken: string): Promise<void> {
   const serializedHint = JSON.stringify(buildSessionHint());
   const sessionHint = {
     storageKey: AUTH_SESSION_HINT_STORAGE_KEY,
     storageValue: serializedHint,
+    refreshTokenKey: AUTH_REFRESH_TOKEN_STORAGE_KEY,
+    refreshToken,
     changeEvent: AUTH_SESSION_HINT_CHANGE_EVENT,
   };
 
   await page.context().addInitScript(
-    ({ storageKey, storageValue, changeEvent }) => {
+    ({ storageKey, storageValue, refreshTokenKey, refreshToken, changeEvent }) => {
       window.localStorage.setItem(storageKey, storageValue);
+      window.localStorage.setItem(refreshTokenKey, refreshToken);
       window.dispatchEvent(new Event(changeEvent));
     },
     sessionHint,
   );
 
   await page.evaluate(
-    ({ storageKey, storageValue, changeEvent }) => {
+    ({ storageKey, storageValue, refreshTokenKey, refreshToken, changeEvent }) => {
       window.localStorage.setItem(storageKey, storageValue);
+      window.localStorage.setItem(refreshTokenKey, refreshToken);
       window.dispatchEvent(new Event(changeEvent));
     },
     sessionHint,
@@ -1456,18 +1462,23 @@ async function persistSessionHint(page: Page): Promise<void> {
 async function clearSessionHint(page: Page): Promise<void> {
   const sessionHint = {
     storageKey: AUTH_SESSION_HINT_STORAGE_KEY,
+    refreshTokenKey: AUTH_REFRESH_TOKEN_STORAGE_KEY,
     changeEvent: AUTH_SESSION_HINT_CHANGE_EVENT,
   };
 
-  await page.context().addInitScript(({ storageKey, changeEvent }) => {
+  await page.context().addInitScript(({ storageKey, refreshTokenKey, changeEvent }) => {
     window.localStorage.removeItem(storageKey);
     window.sessionStorage.removeItem(storageKey);
+    window.localStorage.removeItem(refreshTokenKey);
+    window.sessionStorage.removeItem(refreshTokenKey);
     window.dispatchEvent(new Event(changeEvent));
   }, sessionHint);
 
-  await page.evaluate(({ storageKey, changeEvent }) => {
+  await page.evaluate(({ storageKey, refreshTokenKey, changeEvent }) => {
     window.localStorage.removeItem(storageKey);
     window.sessionStorage.removeItem(storageKey);
+    window.localStorage.removeItem(refreshTokenKey);
+    window.sessionStorage.removeItem(refreshTokenKey);
     window.dispatchEvent(new Event(changeEvent));
   }, sessionHint).catch(() => undefined);
 }
@@ -3229,7 +3240,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
       });
 
       await persistMockSessionCookie(page, state.currentSession.id);
-      await persistSessionHint(page);
+      await persistSessionHint(page, state.currentSession.refreshToken);
       return state.currentSession;
     },
     clearSession: async (page) => {

@@ -7,6 +7,13 @@ import type { FriendConnection, FriendRequest, FriendSuggestion, SpotCategory, U
 
 const trackFriendAddMock = vi.hoisted(() => vi.fn());
 const searchUsersMock = vi.hoisted(() => vi.fn());
+const listFriendsMock = vi.hoisted(() => vi.fn());
+const listPendingFriendRequestsMock = vi.hoisted(() => vi.fn());
+const listFriendSuggestionsMock = vi.hoisted(() => vi.fn());
+const sendFriendRequestMock = vi.hoisted(() => vi.fn());
+const acceptFriendRequestMock = vi.hoisted(() => vi.fn());
+const rejectFriendRequestMock = vi.hoisted(() => vi.fn());
+const removeFriendMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/analyticsService', () => ({
   trackFriendAdd: trackFriendAddMock,
@@ -15,6 +22,18 @@ vi.mock('@/services/analyticsService', () => ({
 vi.mock('@/services/userService', () => ({
   searchUsers: searchUsersMock,
   searchUsersLive: searchUsersMock,
+}));
+
+vi.mock('@/services/friendService', () => ({
+  listFriends: listFriendsMock,
+  listPendingFriendRequests: listPendingFriendRequestsMock,
+  listFriendSuggestions: listFriendSuggestionsMock,
+  searchFriendCandidates: (query: string, page: number, pageSize: number) =>
+    searchUsersMock(query.trim().replace(/^@/, ''), page, pageSize),
+  sendFriendRequest: sendFriendRequestMock,
+  acceptFriendRequest: acceptFriendRequestMock,
+  rejectFriendRequest: rejectFriendRequestMock,
+  removeFriend: removeFriendMock,
 }));
 
 vi.mock('@/services/socialMockData', () => ({
@@ -154,6 +173,23 @@ async function mountFriendsPageWithSeed(seed: {
 describe('FriendsPage', () => {
   beforeEach(() => {
     searchUsersMock.mockReset();
+    listFriendsMock.mockReset();
+    listPendingFriendRequestsMock.mockReset();
+    listFriendSuggestionsMock.mockReset();
+    sendFriendRequestMock.mockReset();
+    acceptFriendRequestMock.mockReset();
+    rejectFriendRequestMock.mockReset();
+    removeFriendMock.mockReset();
+    listFriendsMock.mockResolvedValue({
+      data: [],
+      meta: { page: 1, pageSize: 100, total: 0, totalPages: 1 },
+    });
+    listPendingFriendRequestsMock.mockResolvedValue({ data: [] });
+    listFriendSuggestionsMock.mockResolvedValue({ data: [] });
+    sendFriendRequestMock.mockResolvedValue(undefined);
+    acceptFriendRequestMock.mockResolvedValue(buildConnection());
+    rejectFriendRequestMock.mockResolvedValue(undefined);
+    removeFriendMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {

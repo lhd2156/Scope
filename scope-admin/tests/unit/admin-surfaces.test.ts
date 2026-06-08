@@ -11,6 +11,7 @@ import SpotsPage from '@/pages/SpotsPage.vue';
 import UserDetailPage from '@/pages/UserDetailPage.vue';
 import UsersPage from '@/pages/UsersPage.vue';
 import { useAuthStore } from '@/stores/authStore';
+import { useDashboardStore } from '@/stores/dashboardStore';
 import { deleteUser, getCurrentUser, getUser, listUsers, loginAdmin, updateUserStatus } from '@/api/core';
 import { listPhotos, listReviews, listSpots, moderatePhoto, moderateReview } from '@/api/content';
 
@@ -162,6 +163,22 @@ describe('admin app surfaces', () => {
 
     expect(wrapper.text()).toContain('Total Users');
     expect(listUsers).toHaveBeenCalledWith({ page: 1, pageSize: 1 });
+
+    const dashboard = useDashboardStore();
+    dashboard.$patch({
+      loading: true,
+      userGrowth: [{ label: 'No users yet' }],
+      spotGrowth: [{ label: 'No spots yet' }],
+      engagement: [{ label: 'No likes yet' }],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('Refreshing...');
+    expect(wrapper.findAll('.bar-row span').map((bar) => bar.attributes('style'))).toEqual([
+      'height: 20px;',
+      'height: 20px;',
+      'height: 20px;',
+    ]);
   });
 
   it('drives user search, pagination, status, and delete actions', async () => {
@@ -194,6 +211,35 @@ describe('admin app surfaces', () => {
       ?.trigger('click');
     await flushPromises();
     expect(listUsers).toHaveBeenLastCalledWith({ page: 2, pageSize: 25, search: 'louis' });
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Previous')
+      ?.trigger('click');
+    await flushPromises();
+    expect(listUsers).toHaveBeenLastCalledWith({ page: 1, pageSize: 25, search: 'louis' });
+  });
+
+  it('renders default user fields and reactivates banned users', async () => {
+    vi.mocked(listUsers).mockResolvedValueOnce({
+      items: [
+        { id: 'user-banned', username: 'blocked', email: 'blocked@example.com', status: 'banned' },
+        { id: 'user-defaults', username: 'defaults', email: 'defaults@example.com' },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 25,
+    });
+
+    const wrapper = mount(UsersPage, { global: { stubs: { RouterLink: RouterLinkStub } } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('active');
+    expect(wrapper.text()).toContain('user');
+    await wrapper.findAll('button').find((button) => button.text() === 'Toggle status')?.trigger('click');
+    await flushPromises();
+
+    expect(updateUserStatus).toHaveBeenCalledWith('user-banned', 'active');
   });
 
   it('renders spots, reviews, photos, simple pages, and user fallback detail', async () => {
@@ -238,6 +284,21 @@ describe('admin app surfaces', () => {
       ?.trigger('click');
     await flushPromises();
     expect(moderateReview).toHaveBeenCalledWith('review-1', 'rejected');
+
+    vi.mocked(listReviews).mockResolvedValueOnce({
+      items: [
+        { id: 'review-comment', rating: 4, comment: 'Fallback comment' },
+        { id: 'review-empty', rating: 3 },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 25,
+    });
+    const fallbackReviews = mount(ReviewsPage);
+    await flushPromises();
+    expect(fallbackReviews.text()).toContain('Spot review');
+    expect(fallbackReviews.text()).toContain('Fallback comment');
+    expect(fallbackReviews.text()).toContain('No comment');
 
     vi.mocked(listPhotos).mockResolvedValueOnce({
       items: [

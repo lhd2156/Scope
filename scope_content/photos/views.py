@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import re
+import uuid
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.http import Http404, HttpResponse, HttpResponseRedirect
@@ -21,11 +24,15 @@ from common.kafka_producer import ScopeKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from photos.models import Photo
-from photos.serializers import PhotoSerializer, PhotoUploadSerializer
+from photos.serializers import AvatarUploadSerializer, PhotoSerializer, PhotoUploadSerializer
 from photos.services.s3_service import S3StorageService
 from spots.models import Spot
 
 producer = ScopeKafkaProducer()
+_AVATAR_KEY_PATTERN = re.compile(
+    r'^avatars/[0-9a-f]{32}/[0-9a-f-]+\.(?:jpe?g|png|webp)$',
+    re.IGNORECASE,
+)
 
 
 def _async_thumbnails_enabled() -> bool:
@@ -127,9 +134,64 @@ def upload_photo(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticatedJWT])
 def presigned_url(request):
-    key = f'uploads/{request.user.id}'
-    url = S3StorageService().presigned_upload_url(key)
-    return data_response({'url': url, 'key': key, 'enabled': bool(url)})
+    return data_response(
+        {
+            'uploadUrl': '/api/content/photos/avatar-upload',
+            'fileUrl': '',
+            'method': 'POST',
+            'headers': {},
+            'expiresInSeconds': 3600,
+            'enabled': True,
+        }
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticatedJWT])
+def upload_avatar(request):
+    serializer = AvatarUploadSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    user_key = uuid.UUID(str(request.user.id)).hex
+    stored = S3StorageService().store_original(
+        serializer.validated_data['file'],
+        prefix=f'avatars/{user_key}',
+    )
+    file_url = f"/api/content/photos/avatar/content?{urlencode({'key': stored['storage_key']})}"
+    return data_response(
+        {
+            'fileUrl': file_url,
+            'storageKey': stored['storage_key'],
+        },
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def avatar_content(request):
+    key = request.query_params.get('key', '').strip()
+    if not _AVATAR_KEY_PATTERN.fullmatch(key):
+        raise Http404
+
+    storage = S3StorageService()
+    if storage.enabled:
+        signed_url = storage.presigned_read_url(key, expires_in=900)
+        if not signed_url:
+            raise Http404
+        response = HttpResponseRedirect(signed_url)
+        response['Cache-Control'] = 'public, max-age=900'
+        return response
+
+    try:
+        payload = storage.fetch_original_bytes(key)
+    except (BotoCoreError, ClientError, OSError):
+        raise Http404 from None
+
+    content_type = mimetypes.guess_type(key)[0] or 'application/octet-stream'
+    response = HttpResponse(payload, content_type=content_type)
+    response['Cache-Control'] = 'public, max-age=86400, immutable'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @api_view(['PUT', 'DELETE'])

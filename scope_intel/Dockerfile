@@ -1,5 +1,4 @@
-# Pin to python:3.12-slim; for release builds, append @sha256:<digest>.
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_RUN_PORT=5000
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10003 scope \
@@ -43,6 +43,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 #   * --graceful-timeout: drain in-flight ML requests on rolling deploys.
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
+     "--no-control-socket", \
      "--worker-class", "gthread", \
      "--workers", "2", \
      "--threads", "8", \

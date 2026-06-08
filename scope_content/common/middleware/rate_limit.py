@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict, deque
+from ipaddress import ip_address, ip_network
 from math import ceil
 from threading import Lock
 from time import time
@@ -62,7 +63,7 @@ class RateLimitMiddleware:
         ip_address = self._client_ip(request)
         limits.append((f'global:{ip_address}', self._global_limit()))
 
-        if request.path.startswith('/api/content/photos/upload'):
+        if request.path in {'/api/content/photos/upload', '/api/content/photos/avatar-upload'}:
             upload_identity = self._upload_identity(request, ip_address)
             limits.append((f'upload:{upload_identity}', self._upload_limit()))
 
@@ -73,11 +74,43 @@ class RateLimitMiddleware:
         return limits
 
     @staticmethod
-    def _client_ip(request) -> str:
+    def _trusted_proxy_networks():
+        raw_value = getattr(settings, 'TRUSTED_PROXY_CIDRS', [])
+        if isinstance(raw_value, str):
+            raw_items = [item.strip() for item in raw_value.replace(';', ',').split(',')]
+        else:
+            raw_items = [str(item).strip() for item in raw_value]
+
+        networks = []
+        for raw_item in raw_items:
+            if not raw_item:
+                continue
+            try:
+                networks.append(ip_network(raw_item, strict=False))
+            except ValueError:
+                logger.warning('Ignoring invalid trusted proxy CIDR', extra={'cidr': raw_item})
+        return networks
+
+    @classmethod
+    def _remote_addr_is_trusted_proxy(cls, remote_addr: str) -> bool:
+        try:
+            remote_ip = ip_address(remote_addr)
+        except ValueError:
+            return False
+        return any(remote_ip in network for network in cls._trusted_proxy_networks())
+
+    @classmethod
+    def _client_ip(cls, request) -> str:
+        remote_addr = request.META.get('REMOTE_ADDR', 'anon')
         forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
-        if forwarded_for:
-            return forwarded_for.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR', 'anon')
+        if forwarded_for and cls._remote_addr_is_trusted_proxy(remote_addr):
+            candidate = forwarded_for.split(',')[0].strip()
+            try:
+                ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
+        return remote_addr
 
     @staticmethod
     def _upload_identity(request, ip_address: str) -> str:

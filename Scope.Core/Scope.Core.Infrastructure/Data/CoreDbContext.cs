@@ -39,6 +39,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(x => x.HomeBase).HasMaxLength(120);
             entity.Property(x => x.InterestsJson).HasMaxLength(1000);
             entity.Property(x => x.ShowActivityStatus).HasDefaultValue(true);
+            entity.Property(x => x.ProfileVisibility).HasMaxLength(16).HasDefaultValue("friends").IsRequired();
             entity.Property(x => x.IsShowcase).HasDefaultValue(false);
             entity.Property(x => x.Role).HasMaxLength(20).IsRequired();
             entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);

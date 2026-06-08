@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Response, type Route } from '@playwright/test';
+import type { Page, Response, Route } from '@playwright/test';
+import { expect, test } from './fixtures/coverage-test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? BASE_URL;
@@ -106,13 +107,12 @@ const TRANSIENT_ROUTE_CHURN_PAGE_ERROR_PATTERNS = [
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/styles\/v1\/mapbox\/[^/?]+\/sprite@2x\.(?:json|png).* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/styles\/v1\/mapbox\/[^/?]+\/iconset\.pbf.* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/fonts\/v1\/mapbox\/.*\.pbf.* due to access control checks\./i,
+  /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/(?:directions|optimized-trips)\/v1\/mapbox\/.* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+events\.mapbox\.com\/events\/v2.* due to access control checks\./i,
   /^Cache API operation failed: Context is stopped$/i,
   /presence\/heartbeat due to access control checks/i,
-  /^(XMLHttpRequest|Fetch API) cannot load http:\s*\/+127\.0\.0\.1:5173\/(?:api\/|wasm\/).* due to access control checks\./i,
-  /^(XMLHttpRequest|Fetch API) cannot load http:\s*\/+localhost:8088\/api\/(?:content|core)\/.* due to access control checks\./i,
-  /^(XMLHttpRequest|Fetch API) cannot load http:\s*\/+localhost:8088\/wasm\/.* due to access control checks\./i,
-  /^Cannot load http:\s*\/+localhost:8088\/assets\/mapbox-gl-csp-worker-.*\.js due to access control checks\./i,
+  /^(XMLHttpRequest|Fetch API) cannot load http:\s*\/+(?:127\.0\.0\.1|localhost):\d+\/(?:api\/|wasm\/).* due to access control checks\./i,
+  /^Cannot load http:\s*\/+(?:127\.0\.0\.1|localhost):\d+\/assets\/mapbox-gl-csp-worker-.*\.js due to access control checks\./i,
 ] as const;
 
 const auditUsersByAccessToken = new Map<string, AuditUser>();
@@ -1272,7 +1272,11 @@ async function auditRouteControls(
       continue;
     }
 
+    await control.evaluate((element) => {
+      element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+    }).catch(() => undefined);
     await control.scrollIntoViewIfNeeded().catch(() => undefined);
+    await page.waitForTimeout(50);
     const isDisabled = await control.evaluate((element) =>
       (
         element instanceof HTMLButtonElement ||

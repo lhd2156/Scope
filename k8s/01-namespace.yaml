@@ -5,3 +5,13 @@ metadata:
   labels:
     app.kubernetes.io/name: scope
     app.kubernetes.io/part-of: scope-platform
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: content-aws
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: content
+    app.kubernetes.io/part-of: scope-platform
+automountServiceAccountToken: false

@@ -9,9 +9,12 @@ from django.conf import settings
 from django.db import connection
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from prometheus_client import CONTENT_TYPE_LATEST
-from rest_framework.decorators import api_view
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
+from common.account_deletion import delete_content_for_user
+from common.permissions import IsAuthenticatedJWT
 from common.telemetry import record_service_health, render_metrics
 from photos.services.s3_service import S3StorageService
 
@@ -80,6 +83,25 @@ def metrics_view(request):
         return HttpResponseForbidden('metrics access denied')
     payload = render_metrics()
     return HttpResponse(payload, content_type=CONTENT_TYPE_LATEST)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticatedJWT])
+def delete_current_user_content(request):
+    if request.headers.get('X-Scope-Account-Deletion', '').strip().lower() != 'confirm':
+        return Response(
+            {
+                'error': {
+                    'code': 'ACCOUNT_DELETION_CONFIRMATION_REQUIRED',
+                    'message': 'Account deletion confirmation is required',
+                    'details': [],
+                },
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    delete_content_for_user(request.user.id)
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def api_not_found_view(request):

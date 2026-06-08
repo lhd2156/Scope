@@ -247,7 +247,7 @@ describe('onboarding preferences page', () => {
       expect(wrapper.findAll('.home-base-suggestion').at(0)?.classes()).toContain('is-active');
 
       await input.trigger('keydown', { key: 'Enter' });
-      expect((input.element as HTMLInputElement).value).toBe('Main Street');
+      expect((input.element as HTMLInputElement).value).toBe('Main Street, Austin, TX');
 
       await input.setValue('East');
       await vi.advanceTimersByTimeAsync(260);
@@ -427,7 +427,7 @@ describe('onboarding preferences page', () => {
       expect(wrapper.get('.home-base-suggestion').text()).toContain('Fort Worth');
 
       await wrapper.get('.home-base-suggestion').trigger('click');
-      expect((input.element as HTMLInputElement).value).toBe('Fort Worth, Texas, United States');
+      expect((input.element as HTMLInputElement).value).toBe('Fort Worth, TX');
 
       await wrapper.findAll('.preference-chip')[0].trigger('click');
       const continueButton = wrapper.findAll('button').find((btn) => btn.text().includes('Continue to Scope'));
@@ -437,7 +437,7 @@ describe('onboarding preferences page', () => {
 
       expect(authStoreMock.updateCurrentUser).toHaveBeenCalledWith({
         interests: ['food'],
-        homeBase: 'Fort Worth, Texas, United States',
+        homeBase: 'Fort Worth, TX',
         avatarUrl: undefined,
       });
     } finally {

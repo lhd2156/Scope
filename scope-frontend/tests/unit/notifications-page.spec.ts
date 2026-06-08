@@ -280,4 +280,174 @@ describe('NotificationsPage', () => {
       message: 'Denied',
     });
   });
+
+  it('renders every realtime and notification category state', async () => {
+    notificationsStoreState.items = [
+      { id: 'trip', title: 'Trip', body: 'Trip', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'trip.updated' },
+      { id: 'friend', title: 'Friend', body: 'Friend', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'friend.request' },
+      { id: 'social', title: 'Social', body: 'Social', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'spot.reviewed', category: 'general' },
+      { id: 'comment', title: 'Comment', body: 'Comment', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'comment.created' },
+      { id: 'mention', title: 'Mention', body: 'Mention', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'mention.created' },
+      { id: 'route', title: 'Route', body: 'Route', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'intel_route_ready' },
+      { id: 'weather', title: 'Weather', body: 'Weather', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'weather.alert' },
+      { id: 'security', title: 'Security', body: 'Security', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'security.login' },
+      { id: 'account', title: 'Account', body: 'Account', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'profile.updated' },
+      { id: 'system', title: 'System', body: 'System', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'system.maintenance' },
+      { id: 'general', title: 'General', body: 'General', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: '' },
+      { id: 'custom', title: 'Custom', body: 'Custom', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'Custom Alerts' },
+    ];
+    notificationsStoreState.unreadCount = 0;
+    const wrapper = mountPage();
+    await flushPromises();
+
+    for (const category of [
+      'trip',
+      'friend',
+      'social',
+      'comment',
+      'mention',
+      'route',
+      'weather',
+      'security',
+      'account',
+      'system',
+      'general',
+      'custom-alerts',
+    ]) {
+      expect(wrapper.find(`[data-test="notifications-filter-${category}"]`).exists()).toBe(true);
+    }
+    expect(wrapper.text()).toContain('Custom Alerts');
+
+    const stateLabels: Array<[string, string]> = [
+      ['connected', 'Realtime connected'],
+      ['connecting', 'Realtime connecting'],
+      ['reconnecting', 'Realtime reconnecting'],
+      ['disconnected', 'Realtime offline'],
+      ['error', 'Realtime paused'],
+      ['idle', 'Realtime ready'],
+    ];
+    for (const [state, label] of stateLabels) {
+      notificationsStoreState.connectionState = state;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.text()).toContain(label);
+    }
+  });
+
+  it('formats delivery cadences and quiet-hour boundaries', async () => {
+    getNotificationPreferences.mockResolvedValueOnce({
+      data: [
+        {
+          category: 'trip',
+          inAppEnabled: true,
+          pushEnabled: true,
+          emailEnabled: true,
+          digestCadence: 'instant',
+          quietHoursStartMinutes: -10,
+          quietHoursEndMinutes: 1500,
+          timeZoneId: 'UTC',
+        },
+        {
+          category: 'friend',
+          inAppEnabled: false,
+          pushEnabled: false,
+          emailEnabled: false,
+          digestCadence: 'off',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+        {
+          category: 'custom alerts',
+          inAppEnabled: true,
+          pushEnabled: false,
+          emailEnabled: false,
+          digestCadence: 'weekly',
+          quietHoursStartMinutes: 60,
+          quietHoursEndMinutes: 120,
+          timeZoneId: 'UTC',
+        },
+      ],
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Instant delivery');
+    expect(wrapper.text()).toContain('Digest off');
+    expect(wrapper.text()).toContain('Weekly cadence');
+    expect(wrapper.text()).toContain('No quiet hours');
+    expect(wrapper.text()).toContain('Quiet');
+    expect(wrapper.text()).toContain('3 categories configured');
+    expect(wrapper.find('.delivery-meter').text()).toContain('2');
+  });
+
+  it('surfaces preference, inbox action, and notification open failures', async () => {
+    notificationsStoreMock.fetchNotifications.mockRejectedValueOnce(new Error('inbox unavailable'));
+    getNotificationPreferences.mockRejectedValueOnce(new Error('preferences unavailable'));
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('preferences unavailable');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Notification action failed',
+      message: 'inbox unavailable',
+    });
+
+    toastStoreMock.showError.mockClear();
+    getNotificationPreferences.mockResolvedValueOnce({
+      data: [
+        {
+          category: 'trip',
+          inAppEnabled: true,
+          pushEnabled: false,
+          emailEnabled: true,
+          digestCadence: 'daily',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+      ],
+    });
+    const preferenceWrapper = mountPage();
+    await flushPromises();
+    updateNotificationPreference.mockRejectedValueOnce(new Error('preference offline'));
+    await preferenceWrapper.findAll('.mini-toggle').find((button) => button.text() === 'Push')!.trigger('click');
+    await flushPromises();
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Preference not saved',
+      message: 'preference offline',
+    });
+
+    toastStoreMock.showError.mockClear();
+    notificationsStoreMock.markRead.mockRejectedValueOnce(new Error('read failed'));
+    await preferenceWrapper.get('.notification-card__main').trigger('click');
+    await flushPromises();
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Notification not opened',
+      message: 'read failed',
+    });
+  });
+
+  it('does not route unsafe or empty notification targets', async () => {
+    notificationsStoreState.items = [
+      {
+        id: 'unsafe',
+        title: 'Unsafe target',
+        body: 'Should stay in Scope.',
+        isRead: true,
+        createdAt: '2026-01-01T10:00:00Z',
+        type: 'system.alert',
+        actionUrl: 'https://malicious.example/phish',
+      },
+    ];
+    notificationsStoreState.unreadCount = 0;
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('.notification-card__main').trigger('click');
+    await flushPromises();
+
+    expect(notificationsStoreMock.markRead).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
 });

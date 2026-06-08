@@ -79,6 +79,12 @@ describe('admin API services', () => {
       params: { page: 1, page_size: 25, q: 'trail', flagged: undefined },
     });
 
+    get.mockResolvedValueOnce(response({ data: [], total: 0 }));
+    await listSpots({ page: 2, pageSize: 10, q: 'river', flagged: true });
+    expect(get).toHaveBeenLastCalledWith('/api/content/spots/', {
+      params: { page: 2, page_size: 10, q: 'river', flagged: true },
+    });
+
     get.mockResolvedValueOnce(response({ data: { id: 'spot-1', title: 'Trail' } }));
     expect(await getSpot('spot-1')).toMatchObject({ title: 'Trail' });
 
@@ -87,9 +93,17 @@ describe('admin API services', () => {
 
     get.mockResolvedValueOnce(response({ results: [{ id: 'trip-1' }], count: 3 }));
     expect(await listTrips({ page: 2, pageSize: 10, q: 'tokyo' })).toMatchObject({ total: 3 });
+    expect(get).toHaveBeenLastCalledWith('/api/content/trips/', {
+      params: { page: 2, page_size: 10, q: 'tokyo' },
+    });
 
     get.mockResolvedValueOnce(response({ items: [{ id: 'review-1' }], total: 4 }));
-    expect(await listReviews({ page: 1, pageSize: 25, status: 'flagged' })).toMatchObject({ total: 4 });
+    expect(await listReviews({ page: 1, pageSize: 25, search: 'unsafe', status: 'flagged' })).toMatchObject({
+      total: 4,
+    });
+    expect(get).toHaveBeenLastCalledWith('/api/content/reviews/', {
+      params: { page: 1, page_size: 25, q: 'unsafe', status: 'flagged' },
+    });
     patch.mockResolvedValueOnce(response({ data: { id: 'review-1', status: 'approved' } }));
     expect(await moderateReview('review-1', 'approved')).toMatchObject({ status: 'approved' });
 

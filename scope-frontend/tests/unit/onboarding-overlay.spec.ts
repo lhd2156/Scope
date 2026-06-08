@@ -4,7 +4,11 @@ import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import { flushPromises, mount } from '@vue/test-utils';
 
 import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
-import { ONBOARDING_COMPLETION_STORAGE_KEY, useOnboardingStore } from '@/stores/onboarding';
+import {
+  ONBOARDING_COMPLETION_STORAGE_KEY,
+  ONBOARDING_DISMISSED_STORAGE_KEY,
+  useOnboardingStore,
+} from '@/stores/onboarding';
 import { clearStoredAuthSessionHint, persistAuthSessionHint } from '@/utils/authSessionStorage';
 
 const spotlightRects: Record<string, { top: number; left: number; width: number; height: number }> = {
@@ -326,8 +330,10 @@ describe('OnboardingOverlay', () => {
     await settleOnboarding();
 
     expect(onboardingStore.isActive).toBe(false);
-    expect(onboardingStore.hasCompleted).toBe(true);
-    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBe('completed');
+    expect(onboardingStore.hasCompleted).toBe(false);
+    expect(onboardingStore.hasDismissed).toBe(true);
+    expect(localStorage.getItem(ONBOARDING_COMPLETION_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(ONBOARDING_DISMISSED_STORAGE_KEY)).toBe('dismissed');
     expect(document.body.querySelector('.onboarding-overlay__card')).toBeNull();
   });
 

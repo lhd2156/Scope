@@ -81,17 +81,21 @@ public sealed class HubMoreTests
         await dbContext.SaveChangesAsync();
         var validator = new Mock<ITripMembershipValidator>();
         validator.Setup(x => x.IsMemberAsync(tripId, userId, "token", It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        var hub = CreateLocationHub(dbContext, userId, validator.Object, out var clients, out var proxy);
+        var hub = CreateLocationHub(dbContext, userId, validator.Object, out var groups, out var clients, out var proxy);
 
+        await hub.JoinTrip(tripId);
         await hub.ShareLocation(tripId, 32.7, -97.3);
         await hub.ShareLocation(Guid.NewGuid(), 0, 0);
         await hub.StopSharing(Guid.NewGuid());
         await hub.StopSharing(tripId);
+        await hub.LeaveTrip(tripId);
 
         var session = await dbContext.LiveSessions.SingleAsync();
         Assert.Equal(32.7, session.Latitude);
         Assert.Equal(-97.3, session.Longitude);
         Assert.False(session.IsActive);
+        groups.Verify(x => x.AddToGroupAsync("connection-1", $"trip:{tripId}", It.IsAny<CancellationToken>()), Times.Once);
+        groups.Verify(x => x.RemoveFromGroupAsync("connection-1", $"trip:{tripId}", It.IsAny<CancellationToken>()), Times.Once);
         clients.Verify(x => x.Group($"trip:{tripId}"), Times.Exactly(2));
         proxy.Verify(x => x.SendCoreAsync("LocationShared", It.IsAny<object[]>(), It.IsAny<CancellationToken>()), Times.Once);
         proxy.Verify(x => x.SendCoreAsync("LocationStopped", It.IsAny<object[]>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -116,8 +120,9 @@ public sealed class HubMoreTests
         await dbContext.SaveChangesAsync();
         var validator = new Mock<ITripMembershipValidator>();
         validator.Setup(x => x.IsMemberAsync(tripId, userId, "token", It.IsAny<CancellationToken>())).ReturnsAsync(false);
-        var hub = CreateLocationHub(dbContext, userId, validator.Object, out var clients, out var proxy);
+        var hub = CreateLocationHub(dbContext, userId, validator.Object, out var groups, out var clients, out var proxy);
 
+        await Assert.ThrowsAsync<HubException>(() => hub.JoinTrip(tripId));
         await Assert.ThrowsAsync<HubException>(() => hub.ShareLocation(tripId, 91, -97.3));
         await hub.ShareLocation(tripId, 32.7, -97.3);
 
@@ -125,6 +130,7 @@ public sealed class HubMoreTests
         Assert.False(session.IsActive);
         Assert.Equal(1, session.Latitude);
         Assert.Equal(2, session.Longitude);
+        groups.Verify(x => x.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         clients.Verify(x => x.Group(It.IsAny<string>()), Times.Never);
         proxy.Verify(x => x.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -178,16 +184,18 @@ public sealed class HubMoreTests
         CoreDbContext dbContext,
         Guid userId,
         ITripMembershipValidator validator,
+        out Mock<IGroupManager> groups,
         out Mock<IHubCallerClients> clients,
         out Mock<IClientProxy> proxy)
     {
         proxy = new Mock<IClientProxy>();
         clients = new Mock<IHubCallerClients>();
         clients.Setup(x => x.Group(It.IsAny<string>())).Returns(proxy.Object);
+        groups = new Mock<IGroupManager>();
         return new LocationHub(dbContext, validator)
         {
             Context = CreateHubContext(userId, "token"),
-            Groups = Mock.Of<IGroupManager>(),
+            Groups = groups.Object,
             Clients = clients.Object,
         };
     }

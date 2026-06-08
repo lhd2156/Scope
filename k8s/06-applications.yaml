@@ -33,9 +33,23 @@ spec:
         app.kubernetes.io/name: core
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: core
           image: ghcr.io/lhd2156/scope/scope-core:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 8080
               name: http
@@ -87,6 +101,12 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -126,9 +146,24 @@ spec:
         app.kubernetes.io/name: content
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: content-aws
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10002
+        runAsGroup: 10002
+        fsGroup: 10002
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: content
           image: ghcr.io/lhd2156/scope/scope-content:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 8000
               name: http
@@ -143,6 +178,16 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: DJANGO_SECRET_KEY
+            - name: DJANGO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: DJANGO_DATABASE_URL
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: RABBITMQ_PASS
             - name: CORE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -153,18 +198,6 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: GRPC_INTERNAL_TOKEN
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: scope-secrets
-                  key: AWS_ACCESS_KEY_ID
-                  optional: true
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: scope-secrets
-                  key: AWS_SECRET_ACCESS_KEY
-                  optional: true
           resources:
             requests:
               cpu: 100m
@@ -184,6 +217,16 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -204,9 +247,24 @@ spec:
         app.kubernetes.io/name: content-worker
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: content-aws
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10002
+        runAsGroup: 10002
+        fsGroup: 10002
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: content-worker
           image: ghcr.io/lhd2156/scope/scope-content:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           command:
             - python
             - manage.py
@@ -220,23 +278,16 @@ spec:
                 secretKeyRef:
                   name: scope-secrets
                   key: DJANGO_SECRET_KEY
+            - name: DJANGO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: DJANGO_DATABASE_URL
             - name: CORE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: scope-secrets
                   key: CORE_JWT_SECRET
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: scope-secrets
-                  key: AWS_ACCESS_KEY_ID
-                  optional: true
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: scope-secrets
-                  key: AWS_SECRET_ACCESS_KEY
-                  optional: true
             - name: RUN_MIGRATIONS_ON_STARTUP
               value: "false"
           resources:
@@ -246,6 +297,130 @@ spec:
             limits:
               cpu: 500m
               memory: 384Mi
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-celery
+  namespace: scope
+  labels:
+    app.kubernetes.io/name: content-celery
+    app.kubernetes.io/part-of: scope-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: content-celery
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: content-celery
+        app.kubernetes.io/part-of: scope-platform
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: content-aws
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10002
+        runAsGroup: 10002
+        fsGroup: 10002
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: content-celery
+          image: ghcr.io/lhd2156/scope/scope-content:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          command:
+            - celery
+            - -A
+            - scope_content
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - -Q
+            - default,sentiment,classification,reindex
+          envFrom:
+            - configMapRef:
+                name: scope-shared-config
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: DJANGO_SECRET_KEY
+            - name: DJANGO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: DJANGO_DATABASE_URL
+            - name: CORE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: CORE_JWT_SECRET
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: scope-secrets
+                  key: RABBITMQ_PASS
+            - name: RUN_MIGRATIONS_ON_STARTUP
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - scope_content
+                - inspect
+                - ping
+                - --timeout
+                - "5"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - scope_content
+                - inspect
+                - ping
+                - --timeout
+                - "5"
+            initialDelaySeconds: 60
+            periodSeconds: 45
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -285,9 +460,23 @@ spec:
         app.kubernetes.io/name: intel
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10003
+        runAsGroup: 10003
+        fsGroup: 10003
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: intel
           image: ghcr.io/lhd2156/scope/scope-intel:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 5000
               name: http
@@ -331,6 +520,16 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
+          volumeMounts:
+            - name: instance
+              mountPath: /app/instance
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: instance
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -351,9 +550,23 @@ spec:
         app.kubernetes.io/name: intel-worker
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10003
+        runAsGroup: 10003
+        fsGroup: 10003
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: intel-worker
           image: ghcr.io/lhd2156/scope/scope-intel:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           command:
             - python
             - -m
@@ -383,6 +596,16 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          volumeMounts:
+            - name: instance
+              mountPath: /app/instance
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: instance
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -434,9 +657,23 @@ spec:
         app.kubernetes.io/name: rag
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10004
+        runAsGroup: 10004
+        fsGroup: 10004
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: rag
           image: ghcr.io/lhd2156/scope/scope-rag:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 8100
               name: http
@@ -460,6 +697,8 @@ spec:
           volumeMounts:
             - name: rag-data
               mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 100m
@@ -483,6 +722,8 @@ spec:
         - name: rag-data
           persistentVolumeClaim:
             claimName: rag-data
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -519,9 +760,22 @@ spec:
         app.kubernetes.io/name: scope-metrics
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10005
+        runAsGroup: 10005
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scope-metrics
           image: ghcr.io/lhd2156/scope/scope-metrics:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 9090
               name: http
@@ -583,9 +837,23 @@ spec:
         app.kubernetes.io/name: site
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: site
           image: ghcr.io/lhd2156/scope/scope-site:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 3000
               name: http
@@ -602,6 +870,16 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -638,9 +916,23 @@ spec:
         app.kubernetes.io/name: admin
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: admin
           image: ghcr.io/lhd2156/scope/scope-admin:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: 8081
               name: http
@@ -663,6 +955,16 @@ spec:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 15
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -687,10 +989,23 @@ spec:
             app.kubernetes.io/name: scope-cli
             app.kubernetes.io/part-of: scope-platform
         spec:
+          automountServiceAccountToken: false
           restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10006
+            runAsGroup: 10006
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: scope-cli
               image: ghcr.io/lhd2156/scope/scope-cli:latest
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
               args:
                 - health
                 - --verbose
@@ -725,7 +1040,7 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 80
+      targetPort: 8080
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -746,11 +1061,25 @@ spec:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: frontend
           image: ghcr.io/lhd2156/scope/scope-frontend:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
           resources:
             requests:
@@ -765,3 +1094,13 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

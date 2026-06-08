@@ -10,6 +10,20 @@ namespace Scope.Core.API.Hubs;
 [Authorize]
 public sealed class LocationHub(CoreDbContext dbContext, ITripMembershipValidator membershipValidator) : Hub
 {
+    public async Task JoinTrip(Guid tripId)
+    {
+        var userId = Context.GetRequiredUserId();
+        if (!await membershipValidator.IsMemberAsync(tripId, userId, GetBearerToken(), Context.ConnectionAborted))
+        {
+            throw new HubException("Not a member of this trip");
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"trip:{tripId}");
+    }
+
+    public Task LeaveTrip(Guid tripId)
+        => Groups.RemoveFromGroupAsync(Context.ConnectionId, $"trip:{tripId}");
+
     public async Task ShareLocation(Guid tripId, double lat, double lng)
     {
         if (!IsValidCoordinate(lat, -90, 90) || !IsValidCoordinate(lng, -180, 180))

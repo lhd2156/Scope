@@ -21,6 +21,14 @@ public sealed class RateLimitMiddleware(
     IOptions<RateLimitOptions> options,
     IServiceProvider services)
 {
+    private const string RedisFixedWindowScript = """
+        local current = redis.call('INCR', KEYS[1])
+        if current == 1 then
+            redis.call('PEXPIRE', KEYS[1], ARGV[1])
+        end
+        return current
+        """;
+
     private static readonly HashSet<string> StrictAuthPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/api/core/auth/register",
@@ -89,15 +97,11 @@ public sealed class RateLimitMiddleware(
             {
                 var db = redis.GetDatabase();
                 var cacheKey = $"scope:core:rl:{key}";
-                var count = await db.StringIncrementAsync(cacheKey);
-                if (count == 1)
-                {
-                    // First hit in the window — set the TTL so the counter
-                    // resets automatically. Fire-and-forget is acceptable: if
-                    // the EXPIRE is lost the key just persists until the next
-                    // INCR restores the TTL on the next window.
-                    await db.KeyExpireAsync(cacheKey, window, CommandFlags.FireAndForget);
-                }
+                var result = await db.ScriptEvaluateAsync(
+                    RedisFixedWindowScript,
+                    [cacheKey],
+                    [(long)Math.Ceiling(window.TotalMilliseconds)]);
+                var count = (long)result;
                 return count <= limit;
             }
             catch (Exception ex)
@@ -130,7 +134,9 @@ public sealed class RateLimitMiddleware(
         context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.Response.ContentType = "application/json";
         context.Response.Headers["Retry-After"] = limits.RetryAfterSeconds;
-        var body = JsonSerializer.Serialize(new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)));
+        var body = JsonSerializer.Serialize(
+            new ErrorEnvelope(new ErrorBody("RATE_LIMITED", "Too many requests", [], context.TraceIdentifier)),
+            JsonSerializerOptions.Web);
         await context.Response.WriteAsync(body);
     }
 }

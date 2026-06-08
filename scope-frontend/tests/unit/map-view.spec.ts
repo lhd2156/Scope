@@ -754,4 +754,351 @@ describe('MapView', () => {
     };
     expect(coverage.isMarkerCoordinateInsideViewport(offscreenMarker, fakeMap, 800, 600)).toBe(false);
   });
+
+  it('renders accessible POI markers and popups for the full nearby-place taxonomy', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        showNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const cases = [
+      { title: 'Downtown Police', category: 'police', kind: 'civic', label: 'Police' },
+      { title: 'Main Street Pharmacy', category: 'drugstore', kind: 'health', label: 'Pharmacy' },
+      { title: 'Scope Fuel', category: 'gas station', kind: 'fuel', label: 'Gas station' },
+      { title: 'Cinema One', category: 'movie theater', kind: 'entertainment', label: 'Entertainment' },
+      { title: 'Daily Coffee', category: 'cafe', kind: 'food', label: 'Coffee' },
+      { title: 'City Museum', category: 'museum', kind: 'landmark', label: 'Museum' },
+      { title: 'Scope Hotel', category: 'lodging', kind: 'lodging', label: 'Hotel' },
+      { title: 'Public Parking', category: 'parking', kind: 'parking', label: 'Parking' },
+      { title: 'Quick ATM', category: 'atm', kind: 'finance', label: 'ATM' },
+      { title: 'Community Bank', category: 'bank', kind: 'finance', label: 'Bank' },
+      { title: 'Market Square', category: 'retail store', kind: 'shopping', label: 'Shopping' },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const place = {
+        id: `taxonomy-${index}`,
+        title: testCase.title,
+        latitude: 32.75 + index * 0.001,
+        longitude: -97.33 - index * 0.001,
+        kind: 'place',
+        category: testCase.category,
+        categoryLabel: testCase.category,
+        address: `${100 + index} Main Street, Fort Worth, TX`,
+        distanceLabel: `${index + 1} mi from center`,
+      };
+      const marker = coverage.buildNearbyPlaceMarkerElement(place);
+      const popup = coverage.buildNearbyPlacePopupContent(place);
+
+      expect(marker.root.dataset.placeKind, testCase.title).toBe(testCase.kind);
+      expect(marker.button.getAttribute('aria-label'), testCase.title).toContain(testCase.title);
+      expect(popup.textContent, testCase.title).toContain(testCase.label);
+      expect(popup.querySelector('.nearby-place-popup__address')?.getAttribute('href'), testCase.title)
+        .toContain('google.com/maps/search');
+      expect(marker.addButton, testCase.title).not.toBeNull();
+    }
+  });
+
+  it('keeps nearby-place photo attribution and pending addresses truthful', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        showNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const attributedPlace = {
+      id: 'nearby-attributed',
+      title: 'Water Gardens',
+      latitude: 32.7478,
+      longitude: -97.3255,
+      kind: 'place',
+      category: 'park',
+      categoryLabel: 'Park',
+      photoUrl: 'https://images.example.com/water-gardens.jpg',
+      photoAttribution: 'Scope Photographer',
+      distanceLabel: '0.4 mi from center',
+    };
+    const attributedPopup = coverage.buildNearbyPlacePopupContent(attributedPlace);
+    expect(attributedPopup.querySelector('.nearby-place-popup__attribution')?.textContent)
+      .toBe('Photo: Scope Photographer');
+    expect(attributedPopup.querySelector<HTMLImageElement>('[data-test="nearby-place-photo"]')?.src)
+      .toBe('https://images.example.com/water-gardens.jpg');
+
+    const pendingPlace = {
+      id: 'map-feature-pending-address',
+      title: 'Pending Map Place',
+      latitude: 32.75,
+      longitude: -97.33,
+      kind: 'place',
+      category: 'place',
+      photoLookupStatus: 'pending',
+      sourceLabel: 'Mapbox',
+    };
+    const pendingPopup = coverage.buildNearbyPlacePopupContent(pendingPlace, {
+      deferFallbackPhoto: true,
+    });
+    expect(pendingPopup.classList).toContain('nearby-place-popup--without-photo');
+    expect(pendingPopup.querySelector('.nearby-place-popup__address--pending')).not.toBeNull();
+    expect(pendingPopup.querySelector('[data-test="nearby-place-photo"]')).toBeNull();
+  });
+
+  it('coalesces map resizes and supports explicit overlay-free repairs', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const resize = vi.fn();
+    const triggerRepaint = vi.fn();
+    const fakeMap = { resize, triggerRepaint };
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+
+    window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      const handle = nextFrame++;
+      callbacks.set(handle, callback);
+      return handle;
+    });
+    window.cancelAnimationFrame = vi.fn((handle: number) => {
+      callbacks.delete(handle);
+    });
+
+    try {
+      coverage.resizeMapToContainer(undefined);
+      coverage.resizeMapToContainer(fakeMap, { syncOverlays: false });
+      expect(resize).toHaveBeenCalledTimes(1);
+      expect(triggerRepaint).toHaveBeenCalledTimes(1);
+
+      coverage.scheduleMapResize(fakeMap, { syncOverlays: false });
+      const cancelCountAfterFirstSchedule = vi.mocked(window.cancelAnimationFrame).mock.calls.length;
+      coverage.scheduleMapResize(fakeMap, { syncOverlays: false });
+      expect(window.cancelAnimationFrame).toHaveBeenCalledTimes(cancelCountAfterFirstSchedule + 1);
+
+      const scheduled = [...callbacks.values()];
+      expect(scheduled).toHaveLength(1);
+      scheduled[0](performance.now());
+      expect(resize).toHaveBeenCalledTimes(2);
+      expect(triggerRepaint).toHaveBeenCalledTimes(2);
+    } finally {
+      window.requestAnimationFrame = originalRequestAnimationFrame;
+      window.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
+  it('sizes map tile caches for low, typical, and high resource devices', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        routeVariant: 'planner',
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const memoryDescriptor = Object.getOwnPropertyDescriptor(navigator, 'deviceMemory');
+    const concurrencyDescriptor = Object.getOwnPropertyDescriptor(navigator, 'hardwareConcurrency');
+    const setResources = (memoryGb: number, cores: number) => {
+      Object.defineProperty(navigator, 'deviceMemory', {
+        configurable: true,
+        value: memoryGb,
+      });
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        configurable: true,
+        value: cores,
+      });
+    };
+
+    try {
+      setResources(4, 4);
+      expect(coverage.getMapTileResourceProfile()).toEqual({
+        minTileCacheSize: 192,
+        maxTileCacheSize: 560,
+        prefetchZoomDelta: 1,
+      });
+
+      setResources(16, 12);
+      expect(coverage.getMapTileResourceProfile()).toEqual({
+        minTileCacheSize: 512,
+        maxTileCacheSize: 1536,
+        prefetchZoomDelta: 3,
+      });
+
+      setResources(8, 8);
+      expect(coverage.getMapTileResourceProfile()).toEqual({
+        minTileCacheSize: 384,
+        maxTileCacheSize: 1120,
+        prefetchZoomDelta: 3,
+      });
+
+      const enable = vi.fn();
+      const setZoomRate = vi.fn();
+      const setWheelZoomRate = vi.fn();
+      coverage.configurePlannerMapGestureSmoothness({
+        scrollZoom: { enable, setZoomRate, setWheelZoomRate },
+      });
+      expect(enable).toHaveBeenCalledWith({ around: 'center' });
+      expect(setZoomRate).toHaveBeenCalledWith(expect.any(Number));
+      expect(setWheelZoomRate).toHaveBeenCalledWith(expect.any(Number));
+      expect(() => coverage.configurePlannerMapGestureSmoothness({
+        get scrollZoom() {
+          throw new Error('controller unavailable');
+        },
+      })).not.toThrow();
+    } finally {
+      if (memoryDescriptor) {
+        Object.defineProperty(navigator, 'deviceMemory', memoryDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'deviceMemory');
+      }
+      if (concurrencyDescriptor) {
+        Object.defineProperty(navigator, 'hardwareConcurrency', concurrencyDescriptor);
+      }
+    }
+  });
+
+  it('builds stable nearby-search bounds and responsive popup anchors', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        showNearbyPlaces: true,
+        autoSearchNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const mapContainer = wrapper.get('.map-canvas').element as HTMLElement;
+    Object.defineProperty(mapContainer, 'clientWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(mapContainer, 'clientHeight', { configurable: true, value: 700 });
+
+    expect([
+      coverage.getNearbyPlacesLimitForZoom(15),
+      coverage.getNearbyPlacesLimitForZoom(13),
+      coverage.getNearbyPlacesLimitForZoom(11),
+      coverage.getNearbyPlacesLimitForZoom(8),
+    ]).toEqual([144, 120, 96, 72]);
+    expect([
+      coverage.getNearbyPlacesBoundsPaddingRatio(15),
+      coverage.getNearbyPlacesBoundsPaddingRatio(13),
+      coverage.getNearbyPlacesBoundsPaddingRatio(11),
+      coverage.getNearbyPlacesBoundsPaddingRatio(8),
+    ]).toEqual([0.18, 0.15, 0.12, 0.08]);
+
+    const bounds = { west: -98, south: 32, east: -97, north: 33 };
+    expect(coverage.expandNearbyPlaceBounds(bounds, 15)).toEqual({
+      west: -98.18,
+      south: 31.82,
+      east: -96.82,
+      north: 33.18,
+    });
+
+    const fakeMap = {
+      getZoom: () => 13,
+      getCenter: () => ({ lng: -97.5, lat: 32.5 }),
+      getBounds: () => ({
+        getWest: () => bounds.west,
+        getSouth: () => bounds.south,
+        getEast: () => bounds.east,
+        getNorth: () => bounds.north,
+      }),
+      project: () => ({ x: 500, y: 350 }),
+    };
+    expect(coverage.getNearbyPlaceSearchBounds(fakeMap)).toEqual({
+      west: -98.15,
+      south: 31.85,
+      east: -96.85,
+      north: 33.15,
+    });
+    expect(coverage.buildNearbyPlacesViewportSignature(fakeMap)).toContain('-97.500');
+
+    const invalidMap = {
+      ...fakeMap,
+      getBounds: () => ({
+        getWest: () => -97,
+        getSouth: () => 33,
+        getEast: () => -98,
+        getNorth: () => 32,
+      }),
+    };
+    expect(coverage.getNearbyPlaceSearchBounds(invalidMap)).toBeNull();
+    expect(coverage.buildNearbyPlacesViewportSignature(invalidMap)).toBe('');
+
+    const place = {
+      id: 'nearby-anchor',
+      title: 'Anchor Place',
+      latitude: 32.75,
+      longitude: -97.33,
+      kind: 'place',
+      category: 'park',
+    };
+    expect(coverage.resolveMapFeaturePlacePopupAnchor({
+      project: () => ({ x: 100, y: 350 }),
+    }, place)).toBe('top-left');
+    expect(coverage.resolveMapFeaturePlacePopupAnchor({
+      project: () => ({ x: 900, y: 100 }),
+    }, place)).toBe('top-right');
+    expect(coverage.resolveMapFeaturePlacePopupAnchor({
+      project: () => ({ x: 500, y: 650 }),
+    }, place)).toBe('bottom');
+    expect(coverage.resolveMapFeaturePlacePopupAnchor({
+      project: () => {
+        throw new Error('projection unavailable');
+      },
+    }, place)).toBe('bottom');
+    expect(coverage.isMapFeaturePlacePopupPreciseEnough(fakeMap, place)).toBe(true);
+    expect(coverage.isMapFeaturePlacePopupPreciseEnough({
+      getZoom: () => 5,
+    }, { ...place, id: 'map-feature-low-zoom' })).toBe(false);
+    expect(coverage.canRenderNearbyPlaces(fakeMap)).toBe(false);
+    expect(coverage.canAutoSearchNearbyPlaces(fakeMap)).toBe(false);
+  });
+
+  it('applies Scope fill styling across map surface layer families', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const setPaintProperty = vi.fn();
+    const fakeMap = {
+      getPaintProperty: vi.fn(() => undefined),
+      setPaintProperty,
+    };
+    const layers = [
+      { id: 'background', type: 'background' },
+      { id: 'line-road', type: 'line' },
+      { id: 'water-fill', type: 'fill' },
+      { id: 'landuse-school', type: 'fill' },
+      { id: 'landcover-natural', type: 'fill' },
+      { id: 'sand-desert', type: 'fill' },
+      { id: 'national-park', type: 'fill' },
+      { id: 'building-fill', type: 'fill' },
+    ];
+
+    for (const layer of layers) {
+      coverage.applyScopeFillPresentation(fakeMap, layer, layer.id);
+    }
+
+    expect(setPaintProperty).toHaveBeenCalledWith('background', 'background-color', expect.anything());
+    expect(setPaintProperty).toHaveBeenCalledWith('water-fill', 'fill-color', expect.anything());
+    expect(setPaintProperty).toHaveBeenCalledWith('landuse-school', 'fill-opacity', expect.anything());
+    expect(setPaintProperty).toHaveBeenCalledWith('landcover-natural', 'fill-color', expect.anything());
+    expect(setPaintProperty).toHaveBeenCalledWith('sand-desert', 'fill-opacity', expect.anything());
+    expect(setPaintProperty).toHaveBeenCalledWith('building-fill', 'fill-color', 'rgb(45, 53, 58)');
+  });
 });

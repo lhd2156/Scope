@@ -1521,4 +1521,151 @@ describe('Navbar', () => {
 
     wrapper.unmount();
   });
+
+  it('ranks and merges quick-search places without losing provider metadata', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          NotificationDropdown: { template: '<div>Notifications</div>' },
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          Avatar: { template: '<div>Avatar</div>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const searchResult = {
+      id: ' search-place ',
+      name: 'Fort Worth Coffee',
+      description: 'Quiet patio and breakfast.',
+      category: 'food',
+      tags: ['coffee', 'patio'],
+      photoUrl: '',
+      photo_url: 'https://images.example.com/coffee.jpg',
+      avg_rating: 4.8,
+      review_count: 17,
+      city: 'Fort Worth',
+      country: 'US',
+      vibe: 'calm',
+      _score: 10,
+    };
+    const recommendation = {
+      id: 'recommended-place',
+      title: 'Museum Walk',
+      description: 'A compact culture stop.',
+      latitude: 32.75,
+      longitude: -97.33,
+      category: 'culture',
+      city: 'Fort Worth',
+      country: 'US',
+      rating: 4.7,
+      photoUrl: 'https://images.example.com/museum.jpg',
+      likesCount: 22,
+      vibe: 'curious',
+      recommendationReason: 'Matches your saved galleries.',
+      searchSuggestionSource: 'recommendation',
+    };
+
+    expect(coverage.mapSearchResultToQuickPlace(searchResult)).toMatchObject({
+      id: 'search-place',
+      title: 'Fort Worth Coffee',
+      description: 'Quiet patio and breakfast.',
+      category: 'food',
+      tags: ['coffee', 'patio'],
+      photoUrl: 'https://images.example.com/coffee.jpg',
+      rating: 4.8,
+      reviewCount: 17,
+      city: 'Fort Worth',
+      country: 'US',
+      vibe: 'calm',
+      source: 'search',
+    });
+    expect(coverage.mapSuggestionToQuickPlace(recommendation)).toMatchObject({
+      id: 'recommended-place',
+      title: 'Museum Walk',
+      likesCount: 22,
+      recommendationReason: 'Matches your saved galleries.',
+      source: 'recommendation',
+    });
+    expect(coverage.normalizeQuickSearchTarget(searchResult).id).toBe('search-place');
+    expect(coverage.normalizeQuickSearchTarget(recommendation)).toBe(recommendation);
+    expect(coverage.normalizeQuickSearchText('  MIXED Case  ')).toBe('mixed case');
+    expect(coverage.tokenizeQuickSearchQuery(' Fort   Worth ')).toEqual(['fort', 'worth']);
+    expect(coverage.isShortQuickSearchQuery(['ft'])).toBe(true);
+    expect(coverage.isShortQuickSearchQuery(['museum'])).toBe(false);
+    expect(coverage.quickSearchTextHasTokenPrefix('fort worth texas', 'wor')).toBe(true);
+
+    const searchablePlace = coverage.mapSearchResultToQuickPlace(searchResult);
+    expect(coverage.getQuickSearchHaystack(searchablePlace)).toContain('quiet patio');
+    expect(coverage.getQuickSearchHaystack(searchablePlace, { includeDescription: false })).not.toContain('quiet patio');
+    expect(coverage.matchesQuickSearchPlace(searchablePlace, [])).toBe(false);
+    expect(coverage.matchesQuickSearchPlace(searchablePlace, ['ft'])).toBe(false);
+    expect(coverage.matchesQuickSearchPlace(searchablePlace, ['for'])).toBe(true);
+    expect(coverage.matchesQuickSearchPlace(searchablePlace, ['quiet', 'breakfast'])).toBe(true);
+
+    expect(coverage.scoreQuickSearchPlace({ ...searchablePlace, title: 'coffee' }, ['coffee'])).toBeGreaterThan(12);
+    expect(coverage.scoreQuickSearchPlace(searchablePlace, ['fort'])).toBeGreaterThan(8);
+    expect(coverage.scoreQuickSearchPlace(searchablePlace, ['worth'])).toBeGreaterThan(4);
+    expect(coverage.scoreQuickSearchPlace(searchablePlace, ['patio'])).toBeGreaterThan(0);
+    expect(coverage.scoreQuickSearchPlace(searchablePlace, ['us'])).toBeGreaterThan(0);
+
+    const merged = coverage.mergeQuickSearchPlace(
+      { id: 'shared', title: 'Shared Place', source: 'search' },
+      {
+        id: 'shared',
+        title: 'Shared Place',
+        description: 'Provider description',
+        category: 'culture',
+        tags: ['gallery'],
+        photoUrl: 'https://images.example.com/shared.jpg',
+        rating: 4.9,
+        reviewCount: 31,
+        likesCount: 40,
+        city: 'Dallas',
+        country: 'US',
+        vibe: 'creative',
+        recommendationReason: 'Strong match',
+        source: 'recommendation',
+      },
+    );
+    expect(merged).toMatchObject({
+      description: 'Provider description',
+      category: 'culture',
+      tags: ['gallery'],
+      photoUrl: 'https://images.example.com/shared.jpg',
+      rating: 4.9,
+      reviewCount: 31,
+      likesCount: 40,
+      city: 'Dallas',
+      country: 'US',
+      vibe: 'creative',
+      recommendationReason: 'Strong match',
+    });
+    expect(coverage.buildQuickSearchPlaceKeys(merged)).toEqual([
+      'id:shared',
+      'title:shared place|dallas|us',
+    ]);
+
+    const mergedPlaces = coverage.mergeQuickSearchPlaces([
+      { id: 'shared', title: 'Shared Place', source: 'search' },
+      { ...merged, id: 'shared' },
+      { ...merged, id: 'alternate-id' },
+      { id: 'unique', title: 'Unique Place', source: 'search' },
+    ]);
+    expect(mergedPlaces).toHaveLength(2);
+    expect(mergedPlaces[0]).toMatchObject({
+      id: 'shared',
+      description: 'Provider description',
+      recommendationReason: 'Strong match',
+    });
+
+    wrapper.unmount();
+  });
 });

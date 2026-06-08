@@ -7,6 +7,8 @@ import math
 import time
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
+from hashlib import sha256
+from ipaddress import ip_address, ip_network
 from typing import Any
 
 import jwt
@@ -126,8 +128,68 @@ def _role_value_matches(value: Any, required_role: str) -> bool:
 
 
 def _request_key(request: Request, bucket: str) -> str:
-    ip_address = request.client.host if request.client else "unknown"
-    return f"{bucket}:{ip_address}"
+    identity = _verified_request_identity(request) or f"ip:{_client_ip(request)}"
+    identity_kind = identity.partition(":")[0]
+    identity_digest = sha256(identity.encode("utf-8")).hexdigest()[:32]
+    return f"{bucket}:{identity_kind}:{identity_digest}"
+
+
+def _verified_request_identity(request: Request) -> str | None:
+    authorization = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not authorization or not settings.core_jwt_secret:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+
+    try:
+        claims = jwt.decode(
+            token.strip(),
+            settings.core_jwt_secret,
+            algorithms=["HS256"],
+            issuer=settings.core_jwt_issuer,
+            audience=settings.core_jwt_audience,
+        )
+    except jwt.PyJWTError:
+        return None
+
+    subject = str(claims.get("sub") or "").strip()
+    return f"user:{subject}" if subject else None
+
+
+def _client_ip(request: Request) -> str:
+    remote_addr = request.client.host if request.client else "unknown"
+    forwarded_for = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+    if not forwarded_for or not _remote_addr_is_trusted_proxy(remote_addr):
+        return remote_addr
+
+    candidate = forwarded_for.split(",", 1)[0].strip()
+    try:
+        ip_address(candidate)
+    except ValueError:
+        return remote_addr
+    return candidate
+
+
+def _remote_addr_is_trusted_proxy(remote_addr: str) -> bool:
+    try:
+        remote_ip = ip_address(remote_addr)
+    except ValueError:
+        return False
+
+    raw_value = settings.rag_trusted_proxy_cidrs
+    entries = raw_value.replace(";", ",").split(",") if isinstance(raw_value, str) else raw_value
+    for entry in entries:
+        value = str(entry).strip()
+        if not value:
+            continue
+        try:
+            if remote_ip in ip_network(value, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 async def _permit(key: str, limit: int) -> tuple[bool, int]:

@@ -406,4 +406,255 @@ describe('api client', () => {
   });
   expect(handleUnauthorized).toHaveBeenCalledTimes(3);
  });
+
+ it('uses configured base URLs and exposes default error/session helpers', async () => {
+  vi.stubEnv('VITE_API_BASE_URL', ' https://api.scopetrips.test/root ');
+
+  const {
+   default: api,
+   ApiClientError,
+   clearApiSession,
+   configureApiSessionHandlers,
+   isApiClientError,
+   setAccessToken,
+   setCsrfToken,
+  } = await import('@/services/api');
+
+  expect(api.defaults.baseURL).toBe('https://api.scopetrips.test/root');
+  const error = new ApiClientError({ message: 'Default code' });
+  expect(error.code).toBe('api_error');
+  expect(isApiClientError(error)).toBe(true);
+  expect(isApiClientError(new Error('other'))).toBe(false);
+
+  setAccessToken('token');
+  setCsrfToken('csrf');
+  configureApiSessionHandlers({});
+  clearApiSession();
+ });
+
+ it('falls back to the same-origin base URL and tolerates missing document cookies', async () => {
+  vi.stubEnv('VITE_API_BASE_URL', '');
+
+  const { default: api } = await import('@/services/api');
+  const originalDocument = document;
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) =>
+   buildAxiosResponse(config, 200, { ok: true }));
+  api.defaults.adapter = adapter;
+
+  try {
+   vi.stubGlobal('document', undefined);
+   await api.post('/api/content/spots', { title: 'No cookie environment' });
+  } finally {
+   vi.stubGlobal('document', originalDocument);
+  }
+
+  expect(api.defaults.baseURL).toBe('/');
+  expect(AxiosHeaders.from(adapter.mock.calls[0]?.[0].headers).get('X-CSRF-Token')).toBeFalsy();
+ });
+
+ it('ignores empty csrf response headers and primitive bootstrap payloads', async () => {
+  vi.stubEnv('VITE_CSRF_ENDPOINT', '/api/core/auth/csrf');
+
+  const { default: api } = await import('@/services/api');
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+   if (config.url === '/api/core/auth/csrf') {
+    return buildAxiosResponse(config, 200, 42, { 'x-csrf-token': ' ' });
+   }
+   return buildAxiosResponse(config, 200, { ok: true });
+  });
+  api.defaults.adapter = adapter;
+
+  await api.post('/api/content/spots', { title: 'No bootstrap token' });
+
+  const mutationRequest = adapter.mock.calls.find((call) => call[0].url === '/api/content/spots')?.[0];
+  expect(AxiosHeaders.from(mutationRequest?.headers).get('X-CSRF-Token')).toBeFalsy();
+ });
+
+ it('ignores empty array csrf headers and blank direct payload tokens', async () => {
+  vi.stubEnv('VITE_CSRF_ENDPOINT', '/api/core/auth/csrf');
+
+  const { default: api } = await import('@/services/api');
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+   if (config.url === '/api/core/auth/csrf') {
+    return buildAxiosResponse(
+     config,
+     200,
+     { csrfToken: ' ' },
+     { 'x-csrf-token': [' '] } as unknown as Record<string, string>,
+    );
+   }
+   return buildAxiosResponse(config, 200, { ok: true });
+  });
+  api.defaults.adapter = adapter;
+
+  await api.post('/api/content/spots', { title: 'Blank bootstrap token' });
+
+  const mutationRequest = adapter.mock.calls.find((call) => call[0].url === '/api/content/spots')?.[0];
+  expect(AxiosHeaders.from(mutationRequest?.headers).get('X-CSRF-Token')).toBeFalsy();
+ });
+
+ it('keeps an encoded cookie value when decoding only produces whitespace', async () => {
+  document.cookie = 'XSRF-TOKEN=%20; path=/';
+
+  const { default: api } = await import('@/services/api');
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) =>
+   buildAxiosResponse(config, 200, { ok: true }));
+  api.defaults.adapter = adapter;
+
+  await api.post('/api/content/spots', { title: 'Encoded cookie' });
+
+  expect(AxiosHeaders.from(adapter.mock.calls[0]?.[0].headers).get('X-CSRF-Token')).toBe('%20');
+ });
+
+ it('permits tab-safe headers and uses the generic network message while online', async () => {
+  Object.defineProperty(window.navigator, 'onLine', {
+   configurable: true,
+   value: true,
+  });
+
+  const { default: api, setAccessToken } = await import('@/services/api');
+  let attempts = 0;
+  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+   attempts += 1;
+   expect(AxiosHeaders.from(config.headers).get('Authorization')).toBe('Bearer tab\tseparated');
+   return Promise.reject(new AxiosError('Network Error', 'ERR_NETWORK', config));
+  };
+
+  setAccessToken('tab\tseparated');
+
+  await expect(api.get('/api/content/feed')).rejects.toMatchObject({
+   message: 'Scope could not reach the API right now. Check your connection and try again.',
+   code: 'ERR_NETWORK',
+   isNetworkError: true,
+  });
+  expect(attempts).toBe(3);
+ });
+
+ it('shares one csrf bootstrap across concurrent mutations', async () => {
+  vi.stubEnv('VITE_CSRF_ENDPOINT', '/api/core/auth/csrf');
+
+  const { default: api } = await import('@/services/api');
+  let releaseBootstrap!: () => void;
+  const bootstrapGate = new Promise<void>((resolve) => {
+   releaseBootstrap = resolve;
+  });
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+   if (config.url === '/api/core/auth/csrf') {
+    await bootstrapGate;
+    return buildAxiosResponse(config, 200, { csrfToken: 'shared-csrf-token' });
+   }
+   return buildAxiosResponse(config, 200, { ok: true });
+  });
+  api.defaults.adapter = adapter;
+
+  const first = api.post('/api/content/spots', { title: 'First' });
+  const second = api.post('/api/content/trips', { title: 'Second' });
+  await Promise.resolve();
+  releaseBootstrap();
+  await Promise.all([first, second]);
+
+  expect(adapter.mock.calls.filter((call) => call[0].url === '/api/core/auth/csrf')).toHaveLength(1);
+  const mutationCalls = adapter.mock.calls.filter((call) => call[0].url !== '/api/core/auth/csrf');
+  expect(mutationCalls).toHaveLength(2);
+  expect(mutationCalls.every((call) =>
+   AxiosHeaders.from(call[0].headers).get('X-CSRF-Token') === 'shared-csrf-token')).toBe(true);
+ });
+
+ it('continues a mutation without a csrf header when bootstrap is unavailable', async () => {
+  vi.stubEnv('VITE_CSRF_ENDPOINT', '/api/core/auth/csrf');
+
+  const { default: api } = await import('@/services/api');
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+   if (config.url === '/api/core/auth/csrf') {
+    throw new Error('csrf offline');
+   }
+   return buildAxiosResponse(config, 200, { ok: true });
+  });
+  api.defaults.adapter = adapter;
+
+  await api.post('/api/content/spots', { title: 'Still submit' });
+
+  const mutationRequest = adapter.mock.calls.find((call) => call[0].url === '/api/content/spots')?.[0];
+  expect(AxiosHeaders.from(mutationRequest?.headers).get('X-CSRF-Token')).toBeFalsy();
+ });
+
+ it('does not retry rate limits or mutations and bounds transient GET retries', async () => {
+  const { default: api } = await import('@/services/api');
+  const attempts = new Map<string, number>();
+  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+   const url = config.url ?? '';
+   const attempt = attempts.get(url) ?? 0;
+   attempts.set(url, attempt + 1);
+
+   if (url === '/api/transient-get' && attempt === 2) {
+    return buildAxiosResponse(config, 200, { ok: true });
+   }
+
+   const status = url === '/api/rate-limited' ? 429 : 503;
+   return Promise.reject(new AxiosError(
+    'Service unavailable',
+    'ERR_BAD_RESPONSE',
+    config,
+    undefined,
+    buildAxiosResponse(config, status, { message: 'retry later' }),
+   ));
+  };
+
+  await expect(api.get('/api/transient-get')).resolves.toMatchObject({ status: 200 });
+  await expect(api.get('/api/rate-limited')).rejects.toMatchObject({ status: 429 });
+  await expect(api.post('/api/transient-post', {})).rejects.toMatchObject({ status: 503 });
+
+  expect(attempts.get('/api/transient-get')).toBe(3);
+  expect(attempts.get('/api/rate-limited')).toBe(1);
+  expect(attempts.get('/api/transient-post')).toBe(1);
+ });
+
+ it('normalizes a 401 immediately when no refresh handler is configured', async () => {
+  const { default: api, configureApiSessionHandlers } = await import('@/services/api');
+  const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => Promise.reject(
+   new AxiosError(
+    '',
+    undefined,
+    config,
+    undefined,
+    buildAxiosResponse(config, 401, { message: 'unauthorized' }),
+   ),
+  ));
+  api.defaults.adapter = adapter;
+  configureApiSessionHandlers({});
+
+  await expect(api.get('/api/private')).rejects.toMatchObject({
+   code: 'network_error',
+   status: 401,
+   message: 'Scope could not reach the API right now.',
+  });
+  expect(adapter).toHaveBeenCalledTimes(1);
+ });
+
+ it('removes authorization when a refresh handler returns a header-unsafe token', async () => {
+  const { default: api, configureApiSessionHandlers, setAccessToken } = await import('@/services/api');
+  let attempt = 0;
+  const authorizationHeaders: Array<string | null | undefined> = [];
+  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+   attempt += 1;
+   authorizationHeaders.push(AxiosHeaders.from(config.headers).get('Authorization'));
+   if (attempt === 1) {
+    return Promise.reject(new AxiosError(
+     'Unauthorized',
+     'ERR_BAD_REQUEST',
+     config,
+     undefined,
+     buildAxiosResponse(config, 401, { message: 'expired' }),
+    ));
+   }
+   return buildAxiosResponse(config, 200, { ok: true });
+  };
+  configureApiSessionHandlers({
+   refreshAccessToken: vi.fn().mockResolvedValue('unsafe-\u2028-token'),
+  });
+  setAccessToken('stale-token');
+
+  await expect(api.get('/api/private')).resolves.toMatchObject({ status: 200 });
+  expect(authorizationHeaders).toEqual(['Bearer stale-token', undefined]);
+ });
 });

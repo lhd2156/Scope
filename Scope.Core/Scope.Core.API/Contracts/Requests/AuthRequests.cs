@@ -38,7 +38,9 @@ public sealed record UserProfileUpdateRequest(
     [MaxLength(120)]
     string? HomeBase = null,
     IReadOnlyList<string>? Interests = null,
-    bool? ShowActivityStatus = null);
+    bool? ShowActivityStatus = null,
+    [MaxLength(16)]
+    string? ProfileVisibility = null);
 public sealed record PresenceHeartbeatRequest(
     [MaxLength(20)] string? Status = null,
     [MaxLength(160)] string? RouteContext = null,

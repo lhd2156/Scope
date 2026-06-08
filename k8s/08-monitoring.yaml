@@ -81,9 +81,23 @@ spec:
         app.kubernetes.io/name: prometheus
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: prometheus
-          image: prom/prometheus:v2.54.1
+          image: prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
@@ -98,6 +112,8 @@ spec:
               subPath: prometheus.yml
             - name: prometheus-storage
               mountPath: /prometheus
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 100m
@@ -124,6 +140,8 @@ spec:
         - name: prometheus-storage
           persistentVolumeClaim:
             claimName: prometheus-data
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -195,9 +213,23 @@ spec:
         app.kubernetes.io/name: grafana
         app.kubernetes.io/part-of: scope-platform
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: grafana
-          image: grafana/grafana:11.1.0
+          image: grafana/grafana:12.4.4@sha256:378f94b054e5384cd74322cbf7542cff6a43e068e4011f81ea5e75323247df02
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           ports:
             - name: http
               containerPort: 3000
@@ -214,12 +246,56 @@ spec:
                   key: GRAFANA_ADMIN_PASSWORD
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_USERS_ALLOW_ORG_CREATE
+              value: "false"
+            - name: GF_USERS_VIEWERS_CAN_EDIT
+              value: "false"
+            - name: GF_PATHS_PLUGINS
+              value: /tmp/grafana-plugins
+            - name: GF_SECURITY_DISABLE_GRAVATAR
+              value: "true"
+            - name: GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION
+              value: "false"
+            - name: GF_SECURITY_DISABLE_USERNAME_LOGIN_PROTECTION
+              value: "false"
+            - name: GF_SECURITY_DISABLE_IP_ADDRESS_LOGIN_PROTECTION
+              value: "false"
+            - name: GF_SECURITY_BRUTE_FORCE_LOGIN_PROTECTION_MAX_ATTEMPTS
+              value: "5"
+            - name: GF_SECURITY_COOKIE_SAMESITE
+              value: strict
+            - name: GF_SECURITY_CONTENT_SECURITY_POLICY
+              value: "true"
+            - name: GF_SECURITY_ENABLE_FRONTEND_SANDBOX_FOR_PLUGINS
+              value: "true"
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: "true"
+            - name: GF_PLUGINS_PLUGIN_ADMIN_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+            - name: GF_NEWS_NEWS_FEED_ENABLED
+              value: "false"
+            - name: GF_SNAPSHOTS_ENABLED
+              value: "false"
+            - name: GF_SNAPSHOTS_EXTERNAL_ENABLED
+              value: "false"
+            - name: GF_SNAPSHOTS_PUBLIC_MODE
+              value: "false"
           volumeMounts:
             - name: grafana-datasources
               mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
               subPath: datasources.yaml
             - name: grafana-storage
               mountPath: /var/lib/grafana
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 50m
@@ -246,6 +322,8 @@ spec:
         - name: grafana-storage
           persistentVolumeClaim:
             claimName: grafana-data
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

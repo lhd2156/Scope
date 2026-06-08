@@ -739,13 +739,22 @@ export async function listTrips(page = 1, pageSize = DEFAULT_FALLBACK_TRIP_PAGE_
   }
 }
 
-export async function listPublicTrips(page = 1, pageSize = DEFAULT_FALLBACK_TRIP_PAGE_SIZE): Promise<ApiEnvelope<Trip[]>> {
+export async function listPublicTrips(
+  page = 1,
+  pageSize = DEFAULT_FALLBACK_TRIP_PAGE_SIZE,
+  userId?: string,
+): Promise<ApiEnvelope<Trip[]>> {
   if (DEMO_MODE_ENABLED) {
     return buildMockTripListEnvelope(page, pageSize, (trip) => trip.isPublic);
   }
 
   try {
-    const { data } = await api.get<ApiEnvelope<Trip[]>>(`${TRIPS_BASE_PATH}/public`, { params: { page, pageSize } });
+    const params: { page: number; pageSize: number; userId?: string } = { page, pageSize };
+    const normalizedUserId = userId?.trim();
+    if (normalizedUserId) {
+      params.userId = normalizedUserId;
+    }
+    const { data } = await api.get<ApiEnvelope<Trip[]>>(`${TRIPS_BASE_PATH}/public`, { params });
     const sanitizedResponse = await enrichTripListEnvelope(sanitizeTripListEnvelope(data));
     rememberLiveTripList(sanitizedResponse.data);
 

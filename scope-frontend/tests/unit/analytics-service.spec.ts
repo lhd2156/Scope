@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AnalyticsRecord } from '@/services/analyticsService';
 import {
+  AnalyticsPageEngagementTracker,
+  AnalyticsService,
+  analyticsPageEngagementTracker,
+  analyticsService,
   attachAnalyticsPageEngagementTracker,
   beginRoutePageEngagement,
   createAnalyticsPageEngagementTracker,
@@ -710,5 +714,228 @@ describe('analyticsService', () => {
         robots: undefined,
       },
     });
+  });
+
+  it('uses stable page-view fallbacks when browser globals or metadata are unavailable', () => {
+    const trackedRecords: AnalyticsRecord[] = [];
+    const analytics = new AnalyticsService({
+      consent: 'granted',
+      providers: [{
+        id: 'memory',
+        track: (record) => trackedRecords.push(record),
+      }],
+    });
+    const originalWindow = window;
+    const originalDocument = document;
+
+    try {
+      vi.stubGlobal('window', undefined);
+      vi.stubGlobal('document', undefined);
+      analytics.trackPageView();
+
+      expect(trackedRecords[0]).toMatchObject({
+        kind: 'page_view',
+        path: '/',
+        title: undefined,
+        search: undefined,
+        referrer: undefined,
+      });
+
+      vi.stubGlobal('window', {
+        location: {
+          pathname: '',
+          search: '',
+        },
+      });
+      vi.stubGlobal('document', {
+        title: '',
+        referrer: '',
+      });
+      analytics.trackPageView();
+      analytics.trackPageView({
+        path: '/explicit',
+        title: 'Explicit title',
+        search: '',
+        referrer: '',
+      });
+
+      expect(trackedRecords[1]).toMatchObject({
+        path: '/',
+        title: undefined,
+        search: undefined,
+        referrer: undefined,
+      });
+      expect(trackedRecords[2]).toMatchObject({
+        path: '/explicit',
+        title: 'Explicit title',
+        search: '',
+        referrer: '',
+      });
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+      vi.stubGlobal('document', originalDocument);
+    }
+  });
+
+  it('covers default service construction and non-dispatching state transitions', () => {
+    const analytics = new AnalyticsService();
+
+    analytics.trackPageView();
+    expect(analytics.getQueuedRecords()).toHaveLength(1);
+
+    analytics.setEnabled(true);
+    analytics.setConsent('granted');
+    expect(analytics.getQueuedRecords()).toHaveLength(1);
+
+    analytics.setEnabled(false);
+    expect(analytics.getQueuedRecords()).toEqual([]);
+  });
+
+  it('resolves every supported scroll source and zero-distance document', () => {
+    const cases = [
+      {
+        win: { scrollY: undefined, pageYOffset: 50, innerHeight: 100 },
+        documentElement: { scrollTop: undefined, scrollHeight: 200, clientHeight: 100 },
+        body: { scrollTop: undefined, scrollHeight: 0 },
+        expected: 50,
+      },
+      {
+        win: { scrollY: undefined, pageYOffset: undefined, innerHeight: 100 },
+        documentElement: { scrollTop: 25, scrollHeight: 200, clientHeight: 100 },
+        body: { scrollTop: undefined, scrollHeight: 0 },
+        expected: 25,
+      },
+      {
+        win: { scrollY: undefined, pageYOffset: undefined, innerHeight: 100 },
+        documentElement: { scrollTop: undefined, scrollHeight: 0, clientHeight: undefined },
+        body: { scrollTop: 75, scrollHeight: 200 },
+        expected: 75,
+      },
+      {
+        win: { scrollY: undefined, pageYOffset: undefined, innerHeight: 100 },
+        documentElement: { scrollTop: undefined, scrollHeight: 100, clientHeight: 100 },
+        body: { scrollTop: undefined, scrollHeight: 0 },
+        expected: 100,
+      },
+      {
+        win: { scrollY: undefined, pageYOffset: undefined, innerHeight: undefined },
+        documentElement: { scrollTop: undefined, scrollHeight: undefined, clientHeight: undefined },
+        body: { scrollTop: undefined, scrollHeight: undefined },
+        expected: 0,
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const trackEngagement = vi.fn();
+      const pageTracker = createAnalyticsPageEngagementTracker({
+        tracker: { trackEngagement },
+        now: () => 1000,
+        win: testCase.win as unknown as Window,
+        doc: {
+          hidden: false,
+          documentElement: testCase.documentElement,
+          body: testCase.body,
+        } as unknown as Document,
+      });
+
+      pageTracker.beginPage({
+        path: `/scroll-${index}`,
+        fullPath: '',
+        routeName: `scroll-${index}`,
+      });
+      pageTracker.flushCurrentPage();
+
+      expect(trackEngagement).toHaveBeenCalledWith(expect.objectContaining({
+        metric: 'scroll_depth',
+        value: testCase.expected,
+        metadata: expect.objectContaining({
+          pageKey: `/scroll-${index}`,
+        }),
+      }));
+    }
+  });
+
+  it('ignores lifecycle events without a page and safely refreshes an active session', () => {
+    const trackEngagement = vi.fn();
+    let hidden = false;
+    const originalHiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    });
+
+    try {
+      const pageTracker = new AnalyticsPageEngagementTracker({
+        tracker: { trackEngagement },
+        now: () => 1000,
+        win: window,
+        doc: document,
+      });
+
+      pageTracker.attach();
+      window.dispatchEvent(new Event('scroll'));
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      pageTracker.beginPage({
+        path: '/quiet',
+        fullPath: '',
+        routeName: 'quiet',
+      });
+      pageTracker.beginPage({
+        path: '/quiet',
+        fullPath: '',
+        routeName: 'quiet',
+      });
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+      pageTracker.flushCurrentPage();
+      pageTracker.flushCurrentPage();
+      pageTracker.detach();
+
+      expect(trackEngagement).toHaveBeenCalledTimes(2);
+    } finally {
+      restoreProperty(document, 'hidden', originalHiddenDescriptor);
+    }
+  });
+
+  it('delegates optional helpers to singleton trackers and defaults itinerary source', () => {
+    const pageViewSpy = vi.spyOn(analyticsService, 'trackPageView').mockImplementation(() => undefined);
+    const eventSpy = vi.spyOn(analyticsService, 'trackEvent').mockImplementation(() => undefined);
+    const attachSpy = vi.spyOn(analyticsPageEngagementTracker, 'attach').mockImplementation(() => undefined);
+    const beginPageSpy = vi.spyOn(analyticsPageEngagementTracker, 'beginPage').mockImplementation(() => undefined);
+    const customTracker = { trackEvent: vi.fn() };
+    const route = {
+      path: '/map',
+      fullPath: '/map',
+      name: 'map',
+      meta: {},
+    } as Parameters<typeof trackRoutePageView>[0];
+
+    trackRoutePageView(route);
+    trackSpotCreate({
+      spotId: 'spot-default-tracker',
+      category: 'scenic',
+      photoCount: 0,
+      isPublic: true,
+    });
+    trackItineraryGenerate({
+      itineraryId: 'itinerary-default-source',
+      destination: 'Austin',
+      dayCount: 1,
+      stopCount: 2,
+      totalEstimatedCost: 100,
+      interestCount: 1,
+    }, customTracker);
+    attachAnalyticsPageEngagementTracker();
+    beginRoutePageEngagement(route);
+
+    expect(pageViewSpy).toHaveBeenCalledTimes(1);
+    expect(eventSpy).toHaveBeenCalledTimes(1);
+    expect(customTracker.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ source: 'user' }),
+    }));
+    expect(attachSpy).toHaveBeenCalledTimes(1);
+    expect(beginPageSpy).toHaveBeenCalledTimes(1);
   });
 });

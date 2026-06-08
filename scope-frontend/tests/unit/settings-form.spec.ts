@@ -314,9 +314,9 @@ describe('SettingsForm', () => {
     await locationInput.trigger('keydown', { key: 'ArrowUp' });
     expect(coverage.locationActiveIndex.value).toBe(1);
     await locationInput.trigger('keydown', { key: 'Enter' });
-    expect((locationInput.element as HTMLInputElement).value).toBe('Dallas, TX, United States');
+    expect((locationInput.element as HTMLInputElement).value).toBe('Dallas, TX');
     expect((wrapper.emitted('submit')?.at(-1)?.[1] as { source: string }).source).toBe('location');
-    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).homeBase).toBe('Dallas, TX, United States');
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).homeBase).toBe('Dallas, TX');
 
     coverage.locationResults.value = [{
       latitude: 30.2672,
@@ -376,7 +376,25 @@ describe('SettingsForm', () => {
     coverage.locationOpen.value = true;
     await flushPromises();
     await wrapper.get('.location-suggestion').trigger('click');
-    expect((locationInput.element as HTMLInputElement).value).toBe('Austin, TX, United States');
+    expect((locationInput.element as HTMLInputElement).value).toBe('Austin, TX');
+
+    coverage.locationResults.value = [{
+      latitude: 32.74769,
+      longitude: -97.32555,
+      placeName: 'Fort Worth Water Gardens',
+      formattedAddress: '1502 Commerce Street, Fort Worth, Texas 76102, United States',
+      address: '1502 Commerce Street',
+      city: 'Fort Worth',
+      stateCode: 'us-tx',
+      country: 'United States',
+      precision: 'address',
+      source: 'mock',
+    }];
+    coverage.locationOpen.value = true;
+    await flushPromises();
+    await wrapper.get('.location-suggestion').trigger('click');
+    expect((locationInput.element as HTMLInputElement).value).toBe('1502 Commerce Street, Fort Worth, TX');
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).homeBase).toBe('1502 Commerce Street, Fort Worth, TX');
 
     const usernameInput = wrapper.get('input[placeholder="your-handle"]');
     await usernameInput.setValue('@Louis Do!!');
@@ -458,5 +476,166 @@ describe('SettingsForm', () => {
     expect(confirmSpy).toHaveBeenCalledTimes(2);
 
     clickSpy.mockRestore();
+  });
+
+  it('tracks every autosaved settings field and deduplicates provider locations', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: { initialValue },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const fieldChanges: Array<[keyof SettingsFormValue, unknown]> = [
+      ['username', 'updated-handle'],
+      ['lastName', 'Traveler'],
+      ['dateOfBirth', '1990-02-03'],
+      ['bio', 'Updated traveler bio.'],
+      ['showActivityStatus', false],
+      ['privacy', 'private'],
+      ['tripInvites', 'daily'],
+      ['emailAlerts', false],
+    ];
+
+    expect(coverage.isFormDirty.value).toBe(false);
+    for (const [field, nextValue] of fieldChanges) {
+      const originalValue = coverage.form[field];
+      coverage.form[field] = nextValue;
+      expect(coverage.isFormDirty.value, field).toBe(true);
+      coverage.form[field] = originalValue;
+      expect(coverage.isFormDirty.value, `${field} reset`).toBe(false);
+    }
+
+    const deduped = coverage.dedupeLocationResults([
+      {
+        latitude: 32.7555,
+        longitude: -97.3308,
+        placeName: 'Fort Worth',
+        formattedAddress: 'Fort Worth, TX, United States',
+        source: 'mapbox',
+      },
+      {
+        latitude: 32.7555,
+        longitude: -97.3308,
+        placeName: 'Fort Worth duplicate',
+        formattedAddress: 'Fort Worth, TX, United States',
+        source: 'mapbox',
+      },
+      {
+        latitude: 30.2672,
+        longitude: -97.7431,
+        placeName: 'Austin',
+        source: 'mapbox',
+      },
+      {
+        latitude: 0,
+        longitude: 0,
+        placeName: '',
+        formattedAddress: '',
+        source: 'mapbox',
+      },
+    ]);
+
+    expect(deduped).toHaveLength(2);
+    expect(deduped.map((result: { placeName: string }) => result.placeName)).toEqual([
+      'Fort Worth',
+      'Austin',
+    ]);
+  });
+
+  it('ignores stale location provider responses and can reopen search from the keyboard', async () => {
+    let resolveFirst!: (value: { data: any[] }) => void;
+    let rejectThird!: (reason: unknown) => void;
+    const first = new Promise<{ data: any[] }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const third = new Promise<{ data: any[] }>((_resolve, reject) => {
+      rejectThird = reject;
+    });
+    searchLocationsMock
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce({ data: [] })
+      .mockReturnValueOnce(third)
+      .mockResolvedValueOnce({ data: [] });
+
+    const wrapper = mount(SettingsForm, {
+      props: { initialValue: { ...initialValue, homeBase: 'Austin' } },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const staleSuccess = coverage.runLocationSearch('Austin');
+    coverage.form.homeBase = 'Dallas';
+    await coverage.runLocationSearch('Dallas');
+    resolveFirst({
+      data: [{
+        latitude: 30.2672,
+        longitude: -97.7431,
+        placeName: 'Stale Austin',
+        formattedAddress: 'Austin, TX, United States',
+        source: 'mapbox',
+      }],
+    });
+    await staleSuccess;
+    expect(coverage.locationResults.value).toEqual([]);
+
+    coverage.form.homeBase = 'Houston';
+    const staleFailure = coverage.runLocationSearch('Houston');
+    coverage.form.homeBase = 'San Antonio';
+    await coverage.runLocationSearch('San Antonio');
+    rejectThird(new Error('stale provider failure'));
+    await staleFailure;
+    expect(coverage.locationStatus.value).not.toContain('offline');
+
+    coverage.form.homeBase = 'Fort Worth';
+    coverage.locationOpen.value = false;
+    coverage.locationResults.value = [];
+    coverage.handleLocationKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(coverage.locationOpen.value).toBe(true);
+  });
+
+  it('reads avatar data URLs and tolerates unavailable or failed FileReader APIs', async () => {
+    const wrapper = mount(SettingsForm, {
+      props: { initialValue },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const originalFileReader = globalThis.FileReader;
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+
+    await expect(coverage.readFileAsDataUrl(file)).resolves.toMatch(/^data:image\/png;base64,/);
+
+    vi.stubGlobal('FileReader', undefined);
+    await expect(coverage.readFileAsDataUrl(file)).resolves.toBe('');
+
+    class FailingFileReader {
+      result: string | ArrayBuffer | null = null;
+      private listeners = new Map<string, () => void>();
+
+      addEventListener(type: string, listener: () => void) {
+        this.listeners.set(type, listener);
+      }
+
+      readAsDataURL() {
+        this.listeners.get('error')?.();
+      }
+    }
+    vi.stubGlobal('FileReader', FailingFileReader);
+    await expect(coverage.readFileAsDataUrl(file)).resolves.toBe('');
+
+    vi.stubGlobal('FileReader', originalFileReader);
   });
 });

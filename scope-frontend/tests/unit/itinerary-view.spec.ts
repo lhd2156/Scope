@@ -3827,6 +3827,138 @@ describe('ItineraryView', () => {
     expect(wrapper.find('[data-test="route-nearby-drawer"]').exists()).toBe(true);
   });
 
+  it('drives built and draft itinerary controls through their rendered interaction contracts', async () => {
+    listNearbySpotsMock.mockResolvedValue({
+      data: Array.from({ length: 12 }, (_, index) => ({
+        id: `nearby-food-${index + 1}`,
+        title: `Route Cafe ${index + 1}`,
+        description: 'A food stop near the route.',
+        latitude: 32.78 + index * 0.001,
+        longitude: -96.8 - index * 0.001,
+        city: 'Dallas',
+        country: 'United States',
+        category: 'food',
+        rating: 4.5,
+        createdAt: '2026-04-01T00:00:00.000Z',
+      })),
+    });
+
+    const builtWrapper = mount(ItineraryView, {
+      props: {
+        itinerary,
+        draft,
+        stops: draftStops,
+        mobileWizard: true,
+        mobileActiveStep: 4,
+        fuelSettings: { fuelType: 'regular', gasPrice: 3.19 },
+      },
+      global: {
+        stubs: {
+          MapView: { template: '<div data-test="route-map" />' },
+          LazyImage: true,
+          ScopeIcon: { template: '<span />' },
+        },
+      },
+    });
+
+    await builtWrapper.get('[data-test="planner-step-4-toggle"]').trigger('click');
+    expect(builtWrapper.emitted('wizard-step-change')?.at(-1)?.[0]).toBe(4);
+
+    await builtWrapper.get('[data-test="route-nearby-toggle"]').trigger('click');
+    await flushPromises();
+    await builtWrapper.get('[data-test="route-nearby-size-toggle"]').trigger('click');
+
+    const anchorTabs = builtWrapper.findAll('.map-nearby-anchor-tab');
+    expect(anchorTabs.length).toBeGreaterThan(1);
+    await anchorTabs.at(0)!.trigger('click');
+    await flushPromises();
+
+    await builtWrapper.get('[data-test="route-nearby-filter-trigger"]').trigger('click');
+    const foodFilter = builtWrapper
+      .findAll('[data-test="route-nearby-filter-option"]')
+      .find((option) => option.text() === 'Food');
+    expect(foodFilter).toBeDefined();
+    await foodFilter!.trigger('click');
+    await flushPromises();
+
+    expect(builtWrapper.get('[data-test="route-nearby-page-label"]').text()).toContain('Page 1 /');
+    await builtWrapper.get('[data-test="route-nearby-page-next"]').trigger('click');
+    expect(builtWrapper.get('[data-test="route-nearby-page-label"]').text()).toContain('Page 2 /');
+    await builtWrapper.get('[data-test="route-nearby-page-prev"]').trigger('click');
+    expect(builtWrapper.get('[data-test="route-nearby-page-label"]').text()).toContain('Page 1 /');
+
+    const expandedSearch = builtWrapper.get('[data-test="route-nearby-search"]');
+    await expandedSearch.get('input').setValue('cafe');
+    await expandedSearch.trigger('submit');
+    await flushPromises();
+    expect(builtWrapper.get('[data-test="route-nearby-filter-trigger"]').text()).toContain('Search: cafe');
+    expect(builtWrapper.get('[data-test="route-nearby-results"]').text()).toContain('Route Cafe');
+
+    await builtWrapper.get('[data-test="map-pick-start"]').trigger('click');
+    await builtWrapper.get('[data-test="map-pick-stop"]').trigger('click');
+    await builtWrapper.get('[data-test="map-pick-end"]').trigger('click');
+
+    const builtRouteChip = builtWrapper.get('[data-test="itinerary-route-sequence-list"] .route-sequence-chip');
+    await builtRouteChip.trigger('click');
+    await builtRouteChip.trigger('keydown.enter');
+    await builtRouteChip.trigger('keydown.space');
+    const builtRemoveButton = builtRouteChip.get('button');
+    await builtRemoveButton.trigger('keydown');
+    await builtRemoveButton.trigger('click');
+    expect(builtWrapper.emitted('route-endpoint-remove')).toBeDefined();
+
+    getNearbyFuelStationsMock.mockRejectedValueOnce(new Error('fuel provider unavailable'));
+    searchNearbyPlacesMock.mockRejectedValueOnce(new Error('fuel discovery unavailable'));
+    const builtCoverage = (builtWrapper.vm as any).__coverage as Record<string, any>;
+    builtCoverage.selectRouteNearbyTab('fuel');
+    await builtCoverage.loadRouteNearbyPlaces();
+    await flushPromises();
+
+    listNearbySpotsMock.mockRejectedValueOnce(new Error('scope nearby unavailable'));
+    searchNearbyPlacesMock.mockRejectedValueOnce(new Error('map discovery unavailable'));
+    builtCoverage.selectRouteNearbyTab('recommended');
+    await builtCoverage.loadRouteNearbyPlaces();
+    await flushPromises();
+
+    await builtWrapper.setProps({
+      fuelSettings: { fuelType: 'premium', gasPrice: 4.15 },
+    });
+    await builtWrapper.vm.$nextTick();
+
+    const draftWrapper = mount(ItineraryView, {
+      props: {
+        itinerary: null,
+        draft,
+        stops: draftStops,
+        fuelSettings: { fuelType: 'regular', gasPrice: 3.19 },
+      },
+      global: {
+        stubs: {
+          MapView: { template: '<div data-test="route-map" />' },
+          LazyImage: true,
+          ScopeIcon: { template: '<span />' },
+        },
+      },
+    });
+
+    const draftRouteChip = draftWrapper.get('[data-test="route-sequence-list"] .route-sequence-chip');
+    await draftRouteChip.trigger('keydown.enter');
+    await draftRouteChip.trigger('keydown.space');
+    await draftRouteChip.get('button').trigger('keydown');
+
+    const draftStopRow = draftWrapper.get('[data-spot-id="draft-stop-1"]');
+    const draftDayInput = draftStopRow.get<HTMLInputElement>('[data-test="itinerary-stop-day-input"]');
+    await draftDayInput.setValue('2');
+    await draftDayInput.trigger('change');
+    await draftDayInput.trigger('blur');
+
+    const draftTimeInput = draftStopRow.get<HTMLInputElement>('[data-test="itinerary-stop-time-input"]');
+    await draftTimeInput.setValue('17:30');
+    await draftTimeInput.trigger('change');
+    await draftTimeInput.trigger('blur');
+    expect(draftWrapper.emitted('itinerary-stops-update')).toBeDefined();
+  });
+
   it('smoke-exercises exposed itinerary coverage helpers across defensive inputs', async () => {
     const wrapper = mount(ItineraryView, {
       props: {
@@ -3996,6 +4128,328 @@ describe('ItineraryView', () => {
     }
 
     await flushPromises();
+    expect(Object.keys(coverage).length).toBeGreaterThan(140);
+  });
+
+  it('covers route-nearby provider, fuel, merge, formatting, and removal edge contracts', async () => {
+    const wrapper = mount(ItineraryView, {
+      props: {
+        itinerary: null,
+        draft: {
+          ...draft,
+          interests: ['food', 'nature', 'adventure', 'culture', 'scenic', 'shopping', 'entertainment', 'nightlife'],
+        },
+        stops: draftStops,
+        fuelSettings: { fuelType: 'regular', gasPrice: 3.19 },
+      },
+      global: {
+        stubs: {
+          MapView: {
+            template: '<div data-test="route-map" />',
+            methods: {
+              runPlannerMapCommand: vi.fn().mockResolvedValue({ ok: true, message: 'focused' }),
+            },
+          },
+          LazyImage: true,
+          ScopeIcon: { template: '<span />' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const anchor = {
+      id: 'planner-start',
+      shortLabel: 'S',
+      placeLabel: 'Dallas, TX',
+      latitude: 32.7767,
+      longitude: -96.797,
+      routeRole: 'start',
+    };
+    const recommendedQuery = {
+      id: 'recommended',
+      label: 'Recommended',
+      query: 'recommended places',
+      placeCategories: ['tourist_attraction'],
+    };
+    const customQuery = {
+      id: 'custom',
+      label: 'Custom',
+      query: 'bookstore',
+    };
+    const basePlace = {
+      id: 'base-place',
+      title: 'Base Place',
+      subtitle: '100 Main Street',
+      latitude: 32.78,
+      longitude: -96.8,
+      category: 'food',
+      source: 'discovery',
+      kind: 'food',
+      distanceKm: 2,
+    };
+
+    expect(coverage.getRouteNearbyPlaceCategories(recommendedQuery)).toEqual(expect.arrayContaining([
+      'restaurant',
+      'cafe',
+      'park',
+      'tourist_attraction',
+      'museum',
+      'shopping',
+      'amusement_park',
+      'bowling_alley',
+      'movie_theater',
+      'bar',
+    ]));
+    expect(coverage.getRouteNearbyPlaceCategories(customQuery)).toEqual([]);
+
+    searchNearbyPlacesMock.mockResolvedValueOnce({
+      data: [{ id: 'nearby-live', placeName: 'Nearby Live', latitude: 32.78, longitude: -96.8 }],
+    });
+    await expect(coverage.searchRouteNearbyDiscoveryPlaces(anchor, recommendedQuery, 'ignored')).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'nearby-live' })],
+    });
+    searchNearbyPlacesMock.mockResolvedValueOnce({ data: [] });
+    searchPlacesMock.mockResolvedValueOnce({
+      data: [{ id: 'search-fallback', placeName: 'Search Fallback', latitude: 32.79, longitude: -96.81 }],
+    });
+    await expect(coverage.searchRouteNearbyDiscoveryPlaces(anchor, recommendedQuery, 'fallback query')).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: 'search-fallback' })],
+    });
+    searchNearbyPlacesMock.mockRejectedValueOnce(new Error('nearby unavailable'));
+    searchPlacesMock.mockResolvedValueOnce({ data: [] });
+    await expect(coverage.searchRouteNearbyDiscoveryPlaces(anchor, recommendedQuery, 'fallback after outage')).resolves.toEqual({
+      data: [],
+    });
+    searchPlacesMock.mockResolvedValueOnce({ data: [] });
+    await expect(coverage.searchRouteNearbyDiscoveryPlaces(anchor, customQuery, 'bookstore')).resolves.toEqual({
+      data: [],
+    });
+
+    coverage.selectRouteNearbyTab('fuel');
+    coverage.selectRouteNearbyFuelFilter('ev');
+    searchPlacesMock.mockResolvedValueOnce({ data: [] });
+    await expect(coverage.searchDiscoveryFuelPlaces(anchor, {
+      id: 'ev',
+      label: 'EV',
+      icon: 'fuel',
+      query: 'ev charging station',
+      apiFuelType: 'all',
+    })).resolves.toEqual({ data: [] });
+    coverage.selectRouteNearbyFuelFilter('regular');
+    searchNearbyPlacesMock.mockResolvedValueOnce({ data: [] });
+    await expect(coverage.searchDiscoveryFuelPlaces(anchor, {
+      id: 'regular',
+      label: 'Regular',
+      icon: 'fuel',
+      query: 'gas station',
+      apiFuelType: 'regular',
+    })).resolves.toEqual({ data: [] });
+    expect(coverage.getRouteNearbyFuelApiType()).toBe('regular');
+    expect(coverage.getRouteNearbyFuelApiSortMode()).toBe('closest');
+    coverage.selectRouteNearbyFuelSortMode('best-price');
+    expect(coverage.getRouteNearbyFuelApiSortMode()).toBe('best_price');
+
+    const unpricedFuel = {
+      ...basePlace,
+      id: 'unpriced',
+      source: 'fuel',
+      kind: 'fuel',
+      category: 'other',
+      fuelType: 'regular',
+      priceValue: undefined,
+      distanceKm: 3,
+    };
+    const pricedFuel = {
+      ...unpricedFuel,
+      id: 'priced',
+      priceValue: 3.39,
+      distanceKm: 4,
+    };
+    const cheaperFuel = {
+      ...pricedFuel,
+      id: 'cheaper',
+      priceValue: 3.19,
+    };
+    expect(coverage.compareRouteNearbyFuelPlaces(unpricedFuel, pricedFuel)).toBeGreaterThan(0);
+    expect(coverage.compareRouteNearbyFuelPlaces(pricedFuel, unpricedFuel)).toBeLessThan(0);
+    expect(coverage.compareRouteNearbyFuelPlaces(pricedFuel, cheaperFuel)).toBeGreaterThan(0);
+    coverage.selectRouteNearbyFuelSortMode('closest');
+    expect(coverage.compareRouteNearbyFuelPlaces({ ...pricedFuel, distanceKm: 1 }, cheaperFuel)).toBeLessThan(0);
+    expect(coverage.compareRouteNearbyFuelPlaces({ ...pricedFuel, distanceKm: 1 }, { ...unpricedFuel, distanceKm: 1 })).toBeLessThan(0);
+    expect(coverage.filterAndSortRouteNearbyFuelPlaces([unpricedFuel, pricedFuel, cheaperFuel])).toHaveLength(2);
+
+    coverage.selectRouteNearbyFuelFilter('premium');
+    expect(coverage.getSelectedFuelStationPrice({
+      id: 'station-exact',
+      name: 'Exact Price',
+      latitude: 32.78,
+      longitude: -96.8,
+      fuelType: 'premium',
+      prices: [
+        { fuelType: 'regular', price: 3.1, currency: 'USD' },
+        { fuelType: 'premium', price: 4.2, currency: '', updatedAt: '2026-06-01T00:00:00Z' },
+        { fuelType: 'premium', price: 4.1, currency: 'CAD' },
+      ],
+      currency: 'USD',
+    })).toMatchObject({ price: 4.1, currency: 'CAD', fuelType: 'premium' });
+    expect(coverage.getSelectedFuelStationPrice({
+      id: 'station-fallback',
+      name: 'Fallback Price',
+      latitude: 32.78,
+      longitude: -96.8,
+      fuelType: 'premium',
+      pricePerUnit: 4.25,
+    })).toMatchObject({ price: 4.25, currency: 'USD' });
+    coverage.selectRouteNearbyFuelFilter('ev');
+    expect(coverage.getSelectedFuelStationPrice({
+      id: 'station-ev',
+      name: 'EV Station',
+      latitude: 32.78,
+      longitude: -96.8,
+      fuelType: 'ev',
+      pricePerUnit: 0.4,
+    })).toBeNull();
+
+    expect(coverage.formatFuelPriceValue(2.5, 'EUR')).toContain('/unit');
+    expect(coverage.formatFuelPriceValue(2.5, 'NOT_A_CURRENCY')).toContain('NOT_A_CURRENCY/unit');
+    expect(coverage.formatFuelUpdatedAt(undefined)).toBe('');
+    expect(coverage.buildFuelNearbyPlace({
+      id: 'calculated-distance',
+      name: 'Calculated Distance Fuel',
+      brand: 'Brand',
+      latitude: 32.79,
+      longitude: -96.81,
+      fuelType: 'regular',
+      source: 'Google Places',
+    }, anchor)).toMatchObject({
+      sourceLabel: 'Google',
+      subtitle: 'Brand',
+      distanceKm: expect.any(Number),
+    });
+
+    coverage.selectRouteNearbyFuelFilter('regular');
+    const exactTravelFuel = coverage.buildTravelNearbyPlace({
+      id: 'travel-fuel',
+      title: 'Travel Fuel',
+      subtitle: '',
+      address: '',
+      latitude: 32.79,
+      longitude: -96.81,
+      category: 'fuel',
+      source: 'google',
+      sourceLabel: 'Fuel price',
+      fuelType: 'regular',
+      priceValue: 3.29,
+      currency: 'USD',
+    });
+    expect(exactTravelFuel).toMatchObject({
+      kind: 'fuel',
+      category: 'other',
+      priceValue: 3.29,
+      source: 'google',
+    });
+    expect(coverage.buildTravelNearbyPlace({
+      id: 'travel-scope',
+      title: 'Scope Stop',
+      subtitle: '',
+      latitude: 32.79,
+      longitude: -96.81,
+      category: 'food',
+      source: 'scope',
+    })).toMatchObject({
+      source: 'scope',
+    });
+
+    coverage.selectRouteNearbyTab('recommended');
+    coverage.selectRouteNearbyQuery('recommended');
+    const scoredScope = { ...basePlace, id: 'scope', source: 'scope', kind: 'recommended', recommendationScore: 90, distanceKm: 5 };
+    const scoredGoogle = { ...basePlace, id: 'google', source: 'google', kind: 'recommended', recommendationScore: 40, distanceKm: 1 };
+    expect(coverage.mergeRouteNearbyPlaces([scoredScope], [scoredGoogle])[0].id).toBe('scope');
+    coverage.selectRouteNearbyTab('food');
+    expect(coverage.mergeRouteNearbyPlaces(
+      [{ ...basePlace, id: 'scope-food', source: 'scope', kind: 'food', distanceKm: 3 }],
+      [{ ...basePlace, id: 'google-stay', source: 'google', kind: 'stay', distanceKm: 1 }],
+    )[0].id).toBe('scope-food');
+    coverage.selectRouteNearbyTab('fuel');
+    expect(coverage.mergeRouteNearbyPlaces(
+      [{ ...pricedFuel, id: 'fuel-source', source: 'fuel' }],
+      [{ ...pricedFuel, id: 'google-source', source: 'google', distanceKm: 1 }],
+    )[0].id).toBe('fuel-source');
+
+    coverage.selectRouteNearbyTab('food');
+    const educationPin = coverage.buildRouteNearbyPlaceFromMapPin({
+      id: 'route-nearby-school',
+      title: '',
+      subtitle: '',
+      latitude: 32.78,
+      longitude: -96.8,
+      category: 'school',
+      categoryLabel: 'University',
+      sourceLabel: '',
+      kind: 'place',
+    });
+    expect(educationPin).toMatchObject({
+      id: 'school',
+      title: 'Map place',
+      category: 'culture',
+      sourceLabel: 'Map place',
+    });
+    const fuelPin = coverage.buildRouteNearbyPlaceFromMapPin({
+      id: 'route-nearby-fuel-pin',
+      title: 'Fuel Pin',
+      subtitle: '',
+      address: '',
+      latitude: 32.78,
+      longitude: -96.8,
+      sourceLabel: '',
+      kind: 'fuel',
+    });
+    expect(fuelPin).toMatchObject({
+      id: 'fuel-pin',
+      kind: 'fuel',
+      sourceLabel: 'Fuel stop',
+    });
+
+    expect(coverage.formatDuration(30)).toBe('1 min');
+    expect(coverage.formatDuration(3600)).toBe('1 hr');
+    expect(coverage.formatDuration(3900)).toBe('1 hr 5 min');
+    expect(coverage.formatLocationPreview('')).toBe('');
+    expect(coverage.isRemovableRouteSequencePoint({ id: 'planner-stop-1', title: 'Stop' })).toBe(true);
+    expect(coverage.isRemovableRouteSequencePoint({ id: 'other', title: 'Other' })).toBe(false);
+    coverage.removeRouteSequencePoint({ id: 'planner-stop-remove-me', title: 'Stop', routeRole: 'stop' });
+    coverage.removeRouteSequencePoint({ id: 'start', title: 'Start', routeRole: 'start' });
+    coverage.removeRouteSequencePoint({ id: 'end', title: 'End', routeRole: 'end' });
+    coverage.handleMapRoutePointRemove({ id: 'planner-start', title: 'Start', latitude: 1, longitude: 2 });
+    coverage.handleMapRoutePointRemove({ id: 'planner-end', title: 'End', latitude: 1, longitude: 2 });
+    coverage.handleMapRoutePointRemove({ id: 'planner-stop-map', title: 'Stop', latitude: 1, longitude: 2 });
+    expect(wrapper.emitted('route-stop-remove')).toBeTruthy();
+    expect(wrapper.emitted('route-endpoint-remove')).toBeTruthy();
+
+    coverage.toggleRouteNearbyFilterMenu();
+    coverage.selectRouteNearbyPage(999);
+    coverage.resetRouteNearbyFilter();
+    coverage.selectRouteNearbyRadius('5mi');
+    coverage.selectRouteNearbyRadius('custom');
+    coverage.handleRouteNearbyCustomRadiusInput({ target: { value: '500' } });
+    coverage.normalizeRouteNearbyCustomRadius();
+    coverage.selectRouteNearbyCustomRadius();
+    coverage.submitRouteNearbySearch();
+    coverage.requestFuelSettings();
+    coverage.addRouteNearbyPlace(exactTravelFuel);
+    coverage.handleMapNearbyPlaceAdd({
+      id: 'route-nearby-added-map-pin',
+      title: 'Added Map Pin',
+      latitude: 32.78,
+      longitude: -96.8,
+      category: 'food',
+      kind: 'place',
+    });
+
+    resolveRoadRouteMock.mockRejectedValueOnce(new Error('route unavailable'));
+    await coverage.syncRouteSummary();
+    await flushPromises();
+
+    expect(wrapper.emitted('fuel-settings-request')).toBeTruthy();
+    expect(wrapper.emitted('route-stop-add')).toBeTruthy();
     expect(Object.keys(coverage).length).toBeGreaterThan(140);
   });
 });

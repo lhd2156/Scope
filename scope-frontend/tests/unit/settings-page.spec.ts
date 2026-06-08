@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import ThemeToggle from '@/components/common/ThemeToggle.vue';
 import { resetAnalyticsConsent } from '@/utils/analyticsConsent';
 
-const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
+const { authStoreMock, notificationServiceMock, onboardingStoreMock, routerPush, toastStoreMock, userStoreMock } = vi.hoisted(() => ({
   authStoreMock: {
     currentUser: {
       id: 'user-1',
@@ -15,13 +15,42 @@ const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
       showActivityStatus: true,
+      profileVisibility: 'friends' as const,
     },
+  },
+  notificationServiceMock: {
+    getNotificationPreferences: vi.fn().mockResolvedValue({
+      data: [
+        {
+          category: 'trip',
+          inAppEnabled: true,
+          pushEnabled: true,
+          emailEnabled: true,
+          digestCadence: 'instant',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+        {
+          category: 'digest',
+          inAppEnabled: true,
+          pushEnabled: false,
+          emailEnabled: true,
+          digestCadence: 'daily',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+      ],
+    }),
+    updateNotificationPreference: vi.fn(async (payload) => payload),
   },
   onboardingStoreMock: {
     hasCompleted: true,
     totalSteps: 3,
     restart: vi.fn().mockReturnValue(true),
   },
+  routerPush: vi.fn().mockResolvedValue(undefined),
   toastStoreMock: {
     showSuccess: vi.fn(),
     showError: vi.fn(),
@@ -40,6 +69,7 @@ const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
       showActivityStatus: true,
+      profileVisibility: 'friends' as const,
     }),
     saveProfile: vi.fn().mockResolvedValue({
       id: 'user-1',
@@ -49,6 +79,7 @@ const { authStoreMock, onboardingStoreMock, toastStoreMock, userStoreMock } = vi
       homeBase: 'Fort Worth, TX',
       interests: [],
     }),
+    deleteCurrentAccount: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -67,6 +98,16 @@ vi.mock('@/stores/toasts', () => ({
 vi.mock('@/stores/user', () => ({
   useUserStore: () => userStoreMock,
 }));
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router');
+  return {
+    ...actual,
+    useRouter: () => ({ push: routerPush }),
+  };
+});
+
+vi.mock('@/services/feedService', () => notificationServiceMock);
 
 vi.mock('@/services/demoMode', () => ({
   IS_PRODUCTION_BUILD: false,
@@ -91,6 +132,7 @@ describe('SettingsPage', () => {
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
       showActivityStatus: true,
+      profileVisibility: 'friends' as const,
     };
     userStoreMock.profile = authStoreMock.currentUser;
     userStoreMock.saving = false;
@@ -98,8 +140,39 @@ describe('SettingsPage', () => {
     userStoreMock.fetchCurrentProfile.mockClear();
     userStoreMock.fetchCurrentProfile.mockResolvedValue(userStoreMock.profile);
     userStoreMock.saveProfile.mockClear();
+    userStoreMock.deleteCurrentAccount.mockClear();
+    userStoreMock.deleteCurrentAccount.mockResolvedValue(undefined);
+    notificationServiceMock.getNotificationPreferences.mockClear();
+    notificationServiceMock.getNotificationPreferences.mockResolvedValue({
+      data: [
+        {
+          category: 'trip',
+          inAppEnabled: true,
+          pushEnabled: true,
+          emailEnabled: true,
+          digestCadence: 'instant',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+        {
+          category: 'digest',
+          inAppEnabled: true,
+          pushEnabled: false,
+          emailEnabled: true,
+          digestCadence: 'daily',
+          quietHoursStartMinutes: null,
+          quietHoursEndMinutes: null,
+          timeZoneId: 'UTC',
+        },
+      ],
+    });
+    notificationServiceMock.updateNotificationPreference.mockClear();
+    notificationServiceMock.updateNotificationPreference.mockImplementation(async (payload) => payload);
     onboardingStoreMock.restart.mockClear();
     onboardingStoreMock.restart.mockReturnValue(true);
+    routerPush.mockClear();
+    routerPush.mockResolvedValue(undefined);
     toastStoreMock.showSuccess.mockClear();
     toastStoreMock.showError.mockClear();
     resetAnalyticsConsent();
@@ -144,6 +217,7 @@ describe('SettingsPage', () => {
       homeBase: 'Fort Worth, TX',
       interests: ['food', 'culture', 'adventure'],
       showActivityStatus: true,
+      profileVisibility: 'friends',
     }, 'user-1');
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
       title: 'Settings saved',
@@ -152,20 +226,64 @@ describe('SettingsPage', () => {
     expect(JSON.parse(localStorage.getItem('scope-settings-local-preferences-v1') ?? '{}')).toMatchObject({
       firstName: 'Louis',
       lastName: 'Do',
-      privacy: 'friends',
       tripInvites: 'instant',
       emailAlerts: true,
     });
+    expect(JSON.parse(localStorage.getItem('scope-settings-local-preferences-v1') ?? '{}')).not.toHaveProperty('privacy');
 
     await wrapper.get('[data-test="settings-form-error"]').trigger('click');
     await nextTick();
     expect(wrapper.text()).toContain('Inline settings issue');
 
     await wrapper.get('[data-test="settings-delete-account"]').trigger('click');
+    await flushPromises();
+    expect(userStoreMock.deleteCurrentAccount).toHaveBeenCalledTimes(1);
     expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
-      title: 'Delete request received',
-      message: 'Scope will email you to confirm the permanent deletion within 24 hours.',
+      title: 'Account deleted',
+      message: 'Your Scope account and its associated content were permanently deleted.',
     });
+  });
+
+  it('syncs settings notification controls through the notification preference API', async () => {
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            props: ['initialValue'],
+            emits: ['submit'],
+            methods: {
+              saveNotificationPreferences() {
+                this.$emit('submit', {
+                  ...this.initialValue,
+                  tripInvites: 'weekly',
+                  emailAlerts: false,
+                }, { source: 'preference' });
+              },
+            },
+            template: '<button data-test="settings-notification-save" @click="saveNotificationPreferences">Save notifications</button>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-test="settings-notification-save"]').trigger('click');
+    await flushPromises();
+
+    expect(notificationServiceMock.updateNotificationPreference).toHaveBeenCalledTimes(6);
+    expect(notificationServiceMock.updateNotificationPreference).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'trip',
+      emailEnabled: false,
+      digestCadence: 'weekly',
+    }));
+    expect(notificationServiceMock.updateNotificationPreference).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'digest',
+      emailEnabled: false,
+    }));
+    expect(userStoreMock.saveProfile).toHaveBeenCalledWith(expect.objectContaining({
+      profileVisibility: 'friends',
+    }), 'user-1');
   });
 
   it('hydrates travel preferences from the live profile instead of the lean auth payload', async () => {
@@ -179,6 +297,7 @@ describe('SettingsPage', () => {
       homeBase: '',
       interests: [],
       showActivityStatus: true,
+      profileVisibility: 'friends' as const,
     };
     userStoreMock.profile = {
       ...authStoreMock.currentUser,
@@ -265,6 +384,65 @@ describe('SettingsPage', () => {
       title: 'Settings not saved',
       message: 'Sign in again to update your Scope settings.',
     });
+  });
+
+  it('keeps the account active and surfaces the API error when permanent deletion fails', async () => {
+    userStoreMock.error = 'Content deletion is temporarily unavailable.';
+    userStoreMock.deleteCurrentAccount.mockRejectedValueOnce(new Error('content deletion failed'));
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            props: ['errorMessage', 'deletingAccount'],
+            emits: ['delete-account'],
+            template: `
+              <div>
+                <button data-test="settings-delete-account" @click="$emit('delete-account')">Delete account</button>
+                <p data-test="settings-error">{{ errorMessage }}</p>
+                <p data-test="settings-deleting">{{ deletingAccount }}</p>
+              </div>
+            `,
+          },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-delete-account"]').trigger('click');
+    await flushPromises();
+
+    expect(userStoreMock.deleteCurrentAccount).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('[data-test="settings-error"]').text()).toBe('Content deletion is temporarily unavailable.');
+    expect(wrapper.get('[data-test="settings-deleting"]').text()).toBe('false');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Account not deleted',
+      message: 'Content deletion is temporarily unavailable.',
+    });
+    expect(toastStoreMock.showSuccess).not.toHaveBeenCalled();
+  });
+
+  it('does not start account deletion without a current authenticated user', async () => {
+    authStoreMock.currentUser = null;
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            emits: ['delete-account'],
+            template: '<button data-test="settings-delete-account" @click="$emit(\'delete-account\')">Delete account</button>',
+          },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-delete-account"]').trigger('click');
+    await flushPromises();
+
+    expect(userStoreMock.deleteCurrentAccount).not.toHaveBeenCalled();
+    expect(toastStoreMock.showSuccess).not.toHaveBeenCalled();
+    expect(toastStoreMock.showError).not.toHaveBeenCalled();
   });
 
   it('keeps the shell and settings theme controls synced across dark and light', async () => {
@@ -354,9 +532,11 @@ describe('SettingsPage', () => {
     expect(wrapper.text()).toContain('3-step guide');
 
     await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
-    await nextTick();
+    await flushPromises();
 
+    expect(routerPush).toHaveBeenCalledWith('/');
     expect(onboardingStoreMock.restart).toHaveBeenCalledWith('home-hero');
+    expect(routerPush.mock.invocationCallOrder[0]).toBeLessThan(onboardingStoreMock.restart.mock.invocationCallOrder[0]);
     expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
     expect(toastStoreMock.showError).not.toHaveBeenCalled();
   });
@@ -375,14 +555,38 @@ describe('SettingsPage', () => {
     });
 
     await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
-    await nextTick();
+    await flushPromises();
 
+    expect(routerPush).toHaveBeenCalledWith('/');
     expect(onboardingStoreMock.restart).toHaveBeenCalledWith('home-hero');
     expect(toastStoreMock.showError).toHaveBeenCalledWith({
       title: 'Tutorial unavailable',
       message: 'Scope could not start the guided walkthrough right now.',
     });
     expect(userStoreMock.saveProfile).not.toHaveBeenCalled();
+  });
+
+  it('does not reset truthful tour completion when home navigation fails', async () => {
+    routerPush.mockRejectedValueOnce(new Error('navigation failed'));
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="settings-replay-tutorial"]').trigger('click');
+    await flushPromises();
+
+    expect(onboardingStoreMock.restart).not.toHaveBeenCalled();
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Tutorial unavailable',
+      message: 'Scope could not open the guided walkthrough right now.',
+    });
   });
 
   it('surfaces a settings error when the profile update throws and emits an error toast', async () => {

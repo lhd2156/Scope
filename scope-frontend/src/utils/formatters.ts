@@ -41,6 +41,12 @@ const relativeTimeUnits = [
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 const numericRelativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'always' });
 const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const monthDayYearFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
   month: 'short',
@@ -99,6 +105,29 @@ export function formatRelativeTime(value: string | Date, baseDate: string | Date
 export function formatMonthDay(value: string | Date): string {
   const date = toDate(value);
   return Number.isNaN(date.getTime()) ? '' : monthDayFormatter.format(date);
+}
+
+export function formatMonthDayYear(value: string | Date): string {
+  const date = toDate(value);
+  return Number.isNaN(date.getTime()) ? '' : monthDayYearFormatter.format(date);
+}
+
+export function formatPostTimestamp(
+  value: string | Date,
+  baseDate: string | Date = new Date(),
+  relativeDayLimit = 14,
+): string {
+  const targetDate = toDate(value);
+  const comparisonDate = toDate(baseDate);
+
+  if (Number.isNaN(targetDate.getTime()) || Number.isNaN(comparisonDate.getTime())) {
+    return '';
+  }
+
+  const calendarDayDelta = toCalendarDayNumber(targetDate) - toCalendarDayNumber(comparisonDate);
+  return Math.abs(calendarDayDelta) >= relativeDayLimit
+    ? monthDayYearFormatter.format(targetDate)
+    : formatRelativeTime(targetDate, comparisonDate);
 }
 
 export function formatWeekdayMonthDay(value: string | Date): string {
@@ -178,6 +207,13 @@ export interface RegionAwareLocation {
   region?: string;
   state?: string;
   stateCode?: string;
+}
+
+export interface HomeBaseLocation extends RegionAwareLocation {
+  address?: string;
+  formattedAddress?: string;
+  placeName?: string;
+  precision?: string;
 }
 
 export interface CityRegionLocation {
@@ -312,7 +348,8 @@ function normalizeRegionCode(value: string | undefined): string {
     return '';
   }
 
-  return normalized.length <= 3 ? normalized.toUpperCase() : normalized;
+  const code = normalized.includes('-') ? normalized.split('-').at(-1) ?? normalized : normalized;
+  return code.length <= 3 ? code.toUpperCase() : code;
 }
 
 function isUnitedStatesCountry(value: string | undefined): boolean {
@@ -385,6 +422,31 @@ export function formatCityRegionLocation(location: RegionAwareLocation, fallback
   const resolvedLocation = resolveCityRegionLocation(location);
 
   return resolvedLocation?.label || formatCountryLabel(location.country) || fallback;
+}
+
+export function formatHomeBaseLocation(location: HomeBaseLocation): string {
+  const cityRegion = formatCityRegionLocation(location, '');
+  const precision = location.precision?.trim().toLowerCase() ?? '';
+  const preservesSpecificPlace = ['address', 'street', 'neighborhood', 'postcode'].some((value) => precision.includes(value));
+  if (preservesSpecificPlace) {
+    const rawAddress = location.address?.trim() ?? '';
+    const placeName = location.placeName?.trim() ?? '';
+    const primaryLabel = rawAddress && /^\d+[a-z]?$/i.test(rawAddress) && placeName
+      ? `${rawAddress} ${placeName}`
+      : rawAddress || placeName;
+    if (primaryLabel && cityRegion && !cityRegion.toLowerCase().startsWith(primaryLabel.toLowerCase())) {
+      return `${primaryLabel}, ${cityRegion}`;
+    }
+    if (primaryLabel) {
+      return primaryLabel;
+    }
+  }
+
+  return cityRegion ||
+    location.formattedAddress?.trim() ||
+    location.placeName?.trim() ||
+    location.address?.trim() ||
+    '';
 }
 
 export function formatMapPinCityLine(city: string | undefined): string {

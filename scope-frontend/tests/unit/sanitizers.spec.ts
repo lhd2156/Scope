@@ -1,16 +1,43 @@
 import {
+  sanitizeAuthForm,
+  sanitizeAuthPayload,
   sanitizeAvatarUrl,
   sanitizeFeedItem,
+  sanitizeFriendRequest,
   sanitizeImageUrl,
+  sanitizeItinerary,
+  sanitizeMapPoint,
   sanitizeMultilineText,
+  sanitizeNotificationItem,
+  sanitizeNotificationPreference,
+  sanitizeRegisterForm,
+  sanitizeReview,
   sanitizeSpotFormSubmission,
   sanitizeSpotDetail,
   sanitizeSpotSummary,
   sanitizeTrip,
   sanitizeTripMember,
+  sanitizeTripSpot,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
-import type { FeedItem, SpotDetail, SpotFormSubmission, SpotSummary, Trip, TripMember, UserProfile } from '@/types';
+import type {
+  AuthPayload,
+  FeedItem,
+  FriendRequest,
+  Itinerary,
+  MapPoint,
+  NotificationItem,
+  NotificationPreference,
+  RegisterForm,
+  Review,
+  SpotDetail,
+  SpotFormSubmission,
+  SpotSummary,
+  Trip,
+  TripMember,
+  TripSpot,
+  UserProfile,
+} from '@/types';
 import { getFeedPhotoFallback, getSpotPhotoFallback, getTripCoverFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
 
 describe('sanitizers', () => {
@@ -366,5 +393,470 @@ describe('sanitizers', () => {
       expect.stringContaining('pexels-photo-1181686'),
       expect.stringContaining('pexels-photo-733872'),
     ]);
+  });
+
+  it('applies safe identity and review defaults to incomplete legacy payloads', () => {
+    expect(sanitizeAuthForm({
+      email: ' Traveler@Example.COM ',
+      password: 'secret',
+    })).toEqual({
+      email: 'traveler@example.com',
+      password: 'secret',
+    });
+    expect(sanitizeAuthForm({
+      email: ' traveler.handle ',
+      password: 'secret',
+    })).toEqual({
+      email: 'traveler.handle',
+      password: 'secret',
+    });
+
+    expect(sanitizeRegisterForm({
+      username: '  ',
+      email: undefined,
+      password: null,
+      displayName: '',
+      firstName: '',
+      lastName: '',
+      phoneNumber: '',
+      dateOfBirth: undefined,
+    } as unknown as RegisterForm)).toMatchObject({
+      username: '',
+      email: '',
+      password: '',
+      displayName: 'New explorer',
+      dateOfBirth: '',
+    });
+    expect(sanitizeRegisterForm({
+      username: 'traveler',
+      email: 'traveler@example.com',
+      password: 'secret',
+      displayName: 'Traveler',
+      firstName: '',
+      lastName: '',
+      phoneNumber: '',
+      dateOfBirth: '1995-06-08',
+    })).toMatchObject({
+      dateOfBirth: '1995-06-08',
+    });
+
+    expect(sanitizeAuthPayload({
+      username: '',
+      email: undefined,
+      displayName: '',
+      interests: null,
+      showActivityStatus: 'yes',
+      profileVisibility: 'everyone',
+      accessToken: null,
+      refreshToken: undefined,
+    } as unknown as AuthPayload)).toMatchObject({
+      username: 'scope-user',
+      displayName: 'New explorer',
+      interests: undefined,
+      showActivityStatus: true,
+      profileVisibility: 'friends',
+      accessToken: '',
+      refreshToken: '',
+    });
+    expect(sanitizeAuthPayload({
+      username: 'traveler',
+      email: 'traveler@example.com',
+      displayName: 'Traveler',
+      interests: [' food ', ''],
+      showActivityStatus: false,
+      profileVisibility: 'public',
+      accessToken: ' token ',
+      refreshToken: ' refresh ',
+    } as AuthPayload)).toMatchObject({
+      interests: ['food'],
+      showActivityStatus: false,
+      profileVisibility: 'public',
+      accessToken: 'token',
+      refreshToken: 'refresh',
+    });
+
+    expect(sanitizeUserProfile({
+      id: '',
+      username: '',
+      email: '',
+      displayName: '',
+      interests: [],
+      profileVisibility: 'private',
+    })).toMatchObject({
+      username: 'scope-user',
+      displayName: 'New explorer',
+      profileVisibility: 'private',
+    });
+
+    expect(sanitizeReview(null as unknown as Review)).toMatchObject({
+      id: '',
+      spotId: '',
+      rating: 0,
+      comment: '',
+      user: {
+        id: 'unknown-reviewer',
+        username: 'traveler-unknown-',
+        displayName: 'Traveler unknown-',
+      },
+    });
+
+    expect(sanitizeReview({
+      id: 'review-wire',
+      spot_id: 'spot-wire',
+      userId: 'wire-user',
+      username: 'wire.handle',
+      display_name: 'Wire Traveler',
+      avatar_url: '/media/wire.png',
+      rating: '4.5',
+      comment: '  Legacy review  ',
+      created_at: '2026-06-08T12:00:00Z',
+      sentiment_score: '0.7',
+    } as unknown as Review)).toMatchObject({
+      id: 'review-wire',
+      spotId: 'spot-wire',
+      rating: 4.5,
+      comment: 'Legacy review',
+      sentiment_score: 0.7,
+      user: {
+        id: 'wire-user',
+        username: 'wire.handle',
+        displayName: 'Wire Traveler',
+      },
+    });
+  });
+
+  it('normalizes incomplete trip and spot wire variants without inventing unsafe values', () => {
+    expect(sanitizeSpotSummary({
+      id: 'wire-spot',
+      title: '',
+      latitude: 91,
+      longitude: -181,
+      category: 'invalid',
+      average_rating: 'bad',
+      province: ' Ontario ',
+      region: ' North ',
+      state: ' Texas ',
+      postal_code: ' 76102 ',
+      created_at: '2026-06-08T12:00:00Z',
+      is_public: false,
+    } as unknown as SpotSummary)).toMatchObject({
+      title: 'Untitled spot',
+      category: 'other',
+      rating: 0,
+      province: 'Ontario',
+      region: 'North',
+      state: 'Texas',
+      postalCode: '76102',
+      isPublic: false,
+    });
+
+    expect(sanitizeMapPoint({
+      id: 'map-empty',
+      title: '',
+      latitude: 0,
+      longitude: 0,
+      category: 'other',
+    } as MapPoint).title).toBe('Untitled spot');
+
+    const spotIdVariants = [
+      { spotId: 'camel-id' },
+      { spot_id: 'snake-id' },
+      { spot: 'nested-id' },
+      {},
+    ];
+    expect(spotIdVariants.map((variant) => sanitizeTripSpot({
+      ...variant,
+      title: '',
+      spot_title: '',
+      latitude: 'bad',
+      longitude: null,
+      category: 'invalid',
+    } as unknown as TripSpot).spotId)).toEqual([
+      'camel-id',
+      'snake-id',
+      'nested-id',
+      '',
+    ]);
+
+    expect(sanitizeTripMember({
+      id: '',
+      userId: 'camel-user',
+      displayName: '',
+      display_name: 'Legacy Member',
+      role: 'editor',
+    } as unknown as TripMember)).toMatchObject({
+      id: 'camel-user',
+      displayName: 'Legacy Member',
+      status: 'editor',
+      inviteStatus: 'accepted',
+    });
+    expect(sanitizeTripMember({
+      id: 'fallback-id',
+      displayName: '',
+    } as TripMember).displayName).toBe('Traveler fallback');
+
+    expect(sanitizeItinerary({
+      destination: '',
+      days: [{ dayNumber: 1, spots: null }],
+      weatherForecast: '',
+    } as unknown as Itinerary)).toMatchObject({
+      destination: 'Scope destination',
+      days: [{ spots: [] }],
+      weatherForecast: 'Forecast pending.',
+    });
+    expect(sanitizeItinerary({
+      destination: '',
+      days: null,
+      weatherForecast: '',
+    } as unknown as Itinerary).days).toEqual([]);
+
+    expect(sanitizeTrip({
+      id: 'legacy-trip',
+      title: '',
+      destination: '',
+      is_public: false,
+      start_date: '2026-06-08',
+      end_date: '2026-06-09',
+      created_at: '2026-06-01T00:00:00Z',
+      updated_at: '2026-06-02T00:00:00Z',
+      spots: null,
+      members: null,
+    } as unknown as Trip)).toMatchObject({
+      title: 'Untitled trip',
+      destination: 'Scope destination',
+      isPublic: false,
+      startDate: '2026-06-08',
+      endDate: '2026-06-09',
+      createdAt: '2026-06-01T00:00:00Z',
+      updatedAt: '2026-06-02T00:00:00Z',
+      spots: [],
+      members: [],
+    });
+  });
+
+  it('normalizes nested feed, notification, preference, and upload wire fallbacks', () => {
+    const nestedFeedBase = {
+      id: 'nested-feed',
+      type: '',
+      title: '',
+      excerpt: '',
+      createdAt: '',
+      targetId: '',
+      actor: null,
+    };
+    expect(sanitizeFeedItem({
+      ...nestedFeedBase,
+      activity_type: 'trip.created',
+      item: {
+        id: 'trip-nested',
+        title: 'Desert loop',
+        creator_id: 'creator-wire',
+        description: 'Nested trip',
+        created_at: '2026-06-08T00:00:00Z',
+        cover_photo_url: 'https://images.example.com/trip.jpg',
+      },
+    } as unknown as FeedItem)).toMatchObject({
+      type: 'trip',
+      title: 'Planned Desert loop',
+      targetId: 'trip-nested',
+      createdAt: '2026-06-08T00:00:00Z',
+      actor: { id: 'creator-wire' },
+    });
+    expect(sanitizeFeedItem({
+      ...nestedFeedBase,
+      activityType: 'review-posted',
+      item: { title: 'Museum review' },
+    } as unknown as FeedItem).title).toBe('Reviewed Museum review');
+    expect(sanitizeFeedItem({
+      ...nestedFeedBase,
+      item: { title: 'River overlook' },
+    } as unknown as FeedItem).title).toBe('Pinned River overlook');
+    expect(sanitizeFeedItem({
+      ...nestedFeedBase,
+      item: 'invalid',
+    } as unknown as FeedItem)).toMatchObject({
+      title: 'Scope activity',
+      targetId: '',
+      createdAt: '1970-01-01T00:00:00.000Z',
+    });
+    expect(sanitizeFeedItem({
+      ...nestedFeedBase,
+      created_at: '2026-06-07T00:00:00Z',
+      target_path: '/spots/feed-wire',
+      image_url: '/media/feed-wire.jpg',
+      item: {
+        id: 'feed-wire',
+        user_id: 'nested-user',
+      },
+    } as unknown as FeedItem)).toMatchObject({
+      createdAt: '2026-06-07T00:00:00Z',
+      targetPath: '/spots/feed-wire',
+      actor: { id: 'nested-user' },
+    });
+
+    expect(sanitizeNotificationItem({
+      id: 'notification-wire',
+      title: '',
+      body: '',
+      type: '',
+      is_read: true,
+      created_at: '2026-06-08T00:00:00Z',
+      priority: 'high',
+      metadata_json: '{"safe":true}',
+      read_at: '2026-06-08T00:01:00Z',
+      expires_at: '2026-07-08T00:00:00Z',
+      archived_at: '2026-06-09T00:00:00Z',
+    } as unknown as NotificationItem)).toMatchObject({
+      title: 'Scope update',
+      body: 'A new Scope update is available.',
+      type: 'general',
+      isRead: true,
+      priority: 'high',
+      metadataJson: '{"safe":true}',
+      readAt: '2026-06-08T00:01:00Z',
+      expiresAt: '2026-07-08T00:00:00Z',
+      archivedAt: '2026-06-09T00:00:00Z',
+    });
+
+    expect(sanitizeNotificationPreference({
+      category: '',
+      user_id: 'wire-user',
+      in_app_enabled: false,
+      push_enabled: false,
+      email_enabled: true,
+      digest_cadence: '',
+      quiet_hours_start_minutes: '60',
+      quiet_hours_end_minutes: '120',
+      time_zone_id: '',
+    } as unknown as NotificationPreference)).toMatchObject({
+      userId: 'wire-user',
+      category: 'general',
+      inAppEnabled: false,
+      pushEnabled: false,
+      emailEnabled: true,
+      digestCadence: 'daily',
+      quietHoursStartMinutes: 60,
+      quietHoursEndMinutes: 120,
+      timeZoneId: 'UTC',
+    });
+    expect(sanitizeNotificationPreference({
+      userId: 'camel-user',
+      category: 'trip',
+      inAppEnabled: true,
+      pushEnabled: true,
+      emailEnabled: false,
+      digestCadence: 'weekly',
+      quietHoursStartMinutes: 300,
+      quietHoursEndMinutes: 420,
+      timeZoneId: 'America/Chicago',
+    })).toMatchObject({
+      userId: 'camel-user',
+      category: 'trip',
+      digestCadence: 'weekly',
+      timeZoneId: 'America/Chicago',
+    });
+
+    expect(sanitizeNotificationItem({
+      id: 'notification-camel',
+      title: 'Camel notification',
+      body: 'Camel body',
+      type: 'trip',
+      isRead: false,
+      createdAt: '2026-06-08T00:00:00Z',
+      metadataJson: '{"camel":true}',
+      readAt: '2026-06-08T00:02:00Z',
+      expiresAt: '2026-07-08T00:00:00Z',
+      archivedAt: '2026-06-10T00:00:00Z',
+    } as NotificationItem)).toMatchObject({
+      metadataJson: '{"camel":true}',
+      readAt: '2026-06-08T00:02:00Z',
+      expiresAt: '2026-07-08T00:00:00Z',
+      archivedAt: '2026-06-10T00:00:00Z',
+    });
+
+    expect(sanitizeFriendRequest({
+      id: 'friend-request',
+      user: {
+        id: 'friend-user',
+        username: 'friend',
+        email: 'friend@example.com',
+        displayName: 'Friend User',
+        interests: [],
+      },
+      note: '  Hello\u0000 there  ',
+    } as FriendRequest).note).toBe('Hello there');
+
+    expect(sanitizeSpotFormSubmission({
+      spot: {
+        title: '',
+        description: '',
+        latitude: 0,
+        longitude: 0,
+        address: '',
+        city: '',
+        country: '',
+        category: 'other',
+        vibe: '',
+        rating: 0,
+        visitedAt: '',
+        isPublic: true,
+      },
+      existingPhotos: [{ id: 'existing', url: '/media/existing.jpg', caption: '' }],
+      newPhotos: [],
+    }).existingPhotos[0]?.caption).toBe('Untitled spot');
+
+    expect(sanitizeTripSpot({
+      spotId: 'legacy-title-id',
+      title: '',
+      spot_title: ' Legacy stop title ',
+      latitude: 0,
+      longitude: 0,
+      category: 'other',
+    } as unknown as TripSpot).title).toBe('Legacy stop title');
+    expect(sanitizeTripMember({
+      id: '',
+      displayName: '',
+    } as TripMember).displayName).toBe('New explorer');
+    expect(sanitizeTripMember({
+      id: 'active-member',
+      displayName: 'Active Member',
+      inviteStatus: 'pending',
+      presence: 'active',
+    })).toMatchObject({
+      inviteStatus: 'pending',
+      presence: 'active',
+    });
+
+    expect(sanitizeSpotDetail({
+      id: 'empty-detail',
+      title: 'Empty detail',
+      latitude: 0,
+      longitude: 0,
+      category: 'other',
+      photos: null,
+      reviews: null,
+    } as unknown as SpotDetail)).toMatchObject({
+      photos: [],
+      reviews: [],
+    });
+
+    expect(sanitizeSpotSummary({
+      id: 'camel-spot',
+      title: 'Camel spot',
+      latitude: 32.75,
+      longitude: -97.33,
+      category: 'food',
+      rating: 4.8,
+      province: 'Texas',
+      region: 'North Texas',
+      state: 'Texas',
+      postalCode: '76102',
+    } as SpotSummary)).toMatchObject({
+      rating: 4.8,
+      province: 'Texas',
+      region: 'North Texas',
+      state: 'Texas',
+      postalCode: '76102',
+    });
   });
 });

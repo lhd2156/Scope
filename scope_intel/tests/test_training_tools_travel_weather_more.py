@@ -99,8 +99,26 @@ def test_train_sentiment_and_trip_main_with_fakes(monkeypatch, tmp_path):
         def save_model(self, output):
             (tmp_path / "model-saved").write_text(str(output))
 
-    monkeypatch.setattr(train_sentiment, "AutoTokenizer", SimpleNamespace(from_pretrained=lambda name: FakeTokenizer()))
-    monkeypatch.setattr(train_sentiment, "AutoModelForSequenceClassification", SimpleNamespace(from_pretrained=lambda name, num_labels: {"model": name, "labels": num_labels}))
+    loaded_models = []
+
+    def fake_tokenizer_from_pretrained(name, revision):
+        loaded_models.append(("tokenizer", name, revision))
+        return FakeTokenizer()
+
+    def fake_model_from_pretrained(name, revision, num_labels):
+        loaded_models.append(("model", name, revision))
+        return {"model": name, "labels": num_labels}
+
+    monkeypatch.setattr(
+        train_sentiment,
+        "AutoTokenizer",
+        SimpleNamespace(from_pretrained=fake_tokenizer_from_pretrained),
+    )
+    monkeypatch.setattr(
+        train_sentiment,
+        "AutoModelForSequenceClassification",
+        SimpleNamespace(from_pretrained=fake_model_from_pretrained),
+    )
     monkeypatch.setattr(train_sentiment, "Dataset", FakeDataset)
     monkeypatch.setattr(train_sentiment, "TrainingArguments", FakeTrainingArguments)
     monkeypatch.setattr(train_sentiment, "Trainer", FakeTrainer)
@@ -109,6 +127,10 @@ def test_train_sentiment_and_trip_main_with_fakes(monkeypatch, tmp_path):
     train_sentiment.main()
     assert (tmp_path / "model-saved").exists()
     assert (tmp_path / "tokenizer-saved").exists()
+    assert loaded_models == [
+        ("tokenizer", train_sentiment.MODEL_NAME, train_sentiment.MODEL_REVISION),
+        ("model", train_sentiment.MODEL_NAME, train_sentiment.MODEL_REVISION),
+    ]
 
     trip_data = tmp_path / "trips.csv"
     trip_output = tmp_path / "trip-models"

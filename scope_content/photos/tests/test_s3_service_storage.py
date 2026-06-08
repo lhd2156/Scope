@@ -137,3 +137,59 @@ def test_local_presign_and_helpers(settings, tmp_path):
     assert wrapped.read() == b"abc"
     assert wrapped.name == "photos/a.png"
     assert wrapped.content_type is None
+
+
+@override_settings(
+    AWS_STORAGE_BUCKET_NAME="",
+    AWS_ACCESS_KEY_ID="",
+    AWS_SECRET_ACCESS_KEY="",
+    MEDIA_URL="/media/",
+)
+def test_delete_asset_removes_only_managed_local_files(settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path / "media"
+    managed_file = Path(settings.MEDIA_ROOT) / "photos/delete-me.png"
+    managed_file.parent.mkdir(parents=True)
+    managed_file.write_bytes(b"image")
+    service = S3StorageService()
+
+    service.delete_asset("/media/photos/delete-me.png")
+    service.delete_asset("https://external.example/not-managed.png")
+    service.delete_asset(None)
+
+    assert not managed_file.exists()
+    with pytest.raises(ValueError, match="outside the managed media directory"):
+        service.delete_asset("../outside.png")
+
+    avatar_file = Path(settings.MEDIA_ROOT) / "avatars/user-1/avatar.png"
+    avatar_file.parent.mkdir(parents=True)
+    avatar_file.write_bytes(b"image")
+    service.delete_prefix("avatars/user-1")
+    assert not avatar_file.exists()
+    with pytest.raises(ValueError, match="inside the managed media directory"):
+        service.delete_prefix("../outside")
+
+
+@override_settings(
+    AWS_STORAGE_BUCKET_NAME="scope-bucket",
+    AWS_ACCESS_KEY_ID="key",
+    AWS_SECRET_ACCESS_KEY="secret",
+    AWS_REGION="us-west-2",
+)
+def test_delete_asset_removes_managed_s3_objects(monkeypatch):
+    deleted = []
+
+    class FakeClient:
+        def delete_object(self, **kwargs):
+            deleted.append(kwargs)
+
+    monkeypatch.setattr(s3_service.boto3, "client", lambda *args, **kwargs: FakeClient())
+    service = S3StorageService()
+
+    service.delete_asset("https://scope-bucket.s3.us-west-2.amazonaws.com/photos/delete-me.png")
+    service.delete_asset("photos/delete-by-key.png")
+    service.delete_asset("https://external.example/not-managed.png")
+
+    assert deleted == [
+        {"Bucket": "scope-bucket", "Key": "photos/delete-me.png"},
+        {"Bucket": "scope-bucket", "Key": "photos/delete-by-key.png"},
+    ]

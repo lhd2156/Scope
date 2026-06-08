@@ -157,7 +157,17 @@ function resolveThemeColor(): string {
   }
 
   const rootStyles = getComputedStyle(document.documentElement);
-  return rootStyles.getPropertyValue(THEME_COLOR_VARIABLE).trim();
+  const rootThemeColor = rootStyles.getPropertyValue(THEME_COLOR_VARIABLE).trim();
+  if (rootThemeColor) {
+    return rootThemeColor;
+  }
+
+  const bodyThemeColor = document.body
+    ? getComputedStyle(document.body).backgroundColor.trim()
+    : '';
+  return bodyThemeColor === 'transparent' || bodyThemeColor === 'rgba(0, 0, 0, 0)'
+    ? ''
+    : bodyThemeColor;
 }
 
 export function syncThemeColorMeta(theme: ThemeMode): void {

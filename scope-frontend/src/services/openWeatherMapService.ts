@@ -180,7 +180,7 @@ function buildLocalWeatherSnapshot(point: WeatherLookupPoint): WeatherSnapshot {
   const label = point.label.trim() || 'Map preview';
   const temperatureOffset = Math.round((Math.abs(latitude) + Math.abs(longitude)) % 11);
   const conditionCode = Math.round((Math.abs(latitude * longitude)) % 4);
-  const condition = ['Clear', 'Partly Cloudy', 'Current Conditions', 'Breezy'][conditionCode] ?? 'Current Conditions';
+  const condition = ['Clear', 'Partly Cloudy', 'Current Conditions', 'Breezy'][conditionCode]!;
 
   return {
     id: `local-weather:${label}:${latitude.toFixed(2)}:${longitude.toFixed(2)}`,
@@ -406,8 +406,8 @@ function buildDerivedSearchLabels(label: string): string[] {
 
   return [
     segments.slice(-2).join(', '),
-    segments[segments.length - 1] ?? '',
-    segments[0] ?? '',
+    segments[segments.length - 1]!,
+    segments[0]!,
   ];
 }
 
@@ -650,3 +650,32 @@ export async function getOpenWeatherMapSnapshot(point: WeatherLookupPoint): Prom
 
   return getOpenMeteoSnapshot({ ...point, label });
 }
+
+export const __openWeatherMapServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      buildAirPollutionUrl,
+      buildDerivedSearchLabels,
+      buildLocalWeatherSnapshot,
+      buildSearchLabels,
+      buildWeatherUrl,
+      getBackendCurrentWeatherSnapshot,
+      getOpenMeteoAirQualitySnapshot,
+      getOpenMeteoCondition,
+      getOpenMeteoSnapshot,
+      getOpenWeatherAirQualityLabel,
+      getOpenWeatherAirQualitySnapshot,
+      getUsAirQualityLabel,
+      hasCoordinatePair,
+      normalizeBackendWeatherSnapshot,
+      normalizeCondition,
+      normalizeIconCode,
+      normalizeIsoDateTime,
+      normalizeIsDaytime,
+      normalizeOpenWeatherAirQuality,
+      normalizeUnixTimestampIso,
+      normalizeUsAirQuality,
+      resolveOpenMeteoPoint,
+      resolveOpenWeatherIsDaytime,
+      uniqueLabels,
+    }
+  : undefined;

@@ -14,6 +14,7 @@ public sealed class User
     public string? HomeBase { get; set; }
     public string? InterestsJson { get; set; }
     public bool ShowActivityStatus { get; set; } = true;
+    public string ProfileVisibility { get; set; } = "friends";
     public bool IsShowcase { get; set; }
     public string Role { get; set; } = "user";
     public bool IsActive { get; set; } = true;

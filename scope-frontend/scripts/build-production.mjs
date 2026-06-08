@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+const apiBaseUrl = process.env.VITE_API_BASE_URL?.trim() || 'https://api.scopetrips.com';
+
 const productionEnv = {
-  VITE_API_BASE_URL: 'https://api.scopetrips.com',
+  VITE_API_BASE_URL: apiBaseUrl,
   VITE_DEMO_MODE: 'false',
   VITE_ENABLE_LOCAL_PREVIEW: 'false',
   VITE_LOCAL_PREVIEW_LOGIN_EMAIL: '',
@@ -20,7 +22,8 @@ const productionEnv = {
   VITE_ENABLE_MAP_MOCK_FALLBACK: 'false',
   VITE_ENABLE_FEED_MOCK_FALLBACK: 'false',
   VITE_ENABLE_NOTIFICATION_MOCK_FALLBACK: 'false',
-  VITE_ENABLE_MAPBOX_IN_UI_TESTS: 'false',
+  VITE_ENABLE_MAPBOX_IN_UI_TESTS:
+    process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS === 'true' ? 'true' : 'false',
 };
 
 const env = { ...process.env, ...productionEnv, NODE_ENV: 'production' };
@@ -41,5 +44,6 @@ function run(scriptUrl, args) {
   }
 }
 
+run(new URL('./verify-scope-wasm-lexer.mjs', import.meta.url), []);
 run(new URL('../node_modules/vue-tsc/bin/vue-tsc.js', import.meta.url), ['--noEmit']);
 run(new URL('../node_modules/vite/bin/vite.js', import.meta.url), ['build', '--configLoader', 'runner']);

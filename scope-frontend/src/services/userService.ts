@@ -10,7 +10,7 @@ import {
 } from '@/services/localPreviewUserStorage';
 import { loadMockData } from '@/services/mockDataLoader';
 import { normalizeArrayEnvelopeData, paginateItems, unwrapApiData } from '@/services/serviceUtils';
-import type { ApiEnvelope, UserProfile, UserStats } from '@/types';
+import type { ApiEnvelope, ProfileVisibility, UserProfile, UserStats } from '@/types';
 import {
   sanitizeAvatarUrl,
   sanitizeMultilineText,
@@ -20,6 +20,7 @@ import {
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const USERS_BASE_PATH = '/api/core/users';
+const CURRENT_USER_CONTENT_PATH = '/api/content/users/me';
 const MOCK_USER_CATALOG_ALLOWED_IN_BUILD = import.meta.env.MODE !== 'production' || import.meta.env.VITE_ENABLE_LOCAL_PREVIEW === 'true';
 type MockUserCatalogModule = typeof import('@/services/mockUserCatalog');
 
@@ -32,6 +33,11 @@ export interface UpdateUserProfileInput {
   homeBase?: string;
   interests?: string[];
   showActivityStatus?: boolean;
+  profileVisibility?: ProfileVisibility;
+}
+
+function normalizeProfileVisibility(value: unknown): ProfileVisibility {
+  return value === 'public' || value === 'private' ? value : 'friends';
 }
 
 function sanitizeUserEnvelope(response: ApiEnvelope<UserProfile>): ApiEnvelope<UserProfile> {
@@ -74,6 +80,7 @@ function normalizeUserProfilePayload(payload: Partial<UserProfile> & Pick<UserPr
     interests: Array.isArray(payload.interests) ? payload.interests : [],
     stats: payload.stats,
     showActivityStatus: payload.showActivityStatus ?? true,
+    profileVisibility: normalizeProfileVisibility(payload.profileVisibility),
   };
 }
 
@@ -147,6 +154,7 @@ function sanitizeUpdateInput(input: UpdateUserProfileInput): UpdateUserProfileIn
     homeBase: input.homeBase ? sanitizeSingleLineText(input.homeBase) : undefined,
     interests: input.interests?.map((interest) => sanitizeSingleLineText(interest)).filter(Boolean),
     showActivityStatus: input.showActivityStatus,
+    profileVisibility: input.profileVisibility,
   };
 
   return Object.fromEntries(
@@ -242,6 +250,14 @@ export async function deactivateUserProfile(userId: string): Promise<void> {
   }
 }
 
+export async function deleteCurrentUserContent(): Promise<void> {
+  await api.delete(CURRENT_USER_CONTENT_PATH, {
+    headers: {
+      'X-Scope-Account-Deletion': 'confirm',
+    },
+  });
+}
+
 export async function searchUsersLive(query: string, page = 1, pageSize = 10): Promise<ApiEnvelope<UserProfile[]>> {
   const sanitizedQuery = sanitizeSingleLineText(query);
   const normalizedSearchQuery = sanitizedQuery.startsWith('@') ? sanitizedQuery.slice(1) : sanitizedQuery;
@@ -292,3 +308,16 @@ export async function getUserStats(userId: string): Promise<ApiEnvelope<UserStat
     return sanitizeStatsEnvelope({ data: await buildFallbackStats(userId) });
   }
 }
+
+export const __userServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      normalizeProfileVisibility,
+      isUserProfilePayload,
+      unwrapUserProfilePayload,
+      normalizeUserProfilePayload,
+      sanitizeUserListEnvelope,
+      sanitizeStatsEnvelope,
+      buildFallbackStats,
+      sanitizeUpdateInput,
+    }
+  : undefined;

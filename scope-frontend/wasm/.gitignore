@@ -10,8 +10,10 @@ make.exe
 Makefile
 compile_commands.json
 
-dist/
-scope_wasm.js
-scope_wasm.wasm
+dist/*
+!dist/scope_wasm.js
+!dist/scope_wasm.wasm
+/scope_wasm.js
+/scope_wasm.wasm
 scope_wasm.worker.js
 emscripten_cache/

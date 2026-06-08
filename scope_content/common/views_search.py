@@ -78,7 +78,7 @@ class SearchView(APIView):
                         {
                             'multi_match': {
                                 'query': q,
-                                'fields': self._fields_for(doc_type),
+                                'fields': self._phrase_prefix_fields_for(doc_type),
                                 'type': 'phrase_prefix',
                                 'boost': 1.2,
                             }
@@ -132,6 +132,17 @@ class SearchView(APIView):
         if doc_type == 'trips':
             return ['name^3', 'description']
         return ['name', 'description', 'text']
+
+    @staticmethod
+    def _phrase_prefix_fields_for(doc_type: str) -> list[str]:
+        if doc_type == 'spots':
+            # Existing deployments may still have the original keyword
+            # mapping for tags, category, country, city, or vibe. Elasticsearch
+            # rejects phrase_prefix queries against keyword fields, so keep
+            # this clause to the text fields present in every index version.
+            # The other relevance clauses still search all configured fields.
+            return ['name^3', 'description']
+        return SearchView._fields_for(doc_type)
 
 
 class GeoSearchView(APIView):

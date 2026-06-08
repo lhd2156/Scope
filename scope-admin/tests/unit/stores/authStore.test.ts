@@ -66,6 +66,33 @@ describe('authStore', () => {
     expect(store.error).toBeNull();
   });
 
+  it('rejects login payloads without any access token shape', async () => {
+    vi.mocked(loginAdmin).mockResolvedValue({});
+
+    const store = useAuthStore();
+    await expect(store.login('admin@scope.local', 'password')).rejects.toThrow(
+      'Login response did not include an access token.',
+    );
+
+    expect(store.error).toBe('Login response did not include an access token.');
+    expect(store.isAuthenticated).toBe(false);
+  });
+
+  it('accepts the legacy token shape and clears an omitted refresh token', async () => {
+    sessionStorage.setItem(ADMIN_STORAGE_REFRESH_KEY, 'stale-refresh');
+    vi.mocked(loginAdmin).mockResolvedValue({
+      token: 'legacy-access',
+      user: adminUser,
+    });
+
+    const store = useAuthStore();
+    await store.login('admin@scope.local', 'password');
+
+    expect(store.token).toBe('legacy-access');
+    expect(store.refreshToken).toBeNull();
+    expect(sessionStorage.getItem(ADMIN_STORAGE_REFRESH_KEY)).toBeNull();
+  });
+
   it('rejects non-admin users', async () => {
     vi.mocked(loginAdmin).mockResolvedValue({ accessToken: 'access' });
     vi.mocked(getCurrentUser).mockResolvedValue({ ...adminUser, role: 'user' });
@@ -103,6 +130,12 @@ describe('authStore', () => {
     vi.mocked(getCurrentUser).mockRejectedValueOnce(new Error('expired'));
     await store.hydrate();
     expect(store.error).toBe('expired');
+    expect(store.isAuthenticated).toBe(false);
+
+    sessionStorage.setItem(ADMIN_STORAGE_TOKEN_KEY, 'stored');
+    vi.mocked(getCurrentUser).mockRejectedValueOnce('offline');
+    await store.hydrate();
+    expect(store.error).toBe('Session expired');
     expect(store.isAuthenticated).toBe(false);
   });
 

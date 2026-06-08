@@ -17,6 +17,7 @@ describe('seo shell metadata', () => {
     document.title = '';
     document.documentElement.setAttribute('data-theme', 'dark');
     document.documentElement.style.setProperty('--bg-primary', 'rgb(15 15 26)');
+    document.body.style.removeProperty('background-color');
   });
 
   afterEach(() => {
@@ -116,6 +117,20 @@ describe('seo shell metadata', () => {
     expect(getMetaByName('theme-color')).toBe('rgb(250 250 250)');
     expect(getMetaByName('msapplication-TileColor')).toBe('rgb(250 250 250)');
     expect(getMetaByName('apple-mobile-web-app-status-bar-style')).toBe('default');
+  });
+
+  it('falls back to stable theme colors when computed custom properties are temporarily unavailable', () => {
+    document.documentElement.style.removeProperty('--bg-primary');
+    document.body.style.backgroundColor = 'rgb(250, 250, 250)';
+
+    syncThemeColorMeta('light');
+    expect(getMetaByName('theme-color')).toBe('rgb(250, 250, 250)');
+    expect(getMetaByName('msapplication-TileColor')).toBe('rgb(250, 250, 250)');
+
+    document.body.style.backgroundColor = 'rgb(15, 15, 26)';
+    syncThemeColorMeta('dark');
+    expect(getMetaByName('theme-color')).toBe('rgb(15, 15, 26)');
+    expect(getMetaByName('msapplication-TileColor')).toBe('rgb(15, 15, 26)');
   });
 
   it('falls back from false or empty route metadata and derives social urls from full paths', async () => {

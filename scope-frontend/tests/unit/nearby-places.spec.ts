@@ -1097,4 +1097,49 @@ describe('nearby place search', () => {
     const reverseFallbackFromCache = await reverseGeocode(32.7, -97.2);
     expect(reverseFallbackFromCache).toEqual(reverseFallback);
   });
+
+  it('uses Intel geocoding for location suggestions when Mapbox is unavailable', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+    vi.stubEnv('VITE_ENABLE_MAP_MOCK_FALLBACK', 'false');
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        data: [{
+          latitude: 32.7548,
+          longitude: -97.3308,
+          placeName: '1502 Commerce Street',
+          formattedAddress: '1502 Commerce Street, Fort Worth, TX 76102, United States',
+          address: '1502 Commerce Street',
+          city: 'Fort Worth',
+          adminArea: 'Texas',
+          stateCode: 'TX',
+          country: 'United States',
+          countryCode: 'US',
+          postalCode: '76102',
+          providerPlaceId: 'nominatim:fort-worth-commerce',
+          precision: 'address',
+        }],
+      },
+    });
+
+    const { searchLocations } = await import('@/services/mapService');
+    const response = await searchLocations('1502 Commerce St Fort Worth TX', {
+      limit: 6,
+      preferPoi: false,
+    });
+
+    expect(apiMock.get).toHaveBeenCalledWith('/api/intel/geocode', {
+      params: {
+        q: '1502 Commerce St Fort Worth TX',
+        limit: 6,
+      },
+    });
+    expect(response.data).toEqual([
+      expect.objectContaining({
+        id: 'nominatim:fort-worth-commerce',
+        city: 'Fort Worth',
+        stateCode: 'TX',
+        source: 'intel',
+      }),
+    ]);
+  });
 });

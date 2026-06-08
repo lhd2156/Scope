@@ -550,7 +550,7 @@ async function loadProfileWorkspace(userId: string) {
   }
 
   const spotRequest = listUserSpots(userId, 1, 9);
-  const tripRequest = listPublicTrips(1, 12);
+  const tripRequest = listPublicTrips(1, 12, userId);
   const savedSpotRequest = userId === authStore.currentUser?.id
     ? listSavedSpots(1, 9)
     : Promise.resolve({ data: [] as SpotSummary[] });
@@ -585,7 +585,9 @@ async function loadProfileWorkspace(userId: string) {
   }
 
   if (tripsResult.status === 'fulfilled') {
-    profileTrips.value = tripsResult.value.data.filter((trip) => trip.members.some((member) => member.id === profileResult.value.id));
+    profileTrips.value = tripsResult.value.data.filter((trip) =>
+      trip.members.some((member) => member.id === profileResult.value.id),
+    );
   }
 
   if (savedSpotsResult.status === 'fulfilled') {

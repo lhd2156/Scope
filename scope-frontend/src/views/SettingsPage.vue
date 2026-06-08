@@ -73,6 +73,7 @@
             v-model:error-message="formError"
             :initial-value="settingsValue"
             :submitting="isSaving"
+            :deleting-account="isDeletingAccount"
             :account-email="authStore.currentUser?.email ?? ''"
             :sync-mode-label="syncModeLabel"
             :sync-mode-description="syncModeDescription"
@@ -98,18 +99,20 @@ import { useAuthStore } from '@/stores/auth';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useToastStore } from '@/stores/toasts';
 import { useUserStore } from '@/stores/user';
+import { getNotificationPreferences, updateNotificationPreference } from '@/services/feedService';
 import { USER_MOCK_FALLBACK_ENABLED } from '@/services/demoMode';
 import { useReducedMotion } from '@/utils/motion';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { getStoredTheme } from '@/utils/theme';
 import { normalizeUserVibes } from '@/utils/userPreferenceSignals';
-import type { SpotCategory, UserProfile } from '@/types';
+import type { NotificationPreference, SpotCategory, UserProfile } from '@/types';
 
 const PROFILE_PREVIEW_MODE_ENABLED = USER_MOCK_FALLBACK_ENABLED;
 
 const PREFERENCE_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'];
 const DEFAULT_CATEGORY_PREFERENCES: SpotCategory[] = ['food', 'culture', 'adventure'];
 const SETTINGS_LOCAL_STORAGE_KEY = 'scope-settings-local-preferences-v1';
+const SETTINGS_EMAIL_CATEGORIES = ['friend', 'social', 'comment', 'mention', 'trip', 'digest'] as const;
 const settingsSections = [
   { id: 'settings-account', label: 'Account', sub: 'Email & sync', glyph: 'AC' },
   { id: 'settings-profile', label: 'Profile', sub: 'Identity & bio', glyph: 'PR' },
@@ -121,7 +124,7 @@ const settingsSections = [
 type SettingsSectionId = (typeof settingsSections)[number]['id'];
 type LocalSettingsPreferences = Pick<
   SettingsFormValue,
-  'firstName' | 'lastName' | 'phoneNumber' | 'dateOfBirth' | 'privacy' | 'tripInvites' | 'emailAlerts'
+  'firstName' | 'lastName' | 'phoneNumber' | 'dateOfBirth' | 'tripInvites' | 'emailAlerts'
 >;
 
 const authStore = useAuthStore();
@@ -133,6 +136,8 @@ const reducedMotion = useReducedMotion();
 const isSettingsAuditMode = isScopeQaMode();
 const activeSection = ref<SettingsSectionId>('settings-account');
 const formError = ref('');
+const isDeletingAccount = ref(false);
+const notificationPreferences = ref<NotificationPreference[]>([]);
 const settingsValue = ref<SettingsFormValue>({
   displayName: 'New explorer',
   username: '',
@@ -188,7 +193,6 @@ function writeLocalSettingsPreferences(payload: SettingsFormValue): void {
     lastName: payload.lastName,
     phoneNumber: payload.phoneNumber,
     dateOfBirth: payload.dateOfBirth,
-    privacy: payload.privacy,
     tripInvites: payload.tripInvites,
     emailAlerts: payload.emailAlerts,
   };
@@ -204,6 +208,7 @@ function buildSettingsValueFromProfile(currentUser: UserProfile | null): Setting
   const displayName = currentUser?.displayName ?? 'New explorer';
   const [derivedFirst, ...rest] = displayName.split(/\s+/);
   const localPreferences = readLocalSettingsPreferences();
+  const notificationSettings = deriveSettingsNotificationPreferences(notificationPreferences.value, localPreferences);
 
   return {
     displayName,
@@ -216,11 +221,34 @@ function buildSettingsValueFromProfile(currentUser: UserProfile | null): Setting
     bio: currentUser?.bio ?? '',
     homeBase: currentUser?.homeBase ?? '',
     showActivityStatus: currentUser?.showActivityStatus ?? true,
-    privacy: localPreferences.privacy ?? 'friends',
-    tripInvites: localPreferences.tripInvites ?? 'instant',
-    emailAlerts: localPreferences.emailAlerts ?? true,
+    privacy: currentUser?.profileVisibility ?? 'friends',
+    tripInvites: notificationSettings.tripInvites,
+    emailAlerts: notificationSettings.emailAlerts,
     categoryPreferences: toCategoryPreferences(currentUser?.interests),
     themeMode: getStoredTheme(),
+  };
+}
+
+function normalizeTripInviteCadence(value: unknown): SettingsFormValue['tripInvites'] {
+  return value === 'daily' || value === 'weekly' ? value : 'instant';
+}
+
+function deriveSettingsNotificationPreferences(
+  preferences: NotificationPreference[],
+  localPreferences: Partial<LocalSettingsPreferences>,
+): Pick<SettingsFormValue, 'tripInvites' | 'emailAlerts'> {
+  const tripPreference = preferences.find((preference) => preference.category === 'trip');
+  const emailPreferences = preferences.filter((preference) =>
+    SETTINGS_EMAIL_CATEGORIES.includes(preference.category as (typeof SETTINGS_EMAIL_CATEGORIES)[number]),
+  );
+
+  return {
+    tripInvites: tripPreference
+      ? normalizeTripInviteCadence(tripPreference.digestCadence)
+      : localPreferences.tripInvites ?? 'instant',
+    emailAlerts: emailPreferences.length
+      ? emailPreferences.some((preference) => preference.emailEnabled)
+      : localPreferences.emailAlerts ?? true,
   };
 }
 
@@ -240,6 +268,7 @@ onMounted(() => {
   void userStore.fetchCurrentProfile().catch(() => {
     formError.value = userStore.error ?? 'Scope could not load your profile settings right now.';
   });
+  void loadNotificationPreferences();
 });
 
 function toCategoryPreferences(interests?: string[]): SpotCategory[] {
@@ -271,29 +300,107 @@ function goToSection(sectionId: SettingsSectionId): void {
   targetSection.focus({ preventScroll: true });
 }
 
-function handleDeleteAccount(): void {
+async function handleDeleteAccount(): Promise<void> {
+  if (!authStore.currentUser?.id || isDeletingAccount.value) {
+    return;
+  }
+
+  formError.value = '';
+  isDeletingAccount.value = true;
+
+  try {
+    await userStore.deleteCurrentAccount();
+  } catch {
+    const deletionError = userStore.error ?? 'Scope could not permanently delete your account right now.';
+    formError.value = deletionError;
+    toastStore.showError({
+      title: 'Account not deleted',
+      message: deletionError,
+    });
+    isDeletingAccount.value = false;
+    return;
+  }
+
+  isDeletingAccount.value = false;
   toastStore.showSuccess({
-    title: 'Delete request received',
-    message: 'Scope will email you to confirm the permanent deletion within 24 hours.',
+    title: 'Account deleted',
+    message: 'Your Scope account and its associated content were permanently deleted.',
   });
+
+  try {
+    await router.push('/login');
+  } catch {
+    // The account is already deleted; route cancellation must not report a false deletion failure.
+  }
 }
 
 async function handleReplayTutorial(): Promise<void> {
   formError.value = '';
+
+  try {
+    await router.push('/');
+  } catch {
+    toastStore.showError({
+      title: 'Tutorial unavailable',
+      message: 'Scope could not open the guided walkthrough right now.',
+    });
+    return;
+  }
 
   if (!onboardingStore.restart('home-hero')) {
     toastStore.showError({
       title: 'Tutorial unavailable',
       message: 'Scope could not start the guided walkthrough right now.',
     });
+  }
+}
+
+function buildDefaultNotificationPreference(category: string): NotificationPreference {
+  return {
+    category,
+    inAppEnabled: true,
+    pushEnabled: category !== 'digest',
+    emailEnabled: category === 'trip' || category === 'digest',
+    digestCadence: category === 'digest' ? 'daily' : 'instant',
+    quietHoursStartMinutes: null,
+    quietHoursEndMinutes: null,
+    timeZoneId: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  };
+}
+
+async function loadNotificationPreferences(): Promise<void> {
+  try {
+    const response = await getNotificationPreferences();
+    notificationPreferences.value = response.data;
+    settingsValue.value = buildSettingsValueFromProfile(userStore.profile);
+  } catch {
+    // Keep the local preference fallback visible; saving will surface write errors.
+  }
+}
+
+async function syncSettingsNotificationPreferences(payload: SettingsFormValue): Promise<void> {
+  const previousValue = settingsValue.value;
+  const tripCadenceChanged = payload.tripInvites !== previousValue.tripInvites;
+  const emailAlertsChanged = payload.emailAlerts !== previousValue.emailAlerts;
+  if (!tripCadenceChanged && !emailAlertsChanged) {
     return;
   }
 
-  try {
-    await router.push('/');
-  } catch {
-    /* Navigation cancelled; tour will still start on next mount. */
+  const byCategory = new Map(notificationPreferences.value.map((preference) => [preference.category, preference]));
+  const categories = emailAlertsChanged ? [...SETTINGS_EMAIL_CATEGORIES] : ['trip'];
+
+  for (const category of categories) {
+    const currentPreference = byCategory.get(category) ?? buildDefaultNotificationPreference(category);
+    const savedPreference = await updateNotificationPreference({
+      ...currentPreference,
+      emailEnabled: emailAlertsChanged ? payload.emailAlerts : currentPreference.emailEnabled,
+      digestCadence: category === 'trip' && tripCadenceChanged ? payload.tripInvites : currentPreference.digestCadence,
+      timeZoneId: currentPreference.timeZoneId || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    });
+    byCategory.set(savedPreference.category, savedPreference);
   }
+
+  notificationPreferences.value = [...byCategory.values()];
 }
 
 async function handleSave(payload: SettingsFormValue, options: SettingsSubmitOptions = { source: 'manual' }) {
@@ -311,6 +418,7 @@ async function handleSave(payload: SettingsFormValue, options: SettingsSubmitOpt
   writeLocalSettingsPreferences(payload);
 
   try {
+    await syncSettingsNotificationPreferences(payload);
     await userStore.saveProfile({
       username: payload.username,
       displayName: payload.displayName,
@@ -319,6 +427,7 @@ async function handleSave(payload: SettingsFormValue, options: SettingsSubmitOpt
       homeBase: payload.homeBase || undefined,
       interests: payload.categoryPreferences,
       showActivityStatus: payload.showActivityStatus,
+      profileVisibility: payload.privacy,
     }, authStore.currentUser.id);
 
     settingsValue.value = payload;
