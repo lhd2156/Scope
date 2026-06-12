@@ -236,6 +236,91 @@ describe('SpotForm 2D map picker', () => {
     expect(coverage.form.providerPlaceAddress).toBe('');
   });
 
+  it('ignores stale typed place lookup results after later manual edits', async () => {
+    const lookup = deferred<{ data: any[] }>();
+    searchLocationsMock.mockReturnValueOnce(lookup.promise);
+
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: {
+          ...validInput,
+          title: '',
+          address: '',
+          city: 'Fort Worth',
+          postalCode: '76102',
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    await wrapper.get('input[name="title"]').setValue('Fort Worth Water Gardens UI Scope');
+    await wrapper.get('input[name="title"]').trigger('blur');
+    await wrapper.get('input[name="address"]').setValue('1502 Commerce St');
+    await wrapper.get('input[name="latitude"]').setValue('32.74769');
+    await wrapper.get('input[name="longitude"]').setValue('-97.32555');
+
+    lookup.resolve({
+      data: [{
+        id: 'mapbox.fort-worth',
+        latitude: 32.753521,
+        longitude: -97.331527,
+        placeName: 'Fort Worth',
+        formattedAddress: 'Fort Worth, Texas 76102, United States',
+        address: 'Fort Worth',
+        city: 'Fort Worth',
+        country: 'US',
+        postalCode: '76102',
+        providerPlaceId: 'mapbox.fort-worth',
+        precision: 'place',
+        source: 'mapbox',
+      }],
+    });
+    await flushPromises();
+
+    expect((wrapper.get('input[name="title"]').element as HTMLInputElement).value).toBe('Fort Worth Water Gardens UI Scope');
+    expect((wrapper.get('input[name="address"]').element as HTMLInputElement).value).toBe('1502 Commerce St');
+    expect((wrapper.get('input[name="latitude"]').element as HTMLInputElement).value).toBe('32.74769');
+    expect((wrapper.get('input[name="longitude"]').element as HTMLInputElement).value).toBe('-97.32555');
+    expect(coverage.form.providerPlaceId).toBe('');
+  });
+
+  it('preserves an in-progress create draft when initial location props refresh', async () => {
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: {
+          ...validInput,
+          title: '',
+          address: '',
+          city: '',
+          postalCode: '',
+        },
+      },
+    });
+
+    await wrapper.get('input[name="title"]').setValue('Fort Worth Water Gardens UI Scope');
+    await wrapper.get('input[name="address"]').setValue('1502 Commerce St');
+    await wrapper.get('input[name="city"]').setValue('Fort Worth');
+    await wrapper.get('input[name="latitude"]').setValue('32.74769');
+    await wrapper.get('input[name="longitude"]').setValue('-97.32555');
+    await wrapper.setProps({
+      initialValue: {
+        ...validInput,
+        title: '',
+        address: '',
+        city: 'Fort Worth',
+        country: 'US',
+        postalCode: '76102',
+      },
+    });
+    await flushPromises();
+
+    expect((wrapper.get('input[name="title"]').element as HTMLInputElement).value).toBe('Fort Worth Water Gardens UI Scope');
+    expect((wrapper.get('input[name="address"]').element as HTMLInputElement).value).toBe('1502 Commerce St');
+    expect((wrapper.get('input[name="city"]').element as HTMLInputElement).value).toBe('Fort Worth');
+    expect((wrapper.get('input[name="latitude"]').element as HTMLInputElement).value).toBe('32.74769');
+    expect((wrapper.get('input[name="longitude"]').element as HTMLInputElement).value).toBe('-97.32555');
+  });
+
   it('runs backend place checks on every map click and ignores stale pin lookup results', async () => {
     const firstNearby = deferred<{ data: any[] }>();
     searchNearbyPlacesMock
