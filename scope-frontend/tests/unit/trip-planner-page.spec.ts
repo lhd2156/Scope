@@ -507,6 +507,48 @@ describe('TripPlannerPage', () => {
     expect(wrapper.get('[data-test="ai-preferred-vibes"]').text()).toBe('food,culture');
   });
 
+  it('refreshes stale non-empty session vibes before applying account defaults to new trip drafts', async () => {
+    authStoreMock.currentUser.interests = ['food', 'culture', 'adventure'];
+    fetchCurrentProfileMock.mockImplementation(async () => {
+      authStoreMock.currentUser = {
+        ...authStoreMock.currentUser,
+        interests: ['food', 'scenic', 'hidden-gem'],
+        homeBase: 'Fort Worth, TX',
+      };
+      return authStoreMock.currentUser;
+    });
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: {
+            props: ['initialValue'],
+            template: '<div data-test="planner-vibes">{{ initialValue.interests.join(",") }}</div>',
+          },
+          ItineraryView: {
+            props: ['draft'],
+            template: '<div data-test="itinerary-vibes">{{ draft.interests.join(",") }}<slot name="assistant" /></div>',
+          },
+          TripCollaborationBar: { template: '<div />' },
+          TripPlannerAiAssist: {
+            props: ['scopeAiStore'],
+            template: '<div data-test="ai-preferred-vibes">{{ scopeAiStore.preferences.preferred_types.join(",") }}</div>',
+          },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(fetchCurrentProfileMock).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('[data-test="planner-vibes"]').text()).toBe('food,scenic');
+    expect(wrapper.get('[data-test="itinerary-vibes"]').text()).toContain('food,scenic');
+    expect(wrapper.get('[data-test="ai-preferred-vibes"]').text()).toContain('scenic');
+  });
+
   it('renders the compact QA audit summary instead of the heavy planner workspace', async () => {
     window.history.pushState({}, '', '/trips/new?scopeQaSession=authenticated');
 

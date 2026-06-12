@@ -752,11 +752,6 @@ async function hydrateCurrentPlannerProfile(): Promise<void> {
     return;
   }
 
-  const hasPlannerVibes = getCurrentUserTripVibes().length > 0;
-  if (hasPlannerVibes) {
-    return;
-  }
-
   try {
     await userStore.fetchCurrentProfile();
     syncUserVibesToPlannerDraft();
