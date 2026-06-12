@@ -490,6 +490,8 @@ const hasUserPinnedLocation = ref(false);
 const hasUserSelectedCategory = ref(false);
 const pinLookupRequestId = ref(0);
 const form = reactive<SpotFormInput>(createDefaultForm(props.initialValue));
+const lastAppliedInitialForm = ref<SpotFormInput>(cloneSpotFormValue(form));
+const typedPlaceLookupRequestId = ref(0);
 const placeVerification = reactive<{
   status: 'idle' | 'checking' | 'verified' | 'failed';
   reason: string;
@@ -536,6 +538,77 @@ function createDefaultForm(initialValue: Partial<SpotFormInput> | null | undefin
     verificationDistanceMeters: initialValue?.verificationDistanceMeters ?? null,
     verifiedAt: initialValue?.verifiedAt ?? null,
   };
+}
+
+function cloneSpotFormValue(value: SpotFormInput): SpotFormInput {
+  return {
+    ...value,
+    pillars: [...value.pillars],
+  };
+}
+
+function hasSamePillars(left: SpotPillar[], right: SpotPillar[]): boolean {
+  return [...left].sort().join('|') === [...right].sort().join('|');
+}
+
+function hasSameSpotFormValue(left: SpotFormInput, right: SpotFormInput): boolean {
+  return left.title === right.title &&
+    left.description === right.description &&
+    Number(left.latitude) === Number(right.latitude) &&
+    Number(left.longitude) === Number(right.longitude) &&
+    left.address === right.address &&
+    left.city === right.city &&
+    left.country === right.country &&
+    left.postalCode === right.postalCode &&
+    left.category === right.category &&
+    hasSamePillars(left.pillars, right.pillars) &&
+    left.vibe === right.vibe &&
+    Number(left.rating) === Number(right.rating) &&
+    left.visitedAt === right.visitedAt &&
+    left.isPublic === right.isPublic &&
+    left.providerPlaceId === right.providerPlaceId &&
+    left.providerPlaceName === right.providerPlaceName &&
+    left.providerPlaceAddress === right.providerPlaceAddress &&
+    left.verificationStatus === right.verificationStatus &&
+    left.verificationSource === right.verificationSource &&
+    Number(left.verificationDistanceMeters ?? -1) === Number(right.verificationDistanceMeters ?? -1) &&
+    left.verifiedAt === right.verifiedAt;
+}
+
+function mergeIncomingInitialValueIntoUntouchedFields(previousInitial: SpotFormInput, nextInitial: SpotFormInput): void {
+  const mutableForm = form as unknown as Record<string, unknown>;
+  const scalarKeys = [
+    'title',
+    'description',
+    'latitude',
+    'longitude',
+    'address',
+    'city',
+    'country',
+    'postalCode',
+    'category',
+    'vibe',
+    'rating',
+    'visitedAt',
+    'isPublic',
+    'providerPlaceId',
+    'providerPlaceName',
+    'providerPlaceAddress',
+    'verificationStatus',
+    'verificationSource',
+    'verificationDistanceMeters',
+    'verifiedAt',
+  ] as const;
+
+  for (const key of scalarKeys) {
+    if (form[key] === previousInitial[key]) {
+      mutableForm[key] = nextInitial[key];
+    }
+  }
+
+  if (hasSamePillars(form.pillars, previousInitial.pillars)) {
+    form.pillars = [...nextInitial.pillars];
+  }
 }
 
 function clonePhotos(photos: Photo[]): Photo[] {
@@ -626,8 +699,11 @@ function revokeUploadPreviews(): void {
   });
 }
 
-function resetFromProps(): void {
-  Object.assign(form, createDefaultForm(props.initialValue));
+function resetFromProps(nextInitialValue: Partial<SpotFormInput> | null | undefined = props.initialValue): void {
+  const nextForm = createDefaultForm(nextInitialValue);
+  Object.assign(form, nextForm);
+  lastAppliedInitialForm.value = cloneSpotFormValue(nextForm);
+  typedPlaceLookupRequestId.value += 1;
   hasUserPinnedLocation.value = props.mode === 'edit' && Number.isFinite(Number(form.latitude)) && Number.isFinite(Number(form.longitude));
   hasUserSelectedCategory.value = props.mode === 'edit';
   maybeAutofillCategory([form.title, form.address, form.city]);
@@ -685,11 +761,13 @@ function clearProviderPlaceDetails(): void {
 }
 
 function handleManualPlaceInput(): void {
+  typedPlaceLookupRequestId.value += 1;
   clearProviderPlaceDetails();
   markVerificationStale();
 }
 
 function handleManualCoordinateInput(): void {
+  typedPlaceLookupRequestId.value += 1;
   hasUserPinnedLocation.value = true;
   clearProviderPlaceDetails();
   markVerificationStale();
@@ -820,6 +898,16 @@ async function autofillLocationFromPin(latitude: number, longitude: number, requ
   }
 }
 
+function buildTypedPlaceLookupSignature(): string {
+  return [
+    form.title,
+    form.address,
+    form.city,
+    form.country,
+    form.postalCode,
+  ].map((part) => part?.trim()).filter(Boolean).join('|');
+}
+
 async function resolveTypedPlaceLocation(): Promise<void> {
   const query = [
     form.title,
@@ -832,7 +920,14 @@ async function resolveTypedPlaceLocation(): Promise<void> {
     return;
   }
 
+  const requestId = typedPlaceLookupRequestId.value + 1;
+  typedPlaceLookupRequestId.value = requestId;
+  const lookupSignature = buildTypedPlaceLookupSignature();
   const response = await searchLocations(query, { limit: 1, preferPoi: true }).catch(() => ({ data: [] }));
+  if (requestId !== typedPlaceLookupRequestId.value || lookupSignature !== buildTypedPlaceLookupSignature()) {
+    return;
+  }
+
   const result = response.data[0];
   if (!result) {
     return;
@@ -851,6 +946,7 @@ async function resolveClickedLocation(latitude: number, longitude: number, reque
 }
 
 function handlePinMapClick(payload: { latitude: number; longitude: number }): void {
+  typedPlaceLookupRequestId.value += 1;
   const requestId = pinLookupRequestId.value + 1;
   pinLookupRequestId.value = requestId;
   setCoordinates(payload.latitude, payload.longitude);
@@ -1218,8 +1314,21 @@ const serverRejectionLabels = computed(() => {
 
 watch(
   () => props.initialValue,
-  () => {
-    resetFromProps();
+  (nextValue) => {
+    const previousInitial = lastAppliedInitialForm.value;
+    const nextInitial = createDefaultForm(nextValue);
+    const formMatchesPreviousInitial = hasSameSpotFormValue(form, previousInitial) && uploads.value.length === 0;
+    const formMatchesNextInitial = hasSameSpotFormValue(form, nextInitial);
+
+    if (formMatchesPreviousInitial || formMatchesNextInitial) {
+      resetFromProps(nextValue);
+      return;
+    }
+
+    lastAppliedInitialForm.value = cloneSpotFormValue(nextInitial);
+    typedPlaceLookupRequestId.value += 1;
+    mergeIncomingInitialValueIntoUntouchedFields(previousInitial, nextInitial);
+    resetVerificationFromForm();
   },
   { immediate: true, deep: true },
 );
