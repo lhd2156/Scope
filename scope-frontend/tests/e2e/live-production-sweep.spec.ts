@@ -1141,24 +1141,15 @@ async function createPublicSpotThroughUi(page: Page, suffix: string, owner: Live
 }
 
 async function assertProviderSourceDisclosure(owner: LiveUser): Promise<void> {
-  const verification = await api('POST', '/api/intel/place/verify', {
-    token: owner.accessToken,
-    body: {
-      title: 'Fort Worth Water Gardens',
-      address: '1502 Commerce St',
-      city: 'Fort Worth',
-      country: 'US',
-      postalCode: '76102',
-      latitude: LIVE_COORDINATES.latitude,
-      longitude: LIVE_COORDINATES.longitude,
-    },
-  });
-  assertNoMockPayload(verification.payload, 'place verification payload');
-  if (!verification.data.verified) {
-    throw new Error(`Provider-backed place verification is unavailable or rejected the known location: ${JSON.stringify(verification.data)}`);
-  }
-  expect(['google_places', 'mapbox']).toContain(verification.data.source);
-  expect(verification.data.providerPlaceId).toBeTruthy();
+  await verifyProviderPlace(owner, {
+    title: 'Fort Worth Water Gardens',
+    address: '1502 Commerce St',
+    city: 'Fort Worth',
+    country: 'US',
+    postalCode: '76102',
+    latitude: LIVE_COORDINATES.latitude,
+    longitude: LIVE_COORDINATES.longitude,
+  }, 'Fort Worth Water Gardens place verification');
 
   const weather = await api('GET', `/api/intel/weather/current?lat=${LIVE_COORDINATES.latitude}&lng=${LIVE_COORDINATES.longitude}`, {
     token: owner.accessToken,
@@ -1379,22 +1370,15 @@ async function createVerifiedMetroSpot(
   suffix: string,
   seed: typeof METRO_SPOT_SEEDS[number],
 ): Promise<LiveMetroSpot> {
-  const verification = await api('POST', '/api/intel/place/verify', {
-    token: owner.accessToken,
-    body: {
-      title: seed.placeName,
-      address: seed.address,
-      city: seed.city,
-      country: seed.country,
-      postalCode: seed.postalCode,
-      latitude: seed.latitude,
-      longitude: seed.longitude,
-    },
-  });
-  assertNoMockPayload(verification.payload, `${seed.city} place verification`);
-  expect(verification.data.verified, `${seed.city} provider verification`).toBeTruthy();
-  expect(['google_places', 'mapbox']).toContain(verification.data.source);
-  expect(verification.data.providerPlaceId).toBeTruthy();
+  const verification = await verifyProviderPlace(owner, {
+    title: seed.placeName,
+    address: seed.address,
+    city: seed.city,
+    country: seed.country,
+    postalCode: seed.postalCode,
+    latitude: seed.latitude,
+    longitude: seed.longitude,
+  }, `${seed.city} place verification`);
 
   const expectedTitle = `${seed.placeName} Scope Overnight ${suffix}`;
   const description = `Scope Overnight ${suffix} verified public spot for ${seed.city}. Search, explore, map, reviews, trips, and profiles must read this live database row.`;
@@ -2190,6 +2174,45 @@ function assertClearProviderUnavailable(payload: unknown, label: string): void {
   expect(JSON.stringify(payload ?? {}), `${label} must expose a clear provider-unavailable reason`).toMatch(
     /unavailable|provider|configured|GOOGLE_PLACES_API_KEY|OPENWEATHERMAP|weather/i,
   );
+}
+
+async function verifyProviderPlace(
+  owner: LiveUser,
+  body: {
+    title: string;
+    address: string;
+    city: string;
+    country: string;
+    postalCode: string;
+    latitude: number;
+    longitude: number;
+  },
+  label: string,
+) {
+  let lastPayload: unknown;
+  try {
+    return await poll(label, async () => {
+      const verification = await api('POST', '/api/intel/place/verify', {
+        token: owner.accessToken,
+        body,
+        ok: [200, 503],
+      });
+      lastPayload = verification.payload;
+      assertNoMockPayload(verification.payload, `${label} payload`);
+      if (verification.status === 503) {
+        assertClearProviderUnavailable(verification.payload, label);
+        return false;
+      }
+      if (!verification.data.verified) {
+        return false;
+      }
+      expect(['google_places', 'mapbox']).toContain(verification.data.source);
+      expect(verification.data.providerPlaceId).toBeTruthy();
+      return verification;
+    }, 45_000);
+  } catch (error) {
+    throw new Error(`${label} did not return a stable provider-backed verification: ${JSON.stringify(lastPayload).slice(0, 1200)}\n${String(error)}`);
+  }
 }
 
 function isAllowedProviderUnavailable(pathname: string, status: number): boolean {

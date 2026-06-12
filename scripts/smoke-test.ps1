@@ -27,6 +27,7 @@ param(
     [string]$MetricsHealthUrl,
     [string]$MetricsUrl,
     [int]$TimeoutSeconds = 10,
+    [switch]$SkipMetricsScrape,
     [switch]$AllowInsecureTls
 )
 
@@ -413,6 +414,10 @@ $checks = @(
     }
 )
 
+if ($SkipMetricsScrape) {
+    $checks = @($checks | Where-Object { $_.Name -ne 'Scope Metrics scrape' })
+}
+
 $results = New-Object System.Collections.Generic.List[object]
 
 Write-Host ''
@@ -421,6 +426,9 @@ Write-Host ('=' * 28) -ForegroundColor DarkGray
 Write-Host "Edge base URL:    $EdgeBaseUrl"
 Write-Host "Metrics base URL: $MetricsBaseUrl"
 Write-Host "Timeout:          $TimeoutSeconds s"
+if ($SkipMetricsScrape) {
+    Write-Host "Metrics scrape:   skipped by request; metrics health remains checked"
+}
 Write-Host ''
 
 Enable-InsecureTlsIfRequested -Requested:$AllowInsecureTls

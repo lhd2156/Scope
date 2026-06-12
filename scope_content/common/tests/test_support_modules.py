@@ -150,3 +150,59 @@ def test_custom_exception_handler_supports_django_validation_errors():
     assert response.status_code == 400
     assert response.data['error']['code'] == 'VALIDATION_ERROR'
     assert {'field': 'title', 'message': 'Required from Django'} in response.data['error']['details']
+
+
+@pytest.mark.django_db
+def test_custom_exception_handler_captures_unhandled_errors_to_sentry(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeScope:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def set_tag(self, key, value):
+            captured.setdefault('tags', {})[key] = value
+
+        def set_context(self, key, value):
+            captured.setdefault('contexts', {})[key] = value
+
+    class FakeSentry:
+        def new_scope(self):
+            return FakeScope()
+
+        def capture_exception(self, exc):
+            captured['exception'] = exc
+
+    exc = ValueError('boom')
+    request = SimpleNamespace(correlation_id='trace-500', method='POST', path='/api/content/photos/')
+    monkeypatch.setattr('common.exceptions.sentry_sdk', FakeSentry())
+
+    response = custom_exception_handler(exc, {'request': request})
+
+    assert response.status_code == 500
+    assert response.data['error']['traceId'] == 'trace-500'
+    assert captured['exception'] is exc
+    assert captured['tags'] == {'correlation_id': 'trace-500'}
+    assert captured['contexts'] == {'request': {'method': 'POST', 'path': '/api/content/photos/'}}
+
+
+@pytest.mark.django_db
+def test_custom_exception_handler_does_not_capture_expected_client_errors(monkeypatch):
+    captured: list[object] = []
+
+    class FakeSentry:
+        def new_scope(self):
+            raise AssertionError('client errors should not open a Sentry scope')
+
+        def capture_exception(self, exc):
+            captured.append(exc)
+
+    monkeypatch.setattr('common.exceptions.sentry_sdk', FakeSentry())
+
+    response = custom_exception_handler(ParseError('Malformed JSON'), {'request': SimpleNamespace(correlation_id='trace-400')})
+
+    assert response.status_code == 400
+    assert captured == []

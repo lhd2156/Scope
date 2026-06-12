@@ -654,7 +654,41 @@ jobs:
                 exit 1
               fi
             done
+            for csp_source in "https://static.cloudflareinsights.com" "https://cloudflareinsights.com"; do
+              if ! grep -q "$csp_source" "$headers_file"; then
+                echo "::error::$headers_file missing Cloudflare Web Analytics CSP source: $csp_source"
+                exit 1
+              fi
+            done
           done
+
+          for csp_source in "https://static.cloudflareinsights.com" "https://cloudflareinsights.com"; do
+            if ! grep -q "$csp_source" nginx/nginx.conf; then
+              echo "::error::nginx.conf missing Cloudflare Web Analytics CSP source: $csp_source"
+              exit 1
+            fi
+          done
+
+          if ! grep -q "CANONICAL_APP_HOST = 'scopetrips.com'" scope-frontend/functions/_middleware.js; then
+            echo "::error::Cloudflare middleware must keep scopetrips.com as the canonical app host."
+            exit 1
+          fi
+          if ! grep -q "app.scopetrips.com" scope-frontend/functions/_middleware.js; then
+            echo "::error::Cloudflare middleware must keep app.scopetrips.com as a legacy redirect host."
+            exit 1
+          fi
+          if ! grep -q "API_ORIGIN = 'https://api.scopetrips.com'" 'scope-frontend/functions/api/[[path]].js'; then
+            echo "::error::Cloudflare API proxy must continue to target api.scopetrips.com."
+            exit 1
+          fi
+          if ! grep -q "Cache-Control', 'no-store'" 'scope-frontend/functions/api/[[path]].js'; then
+            echo "::error::Cloudflare API proxy responses must remain no-store."
+            exit 1
+          fi
+          if ! grep -q 'location = /index.html' scope-frontend/nginx.conf || ! grep -q 'no-store, no-cache, must-revalidate' scope-frontend/nginx.conf; then
+            echo "::error::Frontend nginx must keep index.html no-store while hashed assets stay immutable."
+            exit 1
+          fi
 
   image-sign:
     name: Build, SBOM, and sign container images

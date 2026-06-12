@@ -14,6 +14,11 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 
+try:
+    import sentry_sdk
+except ImportError:  # pragma: no cover - optional outside production/test envs
+    sentry_sdk = None
+
 
 def _format_error(code: str, message: str, details=None, trace_id=None):
     return {'error': {'code': code, 'message': message, 'details': details or [], 'traceId': trace_id}}
@@ -64,6 +69,25 @@ def _extract_validation_details(exc: ValidationError | DjangoValidationError | P
     return details
 
 
+def _capture_unhandled_exception(exc, request) -> None:
+    if sentry_sdk is None:
+        return
+
+    trace_id = getattr(request, 'correlation_id', None)
+    with sentry_sdk.new_scope() as scope:
+        if trace_id:
+            scope.set_tag('correlation_id', trace_id)
+        if request is not None:
+            scope.set_context(
+                'request',
+                {
+                    'method': getattr(request, 'method', None),
+                    'path': getattr(request, 'path', None),
+                },
+            )
+        sentry_sdk.capture_exception(exc)
+
+
 def custom_exception_handler(exc, context):
     request = context.get('request')
     trace_id = getattr(request, 'correlation_id', None)
@@ -84,4 +108,5 @@ def custom_exception_handler(exc, context):
         details = _extract_validation_details(exc)
         return Response(_format_error('VALIDATION_ERROR', 'Invalid input data', details=details, trace_id=trace_id), status=400)
 
+    _capture_unhandled_exception(exc, request)
     return Response(_format_error('INTERNAL_ERROR', 'Unexpected server error', trace_id=trace_id), status=500)
