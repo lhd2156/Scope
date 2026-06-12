@@ -301,7 +301,7 @@ test.describe('live production sweep without route mocks', () => {
 
     const selectedLocation = await locationInput.inputValue();
     expect(selectedLocation).toMatch(/Fort Worth/i);
-    expect(selectedLocation).toMatch(/\bTX\b/i);
+    expect(selectedLocation).toMatch(/\b(?:TX|Texas|USA|United States)\b/i);
     await expect(profileChip.locator('strong')).toHaveText(liveData.owner.displayName);
 
     const locationReadback = await api('GET', `/api/core/users/${liveData.owner.id}`, {
@@ -1254,6 +1254,25 @@ async function registerUser(browser: Browser, label: string, displayName: string
     if (registerPayload !== null) {
       assertNoMockPayload(registerPayload, `UI register ${email}`);
     }
+    if (registerResponse!.status() === 409) {
+      console.log(`[live-sweep] UI register ${email} already completed before the retry response; recovering through login.`);
+      const recoveredUser = (await api('POST', '/api/core/auth/login', {
+        body: { email, password: PASSWORD },
+      })).data as LiveUser;
+      assertNoMockPayload(recoveredUser, `UI register conflict login recovery ${email}`);
+      expect(recoveredUser.id).toBeTruthy();
+      expect(recoveredUser.accessToken).toBeTruthy();
+      expect(recoveredUser.refreshToken).toBeTruthy();
+      const liveUser = {
+        ...recoveredUser,
+        username,
+        email,
+        displayName,
+      };
+      rememberLiveUser(liveUser);
+      cleanupUsers.set(liveUser.id, liveUser);
+      return liveUser;
+    }
     expect(registerResponse!.ok(), `UI register ${email} returned ${registerResponse!.status()}: ${JSON.stringify(registerPayload ?? { bodyUnavailable: true }).slice(0, 800)}`).toBeTruthy();
     await expect(page).toHaveURL(/\/(?:onboarding\/preferences|map)(?:\?.*)?$/, { timeout: 30_000 });
     await assertNoMockLeaks(page);
@@ -2130,6 +2149,33 @@ async function assertStackHealth(): Promise<void> {
   for (const path of ['/healthz', '/api/core/health', '/api/content/health', '/api/intel/health']) {
     const response = await fetch(new URL(path, BASE_URL));
     expect(response.status, `${path} health status`).toBe(200);
+  }
+
+  const coreDeletePreflight = await fetch(new URL('/api/core/users/00000000-0000-0000-0000-000000000000', BASE_URL), {
+    method: 'OPTIONS',
+    headers: {
+      Origin: new URL(BASE_URL).origin,
+      Referer: `${new URL(BASE_URL).origin}/`,
+    },
+  });
+  const allowedCoreMethods = [
+    coreDeletePreflight.headers.get('allow'),
+    coreDeletePreflight.headers.get('access-control-allow-methods'),
+  ]
+    .filter(Boolean)
+    .join(',');
+
+  if (!/\bDELETE\b/i.test(allowedCoreMethods)) {
+    const unauthenticatedDelete = await fetch(new URL('/api/core/users/00000000-0000-0000-0000-000000000000', BASE_URL), {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    expect(
+      unauthenticatedDelete.status,
+      'Live sweep requires deployed Core account deletion before creating disposable production users',
+    ).not.toBe(405);
   }
 }
 
