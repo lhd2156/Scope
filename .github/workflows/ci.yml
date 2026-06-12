@@ -689,6 +689,10 @@ jobs:
             echo "::error::Frontend nginx must keep index.html no-store while hashed assets stay immutable."
             exit 1
           fi
+          if ! grep -q -- '--build --force-recreate nginx' scripts/lightsail/deploy-remote.sh; then
+            echo "::error::Compose host deploy must rebuild and force-recreate nginx so edge header/config changes reach production."
+            exit 1
+          fi
 
   image-sign:
     name: Build, SBOM, and sign container images

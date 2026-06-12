@@ -399,7 +399,7 @@ done
 
 printf '[scope-lightsail] Starting Scope application services.\n'
 compose up -d --build content intel core content-worker content-celery rag scope-metrics frontend site admin prometheus grafana
-compose up -d nginx
+compose up -d --build --force-recreate nginx
 
 wait_for_health content 900
 wait_for_health content-celery 600
