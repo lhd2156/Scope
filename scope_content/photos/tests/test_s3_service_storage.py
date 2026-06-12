@@ -99,13 +99,13 @@ def test_s3_store_upload_fetch_thumbnail_and_presign(monkeypatch):
 
 @override_settings(
     AWS_STORAGE_BUCKET_NAME="scope-bucket",
-    AWS_ACCESS_KEY_ID="",
-    AWS_SECRET_ACCESS_KEY="",
+    AWS_ACCESS_KEY_ID="legacy-access-key",
+    AWS_SECRET_ACCESS_KEY="legacy-secret-key",
     AWS_USE_IAM_ROLE=True,
     AWS_STORAGE_ENABLED=True,
     AWS_REGION="us-east-1",
 )
-def test_s3_service_can_use_instance_profile_credentials(monkeypatch):
+def test_s3_service_prefers_instance_profile_credentials(monkeypatch):
     captured_kwargs = {}
 
     class FakeClient:

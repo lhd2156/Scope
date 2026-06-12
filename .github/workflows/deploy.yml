@@ -1191,8 +1191,12 @@ jobs:
           frontend_origin="${SCOPE_APP_BASE_URL:-$SCOPE_PUBLIC_BASE_URL}"
           allowed_hosts="${SCOPE_PUBLIC_HOST},${tls_hostname},api.scopetrips.com,app.scopetrips.com,localhost,127.0.0.1,content,nginx"
           aws_use_iam_role=false
+          aws_access_key_id="${SCOPE_AWS_ACCESS_KEY_ID}"
+          aws_secret_access_key="${SCOPE_AWS_SECRET_ACCESS_KEY}"
           if [ "${{ github.event.inputs.terraform_profile }}" = "ec2-compose" ]; then
             aws_use_iam_role=true
+            aws_access_key_id=""
+            aws_secret_access_key=""
           fi
           cat > scope-compose-host.env <<EOF
           NODE_ENV=production
@@ -1240,8 +1244,8 @@ jobs:
           PHOTO_UPLOAD_ASYNC_THUMBNAILS=true
           RUN_MIGRATIONS_ON_STARTUP=true
           AWS_USE_IAM_ROLE=${aws_use_iam_role}
-          AWS_ACCESS_KEY_ID=${SCOPE_AWS_ACCESS_KEY_ID}
-          AWS_SECRET_ACCESS_KEY=${SCOPE_AWS_SECRET_ACCESS_KEY}
+          AWS_ACCESS_KEY_ID=${aws_access_key_id}
+          AWS_SECRET_ACCESS_KEY=${aws_secret_access_key}
           AWS_REGION=${AWS_REGION}
           AWS_S3_BUCKET=${PHOTOS_BUCKET_NAME}
           AWS_COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}

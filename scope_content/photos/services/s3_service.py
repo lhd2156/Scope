@@ -24,7 +24,7 @@ class S3StorageService:
         self.client = None
         if self.enabled:
             client_options = {'region_name': settings.AWS_REGION}
-            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            if not settings.AWS_USE_IAM_ROLE and settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
                 client_options.update(
                     {
                         'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
