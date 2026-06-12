@@ -229,6 +229,7 @@
                   maxlength="120"
                   placeholder="Sunset Rooftop Tacos, Costco, mural wall"
                   :aria-invalid="Boolean(errors.title) || isServerFieldHighlighted('title')"
+                  @input="handleManualPlaceInput"
                   @blur="void resolveTypedPlaceLocation()"
                 />
                 <small v-if="errors.title" class="field-error">{{ errors.title }}</small>
@@ -264,6 +265,7 @@
                   maxlength="160"
                   placeholder="Search a place or paste an address"
                   :aria-invalid="Boolean(errors.address) || isServerFieldHighlighted('location')"
+                  @input="handleManualPlaceInput"
                   @blur="void resolveTypedPlaceLocation()"
                 />
               </div>
@@ -310,6 +312,7 @@
                     maxlength="160"
                     placeholder="City name"
                     :aria-invalid="Boolean(errors.city) || isServerFieldHighlighted('location')"
+                    @input="handleManualPlaceInput"
                   />
                   <small v-if="errors.city" class="field-error">{{ errors.city }}</small>
                 </label>
@@ -323,6 +326,7 @@
                     maxlength="160"
                     placeholder="US"
                     :aria-invalid="Boolean(errors.country) || isServerFieldHighlighted('location')"
+                    @input="handleManualPlaceInput"
                   />
                   <small v-if="errors.country" class="field-error">{{ errors.country }}</small>
                 </label>
@@ -336,19 +340,20 @@
                     maxlength="32"
                     placeholder="76102"
                     :aria-invalid="Boolean(errors.postalCode) || isServerFieldHighlighted('location')"
+                    @input="handleManualPlaceInput"
                   />
                   <small v-if="errors.postalCode" class="field-error">{{ errors.postalCode }}</small>
                 </label>
 
                 <label class="field field--coordinate">
                   <span>Latitude</span>
-                  <input v-model.number="form.latitude" name="latitude" type="number" step="0.000001" />
+                  <input v-model.number="form.latitude" name="latitude" type="number" step="0.000001" @input="handleManualCoordinateInput" />
                   <small v-if="errors.latitude" class="field-error">{{ errors.latitude }}</small>
                 </label>
 
                 <label class="field field--coordinate">
                   <span>Longitude</span>
-                  <input v-model.number="form.longitude" name="longitude" type="number" step="0.000001" />
+                  <input v-model.number="form.longitude" name="longitude" type="number" step="0.000001" @input="handleManualCoordinateInput" />
                   <small v-if="errors.longitude" class="field-error">{{ errors.longitude }}</small>
                 </label>
               </div>
@@ -669,6 +674,31 @@ function markVerificationStale(): void {
   form.verifiedAt = null;
 }
 
+function clearProviderPlaceDetails(): void {
+  form.providerPlaceId = '';
+  form.providerPlaceName = '';
+  form.providerPlaceAddress = '';
+  placeVerification.providerPlaceName = '';
+  placeVerification.providerPlaceAddress = '';
+  placeVerification.source = '';
+  placeVerification.distanceMeters = null;
+}
+
+function handleManualPlaceInput(): void {
+  clearProviderPlaceDetails();
+  markVerificationStale();
+}
+
+function handleManualCoordinateInput(): void {
+  hasUserPinnedLocation.value = true;
+  clearProviderPlaceDetails();
+  markVerificationStale();
+  clearError('latitude');
+  clearError('longitude');
+  clearError('locationVerification');
+  clearServerRejectionFor(['location']);
+}
+
 function setCoordinates(latitude: number, longitude: number): void {
   form.latitude = Number(latitude.toFixed(6));
   form.longitude = Number(longitude.toFixed(6));
@@ -809,7 +839,7 @@ async function resolveTypedPlaceLocation(): Promise<void> {
   }
 
   setCoordinates(result.latitude, result.longitude);
-  applyGeocodeResultToForm(result, { overwriteTitle: true });
+  applyGeocodeResultToForm(result, { overwriteTitle: !form.title.trim() });
   clearError('address');
   clearError('city');
   clearError('country');
@@ -1261,6 +1291,9 @@ defineExpose({
           activeStepId,
           composerSteps,
           focusStep,
+          form,
+          handleManualCoordinateInput,
+          handleManualPlaceInput,
           heading,
           previewSubtitle,
           previewTitle,

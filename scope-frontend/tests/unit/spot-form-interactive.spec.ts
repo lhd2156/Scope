@@ -183,10 +183,57 @@ describe('SpotForm 2D map picker', () => {
       'costco tehama ridge US',
       expect.objectContaining({ limit: 1, preferPoi: true }),
     );
-    expect((wrapper.get('input[name="title"]').element as HTMLInputElement).value).toBe('Costco Wholesale');
+    expect((wrapper.get('input[name="title"]').element as HTMLInputElement).value).toBe('costco tehama ridge');
     expect((wrapper.get('select[name="category"]').element as HTMLSelectElement).value).toBe('shopping');
     expect(wrapper.find('.verify-button').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Verified place');
+  });
+
+  it('keeps typed place text and clears stale provider details after manual coordinate edits', async () => {
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'mapbox.stockyards',
+        latitude: 32.78987,
+        longitude: -97.34914,
+        placeName: 'Stockyards',
+        formattedAddress: 'Stockyards, Fort Worth, Texas 76164',
+        address: 'Stockyards',
+        city: 'Fort Worth',
+        country: 'US',
+        postalCode: '76164',
+        providerPlaceId: 'mapbox.stockyards',
+        precision: 'poi',
+        category: 'tourism',
+        source: 'mapbox',
+      }],
+    });
+
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: {
+          ...validInput,
+          title: '',
+          address: '',
+          city: 'Fort Worth',
+          postalCode: '',
+        },
+      },
+    });
+
+    await wrapper.get('input[name="title"]').setValue('Fort Worth Water Gardens UI Scope');
+    await wrapper.get('input[name="title"]').trigger('blur');
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    expect((wrapper.get('input[name="title"]').element as HTMLInputElement).value).toBe('Fort Worth Water Gardens UI Scope');
+    expect(coverage.form.providerPlaceId).toBe('mapbox.stockyards');
+
+    await wrapper.get('input[name="latitude"]').setValue('32.74769');
+    await wrapper.get('input[name="longitude"]').setValue('-97.32555');
+
+    expect(coverage.form.providerPlaceId).toBe('');
+    expect(coverage.form.providerPlaceName).toBe('');
+    expect(coverage.form.providerPlaceAddress).toBe('');
   });
 
   it('runs backend place checks on every map click and ignores stale pin lookup results', async () => {
