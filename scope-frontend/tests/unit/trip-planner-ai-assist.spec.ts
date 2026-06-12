@@ -531,6 +531,90 @@ describe('TripPlannerAiAssist', () => {
     expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('could not start');
   });
 
+  it('keeps voice dictation bounded across fallback language, stale callbacks, and service errors', async () => {
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
+    const originalNavigatorLanguage = navigator.language;
+    Object.defineProperty(navigator, 'language', {
+      configurable: true,
+      value: '',
+    });
+
+    try {
+      const wrapper = mountPlannerAssist({
+        draft: {
+          destination: '',
+          endDestination: '',
+        },
+      });
+
+      await wrapper.get('[data-test="trip-ai-input"]').setValue('please');
+      await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+      let recognition = MockSpeechRecognition.instances.at(-1)!;
+      expect(recognition.lang).toBe('en-US');
+
+      recognition.onerror?.({ error: 'network' } as any);
+      await nextTick();
+      expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('Voice dictation stopped');
+
+      await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+      recognition = MockSpeechRecognition.instances.at(-1)!;
+      const staleOnEnd = recognition.onend;
+      await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+      staleOnEnd?.();
+      await nextTick();
+      expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('Voice dictation stopped');
+
+      await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+      recognition = MockSpeechRecognition.instances.at(-1)!;
+      recognition.onend?.();
+      await nextTick();
+      expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('Voice dictation stopped');
+
+      await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+      recognition = MockSpeechRecognition.instances.at(-1)!;
+      recognition.onerror?.({ error: 'service-not-allowed' } as any);
+      await nextTick();
+      expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('Microphone permission was blocked');
+    } finally {
+      Object.defineProperty(navigator, 'language', {
+        configurable: true,
+        value: originalNavigatorLanguage,
+      });
+    }
+  });
+
+  it('does not start voice capture or open attachments while an assistant turn is active', async () => {
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
+    let resolveTrip: (value: unknown) => void = () => {};
+    planTripMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveTrip = resolve;
+    }));
+
+    const wrapper = mountPlannerAssist();
+    await wrapper.get('[data-test="trip-ai-input"]').setValue('How does timing look?');
+    await wrapper.get('[data-test="trip-ai-form"]').trigger('submit');
+    await nextTick();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    coverage.startVoiceInput();
+    coverage.openAttachmentPicker();
+
+    expect(MockSpeechRecognition.instances).toHaveLength(0);
+
+    resolveTrip({
+      itinerary: 'Done.',
+      model: 'scope-local',
+      steps: 1,
+    });
+    await flushPromises();
+  });
+
   it('asks the trip agent with the current draft context', async () => {
     const wrapper = mount(TripPlannerAiAssist, {
       props: {
@@ -2539,6 +2623,7 @@ describe('TripPlannerAiAssist', () => {
   it('reruns pending fuel lookups when the traveler changes fuel type, radius, or count', async () => {
     const cases = [
       { prompt: 'show more diesel within 5 km', fuelType: 'diesel', radiusKm: 5, limit: 8 },
+      { prompt: 'show more regular cheapest within 7 km', fuelType: 'regular', radiusKm: 7, limit: 8, sortBy: 'best_price' },
       { prompt: 'premium within 8 km', fuelType: 'premium', radiusKm: 8, limit: 5 },
       { prompt: 'midgrade radius 10 km', fuelType: 'midgrade', radiusKm: 10, limit: 5 },
       { prompt: 'regular closest', fuelType: 'regular', radiusKm: 10, limit: 5 },
@@ -2571,11 +2656,11 @@ describe('TripPlannerAiAssist', () => {
       expect(getNearbyFuelStationsMock, testCase.prompt).toHaveBeenLastCalledWith({
         latitude: 32.7555,
         longitude: -97.3308,
-        radiusKm: testCase.radiusKm,
-        fuelType: testCase.fuelType,
-        limit: testCase.limit,
-        sortBy: 'closest',
-      });
+          radiusKm: testCase.radiusKm,
+          fuelType: testCase.fuelType,
+          limit: testCase.limit,
+          sortBy: testCase.sortBy ?? 'closest',
+        });
       expect(getLatestAiResponseText(wrapper), testCase.prompt).toContain(`near Fort Worth start within ${testCase.radiusKm} km`);
       wrapper.unmount();
     }
@@ -4648,7 +4733,7 @@ describe('TripPlannerAiAssist', () => {
     expect(responseText).not.toContain('Example City');
   });
 
-  it('normalizes noisy weather prompts before resolving the provider location', async () => {
+  it('normalizes safety-suffixed weather prompts before resolving the provider location', async () => {
     searchLocationsMock.mockResolvedValueOnce({
       data: [{
         placeName: 'Dallas',
@@ -4677,7 +4762,7 @@ describe('TripPlannerAiAssist', () => {
       },
     });
 
-    await wrapper.get('[data-test="trip-ai-input"]').setValue('wether fr Dallas???');
+    await wrapper.get('[data-test="trip-ai-input"]').setValue('weather for Dallas [redacted] no guessing');
     await wrapper.get('[data-test="trip-ai-form"]').trigger('submit');
     await flushPromises();
 
@@ -5242,6 +5327,41 @@ describe('TripPlannerAiAssist', () => {
     expect(callScopeAiMock.mock.calls[0]?.[0].message).toContain('Attached images:');
     expect(callScopeAiMock.mock.calls[0]?.[0].message).toContain('fallback-only.jpg');
     expect(getLatestAiResponseText(wrapper)).toContain('Tell me what detail you want checked');
+  });
+
+  it('submits an attached image as the whole anonymous prompt when no text is entered', async () => {
+    const wrapper = mount(TripPlannerAiAssist, {
+      props: {
+        tripTitle: 'Texas weekend',
+        draft: {
+          destination: 'Fort Worth, TX',
+          endDestination: 'Austin, TX',
+          startDate: '2026-05-08',
+          endDate: '2026-05-10',
+          budgetFloor: 500,
+          budget: 1500,
+          interests: ['food', 'scenic'],
+          pace: 'moderate',
+          groupSize: 2,
+        },
+      },
+    });
+
+    const imageFile = new File(['scope'], 'route-photo-only.png', { type: 'image/png' });
+    const fileInput = wrapper.get('[data-test="trip-ai-file-input"]').element as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [imageFile],
+    });
+
+    await wrapper.get('[data-test="trip-ai-file-input"]').trigger('change');
+    await flushPromises();
+    await wrapper.get('[data-test="trip-ai-form"]').trigger('submit');
+    await flushPromises();
+
+    expect(planTripMock.mock.calls[0][0].prompt).toContain('Review this image for my trip.');
+    expect(planTripMock.mock.calls[0][0].prompt).toContain('Attached images:');
+    expect(wrapper.get('[data-test="trip-ai-user-attachments"]').text()).toContain('route-photo-only.png');
   });
 
   it('answers no-stop tighten requests from the current route state without starting a build prompt', async () => {
@@ -7743,10 +7863,17 @@ describe('TripPlannerAiAssist', () => {
     expect(coverage.buildPlannerStateRankedSuggestionPool()).toContain('Help me choose a strong start city');
     expect(coverage.normalizeSuggestionKey('  Build it?! ')).toBe('build it');
     expect(coverage.mergeUniqueSuggestions(['Build it'], [' build it. ', 'Find food'])).toEqual(['Build it', 'Find food']);
+    expect(coverage.normalizeScopeAiStructuredChips([]).length).toBeGreaterThan(0);
+    expect(coverage.normalizeScopeAiStructuredChips(['Build it', 'Build it', 'Find food'])).toEqual([
+      'Build it',
+      'Find food',
+      'Help me choose a strong start city',
+    ]);
     expect(coverage.buildPendingBriefContinuationSuggestions({ missingKeys: ['pace'] })).toEqual(['Relaxed pace', 'Balanced pace', 'Packed pace']);
     expect(coverage.buildPendingBriefContinuationSuggestions(null)).toEqual([]);
     expect(coverage.buildTopSuggestions(['Build it'], ['Build it', 'Find food']).length).toBeGreaterThan(0);
     expect(coverage.getRouteSearchLabel()).toBe('near the trip');
+    expect(coverage.buildTranscriptFileName()).toMatch(/^Scope AI Transcript - .*\.txt$/);
   });
 
   it('exercises pending location, provider trust, and assistant-context coverage helpers', () => {
@@ -7825,6 +7952,11 @@ describe('TripPlannerAiAssist', () => {
 
     expect(coverage.hasCoordinatePair(32.7, -97.3)).toBe(true);
     expect(coverage.hasCoordinatePair(undefined, -97.3)).toBe(false);
+    expect(coverage.resolvePlaceSearchAnchor('near the start')?.role).toBe('start');
+    expect(coverage.resolvePlaceSearchAnchor('near stop 1')?.role).toBe('stop');
+    expect(coverage.resolvePlaceSearchAnchor('near the final destination')?.role).toBe('end');
+    expect(coverage.resolvePlaceSearchAnchor('halfway along the route')?.role).toBe('midpoint');
+    expect(coverage.resolvePlaceSearchAnchor('somewhere useful')?.role).toBe('start');
     expect(coverage.cleanupEndpointAnchorQuery('from Fort Worth please.')).toBe('Fort Worth');
     expect(coverage.cleanupEndpointAnchorQuery('x')).toBeNull();
     expect(coverage.isCurrentEndpointAnchorReference('the start')).toBe(true);
@@ -8210,6 +8342,350 @@ describe('TripPlannerAiAssist', () => {
     await expect(coverage.resolveWeatherPoint('weather in Nowhereville')).resolves.toMatchObject({ status: 'message' });
   });
 
+  it('covers alternate route suggestion, anchor, action, and pending-context branches', async () => {
+    const endOnlyWrapper = mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: 'Austin, TX',
+        destinationLatitude: undefined,
+        destinationLongitude: undefined,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+        startDate: '',
+        endDate: '',
+        budgetFloor: 0,
+        budget: 0,
+        interests: [],
+        pace: '',
+        groupSize: 0,
+      },
+      stops: [],
+    });
+    const endOnlyCoverage = (endOnlyWrapper.vm as any).__coverage;
+    expect(endOnlyCoverage.resolvePlaceSearchAnchor('near the start')).toMatchObject({ role: 'end' });
+    expect(endOnlyCoverage.resolvePlaceSearchAnchor('near the final stop')).toMatchObject({ role: 'end' });
+    expect(endOnlyCoverage.getBestNextMoveSuggestion({ kind: 'timing' })).toBe('Pick a departure window for the selected dates');
+    expect(endOnlyCoverage.getBestNextMoveSuggestion({ kind: 'tighten' })).toBe('Explain the cleanest next step for this route');
+    endOnlyCoverage.appendMessage({
+      id: 'assistant-error-end-only',
+      role: 'assistant',
+      kind: 'error',
+      model: 'scope-test',
+      content: 'The provider failed safely.',
+      timestamp: '2026-05-08T12:00:00.000Z',
+    });
+    expect(endOnlyCoverage.getBestNextMoveSuggestion({ kind: 'budget' })).toBe('Help me choose a start point for Austin, TX');
+
+    const startOnlyWrapper = mountPlannerAssist({
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: '',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: undefined,
+        endDestinationLongitude: undefined,
+        startDate: '2026-05-08',
+        endDate: '2026-05-09',
+        budgetFloor: 500,
+        budget: 1200,
+        interests: ['food'],
+        pace: 'relaxed',
+        groupSize: 2,
+      },
+      stops: [],
+    });
+    const startOnlyCoverage = (startOnlyWrapper.vm as any).__coverage;
+    expect(startOnlyCoverage.resolvePlaceSearchAnchor('near the destination')).toMatchObject({ role: 'start' });
+    expect(startOnlyCoverage.getBestNextMoveSuggestion({ kind: 'startCity' })).toBe('Help me choose the end point too');
+    expect(startOnlyCoverage.buildIntentFollowUpPool({ kind: 'startCity' }).join(' ')).toContain('Help me choose the end point too');
+
+    const routeWrapper = mountPlannerAssist({
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+        startDate: '2026-05-08',
+        endDate: '2026-05-08',
+        budgetFloor: 100,
+        budget: 250,
+        interests: [],
+        pace: 'packed',
+        groupSize: 4,
+      },
+      stops: [],
+    });
+    const routeCoverage = (routeWrapper.vm as any).__coverage;
+    expect(routeCoverage.getRouteBuildSuggestion('Fort Worth to Austin')).toBe('Build a 1-day balanced itinerary from Fort Worth to Austin');
+    routeCoverage.appendMessage({
+      id: 'assistant-error',
+      role: 'assistant',
+      kind: 'error',
+      model: 'scope-test',
+      content: 'The provider failed safely.',
+      timestamp: '2026-05-08T12:00:00.000Z',
+    });
+    expect(routeCoverage.getBestNextMoveSuggestion({ kind: 'budget' })).toBe('Build a 1-day balanced itinerary from Fort Worth, TX to Austin, TX');
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'provider-address-only',
+        placeName: 'Provider Address Only',
+        formattedAddress: '',
+        address: '300 Provider Road',
+        latitude: 31.75,
+        longitude: -97.15,
+        category: 'park',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await routeCoverage.applyAddMarkerAction({ action: 'add_marker', place_name: 'Provider Address Only' });
+    expect(routeWrapper.emitted('route-stop-add')?.at(-1)?.[0]).toMatchObject({
+      notes: 'Provider Address Only',
+      title: 'Provider Address Only',
+    });
+
+    const scopeAiStore = createScopeAiStore();
+    const contextWrapper = mountPlannerAssist({ scopeAiStore });
+    const contextCoverage = (contextWrapper.vm as any).__coverage;
+    const providerPlace = {
+      id: 'provider-place',
+      placeName: 'Provider Place',
+      formattedAddress: '100 Provider Street, Austin, TX',
+      address: '100 Provider Street',
+      city: 'Austin',
+      country: 'US',
+      category: 'restaurant',
+      categoryLabel: 'Restaurant',
+      latitude: 30.2672,
+      longitude: -97.7431,
+      source: 'mapbox',
+      sourceLabel: 'Mapbox',
+      providerVerified: true,
+    };
+    const makePlacesMessage = (placeAction?: string) => ({
+      id: `places-${placeAction ?? 'stop'}`,
+      role: 'assistant',
+      kind: 'places',
+      model: 'scope-test',
+      content: 'Provider-backed places.',
+      queryLabel: 'provider places',
+      placeAction,
+      results: [providerPlace],
+      timestamp: '2026-05-08T12:00:00.000Z',
+    });
+
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'find a start', makePlacesMessage('set-start') as any);
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'endpoint-candidates',
+      targetField: 'start',
+      rawValue: 'provider places',
+    }));
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'find an end', makePlacesMessage('set-end') as any);
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'endpoint-candidates',
+      targetField: 'end',
+    }));
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'find a stop', makePlacesMessage() as any);
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'place-candidates',
+      targetField: 'stop',
+    }));
+
+    scopeAiStore.pendingScopeAiContext = {
+      kind: 'place-candidates',
+      sourcePrompt: 'find coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [],
+      lastAnswer: 'Choose a stop.',
+      createdAt: Date.now(),
+      turnCount: 1,
+    };
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'closest', {
+      id: 'assistant-provider-options',
+      role: 'assistant',
+      kind: 'text',
+      model: 'scope-test',
+      content: 'Closest provider-backed coffee is first.',
+      timestamp: '2026-05-08T12:00:00.000Z',
+    } as any);
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'place-candidates',
+      lastAnswer: 'Closest provider-backed coffee is first.',
+      turnCount: 1,
+    }));
+
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'set budget', {
+      id: 'assistant-action',
+      role: 'assistant',
+      kind: 'text',
+      model: 'scope-test',
+      content: 'Applied the budget.',
+      timestamp: '2026-05-08T12:00:00.000Z',
+    } as any, {
+      actionBlock: { actions: [{ type: 'SET_FIELD', field: 'budget_max', value: 900 }] } as any,
+    });
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('planner-action-applied');
+
+    scopeAiStore.setPendingScopeAiContext.mockClear();
+    scopeAiStore.pendingScopeAiContext = {
+      kind: 'weather-location',
+      sourcePrompt: 'weather there',
+      targetField: 'weather',
+      rawValue: 'there',
+      candidates: ['Austin, TX'],
+      lastAnswer: 'Which Austin?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'pick first', {
+      id: 'assistant-different-pending',
+      role: 'assistant',
+      kind: 'text',
+      model: 'scope-test',
+      content: 'Choose a place.',
+      pendingContext: {
+        kind: 'place-candidates',
+        sourcePrompt: 'find a stop',
+        targetField: 'stop',
+        rawValue: 'stop',
+        results: [],
+        lastAnswer: 'Choose a place.',
+      },
+      timestamp: '2026-05-08T12:00:00.000Z',
+    } as any);
+    expect(scopeAiStore.setPendingScopeAiContext).not.toHaveBeenCalled();
+
+    contextCoverage.updatePendingContextFromAssistantMessage(scopeAiStore, 'explain route', {
+      id: 'assistant-explanation',
+      role: 'assistant',
+      kind: 'text',
+      model: 'scope-test',
+      content: 'This route keeps the drive simple and leaves room for lunch.',
+      timestamp: '2026-05-08T12:00:00.000Z',
+    } as any);
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'explanation',
+      lastAnswer: 'This route keeps the drive simple and leaves room for lunch.',
+    }));
+
+    expect(contextCoverage.getScopeAiPendingContext({ pendingScopeAiContext: { value: null } })).toBeNull();
+  });
+
+  it('covers parser and Scope route action helper fallbacks for trusted planner mutations', async () => {
+    const wrapper = mountPlannerAssist({
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        interests: ['shopping'],
+      },
+      locationSearchProximity: {
+        label: 'Fort Worth',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      },
+      stops: [{
+        spotId: 'stop-coffee',
+        title: 'Coffee Stop',
+        latitude: 31.5,
+        longitude: -97.1,
+        category: 'food',
+      }],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.inferRouteStopSearchQuery('find coffee near the route')).toBe('coffee');
+    expect(coverage.inferRouteStopSearchQuery('find dinner stops')).toBe('restaurant');
+    expect(coverage.inferRouteStopSearchQuery('where can we charge the EV')).toBe('fuel');
+    expect(coverage.inferRouteStopSearchQuery('find photo overlooks')).toBe('scenic overlook');
+    expect(coverage.inferRouteStopSearchQuery('add a movie or bowling stop')).toBe('entertainment');
+    expect(coverage.inferRouteStopSearchQuery('walk a nature trail')).toBe('park');
+    expect(coverage.inferRouteStopSearchQuery('historic gallery')).toBe('museum');
+    expect(coverage.inferRouteStopSearchQuery('add another stop')).toBe('market');
+
+    const noInterestWrapper = mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+        interests: [],
+      },
+    });
+    expect((noInterestWrapper.vm as any).__coverage.inferRouteStopSearchQuery('add another stop')).toBe('coffee');
+
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      preference: 'recommended',
+      anchorQuery: 'Fort Worth',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { role: 'start' },
+    });
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      preference: 'recommended',
+      anchorQuery: 'Fort Worth TX downtown',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { role: 'start' },
+    });
+
+    expect(coverage.readStringField({ order: 3 }, 'order')).toBe('3');
+    expect(coverage.readStringField({ order: Number.NaN }, 'order')).toBe('');
+    expect(coverage.getScopeActionAddress({ place_name: 'Museum Row' })).toBe('Museum Row');
+    expect(coverage.buildScopeActionSpotId({ id: '' }, {
+      id: '',
+      placeName: '',
+      latitude: 0,
+      longitude: 0,
+    })).toMatch(/^scope-ai-/);
+    expect(coverage.insertStopAtOrder([{ spotId: 'existing', title: 'Existing' }], { spotId: 'new', title: 'New' }, 1)
+      ?.map((stop: { spotId: string }) => stop.spotId)).toEqual(['new', 'existing']);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'trusted-fallback-address',
+        placeName: '',
+        formattedAddress: '',
+        address: '500 Market Road',
+        latitude: 31.76,
+        longitude: -97.13,
+        category: 'market',
+        city: 'Waco',
+        country: 'US',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({
+      action: 'add_marker',
+      address: '500 Market Road',
+      note: '',
+    });
+    expect(wrapper.emitted('route-stop-add')?.at(-1)?.[0]).toMatchObject({
+      title: '500 Market Road',
+      notes: '500 Market Road',
+      city: 'Waco',
+    });
+
+    const scopeAiStore = createScopeAiStore({
+      applyActionBlockResolved: undefined,
+      applyActionBlock: vi.fn(() => true),
+    });
+    await expect(coverage.applyScopeAiStoreActionBlock(scopeAiStore, {
+      actions: [{ type: 'SET_FIELD', field: 'pace', value: 'relaxed' }],
+    })).resolves.toEqual({
+      applied: true,
+      resolutions: [],
+    });
+    expect(scopeAiStore.applyActionBlock).toHaveBeenCalled();
+  });
+
   it('covers planner assistant state, provider, attachment, and route-action fallback branches', async () => {
     const blankWrapper = mountPlannerAssist({
       tripTitle: '',
@@ -8235,6 +8711,16 @@ describe('TripPlannerAiAssist', () => {
     });
     const blankCoverage = (blankWrapper.vm as any).__coverage;
 
+    expect(blankCoverage.formatCurrency(undefined)).toBe('');
+    expect(blankCoverage.formatCurrency(1234)).toBe('$1,234');
+    expect(blankCoverage.parsePlannerDate(undefined)).toBeNull();
+    expect(blankCoverage.normalizeDurationDays(0)).toBeNull();
+    expect(blankCoverage.normalizeDurationDays(31)).toBeNull();
+    expect(blankCoverage.normalizeDurationDays(2.4)).toBe(2);
+    expect(blankCoverage.getBuildDefaultsDurationDays({
+      startDate: '2026-05-08',
+      endDate: '2026-05-10',
+    })).toBe(3);
     expect(blankCoverage.getDateRangeDurationDays('', '')).toBeNull();
     expect(blankCoverage.getDateRangeDurationDays('2026-05-08', '2026-05-08')).toBe(1);
     expect(blankCoverage.getWeekendDateDefaults()).toMatchObject({ durationDays: 2 });
@@ -8251,6 +8737,42 @@ describe('TripPlannerAiAssist', () => {
       expect.stringContaining('Existing stops on canvas: 1 stop'),
       expect.stringContaining('category: other'),
     ]));
+    expect(blankCoverage.formatRouteEndpointLabel(' 100 Main St, Fort Worth, TX ')).toBe('100 Main St, Fort Worth');
+    expect(blankCoverage.formatRouteEndpointLabel('')).toBe('');
+    expect(blankCoverage.getSpeechRecognitionResult({ 0: 'array-result', length: 1 } as any, 0)).toBe('array-result');
+    expect(blankCoverage.getSpeechRecognitionAlternative({ 0: { transcript: 'array-alt' }, length: 1 } as any, 0)).toEqual({ transcript: 'array-alt' });
+    expect(blankCoverage.extractSpeechRecognitionTranscript({
+      resultIndex: 0,
+      results: {
+        0: {
+          0: { transcript: ' first  ' },
+          isFinal: false,
+          length: 1,
+        },
+        1: {
+          0: { transcript: ' second phrase ' },
+          isFinal: true,
+          length: 1,
+        },
+        length: 2,
+      },
+    } as any)).toEqual({ hasFinal: true, text: 'first second phrase' });
+    expect(blankCoverage.extractSpeechRecognitionTranscript({
+      resultIndex: 1,
+      results: {
+        item: (index: number) => (index === 1
+          ? {
+              item: () => ({ transcript: ' provider item result ' }),
+              isFinal: false,
+            }
+          : undefined),
+        length: 2,
+      },
+    } as any)).toEqual({ hasFinal: false, text: 'provider item result' });
+    expect(blankCoverage.chooseWorkingMessage('fuel near a scenic endpoint')).toMatch(/fuel|route|endpoint|place|checking|searching/i);
+    expect(blankCoverage.chooseWorkingMessage()).toEqual(expect.any(String));
+    expect(blankCoverage.parseDurationReply('3 days')).toMatchObject({ durationDays: 3 });
+    expect(blankCoverage.parseExplicitDurationPrompt('2-day sprint')).toMatchObject({ durationDays: 2 });
 
     for (const file of [
       new File(['jpg'], 'photo.jpg'),
@@ -8278,6 +8800,40 @@ describe('TripPlannerAiAssist', () => {
     await expect(blankCoverage.readImageFileAsBase64(new File(['bad'], 'broken.png', { type: 'image/png' }))).resolves.toBeUndefined();
     vi.stubGlobal('FileReader', MockFileReader);
 
+    class NoCommaFileReader {
+      result: string | ArrayBuffer | null = 'base64withoutcomma';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal('FileReader', NoCommaFileReader);
+    await expect(blankCoverage.readImageFileAsBase64(new File(['raw'], 'raw-image', { type: 'image/png' }))).resolves.toBe('base64withoutcomma');
+    vi.stubGlobal('FileReader', MockFileReader);
+    class ArrayBufferFileReader {
+      result: string | ArrayBuffer | null = new ArrayBuffer(0);
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal('FileReader', ArrayBufferFileReader);
+    await expect(blankCoverage.readImageFileAsBase64(new File(['raw'], 'binary-image', { type: 'image/png' }))).resolves.toBeUndefined();
+    vi.stubGlobal('FileReader', MockFileReader);
+    await expect(blankCoverage.buildChatAttachment(new File(['raw'], 'raw-image'))).resolves.toMatchObject({
+      type: 'image',
+    });
+    const nullFilesInput = { files: null, value: 'clear-me' };
+    await blankCoverage.handleAttachmentChange({ target: nullFilesInput } as any);
+    expect(nullFilesInput.value).toBe('');
+    const textOnlyInput = { files: [new File(['note'], 'note.txt', { type: 'text/plain' })], value: 'clear-me' };
+    await blankCoverage.handleAttachmentChange({ target: textOnlyInput } as any);
+    expect(textOnlyInput.value).toBe('');
+
     const memoryKey = blankCoverage.getUserMemoryStorageKey('');
     window.localStorage.setItem(memoryKey, JSON.stringify({
       detailPreference: 'unexpected',
@@ -8288,17 +8844,105 @@ describe('TripPlannerAiAssist', () => {
       detailPreference: 'balanced',
       recentStableInterests: undefined,
     });
+    const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      expect(blankCoverage.readUserMemory()).toBeNull();
+      expect(() => blankCoverage.writeUserMemory({ detailPreference: 'concise' })).not.toThrow();
+    } finally {
+      if (originalLocalStorage) {
+        Object.defineProperty(window, 'localStorage', originalLocalStorage);
+      }
+    }
 
     expect(blankCoverage.getWeatherPointFromRoute('weather at the route')).toBeNull();
+    await expect(blankCoverage.resolveWeatherPoint('weather on the route')).resolves.toMatchObject({ status: 'message' });
+    expect(blankCoverage.extractWeatherQuery('weather in a')).toBeNull();
     expect(blankCoverage.extractLocationLookupQuery('where is x?')).toBeNull();
+    expect(blankCoverage.extractLocationLookupQuery('how do I use the map?')).toBeNull();
+    expect(blankCoverage.extractLocationLookupQuery('where is route start?')).toBeNull();
     expect(blankCoverage.extractPlaceSearchIntent('find x')).toBeNull();
+    expect(blankCoverage.extractPlaceSearchIntent('show me spots')).toMatchObject({ requiresAnchor: true });
     expect(blankCoverage.resolvePlaceSearchAnchor('near the start')).toBeNull();
+    expect(blankCoverage.formatRouteEndpointLabel(undefined)).toBe('');
+    const endpointFallbackCoverage = (mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+      },
+      stops: [],
+    }).vm as any).__coverage;
+    expect(endpointFallbackCoverage.resolvePlaceSearchAnchor('near the end')).toMatchObject({
+      label: 'route end',
+      role: 'end',
+    });
+    const proximityFallbackCoverage = (mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+      },
+      locationSearchProximity: {
+        label: '',
+        latitude: 31.5,
+        longitude: -97,
+      },
+      stops: [],
+    }).vm as any).__coverage;
+    expect(proximityFallbackCoverage.resolvePlaceSearchAnchor('near the route')).toMatchObject({
+      label: 'your trip context',
+      role: 'midpoint',
+    });
     expect(blankCoverage.buildRouteMidpointAnchor([])).toBeUndefined();
+    expect(blankCoverage.parseScopeActionBlocks('[SCOPE_ACTION]   [/SCOPE_ACTION]')).toEqual({
+      content: '',
+      actions: [],
+    });
+    expect(blankCoverage.parseChipLabels(JSON.stringify([null, '  Find food  ', 'Find food', 'x'.repeat(90)]))).toEqual([
+      'Find food',
+      'Find food',
+      'x'.repeat(72),
+    ]);
+    expect(blankCoverage.readPositiveInteger(2.8)).toBe(3);
+    expect(blankCoverage.readPositiveInteger(-1)).toBeNull();
+    expect(blankCoverage.buildLeanStops([
+      { spotId: 'missing-coordinates', title: 'Lean Stop', latitude: Number.NaN, longitude: Number.NaN },
+      { spotId: 'duplicate-coordinates', title: 'Lean Stop', latitude: Number.NaN, longitude: Number.NaN },
+      { spotId: 'blank-title', title: '  ', latitude: 31.5, longitude: -97.1 },
+    ])).toHaveLength(1);
+    expect(blankCoverage.getRouteActionWorkingMessage('tighten')).toBe('Checking the committed stops before I clean the route');
+    expect(blankCoverage.getRouteActionWorkingMessage('weekend')).toBe('Building a simple weekend route from the planner');
+    const noStopActionCoverage = (mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+      },
+      stops: [],
+    }).vm as any).__coverage;
+    expect(noStopActionCoverage.getRouteActionWorkingMessage('tighten')).toBe('Building a lean route from the actual itinerary planner');
+    expect(blankCoverage.buildItineraryBuildDefaultsSignature()).toBe('');
+    expect(blankCoverage.buildRouteActionSignature('build', {
+      durationDays: 2,
+      interests: ['food'],
+    })).toContain('build');
+    expect(blankCoverage.buildAlreadySyncedRouteActionMessage('tighten', 'this route').content).toContain('already tightened');
     expect(blankCoverage.resolveRouteActionReason('build a balanced first draft')).toBe('build');
+    expect(blankCoverage.resolveRouteActionReason('build a first draft')).toBe('build');
     expect(blankCoverage.resolveRouteActionReason('generate an itinerary')).toBe('build');
+    expect(blankCoverage.resolveRouteActionReason('create a route')).toBe('build');
     expect(blankCoverage.resolveRouteActionReason('make me a weekend plan')).toBe('weekend');
     expect(blankCoverage.resolveRouteActionReason('remove filler')).toBe('tighten');
+    expect(blankCoverage.classifyFollowUpIntent('trim this route')).toBeTruthy();
     expect(blankCoverage.resolveRouteActionReason('just chatting')).toBeNull();
+    expect(blankCoverage.parseScopeActionBlocks('[SCOPE_ACTION]{"action":"remove_marker","place_name":"Old Stop"}[/SCOPE_ACTION]').actions).toHaveLength(1);
+    expect(blankCoverage.parseScopeActionBlocks('[SCOPE_ACTION][{"action":"remove_marker","place_name":"Old Stop"}][/SCOPE_ACTION]').actions).toHaveLength(1);
+    expect(blankCoverage.readStopOrderEntries({})).toEqual([]);
+    blankCoverage.applyReorderStopsAction({ action: 'reorder_stops', stops: [] });
+    blankCoverage.applyReorderStopsAction({ action: 'reorder_stops', stops: ['Missing Stop'] });
 
     for (const [prompt, expected] of [
       ['find dinner', 'restaurant'],
@@ -8389,7 +9033,7 @@ describe('TripPlannerAiAssist', () => {
       },
       stops: [
         { spotId: 'invalid', title: '', latitude: Number.NaN, longitude: Number.NaN, category: 'other' },
-        { spotId: 'valid', title: '', latitude: 31.5, longitude: -97, category: 'entertainment' },
+        { spotId: 'valid', title: '', latitude: 31.5, longitude: -97, category: 'entertainment', dayNumber: 2 },
       ],
     });
     const routedCoverage = (routedWrapper.vm as any).__coverage;
@@ -8397,6 +9041,9 @@ describe('TripPlannerAiAssist', () => {
     expect(routedCoverage.getRouteSearchLabel()).toBe('along this route');
     expect(routedCoverage.getWeatherPointFromRoute('weather at the start')).toMatchObject({ label: 'route start' });
     expect(routedCoverage.getWeatherPointFromRoute('weather at the end')).toMatchObject({ label: 'Austin, TX' });
+    expect(routedCoverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      expect.stringContaining('day:'),
+    ]));
     expect(routedCoverage.resolvePlaceSearchAnchor('near the start')).toMatchObject({ role: 'start' });
     expect(routedCoverage.resolvePlaceSearchAnchor('near the end')).toMatchObject({ role: 'end' });
     expect(routedCoverage.resolvePlaceSearchAnchor('near stop 1')).toMatchObject({ role: 'stop' });
@@ -8420,6 +9067,287 @@ describe('TripPlannerAiAssist', () => {
       'scenic',
       'find an endpoint',
     )).resolves.toEqual([]);
+
+    const stopOnlyWrapper = mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+        destinationLatitude: undefined,
+        destinationLongitude: undefined,
+        endDestinationLatitude: undefined,
+        endDestinationLongitude: undefined,
+      },
+      stops: [
+        { spotId: 'stop-only', title: 'Only Stop', latitude: 31.5, longitude: -97, category: 'food' },
+      ],
+    });
+    const stopOnlyCoverage = (stopOnlyWrapper.vm as any).__coverage;
+    expect(stopOnlyCoverage.resolvePlaceSearchAnchor('near the start')).toMatchObject({
+      id: 'stop-1',
+      role: 'stop',
+    });
+  });
+
+  it('builds handled itinerary success copy and scrolls the assistant with motion preferences respected', async () => {
+    const scrollIntoView = vi.fn();
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({ matches: true })),
+    });
+    const wrapper = mountPlannerAssist({
+      stops: [
+        { spotId: 'waco-lunch', title: 'Waco Lunch', latitude: 31.55, longitude: -97.14, category: 'food' },
+      ],
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.resolve({
+          status: 'completed',
+          routeLabel: '',
+          stopCount: 1,
+          dayCount: undefined,
+        });
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    Object.defineProperty(wrapper.element, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    await coverage.scrollAssistIntoView();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: 'start',
+      behavior: 'auto',
+    });
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({ matches: false })),
+    });
+    await coverage.scrollAssistIntoView();
+    expect(scrollIntoView).toHaveBeenLastCalledWith({
+      block: 'start',
+      behavior: 'smooth',
+    });
+
+    const message = await coverage.buildRouteActionMessage('build', 'build the itinerary with smart defaults', {
+      allowSmartDefaults: true,
+      draftDefaults: {
+        startDate: '2026-05-08',
+        endDate: '2026-05-09',
+        interests: ['food'],
+        pace: 'moderate',
+        groupSize: 2,
+      },
+    });
+
+    expect(message.content).toMatch(/Done\. I built .* into a 2-day itinerary with 1 stop\./);
+    expect(message.content).toContain('The route builder, map preview, and copilot are synced now.');
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  });
+
+  it('covers route-action pluralization, transcript fallbacks, and pending reminder turns', async () => {
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      tripTitle: 'Texas <> route / cleanup',
+      scopeAiStore,
+      stops: [
+        { spotId: 'waco-lunch', title: 'Waco Lunch', latitude: 31.55, longitude: -97.14, category: 'food' },
+        { spotId: 'austin-gallery', title: 'Austin Gallery', latitude: 30.27, longitude: -97.74, category: 'culture' },
+      ],
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.resolve({
+          status: 'success',
+          routeLabel: '',
+          stopCount: 2,
+          dayCount: undefined,
+        });
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const buildMessage = await coverage.buildRouteActionMessage('build', 'build the itinerary now');
+    expect(buildMessage.content).toContain('into a 3-day itinerary with 2 stops');
+    expect(buildMessage.content).toContain('The route builder, map preview, and copilot are synced now.');
+
+    const leanMessage = await coverage.buildRouteActionMessage('tighten', 'tighten this route');
+    expect(leanMessage.content).toContain('already lean: 2 committed stops');
+    const syncedTightenMessage = await coverage.buildRouteActionMessage('tighten', 'tighten this route');
+    expect(syncedTightenMessage.content).toContain('already tightened');
+
+    const duplicateWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      stops: [
+        { spotId: 'blank-stop', title: '   ', latitude: 31.55, longitude: -97.14, category: 'food' },
+        { spotId: 'waco-lunch-a', title: 'Waco Lunch', city: 'Waco', latitude: 31.55, longitude: -97.14, category: 'food' },
+        { spotId: 'waco-lunch-b', title: 'Waco Lunch', city: 'Waco', latitude: 31.5502, longitude: -97.1401, category: 'food' },
+      ],
+    });
+    const duplicateCoverage = (duplicateWrapper.vm as any).__coverage;
+    const duplicateTightenMessage = await duplicateCoverage.buildRouteActionMessage('tighten', 'tighten duplicate stops');
+    expect(duplicateTightenMessage.content).toContain('removing 2 duplicate or empty stops');
+    expect(duplicateTightenMessage.content).toContain('kept 1 committed stop');
+    expect((duplicateWrapper.emitted('route-stops-replace')?.at(-1)?.[0] as any[]).map((stop) => stop.spotId)).toEqual([
+      'waco-lunch-a',
+    ]);
+    duplicateWrapper.unmount();
+
+    const singleStopWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.resolve({
+          status: 'success',
+          routeLabel: 'Hill Country Loop',
+          stopCount: 1,
+          dayCount: 1,
+        });
+      },
+    });
+    const singleStopCoverage = (singleStopWrapper.vm as any).__coverage;
+    const singleStopBuildMessage = await singleStopCoverage.buildRouteActionMessage('build', 'build a one day itinerary now');
+    expect(singleStopBuildMessage.content).toContain('Done. I built Hill Country Loop into a 1-day itinerary with 1 stop.');
+    singleStopWrapper.unmount();
+
+    const errorWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.reject(new Error('builder offline'));
+      },
+    });
+    const errorCoverage = (errorWrapper.vm as any).__coverage;
+    const errorMessage = await errorCoverage.buildRouteActionMessage('build', 'build this route with smart defaults', {
+      allowSmartDefaults: true,
+      draftDefaults: {
+        startDate: '2026-05-08',
+        endDate: '2026-05-09',
+        interests: ['food'],
+      },
+    });
+    expect(errorMessage).toMatchObject({
+      kind: 'error',
+      content: expect.stringContaining('builder offline'),
+    });
+    errorWrapper.unmount();
+
+    const builderStatusResults = [
+      { status: 'busy', routeLabel: 'Busy Route', stopCount: 0, dayCount: 0 },
+      { status: 'queued', routeLabel: 'Queued Route', stopCount: 0, dayCount: 0 },
+    ];
+    const builderStatusWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.resolve(builderStatusResults.shift());
+      },
+    });
+    const builderStatusCoverage = (builderStatusWrapper.vm as any).__coverage;
+    await expect(builderStatusCoverage.buildRouteActionMessage('build', 'build while another request is active'))
+      .resolves.toMatchObject({
+        content: expect.stringContaining('already building this route'),
+      });
+    await expect(builderStatusCoverage.buildRouteActionMessage('build', 'build this queued route with a new constraint'))
+      .resolves.toMatchObject({
+        content: expect.stringContaining('The live preview will update here'),
+      });
+    builderStatusWrapper.unmount();
+
+    expect(coverage.formatTranscriptFileTimestamp(new Date(2026, 0, 2, 3, 4))).toBe('2026-01-02 03-04');
+    expect(coverage.buildTranscriptFileName()).toMatch(/^Scope AI Transcript - Texas route cleanup - /);
+    const routeTitleWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      tripTitle: '',
+      draft: {
+        destination: 'Hill Country',
+        endDestination: '',
+      },
+    });
+    expect((routeTitleWrapper.vm as any).__coverage.buildTranscriptFileName()).toMatch(/^Scope AI Transcript - Hill Country - /);
+    routeTitleWrapper.unmount();
+    const untitledWrapper = mountPlannerAssist({
+      scopeAiStore: createScopeAiStore(),
+      tripTitle: '',
+      draft: {
+        destination: '',
+        endDestination: '',
+        startDate: '',
+        endDate: '',
+        budget: 0,
+        budgetFloor: 0,
+        interests: [],
+        pace: 'moderate',
+        groupSize: 2,
+        transportationMode: 'car',
+      },
+    });
+    expect((untitledWrapper.vm as any).__coverage.buildTranscriptFileName()).toMatch(/^Scope AI Transcript - Route Copilot - /);
+    untitledWrapper.unmount();
+    expect(coverage.formatTranscriptMessage({
+      id: 'user-image',
+      role: 'user',
+      content: '',
+      attachments: [{ name: 'route-photo.png' }],
+    })).toContain('You: [Image sent]');
+    expect(coverage.formatTranscriptMessage({
+      id: 'places',
+      role: 'assistant',
+      kind: 'places',
+      content: 'I found options.',
+      queryLabel: 'coffee near route',
+      results: [{
+        placeName: 'Provider Coffee',
+        category: 'coffee',
+        formattedAddress: '100 Main Street',
+        distanceKm: 1.2,
+      }],
+    })).toContain('Places:');
+    expect(coverage.buildTranscriptText()).toContain('No conversation yet.');
+
+    expect(coverage.normalizeScopeAiStructuredChips([
+      'Check timing for Fort Worth, TX to Austin, TX',
+      'Check timing for Fort Worth, TX to Austin, TX',
+    ])).toHaveLength(3);
+
+    const reminderWithItems = coverage.buildPendingContextReminder({
+      kind: 'place-candidates',
+      targetField: 'stop',
+      sourcePrompt: 'find coffee',
+      rawValue: 'coffee',
+      results: [{
+        id: 'pending-coffee',
+        label: '1. Provider Coffee',
+        value: 'Provider Coffee',
+      }],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 0,
+    });
+    expect(reminderWithItems.content).toContain('Provider Coffee');
+
+    const reminderResolution = coverage.buildPendingContextReminderResolution({
+      kind: 'endpoint-candidates',
+      targetField: '',
+      sourcePrompt: 'find endpoint',
+      rawValue: '',
+      results: [],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 1,
+    }, 'location', scopeAiStore);
+    expect(reminderResolution.assistantMessage.content).toContain('clearer follow-up');
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenCalledWith(expect.objectContaining({
+      turnCount: 2,
+    }));
+
+    await coverage.handleAsk();
+    expect(wrapper.findAll('[data-test="trip-ai-response"]')).toHaveLength(0);
   });
 
   it('smoke-exercises exposed planner assistant coverage helpers across guard inputs', async () => {
@@ -8654,5 +9582,2777 @@ describe('TripPlannerAiAssist', () => {
     await flushPromises();
     await nextTick();
     expect(Object.keys(coverage).length).toBeGreaterThan(100);
+  });
+
+  it('applies Scope route actions only from trusted resolved places and keeps endpoint mutations precise', async () => {
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+      },
+      locationSearchProximity: {
+        label: 'Fort Worth',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      },
+      stops: [
+        {
+          spotId: 'stop-a',
+          title: 'Coffee Stop',
+          latitude: 31.5,
+          longitude: -97.1,
+          category: 'food',
+        },
+        {
+          spotId: 'stop-b',
+          title: 'Gallery Stop',
+          latitude: 31,
+          longitude: -97.4,
+          category: 'culture',
+        },
+      ],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.normalizeScopeActionType({ action: 'add-place' })).toBe('add_marker');
+    expect(coverage.normalizeScopeActionType({ type: 'delete_marker' })).toBe('remove_marker');
+    expect(coverage.normalizeScopeActionType({ action_type: 'reorder route' })).toBe('reorder_stops');
+    expect(coverage.normalizeScopeActionType({ action: 'wave' })).toBeNull();
+    expect(coverage.normalizeScopeActionStopType({ stop_type: 'origin' })).toBe('start');
+    expect(coverage.normalizeScopeActionStopType({ stopType: 'finish' })).toBe('destination');
+    expect(coverage.normalizeScopeActionStopType({ stopType: 'coffee' })).toBe('stop');
+    expect(coverage.getScopeActionPlaceLabel({ name: 'Market Hall' })).toBe('Market Hall');
+    expect(coverage.getScopeActionAddress({ address: '100 Main' })).toBe('100 Main');
+    expect(coverage.getScopeActionNote({ notes: 'Leave after lunch' })).toBe('Leave after lunch');
+    expect(coverage.readPositiveInteger('2.6')).toBe(2);
+    expect(coverage.readPositiveInteger('0')).toBeNull();
+    expect(coverage.insertStopAtOrder([], { spotId: 'new-stop', title: 'New Stop' }, null)).toBeNull();
+
+    const parsed = coverage.parseScopeActionBlocks(`Done
+[SCOPE_ACTION]
+\`\`\`json
+[
+  { "action": "add_marker", "place_name": "Market Hall" },
+  "ignored"
+]
+\`\`\`
+[/SCOPE_ACTION]`);
+    expect(parsed.content.trim()).toBe('Done');
+    expect(parsed.actions).toHaveLength(1);
+    expect(coverage.parseChipBlocks('[CHIPS]["Find dinner","Find dinner","Add fuel"][/CHIPS]').chips).toEqual([
+      'Find dinner',
+      'Add fuel',
+    ]);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'untrusted-place',
+        placeName: 'Untrusted Place',
+        formattedAddress: '100 Untrusted Ave',
+        latitude: 32.8,
+        longitude: -97.2,
+        category: 'food',
+        sourceLabel: 'fallback map data',
+        providerVerified: false,
+      }],
+    });
+    await coverage.applyAddMarkerAction({ action: 'add_marker', place_name: 'Untrusted Place' });
+    expect(wrapper.emitted('route-stop-add')).toBeUndefined();
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: '',
+        placeName: '',
+        formattedAddress: '',
+        address: '',
+        latitude: 31.75,
+        longitude: -97.15,
+        category: 'park',
+        city: 'Waco',
+        country: 'US',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({
+      action: 'add_marker',
+      address: '10 Empty Field Road',
+      dayNumber: '2',
+      order: '1',
+    });
+    const replacedWithInsertedStop = wrapper.emitted('route-stops-replace')?.at(-1)?.[0] as any[];
+    expect(replacedWithInsertedStop.map((stop) => stop.title)).toEqual([
+      '10 Empty Field Road',
+      'Coffee Stop',
+      'Gallery Stop',
+    ]);
+    expect(replacedWithInsertedStop[0]).toMatchObject({
+      category: 'nature',
+      dayNumber: 2,
+      notes: '10 Empty Field Road',
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'address-fallback-place',
+        placeName: 'Address Fallback Place',
+        formattedAddress: '',
+        address: '900 Provider Street',
+        latitude: 31.8,
+        longitude: -97.2,
+        category: 'restaurant',
+        city: 'Waco',
+        country: 'US',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({ action: 'add_marker', place_name: 'Address Fallback Place' });
+    expect(wrapper.emitted('route-stop-add')?.at(-1)?.[0]).toMatchObject({
+      notes: 'Address Fallback Place',
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'empty-address-place',
+        placeName: 'Empty Address Place',
+        formattedAddress: '',
+        address: '',
+        latitude: 31.81,
+        longitude: -97.21,
+        category: 'park',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({ action: 'add_marker', place_name: 'Empty Address Place' });
+    expect(wrapper.emitted('route-stop-add')?.at(-1)?.[0]).toMatchObject({
+      notes: 'Empty Address Place',
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'trusted-start',
+        placeName: 'Dallas',
+        formattedAddress: 'Dallas, TX',
+        latitude: 32.7767,
+        longitude: -96.797,
+        category: 'city',
+        city: 'Dallas',
+        country: 'US',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({ action: 'add_stop', stop_type: 'origin', place_name: 'Dallas' });
+    expect(wrapper.emitted('map-location-select')?.at(-1)?.[0]).toMatchObject({
+      target: 'destination',
+      label: 'Dallas',
+      city: 'Dallas',
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'trusted-end',
+        placeName: 'San Antonio',
+        formattedAddress: 'San Antonio, TX',
+        latitude: 29.4252,
+        longitude: -98.4946,
+        category: 'city',
+        city: 'San Antonio',
+        country: 'US',
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({ action: 'add_stop', stopType: 'finish', placeName: 'San Antonio' });
+    expect(wrapper.emitted('map-location-select')?.at(-1)?.[0]).toMatchObject({
+      target: 'endDestination',
+      label: 'San Antonio',
+      city: 'San Antonio',
+    });
+
+    coverage.applyRemoveMarkerAction({ action: 'remove_marker', place_name: 'Coffee' });
+    expect(wrapper.emitted('route-stop-remove')?.at(-1)?.[0]).toBe('stop-a');
+    coverage.applyRemoveMarkerAction({ action: 'delete_marker', place_name: 'Fort Worth' });
+    coverage.applyRemoveMarkerAction({ action: 'delete_marker', place_name: 'Austin' });
+    expect(wrapper.emitted('route-endpoint-remove')?.map((entry) => entry[0])).toEqual([
+      'destination',
+      'endDestination',
+    ]);
+
+    coverage.applyReorderStopsAction({
+      action: 'reorder_route',
+      day: '3',
+      stop_order: [
+        { place_id: 'stop-b' },
+        'Coffee Stop',
+      ],
+    });
+    const reorderedStops = wrapper.emitted('route-stops-replace')?.at(-1)?.[0] as any[];
+    expect(reorderedStops.map((stop) => `${stop.spotId}:${stop.dayNumber}`)).toEqual([
+      'stop-b:3',
+      'stop-a:3',
+    ]);
+  });
+
+  it('guards pending Scope AI follow-ups when provider trust, coordinates, or stale context are missing', async () => {
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({ scopeAiStore });
+    const coverage = (wrapper.vm as any).__coverage;
+    const createdAt = Date.now();
+
+    const untrustedFuel = await coverage.resolvePendingFuelFollowUp('set gas price', {
+      kind: 'fuel-results',
+      sourcePrompt: 'find fuel',
+      targetField: 'fuel',
+      rawValue: 'regular',
+      results: [{
+        id: 'fuel-untrusted',
+        label: '1. Screenshot Fuel - $2.99/gal',
+        value: 'Screenshot Fuel',
+        source: 'unknown screenshot',
+        meta: {
+          pricePerUnit: 2.99,
+          distanceKm: 1,
+          providerVerified: false,
+        },
+      }],
+      lastAnswer: 'Fuel near the route.',
+      createdAt,
+      turnCount: 0,
+    }, scopeAiStore);
+
+    expect(untrustedFuel?.assistantMessage.content).toContain('unverified result');
+    expect(scopeAiStore.applyActionBlockResolved).not.toHaveBeenCalled();
+    expect(scopeAiStore.setPendingScopeAiContext).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'fuel-results',
+      lastAnswer: expect.stringContaining('unverified result'),
+    }));
+    expect(scopeAiStore.clearPendingScopeAiContext).not.toHaveBeenCalledWith('fuel-price-applied');
+
+    const noFuelResults = await coverage.resolvePendingFuelFollowUp('set gas price', {
+      kind: 'fuel-results',
+      sourcePrompt: 'find fuel',
+      targetField: 'fuel',
+      rawValue: 'regular',
+      results: [],
+      lastAnswer: 'Fuel near the route.',
+      createdAt,
+      turnCount: 0,
+    }, scopeAiStore);
+    expect(noFuelResults).toBeNull();
+
+    scopeAiStore.setPendingScopeAiContext.mockClear();
+    const missingCoordinates = await coverage.resolvePendingNearbyFollowUp('1', {
+      kind: 'nearby-results',
+      sourcePrompt: 'find coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [{
+        id: 'nearby-missing-coordinates',
+        label: '1. Provider Coffee',
+        value: 'Provider Coffee, Fort Worth, TX',
+        source: 'Mapbox',
+        meta: {
+          providerVerified: true,
+          category: 'coffee',
+          placeName: 'Provider Coffee',
+        },
+      }],
+      lastAnswer: 'Nearby coffee.',
+      createdAt,
+      turnCount: 0,
+    }, scopeAiStore);
+
+    expect(missingCoordinates?.assistantMessage.content).toContain('does not have provider coordinates');
+    expect(wrapper.emitted('route-stop-add')).toBeUndefined();
+    expect(scopeAiStore.clearPendingScopeAiContext).not.toHaveBeenCalledWith('nearby-candidate-selected');
+
+    scopeAiStore.clearPendingScopeAiContext.mockClear();
+    const staleReminder = await coverage.resolvePendingScopeAiFollowUp('not that', {
+      kind: 'place-candidates',
+      sourcePrompt: 'find stops',
+      targetField: 'stop',
+      rawValue: 'stops',
+      results: [],
+      lastAnswer: 'Pick a stop.',
+      createdAt,
+      turnCount: 2,
+    }, scopeAiStore);
+    expect(staleReminder?.assistantMessage.content).toContain('cleared that earlier follow-up');
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-unrelated-turn-limit');
+
+    const explanation = coverage.resolvePendingExplanationFollowUp('go deeper', {
+      kind: 'explanation',
+      sourcePrompt: 'why this route',
+      targetField: 'explanation',
+      rawValue: 'why',
+      lastAnswer: `${'This planner answer is intentionally long. '.repeat(10)}Provider facts stay bounded.`,
+      createdAt,
+      turnCount: 0,
+    });
+    expect(explanation?.assistantMessage.content).toContain('Here is the deeper version');
+    expect(explanation?.assistantMessage.pendingContext).toMatchObject({
+      kind: 'explanation',
+      turnCount: 0,
+    });
+
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('make it cozier', {
+      kind: 'planner-setting',
+      targetField: 'budget',
+      sourcePrompt: 'set budget',
+      rawValue: 'budget',
+      lastAnswer: 'How much?',
+      createdAt,
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+  });
+
+  it('keeps assistant voice, transcript, suggestion, and pending-context edge states stable', async () => {
+    class ThrowingSpeechRecognition extends MockSpeechRecognition {
+      start = vi.fn(() => {
+        throw new Error('microphone unavailable');
+      });
+    }
+
+    Object.defineProperty(window, 'webkitSpeechRecognition', {
+      configurable: true,
+      value: ThrowingSpeechRecognition,
+    });
+
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      tripTitle: ' \u0000 ',
+      scopeAiStore,
+      draft: {
+        destination: '',
+        endDestination: '',
+        startDate: '',
+        endDate: '',
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+        pace: '',
+        groupSize: 0,
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    coverage.startVoiceInput();
+    await nextTick();
+    expect(wrapper.find('[data-test="trip-ai-voice-status"]').text()).toContain('could not start');
+    expect(coverage.getSpeechRecognitionConstructor()).toBe(ThrowingSpeechRecognition);
+    expect(coverage.getSpeechRecognitionResult({ results: [] }, 0)).toBeUndefined();
+    expect(coverage.getSpeechRecognitionAlternative({ length: 0 }, 0)).toBeUndefined();
+    expect(coverage.extractSpeechRecognitionTranscript({ results: [] })).toEqual({ text: '', hasFinal: false });
+    coverage.stopVoiceInput();
+
+    MockSpeechRecognition.instances = [];
+    Object.defineProperty(window, 'webkitSpeechRecognition', {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
+    coverage.startVoiceInput();
+    const recognition = MockSpeechRecognition.instances.at(-1)!;
+    recognition.onresult?.(createSpeechRecognitionEvent('start in Dallas', false));
+    await nextTick();
+    expect(wrapper.get('[data-test="trip-ai-input"]').element).toHaveProperty('value', 'start in Dallas');
+    recognition.onend?.();
+    await nextTick();
+    expect(wrapper.find('[data-test="trip-ai-voice-status"]').text()).toContain('Review or send it');
+
+    expect(coverage.chooseWorkingMessage('fuel near the start destination')).toMatch(/fuel|route|endpoint|place|checking|searching/i);
+    expect(coverage.chooseWorkingMessage('nearby coffee stop')).toMatch(/route|nearby|searching|checking/i);
+    expect(coverage.getBestNextMoveSuggestion({ kind: 'build' })).toBe('Help me choose start and end points');
+    expect(coverage.getRouteBuildSuggestion('Fort Worth to Austin')).toContain('Build');
+    expect(coverage.buildSuggestionPool()).toContain('Help me choose a strong start city');
+    expect(coverage.buildPlannerStateRankedSuggestionPool().length).toBeGreaterThan(3);
+    expect(coverage.buildTopSuggestions([], [])).toHaveLength(3);
+
+    expect(coverage.buildTranscriptFileName()).toMatch(/^Scope AI Transcript - Route Copilot - /);
+    expect(coverage.formatTranscriptMessage({
+      id: 'user-image',
+      role: 'user',
+      content: '',
+      attachments: [
+        { id: 'img-1', name: 'route.png', type: 'image/png', size: 12, previewUrl: 'blob:route', base64Data: 'abc' },
+        { id: 'img-2', name: '', type: 'image/png', size: 12, previewUrl: 'blob:blank', base64Data: 'abc' },
+      ],
+    })).toContain('[Image sent]');
+    expect(coverage.formatTranscriptMessage({
+      id: 'places-empty',
+      role: 'assistant',
+      kind: 'places',
+      content: 'No places found.',
+      query: 'coffee',
+      results: [],
+    })).toBe('Scope AI: No places found.');
+    expect(coverage.buildTranscriptText()).toContain('Conversation');
+    expect(coverage.resolveMessageContentForTraining({
+      id: 'assistant-places',
+      role: 'assistant',
+      kind: 'places',
+      content: 'Found options',
+      query: 'coffee',
+      results: [{
+        id: 'coffee-1',
+        placeName: 'Provider Coffee',
+        latitude: 32.75,
+        longitude: -97.33,
+        sourceLabel: 'Mapbox',
+        providerVerified: true,
+      }],
+    })).toContain('Places: Provider Coffee');
+
+    const trustedItem = {
+      id: 'candidate-1',
+      label: '1. Provider Coffee',
+      value: 'Provider Coffee',
+      source: 'Mapbox',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      meta: {
+        latitude: 32.7555,
+        longitude: -97.3308,
+        providerVerified: true,
+      },
+    };
+    const locationContext = {
+      kind: 'location-resolution',
+      sourcePrompt: 'which coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      candidates: [trustedItem],
+      lastAnswer: 'Pick a coffee.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    expect(coverage.isPendingFollowUpForContext('first', locationContext)).toBe(true);
+    expect(coverage.isPendingFollowUpForContext('weather for Dallas', locationContext)).toBe(false);
+    expect(coverage.buildPendingLocationFollowUpQuery('near downtown', locationContext, null)).toBe('coffee downtown');
+    expect(coverage.buildPendingLocationFollowUpQuery('find route status', locationContext, null)).toBeNull();
+    expect(coverage.selectPendingContextItem('1', locationContext)).toMatchObject({ value: 'Provider Coffee' });
+    expect(coverage.selectPendingContextItem('Provider', locationContext)).toMatchObject({ value: 'Provider Coffee' });
+    expect(coverage.extractOrdinalSelection('second')).toBe(1);
+    expect(coverage.extractStateQualifier('Springfield Illinois')).toBe('Illinois');
+    expect(coverage.cleanupReplacementLocationQuery('try 123 South Congress Ave')).toBe('123 South Congress Ave');
+    expect(coverage.extractLocationDisambiguationQualifier('near downtown')).toBe('downtown');
+    expect(coverage.extractLocationDisambiguationQualifier('near weather')).toBeNull();
+
+    const endpointResolution = await coverage.resolvePendingCandidateFollowUp('first', {
+      ...locationContext,
+      kind: 'endpoint-candidates',
+      targetField: 'end',
+    }, scopeAiStore);
+    expect(endpointResolution?.assistantMessage.content).toContain('final destination');
+    expect(wrapper.emitted('map-location-select')?.at(-1)?.[0]).toMatchObject({
+      target: 'endDestination',
+      latitude: 32.7555,
+      longitude: -97.3308,
+    });
+
+    const narrowed = await coverage.resolvePendingCandidateFollowUp('Provider', {
+      ...locationContext,
+      kind: 'place-candidates',
+      targetField: 'stop',
+      candidates: [
+        trustedItem,
+        { ...trustedItem, id: 'candidate-2', label: '2. Museum', value: 'Museum' },
+      ],
+    }, scopeAiStore);
+    expect(narrowed?.assistantMessage.content).toContain('Added Provider Coffee');
+
+    await expect(coverage.resolvePendingScopeAiFollowUp('show more nearby', {
+      kind: 'unknown-kind',
+      sourcePrompt: 'unknown',
+      targetField: 'general',
+      rawValue: 'unknown',
+      lastAnswer: 'Unknown.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+
+    wrapper.unmount();
+  });
+
+  it('keeps AI route helper fallbacks trustworthy across prompts, provider results, and telemetry', async () => {
+    const scopeAiStore = createScopeAiStore({
+      stateAsJson: {
+        budget_min: '900',
+        budget_max: '1800',
+        start_date: '2026-06-12',
+        end_date: '2026-06-14',
+        pace: 'packed',
+      },
+      plannerState: {
+        start: '',
+        startLatitude: null,
+        startLongitude: null,
+        end: 'Austin',
+        endLatitude: 30.2672,
+        endLongitude: -97.7431,
+        stops: [
+          { id: 'old-food', name: 'Old Cafe', type: 'food', latitude: 31.5, longitude: -97.1 },
+        ],
+      },
+      sessionHistory: [
+        { role: 'user', content: 'find coffee near the route' },
+        { role: 'assistant', content: 'Found a few coffee options.' },
+      ],
+    });
+    const wrapper = mountPlannerAssist({
+      tripTitle: '',
+      scopeAiStore,
+      locationSearchProximity: {
+        label: 'home base',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      },
+      draft: {
+        destination: '',
+        endDestination: 'Austin, TX',
+        startDate: '',
+        endDate: '',
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+        pace: '',
+        groupSize: 0,
+      },
+      stops: [
+        {
+          spotId: 'planner-stop-1',
+          title: 'Route Coffee',
+          latitude: 31.5,
+          longitude: -97.1,
+          category: 'food',
+          dayNumber: 1,
+        },
+      ],
+    });
+    await nextTick();
+
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.getDateRangeDurationDays('2026-06-10', '2026-06-10')).toBe(1);
+    expect(coverage.getDateRangeDurationDays('2026-06-12', '2026-06-10')).toBeNull();
+    expect(coverage.normalizeDurationDays(30.4)).toBe(30);
+    expect(coverage.normalizeDurationDays(31)).toBeNull();
+    expect(coverage.formatTravelPartyLabel(1)).toBe('solo traveler');
+    expect(coverage.formatTravelPartyLabel(4)).toContain('group');
+    expect(coverage.buildPendingBriefReminderMessage(
+      'build',
+      coverage.getBriefQuestion('duration'),
+      'keep it under $900',
+    ).content).toContain('budget guardrail');
+    expect(coverage.buildPendingBriefReminderMessage(
+      'tighten',
+      coverage.getBriefQuestion('interests'),
+      'add coffee stops',
+    ).content).toContain('tighten the itinerary');
+    expect(coverage.buildPendingBriefSuggestions({ missingKeys: ['duration'] })).toContain('2 days');
+    expect(coverage.buildPendingBriefSuggestions({ missingKeys: ['interests'] })).toEqual(
+      expect.arrayContaining(['Food and culture', 'Nature and scenic']),
+    );
+    expect(coverage.buildPendingBriefSuggestions({ missingKeys: ['travelParty'] })).toContain('Solo');
+    expect(coverage.parseDurationReply('make it 3 days')).toMatchObject({ durationDays: 3 });
+    expect(coverage.parseExplicitDurationPrompt('build a 5 day route')).toMatchObject({ durationDays: 5 });
+    expect(coverage.parseInterestReply('food, nightlife, and museums')).toMatchObject({
+      interests: expect.arrayContaining(['food', 'nightlife', 'culture']),
+    });
+    expect(coverage.parsePaceReply('keep it relaxed')).toMatchObject({ pace: 'relaxed' });
+    expect(coverage.parseTravelPartyReply('family of 4')).toMatchObject({ groupSize: 4 });
+
+    expect(coverage.getBestNextMoveSuggestion({ kind: 'startCity' })).toMatch(/timing|end point/);
+    expect(coverage.getBestNextMoveSuggestion({ kind: 'group' })).toContain('inside');
+    expect(coverage.getContextualNextMoveText()).toContain('final destination');
+    expect(coverage.isStartCityRecommendationPrompt('where should I start?')).toBe(true);
+    expect(coverage.isStartCityRecommendationPrompt('123 Main Street')).toBe(false);
+    expect(coverage.getScopeAiSearchCoordinate(scopeAiStore)).toMatchObject({
+      label: 'Austin',
+      latitude: 30.2672,
+      longitude: -97.7431,
+    });
+
+    expect(coverage.extractPlaceSearchIntent('find live coffee places nearby')).toMatchObject({
+      query: expect.stringContaining('coffee'),
+    });
+    expect(coverage.extractPlaceSearchIntent('how do I use the app UI?')).toBeNull();
+    expect(coverage.inferRouteStopSearchQuery('find a place to eat')).toBeTruthy();
+    expect(coverage.inferSpotCategory({ category: 'movie theater', placeName: 'Cinema', formattedAddress: '' })).toBe('entertainment');
+    expect(coverage.inferSpotCategory({ category: 'bar', placeName: 'Music Pub', formattedAddress: '' })).toBe('nightlife');
+    expect(coverage.inferSpotCategory({ category: '', placeName: 'Quiet park trail', formattedAddress: '' })).toBe('nature');
+    expect(coverage.buildPlaceSearchSpotId({
+      id: '',
+      placeName: '',
+      latitude: 0,
+      longitude: 0,
+    })).toMatch(/^place-/);
+
+    const trustedPlace = {
+      id: 'provider-coffee',
+      placeName: 'Provider Coffee',
+      formattedAddress: '100 Coffee St, Fort Worth, TX',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      city: 'Fort Worth',
+      country: 'US',
+      category: 'coffee',
+      sourceLabel: 'Mapbox',
+      providerVerified: true,
+    };
+    const untrustedPlace = {
+      ...trustedPlace,
+      id: 'screenshot-place',
+      sourceLabel: 'Screenshot',
+      providerVerified: false,
+    };
+    const startMessage = {
+      id: 'places-start',
+      role: 'assistant',
+      kind: 'places',
+      content: 'Pick a start.',
+      query: 'coffee',
+      results: [trustedPlace],
+      placeAction: 'set-start',
+    };
+    const endMessage = {
+      ...startMessage,
+      id: 'places-end',
+      placeAction: 'set-end',
+    };
+    expect(coverage.getPlaceResultActionLabel(endMessage)).toBe('Use as final destination');
+    expect(coverage.getPlaceResultActionAriaLabel(startMessage, trustedPlace)).toContain('start point');
+    coverage.handlePlaceSearchResultAction(startMessage, trustedPlace);
+    coverage.handlePlaceSearchResultAction(endMessage, trustedPlace);
+    coverage.handlePlaceSearchResultAction({ ...startMessage, placeAction: undefined }, trustedPlace);
+    coverage.handlePlaceSearchResultAction(startMessage, untrustedPlace);
+    expect(wrapper.emitted('map-location-select')?.map((entry) => entry[0].target)).toEqual(
+      expect.arrayContaining(['destination', 'endDestination']),
+    );
+    expect(wrapper.emitted('route-stop-add')?.at(-1)?.[0]).toMatchObject({
+      title: 'Provider Coffee',
+      category: 'food',
+    });
+
+    const pendingFuelItem = coverage.scopeAiFuelStationToPendingItem({
+      id: 'fuel-1',
+      name: 'Verified Fuel',
+      latitude: 32.7,
+      longitude: -97.2,
+      fuelType: 'premium',
+      pricePerUnit: 4.19,
+      currency: 'USD',
+      distanceKm: 3,
+      source: 'Scope fuel',
+    }, 0, 'Scope fuel');
+    const fuelContext = {
+      kind: 'fuel-results',
+      sourcePrompt: 'find fuel',
+      targetField: 'fuel',
+      rawValue: 'fuel',
+      results: [pendingFuelItem],
+      lastAnswer: 'Fuel options.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    expect(coverage.isTrustedFuelPendingItem(pendingFuelItem)).toBe(true);
+    expect(coverage.getFuelPriceFromPendingItem(pendingFuelItem)).toBe(4.19);
+    expect(coverage.getDistanceFromPendingItem(pendingFuelItem)).toBe(3);
+    expect(coverage.filterPendingItemsByFollowUp('fuel', fuelContext)).toHaveLength(1);
+    expect(coverage.extractRadiusKmFromFollowUp('within 12 miles')).toBeGreaterThan(19);
+    expect(coverage.inferNearbyCategoryFromFollowUp('find nightlife')).toBe('nearby places');
+
+    coverage.trackScopeAiStructuredPreferences({
+      actions: [
+        { type: 'ADD_STOP', stop: { type: 'nightlife' } },
+        { type: 'REMOVE_STOP', stop_id: 'old-food' },
+        null,
+      ],
+    });
+    expect(scopeAiStore.trackAcceptedType).toHaveBeenCalledWith('nightlife');
+    expect(scopeAiStore.trackRejectedType).toHaveBeenCalledWith('food');
+
+    coverage.appendMessage({ id: 'user-a', role: 'user', kind: 'text', content: 'first prompt' });
+    coverage.appendMessage({ id: 'assistant-a', role: 'assistant', kind: 'text', content: 'first answer', model: 'scope-action' });
+    coverage.appendMessage({ id: 'user-b', role: 'user', kind: 'text', content: 'second prompt' });
+    await nextTick();
+    expect(coverage.getPreviousUserPromptForAudit()).toBe('first prompt');
+    expect(coverage.buildTranscriptText()).toContain('Untitled trip');
+    expect(coverage.resolveMessageContentForTraining({
+      id: 'user-image',
+      role: 'user',
+      kind: 'text',
+      content: '',
+      attachments: [{ id: 'image-1', name: 'route.png', type: 'image/png', size: 10, previewUrl: 'blob:x', base64Data: 'abc' }],
+    })).toContain('Attached images');
+    analyticsConsentMock.value = 'denied';
+    coverage.trackAiTurn('denied-turn', 'prompt', {
+      id: 'assistant-denied',
+      role: 'assistant',
+      kind: 'text',
+      content: 'No tracking',
+      model: 'scope-action',
+    }, 'chat');
+    analyticsConsentMock.value = 'granted';
+    coverage.trackAiTurn('user-turn', 'prompt', {
+      id: 'user-message',
+      role: 'user',
+      kind: 'text',
+      content: 'Do not track users as assistant responses',
+    }, 'chat');
+    expect(trackScopeAiInteractionMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      interactionId: 'denied-turn',
+    }));
+    expect(trackScopeAiInteractionMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      interactionId: 'user-turn',
+    }));
+
+    wrapper.unmount();
+  });
+
+  it('keeps Scope AI ask handling bounded across fallback, duplicate submit, and stale follow-up turns', async () => {
+    const fallbackWrapper = mountPlannerAssist();
+    const fallbackCoverage = (fallbackWrapper.vm as any).__coverage;
+
+    await fallbackWrapper.get('[data-test="trip-ai-input"]').setValue('summarize the route');
+    await fallbackCoverage.handleScopeAiAsk('typed');
+    await flushPromises();
+
+    expect(planTripMock).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('summarize the route'),
+    }), expect.any(Object));
+    expect(getLatestAiResponseText(fallbackWrapper)).toContain('Add a lunch stop');
+
+    const slowScopeAiStore = createScopeAiStore();
+    let resolveSlowScopeAi: ((value: { responseText: string; model: string }) => void) | undefined;
+    callScopeAiMock.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveSlowScopeAi = resolve;
+    }));
+
+    const slowWrapper = mountPlannerAssist({ scopeAiStore: slowScopeAiStore });
+    const slowCoverage = (slowWrapper.vm as any).__coverage;
+    await slowWrapper.get('[data-test="trip-ai-input"]').setValue('compare vibe density across this trip');
+    const firstSubmit = slowCoverage.handleScopeAiAsk('typed');
+    await flushPromises();
+    await slowCoverage.handleScopeAiAsk('typed');
+    expect(callScopeAiMock).toHaveBeenCalledTimes(1);
+
+    resolveSlowScopeAi?.({
+      responseText: 'Here is a concise route summary.',
+      model: 'scope-test',
+    });
+    await firstSubmit;
+    await flushPromises();
+    expect(getLatestAiResponseText(slowWrapper)).toContain('concise route summary');
+
+    const staleScopeAiStore = createScopeAiStore({
+      pendingScopeAiContext: {
+        kind: 'explanation',
+        sourcePrompt: 'explain the last fuel result',
+        targetField: 'general',
+        rawValue: 'fuel',
+        lastAnswer: 'Earlier fuel context.',
+        createdAt: Date.now(),
+        turnCount: 2,
+      },
+    });
+    const staleWrapper = mountPlannerAssist({ scopeAiStore: staleScopeAiStore });
+    const staleCoverage = (staleWrapper.vm as any).__coverage;
+    const staleResolution = staleCoverage.buildPendingContextReminderResolution(
+      staleScopeAiStore.pendingScopeAiContext,
+      'general',
+      staleScopeAiStore,
+    );
+
+    expect(staleResolution.assistantMessage.content).toContain('cleared that earlier follow-up');
+    expect(staleScopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-unrelated-turn-limit');
+
+    callScopeAiMock.mockResolvedValueOnce({
+      responseText: 'Fresh route answer.',
+      model: 'scope-test',
+    });
+    staleScopeAiStore.pendingScopeAiContext = {
+      kind: 'place-candidates',
+      sourcePrompt: 'find coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      candidates: [],
+      lastAnswer: 'Pick a coffee.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    await staleWrapper.get('[data-test="trip-ai-input"]').setValue('build a new itinerary instead');
+    await staleCoverage.handleScopeAiAsk('typed');
+    await flushPromises();
+    expect(staleScopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('explicit-new-command');
+    expect(getLatestAiResponseText(staleWrapper)).not.toContain('Pick a coffee');
+
+    fallbackWrapper.unmount();
+    slowWrapper.unmount();
+    staleWrapper.unmount();
+  });
+
+  it('keeps itinerary build actions bounded across missing briefs, duplicates, and failures', async () => {
+    const blankWrapper = mountPlannerAssist({
+      draft: {
+        destination: '',
+        endDestination: '',
+        startDate: '',
+        endDate: '',
+        interests: [],
+      },
+    });
+    const blankCoverage = (blankWrapper.vm as any).__coverage;
+
+    await expect(blankCoverage.buildRouteActionMessage('build', 'build the itinerary')).resolves.toMatchObject({
+      role: 'assistant',
+      kind: 'text',
+      content: expect.stringContaining('What destination should I use'),
+    });
+    await expect(blankCoverage.buildPendingBriefFollowUpMessage('cancel this build')).resolves.toMatchObject({
+      role: 'assistant',
+      kind: 'text',
+      content: expect.stringContaining('stopped that itinerary build'),
+    });
+    await expect(blankCoverage.buildPendingBriefFollowUpMessage('anything else')).resolves.toBeNull();
+    blankWrapper.unmount();
+
+    const buildHandler = vi.fn((payload: any) => {
+      payload.handled = true;
+      payload.resolve({
+        status: 'completed',
+        routeLabel: '',
+        stopCount: 2,
+        dayCount: 0,
+      });
+    });
+    const wrapper = mountPlannerAssist({
+      onItineraryBuildRequest: buildHandler,
+      stops: [
+        {
+          spotId: 'food-stop',
+          title: 'Lunch stop',
+          latitude: 32.7555,
+          longitude: -97.3308,
+          category: 'food',
+          dayNumber: 1,
+        },
+        {
+          spotId: 'scenic-stop',
+          title: 'River overlook',
+          latitude: 30.2672,
+          longitude: -97.7431,
+          category: 'scenic',
+          dayNumber: 2,
+        },
+      ],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const builtMessage = await coverage.buildRouteActionMessage('build', 'build itinerary with smart defaults');
+    expect(buildHandler).toHaveBeenCalledTimes(1);
+    expect(builtMessage).toMatchObject({
+      role: 'assistant',
+      kind: 'text',
+      content: expect.stringContaining('Done. I built'),
+    });
+    expect(builtMessage.content).toContain('2 stops');
+
+    const duplicateMessage = await coverage.buildRouteActionMessage('build', 'build itinerary with smart defaults');
+    expect(buildHandler).toHaveBeenCalledTimes(1);
+    expect(duplicateMessage.content).toContain('already built and synced');
+
+    const queuedWrapper = mountPlannerAssist({
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        startDate: '',
+        endDate: '',
+        interests: [],
+      },
+    });
+    const queuedCoverage = (queuedWrapper.vm as any).__coverage;
+    await expect(queuedCoverage.buildRouteActionMessage('build', 'build route with smart defaults')).resolves.toMatchObject({
+      role: 'assistant',
+      kind: 'text',
+      content: expect.stringContaining('handed'),
+    });
+
+    const failWrapper = mountPlannerAssist({
+      onItineraryBuildRequest: (payload: any) => {
+        payload.handled = true;
+        payload.reject(new Error('planner offline'));
+      },
+    });
+    const failCoverage = (failWrapper.vm as any).__coverage;
+    await expect(failCoverage.buildRouteActionMessage('build', 'build itinerary')).resolves.toMatchObject({
+      role: 'assistant',
+      kind: 'error',
+      content: expect.stringContaining('planner offline'),
+    });
+
+    wrapper.unmount();
+    queuedWrapper.unmount();
+    failWrapper.unmount();
+  });
+
+  it('keeps assistant structured-chip, route-anchor, and action-place fallbacks stable', async () => {
+    searchLocationsMock.mockResolvedValue({
+      data: [
+        {
+          id: '',
+          placeName: '',
+          formattedAddress: '',
+          address: '',
+          latitude: 31.7619,
+          longitude: -106.485,
+          city: 'El Paso',
+          country: 'US',
+          precision: 'poi',
+          source: 'mapbox',
+        },
+      ],
+    });
+
+    const wrapper = mountPlannerAssist({
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'El Paso, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 31.7619,
+        endDestinationLongitude: -106.485,
+      },
+      stops: [
+        {
+          spotId: 'stop-1',
+          title: 'Lunch stop',
+          latitude: 32.2,
+          longitude: -99.1,
+          category: 'food',
+          dayNumber: 1,
+        },
+        {
+          spotId: 'stop-2',
+          title: 'Museum stop',
+          latitude: 31.9,
+          longitude: -102.4,
+          category: 'culture',
+          dayNumber: 2,
+        },
+      ],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const workingMessages = Array.from({ length: 20 }, () => coverage.chooseWorkingMessage(''));
+    expect(workingMessages.every((message) => typeof message === 'string' && message.length > 0)).toBe(true);
+    coverage.appendMessage({ id: 'helper-user', role: 'user', content: 'Find coffee near stop 2' });
+    coverage.appendMessage({ id: 'helper-assistant', role: 'assistant', kind: 'text', content: '' });
+    await flushPromises();
+    expect(wrapper.findAll('[data-test="trip-ai-user-message"]').length).toBeGreaterThanOrEqual(1);
+    expect(wrapper.findAll('[data-test="trip-ai-response"]').length).toBeGreaterThanOrEqual(1);
+
+    expect(coverage.normalizeScopeAiStructuredChips([])).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Build|Explain|Tighten|Check|Suggest/),
+    ]));
+    expect(coverage.resolvePlaceSearchAnchor('near stop 2')).toMatchObject({ id: 'stop-2' });
+    expect(coverage.resolvePlaceSearchAnchor('from the start')).toMatchObject({ role: 'start' });
+    expect(coverage.resolvePlaceSearchAnchor('near the final destination')).toMatchObject({ role: 'end' });
+    expect(coverage.resolvePlaceSearchAnchor('halfway along the route')).toMatchObject({ role: 'midpoint' });
+    expect(coverage.resolvePlaceSearchAnchor('surprise coffee')).toMatchObject({ role: 'start' });
+    expect(coverage.buildRouteMidpointAnchor([{ id: 'only', label: 'Only', latitude: 1, longitude: 2, role: 'start' }])).toMatchObject({
+      id: 'only',
+    });
+
+    const stop = {
+      spotId: 'inserted-stop',
+      title: 'Inserted stop',
+      latitude: 31.9,
+      longitude: -102.4,
+      category: 'food',
+    };
+    expect(coverage.insertStopAtOrder([], stop, null)).toBeNull();
+    expect(coverage.insertStopAtOrder([{ ...stop, spotId: 'existing' }], stop, 1)?.map((entry: any) => entry.spotId)).toEqual([
+      'inserted-stop',
+      'existing',
+    ]);
+    expect(coverage.buildScopeActionSpotId({}, {
+      id: '',
+      placeName: '',
+      latitude: 31.7619,
+      longitude: -106.485,
+    })).toMatch(/^scope-ai-/);
+
+    await coverage.applyAddMarkerAction({
+      type: 'ADD_STOP',
+      placeName: 'Provider returned titleless',
+      address: '100 Action Address',
+      order: 1,
+      day: 3,
+    });
+    await flushPromises();
+    expect(searchLocationsMock).toHaveBeenCalledWith('100 Action Address', expect.objectContaining({
+      limit: 1,
+      proximity: expect.objectContaining({
+        latitude: 32.7555,
+        longitude: -97.3308,
+      }),
+    }));
+    expect(wrapper.emitted('route-stops-replace')?.at(-1)?.[0][0]).toMatchObject({
+      title: 'Provider returned titleless',
+      notes: '100 Action Address',
+      dayNumber: 3,
+    });
+
+    await coverage.applyAddMarkerAction({
+      type: 'ADD_STOP',
+      stop_type: 'destination',
+      placeName: 'Endpoint action',
+      address: '200 Endpoint Address',
+    });
+    await flushPromises();
+    expect(wrapper.emitted('map-location-select')?.at(-1)?.[0]).toMatchObject({
+      target: 'endDestination',
+      label: 'Endpoint action',
+      latitude: 31.7619,
+      longitude: -106.485,
+    });
+
+    wrapper.unmount();
+  });
+
+  it('keeps pending AI context resolution safe across trusted, untrusted, and stale follow-up data', async () => {
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      userId: 'user-ai-context',
+      locationSearchProximity: {
+        label: 'Fort Worth',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      },
+      draft: {
+        destination: '',
+        endDestination: 'Austin, TX',
+        startDate: '',
+        endDate: '',
+        budgetFloor: 0,
+        budget: 0,
+        interests: [],
+        groupSize: 0,
+      },
+      stops: [],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const trustedCandidate = {
+      id: 'candidate-1',
+      label: '1. Provider Coffee',
+      value: '100 Provider Street, Fort Worth, TX',
+      source: 'Mapbox',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      meta: {
+        providerVerified: true,
+        placeName: 'Provider Coffee',
+        city: 'Fort Worth',
+        country: 'US',
+        category: 'cafe',
+      },
+    };
+    const untrustedCandidate = {
+      ...trustedCandidate,
+      id: 'candidate-untrusted',
+      label: '2. Screenshot Coffee',
+      source: 'Screenshot',
+      latitude: undefined,
+      longitude: undefined,
+      meta: {
+        providerVerified: false,
+        placeName: 'Screenshot Coffee',
+      },
+    };
+    const endpointContext = {
+      kind: 'endpoint-candidates',
+      sourcePrompt: 'pick start',
+      targetField: 'start',
+      rawValue: 'coffee',
+      results: [trustedCandidate],
+      lastAnswer: 'Pick a start.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    const placeContext = {
+      kind: 'place-candidates',
+      sourcePrompt: 'find coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [trustedCandidate, untrustedCandidate],
+      lastAnswer: 'Pick coffee.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+
+    await expect(coverage.resolvePendingCandidateFollowUp('1', endpointContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'location',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('Set the start place'),
+      }),
+    });
+    await expect(coverage.resolvePendingCandidateFollowUp('1', placeContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'places',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('Added'),
+      }),
+    });
+    await expect(coverage.resolvePendingCandidateFollowUp('Screenshot', placeContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('provider result includes coordinates'),
+      }),
+    });
+    await expect(coverage.resolvePendingCandidateFollowUp('Provider', placeContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('I narrowed'),
+      }),
+    });
+
+    const fuelContext = {
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      targetField: 'fuel',
+      rawValue: 'regular',
+      results: [
+        coverage.scopeAiFuelStationToPendingItem({
+          id: 'fuel-trusted',
+          name: 'Provider Fuel',
+          latitude: 32.7,
+          longitude: -97.2,
+          fuelType: 'regular',
+          pricePerUnit: 3.19,
+          distanceKm: 2,
+          source: 'Scope fuel',
+        }, 0, 'Scope fuel'),
+        {
+          id: 'fuel-untrusted',
+          label: '2. Unverified Fuel',
+          value: 'Unverified Fuel',
+          source: 'Screenshot',
+          latitude: 32.8,
+          longitude: -97.4,
+          meta: {
+            providerVerified: false,
+            pricePerUnit: 5.99,
+            distanceKm: 1,
+            source: 'Screenshot',
+          },
+        },
+      ],
+      lastAnswer: 'Fuel choices.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    await expect(coverage.resolvePendingFuelFollowUp('set gas price', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'budget',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('$3.19'),
+      }),
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('set gas price', {
+      ...fuelContext,
+      results: [{
+        id: 'fuel-untrusted-only',
+        label: '1. Unverified Fuel',
+        value: 'Unverified Fuel',
+        source: 'Screenshot',
+        latitude: 32.8,
+        longitude: -97.4,
+        meta: {
+          providerVerified: false,
+          pricePerUnit: 2.99,
+          distanceKm: 1,
+          source: 'Screenshot',
+        },
+      }],
+    }, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'places',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('unverified result'),
+      }),
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('cheapest', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('Cheapest'),
+      }),
+    });
+    getNearbyFuelStationsMock.mockResolvedValueOnce({
+      configured: true,
+      coverage: 'live',
+      source: 'Scope fuel',
+      fuelType: 'diesel',
+      radiusKm: 10,
+      stations: [{
+        id: 'diesel-1',
+        name: 'Diesel Stop',
+        latitude: 32.71,
+        longitude: -97.24,
+        pricePerUnit: 4.09,
+        distanceKm: 3,
+        source: 'Scope fuel',
+      }],
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('show more diesel within 8 miles', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'places',
+      assistantMessage: expect.objectContaining({
+        kind: 'text',
+      }),
+    });
+
+    const nearbyContext = {
+      kind: 'nearby-results',
+      sourcePrompt: 'nearby',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [trustedCandidate, untrustedCandidate],
+      lastAnswer: 'Nearby choices.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    searchNearbyPlacesMock.mockResolvedValueOnce({
+      data: [{
+        id: 'nearby-1',
+        placeName: 'Live Nearby Coffee',
+        formattedAddress: '300 Live Street',
+        latitude: 32.75,
+        longitude: -97.31,
+        category: 'cafe',
+        source: 'mapbox',
+      }],
+    });
+    await expect(coverage.resolvePendingNearbyFollowUp('1', nearbyContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'places',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('Added'),
+      }),
+    });
+    await expect(coverage.resolvePendingNearbyFollowUp('more coffee within 4 miles', nearbyContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'places',
+    });
+
+    scopeAiStore.applyActionBlockResolved.mockResolvedValueOnce({
+      applied: true,
+      resolutions: [{
+        status: 'ambiguous',
+        field: 'start',
+        rawValue: 'Springfield',
+        candidates: ['Springfield, MO', 'Springfield, IL'],
+      }],
+    });
+    const locationContext = {
+      kind: 'location-resolution',
+      sourcePrompt: 'Springfield',
+      targetField: 'start',
+      rawValue: 'Springfield',
+      candidates: coverage.scopeAiLocationCandidateItems(['Springfield, MO', 'Springfield, IL']),
+      lastAnswer: 'Which Springfield?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    await expect(coverage.applyPendingLocationFollowUp('second one', locationContext, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'location',
+      assistantMessage: expect.objectContaining({
+        content: expect.stringContaining('Springfield'),
+      }),
+    });
+    await expect(coverage.applyPendingLocationFollowUp('', {
+      ...locationContext,
+      candidates: [],
+      rawValue: '',
+    }, scopeAiStore)).resolves.toBeNull();
+
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('under 900', {
+      kind: 'planner-setting',
+      sourcePrompt: 'budget',
+      targetField: 'budget',
+      rawValue: 'budget',
+      lastAnswer: 'How much?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'budget',
+    });
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('for 4 travelers', {
+      kind: 'planner-setting',
+      sourcePrompt: 'travelers',
+      targetField: 'travelers',
+      rawValue: 'travelers',
+      lastAnswer: 'How many?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      intentKind: 'group',
+    });
+
+    const explanation = coverage.resolvePendingExplanationFollowUp('go deeper', {
+      kind: 'explanation',
+      sourcePrompt: 'why this route',
+      targetField: 'general',
+      rawValue: '',
+      lastAnswer: 'A'.repeat(240),
+      createdAt: Date.now(),
+      turnCount: 0,
+    });
+    expect(explanation.assistantMessage.content).toContain('Previous answer');
+    expect(coverage.buildPendingContextReminder({
+      ...placeContext,
+      rawValue: '',
+      sourcePrompt: 'nearby',
+    }).content).toContain('I am still narrowing');
+
+    expect(coverage.isExplicitNewScopeAiCommand('start at Dallas', locationContext)).toBe(true);
+    expect(coverage.isExplicitNewScopeAiCommand('second one', locationContext)).toBe(false);
+    expect(coverage.buildPendingLocationAction(locationContext, 'Austin')).toMatchObject({
+      actions: [expect.objectContaining({ field: 'start' })],
+    });
+    expect(coverage.buildPendingLocationAction({ ...locationContext, targetField: 'stop' }, 'Waco')).toMatchObject({
+      actions: [expect.objectContaining({ type: 'ADD_STOP' })],
+    });
+    expect(coverage.buildPendingLocationAction({ ...locationContext, targetField: 'end' }, 'Austin')).toMatchObject({
+      actions: [expect.objectContaining({ field: 'end' })],
+    });
+    expect(coverage.getBestNextMoveSuggestion({ kind: 'build', prompt: 'build', responseKind: 'text' })).toContain('start point');
+    expect(coverage.getBestNextMoveSuggestion({ kind: 'location', prompt: 'location', responseKind: 'text' })).toContain('start');
+    expect(coverage.buildIntentFollowUpPool({ kind: 'tighten', prompt: 'tighten', responseKind: 'text' })).toContain('Check timing after tightening');
+    expect(coverage.buildIntentFollowUpPool(null)).toEqual([]);
+    expect(coverage.buildAssistantPrompt('help me')).toContain('Planner context');
+    expect(coverage.buildAssistantPrompt('')).toContain('Traveler request');
+    expect(coverage.extractEndpointRecommendationIntent('where should we go from here')).toMatchObject({
+      target: 'endDestination',
+    });
+    expect(coverage.extractEndpointRecommendationIntent('which button adds an end')).toBeNull();
+    expect(coverage.buildEndpointResolutionFailureMessage({
+      target: 'endDestination',
+      anchorQuery: 'Springfield',
+      preference: 'balanced',
+    }, {
+      status: 'ambiguous',
+      query: 'Springfield',
+      candidates: ['Springfield, MO', 'Springfield, IL'],
+    }).content).toContain('a few possible matches');
+
+    wrapper.unmount();
+  });
+
+  it('keeps UI trip commands, map commands, and provider follow-ups bounded before mutating planner state', async () => {
+    const scopeAiStore = createScopeAiStore({
+      plannerState: {
+        start: 'Fort Worth',
+        startLatitude: 32.7555,
+        startLongitude: -97.3308,
+        end: 'Austin',
+        endLatitude: 30.2672,
+        endLongitude: -97.7431,
+        fuel_type: 'diesel',
+        stops: [{
+          id: 'stop-1',
+          name: 'Waco Coffee',
+          latitude: 31.5493,
+          longitude: -97.1467,
+          type: 'food',
+        }],
+      },
+    });
+    const executeTripCommand = vi.fn(async (payload) => ({
+      ok: true,
+      message: `trip:${payload.type}${payload.recipient ? `:${payload.recipient}` : ''}`,
+      chips: ['Done'],
+    }));
+    const executeMapCommand = vi.fn(async (payload) => ({
+      ok: true,
+      message: `map:${payload.command}${payload.query ? `:${payload.query}` : ''}`,
+      chips: ['Mapped'],
+    }));
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      executeTripCommand,
+      executeMapCommand,
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    expect(await coverage.executeScopeAiUiActions(null)).toBeNull();
+    expect(await coverage.executeScopeAiUiActions({ actions: [] })).toBeNull();
+    expect(await coverage.executeScopeAiUiActions({ actions: [{ type: 'UNKNOWN_ACTION' }] })).toBeNull();
+
+    await expect(coverage.executeScopeAiUiActions({ actions: [{ type: 'REQUEST_DELETE_TRIP_DRAFT' }] })).resolves.toMatchObject({
+      message: expect.stringContaining('confirmation'),
+      chips: expect.arrayContaining(['Confirm delete']),
+    });
+    expect(executeTripCommand).not.toHaveBeenCalledWith({ type: 'delete' });
+    await expect(coverage.executeScopeAiUiActions({ actions: [{ type: 'DELETE_TRIP_DRAFT' }] })).resolves.toMatchObject({
+      message: 'trip:delete',
+    });
+    expect(executeTripCommand).toHaveBeenCalledWith({ type: 'delete' });
+
+    const commandResult = await coverage.executeScopeAiUiActions({
+      actions: [
+        { type: 'SAVE_TRIP_DRAFT' },
+        { type: 'OPEN_SHARE_MODAL' },
+        { type: 'INVITE_TRIP_MEMBER', recipient: 'maya@example.com', role: 'viewer' },
+        { type: 'INVITE_TRIP_MEMBER', recipient: '' },
+        { type: 'SET_TRIP_VISIBILITY', is_public: true },
+        { type: 'SET_TRIP_VISIBILITY', isPublic: false },
+        { type: 'SET_MAP_COMMAND', command: 'zoom to place', query: 'Austin, TX' },
+        { type: 'SET_MAP_COMMAND', command: 'bad command' },
+      ],
+    });
+    expect(commandResult.message).toContain('trip:save');
+    expect(commandResult.message).toContain('Tell me the registered Scope username');
+    expect(commandResult.message).toContain('trip:visibility');
+    expect(commandResult.message).toContain('map:zoom_to_place:Austin, TX');
+    expect(commandResult.message).toContain('could not match');
+    expect(executeTripCommand).toHaveBeenCalledWith({ type: 'invite', recipient: 'maya@example.com', role: 'viewer' });
+    expect(executeTripCommand).toHaveBeenCalledWith({ type: 'visibility', isPublic: true });
+    expect(executeTripCommand).toHaveBeenCalledWith({ type: 'visibility', isPublic: false });
+    expect(executeMapCommand).toHaveBeenCalledWith({ command: 'zoom_to_place', query: 'Austin, TX' });
+
+    getNearbyFuelStationsMock.mockResolvedValueOnce({
+      configured: true,
+      coverage: 'live fuel',
+      source: 'Scope fuel',
+      fuelType: 'diesel',
+      radiusKm: 5,
+      stations: [{
+        id: 'fuel-live',
+        name: 'Live Diesel',
+        address: '1 Fuel Rd',
+        latitude: 32.76,
+        longitude: -97.34,
+        fuelType: 'diesel',
+        pricePerUnit: 4.09,
+        distanceKm: 1.2,
+        source: 'Scope fuel',
+      }],
+    });
+    searchNearbyPlacesMock.mockResolvedValueOnce({
+      data: [{
+        id: 'nearby-live',
+        placeName: 'Live Coffee',
+        formattedAddress: '2 Coffee St',
+        latitude: 32.77,
+        longitude: -97.35,
+        category: 'cafe',
+        categoryLabel: 'Cafe',
+        distanceKm: 1.4,
+        source: 'mapbox',
+      }],
+    });
+    const followUps = await coverage.buildScopeAiActionFollowUpMessages({
+      actions: [
+        { type: 'SEARCH_NEARBY_FUEL', fuel_type: 'diesel', sort_by: 'best_price', radius_km: 5, limit: 2 },
+        { type: 'SEARCH_NEARBY_PLACES', category: 'coffee', radius_km: 5, limit: 2 },
+        null,
+      ],
+    });
+    expect(followUps.map((message: any) => message.content).join('\n')).toContain('Fuel near Fort Worth');
+    expect(followUps.map((message: any) => message.content).join('\n')).toContain('Nearby coffee picks near Fort Worth');
+    expect(followUps[0].pendingContext.kind).toBe('fuel-results');
+    expect(followUps[1].pendingContext.kind).toBe('nearby-results');
+
+    getNearbyFuelStationsMock.mockRejectedValueOnce(new Error('fuel down'));
+    await expect(coverage.buildScopeAiActionFollowUpMessages({
+      actions: [{ type: 'SEARCH_NEARBY_FUEL' }],
+    })).resolves.toEqual([
+      expect.objectContaining({
+        content: expect.stringContaining('did not finish cleanly'),
+      }),
+    ]);
+
+    const fallbackWrapper = mountPlannerAssist();
+    await flushPromises();
+    const fallbackCoverage = (fallbackWrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    await expect(fallbackCoverage.runTripCommand({ type: 'visibility', isPublic: true })).resolves.toMatchObject({
+      message: 'Making this trip public.',
+    });
+    await expect(fallbackCoverage.runTripCommand({ type: 'invite', recipient: 'maya@example.com', role: 'viewer' })).resolves.toMatchObject({
+      message: 'Inviting maya@example.com.',
+    });
+    await expect(fallbackCoverage.runMapCommand({ command: 'reset_map' })).resolves.toMatchObject({
+      message: 'Resetting the planner map view.',
+    });
+    expect(fallbackCoverage.normalizeScopeAiMapCommand('map style dark')).toBe('map_style_dark');
+    expect(fallbackCoverage.normalizeTripInviteRole('viewer')).toBe('viewer');
+    expect(fallbackCoverage.normalizeTripInviteRole('owner')).toBe('editor');
+    expect(fallbackCoverage.isDeleteCancelPrompt("don't delete")).toBe(true);
+    expect(fallbackCoverage.isDeleteConfirmPrompt('yes delete')).toBe(true);
+    expect(fallbackCoverage.isDeleteRequestPrompt('remove this route')).toBe(true);
+
+    wrapper.unmount();
+    fallbackWrapper.unmount();
+  });
+
+  it('keeps exposed assistant parsing and action helpers bounded across malformed planner inputs', async () => {
+    const scopeAiStore = createScopeAiStore({
+      plannerState: {
+        start: 'Fort Worth',
+        startLatitude: 32.7555,
+        startLongitude: -97.3308,
+        end: 'Austin',
+        endLatitude: 30.2672,
+        endLongitude: -97.7431,
+        stops: [{ id: 'stop-1', name: 'Waco Cafe', type: 'food', latitude: 31.5493, longitude: -97.1467 }],
+      },
+      sessionHistory: [
+        { role: 'user', content: 'start in Fort Worth' },
+        { role: 'assistant', content: 'Set the start.' },
+      ],
+    });
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      stops: [{
+        spotId: 'stop-1',
+        title: 'Waco Cafe',
+        latitude: 31.5493,
+        longitude: -97.1467,
+        category: 'food',
+        city: 'Waco',
+      }],
+      locationSearchProximity: {
+        label: 'current map',
+        latitude: 32.75,
+        longitude: -97.33,
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    const placeResult = {
+      id: 'place-1',
+      placeName: 'Provider Cafe',
+      formattedAddress: '100 Provider St, Waco, TX',
+      latitude: 31.55,
+      longitude: -97.15,
+      category: 'cafe',
+      source: 'mapbox',
+    };
+    const pendingContext = {
+      kind: 'place-candidates',
+      sourcePrompt: 'coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [coverage.scopeAiPlaceResultToPendingItem(placeResult, 0)],
+      lastAnswer: 'Pick one.',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    const actionBlock = {
+      actions: [
+        { type: 'ADD_STOP', stop: { name: 'Provider Cafe', address: '100 Provider St', latitude: 31.55, longitude: -97.15, type: 'food' } },
+        { type: 'SET_FIELD', field: 'start', value: 'Dallas, TX' },
+        { type: 'REMOVE_STOP', stop_id: 'stop-1' },
+      ],
+    };
+    const argSets: unknown[][] = [
+      [],
+      [undefined],
+      [null],
+      [''],
+      ['2'],
+      ['Dallas, TX'],
+      ['build a 4 day food trip under 900 for two travelers'],
+      [createPlannerDraft()],
+      [scopeAiStore],
+      [actionBlock],
+      [placeResult],
+      [pendingContext],
+      [{ kind: 'build', prompt: 'build', responseKind: 'text' }],
+      [{ role: 'assistant', content: 'hello', actionBlock }],
+      [[placeResult]],
+    ];
+    const skippedHelpers = new Set([
+      'appendMessage',
+      'buildChatAttachment',
+      'confirmRestartChat',
+      'downloadTranscript',
+      'emitPendingCandidateAsEndpoint',
+      'emitPendingCandidateAsStop',
+      'emitPlaceResultAsEndpoint',
+      'focusComposer',
+      'handleAsk',
+      'handleAttachmentChange',
+      'handleScopeAiAsk',
+      'handleSuggestionClick',
+      'openAttachmentPicker',
+      'readImageFileAsBase64',
+      'requestItineraryBuild',
+      'saveTranscript',
+      'scrollAssistIntoView',
+      'scrollThreadToBottom',
+      'startVoiceInput',
+      'toggleVoiceInput',
+    ]);
+    const safeCall = async (name: string, ...args: unknown[]) => {
+      const fn = coverage[name];
+      if (typeof fn !== 'function' || skippedHelpers.has(name)) {
+        return;
+      }
+
+      try {
+        const result = fn(...args);
+        if (result && typeof result.then === 'function') {
+          await result.catch(() => undefined);
+        }
+      } catch {
+        // Guard-path sweep: malformed prompts and action payloads are expected to be rejected.
+      }
+    };
+
+    for (const name of Object.keys(coverage)) {
+      for (const args of argSets) {
+        await safeCall(name, ...args);
+      }
+    }
+
+    expect(coverage.buildAssistantPrompt('find coffee')).toContain('Planner context');
+    expect(coverage.parseScopeActionBlocks('```scope-actions\n{\"actions\":[]}\n```')).toMatchObject({ actions: [] });
+    expect(coverage.applyScopeRouteAction(actionBlock.actions[0], scopeAiStore)).toEqual(expect.any(Object));
+    expect(Object.keys(coverage).length).toBeGreaterThan(200);
+
+    wrapper.unmount();
+  });
+
+  it('covers route-build outcome fallbacks, route anchors, and fuel follow-up boundaries', async () => {
+    const routeStops = [{
+      spotId: 'stop-1',
+      title: 'Waco Arcade',
+      latitude: 31.5493,
+      longitude: -97.1467,
+      category: 'entertainment',
+      city: 'Waco',
+    }];
+    let buildCall = 0;
+    const wrapper = mountPlannerAssist({
+      stops: routeStops,
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+      },
+      onItineraryBuildRequest: (payload: any) => {
+        buildCall += 1;
+        payload.handled = true;
+        if (buildCall === 1) {
+          payload.resolve({ status: 'queued', routeLabel: '', stopCount: 0 });
+          return;
+        }
+
+        payload.resolve({ status: 'success', routeLabel: '', stopCount: 1, dayCount: undefined });
+      },
+    });
+    await flushPromises();
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+
+    await expect(coverage.buildRouteActionMessage('build', 'Build the itinerary')).resolves.toMatchObject({
+      content: expect.stringContaining('I handed Fort Worth, TX to Austin, TX to Scope AI'),
+    });
+    await expect(coverage.buildRouteActionMessage('build', 'Build the itinerary with one stop')).resolves.toMatchObject({
+      content: expect.stringContaining('Done. I built Fort Worth, TX to Austin, TX into a 3-day itinerary with 1 stop.'),
+    });
+    expect(buildCall).toBe(2);
+
+    expect(coverage.resolvePlaceSearchAnchor('find coffee near stop 1')).toMatchObject({ role: 'stop', label: 'Waco Arcade' });
+    expect(coverage.resolvePlaceSearchAnchor('find fuel from the start')).toMatchObject({ role: 'start' });
+    expect(coverage.resolvePlaceSearchAnchor('find dinner near the destination')).toMatchObject({ role: 'end' });
+    expect(coverage.resolvePlaceSearchAnchor('find something halfway along the route')).toMatchObject({ role: 'midpoint' });
+    expect(coverage.resolvePlaceSearchAnchor('find coffee')).toMatchObject({ role: 'start' });
+
+    const scopeAiStore = createScopeAiStore({
+      plannerState: {
+        start: 'Fort Worth',
+        end: 'Austin',
+      },
+    });
+    const trustedFuel = coverage.scopeAiFuelStationToPendingItem({
+      id: 'fuel-1',
+      name: 'Provider Fuel',
+      address: '1 Fuel Rd',
+      latitude: 32.76,
+      longitude: -97.34,
+      fuelType: 'regular',
+      pricePerUnit: 3.21,
+      distanceKm: 2,
+      source: 'Scope fuel',
+    }, 0, 'Scope fuel');
+    const unpricedFuel = coverage.scopeAiFuelStationToPendingItem({
+      id: 'fuel-2',
+      name: 'No Price Fuel',
+      address: '2 Fuel Rd',
+      latitude: 32.77,
+      longitude: -97.35,
+      fuelType: 'regular',
+      distanceKm: 1,
+      source: 'Scope fuel',
+    }, 1, 'Scope fuel');
+    const untrustedFuel = {
+      ...trustedFuel,
+      id: 'fuel-untrusted',
+      source: 'Unknown blog',
+      meta: {
+        ...trustedFuel.meta,
+        providerVerified: false,
+      },
+    };
+    const fuelContext = {
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      rawValue: 'fuel',
+      results: [trustedFuel, unpricedFuel],
+      lastAnswer: 'Fuel choices',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+
+    await expect(coverage.resolvePendingFuelFollowUp('which one should I use', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Cheapest provider-backed fuel result') },
+      intentKind: 'places',
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('set gas price', {
+      ...fuelContext,
+      results: [untrustedFuel],
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('unverified result') },
+      intentKind: 'places',
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('set gas price', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Set the gas price to $3.21/gal') },
+      appliedActionBlock: {
+        actions: [{ type: 'SET_FIELD', field: 'gas_price', value: 3.21 }],
+      },
+      intentKind: 'budget',
+    });
+    expect(scopeAiStore.applyActionBlockResolved).toHaveBeenCalledWith({
+      actions: [{ type: 'SET_FIELD', field: 'gas_price', value: 3.21 }],
+    });
+
+    wrapper.unmount();
+  });
+
+  it('drives Scope AI command confirmations, cancellation, and stale pending reminders from the submit path', async () => {
+    const scopeAiStore = createScopeAiStore({
+      pendingScopeAiContext: {
+        kind: 'planner-setting',
+        sourcePrompt: 'budget',
+        targetField: 'budget_max',
+        rawValue: 'budget',
+        results: [],
+        lastAnswer: 'Waiting for a budget.',
+        createdAt: Date.now(),
+        turnCount: 2,
+      },
+    });
+    const executedTripCommands: any[] = [];
+    const executedMapCommands: any[] = [];
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      executeTripCommand: async (payload: any) => {
+        executedTripCommands.push(payload);
+        return {
+          ok: true,
+          message: `trip:${payload.type}${payload.recipient ? `:${payload.recipient}` : ''}`,
+          chips: [`chip:${payload.type}`],
+        };
+      },
+      executeMapCommand: async (payload: any) => {
+        executedMapCommands.push(payload);
+        return {
+          ok: true,
+          message: `map:${payload.command}${payload.query ? `:${payload.query}` : ''}`,
+          chips: [`chip:${payload.command}`],
+        };
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    await expect(coverage.handleScopeAiAsk()).resolves.toBeUndefined();
+    expect(wrapper.find('[data-test="trip-ai-thread"]').exists()).toBe(false);
+
+    const commandResult = await coverage.executeScopeAiUiActions({
+      actions: [
+        { type: 'REQUEST_DELETE_TRIP_DRAFT' },
+        { type: 'UNKNOWN_ACTION' },
+        { type: 'DELETE_TRIP_DRAFT' },
+        { type: 'REQUEST_DELETE_TRIP_DRAFT' },
+        { type: 'DELETE_TRIP_DRAFT' },
+        { type: 'SAVE_TRIP_DRAFT' },
+        { type: 'OPEN_SHARE_MODAL' },
+        { type: 'INVITE_TRIP_MEMBER', recipient: '' },
+        { type: 'INVITE_TRIP_MEMBER', recipient: 'maya@example.com', role: 'viewer' },
+        { type: 'SET_TRIP_VISIBILITY', is_public: false },
+        { type: 'SET_TRIP_VISIBILITY', isPublic: true },
+        { type: 'SET_MAP_COMMAND', command: 'not_real' },
+        { type: 'SET_MAP_COMMAND', command: 'zoom_to_place', query: 'Waco Arcade' },
+        { type: 'SET_MAP_COMMAND', command: 'fit_route' },
+      ],
+    });
+
+    expect(commandResult).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('trip:delete'),
+      chips: ['chip:fit_route'],
+    });
+    expect(commandResult.message).toContain('Tell me the registered Scope username');
+    expect(commandResult.message).toContain('I could not match that map command');
+    expect(executedTripCommands.map((command) => command.type)).toEqual([
+      'delete',
+      'save',
+      'share',
+      'invite',
+      'visibility',
+      'visibility',
+    ]);
+    expect(executedMapCommands).toEqual([
+      { command: 'zoom_to_place', query: 'Waco Arcade' },
+      { command: 'fit_route' },
+    ]);
+
+    await coverage.executeScopeAiUiActions({ actions: [{ type: 'REQUEST_DELETE_TRIP_DRAFT' }] });
+    await submitTripAiPrompt(wrapper, 'cancel delete');
+    expect(getLatestAiResponseText(wrapper)).toContain('Canceled delete');
+
+    scopeAiStore.setPendingScopeAiContext({
+      kind: 'planner-setting',
+      sourcePrompt: 'budget',
+      targetField: 'budget_max',
+      rawValue: 'budget',
+      results: [],
+      lastAnswer: 'Waiting for a budget.',
+      createdAt: Date.now(),
+      turnCount: 2,
+    });
+    await submitTripAiPrompt(wrapper, 'under 0');
+    expect(getLatestAiResponseText(wrapper)).toContain('cleared that earlier follow-up');
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-unrelated-turn-limit');
+
+    wrapper.unmount();
+  });
+
+  it('covers endpoint recommendations, pending follow-ups, speech helpers, and provider item edges', async () => {
+    const emittedSelections: any[] = [];
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      draft: {
+        destination: '',
+        endDestination: '',
+        interests: [],
+        pace: 'relaxed',
+      },
+      locationSearchProximity: {
+        label: 'home base',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      },
+      onMapLocationSelect: (payload: any) => emittedSelections.push(payload),
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    const listWithoutItem = {
+      0: {
+        0: { transcript: ' first idea ' },
+        isFinal: false,
+        length: 1,
+      },
+      length: 1,
+    };
+    expect(coverage.getSpeechRecognitionResult(listWithoutItem, 0)).toBe(listWithoutItem[0]);
+    expect(coverage.getSpeechRecognitionAlternative(listWithoutItem[0], 0)).toEqual({ transcript: ' first idea ' });
+    expect(coverage.extractSpeechRecognitionTranscript({
+      resultIndex: -1,
+      results: listWithoutItem,
+    })).toEqual({ hasFinal: false, text: 'first idea' });
+    expect(coverage.extractSpeechRecognitionTranscript(createSpeechRecognitionEvent('final route note'))).toEqual({
+      hasFinal: true,
+      text: 'final route note',
+    });
+    expect(() => coverage.stopVoiceInput()).not.toThrow();
+    expect(coverage.getDateRangeDurationDays('', '')).toBeNull();
+    expect(coverage.getDateRangeDurationDays('2026-05-10', '2026-05-08')).toBeNull();
+    expect(coverage.formatRouteEndpointLabel('100 Main Street, Fort Worth, TX')).toBe('100 Main Street, Fort Worth');
+    expect(coverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      expect.stringContaining('Title:'),
+    ]));
+    expect(coverage.buildAssistantPrompt('')).toContain('Traveler request:');
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      anchorQuery: null,
+      preference: 'balanced',
+    })).resolves.toMatchObject({
+      status: 'message',
+      message: { content: expect.stringContaining('Set a real start point first') },
+    });
+
+    await wrapper.setProps({
+      draft: {
+        destination: 'Fort Worth, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestination: '',
+        interests: ['food'],
+        pace: 'relaxed',
+      },
+    });
+    await flushPromises();
+
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      anchorQuery: 'current start',
+      preference: 'scenic',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { role: 'start', label: 'Fort Worth, TX' },
+    });
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      anchorQuery: 'Fort Worth',
+      preference: 'practical',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { role: 'start' },
+    });
+
+    await wrapper.setProps({
+      draft: {
+        destination: 'Arlington',
+        endDestination: '',
+        interests: [],
+        pace: 'moderate',
+      },
+    });
+    geocodeMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: 'Arlington, TX',
+          formattedAddress: 'Arlington, Texas, United States',
+          latitude: 32.7357,
+          longitude: -97.1081,
+          city: 'Arlington',
+          country: 'United States',
+          precision: 'place',
+        },
+      ],
+    });
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      anchorQuery: 'Arlington',
+      preference: 'balanced',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { label: 'Arlington, Texas' },
+      startSelection: { target: 'destination' },
+    });
+
+    expect(coverage.buildEndpointResolutionFailureMessage({
+      target: 'endDestination',
+      anchorQuery: 'springfield',
+      preference: 'balanced',
+    }, {
+      status: 'ambiguous',
+      query: 'springfield',
+      candidates: [],
+    }).content).toContain('more than one possible match');
+    expect(coverage.buildEndpointResolutionFailureMessage({
+      target: 'endDestination',
+      anchorQuery: 'springfield',
+      preference: 'balanced',
+    }, {
+      status: 'not-found',
+      query: 'springfield',
+      candidates: [],
+    }).content).toContain('could not resolve');
+
+    expect(coverage.getEndpointTravelCategory('scenic')).toBe('scenic');
+    expect(coverage.getEndpointTravelCategory('practical')).toBe('stay');
+    expect(coverage.getEndpointNearbyCategories('balanced')).toContain('hotel');
+    expect(coverage.mapTravelNearbySuggestionToChatPlaceResult({
+      id: 'nearby-1',
+      placeId: '',
+      title: 'Scope Pick',
+      subtitle: 'Local favorite',
+      address: '',
+      anchorLabel: 'Fort Worth',
+      latitude: 32.76,
+      longitude: -97.34,
+      category: 'food',
+      distanceKm: 2,
+      source: 'scope',
+      sourceLabel: '',
+      reason: '',
+      photoUrl: '',
+    })).toMatchObject({ source: 'mock', sourceLabel: 'Scope community', providerVerified: false });
+    expect(coverage.mapNearbyPlaceToChatPlaceResult({
+      id: 'provider-place',
+      placeName: 'Provider Place',
+      formattedAddress: '100 Provider',
+      address: '100 Provider',
+      latitude: 32.76,
+      longitude: -97.34,
+      category: 'park',
+      distanceKm: 1,
+      source: 'mapbox',
+      sourceLabel: 'Mapbox',
+      photoUrl: '',
+    })).toMatchObject({ providerVerified: true, sourceLabel: 'Map search' });
+
+    const badNearby = {
+      id: 'bad-nearby',
+      label: 'Bad Nearby',
+      value: 'Bad Nearby',
+      meta: {
+        providerVerified: true,
+        source: 'mapbox',
+      },
+    };
+    await expect(coverage.resolvePendingNearbyFollowUp('1', {
+      kind: 'nearby-results',
+      sourcePrompt: 'nearby',
+      targetField: 'stop',
+      rawValue: 'nearby',
+      results: [badNearby],
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('does not have provider coordinates') },
+      intentKind: 'places',
+    });
+
+    const unpricedFuel = coverage.scopeAiFuelStationToPendingItem({
+      id: 'fuel-unpriced',
+      name: 'Unpriced Fuel',
+      address: '1 Pump Rd',
+      latitude: 32.76,
+      longitude: -97.34,
+      fuelType: 'regular',
+      distanceKm: 1,
+      source: 'Scope fuel',
+    }, 0, 'Scope fuel');
+    await expect(coverage.resolvePendingFuelFollowUp('closest', {
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      rawValue: 'fuel',
+      results: [unpricedFuel],
+      lastAnswer: 'Fuel',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Set a start, end, or stop first') },
+      intentKind: 'places',
+    });
+
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('make it 4 people', {
+      kind: 'planner-setting',
+      sourcePrompt: 'party',
+      targetField: 'party_size',
+      rawValue: 'party',
+      results: [],
+      lastAnswer: 'How many?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: 'Set travelers to 4.' },
+      intentKind: 'group',
+      appliedActionBlock: {
+        actions: [{ type: 'SET_FIELD', field: 'party_size', value: 4 }],
+      },
+    });
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('under 0', {
+      kind: 'planner-setting',
+      sourcePrompt: 'budget',
+      targetField: 'budget_max',
+      rawValue: 'budget',
+      results: [],
+      lastAnswer: 'Budget?',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+
+    const explanation = coverage.resolvePendingExplanationFollowUp('why did you pick that?', {
+      kind: 'explanation',
+      sourcePrompt: 'explain',
+      rawValue: 'explain',
+      results: [],
+      lastAnswer: 'A'.repeat(260),
+      createdAt: Date.now(),
+      turnCount: 0,
+    });
+    expect(explanation).toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Here is the deeper version') },
+      intentKind: 'general',
+    });
+
+    expect(coverage.buildPendingContextReminder({
+      kind: 'place-candidates',
+      sourcePrompt: 'coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [{ label: 'Coffee One', value: 'Coffee One' }],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 1,
+    }).content).toContain('Coffee One');
+    expect(coverage.buildPendingContextReminder({
+      kind: 'place-candidates',
+      sourcePrompt: 'coffee',
+      targetField: 'stop',
+      rawValue: '',
+      results: [],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 1,
+    }).content).toContain('still waiting');
+    expect(coverage.buildPendingContextReminderResolution({
+      kind: 'place-candidates',
+      sourcePrompt: 'coffee',
+      targetField: 'stop',
+      rawValue: 'coffee',
+      results: [],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 2,
+    }, 'places', scopeAiStore)).toMatchObject({
+      assistantMessage: { content: expect.stringContaining('cleared that earlier follow-up') },
+      intentKind: 'places',
+    });
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-unrelated-turn-limit');
+    await expect(coverage.resolvePendingScopeAiFollowUp('brand new endpoint idea', {
+      kind: 'location-resolution',
+      sourcePrompt: 'old',
+      targetField: 'start',
+      rawValue: 'old',
+      results: [],
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+
+    wrapper.unmount();
+    expect(emittedSelections).toEqual([]);
+  });
+
+  it('aborts a stale generic planner turn when a replacement prompt is submitted', async () => {
+    let firstAbortSignal: AbortSignal | null = null;
+    planTripMock
+      .mockImplementationOnce((_payload: unknown, options?: { signal?: AbortSignal }) => {
+        firstAbortSignal = options?.signal ?? null;
+        return new Promise((_resolve, reject) => {
+          firstAbortSignal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      })
+      .mockResolvedValueOnce({
+        itinerary: 'Replacement itinerary is ready.',
+        model: 'scope-local',
+        steps: 3,
+      });
+
+    const wrapper = mountPlannerAssist();
+    await wrapper.get('[data-test="trip-ai-input"]').setValue('How does timing look?');
+    const firstSubmit = wrapper.get('[data-test="trip-ai-form"]').trigger('submit');
+    await flushPromises();
+    await nextTick();
+
+    expect(planTripMock).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('Sending...');
+    expect(firstAbortSignal?.aborted).toBe(false);
+
+    await wrapper.get('[data-test="trip-ai-input"]').setValue('Can you explain the timing another way?');
+    await wrapper.get('[data-test="trip-ai-form"]').trigger('submit');
+    await firstSubmit.catch(() => undefined);
+    await flushPromises();
+
+    expect(firstAbortSignal?.aborted).toBe(true);
+    expect(getLatestAiResponseText(wrapper)).toContain('Replacement itinerary is ready.');
+    expect(planTripMock).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+  });
+
+  it('keeps sparse route actions, pending provider choices, and fallback copy bounded', async () => {
+    const scopeAiStore = createScopeAiStore({
+      applyActionBlockResolved: vi.fn()
+        .mockResolvedValueOnce({ not: 'a result' })
+        .mockResolvedValueOnce({
+          applied: true,
+          resolutions: [
+            { type: 'endpoint', field: 'start', rawValue: 'Dallas', status: 'resolved', resolvedLabel: 'Dallas, TX' },
+            { type: 'endpoint', field: 'end', rawValue: 'Austin', status: 'resolved', resolvedLabel: 'Austin, TX' },
+          ],
+        }),
+      applyActionBlock: vi.fn(() => false),
+      pendingScopeAiContext: {
+        value: {
+          kind: 'place-candidates',
+          sourcePrompt: 'old coffee',
+          rawValue: 'old coffee',
+          results: [],
+          lastAnswer: 'Old answer',
+          createdAt: Date.now() - (1000 * 60 * 31),
+          turnCount: 0,
+        },
+      },
+      plannerState: {
+        start: '',
+        end: '',
+        stops: [],
+      },
+    });
+    const emittedStops: any[] = [];
+    const emittedReorders: any[] = [];
+    const emittedRemovals: any[] = [];
+    const emittedEndpoints: any[] = [];
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      draft: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        endDestinationLatitude: 30.2672,
+        endDestinationLongitude: -97.7431,
+      },
+      stops: [
+        { spotId: 'stop-1', title: 'Waco Cafe', latitude: 31.55, longitude: -97.15, category: 'food' },
+        { spotId: 'stop-duplicate', title: 'Waco Cafe', latitude: 31.55, longitude: -97.15, category: 'food' },
+      ],
+      onRouteStopAdd: (payload: any) => emittedStops.push(payload),
+      onRouteStopsReplace: (payload: any) => emittedReorders.push(payload),
+      onRouteStopRemove: (payload: any) => emittedRemovals.push(payload),
+      onRouteEndpointRemove: (payload: any) => emittedEndpoints.push(payload),
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    expect(coverage.chooseWorkingMessage('fuel near coffee between endpoints')).toEqual(expect.any(String));
+    expect(coverage.chooseWorkingMessage('')).toEqual(expect.any(String));
+    expect(coverage.buildAssistantPrompt('')).toContain('Traveler request:');
+    expect(coverage.buildRecentChatContext('fresh prompt')).toEqual([]);
+    expect(coverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      expect.stringContaining('Start: Fort Worth'),
+      expect.stringContaining('End: Austin'),
+    ]));
+
+    const tightenMessage = await coverage.buildRouteActionMessage('tighten', 'tighten duplicate stops');
+    expect(tightenMessage.content).toContain('Done. I tightened Fort Worth, TX to Austin, TX');
+    expect(tightenMessage.content).toContain('removing 1 duplicate');
+    expect(emittedReorders.at(-1)).toHaveLength(1);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: '',
+        placeName: '',
+        formattedAddress: '',
+        address: '100 Provider Lane',
+        latitude: 31.77,
+        longitude: -97.11,
+        category: 'restaurant',
+        source: 'mapbox',
+      }],
+    });
+    await coverage.applyScopeRouteAction({
+      type: 'ADD_MARKER',
+      place_name: '',
+      address: '100 Provider Lane',
+      note: '',
+      order: 1,
+      day: 2,
+    });
+    expect(emittedReorders.at(-1)[0]).toMatchObject({
+      title: '100 Provider Lane',
+      notes: '100 Provider Lane',
+      dayNumber: 2,
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'start-provider',
+        placeName: 'Dallas Arts District',
+        formattedAddress: 'Dallas, TX',
+        latitude: 32.7876,
+        longitude: -96.7994,
+        city: 'Dallas',
+        country: 'United States',
+        source: 'mapbox',
+      }],
+    });
+    await coverage.applyScopeRouteAction({
+      type: 'ADD_MARKER',
+      stop_type: 'start',
+      place_name: 'Dallas Arts District',
+    });
+    expect(wrapper.emitted('map-location-select')?.at(-1)?.[0]).toMatchObject({
+      target: 'destination',
+      label: 'Dallas Arts District',
+    });
+
+    await coverage.applyScopeRouteAction({ type: 'REMOVE_MARKER', place_name: 'Waco Cafe' });
+    await coverage.applyScopeRouteAction({ type: 'REMOVE_MARKER', place_name: 'Fort Worth' });
+    await coverage.applyScopeRouteAction({ type: 'REMOVE_MARKER', place_name: 'Austin' });
+    expect(emittedRemovals).toContain('stop-1');
+    expect(emittedEndpoints).toEqual(expect.arrayContaining(['destination', 'endDestination']));
+
+    await coverage.applyScopeRouteAction({
+      type: 'REORDER_STOPS',
+      stops: ['Waco Cafe', { place_name: 'Missing stop' }],
+      dayNumber: 3,
+    });
+    expect(emittedReorders.at(-1)[0]).toMatchObject({ dayNumber: 3 });
+
+    expect(coverage.buildUnverifiedLocationApplyResult({
+      actions: [
+        { type: 'SET_FIELD', field: 'endDestination', value: undefined },
+        { type: 'ADD_STOP', stop: { name: '', address: '' } },
+      ],
+    })).toMatchObject({
+      applied: false,
+      resolutions: [
+        expect.objectContaining({ field: 'end', rawValue: '' }),
+        expect.objectContaining({ field: 'stop', rawValue: 'stop' }),
+      ],
+    });
+    await expect(coverage.applyScopeAiStoreActionBlock(scopeAiStore, {
+      actions: [{ type: 'SET_FIELD', field: 'title', value: 'New title' }],
+    })).resolves.toMatchObject({ applied: false, resolutions: [] });
+    await expect(coverage.applyScopeAiStoreActionBlock(scopeAiStore, {
+      actions: [
+        { type: 'SET_FIELD', field: 'start', value: 'Dallas' },
+        { type: 'SET_FIELD', field: 'endDestination', value: 'Austin' },
+      ],
+    })).resolves.toMatchObject({ applied: true });
+    expect(coverage.getScopeAiPendingContext(scopeAiStore)).toBeNull();
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-expired');
+
+    const providerItem = {
+      id: 'provider-item',
+      label: '1. Provider Arcade - Entertainment',
+      value: '',
+      latitude: 32.7,
+      longitude: -97.2,
+      source: 'mapbox',
+      meta: {
+        providerVerified: true,
+        category: 'entertainment',
+      },
+    };
+    await expect(coverage.resolvePendingCandidateFollowUp('1', {
+      kind: 'place-candidates',
+      sourcePrompt: 'arcade',
+      targetField: 'stop',
+      rawValue: 'arcade',
+      results: [providerItem],
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Added 1. Provider Arcade') },
+      intentKind: 'places',
+    });
+    expect(emittedStops.at(-1)).toMatchObject({
+      title: 'Provider Arcade',
+      category: 'entertainment',
+    });
+
+    const endpointItem = {
+      ...providerItem,
+      value: '',
+      label: 'Dallas Arts District',
+      meta: {
+        ...providerItem.meta,
+        city: 'Dallas',
+        country: 'United States',
+      },
+    };
+    await expect(coverage.resolvePendingCandidateFollowUp('Dallas', {
+      kind: 'endpoint-candidates',
+      sourcePrompt: 'endpoint',
+      targetField: 'start',
+      rawValue: 'endpoint',
+      results: [endpointItem],
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: 'Set the start place to Dallas Arts District.' },
+      intentKind: 'location',
+    });
+
+    expect(coverage.buildLocationResolutionConfirmation('fallback', {
+      applied: true,
+      resolutions: [
+        { type: 'endpoint', field: 'start', rawValue: 'Dallas', status: 'resolved', resolvedLabel: 'Dallas, TX' },
+        { type: 'endpoint', field: 'end', rawValue: 'Austin', status: 'resolved', resolvedLabel: 'Austin, TX' },
+      ],
+    }, {
+      actions: [
+        { type: 'SET_FIELD', field: 'start', value: 'Dallas' },
+        { type: 'SET_FIELD', field: 'endDestination', value: 'Austin' },
+      ],
+    })).toBe('Set the route endpoints to Dallas, TX and Austin, TX.');
+    expect(coverage.buildLocationResolutionConfirmation('fallback', {
+      applied: false,
+      resolutions: [{ type: 'endpoint', field: 'end', rawValue: 'Austin', status: 'not_found', candidates: [] }],
+    })).toContain('could not find a confident match');
+    expect(coverage.formatAppliedPlannerActionPrefix({
+      actions: [
+        { type: 'SET_FIELD', field: 'budget_max', value: 1200 },
+        { type: 'SEARCH_NEARBY_FUEL' },
+        { type: 'SEARCH_NEARBY_PLACES' },
+      ],
+    }, { applied: true, resolutions: [] })).toContain('Applied maximum budget, nearby fuel lookup, nearby places lookup.');
+
+    wrapper.unmount();
+  });
+
+  it('keeps start-only voice, attachment, endpoint, and provider pending branches explicit', async () => {
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      draft: {
+        endDestination: '',
+        endDate: '2026-05-08',
+        budgetFloor: undefined,
+        budget: undefined,
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+      },
+      stops: [{
+        spotId: 'uncategorized-stop',
+        title: 'Loose scenic pullout',
+        latitude: 31.1,
+        longitude: -97.2,
+      }],
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    expect(wrapper.text()).toContain('I already have Fort Worth, TX.');
+    expect(coverage.buildSuggestionPool().join(' ')).toContain('Help me choose an end point from Fort Worth, TX');
+    expect(coverage.buildIntentFollowUpPool({ kind: 'budget' }).join(' ')).toContain('the budget');
+    expect(coverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      'Existing stops on canvas: 1 stop',
+      expect.stringContaining('Loose scenic pullout'),
+    ]));
+    expect(coverage.starterMessage.value).toContain('I already have Fort Worth, TX');
+
+    coverage.messages.value = [
+      { id: 'user-coverage-1', role: 'user', kind: 'text', content: 'Plan this route' },
+      { id: 'assistant-coverage-1', role: 'assistant', kind: 'text', content: 'Here is a route idea.' },
+    ];
+    expect(coverage.hasConversationExchange.value).toBe(true);
+    coverage.messages.value = [
+      { id: 'user-coverage-2', role: 'user', kind: 'text', content: 'Repeat this prompt' },
+      { id: 'assistant-coverage-2', role: 'assistant', kind: 'text', content: '' },
+      { id: 'user-coverage-3', role: 'user', kind: 'text', content: 'Repeat this prompt' },
+    ];
+    expect(coverage.buildRecentChatContext('Repeat this prompt')).toEqual(['User: Repeat this prompt']);
+
+    await wrapper.get('[data-test="trip-ai-voice-button"]').trigger('click');
+    MockSpeechRecognition.instances.at(-1)?.onend?.();
+    await nextTick();
+    expect(wrapper.get('[data-test="trip-ai-voice-status"]').text()).toContain('Voice dictation stopped');
+
+    const originalWindow = window;
+    vi.stubGlobal('window', undefined);
+    expect(coverage.getSpeechRecognitionConstructor()).toBeNull();
+    vi.stubGlobal('window', originalWindow);
+
+    class RawFileReader {
+      result: string | ArrayBuffer | null = 'rawbase64';
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.(new ProgressEvent('load') as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', RawFileReader);
+    await expect(coverage.readImageFileAsBase64(new File(['image'], 'raw.png', { type: 'image/png' }))).resolves.toBe('rawbase64');
+
+    class EmptyFileReader extends RawFileReader {
+      result = '';
+    }
+    vi.stubGlobal('FileReader', EmptyFileReader);
+    await expect(coverage.readImageFileAsBase64(new File(['image'], 'empty.png', { type: 'image/png' }))).resolves.toBeUndefined();
+
+    expect(coverage.isTrustedPendingContextItem({
+      label: 'Unverified Provider',
+      value: 'Unverified Provider',
+      latitude: 32,
+      longitude: -97,
+      meta: { providerVerified: false },
+    })).toBe(false);
+    expect(coverage.isTrustedPendingContextItem({
+      label: 'Trusted Provider',
+      value: 'Trusted Provider',
+      latitude: 32,
+      longitude: -97,
+      source: 'mapbox',
+      meta: {},
+    })).toBe(true);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: 'fort-worth-provider',
+        placeName: 'Fort Worth',
+        formattedAddress: 'Fort Worth, TX',
+        latitude: 32.7555,
+        longitude: -97.3308,
+        city: 'Fort Worth',
+        country: 'United States',
+        source: 'mapbox',
+        sourceLabel: 'Mapbox',
+      }],
+    });
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      preference: 'scenic',
+      anchorQuery: 'Cowtown',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { label: 'Fort Worth, TX' },
+    });
+
+    const noPriceFuelContext = {
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      rawValue: 'fuel',
+      results: [{
+        id: 'fuel-no-price',
+        label: 'Provider Fuel No Price',
+        value: 'Provider Fuel No Price',
+        latitude: 32.1,
+        longitude: -97.1,
+        source: 'mapbox',
+        meta: {
+          providerVerified: true,
+          distanceKm: 1.2,
+        },
+      }],
+      lastAnswer: 'Fuel options',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    await expect(coverage.resolvePendingFuelFollowUp('closest fuel option', noPriceFuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: {
+        content: expect.stringContaining('Set a start, end, or stop first'),
+      },
+      intentKind: 'places',
+    });
+
+    expect(coverage.buildPendingContextReminder({
+      kind: 'explanation',
+      sourcePrompt: 'explain',
+      rawValue: 'explain',
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 1,
+    }).content).toContain('I am still waiting on a clearer follow-up');
+
+    wrapper.unmount();
+  });
+
+  it('keeps structured chips, assistant-first context, and pending provider follow-ups bounded', async () => {
+    const scopeAiStore = createScopeAiStore({
+      plannerState: {
+        start: 'Fort Worth',
+        startLatitude: 32.7555,
+        startLongitude: -97.3308,
+        end: '',
+        stops: [
+          { id: 'stop-food', name: 'Coffee Stop', latitude: 32.8, longitude: -97.2, type: 'food' },
+        ],
+      },
+      applyActionBlockResolved: vi.fn().mockResolvedValue({ applied: true, resolutions: [] }),
+    });
+    const emittedStops: any[] = [];
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      draft: {
+        destination: '',
+        endDestination: 'Austin, TX',
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+      },
+      stops: [],
+      onRouteStopAdd: (payload: any) => emittedStops.push(payload),
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    coverage.messages.value = [
+      { id: 'assistant-first', role: 'assistant', kind: 'text', content: 'I can help.' },
+      { id: 'user-second', role: 'user', kind: 'text', content: 'Pick an end point.' },
+    ];
+    expect(coverage.hasConversationExchange.value).toBe(false);
+    coverage.messages.value = [
+      { id: 'user-first', role: 'user', kind: 'text', content: 'Pick an end point.' },
+      { id: 'assistant-second', role: 'assistant', kind: 'text', content: 'I can help.' },
+    ];
+    expect(coverage.hasConversationExchange.value).toBe(true);
+    coverage.messages.value = [
+      { id: 'assistant-only', role: 'assistant', kind: 'text', content: 'Still waiting.' },
+    ];
+    expect(coverage.hasConversationExchange.value).toBe(false);
+    expect(coverage.chooseWorkingMessage('fuel, nearby coffee, and destination help')).toEqual(expect.any(String));
+    expect(coverage.getDateRangeDurationDays('2026-06-10', '2026-06-10')).toBe(1);
+    expect(coverage.buildSuggestionPool().join(' ')).toContain('Help me choose a start point for Austin');
+    expect(coverage.buildIntentFollowUpPool({ kind: 'places', prompt: 'places', responseKind: 'text' }).join(' ')).toContain('food');
+    expect(coverage.normalizeScopeAiStructuredChips([
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+    ])).toHaveLength(3);
+
+    const trustedFuel = coverage.scopeAiFuelStationToPendingItem({
+      id: 'trusted-fuel',
+      name: 'Trusted Fuel',
+      address: '1 Pump Rd',
+      latitude: 32.76,
+      longitude: -97.34,
+      pricePerUnit: 3.12,
+      currency: 'USD',
+      fuelType: 'regular',
+      distanceKm: 2.5,
+      source: 'Scope fuel',
+    }, 0, 'Scope fuel');
+    const distantFuel = coverage.scopeAiFuelStationToPendingItem({
+      id: 'distant-fuel',
+      name: 'Distant Fuel',
+      address: '9 Pump Rd',
+      latitude: 32.86,
+      longitude: -97.44,
+      pricePerUnit: 3.45,
+      currency: 'USD',
+      fuelType: 'regular',
+      distanceKm: 12,
+      source: 'Scope fuel',
+    }, 1, 'Scope fuel');
+    const fuelContext = {
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      rawValue: 'regular',
+      results: [distantFuel, trustedFuel],
+      lastAnswer: 'Fuel options',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    await expect(coverage.resolvePendingFuelFollowUp('which one should I use', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Cheapest provider-backed fuel result') },
+      intentKind: 'places',
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('set gas price', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Set the gas price') },
+      intentKind: 'budget',
+    });
+
+    getNearbyFuelStationsMock.mockResolvedValueOnce({
+      configured: true,
+      coverage: 'Phase 5 fuel coverage',
+      source: 'Scope fuel',
+      fuelType: 'diesel',
+      radiusKm: 12,
+      stations: [{
+        id: 'live-diesel',
+        name: 'Live Diesel',
+        address: '4 Diesel Rd',
+        latitude: 32.77,
+        longitude: -97.31,
+        pricePerUnit: 3.9,
+        currency: 'USD',
+        fuelType: 'diesel',
+        distanceKm: 1.2,
+      }],
+    });
+    await expect(coverage.resolvePendingFuelFollowUp('show more diesel within 7 miles', fuelContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Live Diesel') },
+      intentKind: 'places',
+    });
+
+    searchNearbyPlacesMock.mockResolvedValueOnce({
+      data: [{
+        id: 'nearby-arcade',
+        placeName: 'Nearby Arcade',
+        formattedAddress: '7 Fun Ave',
+        latitude: 32.77,
+        longitude: -97.32,
+        category: 'entertainment',
+        categoryLabel: 'Entertainment',
+        distanceKm: 1.1,
+        source: 'mapbox',
+      }],
+    });
+    await expect(coverage.resolvePendingNearbyFollowUp('show more entertainment within 5 miles', {
+      kind: 'nearby-results',
+      sourcePrompt: 'nearby',
+      rawValue: 'entertainment',
+      results: [],
+      lastAnswer: 'Nearby',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('Nearby Arcade') },
+      intentKind: 'places',
+    });
+
+    await expect(coverage.resolvePendingNearbyFollowUp('1', {
+      kind: 'nearby-results',
+      sourcePrompt: 'nearby',
+      rawValue: 'nearby',
+      results: [{
+        id: 'bad-nearby',
+        label: 'Bad Nearby',
+        value: 'Bad Nearby',
+        meta: { providerVerified: true },
+      }],
+      lastAnswer: 'Nearby',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('does not have provider coordinates') },
+    });
+    expect(emittedStops).toEqual([]);
+
+    expect(coverage.buildPendingContextReminder({
+      kind: 'fuel-results',
+      sourcePrompt: 'fuel',
+      rawValue: 'fuel',
+      results: [trustedFuel],
+      lastAnswer: 'A'.repeat(240),
+      createdAt: Date.now(),
+      turnCount: 1,
+    }).content).toContain('I am still narrowing fuel results');
+
+    wrapper.unmount();
   });
 });

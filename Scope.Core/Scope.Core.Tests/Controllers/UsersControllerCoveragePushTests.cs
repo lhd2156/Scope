@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Scope.Core.API.Contracts.Requests;
 using Scope.Core.API.Controllers;
 using Scope.Core.Domain.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -72,5 +74,94 @@ public sealed class UsersControllerCoveragePushTests
         Assert.Equal(1, TestData.Prop<int>(statsPayload, "pendingFriendRequests"));
         Assert.Equal(1, TestData.Prop<int>(statsPayload, "unreadNotifications"));
         Assert.Equal(1, TestData.Prop<int>(statsPayload, "activeLiveSessions"));
+    }
+
+    [Fact]
+    public async Task UsersController_HidesPrivateStatsAndLetsAdminsSearchExactEmail()
+    {
+        var callerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        await using var dbContext = TestData.CreateDbContext();
+        dbContext.Users.AddRange(
+            TestData.User(callerId, "caller", profileVisibility: "public"),
+            TestData.User(targetId, "private", email: "private-target@example.com", displayName: "Private Target", profileVisibility: "private"),
+            TestData.User(adminId, "admin", email: "admin@example.com", displayName: "Admin", profileVisibility: "public"));
+        dbContext.Friendships.Add(new Friendship
+        {
+            Id = Guid.NewGuid(),
+            RequesterId = callerId,
+            AddresseeId = targetId,
+            Status = "accepted",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        dbContext.Notifications.Add(new Notification
+        {
+            Id = Guid.NewGuid(),
+            UserId = targetId,
+            Type = "n",
+            TemplateKey = "n",
+            Category = "general",
+            Priority = "normal",
+            Title = "n",
+            IsRead = false,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var callerStats = await new UsersController(dbContext).WithUser(callerId).Stats(targetId, CancellationToken.None);
+        var statsPayload = TestData.Response(Assert.IsType<OkObjectResult>(callerStats)).Data;
+        Assert.Equal(1, TestData.Prop<int>(statsPayload, "friendsCount"));
+        Assert.Null(statsPayload.GetType().GetProperty("pendingFriendRequests")?.GetValue(statsPayload));
+        Assert.Null(statsPayload.GetType().GetProperty("unreadNotifications")?.GetValue(statsPayload));
+        Assert.Null(statsPayload.GetType().GetProperty("activeLiveSessions")?.GetValue(statsPayload));
+
+        var adminSearch = await WithUserAndRoles(new UsersController(dbContext), adminId, "admin")
+            .Search("private-target@example.com", page: -5, pageSize: 999, cancellationToken: CancellationToken.None);
+        var adminResponse = TestData.Response(Assert.IsType<OkObjectResult>(adminSearch));
+        var item = Assert.Single(Assert.IsAssignableFrom<IEnumerable<object>>(adminResponse.Data));
+        Assert.Equal(targetId, TestData.Prop<Guid>(item, "Id"));
+        Assert.Equal("private-target@example.com", TestData.Prop<string>(item, "Email"));
+        Assert.Equal(50, TestData.Prop<int>(adminResponse.Meta!, "pageSize"));
+    }
+
+    [Fact]
+    public async Task UsersController_UpdateTrimsAndSanitizesOptionalProfileFields()
+    {
+        var callerId = Guid.NewGuid();
+        await using var dbContext = TestData.CreateDbContext();
+        dbContext.Users.Add(TestData.User(callerId, "profile", interestsJson: """["old"]""", homeBase: "Old home"));
+        await dbContext.SaveChangesAsync();
+
+        var longInterest = new string('x', 80);
+        var result = await new UsersController(dbContext).WithUser(callerId).Update(
+            callerId,
+            new UserProfileUpdateRequest(
+                Bio: "   ",
+                AvatarUrl: " https://cdn.example.com/avatar.png ",
+                HomeBase: "   ",
+                Interests: new[] { " Food ", "", longInterest, "food", null! }),
+            CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result);
+        var user = await dbContext.Users.SingleAsync(x => x.Id == callerId);
+        Assert.Null(user.Bio);
+        Assert.Equal("https://cdn.example.com/avatar.png", user.AvatarUrl);
+        Assert.Null(user.HomeBase);
+        Assert.Equal("""["Food","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]""", user.InterestsJson);
+    }
+
+    private static UsersController WithUserAndRoles(UsersController controller, Guid userId, params string[] roles)
+    {
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId.ToString()) };
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
+            }
+        };
+        return controller;
     }
 }

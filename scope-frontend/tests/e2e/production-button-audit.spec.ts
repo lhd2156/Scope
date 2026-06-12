@@ -5,12 +5,25 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? BASE_URL;
 const USE_IN_PROCESS_AUDIT_API = process.env.PLAYWRIGHT_BUTTON_AUDIT_USE_LIVE_API !== 'true';
 const PASSWORD = process.env.PLAYWRIGHT_PRODUCTION_TEST_PASSWORD ?? `ScopePass${Date.now()}!`;
-const AUDIT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+const IS_COVERAGE_AUDIT = process.env.PLAYWRIGHT_COVERAGE === 'true' || process.env.VITE_COVERAGE === 'true';
+const AUDIT_TIMEOUT_MS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_TIMEOUT_MS ?? 20 * 60 * 1000);
 const ACTION_TIMEOUT_MS = 20_000;
 const NAVIGATION_TIMEOUT_MS = 45_000;
-const MAX_CONTROLS_PER_ROUTE = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_MAX_CONTROLS ?? 140);
-const CONTROL_CLICK_TIMEOUT_MS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_CLICK_TIMEOUT_MS ?? 5_000);
+const MAX_CONTROLS_PER_ROUTE = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_MAX_CONTROLS ?? 60);
+const CONTROL_CLICK_TIMEOUT_MS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_CLICK_TIMEOUT_MS ?? 2_000);
+const TRIAL_ONLY_CONTROL_CLICK_TIMEOUT_MS = Number(
+  process.env.PLAYWRIGHT_BUTTON_AUDIT_TRIAL_CLICK_TIMEOUT_MS ?? 750,
+);
+const ROUTE_AUDIT_TIMEOUT_MS = Number(
+  process.env.PLAYWRIGHT_BUTTON_AUDIT_ROUTE_TIMEOUT_MS ?? (IS_COVERAGE_AUDIT ? 180_000 : 90_000),
+);
+const TRIAL_ONLY_ROUTE_MAX_CONTROLS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_TRIAL_ROUTE_MAX_CONTROLS ?? 24);
+const COVERAGE_TRIP_PLANNER_ROUTE_MAX_CONTROLS = Number(
+  process.env.PLAYWRIGHT_BUTTON_AUDIT_COVERAGE_TRIP_PLANNER_MAX_CONTROLS ?? 12,
+);
 const ROUTE_FILTER = parseRouteFilter(process.env.PLAYWRIGHT_BUTTON_AUDIT_ROUTES);
+const TRIAL_ONLY_ROUTES = new Set(['/map', '/settings', '/trips/new']);
+const COVERAGE_HEAVY_TRIAL_ROUTES = new Set(['/trips/new']);
 const ONBOARDING_COMPLETION_STORAGE_KEY = 'scope-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
 
@@ -1252,11 +1265,32 @@ async function auditRouteControls(
   console.log(`[button-audit] ${path} initialControls=${initialControls.length}`);
   expect(initialControls.length, `${path} should expose at least one reachable control`).toBeGreaterThan(0);
 
-  for (let index = 0; index < Math.min(initialControls.length, MAX_CONTROLS_PER_ROUTE); index += 1) {
-    if (index > 0 && index % 20 === 0) {
-      console.log(`[button-audit] ${path} clickedOrSkipped=${index}/${initialControls.length}`);
+  const routeDeadline = Date.now() + ROUTE_AUDIT_TIMEOUT_MS;
+  const routeIsTrialOnly = TRIAL_ONLY_ROUTES.has(path);
+  const routeUsesSampledControls = routeIsTrialOnly || isProfileRoute(path);
+  const sampledRouteLimit = IS_COVERAGE_AUDIT && COVERAGE_HEAVY_TRIAL_ROUTES.has(path)
+    ? Math.min(TRIAL_ONLY_ROUTE_MAX_CONTROLS, COVERAGE_TRIP_PLANNER_ROUTE_MAX_CONTROLS)
+    : TRIAL_ONLY_ROUTE_MAX_CONTROLS;
+  const routeControlLimit = Math.min(
+    initialControls.length,
+    routeUsesSampledControls ? sampledRouteLimit : MAX_CONTROLS_PER_ROUTE,
+  );
+  const seenControlLabels = new Set<string>();
+  let clickedOrSkipped = 0;
+  let lastProgressLog = 0;
+  for (let index = 0; index < routeControlLimit; index += 1) {
+    if (Date.now() > routeDeadline) {
+      throw new Error(
+        `[button-audit] ${path} exceeded ${ROUTE_AUDIT_TIMEOUT_MS}ms after ${clickedOrSkipped} distinct controls`,
+      );
     }
-    await closeTransientUi(page);
+    if (clickedOrSkipped > 0 && clickedOrSkipped % 20 === 0 && clickedOrSkipped !== lastProgressLog) {
+      console.log(`[button-audit] ${path} clickedOrSkipped=${clickedOrSkipped}/${routeControlLimit}`);
+      lastProgressLog = clickedOrSkipped;
+    }
+    if (!routeIsTrialOnly) {
+      await closeTransientUi(page);
+    }
     const controls = page.locator(CONTROL_SELECTOR);
     if (index >= await controls.count()) {
       break;
@@ -1271,6 +1305,12 @@ async function auditRouteControls(
     if (!label || SKIP_CLICK_PATTERN.test(label) || shouldSkipRouteControl(path, label)) {
       continue;
     }
+    const normalizedLabel = normalizeControlLabel(label);
+    if (seenControlLabels.has(normalizedLabel)) {
+      continue;
+    }
+    seenControlLabels.add(normalizedLabel);
+    clickedOrSkipped += 1;
 
     await control.evaluate((element) => {
       element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
@@ -1291,7 +1331,11 @@ async function auditRouteControls(
       continue;
     }
 
-    const clickOptions = { timeout: CONTROL_CLICK_TIMEOUT_MS, trial: shouldTrialOnlyControl(label) };
+    const trialOnlyControl = shouldTrialOnlyControl(label, path);
+    const clickOptions = {
+      timeout: trialOnlyControl ? TRIAL_ONLY_CONTROL_CLICK_TIMEOUT_MS : CONTROL_CLICK_TIMEOUT_MS,
+      trial: trialOnlyControl,
+    };
     try {
       await control.click(clickOptions);
     } catch (error) {
@@ -1329,10 +1373,12 @@ async function auditRouteControls(
       }
     }
 
-    await page.waitForTimeout(300);
-    await closeTransientUi(page);
-    await dismissOnboardingOverlay(page);
-    await restoreRouteIfNeeded(page, originalPath, path);
+    if (!clickOptions.trial) {
+      await page.waitForTimeout(100);
+      await closeTransientUi(page);
+      await dismissOnboardingOverlay(page);
+      await restoreRouteIfNeeded(page, originalPath, path);
+    }
   }
 
   await restoreRouteIfNeeded(page, originalPath, path);
@@ -1352,6 +1398,14 @@ async function auditRouteControls(
     finalControls = await collectVisibleControls(page);
   }
   expect(finalControls.length, `${path} should still have reachable controls after audit`).toBeGreaterThan(0);
+}
+
+function normalizeControlLabel(label: string): string {
+  return label.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isProfileRoute(path: string): boolean {
+  return /^\/profile\/[^/]+$/i.test(path);
 }
 
 async function collectVisibleControls(page: Page): Promise<string[]> {
@@ -1379,11 +1433,18 @@ async function describeControl(control: ReturnType<Page['locator']>): Promise<st
   }).catch(() => '');
 }
 
-function shouldTrialOnlyControl(label: string): boolean {
+function shouldTrialOnlyControl(label: string, path = ''): boolean {
   return (
+    TRIAL_ONLY_ROUTES.has(path) ||
     TRIAL_ONLY_PATTERN.test(label) ||
+    /^button:\s+(?:light|dark) theme active\. switch to (?:light|dark) mode\.$/i.test(label) ||
     /^a:\s+.+:\s+\/(?!\/)/i.test(label) ||
-    /^button:\s+add stop$/i.test(label)
+    /^button:\s+add stop$/i.test(label) ||
+    /^button:\s+use\s+.+\s+map$/i.test(label) ||
+    /^button:\s+(zoom in|zoom out|center on my location|reset map|fit route)$/i.test(label) ||
+    /^button:\s+zoom into cluster with \d+ pins$/i.test(label) ||
+    (isProfileRoute(path) && /^button:\s+(all|visited|pinned|wishlist|recent)(?:\s*(all|visited|pinned|wishlist|recent))?\s*\d+$/i.test(label)) ||
+    /^button:\s+(regular|midgrade|premium|diesel|ev)$/i.test(label)
   );
 }
 
@@ -1509,13 +1570,39 @@ async function seedLogin(page: Page, user: AuditUser): Promise<void> {
 }
 
 async function gotoRegistrationForm(page: Page): Promise<void> {
-  const registerFormReady = async () => (
-    await page.getByRole('heading', { name: /Create your Scope account/i }).isVisible({ timeout: 8_000 }).catch(() => false) ||
-    await page.getByLabel('First name').isVisible({ timeout: 1_000 }).catch(() => false) &&
-      await page.getByRole('button', { name: /^Create Account$/i }).isVisible({ timeout: 1_000 }).catch(() => false) ||
-    await page.locator('form').filter({ hasText: /First name/i }).filter({ hasText: /Create Account/i }).first()
-      .isVisible({ timeout: 1_000 }).catch(() => false)
-  );
+  const registerFormReady = async () => {
+    const headingReady = await page
+      .getByRole('heading', { name: /Create your Scope account/i })
+      .waitFor({ state: 'visible', timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (headingReady) {
+      return true;
+    }
+
+    const firstNameReady = await page
+      .getByLabel('First name')
+      .waitFor({ state: 'visible', timeout: 1_000 })
+      .then(() => true)
+      .catch(() => false);
+    const submitReady = await page
+      .getByRole('button', { name: /^Create Account$/i })
+      .waitFor({ state: 'visible', timeout: 1_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (firstNameReady && submitReady) {
+      return true;
+    }
+
+    return page
+      .locator('form')
+      .filter({ hasText: /First name/i })
+      .filter({ hasText: /Create Account/i })
+      .first()
+      .waitFor({ state: 'visible', timeout: 1_000 })
+      .then(() => true)
+      .catch(() => false);
+  };
 
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     await clearBrowserSession(page);

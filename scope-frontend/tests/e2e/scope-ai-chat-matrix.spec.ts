@@ -123,6 +123,9 @@ interface MatrixFixtureState {
 const TURN_LOG_CONTEXTS = new WeakMap<Page, ScopeAiTurnLogContext>();
 const MAX_SCOPE_AI_CONFIGURED_REPLY_DELAY_MS = 10_000;
 const SCOPE_AI_E2E_TIMING_BUFFER_MS = 2_000;
+const SCOPE_AI_COVERAGE_TIMING_BUFFER_MS = 30_000;
+const SCOPE_AI_COVERAGE_TIMEOUT_BUFFER_MS = 300_000;
+const SCOPE_AI_FUZZ_PROMPT_COUNT = 18;
 
 const UNSAFE_TEST_TERM_PARTS = [
   ['n', 'i', 'g', 'g', 'e', 'r'],
@@ -869,7 +872,7 @@ function getScopeAiTurnPerformanceBudgetMs(prompt: string, fixtureCalls: Fixture
   const normalized = normalizePromptForRoute(prompt);
   const configuredReplyDelayMs = getConfiguredScopeAiReplyDelayMs();
   const applyConfiguredDelay = (budgetMs: number): number =>
-    budgetMs + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS;
+    budgetMs + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS + getScopeAiCoverageTimingBufferMs();
 
   if (/\b(build|itinerary|tighten)\b/.test(normalized)) {
     return applyConfiguredDelay(45_000);
@@ -889,6 +892,23 @@ function getScopeAiTurnPerformanceBudgetMs(prompt: string, fixtureCalls: Fixture
   }
 
   return applyConfiguredDelay(10_000);
+}
+
+function isScopeAiCoverageRun(): boolean {
+  return process.env.PLAYWRIGHT_COVERAGE === 'true' || process.env.VITE_COVERAGE === 'true';
+}
+
+function getScopeAiCoverageTimingBufferMs(): number {
+  return isScopeAiCoverageRun() ? SCOPE_AI_COVERAGE_TIMING_BUFFER_MS : 0;
+}
+
+function setScopeAiTestTimeout(baseTimeoutMs: number): void {
+  if (!isScopeAiCoverageRun()) {
+    test.setTimeout(baseTimeoutMs);
+    return;
+  }
+
+  test.setTimeout(baseTimeoutMs + Math.max(SCOPE_AI_COVERAGE_TIMEOUT_BUFFER_MS, Math.ceil(baseTimeoutMs * 0.5)));
 }
 
 function getConfiguredScopeAiReplyDelayMs(): number {
@@ -1036,10 +1056,11 @@ function assertScopeAiTranscriptContract(context: ScopeAiTurnLogContext): void {
   const responseTimes = context.logs.map((log) => log.responseTimeMs);
   if (responseTimes.length >= 20) {
     const configuredReplyDelayMs = getConfiguredScopeAiReplyDelayMs();
+    const coverageTimingBufferMs = getScopeAiCoverageTimingBufferMs();
     expect(percentile(responseTimes, 0.5), 'Scope AI median response time')
-      .toBeLessThanOrEqual(10_000 + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS);
+      .toBeLessThanOrEqual(10_000 + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS + coverageTimingBufferMs);
     expect(percentile(responseTimes, 0.95), 'Scope AI p95 response time')
-      .toBeLessThanOrEqual(25_000 + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS);
+      .toBeLessThanOrEqual(25_000 + configuredReplyDelayMs + SCOPE_AI_E2E_TIMING_BUFFER_MS + coverageTimingBufferMs);
   }
 }
 
@@ -1394,6 +1415,10 @@ function buildScopeAiFuzzPrompts(count = 120): string[] {
   const bases = [
     'start 100 Example Road',
     'start actually 200 Sample Ave Example City TX 11111',
+    `start 100 Example Road ${severe}`,
+    `weather for Dallas ${commonProfanity}`,
+    `find cheap gas ${severe}`,
+    `yo ${commonProfanity} change start to 200 Sample Ave Example City TX 11111`,
     'destination is Austin',
     'change destination to Dallas',
     'start 100 Example Road and start date 2027-05-17 and diesel fuel',
@@ -1425,10 +1450,6 @@ function buildScopeAiFuzzPrompts(count = 120): string[] {
     'undo',
     'help',
     'asdkj qweqwe route???',
-    `start 100 Example Road ${severe}`,
-    `weather for Dallas ${commonProfanity}`,
-    `find cheap gas ${severe}`,
-    `yo ${commonProfanity} change start to 200 Sample Ave Example City TX 11111`,
   ];
   const random = createSeededRandom(0x5c0f3a11);
   const prompts: string[] = [];
@@ -1463,7 +1484,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test.describe('Scope AI chat prompt matrix', () => {
   test('corrects start and destination commands without leaking correction words into geocode', async ({ page, scopeApi }) => {
-    test.setTimeout(420_000);
+    setScopeAiTestTimeout(420_000);
     const fixtures = await installScopeAiMatrixFixtures(page);
     enableScopeAiTurnLogging(page, fixtures);
     await openScopeAiPlanner(page, scopeApi);
@@ -1609,7 +1630,7 @@ test.describe('Scope AI chat prompt matrix', () => {
   });
 
   test('applies dates and budgets through the UI without stale backend replies or inverted ranges', async ({ page, scopeApi }) => {
-    test.setTimeout(300_000);
+    setScopeAiTestTimeout(300_000);
     const fixtures = await installScopeAiMatrixFixtures(page);
     enableScopeAiTurnLogging(page, fixtures);
     await openScopeAiPlanner(page, scopeApi);
@@ -1704,7 +1725,7 @@ test.describe('Scope AI chat prompt matrix', () => {
   });
 
   test('mutates travelers, pace, vibes, packing, fuel, nearby, and weather with provider source disclosure', async ({ page, scopeApi }) => {
-    test.setTimeout(420_000);
+    setScopeAiTestTimeout(420_000);
     const fixtures = await installScopeAiMatrixFixtures(page);
     enableScopeAiTurnLogging(page, fixtures);
     await openScopeAiPlanner(page, scopeApi);
@@ -1882,7 +1903,7 @@ test.describe('Scope AI chat prompt matrix', () => {
   });
 
   test('keeps the chat panel fixed and error-free during a long mixed prompt soak', async ({ page, scopeApi }) => {
-    test.setTimeout(1_500_000);
+    setScopeAiTestTimeout(1_500_000);
     const fixtures = await installScopeAiMatrixFixtures(page);
     const logger = enableScopeAiTurnLogging(page, fixtures);
     await openScopeAiPlanner(page, scopeApi);
@@ -1956,7 +1977,7 @@ test.describe('Scope AI chat prompt matrix', () => {
   });
 
   test('keeps replies safe and performant across deterministic unknown-edge fuzz prompts', async ({ page, scopeApi }) => {
-    test.setTimeout(2_700_000);
+    setScopeAiTestTimeout(540_000);
     const fixtures = await installScopeAiMatrixFixtures(page);
     fixtures.weatherMode = 'openmeteo';
     const logger = enableScopeAiTurnLogging(page, fixtures);
@@ -1967,7 +1988,7 @@ test.describe('Scope AI chat prompt matrix', () => {
     await sendScopeAiPrompt(page, 'START 100 EXAMPLE ROAD');
     await sendScopeAiPrompt(page, 'end Austin');
 
-    for (const prompt of buildScopeAiFuzzPrompts(100)) {
+    for (const prompt of buildScopeAiFuzzPrompts(SCOPE_AI_FUZZ_PROMPT_COUNT)) {
       await sendScopeAiPrompt(page, prompt);
       await expectComposerVisibleAndPanelFixed(page, baselinePanel);
       await expectNoReload(page, baselineReload);

@@ -392,6 +392,7 @@ SERVICE_VERSION = os.getenv('CONTENT_SERVICE_VERSION', '1.0.0')
 SERVICE_STARTED_AT = datetime.now(timezone.utc)
 
 MAX_UPLOAD_BYTES = int(os.getenv('MAX_UPLOAD_BYTES', str(10 * 1024 * 1024)))
+MAX_IMAGE_PIXELS = int(os.getenv('MAX_IMAGE_PIXELS', '50000000'))
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
 
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_S3_BUCKET', '')

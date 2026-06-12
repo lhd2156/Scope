@@ -609,4 +609,81 @@ describe('auth store security hardening', () => {
     expect(store.error).toBeNull();
     expect(localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY)).toBeNull();
   });
+
+  it('captures default refresh failures and rejects blank Cognito tokens before network calls', async () => {
+    const refreshSessionRequest = vi.fn().mockRejectedValue(new Error('refresh default offline'));
+    const loginWithCognitoRequest = vi.fn();
+
+    vi.doMock('@/services/authService', () => ({
+      login: vi.fn(),
+      register: vi.fn(),
+      loginWithCognito: loginWithCognitoRequest,
+      logout: vi.fn(),
+      refreshSession: refreshSessionRequest,
+    }));
+
+    const store = await bootstrapAuthStore();
+
+    await expect(store.refreshSession()).resolves.toBeNull();
+    expect(refreshSessionRequest).toHaveBeenCalledWith({ allowMockFallback: false });
+    expect(store.error).toBe('refresh default offline');
+
+    await expect(store.loginWithCognito()).rejects.toThrow('Google sign-in is not configured for this build.');
+    expect(loginWithCognitoRequest).not.toHaveBeenCalled();
+    expect(store.error).toBe('Google sign-in is not configured for this build.');
+  });
+
+  it('resolves mock-profile fallbacks, production payloads, and nonstandard login errors safely', async () => {
+    const loginRequest = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'demo-user-1',
+        accessToken: 'mock-profile-token',
+        refreshToken: 'mock-profile-refresh',
+      })
+      .mockResolvedValueOnce({
+        id: 'prod-user-1',
+        username: 'prod.traveler',
+        accessToken: 'prod-token',
+        refreshToken: 'prod-refresh',
+      })
+      .mockRejectedValueOnce(new Error('request timeout'))
+      .mockRejectedValueOnce(new Error(''))
+      .mockRejectedValueOnce('bad credentials');
+
+    vi.doMock('@/services/authService', () => ({
+      login: loginRequest,
+      register: vi.fn(),
+      loginWithCognito: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+    }));
+
+    const store = await bootstrapAuthStore();
+    await store.login({ email: 'alex.morgan@showcase.scope.local', password: 'SecurePass123!' });
+    expect(store.currentUser).toMatchObject({
+      id: 'demo-user-1',
+      username: 'scope-user',
+      email: 'alex.morgan@showcase.scope.local',
+      displayName: 'New explorer',
+    });
+
+    vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_ENABLE_LOCAL_PREVIEW', 'false');
+    await store.login({ email: 'prod@example.com', password: 'SecurePass123!' });
+    expect(store.currentUser).toMatchObject({
+      id: 'prod-user-1',
+      username: 'prod.traveler',
+      email: '',
+      displayName: 'prod.traveler',
+    });
+
+    await expect(store.login({ email: 'prod@example.com', password: 'bad' })).rejects.toThrow('request timeout');
+    expect(store.error).toBe('Sign-in service is unavailable right now. Try again in a moment.');
+
+    await expect(store.login({ email: 'prod@example.com', password: 'bad' })).rejects.toThrow('');
+    expect(store.error).toBe('Invalid username or password.');
+
+    await expect(store.login({ email: 'prod@example.com', password: 'bad' })).rejects.toBe('bad credentials');
+    expect(store.error).toBe('Invalid username or password.');
+  });
 });

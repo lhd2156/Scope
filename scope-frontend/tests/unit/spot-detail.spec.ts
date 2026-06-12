@@ -55,7 +55,7 @@ vi.mock('vue-router', () => ({
 }));
 
 import SpotDetail from '@/components/spots/SpotDetail.vue';
-import type { SpotDetail as SpotDetailModel } from '@/types';
+import type { SpotDetail as SpotDetailModel, SpotSummary } from '@/types';
 
 const spot: SpotDetailModel = {
   id: 'spot-1',
@@ -626,5 +626,238 @@ describe('SpotDetail', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="spot-gallery"]').exists()).toBe(false);
+  });
+
+  it('covers SpotDetail null guards and gallery normalization helpers', async () => {
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: null,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(coverage.categoryLabel.value).toBe('Spot');
+    expect(coverage.galleryPhotos.value).toEqual([]);
+    expect(coverage.activeGalleryPhoto.value).toBeNull();
+    expect(coverage.thumbnailPhotos.value).toEqual([]);
+    expect(coverage.locationLine.value).toBe('');
+    expect(coverage.addressLine.value).toContain('Shared in-app');
+    expect(coverage.averageRatingNumber.value).toBe(0);
+    expect(coverage.averageRating.value).toBe('0.0');
+    expect(coverage.publishedLabel.value).toBe('');
+    expect(coverage.saveCount.value).toBe(0);
+    expect(coverage.saveCountLabel.value).toBe('Fresh');
+    expect(coverage.overviewCopy.value).toBe('');
+    expect(coverage.tripFitHeading.value).toBe('Flexible stop');
+    expect(coverage.tripFitCopy.value).toBe('');
+    expect(coverage.tripPlannerLink.value).toBe('/trips/new');
+    expect(coverage.miniMapSpots.value).toEqual([]);
+
+    expect(coverage.formatCategory('culture')).toBe('Culture');
+    expect(coverage.formatRegion()).toBe('');
+    expect(coverage.formatRegion('  ')).toBe('');
+    expect(coverage.formatRegion('tx')).toMatch(/Texas|TX/);
+    expect(coverage.formatRegion('North Island')).toBe('North Island');
+    expect(coverage.formatDate('2026-03-26T20:00:00Z')).toContain('2026');
+    expect(coverage.normalizeGalleryUrl(' HTTPS://IMAGES.EXAMPLE.COM/FOO.JPG?W=900 ')).toBe('https://images.example.com/foo.jpg');
+    expect(coverage.normalizeGalleryUrl('not a url')).toBe('not a url');
+    expect(coverage.normalizeGalleryUrl('https://cdn.example.net/Foo.JPG?x=1')).toBe('https://cdn.example.net/foo.jpg?x=1');
+    expect(coverage.normalizeGalleryPhoto({ id: 'blank', url: '   ' })).toBeNull();
+    expect(coverage.normalizeGalleryPhoto({
+      id: 'trimmed',
+      url: ' https://images.example.com/trimmed.jpg ',
+      caption: '  Clean caption  ',
+    })).toEqual({
+      id: 'trimmed',
+      url: 'https://images.example.com/trimmed.jpg',
+      caption: 'Clean caption',
+    });
+    expect(coverage.isGalleryPhotoSlot({ id: 'photo', url: 'https://images.example.com/photo.jpg' })).toBe(true);
+    expect(coverage.isViewAllGallerySlot({ id: 'gallery-view-all', isViewAll: true, totalPhotos: 7 })).toBe(true);
+    expect(coverage.formatSimilarLocation({ city: '', country: '' } as SpotSummary)).toBe('Scope discovery');
+
+    coverage.openGalleryDialog();
+    expect(coverage.isGalleryDialogOpen.value).toBe(false);
+    await coverage.loadSimilarSpots(null);
+    expect(coverage.similarSpots.value).toEqual([]);
+    await coverage.handleReviewSubmit({ rating: 4, comment: 'No spot guard.' });
+    await coverage.handleShare();
+    await coverage.toggleSaved();
+
+    expect(createSpotReviewMock).not.toHaveBeenCalled();
+    expect(toggleLikeMock).not.toHaveBeenCalled();
+    expect(coverage.showShareToast.value).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it('covers nearby sorting, mid-tier planning copy, and mutable save counters', async () => {
+    const cultureSpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-culture',
+      title: 'Gallery Afternoon',
+      category: 'culture',
+      rating: 4.6,
+      liked: true,
+      likesCount: 2,
+      photoUrl: 'https://images.example.com/gallery-main.jpg',
+      photos: [
+        { id: 'gallery-main', url: 'https://images.example.com/gallery-main.jpg', caption: 'Main gallery angle' },
+        { id: 'gallery-side', url: 'https://images.example.com/gallery-side.jpg', caption: 'Side gallery angle' },
+      ],
+    };
+    listNearbySpotsMock.mockResolvedValueOnce({
+      data: [
+        { ...cultureSpot, id: 'spot-culture' },
+        {
+          id: 'nearby-nature',
+          title: 'High Rated Trail',
+          latitude: 32.8,
+          longitude: -97.4,
+          category: 'nature',
+          city: 'Fort Worth',
+          country: 'US',
+          rating: 5,
+          createdAt: '2026-03-24T14:10:00Z',
+        },
+        {
+          id: 'nearby-culture',
+          title: 'Quiet Archive',
+          latitude: 32.81,
+          longitude: -97.41,
+          category: 'culture',
+          city: 'Fort Worth',
+          country: 'US',
+          rating: 4.1,
+          createdAt: '2026-03-24T14:10:00Z',
+        },
+      ],
+    });
+    listSpotReviewsMock.mockRejectedValueOnce(new Error('review refresh down'));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: cultureSpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    await flushPromises();
+
+    expect(coverage.tripFitHeading.value).toBe('Strong supporting highlight');
+    expect(coverage.tripFitCopy.value).toContain('high-confidence midpoint');
+    expect(coverage.overviewCopy.value).toContain('culture-leaning itinerary');
+    expect(coverage.photoCountLabel.value).toBe('2 photos');
+    expect(coverage.thumbnailPhotos.value).toHaveLength(1);
+    expect(coverage.reviewErrorMessage.value).toContain('could not refresh');
+    expect(coverage.formatSimilarLocation({
+      city: 'Austin',
+      country: 'US',
+    } as SpotSummary)).toMatch(/Austin/);
+
+    listNearbySpotsMock.mockResolvedValueOnce({
+      data: [
+        { ...cultureSpot, id: 'spot-culture' },
+        {
+          id: 'nearby-nature',
+          title: 'High Rated Trail',
+          latitude: 32.8,
+          longitude: -97.4,
+          category: 'nature',
+          city: 'Fort Worth',
+          country: 'US',
+          rating: 5,
+          createdAt: '2026-03-24T14:10:00Z',
+        },
+        {
+          id: 'nearby-culture',
+          title: 'Quiet Archive',
+          latitude: 32.81,
+          longitude: -97.41,
+          category: 'culture',
+          city: 'Fort Worth',
+          country: 'US',
+          rating: 4.1,
+          createdAt: '2026-03-24T14:10:00Z',
+        },
+      ],
+    });
+    await coverage.loadSimilarSpots(cultureSpot);
+    expect(coverage.similarSpots.value.map((nearbySpot: SpotSummary) => nearbySpot.id)).toEqual([
+      'nearby-culture',
+      'nearby-nature',
+    ]);
+    expect(coverage.loadingSimilar.value).toBe(false);
+
+    coverage.isSaved.value = false;
+    expect(coverage.saveCount.value).toBe(1);
+    expect(coverage.saveCountLabel.value).toBe('1');
+    coverage.isSaved.value = true;
+    expect(coverage.saveCount.value).toBe(2);
+
+    coverage.openGalleryDialog('gallery-side');
+    expect(coverage.selectedPhotoId.value).toBe('gallery-side');
+    expect(coverage.isGalleryDialogOpen.value).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('uses gallery caption fallbacks and recovers stale selected photos', async () => {
+    const captionlessSpot: SpotDetailModel = {
+      ...spot,
+      id: 'spot-captionless',
+      title: 'Captionless Garden',
+      photoUrl: undefined,
+      photos: [
+        { id: 'captionless-hero', url: 'https://images.example.com/captionless-hero.jpg', caption: '' },
+        { id: 'captionless-side', url: 'https://images.example.com/captionless-side.jpg', caption: '' },
+      ],
+      liked: false,
+      likesCount: 0,
+      reviews: [],
+    };
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: captionlessSpot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(coverage.heroImageUrl.value).toContain('captionless-hero.jpg');
+    expect(coverage.activeGalleryPhoto.value).toMatchObject({ id: 'captionless-hero' });
+    expect(wrapper.get('.hero-gallery__image').attributes('alt')).toBe('Captionless Garden');
+    expect(wrapper.get('[data-test="gallery-thumb"]').attributes('aria-label')).toBe('Show Captionless Garden');
+    expect(wrapper.get('.thumbnail-card__image').attributes('alt')).toBe('Captionless Garden');
+    expect(wrapper.get('.thumbnail-card__copy').text()).toBe('Travel angle');
+
+    coverage.isSaved.value = true;
+    expect(coverage.saveCountLabel.value).toBe('1');
+
+    coverage.selectedPhotoId.value = 'stale-photo-id';
+    await wrapper.setProps({
+      spot: {
+        ...captionlessSpot,
+        photos: [
+          { id: 'new-gallery-photo', url: 'https://images.example.com/new-gallery-photo.jpg', caption: '' },
+        ],
+      },
+    });
+    await flushPromises();
+
+    expect(coverage.selectedPhotoId.value).toBe('new-gallery-photo');
+    expect(coverage.galleryPhotos.value).toHaveLength(1);
+
+    wrapper.unmount();
   });
 });

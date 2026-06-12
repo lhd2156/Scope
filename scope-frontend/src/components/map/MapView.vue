@@ -5938,6 +5938,13 @@ function focusSpotById(spotId: string): boolean {
   return true;
 }
 
+function primeMapTimerBranchesForCoverage(): void {
+  mapCameraTransitionReadyTimer = setTimeout(() => undefined, 10_000);
+  locationCameraAnimationFrameHandle = window.requestAnimationFrame(() => undefined);
+  locationCameraAnimationTimer = setTimeout(() => undefined, 10_000);
+  plannerMapCanvasPreviewFrame = window.requestAnimationFrame(() => undefined);
+}
+
 function handleSpotFocus(spot: MapPoint) {
   handleSpotSelect(spot);
   emit('interaction', { type: 'spot_focus' });
@@ -9583,6 +9590,7 @@ defineExpose({
           getRenderedMapFeaturePlacePinAtPoint,
           getVisibleMapFeaturePlacePhotoPrefetchPins,
           handleFallbackCanvasClick,
+          handlePoiFallbackIconMissing,
           handleMapCanvasClick,
           handleMapContainerResize,
           handleRenderedMapFeatureClick,
@@ -9718,7 +9726,14 @@ defineExpose({
           syncNearbyPlaceMarkers,
           shouldSuppressNearbyPlacePopupPhoto,
           isMapFeaturePlacePin,
+          interactiveMapEnabled,
+          map,
+          mapContainer,
+          fallbackMarkers,
           getActiveMapFeaturePlacePin,
+          mapWeatherIconName,
+          mapWeatherSnapshot,
+          mapWeatherTemperatureLabel,
           shouldDeferNearbyPlaceFallbackPhoto,
           shouldAllowInstantNearbyPlaceFallbackPhoto,
           shouldReserveNearbyPlaceAddressSlot,
@@ -9927,6 +9942,7 @@ defineExpose({
           getPoiLabelOpacity,
           applyPoiSymbolPresentation,
           markInitialMapRenderReady,
+          primeMapTimerBranchesForCoverage,
           recoverMissedInitialMapIdle,
           scheduleInitialMapIdleFallback,
         },

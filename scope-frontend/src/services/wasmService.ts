@@ -1345,6 +1345,30 @@ export async function lexScopeAiCommandTextWithRuntime(input: string): Promise<S
   return sanitizeScopeAiLexTokens(runtime.bindings.lexScopeAiCommandText?.(input) ?? lexScopeAiCommandTextFallback(input), input.length);
 }
 
+export const __wasmServiceCoverage = import.meta.env.MODE === 'test'
+  ? {
+      buildConvexHull,
+      buildProjectionContext,
+      buildScopeAiPlaceSpanTokens,
+      buildViewportConvexHullFallback,
+      clusterViewportPointsFallback,
+      computeAverageScreenPoint,
+      computeHullAreaSquarePx,
+      computeHullCentroid,
+      computeHullPerimeterPx,
+      createFallbackBindings,
+      lexScopeAiCommandTextFallback,
+      normalizeArray,
+      projectVisiblePoints,
+      resolveWasmAssetBasePath,
+      sanitizeClusterResult,
+      sanitizeHullResult,
+      sanitizeScopeAiLexToken,
+      sanitizeScopeAiLexTokens,
+      screenCrossProduct,
+    }
+  : undefined;
+
 export function resetScopeWasmRuntimeForTests() {
   runtimePromise = null;
   readyRuntime = null;

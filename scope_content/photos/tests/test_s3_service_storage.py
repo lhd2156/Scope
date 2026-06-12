@@ -154,6 +154,7 @@ def test_delete_asset_removes_only_managed_local_files(settings, tmp_path):
 
     service.delete_asset("/media/photos/delete-me.png")
     service.delete_asset("https://external.example/not-managed.png")
+    service.delete_asset("/media/")
     service.delete_asset(None)
 
     assert not managed_file.exists()
@@ -167,6 +168,8 @@ def test_delete_asset_removes_only_managed_local_files(settings, tmp_path):
     assert not avatar_file.exists()
     with pytest.raises(ValueError, match="inside the managed media directory"):
         service.delete_prefix("../outside")
+
+    assert service.presigned_read_url("   ") is None
 
 
 @override_settings(
@@ -185,6 +188,7 @@ def test_delete_asset_removes_managed_s3_objects(monkeypatch):
     monkeypatch.setattr(s3_service.boto3, "client", lambda *args, **kwargs: FakeClient())
     service = S3StorageService()
 
+    assert service.presigned_read_url("   ") is None
     service.delete_asset("https://scope-bucket.s3.us-west-2.amazonaws.com/photos/delete-me.png")
     service.delete_asset("photos/delete-by-key.png")
     service.delete_asset("https://external.example/not-managed.png")
@@ -193,3 +197,49 @@ def test_delete_asset_removes_managed_s3_objects(monkeypatch):
         {"Bucket": "scope-bucket", "Key": "photos/delete-me.png"},
         {"Bucket": "scope-bucket", "Key": "photos/delete-by-key.png"},
     ]
+
+
+@override_settings(
+    AWS_STORAGE_BUCKET_NAME="scope-bucket",
+    AWS_ACCESS_KEY_ID="key",
+    AWS_SECRET_ACCESS_KEY="secret",
+    AWS_REGION="us-west-2",
+)
+def test_delete_prefix_batches_only_non_empty_s3_keys(monkeypatch):
+    deleted_batches = []
+
+    class FakePaginator:
+        def paginate(self, **kwargs):
+            assert kwargs == {"Bucket": "scope-bucket", "Prefix": "photos/user-1/"}
+            return [
+                {"Contents": [{"Key": "photos/user-1/a.png"}, {"Key": ""}, {}]},
+                {"Contents": []},
+                {"Contents": [{"Key": "photos/user-1/b.png"}]},
+            ]
+
+    class FakeClient:
+        def get_paginator(self, name):
+            assert name == "list_objects_v2"
+            return FakePaginator()
+
+        def delete_objects(self, **kwargs):
+            deleted_batches.append(kwargs)
+
+    monkeypatch.setattr(s3_service.boto3, "client", lambda *args, **kwargs: FakeClient())
+    service = S3StorageService()
+
+    service.delete_prefix("photos/user-1")
+
+    assert deleted_batches == [
+        {
+            "Bucket": "scope-bucket",
+            "Delete": {"Objects": [{"Key": "photos/user-1/a.png"}], "Quiet": True},
+        },
+        {
+            "Bucket": "scope-bucket",
+            "Delete": {"Objects": [{"Key": "photos/user-1/b.png"}], "Quiet": True},
+        },
+    ]
+
+    with pytest.raises(ValueError, match="inside the managed media directory"):
+        service.delete_prefix("   ")

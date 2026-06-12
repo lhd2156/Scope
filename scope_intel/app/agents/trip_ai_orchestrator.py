@@ -195,7 +195,7 @@ class TripAiOrchestrator:
 
     @staticmethod
     def _stops_from_prompt(prompt: str) -> list[dict[str, Any]]:
-        matched = re.search(r"^Stops:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|$)", prompt, flags=re.IGNORECASE | re.MULTILINE)
+        matched = re.search(r"^Stops:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|\Z)", prompt, flags=re.IGNORECASE | re.MULTILINE)
         if not matched:
             return []
         stops: list[dict[str, Any]] = []

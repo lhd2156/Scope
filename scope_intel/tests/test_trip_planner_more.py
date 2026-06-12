@@ -60,6 +60,44 @@ def test_trip_planner_parsers_boundaries_and_fallback_branches(monkeypatch):
     assert "focused planning pass" in trip_planner._fallback_plan(prompt.replace("3 days", "organize my thoughts"))
 
 
+def test_trip_planner_helper_edges_cover_user_visible_fallback_copy():
+    stops_prompt = "Stops:\n1. Roadside Cafe (32.1, -97.1)\n2. Hill Museum\nDates: 2026-06-01"
+    assert trip_planner._parse_planner_stop_names("") == []
+    assert trip_planner._parse_planner_stop_names(stops_prompt) == ["Roadside Cafe", "Hill Museum"]
+    assert trip_planner._format_interest_phrase("") == "good-fit"
+    assert trip_planner._format_interest_phrase("food, culture") == "food or culture"
+
+    assert trip_planner._parse_trip_duration_days("Traveler request: weekend route", "") == 2
+    assert trip_planner._parse_trip_duration_days("Traveler request: 5d route", "") == 5
+    assert trip_planner._parse_trip_duration_days("", "2026-02-30 to 2026-03-01") is None
+    assert trip_planner._concise_plan_day_count("Traveler request: 30 day route", "") == 14
+
+    assert trip_planner._travelers_label("Travel party: two cousins") == "two cousins"
+    assert trip_planner._travelers_label("Travelers: 1\nTraveler request: route") == "solo traveler"
+    assert trip_planner._travelers_label("Travelers: 4\nTraveler request: route") == "4 travelers"
+    assert trip_planner._travelers_label("Traveler request: family with kids") == "family"
+    assert trip_planner._travelers_label("Traveler request: couple trip") == "couple"
+    assert trip_planner._travelers_label("Traveler request: solo weekend") == "solo traveler"
+    assert trip_planner._travelers_label("Traveler request: friends road trip") == "group"
+    assert trip_planner._travelers_label("Traveler request: route") == "travel party not locked"
+
+    assert "3 meaningful stops" in trip_planner._pace_stop_target("packed")
+    assert "flexible backup" in trip_planner._pace_stop_target("relaxed")
+    assert "2 main anchors" in trip_planner._pace_stop_target("moderate")
+
+    assert "entertainment anchor" in trip_planner._interest_anchor("entertainment", 1)
+    assert "food stop" in trip_planner._interest_anchor("food", 1)
+    assert "culture or history" in trip_planner._interest_anchor("culture", 1)
+    assert "scenic or outdoor" in trip_planner._interest_anchor("nature", 1)
+    assert "shopping district" in trip_planner._interest_anchor("shopping", 1)
+    assert "nightlife option" in trip_planner._interest_anchor("nightlife", 1)
+    assert "active stop" in trip_planner._interest_anchor("adventure", 1)
+    assert "good-fit stop" in trip_planner._interest_anchor("", 1)
+
+    with pytest.raises(RuntimeError, match="no text"):
+        trip_planner._extract_gemini_text({"candidates": [{"content": {"parts": [{"text": "  "} ]}}]})
+
+
 def test_fallback_itinerary_brief_and_plan_trip_process_branches(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("SCOPE_AI_PROVIDER", "ollama")
@@ -261,6 +299,34 @@ def test_gemini_retries_then_uses_fallback_model(monkeypatch):
     assert text == "Backup plan"
     assert model == "gemini-backup"
     assert len(calls) == 2
+
+
+def test_gemini_nonretryable_and_exhausted_failures(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-primary")
+    monkeypatch.setenv("GEMINI_FALLBACK_MODELS", "gemini-backup")
+
+    class BadRequestResponse:
+        status_code = 400
+
+        def raise_for_status(self):
+            raise trip_planner.requests.HTTPError(response=self)
+
+    monkeypatch.setattr(trip_planner.requests, "post", lambda *args, **kwargs: BadRequestResponse())
+    with pytest.raises(trip_planner.requests.HTTPError):
+        trip_planner._generate_with_gemini("Traveler request: plan this")
+
+    monkeypatch.setattr(
+        trip_planner.requests,
+        "post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(trip_planner.requests.Timeout("slow")),
+    )
+    with pytest.raises(RuntimeError, match="network"):
+        trip_planner._generate_with_gemini("Traveler request: plan this")
+
+    monkeypatch.setattr(trip_planner, "_generate_with_gemini", lambda *args, **kwargs: ("{}", "gemini-primary"))
+    fallback = trip_planner._plan_trip_with_gemini("Traveler request: budget check", start_date="2026-06-01")
+    assert fallback["steps"] == 0
 
 
 def test_gemini_provider_without_key_uses_local_fallback(monkeypatch):

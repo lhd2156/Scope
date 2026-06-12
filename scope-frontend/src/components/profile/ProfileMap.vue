@@ -559,6 +559,51 @@ function resolveViewportZoom(spotCount: number, largestSpan: number): number {
 
   return 10.2;
 }
+
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeCollection,
+          activeMetrics,
+          activeMode,
+          activeSpots,
+          allCollectionSpots,
+          availableCollections,
+          buildViewportForSpots,
+          cityCount,
+          countryCount,
+          dedupeLocationParts,
+          effectiveDescription,
+          fallbackSpots,
+          formatCategory,
+          formatProfileMapCountry,
+          formatSpotLocation,
+          handleSpotSelect,
+          hasUserSelectedMode,
+          hasValidCoordinates,
+          inferProfileMapCountryFromRegion,
+          initialViewport,
+          mapPoints,
+          mapViewRef,
+          normalizeSpots,
+          pinnedCollectionSpots,
+          resolveDisplayRegion,
+          resolveSpotImageUrl,
+          resolveViewportZoom,
+          selectMode,
+          selectSpot,
+          selectedSpot,
+          selectedSpotId,
+          selectedSpotImageFallback,
+          selectedSpotImageUrl,
+          selectedSpotLocation,
+          visitedCollectionSpots,
+          wishlistCollectionSpots,
+        },
+      }
+    : {}),
+});
 </script>
 
 <style scoped>

@@ -8,6 +8,9 @@ from io import BytesIO
 from pathlib import Path
 from types import ModuleType
 
+from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 try:
     from PIL import Image, ImageOps
 except ModuleNotFoundError:  # pragma: no cover - environment-dependent fallback
@@ -28,6 +31,8 @@ FORMAT_CONTENT_TYPES = {
 }
 ORIENTATION_TAG = 274
 DEFAULT_THUMBNAIL_SIZE = (512, 512)
+DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+DEFAULT_MAX_IMAGE_PIXELS = 50_000_000
 SCOPE_MEDIA_BINDINGS_PATH = Path(__file__).resolve().parents[3] / 'scope_media' / 'python_bindings.py'
 
 
@@ -111,6 +116,49 @@ def _resolve_content_type(content_type: str | None, detected_format: str | None,
         '.webp': 'image/webp',
     }
     return extension_map.get(extension, 'image/jpeg')
+
+
+def _configured_positive_int(name: str, default: int) -> int:
+    try:
+        value = getattr(settings, name, default)
+    except Exception:  # pragma: no cover - protects non-Django utility usage
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _max_image_bytes() -> int:
+    return _configured_positive_int('MAX_UPLOAD_BYTES', DEFAULT_MAX_IMAGE_BYTES)
+
+
+def _max_image_pixels() -> int:
+    return _configured_positive_int('MAX_IMAGE_PIXELS', DEFAULT_MAX_IMAGE_PIXELS)
+
+
+def _read_upload_bytes(uploaded_file) -> bytes:
+    max_bytes = _max_image_bytes()
+    declared_size = getattr(uploaded_file, 'size', None)
+    if declared_size is not None:
+        try:
+            if int(declared_size) > max_bytes:
+                raise DjangoValidationError('File too large')
+        except (TypeError, ValueError):
+            pass
+
+    raw_bytes = uploaded_file.read(max_bytes + 1)
+    if len(raw_bytes) > max_bytes:
+        raise DjangoValidationError('File too large')
+    return raw_bytes
+
+
+def _validate_image_dimensions(image) -> None:
+    max_pixels = _max_image_pixels()
+    pixels = int(getattr(image, 'width', 0)) * int(getattr(image, 'height', 0))
+    if pixels > max_pixels:
+        raise DjangoValidationError(f'Image dimensions exceed {max_pixels} pixels')
 
 
 def _thumbnail_format(source_format: str | None) -> str:
@@ -205,7 +253,7 @@ def _jpeg_orientation_value(image) -> int:
 def process_uploaded_image(uploaded_file, size: tuple[int, int] = DEFAULT_THUMBNAIL_SIZE) -> PreparedImageUpload:
     if hasattr(uploaded_file, 'seek'):
         uploaded_file.seek(0)
-    raw_bytes = uploaded_file.read()
+    raw_bytes = _read_upload_bytes(uploaded_file)
     if hasattr(uploaded_file, 'seek'):
         uploaded_file.seek(0)
 
@@ -233,6 +281,7 @@ def process_uploaded_image(uploaded_file, size: tuple[int, int] = DEFAULT_THUMBN
         )
 
     with Image.open(BytesIO(raw_bytes)) as source_image:
+        _validate_image_dimensions(source_image)
         detected_format = detected_format or _normalize_format_name(source_image.format)
         extension = _resolve_extension(getattr(uploaded_file, 'name', None), detected_format)
         content_type = _resolve_content_type(getattr(uploaded_file, 'content_type', None), detected_format, extension)

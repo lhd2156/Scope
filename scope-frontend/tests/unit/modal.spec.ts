@@ -202,4 +202,35 @@ describe('Modal', () => {
     outsideButton.remove();
     wrapper.unmount();
   });
+
+  it('ignores global keys while closed and non-tab keys while open', async () => {
+    const wrapper = mount(Modal, {
+      props: {
+        open: false,
+        title: 'Closed modal',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted('close')).toBeUndefined();
+
+    await wrapper.setProps({ open: true });
+    await wrapper.vm.$nextTick();
+    const letterEvent = new KeyboardEvent('keydown', { key: 'a', cancelable: true });
+    window.dispatchEvent(letterEvent);
+    await wrapper.vm.$nextTick();
+
+    expect(letterEvent.defaultPrevented).toBe(false);
+    expect(wrapper.emitted('close')).toBeUndefined();
+
+    wrapper.unmount();
+  });
 });

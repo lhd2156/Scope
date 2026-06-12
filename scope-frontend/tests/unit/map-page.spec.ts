@@ -8,6 +8,7 @@ const {
   mapInteractionTrackMock,
   mapStoreMock,
   onboardingStoreMock,
+  routeMock,
   resolveHomeBaseMapViewportMock,
   resolveRoadRouteMock,
   spotsStoreMock,
@@ -54,6 +55,9 @@ const {
     isActive: false,
     activeStep: null as null | { routeName: string },
   },
+  routeMock: {
+    query: {} as Record<string, unknown>,
+  },
   spotsStoreMock: {
     items: [
       {
@@ -86,6 +90,7 @@ const {
     error: '',
     loading: false,
     selectedSpot: null as null | Record<string, unknown>,
+    fetchSpot: vi.fn().mockResolvedValue(undefined),
     fetchSpots: vi.fn().mockResolvedValue(undefined),
   },
   tripsStoreMock: {
@@ -160,7 +165,7 @@ vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>();
   return {
     ...actual,
-    useRoute: () => ({ query: {} }),
+    useRoute: () => routeMock,
   };
 });
 
@@ -309,6 +314,7 @@ describe('MapPage', () => {
     authStoreMock.isAuthenticated = true;
     onboardingStoreMock.isActive = false;
     onboardingStoreMock.activeStep = null;
+    routeMock.query = {};
     getDefaultDiscoveryMapViewportMock.mockReset().mockReturnValue({
       center: [-98.5795, 39.8283],
       zoom: 3.25,
@@ -337,6 +343,7 @@ describe('MapPage', () => {
       provider: 'local-estimate',
       profile: 'local',
     }));
+    spotsStoreMock.fetchSpot.mockReset().mockResolvedValue(undefined);
     spotsStoreMock.fetchSpots.mockReset().mockResolvedValue(undefined);
     tripsStoreMock.fetchTrips.mockReset().mockResolvedValue(undefined);
     setViewportWidth(1280);
@@ -1086,5 +1093,713 @@ describe('MapPage', () => {
 
     expect(wrapper.text()).toContain('Part of the map workspace could not be loaded');
     expect(wrapper.text()).toContain('Scope could not load trips right now.');
+  });
+
+  it('covers map helper fallbacks, route copy, and mobile sheet branch controls', async () => {
+    tripsStoreMock.items = [
+      {
+        id: 'trip-empty',
+        title: '',
+        description: '',
+        destination: 'Austin · TX',
+        coverImageUrl: undefined,
+        members: [
+          { id: 'user-a', displayName: '  Ada  ' },
+          { id: 'user-b', displayName: 'Grace Hopper' },
+        ],
+        spots: [],
+      },
+    ];
+    tripsStoreMock.loading = true;
+    mapStoreMock.activeCategories = [];
+    mapStoreMock.visibleSpotIds = [];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.selectedSpotId = null;
+
+    const wrapper = mountMapPage({ mobile: true });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    expect(coverage.clampNumber(-4, 0, 3)).toBe(0);
+    expect(coverage.clampNumber(9, 0, 3)).toBe(3);
+    expect(coverage.clampNumber(2, 0, 3)).toBe(2);
+    expect(coverage.formatCategory('nightlife')).toBe('Nightlife');
+    expect(coverage.categoryIconName('other')).toBe('pin');
+    expect(coverage.categoryIconName('food')).toBe('food');
+    expect(coverage.getSpotPhotoUrl('culture', 'https://images.example.com/culture.jpg')).toBe('https://images.example.com/culture.jpg');
+    expect(coverage.getSpotPhotoUrl('culture', '')).toBe(coverage.getFallbackPhoto('culture'));
+    expect(coverage.getMemberInitials('  louis   do  extra ')).toBe('LD');
+    expect(coverage.getMemberInitials('')).toBe('');
+    expect(coverage.formatRouteDuration(Number.NaN)).toBe('ETA pending');
+    expect(coverage.formatRouteDuration(45)).toBe('1 min');
+    expect(coverage.formatRouteDuration(3600)).toBe('1 hr');
+    expect(coverage.formatRouteDuration(3660)).toBe('1 hr 1 min');
+    expect(coverage.formatRouteDistance(Number.NaN)).toBe('distance pending');
+    expect(coverage.formatRouteDistance(804.672)).toBe('0.5 mi');
+    expect(coverage.formatRouteDistance(16_093.44)).toBe('10 mi');
+
+    const noLocationSpot = {
+      id: 'spot-no-location',
+      title: 'Hidden overlook',
+      description: 'Quiet place.',
+      latitude: 0,
+      longitude: 0,
+      category: 'scenic',
+      city: '',
+      country: '',
+      vibe: '',
+      rating: 4.4,
+      photoUrl: '',
+    };
+    expect(coverage.formatSpotCityRegion(noLocationSpot)).toBe('Location syncing');
+    expect(coverage.formatSpotFullLocation(noLocationSpot)).toBe('Location syncing');
+    expect(coverage.formatSpotCountryBadge(null)).toBe('');
+
+    const workspaceSpot = coverage.toWorkspaceSpot({
+      id: 'spot-defaults',
+      title: 'Defaulted pin',
+      latitude: 30,
+      longitude: -97,
+      category: 'other',
+      rating: 4.2,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      isPublic: true,
+    });
+    expect(workspaceSpot.description).toContain('Saved Scope spot');
+    expect(workspaceSpot.city).toBe('');
+    expect(workspaceSpot.country).toBe('');
+    expect(workspaceSpot.vibe).toBe('Other');
+    expect(workspaceSpot.photoUrl).toBe(coverage.getFallbackPhoto('other'));
+    expect(coverage.mergeSpotSources([{ id: 'a' }, { id: 'b' }], null).map((spot: { id: string }) => spot.id)).toEqual(['a', 'b']);
+    expect(coverage.mergeSpotSources([{ id: 'a' }, { id: 'b' }], { id: 'a' }).map((spot: { id: string }) => spot.id)).toEqual(['a', 'b']);
+    expect(coverage.labelRouteMapPoints([
+      { id: 'start', title: 'Start', latitude: 1, longitude: 1, category: 'food' },
+      { id: 'middle', title: 'Middle', latitude: 2, longitude: 2, category: 'nature' },
+      { id: 'end', title: 'End', latitude: 3, longitude: 3, category: 'scenic' },
+    ]).map((point: { routeRole: string; routeLabel: string }) => `${point.routeRole}:${point.routeLabel}`)).toEqual(['start:S', 'stop:2', 'end:E']);
+    expect(coverage.isRouteDescriptionPlaceholder('')).toBe(true);
+    expect(coverage.isRouteDescriptionPlaceholder('Pick a trip from the planner')).toBe(true);
+    expect(coverage.isRouteDescriptionPlaceholder('A real hand-written itinerary note.')).toBe(false);
+    expect(coverage.buildRoutePointRequestKey({
+      id: 'point-1',
+      title: 'Point',
+      latitude: 32.123456,
+      longitude: -97.654321,
+      category: 'food',
+    })).toBe('point-1:-97.65432,32.12346');
+
+    expect(read<string>(coverage.routeTitle)).toBe('Loading route preview');
+    expect(read<string>(coverage.routeDescription)).toContain('syncing trip context');
+    expect(read<string>(coverage.routeDestinationDisplay)).toBe('Austin, TX');
+    expect(read<string>(coverage.routeStopMetric)).toBe('0 trip stops');
+    expect(read<string>(coverage.routeDriveMetric)).toEqual(expect.any(String));
+    expect(read<string>(coverage.routeDistanceMetric)).toEqual(expect.any(String));
+    expect(read<string>(coverage.routeTravelerMetric)).toBe('2 Travelers');
+    expect(read<string>(coverage.routeHeroPhoto)).toBe(coverage.getFallbackPhoto('adventure'));
+    expect(read<Array<{ initials: string }>>(coverage.routeMemberPreview).map((member) => member.initials)).toEqual(['A', 'GH']);
+    expect(read<string>(coverage.visibleEmptyTitle)).toBe('No categories selected');
+    expect(read<string>(coverage.visibleEmptyDescription)).toContain('Turn on a category');
+    expect(read<unknown>(coverage.selectedSpot)).toBeNull();
+    expect(read<string>(coverage.mobileSheetHeadline)).toBe('No categories selected');
+    expect(read<string>(coverage.mobileSheetDescription)).toContain('0 spots ready to explore');
+    expect(read<string>(coverage.mobileSheetAriaLabel)).toBe('Expand map sidebar');
+    expect(read<Record<string, string>>(coverage.mobileSheetStyle)['--scope-mobile-sheet-visible']).toBe('9.5rem');
+    expect(read<Record<string, string>>(coverage.mapViewStyle)['--scope-map-controls-bottom']).toContain('var(--scope-mobile-sheet-visible)');
+
+    coverage.setMobileSheetState('mid');
+    expect(read<string>(coverage.nextMobileSheetState)).toBe('full');
+    expect(read<string>(coverage.mobileSheetVisibleHeight)).toContain('58dvh');
+    expect(read<string>(coverage.mobileSheetAriaLabel)).toBe('Open full map sidebar');
+    coverage.setMobileSheetState('full');
+    expect(read<string>(coverage.nextMobileSheetState)).toBe('peek');
+    expect(read<string>(coverage.mobileSheetVisibleHeight)).toBe('100%');
+    expect(read<string>(coverage.mobileSheetAriaLabel)).toBe('Collapse map sidebar');
+    expect(coverage.getAdjacentMobileSheetState(-1)).toBe('mid');
+    expect(coverage.getAdjacentMobileSheetState(1)).toBe('full');
+
+    write(coverage.isMobileMapLayout, false);
+    expect(read<undefined>(coverage.mobileSheetStyle)).toBeUndefined();
+    expect(read<undefined>(coverage.mapViewStyle)).toBeUndefined();
+    coverage.handleMobileSheetToggle();
+    expect(read<string>(coverage.mobileSheetState)).toBe('full');
+
+    write(coverage.isMobileMapLayout, true);
+    coverage.handleMobileSheetToggle();
+    expect(read<string>(coverage.mobileSheetState)).toBe('peek');
+    coverage.revealMobileSheet();
+    expect(read<string>(coverage.mobileSheetState)).toBe('mid');
+    coverage.handleMobileSheetDrag({ clientY: 300 } as PointerEvent);
+    expect(read<number>(coverage.mobileSheetDragOffset)).toBe(0);
+
+    const dragHandle = document.createElement('button');
+    dragHandle.setPointerCapture = vi.fn(() => {
+      throw new Error('pointer capture unavailable');
+    });
+    coverage.startMobileSheetDrag({
+      currentTarget: dragHandle,
+      pointerId: 17,
+      clientY: 300,
+    } as PointerEvent);
+    expect(read<boolean>(coverage.isDraggingMobileSheet)).toBe(true);
+    coverage.handleMobileSheetDrag({ clientY: 0 } as PointerEvent);
+    expect(read<number>(coverage.mobileSheetDragOffset)).toBe(-280);
+    coverage.finishMobileSheetDrag();
+    expect(read<string>(coverage.mobileSheetState)).toBe('full');
+    expect(read<boolean>(coverage.ignoreNextMobileSheetClick)).toBe(true);
+    coverage.handleMobileSheetToggle();
+    expect(read<string>(coverage.mobileSheetState)).toBe('full');
+    coverage.cancelMobileSheetDrag();
+  });
+
+  it('keeps map previews stable when road ordering and selected visible pins fall back', async () => {
+    const visibleSpots = Array.from({ length: 9 }, (_, index) => ({
+      id: `visible-${index}`,
+      title: `Visible Spot ${index}`,
+      description: `Spot ${index}`,
+      latitude: 32.7 + index / 100,
+      longitude: -97.3 - index / 100,
+      category: index % 3 === 0 ? 'food' : index % 3 === 1 ? 'nature' : 'culture',
+      city: 'Fort Worth',
+      country: 'US',
+      vibe: 'steady',
+      rating: 4 + index / 10,
+      photoUrl: '',
+    }));
+    spotsStoreMock.items = visibleSpots;
+    tripsStoreMock.items = [{
+      id: 'trip-source-order',
+      title: 'Source Order Route',
+      description: '',
+      destination: 'Fort Worth, TX',
+      members: [],
+      spots: [
+        {
+          spotId: 'visible-5',
+          title: 'Source Five',
+          latitude: 32.75,
+          longitude: -97.35,
+          category: 'culture',
+          dayNumber: 2,
+        },
+        {
+          spotId: 'visible-2',
+          title: 'Source Two',
+          latitude: 32.72,
+          longitude: -97.32,
+          category: 'culture',
+          dayNumber: 1,
+        },
+      ],
+    }];
+    mapStoreMock.activeCategories = ['food', 'nature', 'culture'];
+    mapStoreMock.visibleSpotIds = visibleSpots.map((spot) => spot.id);
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.selectedSpotId = 'missing-selected-pin';
+    resolveRoadRouteMock.mockResolvedValueOnce({
+      geometry: [[-97, 32]],
+      orderedPoints: [{ id: 'external-route-point', latitude: 32, longitude: -97 }],
+      distanceMeters: 1_609,
+      durationSeconds: 300,
+      provider: 'local-estimate',
+      profile: 'local',
+    });
+
+    const wrapper = mountMapPage();
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    expect(read<Array<{ spotId: string }>>(coverage.activeRouteStops).map((stop) => stop.spotId)).toEqual([
+      'visible-5',
+      'visible-2',
+    ]);
+    expect(read<Array<{ id: string }>>(coverage.visibleSpotPreviews)).toHaveLength(8);
+    expect(read<{ id: string } | null>(coverage.selectedSpot)?.id).toBe('visible-0');
+    expect(read<string>(coverage.selectedSpotCountryBadge)).toBe('USA');
+  });
+
+  it('renders lean spot and route fallback labels without country or vibe badges', async () => {
+    spotsStoreMock.items = [
+      {
+        id: 'lean-spot',
+        title: 'Lean Map Pin',
+        description: 'A saved pin with sparse location metadata.',
+        latitude: 39.7392,
+        longitude: -104.9903,
+        category: 'scenic',
+        city: '',
+        country: '',
+        vibe: '',
+        rating: 4.4,
+        photoUrl: '',
+      },
+    ];
+    tripsStoreMock.items = [
+      {
+        id: 'trip-lean-route',
+        title: '',
+        description: '',
+        destination: '',
+        coverImageUrl: '',
+        members: [],
+        spots: [
+          {
+            spotId: 'lean-spot',
+            title: 'Lean Map Pin',
+            latitude: 39.7392,
+            longitude: -104.9903,
+            category: 'scenic',
+          },
+          {
+            spotId: 'lean-stop-2',
+            title: 'Second Sparse Stop',
+            latitude: 39.75,
+            longitude: -104.98,
+            category: 'nature',
+          },
+        ],
+      },
+    ];
+    mapStoreMock.activeCategories = ['scenic', 'nature'];
+    mapStoreMock.visibleSpotIds = ['lean-spot'];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.selectedSpotId = 'lean-spot';
+
+    const wrapper = mountMapPage({
+      mapViewStub: {
+        props: ['spots', 'selectedSpotId'],
+        template: `
+          <button data-test="map-view-lean-select" @click="$emit('spot-select', spots[0])">
+            {{ selectedSpotId }} / {{ spots.length }}
+          </button>
+        `,
+      },
+    });
+
+    await flushPromises();
+
+    const selectedCard = wrapper.get('[data-test="map-selected-spot-card"]');
+    expect(selectedCard.text()).toContain('Lean Map Pin');
+    expect(selectedCard.text()).toContain('Location syncing');
+    expect(selectedCard.find('.selected-country-badge').exists()).toBe(false);
+    expect(selectedCard.find('.selected-spot-card__vibe').exists()).toBe(false);
+    expect(wrapper.find('.visible-country-badge').exists()).toBe(false);
+    expect(wrapper.find('.route-timeline').text()).toContain('Day 1');
+
+    await wrapper.get('[data-test="map-view-lean-select"]').trigger('click');
+    await flushPromises();
+
+    const overlay = wrapper.get('[data-test="map-selected-overlay"]');
+    expect(overlay.text()).toContain('Lean Map Pin');
+    expect(overlay.text()).toContain('Location syncing');
+    expect(overlay.find('.map-selected-overlay__vibe').exists()).toBe(false);
+  });
+
+  it('handles small and downward mobile sheet drags without leaving stale click suppression', async () => {
+    const wrapper = mountMapPage({ mobile: true });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    coverage.setMobileSheetState('mid');
+    coverage.startMobileSheetDrag({
+      currentTarget: {},
+      pointerId: 21,
+      clientY: 200,
+    } as PointerEvent);
+    coverage.handleMobileSheetDrag({ clientY: 206 } as PointerEvent);
+    coverage.finishMobileSheetDrag();
+    expect(read<string>(coverage.mobileSheetState)).toBe('mid');
+    expect(read<boolean>(coverage.ignoreNextMobileSheetClick)).toBe(false);
+
+    coverage.setMobileSheetState('full');
+    coverage.startMobileSheetDrag({
+      currentTarget: {},
+      pointerId: 22,
+      clientY: 180,
+    } as PointerEvent);
+    coverage.handleMobileSheetDrag({ clientY: 310 } as PointerEvent);
+    expect(read<number>(coverage.mobileSheetDragOffset)).toBe(130);
+    coverage.finishMobileSheetDrag();
+    expect(read<string>(coverage.mobileSheetState)).toBe('mid');
+    expect(read<boolean>(coverage.ignoreNextMobileSheetClick)).toBe(true);
+
+    coverage.handleMobileSheetToggle();
+    expect(read<boolean>(coverage.ignoreNextMobileSheetClick)).toBe(false);
+    expect(read<string>(coverage.mobileSheetState)).toBe('mid');
+
+    coverage.handleSidebarKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(read<string>(coverage.mobileSheetState)).toBe('peek');
+    coverage.handleSidebarKeydown(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(read<string>(coverage.mobileSheetState)).toBe('peek');
+
+    wrapper.unmount();
+  });
+
+  it('keeps local preview, selected detail pins, and route ordering stable across empty store fallbacks', async () => {
+    const previewSpots = Array.from({ length: 10 }, (_, index) => ({
+      id: `preview-${index}`,
+      title: `Preview Spot ${index}`,
+      description: `Preview ${index}`,
+      latitude: 34 + index / 100,
+      longitude: -118 - index / 100,
+      category: index % 3 === 0 ? 'food' : index % 3 === 1 ? 'nature' : 'culture',
+      city: index % 2 === 0 ? 'Los Angeles' : '',
+      country: 'US',
+      vibe: index % 2 === 0 ? 'bright' : '',
+      rating: 4.9 - index / 20,
+      photoUrl: '',
+    }));
+    const previewTrip = {
+      id: 'local-preview-route',
+      title: '',
+      description: '',
+      destination: '',
+      coverImageUrl: '',
+      members: [],
+      spots: [
+        {
+          spotId: 'preview-4',
+          title: 'Preview Four',
+          latitude: 34.04,
+          longitude: -118.04,
+          category: 'nature',
+          dayNumber: 2,
+        },
+        {
+          spotId: 'preview-1',
+          title: 'Preview One',
+          latitude: 34.01,
+          longitude: -118.01,
+          category: 'nature',
+          dayNumber: 1,
+        },
+      ],
+    };
+
+    spotsStoreMock.items = [];
+    spotsStoreMock.selectedSpot = {
+      id: 'detail-selected',
+      title: 'Detail Selected',
+      description: '',
+      latitude: 35,
+      longitude: -119,
+      category: 'food',
+      city: '',
+      country: '',
+      rating: 4.6,
+      photoUrl: undefined,
+      photos: [{ url: 'https://images.example.com/detail-photo.jpg' }],
+      isPublic: true,
+    };
+    tripsStoreMock.items = [];
+    tripsStoreMock.error = 'Trip errors should stay hidden for guests';
+    authStoreMock.isAuthenticated = false;
+    mapStoreMock.activeCategories = ['food', 'nature', 'culture'];
+    mapStoreMock.visibleSpotIds = [];
+    mapStoreMock.visibleSpotIdsMeasured = false;
+    mapStoreMock.selectedSpotId = null;
+
+    const wrapper = mountMapPage();
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    write(coverage.localPreviewSpots, previewSpots);
+    write(coverage.localPreviewTrip, previewTrip);
+    write(coverage.hasLoadedSpotData, false);
+    write(coverage.hasLoadedTripData, false);
+    write(coverage.roadRoute, {
+      geometry: [[-118.5, 34.5], [-118.6, 34.6]],
+      orderedPoints: [
+        { id: 'route-point-not-in-source-a', latitude: 34.5, longitude: -118.5 },
+        { id: 'route-point-not-in-source-b', latitude: 34.6, longitude: -118.6 },
+      ],
+      distanceMeters: 0,
+      durationSeconds: 0,
+      provider: 'local-estimate',
+      profile: 'local',
+    });
+    write(coverage.roadRouteLoading, false);
+
+    expect(read<Array<{ id: string; photoUrl: string }>>(coverage.workspaceSpots)[0]).toMatchObject({
+      id: 'detail-selected',
+      photoUrl: 'https://images.example.com/detail-photo.jpg',
+    });
+    expect(read<Array<{ id: string }>>(coverage.mapSpots)[0].id).toBe('detail-selected');
+    expect(read<string>(coverage.workspaceError)).toBe('');
+    expect(read<{ id: string } | null>(coverage.activeTrip)?.id).toMatch(/local-preview-route|public-featured-route|trip-/);
+    expect(read<Array<{ id: string }>>(coverage.visibleSpotPreviews)).toHaveLength(8);
+    expect(read<Array<{ id: string }>>(coverage.visibleSpotPreviews)[0].id).toBe('detail-selected');
+    expect(read<{ id: string } | null>(coverage.selectedSpot)?.id).toBe('detail-selected');
+    expect(read<string>(coverage.selectedSpotPhoto)).toBe('https://images.example.com/detail-photo.jpg');
+    expect(read<string>(coverage.selectedSpotLocation)).toBe('Location syncing');
+    expect(read<Array<{ spotId: string }>>(coverage.activeRouteStops).map((stop) => stop.spotId)).toEqual([
+      'preview-4',
+      'preview-1',
+    ]);
+    expect(read<Array<{ city: string }>>(coverage.routeStopsPreview)[0].city).toBe('Los Angeles');
+    expect(read<string>(coverage.routeDriveMetric)).toBe('ETA pending');
+    expect(read<string>(coverage.routeDistanceMetric)).toBe('distance pending');
+    expect(read<string>(coverage.routeTravelerMetric)).toMatch(/\d+ Travelers?/);
+    expect(read<string>(coverage.routeHeroPhoto)).toBe('');
+
+    mapStoreMock.selectedSpotId = 'preview-8';
+    mapStoreMock.activeCategories = ['food'];
+    write(coverage.localPreviewSpots, [...previewSpots]);
+    expect(read<{ id: string } | null>(coverage.selectedSpot)?.id).toBe('detail-selected');
+
+    const sidebar = document.createElement('aside');
+    Object.defineProperty(sidebar, 'scrollTop', {
+      configurable: true,
+      value: 18,
+    });
+    write(coverage.mapSidebarRef, sidebar);
+    write(coverage.isMobileMapLayout, false);
+    coverage.syncMapSidebarScrollState();
+    expect(read<boolean>(coverage.isMapSidebarScrolled)).toBe(true);
+    write(coverage.isMobileMapLayout, true);
+    coverage.syncMapSidebarScrollState();
+    expect(read<boolean>(coverage.isMapSidebarScrolled)).toBe(false);
+
+    const fetchSpotsCallCount = spotsStoreMock.fetchSpots.mock.calls.length;
+    await coverage.syncFocusedMapSpot();
+    expect(spotsStoreMock.fetchSpots).toHaveBeenCalledTimes(fetchSpotsCallCount);
+
+    vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_ENABLE_LOCAL_PREVIEW', '');
+    write(coverage.localPreviewSpots, []);
+    write(coverage.localPreviewTrip, null);
+    await coverage.loadLocalMapPreviewData();
+    expect(read<Array<unknown>>(coverage.localPreviewSpots)).toEqual([]);
+    vi.stubEnv('MODE', 'test');
+    vi.stubEnv('VITE_ENABLE_LOCAL_PREVIEW', undefined);
+
+    wrapper.unmount();
+  });
+
+  it('focuses a map spot from the route query without disturbing route preview state', async () => {
+    routeMock.query = { spotId: '  focused-spot  ' };
+    spotsStoreMock.fetchSpot.mockResolvedValueOnce(undefined);
+    mapStoreMock.selectedSpotId = null;
+
+    const wrapper = mountMapPage();
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    expect(read<string>(coverage.focusedMapSpotId)).toBe('focused-spot');
+    await coverage.syncFocusedMapSpot();
+    await flushPromises();
+
+    expect(spotsStoreMock.fetchSpot).toHaveBeenCalledWith('focused-spot');
+    expect(mapStoreMock.setSelectedSpotId).toHaveBeenCalledWith('focused-spot');
+    expect(read<boolean>(coverage.hasLoadedSpotData)).toBe(true);
+    expect(read<string>(coverage.routeTitle)).toBe('North Texas Night + Food Loop');
+    expect(read<Array<{ spotId: string }>>(coverage.activeRouteStops).map((stop) => stop.spotId)).toEqual([
+      'spot-1',
+      'spot-2',
+    ]);
+
+    wrapper.unmount();
+  });
+
+  it('keeps map-page browser fallbacks and sparse preview states inert', async () => {
+    spotsStoreMock.items = [];
+    tripsStoreMock.items = [];
+    spotsStoreMock.selectedSpot = null;
+    tripsStoreMock.loading = false;
+    mapStoreMock.activeCategories = ['food'];
+    mapStoreMock.visibleSpotIds = [];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.selectedSpotId = null;
+    authStoreMock.currentUser = { homeBase: 'Fort Worth, TX' };
+    resolveHomeBaseMapViewportMock.mockResolvedValueOnce(null);
+
+    const wrapper = mountMapPage({ mobile: true });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    expect(read<string>(coverage.visibleEmptyTitle)).toBe('No pins match this category mix');
+    expect(read<string>(coverage.routeTitle)).toBeTruthy();
+    expect(read<string>(coverage.routeDriveMetric)).toEqual(expect.any(String));
+    expect(read<string>(coverage.routeDistanceMetric)).toEqual(expect.any(String));
+    expect(read<string>(coverage.routeTravelerMetric)).toMatch(/\d+ Travelers?/);
+
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined,
+    });
+    expect(coverage.resolveIsMobileMapLayout()).toBe(false);
+    coverage.syncMobileMapLayout();
+    coverage.cancelMobileSheetDrag();
+    if (windowDescriptor) {
+      Object.defineProperty(globalThis, 'window', windowDescriptor);
+    }
+
+    write(coverage.isMobileMapLayout, false);
+    coverage.startMobileSheetDrag({
+      currentTarget: document.createElement('button'),
+      pointerId: 32,
+      clientY: 200,
+    } as PointerEvent);
+    expect(read<boolean>(coverage.isDraggingMobileSheet)).toBe(false);
+
+    coverage.handleMobileSheetDrag({ clientY: 240 } as PointerEvent);
+    expect(read<number>(coverage.mobileSheetDragOffset)).toBe(0);
+    coverage.finishMobileSheetDrag();
+    expect(read<boolean>(coverage.ignoreNextMobileSheetClick)).toBe(false);
+
+    write(coverage.roadRoute, {
+      geometry: [],
+      orderedPoints: [],
+      distanceMeters: 0,
+      durationSeconds: 0,
+      provider: 'local-estimate',
+      profile: 'local',
+    });
+    write(coverage.roadRouteLoading, true);
+    expect(read<string>(coverage.routeDriveMetric)).toBe('ETA pending');
+    expect(read<string>(coverage.routeDistanceMetric)).toBe('');
+
+    write(coverage.localPreviewTrip, {
+      id: 'one-stop-preview',
+      title: '',
+      description: 'Collaborative trip draft from Scope planner.',
+      destination: '',
+      members: [{ id: 'solo', displayName: '' }],
+      spots: [
+        {
+          spotId: 'solo-stop',
+          title: 'Solo stop',
+          latitude: 32.7,
+          longitude: -97.3,
+          category: 'food',
+          timeSlot: undefined,
+        },
+      ],
+    });
+    write(coverage.hasLoadedTripData, false);
+    expect(read<string>(coverage.routeStopMetric)).toBe('1 trip stop');
+    expect(read<string>(coverage.routeTravelerMetric)).toBe('1 Traveler');
+
+    wrapper.unmount();
+  });
+
+  it('keeps selected map overlays and route fallback ordering stable when data is sparse', async () => {
+    spotsStoreMock.items = Array.from({ length: 10 }, (_, index) => ({
+      id: `sparse-map-${index}`,
+      title: index === 0 ? 'Alpha Sparse' : `Sparse Map ${index}`,
+      description: '',
+      latitude: 32.7 + index / 100,
+      longitude: -97.3 - index / 100,
+      category: index % 2 === 0 ? 'food' : 'culture',
+      city: index === 0 ? '' : 'Fort Worth',
+      country: index === 0 ? '' : 'US',
+      vibe: '',
+      rating: index === 0 ? 4.1 : 4.9 - index / 100,
+      photoUrl: '',
+    }));
+    tripsStoreMock.items = [{
+      id: 'fallback-order-trip',
+      title: '',
+      description: 'Pick a trip from the planner.',
+      destination: '',
+      coverImageUrl: '',
+      members: [],
+      spots: [
+        { spotId: 'sparse-map-3', title: 'Third Source', latitude: 32.73, longitude: -97.33, category: 'culture' },
+        { spotId: 'sparse-map-1', title: 'First Source', latitude: 32.71, longitude: -97.31, category: 'culture' },
+        { spotId: 'sparse-map-7', title: 'Seventh Source', latitude: 32.77, longitude: -97.37, category: 'culture' },
+      ],
+    }];
+    mapStoreMock.activeCategories = ['food', 'culture'];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.visibleSpotIds = spotsStoreMock.items.map((spot) => spot.id);
+    mapStoreMock.selectedSpotId = 'sparse-map-7';
+    resolveRoadRouteMock.mockResolvedValueOnce({
+      geometry: [],
+      orderedPoints: [
+        { id: 'missing-route-id', latitude: 1, longitude: 1 },
+      ],
+      distanceMeters: 0,
+      durationSeconds: 0,
+      provider: 'local-estimate',
+      profile: 'local',
+    });
+
+    const wrapper = mountMapPage({
+      mapViewStub: {
+        props: ['spots', 'selectedSpotId'],
+        template: '<button data-test="map-overlay-select" @click="$emit(\'spot-select\', spots[7])">{{ selectedSpotId }}</button>',
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    expect(read<Array<{ spotId: string }>>(coverage.activeRouteStops).map((stop) => stop.spotId)).toEqual([
+      'sparse-map-3',
+      'sparse-map-1',
+      'sparse-map-7',
+    ]);
+    expect(read<Array<{ id: string }>>(coverage.visibleSpotPreviews)).toHaveLength(8);
+    expect(read<{ id: string } | null>(coverage.selectedSpot)?.id).toBe('sparse-map-0');
+    expect(read<string>(coverage.routeTitle)).toBe('Route preview ready');
+    expect(read<string>(coverage.routeDescription)).toContain('live 3-stop route preview');
+    expect(read<string>(coverage.routeDestinationDisplay)).toBe('');
+    expect(read<string>(coverage.routeTravelerMetric)).toBe('0 Travelers');
+    expect(read<string>(coverage.routeHeroPhoto)).toBe('');
+    expect(read<string>(coverage.selectedSpotLocation)).toBe('Location syncing');
+
+    await wrapper.get('[data-test="map-overlay-select"]').trigger('click');
+    await flushPromises();
+    expect(read<string>(coverage.selectedMapOverlayLocation)).toContain('Fort Worth');
+    expect(read<string>(coverage.selectedMapOverlayPhoto)).toBeTruthy();
+
+    write(coverage.roadRoute, null);
+    write(coverage.roadRouteLoading, true);
+    expect(read<string>(coverage.routeDriveMetric)).toBe('Routing roads');
+    write(coverage.roadRouteLoading, false);
+    expect(read<string>(coverage.routeDriveMetric)).toBe('');
+
+    wrapper.unmount();
   });
 });

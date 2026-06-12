@@ -73,8 +73,48 @@ describe('local preview user storage', () => {
     expect(readLocalPreviewUsers()).toEqual([]);
   });
 
+  it('preserves existing optional profile fields when a remembered local user omits them', () => {
+    writeLocalPreviewUsers([{
+      ...storedUser,
+      bio: 'Existing bio',
+      avatarUrl: 'https://images.example.com/original.jpg',
+      interests: ['food', 'scenic'],
+      stats: { spots: 2, trips: 1, friends: 3 },
+      showActivityStatus: false,
+    }], storedUser.id);
+
+    const remembered = rememberLocalPreviewUser({
+      id: storedUser.id,
+      username: storedUser.username,
+      displayName: 'Renamed Local User',
+      email: storedUser.email,
+    });
+
+    expect(remembered).toMatchObject({
+      id: storedUser.id,
+      displayName: 'Renamed Local User',
+    });
+    expect(readCurrentLocalPreviewUser()).toMatchObject({
+      bio: 'Existing bio',
+      avatarUrl: 'https://images.example.com/original.jpg',
+      interests: ['food', 'scenic'],
+      stats: { spots: 2, trips: 1, friends: 3 },
+      showActivityStatus: false,
+    });
+    expect(toLocalPreviewUserProfile({
+      id: 'minimal-user',
+      username: 'minimal',
+      displayName: 'Minimal User',
+    })).toMatchObject({
+      email: '',
+      interests: [],
+    });
+  });
+
   it('returns empty storage results for malformed JSON and tolerates storage failures', () => {
     window.localStorage.setItem(LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY, '{bad json');
+    expect(readLocalPreviewUsers()).toEqual([]);
+    window.localStorage.setItem(LOCAL_PREVIEW_AUTH_USERS_STORAGE_KEY, JSON.stringify({ users: [storedUser] }));
     expect(readLocalPreviewUsers()).toEqual([]);
 
     const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
@@ -88,5 +128,17 @@ describe('local preview user storage', () => {
     });
     writeLocalPreviewUsers([storedUser], storedUser.id);
     setItemSpy.mockRestore();
+  });
+
+  it('no-ops safely when browser storage is unavailable', () => {
+    const originalWindow = window;
+    vi.stubGlobal('window', undefined);
+
+    expect(readLocalPreviewUsers()).toEqual([]);
+    expect(readCurrentLocalPreviewUser()).toBeUndefined();
+    expect(() => writeLocalPreviewUsers([storedUser], storedUser.id)).not.toThrow();
+    expect(() => removeLocalPreviewUser(storedUser.id)).not.toThrow();
+
+    vi.stubGlobal('window', originalWindow);
   });
 });

@@ -1,4 +1,5 @@
 import {
+  __wasmServiceCoverage,
   buildViewportConvexHull,
   calculateHaversineDistance,
   clusterViewportPoints,
@@ -333,6 +334,95 @@ describe('wasmService', () => {
     ]));
   });
 
+  it('keeps fallback sanitizers and geometry guards bounded for native-style edge outputs', () => {
+    const coverage = __wasmServiceCoverage!;
+
+    expect(coverage.normalizeArray({ 0: 'a', 1: 'b', length: 2 })).toEqual(['a', 'b']);
+    expect(coverage.sanitizeClusterResult({
+      id: 'cluster-1',
+      clustered: true,
+      pointCount: 2,
+      latitude: 30,
+      longitude: -97,
+      screenX: 10,
+      screenY: 20,
+      minScreenX: 1,
+      minScreenY: 2,
+      maxScreenX: 30,
+      maxScreenY: 40,
+      pointIds: { 0: 'a', 1: 'b', length: 2 },
+    })).toMatchObject({ pointIds: ['a', 'b'] });
+    expect(coverage.sanitizeHullResult({
+      valid: true,
+      pointCount: 2,
+      hullPointCount: 2,
+      latitude: 30,
+      longitude: -97,
+      screenX: 10,
+      screenY: 20,
+      minScreenX: 1,
+      minScreenY: 2,
+      maxScreenX: 30,
+      maxScreenY: 40,
+      areaSquarePx: 0,
+      perimeterPx: 10,
+      pointIds: { 0: 'a', length: 1 },
+      hullPointIds: { 0: 'a', 1: 'b', length: 2 },
+      hull: { 0: { id: 'a', latitude: 30, longitude: -97, screenX: 1, screenY: 2 }, length: 1 },
+    })).toMatchObject({ pointIds: ['a'], hullPointIds: ['a', 'b'], hull: [expect.objectContaining({ id: 'a' })] });
+
+    expect(coverage.sanitizeScopeAiLexToken({
+      type: 'unknown-token',
+      value: ' Route ',
+      normalized: undefined,
+      start: Number.NaN,
+      end: Number.NaN,
+    }, 10)).toMatchObject({ type: 'word', value: 'Route', normalized: 'route', start: 0, end: 0 });
+    expect(coverage.sanitizeScopeAiLexToken({
+      type: 'word',
+      value: '',
+      normalized: '',
+      start: 0,
+      end: 0,
+    }, 10)).toBeNull();
+    expect(coverage.sanitizeScopeAiLexTokens({
+      0: { type: 'map_keyword', value: 'Map', normalized: 'MAP', start: -10, end: 99 },
+      1: { type: 'word', value: '', normalized: '', start: 0, end: 1 },
+      length: 2,
+    }, 8)).toEqual([
+      expect.objectContaining({ type: 'map_keyword', normalized: 'map', start: 0, end: 8 }),
+    ]);
+
+    const projected = [
+      { id: 'a', latitude: 30, longitude: -97, worldX: 0, worldY: 0, screenX: 0, screenY: 0 },
+      { id: 'b', latitude: 31, longitude: -98, worldX: 0, worldY: 0, screenX: 20, screenY: 0 },
+      { id: 'c', latitude: 32, longitude: -99, worldX: 0, worldY: 0, screenX: 10, screenY: 10 },
+    ];
+    expect(coverage.computeAverageScreenPoint([])).toEqual({ x: 0, y: 0 });
+    expect(coverage.computeHullCentroid([])).toEqual({ x: 0, y: 0 });
+    expect(coverage.computeHullAreaSquarePx([])).toBe(0);
+    expect(coverage.computeHullPerimeterPx([projected[0]])).toBe(0);
+    expect(coverage.buildConvexHull(projected)).toHaveLength(3);
+    expect(coverage.screenCrossProduct(projected[0], projected[1], projected[2])).toBeGreaterThan(0);
+
+    const viewport = { west: -98, south: 30, east: -97, north: 31, width: 1000, height: 600, zoom: 8 };
+    expect(coverage.projectVisiblePoints(
+      [{ id: 'outside', latitude: 45, longitude: -120 }],
+      coverage.buildProjectionContext(viewport),
+    )).toEqual([]);
+    expect(coverage.clusterViewportPointsFallback(
+      [
+        { id: 'single-a', latitude: 30.1, longitude: -97.9 },
+        { id: 'single-b', latitude: 30.9, longitude: -97.1 },
+      ],
+      viewport,
+      { radiusPx: 1, minPoints: 3, includeSingles: false },
+    )).toEqual([]);
+    expect(coverage.buildViewportConvexHullFallback([], viewport)).toMatchObject({ valid: false, pointIds: [] });
+    expect(coverage.createFallbackBindings().ping()).toBe('scope-wasm-js-fallback-ready');
+    expect(coverage.resolveWasmAssetBasePath()).toContain('/wasm/dist/');
+  });
+
   it.each([
     ['map dallas tx zoom in', [
       ['map_keyword', 'map'],
@@ -418,5 +508,59 @@ describe('wasmService', () => {
         expect.objectContaining({ type, normalized }),
       ]));
     }
+  });
+
+  it('covers fallback clustering, hull, and token sanitizer boundary branches', () => {
+    const coverage = __wasmServiceCoverage!;
+    const viewport = { west: -98, south: 30, east: -97, north: 31, width: 1000, height: 600, zoom: 8 };
+    const closePoints = [
+      { id: 'a', latitude: 30.5, longitude: -97.5 },
+      { id: 'b', latitude: 30.5001, longitude: -97.5001 },
+      { id: 'c', latitude: 30.5002, longitude: -97.5002 },
+    ];
+
+    expect(coverage.normalizeArray({ 0: 'bad', length: 1 })).toEqual(['bad']);
+    expect(coverage.sanitizeScopeAiLexToken({
+      type: 'place_span',
+      value: undefined,
+      normalized: '  ',
+      start: 3,
+      end: 1,
+    }, 4)).toBeNull();
+    expect(coverage.sanitizeScopeAiLexToken({
+      type: 'zoom_direction',
+      value: ' In ',
+      normalized: undefined,
+      start: 1,
+      end: 99,
+    }, 4)).toMatchObject({
+      type: 'zoom_direction',
+      value: 'In',
+      normalized: 'in',
+      start: 1,
+      end: 4,
+    });
+
+    const clustered = coverage.clusterViewportPointsFallback(closePoints, viewport, {
+      radiusPx: 50,
+      minPoints: 2,
+      includeSingles: true,
+    });
+    expect(clustered).toEqual(expect.arrayContaining([
+      expect.objectContaining({ clustered: true, pointCount: 3 }),
+    ]));
+
+    const lineHull = coverage.buildViewportConvexHullFallback([
+      { id: 'line-a', latitude: 30.5, longitude: -97.9 },
+      { id: 'line-b', latitude: 30.5, longitude: -97.8 },
+      { id: 'line-c', latitude: 30.5, longitude: -97.7 },
+    ], viewport);
+    expect(lineHull.valid).toBe(true);
+    expect(lineHull.areaSquarePx).toBe(0);
+
+    const emptyHull = coverage.buildViewportConvexHullFallback([
+      { id: 'outside', latitude: 50, longitude: -120 },
+    ], viewport);
+    expect(emptyHull).toMatchObject({ valid: false, pointIds: [] });
   });
 });

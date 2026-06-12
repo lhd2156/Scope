@@ -98,6 +98,26 @@ public sealed class AuthHealthLiveControllerMoreTests
     }
 
     [Fact]
+    public async Task HealthController_ReturnsUnhealthyWhenDatabaseCannotConnect()
+    {
+        var missingDirectory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var options = new DbContextOptionsBuilder<Scope.Core.Infrastructure.Data.CoreDbContext>()
+            .UseSqlite($"Data Source={System.IO.Path.Combine(missingDirectory, "core.db")}")
+            .Options;
+        await using var dbContext = new Scope.Core.Infrastructure.Data.CoreDbContext(options);
+        var controller = new HealthController(
+            dbContext,
+            new ConfigurationBuilder().Build(),
+            new ServiceCollection().BuildServiceProvider());
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, objectResult.StatusCode);
+        Assert.Equal("unhealthy", TestData.Prop<string>(objectResult.Value!, "status"));
+    }
+
+    [Fact]
     public async Task LiveSessionController_CoversForbidCreatePingTripAndStopBranches()
     {
         var userId = Guid.NewGuid();

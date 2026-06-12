@@ -235,4 +235,85 @@ describe('TripDetail', () => {
       expect.objectContaining({ id: 'itinerary-stop-2', routeRole: 'end' }),
     ]);
   });
+
+  it('keeps null, singular, and fallback trip detail helpers safe', async () => {
+    const nullWrapper = mount(TripDetail, {
+      props: {
+        trip: null,
+      },
+      global: {
+        stubs: {
+          MapView: { template: '<div />' },
+        },
+      },
+    });
+    const nullCoverage = (nullWrapper.vm as any).__coverage;
+
+    expect(nullWrapper.find('[data-test="trip-detail"]').exists()).toBe(false);
+    expect(nullCoverage.resolvedItinerary.value).toBeNull();
+    expect(nullCoverage.totalDays.value).toBe(0);
+    expect(nullCoverage.dateRangeLabel.value).toBe('');
+    expect(nullCoverage.heroImageFallback.value).toBe('');
+    expect(nullCoverage.heroImageUrl.value).toBe('');
+    expect(nullCoverage.estimatedSpendLabel.value).toBe('$0');
+    expect(nullCoverage.weatherLabel.value).toBe('Weather syncing');
+    expect(nullCoverage.routeIntensityLabel.value).toBe('Relaxed');
+    expect(nullCoverage.routeStops.value).toEqual([]);
+    expect(nullCoverage.mapSpots.value).toEqual([]);
+
+    const singularTrip: Trip = {
+      ...trip,
+      id: 'trip-singular',
+      title: 'Solo Stop',
+      startDate: '2026-04-01',
+      endDate: '2026-04-01',
+      currency: undefined,
+      budget: 125,
+      members: [{ id: 'user-1', displayName: 'Louis Do', status: 'owner' }],
+      itinerary: undefined,
+      spots: [
+        {
+          spotId: 'solo-stop',
+          title: 'Solo Stop Cafe',
+          latitude: 32.7555,
+          longitude: -97.3308,
+          category: 'food',
+          city: 'Fort Worth',
+          estimatedCost: undefined,
+          timeSlot: undefined,
+          dayNumber: undefined,
+        },
+      ],
+    };
+
+    await nullWrapper.setProps({ trip: singularTrip });
+    expect(nullWrapper.text()).toContain('1 day');
+    expect(nullWrapper.text()).toContain('1 stop');
+    expect(nullWrapper.text()).toContain('1 traveler');
+    expect(nullCoverage.budgetLabel.value).toBe('$125');
+    expect(nullCoverage.buildFallbackItinerary(singularTrip)).toMatchObject({
+      totalEstimatedCost: 0,
+      days: [
+        {
+          dayNumber: 1,
+          spots: [expect.objectContaining({ title: 'Solo Stop Cafe' })],
+        },
+      ],
+    });
+    expect(nullCoverage.flattenItineraryStops({
+      id: 'inline',
+      destination: 'Inline',
+      totalEstimatedCost: 0,
+      weatherForecast: '',
+      days: [
+        {
+          dayNumber: 4,
+          date: '2026-04-04',
+          spots: [
+            { ...singularTrip.spots[0], dayNumber: undefined },
+          ],
+        },
+      ],
+    })[0]).toMatchObject({ dayNumber: 4 });
+  });
 });

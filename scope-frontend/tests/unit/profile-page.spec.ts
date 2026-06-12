@@ -602,6 +602,20 @@ describe('ProfilePage', () => {
     expect(listUserSpotsMock).not.toHaveBeenCalled();
   });
 
+  it('shows the unavailable profile state when the profile contract returns no explorer', async () => {
+    userStoreMock.fetchCurrentProfile.mockResolvedValueOnce(null as any);
+    listUserSpotsMock.mockResolvedValueOnce({ data: [] });
+    listSavedSpotsMock.mockResolvedValueOnce({ data: [] });
+    listPublicTripsMock.mockResolvedValueOnce({ data: [] });
+
+    const wrapper = mountProfilePage();
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="profile-unavailable-empty-state"]').text()).toContain('Profile unavailable');
+    expect(wrapper.get('[data-test="profile-unavailable-empty-state"]').text()).toContain('Back to your network');
+  });
+
   it('shows an error state when the profile contract cannot be loaded', async () => {
     authStoreMock.currentUser = {
       id: 'user-9',
@@ -734,6 +748,126 @@ describe('ProfilePage', () => {
         Reflect.deleteProperty(window, 'IntersectionObserver');
       }
     }
+  });
+
+  it('covers profile helper branches for focus, dedupe, map copy, and collection fallbacks', async () => {
+    const wrapper = mountProfilePage();
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(coverage.isSpotCategory('food')).toBe(true);
+    expect(coverage.isSpotCategory('coffee')).toBe(false);
+    expect(coverage.formatFocusCategory('nightlife')).toBe('Nightlife');
+    expect(coverage.getUniqueFocusCategories([' Food ', 'food', 'coffee', 'SCENIC'])).toEqual(['food', 'scenic']);
+    expect(coverage.buildPreferenceFocusSummary(undefined)).toBeNull();
+    expect(coverage.buildPreferenceFocusSummary(['food'])).toEqual({
+      label: 'Food focus',
+      category: 'food',
+    });
+    expect(coverage.buildPreferenceFocusSummary(['food', 'culture'])).toEqual({
+      label: 'Food + Culture focus',
+      category: 'food',
+    });
+    expect(coverage.buildPreferenceFocusSummary(['food', 'culture', 'scenic'])).toEqual({
+      label: 'Balanced focus',
+      category: null,
+    });
+    expect(coverage.buildPreferenceFocusSummary(['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other'])).toEqual({
+      label: 'All-around focus',
+      category: null,
+    });
+    expect(coverage.buildCategorySignalFocusSummary([])).toBeNull();
+    expect(coverage.buildCategorySignalFocusSummary(['food', 'scenic'])).toEqual({
+      label: 'Balanced focus',
+      category: null,
+    });
+    expect(coverage.buildCategorySignalFocusSummary(['food', 'food', 'scenic'])).toEqual({
+      label: 'Food focus',
+      category: 'food',
+    });
+
+    const duplicateSpot = {
+      ...fixtures.spots[0],
+      id: 'duplicate-food',
+      title: fixtures.spots[0].title,
+    };
+    expect(coverage.dedupeSpotList([
+      fixtures.spots[0],
+      duplicateSpot,
+      fixtures.savedSpots[0],
+    ], [fixtures.spots[0]]).map((spot: { id: string }) => spot.id)).toEqual(['saved-1']);
+
+    expect(coverage.getTripDurationDays({
+      startDate: '2026-03-29',
+      endDate: '2026-03-31',
+    })).toBe(3);
+    expect(coverage.buildSpotSummaryFromTripSpot({
+      spotId: 'trip-stop',
+      title: 'Trip Stop',
+      latitude: 32.7,
+      longitude: -97.3,
+      category: 'culture',
+      city: 'Fort Worth',
+      notes: 'Museum morning',
+      photoUrl: 'https://images.example.com/trip-stop.jpg',
+    }, fixtures.profile, '2026-04-01')).toMatchObject({
+      id: 'trip-stop',
+      title: 'Trip Stop',
+      author: fixtures.profile,
+      createdAt: '2026-04-01',
+      vibe: 'Museum morning',
+    });
+
+    setViewportWidth(640);
+    expect(coverage.resolveIsMobileProfileLayout()).toBe(true);
+    setViewportWidth(641);
+    coverage.syncMobileProfileLayout();
+    expect(coverage.isMobileProfileLayout.value).toBe(false);
+
+    coverage.activeProfileCollection.value = 'pinned';
+    expect(coverage.activeCollectionMeta.value.title).toBe('Pinned highlights');
+    expect(coverage.activeCollectionItems.value.every((item: { type: string }) => item.type === 'spot')).toBe(true);
+    coverage.activeProfileCollection.value = 'wishlist';
+    expect(coverage.activeCollectionMeta.value.title).toBe('Wishlist');
+    expect(coverage.activeCollectionItems.value.every((item: { type: string }) => item.type === 'spot')).toBe(true);
+    coverage.activeProfileCollection.value = 'recent';
+    expect(coverage.activeCollectionMeta.value.title).toBe('Recent adventures');
+    expect(coverage.activeCollectionItems.value.every((item: { type: string }) => item.type === 'trip')).toBe(true);
+
+    coverage.profileUser.value = null;
+    expect(coverage.mapDescription.value).toBe('Scope map data is unavailable.');
+
+    coverage.profileUser.value = {
+      ...fixtures.profile,
+      id: 'user-2',
+      displayName: 'Maya Chen',
+      interests: [],
+    };
+    coverage.profileSpots.value = [];
+    coverage.savedProfileSpots.value = [];
+    coverage.profileTrips.value = [];
+    coverage.profileFriendPresence.value = { status: 'online', label: 'Online now' };
+    expect(coverage.profilePresence.value).toEqual({ status: 'online', label: 'Online now' });
+    expect(coverage.primaryActionLabel.value).toBe('Plan a trip');
+    expect(coverage.primaryActionTo.value).toEqual({ path: '/trips/new', query: { friend: 'user-1' } });
+    expect(coverage.secondaryActionLabel.value).toBe('Open social graph');
+    expect(coverage.mapDescription.value).toBe('Maya Chen does not have mapped visits or public pins yet.');
+
+    coverage.profileUser.value = fixtures.profile;
+    coverage.profileSpots.value = [fixtures.spots[0]];
+    coverage.savedProfileSpots.value = [fixtures.savedSpots[0]];
+    coverage.profileTrips.value = [];
+    expect(coverage.profilePresence.value).toBeUndefined();
+    expect(coverage.primaryActionLabel.value).toBe('Edit preferences');
+    expect(coverage.primaryActionTo.value).toBe('/settings');
+    expect(coverage.profileCollectionTabs.value.map((tab: { id: string }) => tab.id)).toEqual(['recent', 'pinned', 'wishlist']);
+    expect(coverage.countryCount.value).toBe(1);
+    expect(coverage.cityCount.value).toBe(2);
+    expect(coverage.averageRating.value).toBe(4.8);
+    expect(coverage.profileMapTitle.value).toBe("Louis Do's Scope Map");
+
+    wrapper.unmount();
   });
 
   afterAll(() => {

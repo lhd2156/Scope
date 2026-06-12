@@ -470,6 +470,39 @@ const baseShareCount = computed(() => {
 
 const likeCount = computed(() => baseLikeCount.value + (isLiked.value ? 1 : 0));
 const shareCount = computed(() => baseShareCount.value + (isShared.value ? 1 : 0));
+
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activityLabel,
+          actorDisplayHandle,
+          actorDisplayName,
+          destinationLabel,
+          destinationRoute,
+          headlineCopy,
+          locationCopy,
+          mediaAriaLabel,
+          noteCopy,
+          noteLabel,
+          overlayTitle,
+          resolveActivityLabel,
+          resolveActorDisplayHandle,
+          resolveActorDisplayName,
+          resolveHeadlineCopy,
+          resolveSpotDestinationRoute,
+          resolveSpotTitleFromFeedItem,
+          reviewParts,
+          reviewRatingCopy,
+          reviewRatingLabel,
+          reviewRatingScore,
+          trimActorPrefix,
+          typeIcon,
+          typeLabel,
+        },
+      }
+    : {}),
+});
 </script>
 
 <style scoped>

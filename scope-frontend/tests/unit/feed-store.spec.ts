@@ -144,4 +144,28 @@ describe('feed store API contracts', () => {
     expect(store.items).toEqual([{ id: 'home-feed-1' }]);
     expect(store.meta).toMatchObject({ page: 1, pageSize: 6, total: 1 });
   });
+
+  it('returns cached items while home activity is already loaded or loading', async () => {
+    let resolveHomeFeed!: (value: { data: Array<{ id: string }>; meta?: null }) => void;
+    const getHomeActivityFeed = vi.fn(() => new Promise<{ data: Array<{ id: string }>; meta?: null }>((resolve) => {
+      resolveHomeFeed = resolve;
+    }));
+
+    vi.doMock('@/services/feedService', () => ({
+      getFeed: vi.fn(),
+      getHomeActivityFeed,
+      getTrendingSpots: vi.fn(),
+    }));
+
+    const store = await bootstrapFeedStore();
+    const firstLoad = store.fetchHomeActivityFeed(undefined, undefined, 3);
+    await Promise.resolve();
+
+    await expect(store.fetchHomeActivityFeed()).resolves.toBe(store.items);
+    resolveHomeFeed({ data: [{ id: 'home-feed-loaded' }], meta: null });
+    await expect(firstLoad).resolves.toEqual([{ id: 'home-feed-loaded' }]);
+    await expect(store.fetchHomeActivityFeed()).resolves.toBe(store.items);
+
+    expect(getHomeActivityFeed).toHaveBeenCalledTimes(1);
+  });
 });

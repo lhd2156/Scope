@@ -6,6 +6,7 @@ using Scope.Core.Domain.Entities;
 using Scope.Core.Domain.Interfaces;
 using Scope.Core.Domain.Models;
 using Scope.Core.Infrastructure.Data;
+using Confluent.Kafka;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +35,21 @@ public sealed class NotificationCoveragePushTests
     }
 
     [Fact]
+    public void ShouldProcessConsumedMessage_RejectsEmptyKafkaResultsAndAcceptsPayloads()
+    {
+        Assert.False(InvokeShouldProcessConsumedMessage(null));
+        Assert.False(InvokeShouldProcessConsumedMessage(new ConsumeResult<string, string>()));
+        Assert.False(InvokeShouldProcessConsumedMessage(new ConsumeResult<string, string>
+        {
+            Message = new Message<string, string> { Key = "k", Value = null! },
+        }));
+        Assert.True(InvokeShouldProcessConsumedMessage(new ConsumeResult<string, string>
+        {
+            Message = new Message<string, string> { Key = "k", Value = "{}" },
+        }));
+    }
+
+    [Fact]
     public async Task ProcessOutboxRecordAsync_CoversAdditionalEventBranchesAndEarlyReturns()
     {
         await using var dbContext = TestData.CreateDbContext();
@@ -58,6 +74,10 @@ public sealed class NotificationCoveragePushTests
             Outbox("comment:event-1", "comment.created", new { data = new { userId = actor.Id, targetOwnerUserId = owner.Id, parentCommentUserId = parent.Id, targetType = "trip", targetId = "trip-1", commentId = "comment-1", targetTitle = "Trip" } }),
             Outbox("mention:event-1", "mention.created", new { data = new { userId = actor.Id, targetType = "spot", targetId = "spot-7", commentId = "comment-2", mentionedUserIds = new[] { mentioned.Id, actor.Id, mentioned.Id } } }),
             Outbox("mention:missing-array", "mention.created", new { data = new { userId = actor.Id, targetId = "spot-8", commentId = "comment-3" } }),
+            Outbox("mention:missing-actor", "mention.created", new { data = new { targetId = "spot-9", commentId = "comment-4" } }),
+            Outbox("trip:public-defaults", "trip.created", new { data = new { creatorId = actor.Id, tripId = "trip-public", isPublic = true } }),
+            Outbox("spot:liked-target-owner", "spot.liked", new { data = new { userId = Guid.NewGuid(), targetOwnerUserId = owner.Id, spotId = "spot-unknown-actor" } }),
+            Outbox("trip-member:fallbacks", "trip.member.added", new { data = new { userId = mentioned.Id, tripId = "trip-ownerless" } }),
             Outbox("trip:not-public", "trip.created", new { data = new { userId = actor.Id, tripId = "trip-private", isPublic = false } }),
             Outbox("spot:missing-ref", "spot.created", new { data = new { userId = actor.Id, isPublic = true } }),
             Outbox("trip-member:missing", "trip.member.added", new { data = new { actorUserId = actor.Id } }),
@@ -75,11 +95,93 @@ public sealed class NotificationCoveragePushTests
         }
 
         Assert.Contains(notifications.Created, x => x.Type == "review.created" && x.UserId == owner.Id);
+        Assert.Contains(notifications.Created, x => x.Type == "spot.liked" && x.UserId == owner.Id && x.Body == "Someone liked your spot.");
         Assert.Contains(notifications.Created, x => x.Type == "comment.created" && x.UserId == owner.Id);
         Assert.Contains(notifications.Created, x => x.Type == "comment.created" && x.UserId == parent.Id);
+        Assert.Contains(notifications.Created, x => x.Type == "trip.member.added" && x.UserId == mentioned.Id && x.Body == "A trip owner added you to a Scope trip.");
         var mention = Assert.Single(notifications.Created.Where(x => x.Type == "mention.created"));
         Assert.Equal(mentioned.Id, mention.UserId);
-        Assert.Empty(notifications.Digests);
+        Assert.Contains(notifications.Digests, x =>
+            x.UserId == friend.Id &&
+            x.Item.Type == "trip.created" &&
+            x.Item.Title == "A friend published a trip" &&
+            x.Item.ActionUrl == "/trips/trip-public");
+    }
+
+    [Fact]
+    public async Task ProcessOutboxRecordAsync_CoversRootPayloadParserFallbacksAndFailureTruncation()
+    {
+        await using var dbContext = TestData.CreateDbContext();
+        var actor = TestData.User(displayName: "Actor");
+        var owner = TestData.User(displayName: "Owner");
+        var friend = TestData.User(displayName: "Friend");
+        dbContext.Users.AddRange(actor, owner, friend);
+        dbContext.Friendships.Add(new Friendship
+        {
+            Id = Guid.NewGuid(),
+            RequesterId = actor.Id,
+            AddresseeId = friend.Id,
+            Status = "accepted",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        var rootPayloadReaction = Outbox("spot:root-payload", "spot.liked", new
+        {
+            data = "not-an-object",
+            userId = actor.Id,
+            targetOwnerUserId = owner.Id,
+            spotId = "spot-root",
+            spotTitle = "Root Spot",
+        });
+        var publicSpotWithoutFlag = Outbox("spot:no-public-flag", "spot.created", new
+        {
+            data = new { userId = actor.Id, spotId = "spot-public-default" },
+        });
+        var reviewWithTitleFallback = Outbox("review:title-fallback", "review.created", new
+        {
+            data = new { userId = actor.Id, ownerUserId = owner.Id, spotId = "spot-review", title = "Title Fallback" },
+        });
+        var commentWithNoRecipients = Outbox("comment:no-recipients", "comment.created", new
+        {
+            data = new { userId = actor.Id, targetOwnerUserId = actor.Id, targetType = "spot", targetId = "spot-root", commentId = "comment-root" },
+        });
+        dbContext.NotificationOutbox.AddRange(rootPayloadReaction, publicSpotWithoutFlag, reviewWithTitleFallback, commentWithNoRecipients);
+        await dbContext.SaveChangesAsync();
+        var notifications = new CapturingNotificationService();
+        using var provider = Provider(dbContext, notifications);
+
+        foreach (var record in new[] { rootPayloadReaction, publicSpotWithoutFlag, reviewWithTitleFallback, commentWithNoRecipients })
+        {
+            await NotificationEventConsumerService.ProcessOutboxRecordAsync(provider, record, CancellationToken.None);
+            Assert.Equal("processed", record.Status);
+        }
+
+        Assert.Contains(notifications.Created, x => x.Type == "spot.liked" && x.Body == "Actor liked Root Spot.");
+        Assert.Contains(notifications.Created, x => x.Type == "review.created" && x.Body == "Actor left a review on Title Fallback.");
+        Assert.DoesNotContain(notifications.Created, x => x.Type == "comment.created" && x.ReferenceId == "comment-root");
+        Assert.Contains(notifications.Digests, x =>
+            x.UserId == friend.Id &&
+            x.Item.Type == "spot.created" &&
+            x.Item.Title == "A friend posted a new spot");
+
+        Assert.Empty(InvokeToMetadata("[]"));
+        Assert.Empty(InvokeToMetadata("null"));
+        Assert.Null(InvokeGetBool("""{"isPublic":"yes"}""", "isPublic"));
+        Assert.Contains(actor.Id, InvokeGetGuidArray(JsonSerializer.Serialize(new { mentionedUserIds = new object[] { actor.Id.ToString(), "bad-guid", 123 } }), "mentionedUserIds"));
+
+        var failing = Outbox("spot:long-failure", "spot.liked", new
+        {
+            data = new { userId = actor.Id, ownerUserId = owner.Id, spotId = "spot-failure" },
+        });
+        dbContext.NotificationOutbox.Add(failing);
+        await dbContext.SaveChangesAsync();
+        using var failingProvider = Provider(dbContext, new LongThrowingNotificationService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            NotificationEventConsumerService.ProcessOutboxRecordAsync(failingProvider, failing, CancellationToken.None));
+
+        Assert.Equal("failed", failing.Status);
+        Assert.Equal(1000, failing.LastError!.Length);
     }
 
     [Fact]
@@ -242,6 +344,37 @@ public sealed class NotificationCoveragePushTests
         await (Task)method.Invoke(dispatcher, [CancellationToken.None])!;
     }
 
+    private static bool InvokeShouldProcessConsumedMessage(ConsumeResult<string, string>? result)
+    {
+        var method = typeof(NotificationEventConsumerService).GetMethod("ShouldProcessConsumedMessage", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(NotificationEventConsumerService), "ShouldProcessConsumedMessage");
+        return (bool)method.Invoke(null, [result])!;
+    }
+
+    private static IReadOnlyDictionary<string, object?> InvokeToMetadata(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var method = typeof(NotificationEventConsumerService).GetMethod("ToMetadata", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(NotificationEventConsumerService), "ToMetadata");
+        return (IReadOnlyDictionary<string, object?>)method.Invoke(null, [document.RootElement])!;
+    }
+
+    private static bool? InvokeGetBool(string json, string name)
+    {
+        using var document = JsonDocument.Parse(json);
+        var method = typeof(NotificationEventConsumerService).GetMethod("GetBool", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(NotificationEventConsumerService), "GetBool");
+        return (bool?)method.Invoke(null, [document.RootElement, name]);
+    }
+
+    private static IReadOnlyList<Guid> InvokeGetGuidArray(string json, string name)
+    {
+        using var document = JsonDocument.Parse(json);
+        var method = typeof(NotificationEventConsumerService).GetMethod("GetGuidArray", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(NotificationEventConsumerService), "GetGuidArray");
+        return (IReadOnlyList<Guid>)method.Invoke(null, [document.RootElement, name])!;
+    }
+
     private static Mock<IHubContext<NotificationHub>> CreateHubContext()
     {
         var clientProxy = new Mock<IClientProxy>();
@@ -262,6 +395,20 @@ public sealed class NotificationCoveragePushTests
 
         public Task QueueDeliveryAttemptsAsync(Notification notification, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("boom");
+    }
+
+    private sealed class LongThrowingNotificationService : INotificationService
+    {
+        private static readonly string LongMessage = new('x', 1205);
+
+        public Task<Notification?> CreateAsync(NotificationCreateRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException(LongMessage);
+
+        public Task<Notification?> UpsertFriendActivityDigestAsync(Guid userId, NotificationDigestItem item, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException(LongMessage);
+
+        public Task QueueDeliveryAttemptsAsync(Notification notification, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException(LongMessage);
     }
 
     private sealed class ThrowingSender(string channel) : INotificationChannelSender

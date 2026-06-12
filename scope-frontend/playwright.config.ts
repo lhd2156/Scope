@@ -55,7 +55,22 @@ for (const [key, value] of Object.entries(noMockEnvDefaults)) {
   process.env[key] = value;
 }
 
+function isLocalBaseUrl(rawBaseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(rawBaseUrl);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.localhost')
+    );
+  } catch {
+    return true;
+  }
+}
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
+const shouldStartWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER !== 'true' && isLocalBaseUrl(baseURL);
 const mapboxToken = process.env.VITE_MAPBOX_TOKEN ?? '';
 const enableMapboxUiTests = process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS ?? (mapboxToken ? 'true' : 'false');
 process.env.VITE_MAPBOX_TOKEN = mapboxToken;
@@ -118,9 +133,8 @@ export default defineConfig({
     viewport: { width: 1440, height: 960 },
   },
   projects,
-  webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER === 'true'
-    ? undefined
-    : {
+  webServer: shouldStartWebServer
+    ? {
         command: 'npm run serve:e2e',
         cwd: currentDirectory,
         url: baseURL,
@@ -148,5 +162,6 @@ export default defineConfig({
           VITE_ENABLE_MAPBOX_IN_UI_TESTS: enableMapboxUiTests,
           VITE_DISABLE_SERVICE_WORKER: process.env.VITE_DISABLE_SERVICE_WORKER ?? 'true',
         },
-      },
+      }
+    : undefined,
 });

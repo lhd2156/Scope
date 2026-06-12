@@ -268,4 +268,130 @@ describe('roadRouteService', () => {
     expect(result.provider).toBe('local-estimate');
     expect(result.routeError).toBe('Too many points for Mapbox Directions API.');
   });
+
+  it('drops invalid duplicate waypoints and falls back from malformed Mapbox geometry safely', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test-token');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'NoRoute',
+        message: '',
+        trips: [],
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'Ok',
+        trips: [{ geometry: { coordinates: { bad: true } } }],
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'Ok',
+        routes: [{ geometry: { coordinates: [[-97.3308, 32.7555], ['bad', 99], [-97.3623, 32.7489]] } }],
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveRoadRoute([
+      routePoints[0]!,
+      { ...routePoints[1]!, id: routePoints[0]!.id },
+      { id: 'bad-latitude', title: 'Bad latitude', latitude: 120, longitude: -97.3, category: 'food' },
+      routePoints[2]!,
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.provider).toBe('mapbox-directions');
+    expect(result.orderedPoints.map((point) => point.id)).toEqual(['start', 'finish']);
+    expect(result.geometry).toEqual([
+      [-97.3308, 32.7555],
+      [-97.3623, 32.7489],
+    ]);
+    expect(result.distanceMeters).toBeGreaterThan(0);
+  });
+
+  it('keeps remote route edge fallbacks bounded for sparse waypoint and geometry payloads', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test-token');
+
+    const noWaypointFetch = vi.fn(async () => jsonResponse({
+      code: 'Ok',
+      trips: [{
+        geometry: {
+          coordinates: [
+            [-97.3308, 32.7555],
+            [-97.34, 32.752],
+            [-97.3623, 32.7489],
+          ],
+        },
+      }],
+    }));
+    vi.stubGlobal('fetch', noWaypointFetch);
+    let result = await resolveRoadRoute(routePoints);
+    expect(result.provider).toBe('mapbox-optimization');
+    expect(result.orderedPoints.map((point) => point.id)).toEqual(['start', 'middle', 'finish']);
+    expect(result.distanceMeters).toBeGreaterThan(0);
+
+    clearRoadRouteCache();
+    const partialWaypointFetch = vi.fn(async () => jsonResponse({
+      code: 'Ok',
+      waypoints: [{ waypoint_index: 1 }],
+      trips: [{
+        geometry: {
+          coordinates: [
+            [-97.3308, 32.7555],
+            [-97.34, 32.752],
+            [-97.3623, 32.7489],
+          ],
+        },
+      }],
+    }));
+    vi.stubGlobal('fetch', partialWaypointFetch);
+    result = await resolveRoadRoute(routePoints);
+    expect(result.provider).toBe('mapbox-optimization');
+    expect(result.orderedPoints.map((point) => point.id)).toEqual(['start', 'middle', 'finish']);
+
+    clearRoadRouteCache();
+    const invalidCoordinateFetch = vi.fn(async () => jsonResponse({
+      code: 'Ok',
+      routes: [{
+        geometry: {
+          coordinates: [
+            [-97.3308, 32.7555],
+            [-200, 32.75],
+            [-97.3623, 32.7489],
+          ],
+        },
+      }],
+    }));
+    vi.stubGlobal('fetch', invalidCoordinateFetch);
+    result = await resolveRoadRoute(routePoints, { optimizeOrder: false });
+    expect(result.provider).toBe('mapbox-directions');
+    expect(result.geometry).toEqual([
+      [-97.3308, 32.7555],
+      [-97.3623, 32.7489],
+    ]);
+    expect(result.durationSeconds).toBeGreaterThan(0);
+
+    clearRoadRouteCache();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw 'socket closed';
+    }));
+    result = await resolveRoadRoute(routePoints);
+    expect(result.provider).toBe('local-estimate');
+    expect(result.routeError).toBe('Mapbox route unavailable.');
+
+    clearRoadRouteCache();
+    const zeroGeometryFetch = vi.fn(async () => jsonResponse({
+      code: 'Ok',
+      routes: [{
+        geometry: {
+          coordinates: [
+            [-97.3308, 32.7555],
+            [-97.3308, 32.7555],
+          ],
+        },
+        distance: -1,
+        duration: -1,
+      }],
+    }));
+    vi.stubGlobal('fetch', zeroGeometryFetch);
+    result = await resolveRoadRoute(routePoints.slice(0, 2), { optimizeOrder: false });
+    expect(result.provider).toBe('mapbox-directions');
+    expect(result.distanceMeters).toBeGreaterThan(0);
+    expect(result.durationSeconds).toBeGreaterThan(0);
+  });
 });

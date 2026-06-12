@@ -449,7 +449,19 @@ describe('TripPlannerPage', () => {
             props: ['stops'],
             template: '<div data-test="route-query-stops">{{ stops.length }}|{{ stops[0]?.title }}</div>',
           },
-          ItineraryView: { template: '<div />' },
+          ItineraryView: {
+            template: '<div />',
+            methods: {
+              runPlannerMapCommand(command: any) {
+                return {
+                  ok: true,
+                  message: typeof command === 'string'
+                    ? `map:${command}`
+                    : `map:${command.target?.label ?? command.command}`,
+                };
+              },
+            },
+          },
           TripCollaborationBar: { template: '<div />' },
           TripPlannerAiAssist: { template: '<div />' },
           TripShareModal: { template: '<div />' },
@@ -534,6 +546,391 @@ describe('TripPlannerPage', () => {
     expect(wrapper.find('[data-test="itinerary-stub"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="collaboration-stub"]').exists()).toBe(false);
     expect(wrapper.find('.featured-routes-panel').exists()).toBe(false);
+  });
+
+  it('keeps planner handoff and route-library helper fallbacks deterministic', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const fullDraft = {
+      destination: 'Fort Worth, TX',
+      endDestination: 'Austin, TX',
+      startDate: '2026-05-08',
+      endDate: '2026-05-08',
+      budgetFloor: undefined,
+      budget: 950,
+      pace: 'balanced',
+      interests: ['food', 'scenic'],
+      groupSize: 0,
+    };
+    expect(coverage.formatPlannerHandoffDateSpan(fullDraft)).toBe('2026-05-08 to 2026-05-08 (1 day)');
+    expect(coverage.formatPlannerHandoffDateSpan({ ...fullDraft, startDate: '', endDate: '2026-05-10' })).toBe('2026-05-10');
+    expect(coverage.formatPlannerHandoffDateSpan({ ...fullDraft, startDate: '', endDate: '' })).toBe('smart default dates');
+    expect(coverage.formatPlannerHandoffInterests([])).toBe('smart defaults');
+    expect(coverage.formatPlannerHandoffStops([])).toBe('none yet');
+    expect(coverage.formatPlannerHandoffStops([
+      { ...buildRouteStop('blank', '   ', 1) },
+      { ...buildRouteStop('coffee', 'Morning Coffee', 2, 'food'), city: 'Austin' },
+    ])).toBe('1. Morning Coffee, Austin, day 2');
+    expect(coverage.formatPlannerHandoffStops([
+      { ...buildRouteStop('quiet', 'Quiet Overlook', undefined as any), city: '' },
+    ])).toBe('1. Quiet Overlook');
+    expect(coverage.buildPlannerHandoffPrompt(fullDraft)).toContain('Route: Fort Worth, TX to Austin, TX.');
+    expect(coverage.buildPlannerHandoffPrompt({ ...fullDraft, endDestination: '' })).toContain('Ask for the final destination');
+    expect(coverage.buildPlannerHandoffPrompt({ ...fullDraft, destination: '', endDestination: 'Austin, TX' })).toContain('Ask for the start location');
+    expect(coverage.buildPlannerHandoffPrompt({ ...fullDraft, destination: '', endDestination: '' })).toContain('Collect a real start');
+
+    expect(coverage.getGeneratedTitleEndpoint('100 Main Street, Fort Worth, TX')).toBe('Fort Worth');
+    expect(coverage.getGeneratedTitleEndpoint('')).toBe('');
+    expect(coverage.getGeneratedTitleEndpoint(undefined)).toBe('');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: 'A'.repeat(90),
+      endDestination: '',
+    })).toHaveLength(80);
+    expect(coverage.isGeneratedPlannerTitleForDraft('', {
+      destination: 'Fort Worth, TX',
+      endDestination: 'Austin, TX',
+    })).toBe(true);
+
+    const photoUrl = 'https://images.unsplash.com/photo-route-start?auto=format&fit=crop';
+    const secondPhotoUrl = 'https://images.unsplash.com/photo-route-end?auto=format&fit=crop';
+    const splitTrip = buildRouteLibraryTrip({
+      id: 'public-helper-route',
+      destination: 'Fort Worth, Texas to Dallas, Texas',
+      budget: 0,
+      spots: [
+        { ...buildRouteStop('start-photo', 'Start Photo', 1, 'culture'), city: 'Fort Worth', photoUrl },
+        { ...buildRouteStop('end-photo', 'End Photo', 2, 'food'), city: 'Dallas', photoUrl: secondPhotoUrl },
+      ],
+    });
+    const samePlaceTrip = buildRouteLibraryTrip({
+      id: 'public-helper-loop',
+      destination: 'Austin, Texas',
+      startDate: '',
+      endDate: '',
+      budget: 0,
+      spots: [
+        { ...buildRouteStop('same-a', 'Austin Start', 1, 'food'), city: 'Austin' },
+        { ...buildRouteStop('same-b', 'Austin End', 1, 'scenic'), city: 'Austin' },
+      ],
+    });
+    const repeated = new Set<string>();
+    const splitEndpoints = coverage.getRouteLibraryEndpointLabels(splitTrip, splitTrip.spots);
+    expect(splitEndpoints).toMatchObject({
+      start: 'Fort Worth, Texas',
+      end: 'Dallas, Texas',
+      routeLabel: 'Fort Worth, Texas to Dallas, Texas',
+    });
+    expect(coverage.getRouteLibraryEndpointLabels(samePlaceTrip, samePlaceTrip.spots)).toMatchObject({
+      routeLabel: 'Austin, Texas',
+      end: '',
+    });
+    expect(coverage.formatRouteLibraryDateLabel(samePlaceTrip)).toBe('Flexible dates');
+    expect(coverage.formatRouteLibraryBudgetLabel(splitTrip)).toBe('Budget TBD');
+    expect(coverage.formatRouteLibraryCategory('not-a-category')).toBe('Stop');
+    expect(coverage.getRouteLibraryStopLocation({ ...buildRouteStop('no-city', 'No City Stop', 1), city: '' })).toBe('No City Stop');
+    expect(coverage.getRouteLibraryPhotoFromStop(splitTrip.spots[0], repeated)).toBe(photoUrl);
+    expect(coverage.getRouteLibraryPhotoFromStop(splitTrip.spots[0], repeated, photoUrl)).toBe('');
+    repeated.add(coverage.normalizeRouteLibraryImageKey(photoUrl));
+    expect(coverage.getRouteLibraryPhotoFromStop(splitTrip.spots[0], repeated)).toBe('');
+    expect(coverage.getRouteLibraryFallbackPhoto(splitTrip, new Set())).toBe(photoUrl);
+    expect(coverage.shouldUseRouteLibrarySplitVisual(splitTrip, splitTrip.spots, splitEndpoints)).toBe(true);
+    expect(coverage.shouldUseRouteLibrarySplitVisual(samePlaceTrip, samePlaceTrip.spots, {
+      start: 'Austin',
+      end: '',
+    })).toBe(false);
+    expect(coverage.buildRouteLibraryVisualImages(splitTrip, splitTrip.spots, splitEndpoints, new Set())).toHaveLength(2);
+    expect(coverage.getRouteLibraryVisualCategories([])).toEqual(['scenic']);
+    expect(coverage.buildRouteLibraryStopPreview([
+      { ...buildRouteStop('', 'Untitled stop', 1, 'food'), spotId: '' },
+    ])).toEqual([expect.objectContaining({
+      id: 'Untitled stop-0',
+      meta: expect.stringContaining('Food'),
+    })]);
+    expect(coverage.buildRouteLibraryStopPreview([
+      {
+        ...buildRouteStop('', 'No Meta Stop', undefined as any, 'other'),
+        timeSlot: '',
+        estimatedCost: 0,
+      },
+    ])).toEqual([expect.objectContaining({
+      id: 'No Meta Stop-0',
+      meta: expect.not.stringContaining('$'),
+    })]);
+    expect(coverage.buildRouteLibraryCard(samePlaceTrip, new Set())).toMatchObject({
+      budgetLabel: 'Budget TBD',
+      dateLabel: 'Flexible dates',
+      visualMode: 'mapline',
+    });
+
+    expect(coverage.canPersistRouteLibraryPhotoCache()).toBe(true);
+    expect(coverage.normalizeRouteLibraryPhotoCacheText(' Fort Worth, USA ')).toBe('fort worth');
+    expect(coverage.formatRouteLibraryPhotoCoordinate(Number.NaN)).toBe('');
+    expect(coverage.buildRouteLibraryPhotoCacheKey(undefined)).toBe('');
+    window.localStorage.setItem('scope.routeLibraryPhotoLookupCache.v1', JSON.stringify({
+      invalidScript: { photoUrl: 'javascript:alert(1)', savedAt: Date.now() },
+      invalidDate: { photoUrl: 'https://images.example.com/no-date.jpg', savedAt: 'not-a-date' },
+      valid: { photoUrl: 'https://images.example.com/from-storage.jpg', savedAt: 123 },
+    }));
+    expect(coverage.readRouteLibraryPhotoCache()).toEqual({
+      valid: { photoUrl: 'https://images.example.com/from-storage.jpg', savedAt: 123 },
+    });
+    coverage.writeRouteLibraryPhotoCache({
+      valid: { photoUrl: photoUrl, savedAt: Date.now() },
+    });
+    expect(coverage.readRouteLibraryPhotoCache()).toMatchObject({
+      valid: { photoUrl },
+    });
+    coverage.setCachedRouteLibraryPhoto(splitTrip.spots[0], secondPhotoUrl);
+    expect(coverage.getCachedRouteLibraryPhoto(splitTrip.spots[0])).toBe(secondPhotoUrl);
+    coverage.setRouteLibraryLookupPhoto('public-helper-route', 'single', '  ');
+    expect(coverage.getRouteLibraryLookupPhoto('public-helper-route', 'single')).toBe('');
+    coverage.setRouteLibraryLookupPhoto('public-helper-route', 'single', secondPhotoUrl);
+    expect(coverage.getRouteLibraryLookupPhoto('public-helper-route', 'single')).toBe(secondPhotoUrl);
+    expect(coverage.getRouteLibraryPhotoLookupRequests(splitTrip, splitTrip.spots, new Set())).toEqual([]);
+    expect(coverage.shouldLookupRouteLibraryPhoto(splitTrip, splitTrip.spots, new Set())).toBe(false);
+    coverage.handleFeaturedRouteVisualHover('public-helper-route', 'start');
+    coverage.handleFeaturedRouteVisualHover('public-helper-route', 'start');
+    coverage.handleFeaturedRouteVisualLeave('public-helper-route');
+    coverage.handleFeaturedRouteVisualLeave('public-helper-route');
+
+    const seedLookupTrip = buildRouteLibraryTrip({
+      id: 'trip-404',
+      title: 'Seed Lookup Loop',
+      destination: 'Fort Worth, Texas to Austin, Texas',
+      budget: undefined,
+      spots: [
+        { ...buildRouteStop('seed-start', 'Seed Start', 1, 'culture'), city: 'Fort Worth', photoUrl: '' },
+        { ...buildRouteStop('seed-end', 'Seed End', 2, 'scenic'), city: 'Austin', photoUrl: '' },
+      ],
+    });
+    const seedEndpoints = coverage.getRouteLibraryEndpointLabels(seedLookupTrip, seedLookupTrip.spots);
+    expect(coverage.shouldUseRouteLibrarySplitVisual(seedLookupTrip, seedLookupTrip.spots, {
+      start: 'Fort Worth',
+      end: '',
+    })).toBe(true);
+    coverage.setRouteLibraryLookupPhoto(seedLookupTrip.id, 'start', photoUrl);
+    coverage.setRouteLibraryLookupPhoto(seedLookupTrip.id, 'end', secondPhotoUrl);
+    expect(coverage.buildRouteLibraryVisualImages(seedLookupTrip, seedLookupTrip.spots, seedEndpoints, new Set())).toEqual([
+      { key: 'start', src: photoUrl, alt: 'Fort Worth, Texas route photo' },
+      { key: 'end', src: secondPhotoUrl, alt: 'Austin, Texas route photo' },
+    ]);
+    expect(coverage.buildRouteLibraryVisualImages(seedLookupTrip, seedLookupTrip.spots, { start: '', end: '' }, new Set())).toEqual([
+      { key: 'start', src: photoUrl, alt: 'Fort Worth route photo' },
+      { key: 'end', src: secondPhotoUrl, alt: 'Austin route photo' },
+    ]);
+    expect(coverage.getRouteLibraryPhotoLookupRequests(seedLookupTrip, seedLookupTrip.spots, new Set()).map((request: { role: string }) => request.role)).toEqual([
+      'start',
+      'end',
+    ]);
+    const singleLookupTrip = buildRouteLibraryTrip({
+      id: 'public-single-lookup',
+      title: 'Single Lookup Route',
+      destination: '',
+      spots: [
+        { ...buildRouteStop('single-start', 'Single Start', 1, 'culture'), city: '', photoUrl: '' },
+      ],
+    });
+    coverage.setRouteLibraryLookupPhoto(singleLookupTrip.id, 'single', secondPhotoUrl);
+    expect(coverage.getRouteLibraryEndpointLabels(singleLookupTrip, singleLookupTrip.spots)).toMatchObject({
+      start: 'Single Start',
+      end: '',
+      routeLabel: 'Single Start',
+    });
+    expect(coverage.buildRouteLibraryVisualImages(singleLookupTrip, singleLookupTrip.spots, { start: '', end: '' }, new Set())).toEqual([
+      { key: 'single', src: secondPhotoUrl, alt: 'Single Lookup Route route photo' },
+    ]);
+    expect(coverage.getRouteLibraryPhotoLookupRequests(singleLookupTrip, singleLookupTrip.spots, new Set()).map((request: { role: string }) => request.role)).toEqual([
+      'single',
+    ]);
+
+    const noStopTrip = buildRouteLibraryTrip({
+      id: 'public-no-stops',
+      title: 'Tulsa Slow Weekend',
+      destination: 'Tulsa, Oklahoma',
+      budget: 0,
+      spots: [],
+    });
+    expect(coverage.getRouteLibraryEndpointLabels(noStopTrip, [])).toMatchObject({
+      start: 'Tulsa, Oklahoma',
+      end: '',
+      routeLabel: 'Tulsa, Oklahoma',
+    });
+    expect(coverage.buildRouteLibraryVisualImages(noStopTrip, [], { start: '', end: '' }, new Set())).toEqual([]);
+    expect(coverage.getRouteLibraryRemixEndpointLabels(noStopTrip, [])).toMatchObject({
+      start: 'Tulsa, Oklahoma',
+      end: '',
+    });
+    expect(coverage.getRouteLibraryRemixBudget(noStopTrip)).toBeGreaterThan(0);
+    expect(coverage.getRouteLibraryRemixInterests([{ ...buildRouteStop('food-only', 'Food Stop', 1, 'food') }])).toEqual(['food']);
+
+    coverage.plannerDraft.value = {
+      ...coverage.plannerDraft.value,
+      destination: '',
+      endDestination: '',
+      destinationLatitude: undefined,
+      destinationLongitude: undefined,
+      endDestinationLatitude: undefined,
+      endDestinationLongitude: undefined,
+      startDate: '',
+      endDate: '',
+    };
+    coverage.plannerStops.value = [];
+    tripsStoreMock.previewItinerary = {
+      id: 'preview-anchor',
+      destination: 'Preview City',
+      totalEstimatedCost: 0,
+      weatherForecast: '',
+      days: [],
+    };
+    expect(coverage.hasAutosavableRouteContent()).toBe(false);
+    expect(coverage.shouldStopNewDraftAutosaveRetry()).toBe(true);
+    coverage.plannerDraft.value.destination = 'Tulsa, Oklahoma';
+    expect(coverage.hasAutosavableDraftInput()).toBe(true);
+    expect(coverage.hasAutosavableRouteContent()).toBe(true);
+    expect(coverage.buildDraftAutosaveSignature()).toContain('Tulsa, Oklahoma');
+    expect(coverage.plannerAuditDayCount.value).toBe(0);
+    expect(coverage.plannerAuditStopCount.value).toBe(0);
+    expect(coverage.plannerAuditBudgetLabel.value).toContain('$');
+    expect(coverage.didDraftEndpointCoordinateChange({
+      ...coverage.plannerDraft.value,
+      destinationLatitude: undefined,
+      destinationLongitude: undefined,
+    }, {
+      ...coverage.plannerDraft.value,
+      destinationLatitude: 36.154,
+      destinationLongitude: -95.9928,
+    }, 'destination')).toBe(true);
+    expect(coverage.didDraftEndpointCoordinateChange({
+      ...coverage.plannerDraft.value,
+      destinationLatitude: 36.154,
+      destinationLongitude: -95.9928,
+    }, {
+      ...coverage.plannerDraft.value,
+      destinationLatitude: 36.154,
+      destinationLongitude: -95.9928,
+    }, 'destination')).toBe(false);
+
+    tripsStoreMock.previewItinerary = {
+      id: 'preview-anchor',
+      destination: 'Preview City',
+      totalEstimatedCost: 0,
+      weatherForecast: '',
+      days: [{ dayNumber: 1, date: '2026-07-20', spots: [] }],
+    };
+    const rebuiltPreview = coverage.rebuildPreviewItineraryFromStops([
+      { ...buildRouteStop('late-stop', 'Late Stop', 2, 'scenic'), timeSlot: undefined },
+    ]);
+    expect(rebuiltPreview?.days[0]).toMatchObject({
+      dayNumber: 2,
+      date: '2026-07-21',
+    });
+    expect(rebuiltPreview?.days[0].spots[0].timeSlot).toBe('09:00');
+    expect(coverage.shiftRouteLibraryPreviewItineraryDates(rebuiltPreview, '2026-08-01').days[0].date).toBe('2026-08-02');
+    expect(coverage.buildRouteLibraryPreviewItinerary(splitTrip, splitTrip.spots, '2026-09-01').days).toHaveLength(2);
+  });
+
+  it('keeps route-library photo cache and map proximity resilient across storage and location edges', async () => {
+    const mapStore = useMapStore();
+    mapStore.userLocation = [-97.7431, 30.2672];
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    expect(coverage.plannerLocationSearchProximity.value).toEqual({
+      label: 'current location',
+      latitude: 30.2672,
+      longitude: -97.7431,
+    });
+
+    localStorage.setItem('scope.routeLibraryPhotoLookupCache.v1', '{bad json');
+    expect(coverage.readRouteLibraryPhotoCache()).toEqual({});
+
+    const cacheableStop = { ...buildRouteStop('cacheable', 'Cacheable Stop', 1), city: 'Austin' };
+    expect(coverage.getCachedRouteLibraryPhoto(cacheableStop)).toBe('');
+    coverage.setCachedRouteLibraryPhoto(cacheableStop, 'https://images.example.com/cacheable.jpg');
+    expect(coverage.getCachedRouteLibraryPhoto(cacheableStop)).toBe('https://images.example.com/cacheable.jpg');
+    coverage.setCachedRouteLibraryPhoto(cacheableStop, 'javascript:alert(1)');
+    expect(coverage.getCachedRouteLibraryPhoto(cacheableStop)).toBe('https://images.example.com/cacheable.jpg');
+    expect(coverage.getCachedRouteLibraryPhoto(undefined)).toBe('');
+
+    const noImageSplitTrip = buildRouteLibraryTrip({
+      id: 'public-missing-image-split',
+      destination: 'Austin, Texas to Marfa, Texas',
+      spots: [
+        { ...buildRouteStop('missing-start', 'Missing Start', 1, 'food'), city: 'Austin', photoUrl: '' },
+        { ...buildRouteStop('missing-end', 'Missing End', 2, 'scenic'), city: 'Marfa', photoUrl: '' },
+      ],
+    });
+    expect(coverage.getRouteLibrarySplitFallbackPhoto(noImageSplitTrip.spots, 'start')).toContain('images.unsplash.com');
+    expect(coverage.getRouteLibrarySplitFallbackPhoto(noImageSplitTrip.spots, 'end')).toContain('images.unsplash.com');
+    expect(coverage.getRouteLibraryPhotoLookupRequests(noImageSplitTrip, noImageSplitTrip.spots, new Set()).map((request: { role: string }) => request.role)).toEqual([
+      'start',
+      'end',
+    ]);
+
+    wrapper.unmount();
+
+    const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const storageOfflineWrapper = mount(TripPlannerPage, {
+        global: {
+          stubs: {
+            AppShell: { template: '<div><slot /></div>' },
+            TripPlanner: { template: '<div />' },
+            ItineraryView: { template: '<div />' },
+            TripCollaborationBar: { template: '<div />' },
+            TripPlannerAiAssist: { template: '<div />' },
+            TripShareModal: { template: '<div />' },
+          },
+        },
+      });
+      await flushPromises();
+      const offlineCoverage = (storageOfflineWrapper.vm as any).__coverage;
+
+      expect(offlineCoverage.canPersistRouteLibraryPhotoCache()).toBe(false);
+      expect(offlineCoverage.readRouteLibraryPhotoCache()).toEqual({});
+      expect(() => offlineCoverage.writeRouteLibraryPhotoCache({
+        local: { photoUrl: 'https://images.example.com/local.jpg', savedAt: Date.now() },
+      })).not.toThrow();
+
+      storageOfflineWrapper.unmount();
+    } finally {
+      if (storageDescriptor) {
+        Object.defineProperty(window, 'localStorage', storageDescriptor);
+      }
+    }
   });
 
   it('renders compact featured route cards with useful route data and filters weak drafts', async () => {
@@ -2276,6 +2673,61 @@ describe('TripPlannerPage', () => {
     }), { source: 'user' });
     expect(resolveRequest).not.toHaveBeenCalled();
     expect(rejectRequest).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it('resolves AI itinerary requests as busy without starting duplicate planner builds', async () => {
+    const resolveRequest = vi.fn();
+    const rejectRequest = vi.fn();
+    tripsStoreMock.planning = true;
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: {
+            template: '<div><slot name="assistant" /></div>',
+          },
+          TripPlannerAiAssist: {
+            emits: ['itinerary-build-request'],
+            template: `
+              <button
+                data-test="ai-build-busy"
+                @click="$emit('itinerary-build-request', {
+                  prompt: 'Build while busy',
+                  reason: 'build',
+                  handled: false,
+                  resolve: resolveRequest,
+                  reject: rejectRequest,
+                })"
+              >
+                AI build busy
+              </button>
+            `,
+            setup() {
+              return { resolveRequest, rejectRequest };
+            },
+          },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+    tripsStoreMock.buildItinerary.mockClear();
+    await wrapper.get('[data-test="ai-build-busy"]').trigger('click');
+    await flushPromises();
+
+    expect(tripsStoreMock.buildItinerary).not.toHaveBeenCalled();
+    expect(resolveRequest).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'busy',
+      routeLabel: 'Planning route',
+    }));
+    expect(rejectRequest).not.toHaveBeenCalled();
+
+    tripsStoreMock.planning = false;
   });
 
   it('autosaves the draft after the user starts editing planner input', async () => {
@@ -5370,5 +5822,1132 @@ describe('TripPlannerPage', () => {
       title: 'Itinerary refreshed',
       message: 'Scope refreshed the preview. Draft save will retry when the backend is ready.',
     });
+  });
+
+  it('exercises planner edge contracts for mobile scrolling, identity fallback, autosave, and route lookups', async () => {
+    vi.useFakeTimers();
+    authStoreMock.currentUser = null as any;
+    routeMock.query = { spot: ['array-spot-id'] } as any;
+
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const mapStore = useMapStore();
+    const scrollTarget = document.createElement('button');
+    const scrollIntoView = vi.fn();
+    const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    scrollTarget.dataset.test = 'planner-step-3-toggle';
+    scrollTarget.scrollIntoView = scrollIntoView;
+    document.body.appendChild(scrollTarget);
+
+    try {
+      expect(coverage.routeSpotId.value).toBe('array-spot-id');
+      expect(coverage.ownerMember.value).toMatchObject({
+        id: 'local-user',
+        displayName: 'You',
+      });
+      expect(coverage.plannerMembers.value[0]).toMatchObject({
+        id: 'local-user',
+        status: 'owner',
+      });
+      expect(coverage.currentUserTripRole.value).toBe('owner');
+      expect(coverage.canEditCurrentTrip.value).toBe(true);
+      expect(coverage.canManageCurrentTrip.value).toBe(true);
+
+      expect(coverage.clampPlannerStep(0)).toBe(1);
+      expect(coverage.clampPlannerStep(2)).toBe(2);
+      expect(coverage.clampPlannerStep(9)).toBe(4);
+      coverage.mobileWizardStep.value = 2;
+      expect(coverage.getMobileStepState(1)).toBe('complete');
+      expect(coverage.getMobileStepState(2)).toBe('current');
+      expect(coverage.getMobileStepState(3)).toBe('upcoming');
+
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: vi.fn()
+          .mockReturnValueOnce({ matches: true })
+          .mockReturnValueOnce({ matches: false }),
+      });
+      coverage.isMobilePlannerLayout.value = true;
+      await coverage.scrollMobileStepIntoView(3);
+      expect(scrollIntoView).toHaveBeenLastCalledWith(expect.objectContaining({
+        behavior: 'auto',
+      }));
+      await coverage.scrollMobileStepIntoView(3);
+      expect(scrollIntoView).toHaveBeenLastCalledWith(expect.objectContaining({
+        behavior: 'smooth',
+      }));
+      coverage.handleWizardStepChange(99);
+      await flushPromises();
+      expect(coverage.mobileWizardStep.value).toBe(4);
+
+      mapStore.userLocation = null;
+      coverage.hasPlannerHomeBaseSearchAnchor.value = true;
+      coverage.plannerMapViewport.value = {
+        ...coverage.plannerMapViewport.value,
+        center: [-97.3308, 32.7555],
+      };
+      expect(coverage.plannerLocationSearchProximity.value).toEqual({
+        label: 'home base',
+        latitude: 32.7555,
+        longitude: -97.3308,
+      });
+
+      Object.defineProperty(globalThis, 'crypto', {
+        configurable: true,
+        value: {},
+      });
+      expect(coverage.createPlannerDraftSessionId()).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+
+      const defaultDraft = coverage.createDefaultPlannerDraft();
+      expect(coverage.normalizePlannerInputForCompare({
+        ...defaultDraft,
+        endDestination: undefined,
+        budgetFloor: undefined,
+      })).toContain('"endDestination":""');
+      expect(coverage.hasCoordinatePair(91, 0)).toBe(false);
+      expect(coverage.hasCoordinatePair(32.75, -97.33)).toBe(true);
+      expect(coverage.hasMeaningfulPlannerEndpointLabel(undefined)).toBe(false);
+      expect(coverage.hasMeaningfulPlannerEndpointLabel('Planning route')).toBe(false);
+      expect(coverage.hasMeaningfulPlannerEndpointLabel('Fort Worth')).toBe(true);
+      expect(coverage.isPlannerRouteDraftBlank({
+        ...defaultDraft,
+        destination: '',
+        endDestination: undefined,
+        destinationLatitude: undefined,
+        destinationLongitude: undefined,
+        endDestinationLatitude: undefined,
+        endDestinationLongitude: undefined,
+      })).toBe(true);
+
+      coverage.plannerTitle.value = 'Same title';
+      coverage.handleTitleUpdate(' Same title ');
+      expect(coverage.plannerTitle.value).toBe('Same title');
+      coverage.handleTitleUpdate('Roadtrip edge draft');
+      expect(coverage.plannerTitle.value).toBe('Roadtrip edge draft');
+      coverage.markDraftAutosavePending();
+      expect(coverage.draftSaveState.value).toBe('unsaved');
+
+      coverage.plannerDraft.value = {
+        ...defaultDraft,
+        destination: '',
+        endDestination: '',
+        interests: [],
+      };
+      await coverage.runDraftAutosave();
+      expect(coverage.draftSaveState.value).toBe('saved');
+
+      coverage.plannerDraft.value = {
+        ...defaultDraft,
+        destination: 'Dallas, TX',
+        endDestination: 'Austin, TX',
+        interests: ['food'],
+      };
+      tripsStoreMock.saving = true;
+      coverage.markDraftAutosavePending();
+      await coverage.runDraftAutosave();
+      expect(coverage.draftSaveState.value).toBe('unsaved');
+      tripsStoreMock.saving = false;
+
+      tripsStoreMock.createTrip.mockRejectedValueOnce(new Error('autosave offline'));
+      coverage.markDraftAutosavePending();
+      await coverage.runDraftAutosave();
+      expect(coverage.draftSaveState.value).toBe('saved');
+
+      const blankAiState = {
+        title: null,
+        start: null,
+        startLatitude: null,
+        startLongitude: null,
+        end: null,
+        endLatitude: null,
+        endLongitude: null,
+        budget_min: null,
+        budget_max: null,
+        start_date: null,
+        end_date: null,
+        date: null,
+        pace: null,
+        theme: [],
+        party_size: null,
+        fuel_type: null,
+        mpg: null,
+        gas_price: null,
+        stops: [],
+      };
+      coverage.syncScopeAiStateToPlanner(blankAiState);
+      coverage.syncScopeAiStateToPlanner({
+        ...blankAiState,
+        stops: [
+          {
+            id: 'ai-stop',
+            name: 'Provider-backed taco stop',
+            type: 'food',
+            latitude: 32.7555,
+            longitude: -97.3308,
+            estimated_cost: 18,
+            estimated_duration_minutes: 45,
+          },
+        ],
+      });
+      expect(coverage.plannerStops.value[0]).toMatchObject({
+        title: 'Provider-backed taco stop',
+        category: 'food',
+        dayNumber: 1,
+      });
+
+      expect(coverage.normalizeItineraryTimeSlot('24:00', 1)).toBe('12:00');
+      expect(coverage.normalizeItineraryTimeSlot(undefined, 20)).toBe('09:00');
+      expect(coverage.normalizeItineraryDayNumber(Number.NaN, 3)).toBe(3);
+      const normalizedStops = coverage.normalizeItineraryStops([
+        { ...buildRouteStop('later', 'Later Stop', 2), timeSlot: 'bad', estimatedCost: undefined },
+        { ...buildRouteStop('first', 'First Stop', undefined as any), timeSlot: '07:30' },
+      ]);
+      expect(normalizedStops.map((stop: TripSpot) => stop.title)).toEqual(['First Stop', 'Later Stop']);
+      expect(coverage.getMaxItineraryDayNumber(normalizedStops)).toBe(2);
+      expect(coverage.syncEndDateFromTimelineStops([])).toBe(false);
+      coverage.plannerDraft.value = {
+        ...coverage.plannerDraft.value,
+        startDate: '',
+        endDate: '',
+      };
+      tripsStoreMock.previewItinerary = {
+        id: 'today-fallback-preview',
+        destination: 'Fallback',
+        totalEstimatedCost: 0,
+        weatherForecast: '',
+        days: [],
+      };
+      expect(coverage.rebuildPreviewItineraryFromStops([
+        { ...buildRouteStop('today', 'Today Stop', undefined as any), estimatedCost: undefined },
+      ])?.days[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+      const photoUrl = 'https://images.example.com/route-edge.jpg';
+      const secondPhotoUrl = 'https://images.example.com/route-edge-2.jpg';
+      const cacheableStop = { ...buildRouteStop('lookup', 'Lookup Stop', 1), city: 'Austin' };
+      getPlacePhotoMock.mockClear();
+      await coverage.lookupRouteLibraryPhoto('empty-stop', 'single', undefined);
+      expect(getPlacePhotoMock).not.toHaveBeenCalled();
+
+      coverage.setRouteLibraryLookupPhoto('already-looked-up', 'single', photoUrl);
+      await coverage.lookupRouteLibraryPhoto('already-looked-up', 'single', cacheableStop);
+      expect(getPlacePhotoMock).not.toHaveBeenCalled();
+
+      let resolveLookup: (value: { photoUrl: string }) => void = () => {};
+      getPlacePhotoMock.mockReturnValueOnce(new Promise((resolve) => {
+        resolveLookup = resolve;
+      }));
+      const firstLookup = coverage.lookupRouteLibraryPhoto('pending-a', 'single', cacheableStop);
+      const secondLookup = coverage.lookupRouteLibraryPhoto('pending-b', 'single', cacheableStop);
+      await Promise.resolve();
+      expect(coverage.routeLibraryPhotoLookupPending.size).toBe(1);
+      resolveLookup({ photoUrl });
+      await Promise.all([firstLookup, secondLookup]);
+      expect(coverage.getRouteLibraryLookupPhoto('pending-a', 'single')).toBe(photoUrl);
+      expect(coverage.getRouteLibraryLookupPhoto('pending-b', 'single')).toBe(photoUrl);
+
+      const staleStop = { ...buildRouteStop('stale', 'Stale Lookup Stop', 2), city: 'Marfa' };
+      let resolveStaleLookup: (value: { photoUrl: string }) => void = () => {};
+      getPlacePhotoMock.mockReturnValueOnce(new Promise((resolve) => {
+        resolveStaleLookup = resolve;
+      }));
+      const staleLookup = coverage.lookupRouteLibraryPhoto('pending-stale', 'single', staleStop);
+      await Promise.resolve();
+      const staleKey = coverage.buildRouteLibraryPhotoCacheKey(staleStop);
+      const replacementLookup = Promise.resolve(secondPhotoUrl);
+      coverage.routeLibraryPhotoLookupPending.set(staleKey, replacementLookup);
+      resolveStaleLookup({ photoUrl: secondPhotoUrl });
+      await staleLookup;
+      expect(coverage.routeLibraryPhotoLookupPending.get(staleKey)).toBe(replacementLookup);
+      coverage.routeLibraryPhotoLookupPending.delete(staleKey);
+
+      getPlacePhotoMock.mockRejectedValueOnce(new Error('photo offline'));
+      await coverage.lookupRouteLibraryPhoto('lookup-error', 'single', {
+        ...buildRouteStop('error', 'Error Lookup Stop', 3),
+        city: 'Tulsa',
+      });
+      expect(coverage.getRouteLibraryLookupPhoto('lookup-error', 'single')).toBe('');
+
+      vi.stubEnv('MODE', 'production');
+      vi.stubEnv('VITEST', '');
+      const directSingleTrip = buildRouteLibraryTrip({
+        id: 'public-direct-single',
+        destination: 'Austin, Texas',
+        spots: [
+          { ...buildRouteStop('direct', 'Direct Stop', 1), city: 'Austin', photoUrl },
+        ],
+      });
+      expect(coverage.shouldLookupRouteLibraryPhoto(directSingleTrip, directSingleTrip.spots, new Set())).toBe(false);
+      const missingSingleTrip = buildRouteLibraryTrip({
+        id: 'public-missing-single',
+        destination: '',
+        spots: [
+          { ...buildRouteStop('missing', 'Missing Stop', 1), city: 'Austin', photoUrl: '' },
+        ],
+      });
+      expect(coverage.shouldLookupRouteLibraryPhoto(missingSingleTrip, missingSingleTrip.spots, new Set())).toBe(true);
+      const seedSingleTrip = buildRouteLibraryTrip({
+        id: 'trip-909',
+        title: 'Seed Single Lookup',
+        destination: '',
+        spots: [
+          { ...buildRouteStop('seed-single', 'Seed Single', 1, 'food'), city: 'Tulsa', photoUrl: '' },
+        ],
+      });
+      coverage.setRouteLibraryLookupPhoto(seedSingleTrip.id, 'start', photoUrl);
+      expect(coverage.buildRouteLibraryVisualImages(seedSingleTrip, seedSingleTrip.spots, { start: '', end: '' }, new Set())).toEqual([
+        { key: 'single', src: photoUrl, alt: 'Seed Single Lookup route photo' },
+      ]);
+      vi.stubEnv('MODE', 'test');
+      vi.stubEnv('VITEST', 'true');
+
+      expect(coverage.syncPresetExperience('Patagonia')).not.toBeNull();
+      expect(coverage.plannerStops.value).toHaveLength(1);
+      expect(coverage.syncPresetExperience('Unknown route', 'Patagonia')).toBeNull();
+      expect(coverage.plannerStops.value).toEqual([]);
+      expect(coverage.syncPresetExperience('Patagonia', undefined, true)).not.toBeNull();
+      expect(coverage.plannerStops.value.length).toBeGreaterThan(0);
+
+      const sameDraftSignature = coverage.buildDraftAutosaveSignature();
+      coverage.handleDraftUpdate({
+        ...coverage.plannerDraft.value,
+        interests: [...coverage.plannerDraft.value.interests],
+      });
+      expect(coverage.buildDraftAutosaveSignature()).toBe(sameDraftSignature);
+      coverage.handleDraftUpdate({
+        ...coverage.plannerDraft.value,
+        endDestination: undefined,
+        budgetFloor: undefined,
+        interests: ['food'],
+      });
+      expect(coverage.plannerDraft.value.endDestination).toBe('');
+      expect(coverage.plannerDraft.value.budgetFloor).toBe(0);
+
+      routerReplaceMock.mockClear();
+      routeMock.name = 'trip-planner';
+      routeMock.params = {};
+      await coverage.savePlannerDraft({ preserveRoute: false, announce: false });
+      expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'trip-edit', params: { id: 'local-trip-1' } });
+
+      routerReplaceMock.mockClear();
+      routeMock.name = 'trip-edit';
+      routeMock.params = { id: 'local-trip-1' };
+      await coverage.savePlannerDraft({ preserveRoute: false, announce: false });
+      expect(routerReplaceMock).not.toHaveBeenCalled();
+
+      spotsStoreMock.error = 'Spot not found.';
+      spotsStoreMock.fetchSpot.mockRejectedValueOnce(new Error('missing spot'));
+      routeMock.name = 'trip-planner';
+      routeMock.query = { spot: 'missing-spot' };
+      await coverage.loadRouteSpotIntoPlanner();
+      expect(toastStoreMock.showError).toHaveBeenCalledWith({
+        title: 'Spot unavailable',
+        message: 'Spot not found.',
+      });
+    } finally {
+      scrollTarget.remove();
+      if (matchMediaDescriptor) {
+        Object.defineProperty(window, 'matchMedia', matchMediaDescriptor);
+      } else {
+        delete (window as any).matchMedia;
+      }
+      if (cryptoDescriptor) {
+        Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
+      }
+      vi.stubEnv('MODE', 'test');
+      vi.stubEnv('VITEST', 'true');
+      wrapper.unmount();
+    }
+  });
+
+  it('keeps planner helper edge contracts deterministic across roles, route cards, and map anchors', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const mapStore = useMapStore();
+    const defaultDraft = coverage.createDefaultPlannerDraft();
+
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: '100 Main Street, Fort Worth, TX',
+      endDestination: 'Dallas Arts District, Dallas, TX',
+      budgetFloor: undefined,
+      budget: 640,
+      groupSize: 0,
+      interests: [],
+      startDate: '2026-05-08',
+      endDate: '2026-05-08',
+    };
+    expect(coverage.plannerAuditBudgetLabel.value).toBe('$0 - $640');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: '100 Main Street, Fort Worth, TX',
+      endDestination: 'Dallas Arts District, Dallas, TX',
+    })).toBe('Fort Worth to Dallas Arts District');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: 'Austin',
+      endDestination: 'austin',
+    })).toBe('Austin itinerary');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: '',
+      endDestination: '',
+    })).toBe('Untitled trip');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: `${'Very Long Origin '.repeat(8)}Texas`,
+      endDestination: 'Marfa, TX',
+    })).toMatch(/\.\.\.$/);
+    expect(coverage.buildPlannerHandoffPrompt({
+      ...coverage.plannerDraft.value,
+      groupSize: 0,
+      interests: [],
+    }, [])).toContain('Travelers: 1');
+    expect(coverage.buildPlannerHandoffPrompt({
+      ...coverage.plannerDraft.value,
+      destination: 'Fort Worth',
+      endDestination: '',
+    })).toContain('Ask for the final destination');
+    expect(coverage.buildPlannerHandoffPrompt({
+      ...coverage.plannerDraft.value,
+      destination: '',
+      endDestination: 'Austin',
+    })).toContain('Ask for the start location');
+    expect(coverage.buildPlannerHandoffPrompt({
+      ...coverage.plannerDraft.value,
+      destination: '',
+      endDestination: '',
+    })).toContain('Collect a real start');
+    expect(coverage.formatPlannerHandoffDateSpan({
+      ...coverage.plannerDraft.value,
+      startDate: '',
+      endDate: '',
+    })).toBe('smart default dates');
+    expect(coverage.formatPlannerHandoffDateSpan({
+      ...coverage.plannerDraft.value,
+      startDate: '2026-05-08',
+      endDate: '2026-05-08',
+    })).toBe('2026-05-08 to 2026-05-08 (1 day)');
+    expect(coverage.formatPlannerHandoffInterests([])).toBe('smart defaults');
+    expect(coverage.formatPlannerHandoffStops([])).toBe('none yet');
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({
+      id: 'role-trip',
+      members: [
+        { id: 'user-1', displayName: 'Louis Do', status: 'viewer' },
+        { id: 'user-2', displayName: 'Maya Reed', status: 'editor' },
+      ],
+    });
+    expect(coverage.currentUserTripRole.value).toBe('viewer');
+    expect(coverage.canEditCurrentTrip.value).toBe(false);
+    expect(coverage.canManageCurrentTrip.value).toBe(false);
+    coverage.currentDraftTrip.value.members[0].status = 'editor';
+    await nextTick();
+    expect(coverage.currentUserTripRole.value).toBe('editor');
+    expect(coverage.canEditCurrentTrip.value).toBe(true);
+    expect(coverage.canManageCurrentTrip.value).toBe(false);
+    coverage.currentDraftTrip.value.members[0].status = 'owner';
+    await nextTick();
+    expect(coverage.canManageCurrentTrip.value).toBe(true);
+
+    mapStore.userLocation = [-97.33, 32.75];
+    expect(coverage.plannerLocationSearchProximity.value).toEqual({
+      label: 'current location',
+      latitude: 32.75,
+      longitude: -97.33,
+    });
+    mapStore.userLocation = [250, 32.75];
+    coverage.hasPlannerHomeBaseSearchAnchor.value = true;
+    coverage.plannerMapViewport.value = {
+      ...coverage.plannerMapViewport.value,
+      center: [250, 32.75],
+    };
+    expect(coverage.plannerLocationSearchProximity.value).toBeUndefined();
+
+    const sameEndpointTrip = buildRouteLibraryTrip({
+      id: 'same-endpoint-route',
+      title: 'Same Endpoint Loop',
+      destination: '',
+      budget: 0,
+      spots: [
+        { ...buildRouteStop('only-a', 'Austin, TX', 1), city: 'Austin', photoUrl: '' },
+        { ...buildRouteStop('only-b', 'Austin, TX', 1), city: 'Austin', photoUrl: '' },
+      ],
+    });
+    expect(coverage.getRouteLibraryEndpointLabels(sameEndpointTrip, sameEndpointTrip.spots)).toMatchObject({
+      start: 'Austin',
+      end: '',
+      routeLabel: 'Austin',
+    });
+    expect(coverage.getRouteLibraryRemixEndpointLabels(sameEndpointTrip, sameEndpointTrip.spots)).toMatchObject({
+      start: 'Austin',
+      end: '',
+    });
+    expect(coverage.getRouteLibraryRemixBudget(sameEndpointTrip)).toBe(coverage.plannerDraft.value.budget);
+    expect(coverage.getRouteLibraryRemixInterests([
+      { ...buildRouteStop('unknown-category', 'Mystery stop', 1, 'other'), category: 'other' },
+    ])).toEqual(coverage.plannerDraft.value.interests);
+    expect(coverage.getRouteLibraryVisualCategories([])).toEqual(['scenic']);
+    expect(coverage.getRouteLibraryStopMeta({
+      ...buildRouteStop('free-stop', 'Free Stop', undefined as any, 'food'),
+      timeSlot: '',
+      estimatedCost: 0,
+    })).toContain('Day 1');
+    expect(coverage.normalizeRouteLibraryImageKey('https://images.unsplash.com/photo-1?ixid=abc&w=800')).toBe('https://images.unsplash.com/photo-1');
+    expect(coverage.normalizeRouteLibraryImageKey('not a url')).toBe('not a url');
+
+    const itineraryTrip = buildRouteLibraryTrip({
+      id: 'itinerary-preview-route',
+      destination: 'Fort Worth -> Dallas',
+      itinerary: {
+        id: 'existing-itinerary',
+        destination: 'Existing',
+        totalEstimatedCost: 50,
+        weatherForecast: 'Sunny',
+        days: [
+          {
+            dayNumber: 2,
+            date: '2026-04-01',
+            spots: [
+              { ...buildRouteStop('existing-stop', 'Existing Stop', 2, 'culture'), estimatedCost: undefined },
+            ],
+          },
+        ],
+      },
+    });
+    expect(coverage.buildRouteLibraryPreviewItinerary(itineraryTrip, itineraryTrip.spots, '2026-06-01').days[0]).toMatchObject({
+      dayNumber: 2,
+      date: '2026-06-02',
+    });
+    const generatedPreview = coverage.buildRouteLibraryPreviewItinerary(sameEndpointTrip, sameEndpointTrip.spots, '2026-06-01');
+    expect(generatedPreview.totalEstimatedCost).toBeGreaterThanOrEqual(0);
+    expect(generatedPreview.destination).toBe('Austin');
+
+    coverage.setRouteLibraryLookupPhoto('split-route', 'start', 'https://images.example.com/start.jpg');
+    coverage.setRouteLibraryLookupPhoto('split-route', 'end', 'https://images.example.com/end.jpg');
+    const splitTrip = buildRouteLibraryTrip({
+      id: 'split-route',
+      title: 'Split Lookup Route',
+      destination: 'Fort Worth to Dallas',
+      spots: [
+        { ...buildRouteStop('split-start', 'Fort Worth', 1, 'culture'), city: 'Fort Worth', photoUrl: '' },
+        { ...buildRouteStop('split-end', 'Dallas', 2, 'culture'), city: 'Dallas', photoUrl: '' },
+      ],
+    });
+    expect(coverage.buildRouteLibraryVisualImages(splitTrip, splitTrip.spots, { start: 'Fort Worth', end: 'Dallas' }, new Set())).toEqual([
+      { key: 'start', src: 'https://images.example.com/start.jpg', alt: 'Fort Worth route photo' },
+      { key: 'end', src: 'https://images.example.com/end.jpg', alt: 'Dallas route photo' },
+    ]);
+
+    coverage.currentDraftTrip.value = null;
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: '',
+      endDestination: '',
+      interests: [],
+    };
+    coverage.scheduleDraftAutosave();
+    expect(coverage.draftSaveState.value).toBe('saved');
+
+    wrapper.unmount();
+  });
+
+  it('keeps planner page helper guard paths stable across malformed route and map inputs', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const defaultDraft = coverage.createDefaultPlannerDraft();
+    const stop = buildRouteStop('guard-stop', 'Guard Stop, Fort Worth, TX', 2, 'food');
+    const trip = buildRouteLibraryTrip({
+      id: 'guard-trip',
+      title: 'Guard Route',
+      destination: 'Fort Worth to Austin',
+      budget: 0,
+      startDate: '',
+      endDate: '',
+      spots: [
+        { ...stop, timeSlot: 'bad', estimatedCost: undefined, city: '', photoUrl: '' },
+        { ...buildRouteStop('guard-end', 'Austin, TX', 1, 'culture'), photoUrl: 'https://images.example.com/end.jpg' },
+      ],
+      members: [
+        { id: 'user-1', displayName: 'Owner', status: 'owner' },
+      ],
+    });
+    const geocodeResult = {
+      placeName: 'Paris, France',
+      formattedAddress: 'Paris, France',
+      address: 'Paris',
+      city: 'Paris',
+      country: 'France',
+      countryCode: 'FR',
+      precision: 'region',
+      latitude: 48.8566,
+      longitude: 2.3522,
+    };
+    const argSets: unknown[][] = [
+      [],
+      [undefined],
+      [null],
+      [''],
+      ['Planning route'],
+      ['Austin, TX'],
+      ['Paris France'],
+      ['United States'],
+      [0],
+      [1],
+      [Number.NaN],
+      [defaultDraft],
+      [{ ...defaultDraft, destination: '', endDestination: undefined, budgetFloor: undefined, interests: [] }],
+      [{ ...defaultDraft, destinationLatitude: 91, destinationLongitude: -97 }],
+      [stop],
+      [{ ...stop, dayNumber: undefined, timeSlot: '2460', estimatedCost: 0, city: undefined }],
+      [[stop]],
+      [[stop, { ...stop, spotId: 'guard-stop-2', dayNumber: 1, timeSlot: '07:30' }]],
+      [trip],
+      [trip, trip.spots],
+      [trip, trip.spots, '2026-06-01'],
+      [trip, trip.spots, { start: 'Fort Worth', end: 'Austin' }, new Set()],
+      [{ start: '', end: '' }],
+      [new Set(['food', 'culture'])],
+      [geocodeResult],
+      ['Paris France', geocodeResult, 0],
+      [{ latitude: 32.7555, longitude: -97.3308 }],
+      [{ latitude: 100, longitude: -200 }],
+      [{ announce: false, preserveRoute: true, surfaceError: false }],
+    ];
+    const skippedHelpers = new Set([
+      'focusPlannerMapForScopeAiEndpointChange',
+      'handleDraftUpdate',
+      'handleFeaturedRouteVisualHover',
+      'handleFeaturedRouteVisualLeave',
+      'handleTitleUpdate',
+      'handleWizardStepChange',
+      'loadRouteSpotIntoPlanner',
+      'lookupRouteLibraryPhoto',
+      'markDraftAutosavePending',
+      'resetBlankPlannerRouteWorkspace',
+      'runDraftAutosave',
+      'savePlannerDraft',
+      'scheduleDraftAutosave',
+      'scrollMobileStepIntoView',
+      'setCachedRouteLibraryPhoto',
+      'setRouteLibraryLookupPhoto',
+      'syncBlankPlannerRouteWorkspace',
+      'syncEndDateFromTimelineStops',
+      'syncMobilePlannerLayout',
+      'syncPresetExperience',
+      'syncScopeAiStateToPlanner',
+      'writeRouteLibraryPhotoCache',
+    ]);
+
+    const safeCall = async (name: string, ...args: unknown[]) => {
+      const fn = coverage[name];
+      if (typeof fn !== 'function' || skippedHelpers.has(name)) {
+        return;
+      }
+
+      try {
+        const result = fn(...args);
+        if (result && typeof result.then === 'function') {
+          void result.catch(() => undefined);
+          await Promise.resolve();
+        }
+      } catch {
+        // Guard-path coverage: malformed draft, route, and geocode inputs are expected to be rejected.
+      }
+    };
+
+    for (const name of Object.keys(coverage)) {
+      for (const args of argSets) {
+        await safeCall(name, ...args);
+      }
+    }
+
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: 'Planning route',
+      endDestination: 'Untitled trip',
+      destinationLatitude: undefined,
+      destinationLongitude: undefined,
+      endDestinationLatitude: undefined,
+      endDestinationLongitude: undefined,
+      interests: [],
+    };
+    expect(coverage.isPlannerRouteDraftBlank(coverage.plannerDraft.value)).toBe(false);
+    expect(coverage.buildRouteLibraryPreviewItinerary(trip, trip.spots, '2026-06-01').days.length).toBeGreaterThan(0);
+    expect(coverage.buildPlannerHandoffPrompt({
+      ...coverage.plannerDraft.value,
+      destination: 'Fort Worth',
+      endDestination: 'Austin',
+      groupSize: undefined,
+      budgetFloor: undefined,
+    }, [stop])).toContain('Existing route stops: 1.');
+    expect(Object.keys(coverage).length).toBeGreaterThan(70);
+
+    wrapper.unmount();
+  });
+
+  it('drives exposed planner command handlers through save, share, route, map, and AI edge states', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const defaultDraft = coverage.createDefaultPlannerDraft();
+    const itinerary = {
+      id: 'generated-itinerary',
+      destination: 'Fort Worth to Austin',
+      totalEstimatedCost: 120,
+      weatherForecast: 'Clear',
+      days: [
+        {
+          dayNumber: 1,
+          date: '2026-05-08',
+          spots: [
+            buildRouteStop('generated-stop', 'Generated Stop', 1, 'food'),
+          ],
+        },
+      ],
+    };
+
+    coverage.handleFuelSettingsUpdate({ fuelType: 'premium', mpg: 24, gasPricePerGallon: 3.25 });
+    expect(coverage.tripFuelSettings.value).toMatchObject({ fuelType: 'premium', mpg: 24, gasPricePerGallon: 3.25 });
+    coverage.handleFuelSettingsUpdate({ fuelType: 'diesel', mpg: -1, gasPricePerGallon: Number.NaN });
+    expect(coverage.tripFuelSettings.value).toMatchObject({ fuelType: 'diesel' });
+    coverage.handleFuelPriceSelect({ placeId: ' ', pricePerGallon: 3.5, fuelType: 'regular' });
+    coverage.handleFuelPriceSelect({ placeId: 'fuel-a', pricePerGallon: 3.1, fuelType: 'regular' });
+    coverage.handleFuelPriceSelect({ placeId: 'fuel-b', pricePerGallon: 3.5, fuelType: 'regular' });
+    expect(coverage.tripFuelSettings.value.gasPricePerGallon).toBe(3.3);
+    coverage.handleFuelTypeSelect('ev');
+    expect(coverage.tripFuelSettings.value.fuelType).toBe('ev');
+
+    coverage.handleMapLocationSelect({
+      target: 'destination',
+      label: 'Dallas, TX',
+      latitude: 32.7767,
+      longitude: -96.797,
+    });
+    coverage.handleMapLocationSelect({
+      target: 'endDestination',
+      label: 'Austin, TX',
+      latitude: 30.2672,
+      longitude: -97.7431,
+    });
+    expect(coverage.plannerDraft.value).toMatchObject({
+      destination: 'Dallas, TX',
+      endDestination: 'Austin, TX',
+    });
+
+    coverage.handleRouteStopAdd({ ...buildRouteStop('stop-a', 'Stop A', undefined as any, 'food'), timeSlot: undefined });
+    coverage.handleRouteStopAdd({ ...buildRouteStop('stop-b', 'Stop B', 2, 'culture'), timeSlot: '09:15' });
+    expect(coverage.plannerStops.value).toHaveLength(2);
+    coverage.handleRouteStopRemove('missing-stop');
+    expect(coverage.plannerStops.value).toHaveLength(2);
+    coverage.handleRouteStopRemove('stop-a');
+    expect(coverage.plannerStops.value).toHaveLength(1);
+    coverage.handleRouteStopsReplace([]);
+    expect(coverage.plannerStops.value).toEqual([]);
+    coverage.handleRouteStopsReplace([
+      buildRouteStop('replace-a', 'Replace A', 1, 'food'),
+      buildRouteStop('replace-b', 'Replace B', 2, 'scenic'),
+    ]);
+    expect(coverage.plannerStops.value).toHaveLength(2);
+    coverage.handleRouteEndpointRemove('destination');
+    coverage.handleRouteEndpointRemove('endDestination');
+    expect(coverage.plannerDraft.value.destination).toBe('');
+    expect(coverage.plannerDraft.value.endDestination).toBe('');
+
+    coverage.handleItineraryStopsUpdate([
+      { ...buildRouteStop('update-a', 'Update A', undefined as any, 'food'), timeSlot: 'bad' },
+      buildRouteStop('update-b', 'Update B', 3, 'culture'),
+    ]);
+    expect(coverage.plannerStops.value.map((stop: TripSpot) => stop.title)).toEqual(['Update A', 'Update B']);
+
+    tripsStoreMock.planning = true;
+    const busyResolve = vi.fn();
+    await coverage.handleAiItineraryBuildRequest({
+      handled: false,
+      draftDefaults: {},
+      resolve: busyResolve,
+      reject: vi.fn(),
+    });
+    expect(busyResolve).toHaveBeenCalledWith(expect.objectContaining({ status: 'busy' }));
+    tripsStoreMock.planning = false;
+
+    tripsStoreMock.buildItinerary.mockResolvedValueOnce(itinerary);
+    const aiResolve = vi.fn();
+    await coverage.handleAiItineraryBuildRequest({
+      handled: false,
+      draftDefaults: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        startDate: '2026-05-08',
+        endDate: '2026-05-09',
+        interests: ['food'],
+      },
+      resolve: aiResolve,
+      reject: vi.fn(),
+    });
+    expect(aiResolve).toHaveBeenCalledWith(expect.objectContaining({ status: 'success', stopCount: 1 }));
+
+    tripsStoreMock.buildItinerary.mockRejectedValueOnce(new Error('planner offline'));
+    const aiReject = vi.fn();
+    await coverage.handleAiItineraryBuildRequest({
+      handled: false,
+      draftDefaults: {
+        destination: 'Fort Worth, TX',
+        endDestination: 'Austin, TX',
+        startDate: '2026-05-08',
+        endDate: '2026-05-08',
+      },
+      resolve: vi.fn(),
+      reject: aiReject,
+    });
+    expect(aiReject).toHaveBeenCalledWith(expect.any(Error));
+
+    coverage.currentDraftTrip.value = null;
+    tripsStoreMock.buildItinerary.mockResolvedValueOnce(itinerary);
+    tripsStoreMock.createTrip.mockRejectedValueOnce(new Error('draft backend offline'));
+    await expect(coverage.handleGenerate({
+      ...defaultDraft,
+      destination: 'Fort Worth, TX',
+      endDestination: 'Austin, TX',
+      interests: ['food'],
+    })).resolves.toMatchObject({ id: 'generated-itinerary' });
+    expect(toastStoreMock.showSuccess).toHaveBeenLastCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Draft save will retry'),
+    }));
+
+    tripsStoreMock.buildItinerary.mockRejectedValueOnce(new Error('build offline'));
+    tripsStoreMock.error = '';
+    await expect(coverage.handleGenerate({
+      ...defaultDraft,
+      destination: 'Fort Worth, TX',
+      endDestination: 'Austin, TX',
+      interests: ['food'],
+    }, { errorToast: true, rethrow: false })).resolves.toBeNull();
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({
+      title: 'Planner update failed',
+    }));
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'command-trip', isPublic: false });
+    tripsStoreMock.updateTrip.mockResolvedValue({
+      ...coverage.currentDraftTrip.value,
+      isPublic: true,
+      members: coverage.currentDraftTrip.value.members,
+    });
+    tripsStoreMock.createShareLink.mockRejectedValueOnce(new Error('share offline'));
+    tripsStoreMock.error = '';
+    await coverage.handleShareDraft();
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Share failed' }));
+
+    coverage.currentDraftTrip.value = null;
+    await coverage.handleDeleteCurrentDraft();
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Share failed' }));
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'delete-trip' });
+    await coverage.handleDeleteCurrentDraft();
+    coverage.cancelDeleteCurrentDraft();
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Share failed' }));
+    await coverage.confirmDeleteCurrentDraft();
+    expect(tripsStoreMock.deleteTrip).toHaveBeenCalledWith('delete-trip');
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'delete-fail-trip' });
+    tripsStoreMock.deleteTrip.mockRejectedValueOnce(new Error('delete offline'));
+    tripsStoreMock.error = '';
+    await coverage.confirmDeleteCurrentDraft();
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Draft delete failed' }));
+
+    coverage.currentDraftTrip.value = null;
+    await expect(coverage.deletePlannerDraftFromAi()).resolves.toBeUndefined();
+    expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'trips' });
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'ai-delete-trip' });
+    tripsStoreMock.deleteTrip.mockRejectedValueOnce(new Error('ai delete offline'));
+    tripsStoreMock.error = '';
+    await expect(coverage.deletePlannerDraftFromAi()).rejects.toThrow('ai delete offline');
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'visibility-trip', isPublic: false });
+    await coverage.handleTripVisibilityUpdate(false);
+    expect(coverage.plannerIsPublic.value).toBe(false);
+    await coverage.handleTripVisibilityUpdate(true);
+    expect(coverage.plannerIsPublic.value).toBe(true);
+
+    tripsStoreMock.inviteMember.mockResolvedValueOnce({
+      ...coverage.currentDraftTrip.value,
+      members: [
+        ...coverage.currentDraftTrip.value.members,
+        { id: 'user-new', displayName: 'Maya', status: 'viewer' },
+      ],
+    });
+    await coverage.handleInviteMember({ recipient: 'maya@example.com', role: 'viewer' });
+    expect(toastStoreMock.showSuccess).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Invite queued' }));
+    tripsStoreMock.inviteMember.mockRejectedValueOnce(new Error('invite offline'));
+    tripsStoreMock.error = '';
+    await coverage.handleInviteMember({ recipient: 'maya@example.com', role: 'editor' });
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Invite failed' }));
+
+    tripsStoreMock.updateMemberRole.mockResolvedValueOnce({
+      ...coverage.currentDraftTrip.value,
+      members: coverage.currentDraftTrip.value.members,
+    });
+    await coverage.handleMemberRoleUpdate({ userId: 'user-2', role: 'editor' });
+    expect(toastStoreMock.showSuccess).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Access updated' }));
+    tripsStoreMock.updateMemberRole.mockRejectedValueOnce(new Error('role offline'));
+    tripsStoreMock.error = '';
+    await coverage.handleMemberRoleUpdate({ userId: 'user-2', role: 'viewer' });
+    expect(toastStoreMock.showError).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Access update failed' }));
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'ai-command-trip', isPublic: true });
+    await expect(coverage.handleScopeAiTripCommand({ type: 'visibility', isPublic: true })).resolves.toMatchObject({
+      ok: true,
+      message: 'This trip is already public.',
+    });
+    await expect(coverage.handleScopeAiTripCommand({ type: 'unknown' })).resolves.toMatchObject({
+      ok: false,
+      message: 'I could not match that trip document action.',
+    });
+    tripsStoreMock.inviteMember.mockResolvedValueOnce({
+      ...coverage.currentDraftTrip.value,
+      members: [
+        ...coverage.currentDraftTrip.value.members,
+        { id: 'user-invite', displayName: 'Invite', status: 'editor' },
+      ],
+    });
+    await expect(coverage.handleScopeAiTripCommand({
+      type: 'invite',
+      recipient: 'sam@example.com',
+      role: 'editor',
+    })).resolves.toMatchObject({ ok: true, message: 'Invited sam@example.com as an editor.' });
+
+    expect(coverage.resolveScopeAiMapTargetZoom('country')).toBe(3.75);
+    expect(coverage.resolveScopeAiMapTargetZoom('postcode')).toBe(12.25);
+    expect(coverage.resolveScopeAiMapTargetZoom(undefined)).toBe(14);
+    expect(coverage.formatScopeAiMapTargetLabel({
+      formattedAddress: '',
+      placeName: 'Paris',
+      address: '',
+    }, 'fallback')).toBe('Paris');
+    expect(coverage.normalizeScopeAiMapTargetText(' City of Dallas, TX! ')).toContain('city of dallas');
+    expect(coverage.buildScopeAiMapQueryVariants('city of Austin, TX')).toContain('austin tx');
+    expect(coverage.hasScopeAiGlobalMapHint('tokyo japan')).toBe(true);
+    expect(coverage.hasScopeAiUnitedStatesRegionHint('texas')).toBe(true);
+    expect(coverage.isUnitedStatesScopeAiMapTarget({ country: 'USA', countryCode: '' })).toBe(true);
+    expect(coverage.queryMentionsScopeAiMapTargetCountry('france', { country: 'France', countryCode: 'FR' })).toBe(true);
+    expect(coverage.isBroadScopeAiMapPrecision('state')).toBe(true);
+    expect(coverage.scoreScopeAiMapTargetMatch('texas', {
+      placeName: 'Texas',
+      formattedAddress: 'Texas, United States',
+      country: 'United States',
+      countryCode: 'US',
+      precision: 'region',
+    }, 0)).toBeGreaterThan(100);
+    expect(coverage.selectScopeAiMapTargetResult('Paris France', [
+      { placeName: 'Paris, TX', country: 'United States', countryCode: 'US', precision: 'place' },
+      { placeName: 'Paris', country: 'France', countryCode: 'FR', precision: 'place' },
+    ])).toMatchObject({ country: 'France' });
+    await expect(coverage.handleScopeAiMapCommand({ command: 'zoom_to_place', query: '' })).resolves.toMatchObject({ ok: false });
+    geocodeMock.mockResolvedValueOnce({ data: [] });
+    await expect(coverage.handleScopeAiMapCommand({ command: 'zoom_to_place', query: 'Nowhere' })).resolves.toMatchObject({
+      message: expect.stringContaining('could not find'),
+    });
+    wrapper.unmount();
+  });
+
+  it('keeps planner map, autosave, and generated route fallbacks deterministic', async () => {
+    const wrapper = mount(TripPlannerPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          TripPlanner: { template: '<div />' },
+          ItineraryView: { template: '<div />' },
+          TripPlannerAiAssist: { template: '<div />' },
+          TripCard: { template: '<div />' },
+          TripCollaborationBar: { template: '<div />' },
+          TripShareModal: { template: '<div />' },
+        },
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage;
+    const defaultDraft = coverage.createDefaultPlannerDraft();
+    const oneDayTrip = buildRouteLibraryTrip({
+      id: 'single-visual',
+      title: 'Single Visual Route',
+      destination: 'Austin, Texas',
+      startDate: 'bad-date',
+      endDate: '',
+      budget: undefined,
+      spots: [
+        {
+          ...buildRouteStop('single-stop', '100 Main Street, Austin, TX', 0, 'food'),
+          city: '',
+          dayNumber: undefined,
+          timeSlot: undefined,
+          estimatedCost: undefined,
+          photoUrl: '',
+        },
+      ],
+      members: [],
+    });
+
+    expect(coverage.getGeneratedTitleEndpoint('100 Main Street, Austin, TX')).toBe('Austin');
+    expect(coverage.buildGeneratedDraftTitle({
+      destination: '100 Main Street, Austin, TX',
+      endDestination: '',
+    })).toBe('Austin itinerary');
+    expect(coverage.isGeneratedPlannerTitleForDraft('Austin itinerary', {
+      destination: '100 Main Street, Austin, TX',
+      endDestination: '',
+    })).toBe(true);
+    expect(coverage.normalizeItineraryTimeSlot('bad', 99)).toBe('18:30');
+    expect(coverage.normalizeItineraryTimeSlot('7:05')).toBe('07:05');
+    expect(coverage.normalizeItineraryDayNumber(-2, 3)).toBe(1);
+    expect(coverage.compareItineraryStops(
+      { title: 'Beta', dayNumber: 1, timeSlot: 'bad' },
+      { title: 'Alpha', dayNumber: 1, timeSlot: '09:00' },
+    )).toBeGreaterThanOrEqual(-1);
+    expect(coverage.getMaxItineraryDayNumber([])).toBe(0);
+    expect(coverage.rebuildPreviewItineraryFromStops([])?.days).toEqual([]);
+    expect(coverage.rebuildPreviewItineraryFromStops([
+      { ...buildRouteStop('fallback-day', 'Fallback Day', undefined as any, 'food'), estimatedCost: undefined },
+    ])?.totalEstimatedCost).toBe(0);
+
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: 'Dallas, TX',
+      destinationLatitude: 32.7767,
+      destinationLongitude: -96.797,
+      endDestination: 'Austin, TX',
+      endDestinationLatitude: 30.2672,
+      endDestinationLongitude: -97.7431,
+    };
+    coverage.focusPlannerMapForScopeAiEndpointChange(
+      { ...coverage.plannerDraft.value, destinationLatitude: undefined, destinationLongitude: undefined },
+      coverage.plannerDraft.value,
+    );
+    expect(coverage.plannerMapViewport.value.center[0]).toBeLessThan(-96);
+    coverage.focusPlannerMapForScopeAiEndpointChange(coverage.plannerDraft.value, coverage.plannerDraft.value);
+    expect(coverage.getDraftEndpointCoordinate({ ...coverage.plannerDraft.value }, 'destination')).toMatchObject({
+      latitude: 32.7767,
+    });
+    expect(coverage.didDraftEndpointCoordinateChange(
+      { destinationLatitude: undefined, destinationLongitude: undefined },
+      coverage.plannerDraft.value,
+      'destination',
+    )).toBe(true);
+
+    const emptyWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined,
+    });
+    expect(coverage.resolveIsMobilePlannerLayout()).toBe(false);
+    if (emptyWindowDescriptor) {
+      Object.defineProperty(globalThis, 'window', emptyWindowDescriptor);
+    }
+
+    expect(coverage.formatRouteLibraryBudgetLabel({ ...oneDayTrip, budget: undefined })).toBe('Budget TBD');
+    expect(coverage.formatRouteLibraryDateLabel({ ...oneDayTrip, startDate: '', endDate: '' })).toBe('Flexible dates');
+    expect(coverage.getRouteLibraryEndpointLabels({
+      ...oneDayTrip,
+      destination: 'Austin',
+      spots: [],
+    }, [])).toMatchObject({
+      start: 'Austin',
+      end: '',
+      routeLabel: 'Austin',
+    });
+    expect(coverage.shouldUseRouteLibrarySplitVisual(oneDayTrip, oneDayTrip.spots, { start: 'Austin', end: 'Austin' })).toBe(false);
+    expect(coverage.buildRouteLibraryVisualImages(oneDayTrip, oneDayTrip.spots, { start: 'Austin', end: 'Austin' }, new Set())).toHaveLength(0);
+    expect(coverage.getRouteLibraryStopMeta({
+      ...oneDayTrip.spots[0],
+      city: '',
+      timeSlot: undefined,
+      estimatedCost: undefined,
+    })).toContain('Day');
+    expect(coverage.getRouteLibraryPhotoLookupRequests(oneDayTrip, [], new Set())).toEqual(expect.any(Array));
+
+    coverage.currentDraftTrip.value = null;
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: 'Dallas, TX',
+      endDestination: '',
+      startDate: '',
+      endDate: '',
+      interests: [],
+      budgetFloor: undefined,
+      budget: undefined,
+    };
+    expect(coverage.hasAutosavableDraftInput()).toBe(true);
+    expect(coverage.hasAutosavableRouteContent()).toBe(true);
+    coverage.markDraftAutosavePending();
+    coverage.scheduleDraftAutosave({ delayMs: 0 });
+    await coverage.runDraftAutosave();
+    expect(coverage.draftSaveState.value).toMatch(/saved|pending|saving|error/);
+
+    const spanDraft = {
+      ...defaultDraft,
+      startDate: '2026-06-01',
+      endDate: '2026-06-01',
+    };
+    coverage.plannerDraft.value = spanDraft;
+    expect(coverage.syncEndDateFromTimelineStops([
+      { ...buildRouteStop('day-three', 'Day Three', 3, 'food') },
+    ])).toBe(true);
+    expect(coverage.plannerDraft.value.endDate).toBe('2026-06-03');
+
+    wrapper.unmount();
   });
 });

@@ -1,3 +1,5 @@
+using System.Data.Common;
+using System.Reflection;
 using System.Security.Claims;
 using Scope.Core.API.Contracts.Requests;
 using Scope.Core.API.Controllers;
@@ -160,6 +162,99 @@ public sealed class PresenceControllerTests
         Assert.False(GetBooleanProperty(response.Data, "Persisted"));
     }
 
+    [Fact]
+    public async Task Heartbeat_ReturnsAcceptedWithTransientPresenceWhenInitialReadTimesOut()
+    {
+        var userId = Guid.NewGuid();
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var setupOptions = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setupContext = new CoreDbContext(setupOptions))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+            setupContext.Users.Add(CreateUser(userId, "read-timeout"));
+            await setupContext.SaveChangesAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(new TimeoutOnQueryInterceptor())
+            .Options;
+        await using var dbContext = new CoreDbContext(options);
+        var controller = CreateController(dbContext, userId);
+
+        var result = await controller.Heartbeat(
+            new PresenceHeartbeatRequest(Status: "OFFLINE", RouteContext: null, IsIdle: false, IsPlanning: false),
+            CancellationToken.None);
+
+        var accepted = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status202Accepted, accepted.StatusCode);
+        var response = Assert.IsType<ApiResponse<object>>(accepted.Value);
+        Assert.False(GetBooleanProperty(response.Data, "Persisted"));
+        Assert.Equal("offline", GetStringProperty(response.Data, "Status"));
+        Assert.Null(GetNullableStringProperty(response.Data, "RouteContext"));
+    }
+
+    [Fact]
+    public async Task Heartbeat_PropagatesNonTransientPersistenceFailures()
+    {
+        var userId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+
+        await using (var setupContext = CreateDbContext(databaseName))
+        {
+            setupContext.Users.Add(CreateUser(userId, "non-transient"));
+            await setupContext.SaveChangesAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddInterceptors(new InvalidOperationOnSaveInterceptor())
+            .Options;
+        await using var dbContext = new CoreDbContext(options);
+        var controller = CreateController(dbContext, userId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => controller.Heartbeat(
+            new PresenceHeartbeatRequest(Status: null, RouteContext: null, IsIdle: false, IsPlanning: false),
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Heartbeat_RethrowsFirstInsertConflictWhenNoPersistedPresenceCanBeLoaded()
+    {
+        var userId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+
+        await using (var setupContext = CreateDbContext(databaseName))
+        {
+            setupContext.Users.Add(CreateUser(userId, "missing-race"));
+            await setupContext.SaveChangesAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddInterceptors(new ConflictOnSaveInterceptor())
+            .Options;
+        await using var dbContext = new CoreDbContext(options);
+        var controller = CreateController(dbContext, userId);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => controller.Heartbeat(
+            new PresenceHeartbeatRequest(Status: "online", RouteContext: "/map", IsIdle: false, IsPlanning: false),
+            CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(-2, true)]
+    [InlineData(1205, true)]
+    [InlineData(2601, false)]
+    public void IsTransientSqlErrorNumber_AllowsOnlyTimeoutAndDeadlockNumbers(int number, bool expected)
+    {
+        Assert.Equal(expected, IsTransientSqlErrorNumber(number));
+    }
+
     private static CoreDbContext CreateDbContext()
         => CreateDbContext(Guid.NewGuid().ToString());
 
@@ -201,6 +296,20 @@ public sealed class PresenceControllerTests
         => (bool)(value?.GetType().GetProperty(propertyName)?.GetValue(value)
             ?? throw new InvalidOperationException($"Missing {propertyName} property."));
 
+    private static string GetStringProperty(object? value, string propertyName)
+        => (string)(value?.GetType().GetProperty(propertyName)?.GetValue(value)
+            ?? throw new InvalidOperationException($"Missing {propertyName} property."));
+
+    private static string? GetNullableStringProperty(object? value, string propertyName)
+        => (string?)value?.GetType().GetProperty(propertyName)?.GetValue(value);
+
+    private static bool IsTransientSqlErrorNumber(int number)
+    {
+        var method = typeof(PresenceController).GetMethod("IsTransientSqlErrorNumber", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(PresenceController), "IsTransientSqlErrorNumber");
+        return (bool)method.Invoke(null, [number])!;
+    }
+
     private sealed class TimeoutOnSaveInterceptor : SaveChangesInterceptor
     {
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
@@ -208,5 +317,33 @@ public sealed class PresenceControllerTests
             InterceptionResult<int> result,
             CancellationToken cancellationToken = default)
             => ValueTask.FromException<InterceptionResult<int>>(new TimeoutException("Simulated transient timeout."));
+    }
+
+    private sealed class TimeoutOnQueryInterceptor : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromException<InterceptionResult<DbDataReader>>(new TimeoutException("Simulated transient read timeout."));
+    }
+
+    private sealed class InvalidOperationOnSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromException<InterceptionResult<int>>(new InvalidOperationException("Permanent failure."));
+    }
+
+    private sealed class ConflictOnSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromException<InterceptionResult<int>>(new DbUpdateException("Simulated first insert conflict."));
     }
 }

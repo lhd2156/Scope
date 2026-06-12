@@ -977,6 +977,323 @@ describe('ExplorePage', () => {
     clearTimeoutSpy.mockRestore();
   });
 
+  it('covers explore helper fallbacks, overflow filters, and stale recommendation races', async () => {
+    const countries = ['US', 'Canada', 'France', 'Japan', 'Mexico', 'Italy', 'Spain', 'Portugal'];
+    const multiCountrySpots = countries.map((country, index) => ({
+      ...buildGeneratedSpot(index),
+      id: `country-spot-${index}`,
+      title: `${country} Choice ${index}`,
+      city: `City ${index}`,
+      country,
+      state: country === 'US' ? (index % 2 ? 'CA' : 'TX') : undefined,
+      stateCode: country === 'US' ? (index % 2 ? 'CA' : 'TX') : undefined,
+      region: country === 'US' ? (index % 2 ? 'CA' : 'TX') : `Region ${index}`,
+      likesCount: index === 0 ? undefined : 30,
+      rating: index < 2 ? 4.9 : 4.5,
+      createdAt: index === 2 ? 'not-a-date' : `2026-04-${String(index + 1).padStart(2, '0')}T12:00:00Z`,
+      vibe: `vibe-${index}`,
+    }));
+    listSpotsMock.mockResolvedValueOnce({
+      data: multiCountrySpots,
+      meta: {
+        page: 1,
+        pageSize: multiCountrySpots.length,
+        total: multiCountrySpots.length,
+        totalPages: 1,
+      },
+    });
+
+    const { wrapper } = await mountExplorePage();
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    expect(coverage.resolveSpotRegion({ city: '', country: '', category: 'other' })).toBe('Global');
+    expect(coverage.resolveSpotCountry({ city: '', country: '', category: 'other' })).toBe('Global');
+    expect(coverage.buildCityFilterKey('Austin', 'TX', 'USA')).toBe('USA::TX::Austin');
+    expect(coverage.formatCityOptionLabel('Paris', '')).toBe('Paris');
+    expect(coverage.formatCityOptionLabel('Austin', 'TX')).toContain('Austin');
+    expect(coverage.formatCategory('nightlife')).toBe('Nightlife');
+    expect(coverage.formatTrendingSignal({ category: 'food', likesCount: 0 })).toBe('Food pick');
+    expect(coverage.formatTrendingSignal({ category: 'food', likesCount: 1 })).toBe('1 community saves');
+    expect(coverage.getSpotCreatedTime({ createdAt: 'not-a-date' })).toBe(0);
+    expect(coverage.escapeHtml('<em>"Scope"</em>')).toBe('&lt;em&gt;&quot;Scope&quot;&lt;/em&gt;');
+    expect(coverage.formatSearchHighlight('A <em>great</em> & safe stop')).toBe('A <mark>great</mark> &amp; safe stop');
+
+    const ranked = coverage.rankPopularSpots([
+      { id: 'b', title: 'Beta', rating: 4.8, likesCount: 3, createdAt: '2026-04-02T00:00:00Z' },
+      { id: 'a', title: 'Alpha', rating: 4.9, likesCount: 3, createdAt: '2026-04-02T00:00:00Z' },
+      { id: 'c', title: 'Gamma', rating: 5, createdAt: 'bad-date' },
+    ]).map((spot: { id: string }) => spot.id);
+    expect(ranked).toEqual(['a', 'b', 'c']);
+    expect(coverage.sortExploreSpotsForMode(multiCountrySpots as any[], 'popular')[0].id).toBe('country-spot-1');
+    expect(coverage.isSpotCategory('food')).toBe(true);
+    expect(coverage.isSpotCategory('not-real')).toBe(false);
+    expect(coverage.mapSearchResultToSpot({
+      id: 'search-spot',
+      name: 'Search & Find',
+      description: 'Fallback description',
+      location: { lat: 10, lon: 20 },
+      category: 'unknown',
+      avg_rating: 4.2,
+      review_count: 7,
+      _highlights: {
+        description: ['A <em>bright</em> result'],
+      },
+    })).toMatchObject({
+      id: 'search-spot',
+      category: 'other',
+      searchSnippet: 'A <mark>bright</mark> result',
+    });
+
+    expect(read<Array<{ value: string }>>(coverage.availableCountryOptions).length).toBeGreaterThan(5);
+    write(coverage.selectedCountry, 'Spain');
+    await nextTick();
+    expect(read<Array<{ value: string }>>(coverage.visibleCountryOptions)[0].value).toBe('Spain');
+    expect(read<string>(coverage.countryOverflowButtonLabel)).toMatch(/more$/);
+    expect(read<string>(coverage.countryOverflowButtonAriaLabel)).toContain('countries');
+    write(coverage.isCountryFilterExpanded, true);
+    await nextTick();
+    expect(read<string>(coverage.countryOverflowButtonLabel)).toBe('Show fewer');
+    expect(read<string>(coverage.countryOverflowButtonAriaLabel)).toBe('Show fewer countries');
+
+    const usaCity = read<Array<{ key: string; country: string }>>(coverage.availableCityFilterOptions)
+      .find((city) => city.country === 'USA');
+    expect(usaCity).toBeTruthy();
+    write(coverage.selectedCityKey, usaCity!.key);
+    write(coverage.selectedCountry, 'France');
+    await nextTick();
+    expect(read<string>(coverage.selectedCityKey)).toBe('');
+
+    write(coverage.selectedCountry, 'USA');
+    write(coverage.selectedRegion, 'Missing State');
+    await nextTick();
+    expect(read<string>(coverage.selectedRegion)).toBe('');
+    expect(read<string>(coverage.cityFilterScopeCopy)).toBe('in USA');
+    expect(coverage.formatAvailableCityCount(1)).toBe('1 city available');
+    expect(coverage.formatRegionOptionMeta({ value: 'TX', label: 'TX', count: 2 })).toBe('2 cities available');
+
+    const control = document.createElement('div');
+    const inside = document.createElement('button');
+    control.appendChild(inside);
+    write(coverage.regionFilterControlRef, control);
+    write(coverage.isRegionFilterOpen, true);
+    coverage.handleDocumentClick({ target: inside } as unknown as MouseEvent);
+    expect(read<boolean>(coverage.isRegionFilterOpen)).toBe(true);
+    coverage.handleDocumentClick({ target: document.body } as unknown as MouseEvent);
+    expect(read<boolean>(coverage.isRegionFilterOpen)).toBe(false);
+    write(coverage.isRegionFilterOpen, true);
+    coverage.handleDocumentClick({ target: 'not-a-node' } as unknown as MouseEvent);
+    expect(read<boolean>(coverage.isRegionFilterOpen)).toBe(true);
+
+    const staleRecommendation = Promise.reject(new Error('late recommendation failure'));
+    loadSearchPlaceRecommendationsMock
+      .mockReturnValueOnce(staleRecommendation)
+      .mockResolvedValueOnce([{ ...fixtureSpots[0], recommendationReason: 'Fresh pick' }]);
+    const staleLoad = coverage.loadExploreSearchRecommendations({ force: true });
+    const freshLoad = coverage.loadExploreSearchRecommendations({ force: true });
+    await Promise.all([staleLoad, freshLoad]);
+    await flushPromises();
+    expect(read<unknown>(coverage.exploreSearchRecommendationsError)).toBeNull();
+    expect(read<Array<unknown>>(coverage.exploreSearchRecommendations)).toHaveLength(1);
+
+    loadSearchPlaceRecommendationsMock.mockRejectedValueOnce(new Error('recommendations unavailable'));
+    await coverage.loadExploreSearchRecommendations({ force: true });
+    await flushPromises();
+    expect(read<string>(coverage.exploreSearchRecommendationsError)).toBe('Recommended places are temporarily unavailable.');
+    write(coverage.hasFocusedExploreSearch, true);
+    write(coverage.searchQuery, 'zzzzzz');
+    useSearchStore().loading = false;
+    await nextTick();
+    expect(read<boolean>(coverage.showExploreSearchRecommendations)).toBe(true);
+    expect(read<string>(coverage.exploreSearchRecommendationTitle)).toBe('Recommended instead');
+    useSearchStore().loading = true;
+    await nextTick();
+    expect(read<boolean>(coverage.showExploreSearchRecommendations)).toBe(false);
+  });
+
+  it('keeps edge filter copy, pagination clamps, and recommendation metadata predictable', async () => {
+    const generatedSpots = Array.from({ length: 12 }, (_, index) => buildGeneratedSpot(index + 1));
+    const mysteryCitySpot = {
+      ...fixtureSpots[0],
+      id: 'mystery-city-spot',
+      title: 'Mystery City Listening Room',
+      city: 'Mystery City',
+      country: '',
+      state: '',
+      stateCode: '',
+      region: '',
+      vibe: 'mystic',
+      rating: 4.15,
+      likesCount: 9,
+      createdAt: '2026-04-16T12:00:00Z',
+    };
+    const coordinateOnlySpot = {
+      ...fixtureSpots[1],
+      id: 'coordinate-only-spot',
+      title: 'Coordinate Only Pause',
+      city: '',
+      country: '',
+      state: '',
+      stateCode: '',
+      region: '',
+      vibe: '',
+      pillars: [],
+      rating: 0,
+      likesCount: 0,
+      createdAt: 'bad-date',
+    };
+    const edgeSpots = [...generatedSpots, mysteryCitySpot, coordinateOnlySpot];
+    listSpotsMock.mockResolvedValueOnce({
+      data: edgeSpots,
+      meta: {
+        page: 1,
+        pageSize: edgeSpots.length,
+        total: edgeSpots.length,
+        totalPages: 2,
+      },
+    });
+
+    const { wrapper } = await mountExplorePage();
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+    const mapStore = useMapStore();
+
+    expect(coverage.rankPopularSpots([
+      { id: 'b', title: 'Same', rating: 5, likesCount: 10, createdAt: '2026-04-01T00:00:00Z' },
+      { id: 'a', title: 'Same', rating: 5, likesCount: 10, createdAt: '2026-04-01T00:00:00Z' },
+    ]).map((spot: { id: string }) => spot.id)).toEqual(['a', 'b']);
+
+    mapStore.setActiveCategories([]);
+    await nextTick();
+    expect(read<string[]>(coverage.activeExploreCategories)).toHaveLength(9);
+    coverage.toggleCategory('food');
+    await nextTick();
+    expect(mapStore.activeCategories).toEqual(['food']);
+    coverage.toggleCategory('food');
+    await nextTick();
+    expect(mapStore.activeCategories).toEqual([]);
+    mapStore.resetCategories();
+    await nextTick();
+
+    const cityOptions = read<Array<{ key: string; city: string; region: string; country: string; label: string }>>(
+      coverage.availableCityFilterOptions,
+    );
+    const generatedCity = cityOptions.find((city) => city.city === 'City 12');
+    const mysteryCity = cityOptions.find((city) => city.city === 'Mystery City');
+    expect(generatedCity).toBeTruthy();
+    expect(mysteryCity).toMatchObject({
+      city: 'Mystery City',
+      region: 'Global',
+      country: 'Global',
+      label: 'Mystery City',
+    });
+    expect(read<string>(coverage.vibeOverflowButtonAriaLabel)).toBe('Show 1 more vibe');
+
+    write(coverage.selectedVibe, 'vibe-12');
+    await nextTick();
+    expect(read<string[]>(coverage.visibleExploreVibes)[0]).toBe('vibe-12');
+    expect(coverage.matchesActiveVibeFilter(generatedSpots[11])).toBe(true);
+    write(coverage.selectedVibe, 'missing-vibe');
+    mapStore.setActiveCategories(['nature']);
+    await nextTick();
+    expect(read<string>(coverage.selectedVibe)).toBe('');
+    mapStore.resetCategories();
+    await nextTick();
+
+    coverage.toggleCity(generatedCity);
+    await nextTick();
+    expect(read<{ label: string } | null>(coverage.selectedCityOption)?.label).toBe('City 12, USA');
+    expect(read<string>(coverage.vibeFilterMetaCopy)).toBe('1 vibe in City 12, USA');
+    coverage.toggleCity(generatedCity);
+    await nextTick();
+    expect(read<string>(coverage.selectedCityKey)).toBe('');
+
+    coverage.toggleCity(mysteryCity);
+    await nextTick();
+    expect(coverage.matchesSelectedCity(mysteryCitySpot)).toBe(true);
+    expect(read<string>(coverage.vibeFilterMetaCopy)).toBe('1 vibe in Mystery City');
+    coverage.toggleCity(mysteryCity);
+    write(coverage.selectedRegion, 'Global');
+    await nextTick();
+    expect(coverage.matchesSelectedRegion(mysteryCitySpot)).toBe(true);
+    expect(read<string>(coverage.cityFilterScopeCopy)).toBe('in Global');
+    expect(read<string>(coverage.vibeFilterMetaCopy)).toBe('1 vibe in Global');
+    write(coverage.selectedRegion, '');
+    await nextTick();
+
+    coverage.goToExplorePage(99);
+    await nextTick();
+    expect(read<string>(coverage.explorePaginationStatus)).toContain('Page 2 of 2');
+    write(coverage.selectedCountry, 'Atlantis');
+    await nextTick();
+    expect(read<Array<unknown>>(coverage.visibleExploreCityOptions)).toHaveLength(0);
+    expect(wrapper.get('[data-test="city-chip-empty"]').text()).toBe('No cities with spots yet.');
+    expect(read<string>(coverage.explorePaginationStatus)).toBe('Page 1 of 1');
+    coverage.clearLocationFilters();
+    await nextTick();
+
+    write(coverage.selectedCountry, 'USA');
+    await nextTick();
+    write(coverage.selectedRegion, 'Missing State');
+    await nextTick();
+    expect(read<string>(coverage.selectedRegionFilterLabel)).toBe(read<string>(coverage.regionFilterAllLabel));
+    coverage.clearLocationFilters();
+    await nextTick();
+
+    expect(coverage.formatRecommendationMeta({
+      ...coordinateOnlySpot,
+      recommendationReason: '',
+      searchSuggestionSource: 'recommendation',
+    })).toBe('Scope place');
+    expect(coverage.formatRecommendationMeta({
+      ...mysteryCitySpot,
+      recommendationReason: 'Fresh local signal',
+      searchSuggestionSource: 'recommendation',
+    })).toBe('Mystery City / 4.2 rating / Fresh local signal / Mystic');
+
+    const originalWindow = window;
+    vi.stubGlobal('window', undefined);
+    try {
+      expect(coverage.resolveIsMobileExploreLayout()).toBe(false);
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+    }
+
+    loadSearchPlaceRecommendationsMock.mockClear().mockResolvedValueOnce([
+      { ...fixtureSpots[0], id: 'cached-rec', recommendationReason: 'Cached pick' },
+    ]);
+    await coverage.loadExploreSearchRecommendations({ force: true });
+    await coverage.loadExploreSearchRecommendations();
+    expect(loadSearchPlaceRecommendationsMock).toHaveBeenCalledTimes(1);
+
+    let resolveStaleRecommendation: (value: unknown[]) => void = () => {};
+    const staleRecommendation = new Promise<unknown[]>((resolve) => {
+      resolveStaleRecommendation = resolve;
+    });
+    loadSearchPlaceRecommendationsMock
+      .mockReset()
+      .mockReturnValueOnce(staleRecommendation)
+      .mockResolvedValueOnce([{ ...fixtureSpots[2], id: 'fresh-rec', recommendationReason: 'Fresh pick' }]);
+    const staleLoad = coverage.loadExploreSearchRecommendations({ force: true });
+    const freshLoad = coverage.loadExploreSearchRecommendations({ force: true });
+    resolveStaleRecommendation([{ ...fixtureSpots[1], id: 'stale-rec', recommendationReason: 'Stale pick' }]);
+    await Promise.all([staleLoad, freshLoad]);
+    await flushPromises();
+
+    expect(read<Array<{ id: string }>>(coverage.exploreSearchRecommendations)[0].id).toBe('fresh-rec');
+    expect(read<boolean>(coverage.exploreSearchRecommendationsLoading)).toBe(false);
+  });
+
   it('renders the lightweight QA explore preview without loading the standard grid', async () => {
     const { wrapper } = await mountQaExplorePage();
 

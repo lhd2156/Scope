@@ -286,6 +286,69 @@ describe('SettingsPage', () => {
     }), 'user-1');
   });
 
+  it('recovers from corrupt local preferences and saves trip-only notification cadence safely', async () => {
+    localStorage.setItem('scope-settings-local-preferences-v1', 'false');
+    notificationServiceMock.getNotificationPreferences.mockResolvedValueOnce({
+      data: [{
+        category: 'trip',
+        inAppEnabled: true,
+        pushEnabled: true,
+        emailEnabled: false,
+        digestCadence: 'daily',
+        quietHoursStartMinutes: null,
+        quietHoursEndMinutes: null,
+        timeZoneId: '',
+      }],
+    });
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => ({
+      resolvedOptions: () => ({ timeZone: '' }),
+    }) as Intl.DateTimeFormat);
+
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SettingsForm: {
+            props: ['initialValue'],
+            emits: ['submit'],
+            methods: {
+              saveTripCadenceOnly() {
+                this.$emit('submit', {
+                  ...this.initialValue,
+                  tripInvites: 'instant',
+                  emailAlerts: false,
+                }, { source: 'preference' });
+              },
+            },
+            template: `
+              <div>
+                <p data-test="settings-derived-name">{{ initialValue.firstName }} {{ initialValue.lastName }}</p>
+                <button data-test="settings-trip-cadence-save" @click="saveTripCadenceOnly">Save cadence</button>
+              </div>
+            `,
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    expect(wrapper.get('[data-test="settings-derived-name"]').text()).toBe('Louis Do');
+
+    await wrapper.get('[data-test="settings-trip-cadence-save"]').trigger('click');
+    await flushPromises();
+
+    expect(notificationServiceMock.updateNotificationPreference).toHaveBeenCalledTimes(1);
+    expect(notificationServiceMock.updateNotificationPreference).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'trip',
+      emailEnabled: false,
+      digestCadence: 'instant',
+      timeZoneId: 'UTC',
+    }));
+    expect(toastStoreMock.showSuccess).not.toHaveBeenCalled();
+
+    dateTimeFormatSpy.mockRestore();
+  });
+
   it('hydrates travel preferences from the live profile instead of the lean auth payload', async () => {
     authStoreMock.currentUser = {
       id: 'user-1',
@@ -614,5 +677,122 @@ describe('SettingsPage', () => {
       title: 'Settings not saved',
       message: 'Scope could not update that profile right now.',
     });
+  });
+
+  it('keeps settings audit, helper, storage, and fallback save branches explicit', async () => {
+    window.history.pushState({}, '', '/settings?scopeQaSession=authenticated');
+    localStorage.setItem('scope-settings-local-preferences-v1', '{not-json');
+
+    const wrapper = mount(SettingsPage, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Settings sections stay condensed');
+    expect(wrapper.text()).toContain('Louis Do');
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    expect(coverage.readLocalSettingsPreferences()).toEqual({});
+    expect(coverage.normalizeTripInviteCadence('daily')).toBe('daily');
+    expect(coverage.normalizeTripInviteCadence('weekly')).toBe('weekly');
+    expect(coverage.normalizeTripInviteCadence('surprise')).toBe('instant');
+    expect(coverage.buildDefaultNotificationPreference('digest')).toMatchObject({
+      category: 'digest',
+      pushEnabled: false,
+      emailEnabled: true,
+      digestCadence: 'daily',
+    });
+    expect(coverage.buildDefaultNotificationPreference('friend')).toMatchObject({
+      category: 'friend',
+      pushEnabled: true,
+      emailEnabled: false,
+      digestCadence: 'instant',
+    });
+    expect(coverage.deriveSettingsNotificationPreferences([], {
+      tripInvites: 'weekly',
+      emailAlerts: false,
+    })).toEqual({ tripInvites: 'weekly', emailAlerts: false });
+    expect(coverage.deriveSettingsNotificationPreferences([
+      {
+        category: 'trip',
+        inAppEnabled: true,
+        pushEnabled: true,
+        emailEnabled: true,
+        digestCadence: 'bad-cadence',
+        quietHoursStartMinutes: null,
+        quietHoursEndMinutes: null,
+        timeZoneId: '',
+      },
+      {
+        category: 'friend',
+        inAppEnabled: true,
+        pushEnabled: true,
+        emailEnabled: false,
+        digestCadence: 'instant',
+        quietHoursStartMinutes: null,
+        quietHoursEndMinutes: null,
+        timeZoneId: '',
+      },
+    ], {})).toEqual({ tripInvites: 'instant', emailAlerts: true });
+    expect(coverage.toCategoryPreferences(['unknown-vibe'])).toEqual(['food', 'culture', 'adventure']);
+    expect(coverage.toCategoryPreferences(['scenic', 'food'])).toEqual(['scenic', 'food']);
+
+    const noProfileSettings = coverage.buildSettingsValueFromProfile(null);
+    expect(noProfileSettings).toMatchObject({
+      displayName: 'New explorer',
+      firstName: 'New',
+      lastName: 'explorer',
+      username: '',
+      privacy: 'friends',
+    });
+
+    const section = document.createElement('section');
+    section.id = 'settings-profile';
+    section.scrollIntoView = vi.fn();
+    section.focus = vi.fn();
+    document.body.appendChild(section);
+    coverage.goToSection('settings-profile');
+    expect(read(coverage.activeSection)).toBe('settings-profile');
+    expect(section.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(section.focus).toHaveBeenCalledWith({ preventScroll: true });
+    section.remove();
+
+    const payload = {
+      ...read(coverage.settingsValue),
+      displayName: 'Louis Do',
+      username: 'louisdo',
+      bio: '',
+      avatarUrl: '',
+      homeBase: '',
+      categoryPreferences: ['food', 'culture', 'adventure'],
+    };
+    userStoreMock.error = null;
+    userStoreMock.saveProfile.mockRejectedValueOnce(new Error('generic profile failure'));
+    await coverage.handleSave(payload, { source: 'manual' });
+    expect(read(coverage.formError)).toBe('Scope could not save your settings right now.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Settings not saved',
+      message: 'Scope could not save your settings right now.',
+    });
+
+    notificationServiceMock.getNotificationPreferences.mockRejectedValueOnce(new Error('preferences offline'));
+    await expect(coverage.loadNotificationPreferences()).resolves.toBeUndefined();
+
+    const originalWindow = window;
+    vi.stubGlobal('window', undefined);
+    expect(coverage.readLocalSettingsPreferences()).toEqual({});
+    expect(() => coverage.writeLocalSettingsPreferences(payload)).not.toThrow();
+    vi.stubGlobal('window', originalWindow);
+
+    window.history.pushState({}, '', '/settings');
   });
 });

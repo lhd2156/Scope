@@ -347,6 +347,46 @@ describe('App session edge cases', () => {
     );
   });
 
+  it('disconnects realtime stores without an offline heartbeat when QA mode disables runtime', async () => {
+    window.history.pushState({}, '', '/friends');
+    authState.isAuthenticated = true;
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/friends', name: 'friends', component: { template: '<div>Friends target</div>' } },
+      ],
+    });
+
+    await router.push('/friends');
+    await router.isReady();
+
+    const wrapper = mount(AuthSessionRuntime, {
+      global: {
+        plugins: [router],
+      },
+    });
+    mountedWrappers.push(wrapper);
+    await flushPromises();
+
+    expect(notificationsStoreMock.fetchNotifications).toHaveBeenCalledTimes(1);
+    expect(notificationsStoreMock.connect).toHaveBeenCalledTimes(1);
+
+    notificationsStoreMock.disconnect.mockClear();
+    presenceHarness.presenceServiceMock.sendPresenceHeartbeat.mockClear();
+    window.history.pushState({}, '', '/friends?scopeQaSession=authenticated');
+    authState.isAuthenticated = false;
+    await flushPromises();
+
+    expect(notificationsStoreMock.disconnect).toHaveBeenCalledTimes(1);
+    expect(presenceHarness.presenceServiceMock.stopPendingPresenceWork).toHaveBeenCalled();
+    expect(presenceHarness.presenceServiceMock.sendPresenceHeartbeat).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'offline' }),
+      { force: true },
+    );
+
+    window.history.pushState({}, '', '/friends');
+  });
+
   it('moves authenticated presence from idle back to active and keeps heartbeats running', async () => {
     vi.useFakeTimers();
     authState.isAuthenticated = true;

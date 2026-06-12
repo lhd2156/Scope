@@ -223,6 +223,18 @@ describe('long-tail utility coverage', () => {
       total: 0,
       totalPages: 1,
     });
+    expect(createPaginationMeta(5)).toEqual({
+      page: 1,
+      pageSize: 5,
+      total: 5,
+      totalPages: 1,
+    });
+    expect(createPaginationMeta(0)).toEqual({
+      page: 1,
+      pageSize: 1,
+      total: 0,
+      totalPages: 1,
+    });
     expect(paginateItems(['a', 'b', 'c'], 2, 2)).toEqual({
       data: ['c'],
       meta: {
@@ -232,9 +244,161 @@ describe('long-tail utility coverage', () => {
         totalPages: 2,
       },
     });
+    expect(paginateItems(['a', 'b'])).toEqual({
+      data: ['a', 'b'],
+      meta: {
+        page: 1,
+        pageSize: 2,
+        total: 2,
+        totalPages: 1,
+      },
+    });
+    expect(paginateItems([])).toEqual({
+      data: [],
+      meta: {
+        page: 1,
+        pageSize: 1,
+        total: 0,
+        totalPages: 1,
+      },
+    });
     expect(sortByCreatedAtDescending([
       { id: 'old', createdAt: '2026-01-01T00:00:00Z' },
       { id: 'new', createdAt: '2026-02-01T00:00:00Z' },
     ]).map((item) => item.id)).toEqual(['new', 'old']);
+  });
+
+  it('covers default local mock data creation, filtering, and itinerary edge behavior', async () => {
+    vi.resetModules();
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+
+    try {
+      const {
+        buildItineraryPreview,
+        createMockSpot,
+        filterSpots,
+        getSpotById,
+        getTripById,
+        mockSpots,
+        mockUsers,
+        updateMockSpot,
+      } = await import('@/services/mockData');
+
+      const baseSubmission = {
+        spot: {
+          title: '  Test dry route stop  ',
+          description: '  Safe local fallback stop without uploaded media.  ',
+          latitude: 32.7555,
+          longitude: -97.3308,
+          address: '  100 Main St  ',
+          city: 'Fort Worth',
+          country: 'United States',
+          category: 'food',
+          pillars: ['group-friendly'],
+          vibe: 'quiet fallback',
+          rating: 4.2,
+          visitedAt: '2026-05-20',
+          isPublic: true,
+        },
+        existingPhotos: [],
+        newPhotos: [],
+      };
+
+      const created = createMockSpot(baseSubmission as never, null);
+      expect(created).toMatchObject({
+        title: 'Test dry route stop',
+        author: undefined,
+        photoUrl: expect.stringContaining('images.unsplash.com'),
+        photos: [],
+      });
+      expect(getSpotById(created.id)?.reviews).toEqual([]);
+      expect(getSpotById('missing-spot')).toBeUndefined();
+      expect(getTripById('missing-trip')).toBeUndefined();
+
+      const author = mockUsers[0]!;
+      const updated = updateMockSpot(created.id, {
+        ...baseSubmission,
+        spot: {
+          ...baseSubmission.spot,
+          title: 'Updated fallback gallery',
+          category: 'scenic',
+          vibe: 'gallery fallback',
+        },
+        existingPhotos: [{
+          id: 'existing-photo',
+          url: 'https://images.example.com/existing.jpg',
+          caption: '',
+        }],
+        newPhotos: [{
+          id: 'upload-photo',
+          file: new File(['image'], 'fallback.jpg', { type: 'image/jpeg' }),
+          previewUrl: 'https://images.example.com/upload.jpg',
+          caption: '   ',
+          mimeType: 'image/jpeg',
+          sizeBytes: 5,
+        }],
+      } as never, author);
+
+      expect(updated).toMatchObject({
+        id: created.id,
+        title: 'Updated fallback gallery',
+        author: expect.objectContaining({ id: author.id }),
+      });
+      expect(updated.photos.map((photo) => photo.caption)).toEqual([
+        'Updated fallback gallery',
+        'Updated fallback gallery',
+      ]);
+      expect(getSpotById(created.id)?.photoUrl).toBe('https://images.example.com/existing.jpg');
+
+      expect(filterSpots({}).length).toBeGreaterThanOrEqual(mockSpots.length);
+      expect(filterSpots({ category: '', city: 'not a real city', vibe: 'missing vibe' })).toEqual([]);
+
+      const relaxedPreview = buildItineraryPreview({
+        destination: 'Quartzsite, AZ',
+        endDestination: '',
+        startDate: '2026-06-10',
+        endDate: '2026-06-11',
+        budgetFloor: 0,
+        budget: 600,
+        interests: ['scenic'],
+        pace: 'relaxed',
+        groupSize: 1,
+      } as never);
+      expect(relaxedPreview.destination).toBe('Quartzsite, AZ');
+      expect(relaxedPreview.days).toHaveLength(2);
+
+      const packedPreview = buildItineraryPreview({
+        destination: 'Quartzsite, AZ',
+        endDestination: 'Tucson, AZ',
+        startDate: '2026-06-10',
+        endDate: '2026-06-10',
+        budgetFloor: 0,
+        budget: 1200,
+        interests: ['food', 'nature'],
+        pace: 'packed',
+        groupSize: 6,
+      } as never);
+      expect(packedPreview.destination).toBe('Quartzsite, AZ to Tucson, AZ');
+      expect(packedPreview.days.flatMap((day) => day.spots).map((spot) => spot.timeSlot)).toContain('20:00');
+
+      const invalidDatePreview = buildItineraryPreview({
+        destination: 'Nowhere',
+        endDestination: '',
+        startDate: 'not-a-date',
+        endDate: 'also-not-a-date',
+        budgetFloor: 0,
+        budget: 200,
+        interests: [],
+        pace: 'moderate',
+        groupSize: 2,
+      } as never);
+      expect(invalidDatePreview.days).toHaveLength(1);
+      expect(invalidDatePreview.days[0]?.date).toBe('');
+      expect(invalidDatePreview.totalEstimatedCost).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

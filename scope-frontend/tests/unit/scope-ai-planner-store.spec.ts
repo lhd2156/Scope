@@ -408,6 +408,28 @@ describe('scope AI planner store', () => {
     expect(store.pendingPackingActions).toEqual([]);
   });
 
+  it('marks resolved packing edits as applied side effects without planner state churn', async () => {
+    const store = useScopeAiPlannerStore();
+    const undoDepth = store.undoStack.length;
+
+    const result = await store.applyActionBlockResolved({
+      actions: [
+        { type: 'ADD_PACKING_ITEM', label: '  Sunscreen  ' },
+        { type: 'REMOVE_PACKING_ITEM', item_id: ' old-hat ' },
+      ],
+    });
+
+    expect(result).toEqual({
+      applied: true,
+      resolutions: [],
+    });
+    expect(store.pendingPackingActions).toEqual([
+      { type: 'add', label: 'Sunscreen' },
+      { type: 'remove', id: 'old-hat' },
+    ]);
+    expect(store.undoStack).toHaveLength(undoDepth);
+  });
+
   it('restores the previous planner state on UNDO', () => {
     const store = useScopeAiPlannerStore();
     store.applyActionBlock({ actions: [{ type: 'SET_FIELD', field: 'start', value: 'Dallas' }] });
@@ -1375,5 +1397,245 @@ describe('scope AI planner store', () => {
       actions: [{ type: 'SET_FIELD', field: 'unknown_field', value: 'bad' }],
     });
     expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  it('covers scalar fallback normalization, no-op action types, and stop geocode guard rails', async () => {
+    const store = useScopeAiPlannerStore();
+
+    geocodeMock.mockResolvedValueOnce({ data: { not: 'an array' } });
+    store.applyActionBlock({
+      actions: [{ type: 'SET_FIELD', field: 'start', value: 'Arrayless Geocode' }],
+    });
+    await flushPromises();
+    expect(store.plannerState.start).toBe('Arrayless Geocode');
+    expect(store.plannerState.startLatitude).toBeUndefined();
+
+    geocodeMock.mockResolvedValueOnce({
+      data: [{ latitude: 31.5, longitude: -97.1 }],
+    });
+    store.applyActionBlock({
+      actions: [{ type: 'SET_FIELD', field: 'end', value: 'Raw Coordinate Label' }],
+    });
+    await flushPromises();
+    expect(store.plannerState.end).toBe('Raw Coordinate Label');
+    expect(store.plannerState.endLatitude).toBe(31.5);
+    expect(store.plannerState.endLongitude).toBe(-97.1);
+
+    store.applyActionBlock({
+      actions: [
+        { type: 'SET_FIELD', field: 'budget_min', value: 'not a number' },
+        { type: 'SET_FIELD', field: 'budget_max', value: '' },
+        { type: 'SET_FIELD', field: 'party_size', value: Number.NaN },
+        { type: 'SET_FIELD', field: 'mpg', value: '' },
+        { type: 'SET_FIELD', field: 'gas_price', value: 'bad gas' },
+        { type: 'SET_FIELD', field: 'destination', value: '  Alias Start  ' },
+        { type: 'SET_FIELD', field: 'tripTitle', value: '  Alias Title  ' },
+      ],
+    });
+    expect(store.plannerState).toMatchObject({
+      budget_min: null,
+      budget_max: null,
+      party_size: null,
+      mpg: null,
+      gas_price: null,
+      start: 'Alias Start',
+      title: 'Alias Title',
+    });
+
+    store.applyActionBlock({
+      actions: [{
+        type: 'ADD_STOP',
+        stop: {
+          estimated_cost: Number.NaN,
+          estimated_duration_minutes: '',
+          position: 0,
+        } as any,
+      }],
+    });
+    await flushPromises();
+    expect(store.plannerState.stops[0]).toMatchObject({
+      name: 'Suggested stop',
+      address: '',
+      type: 'other',
+      estimated_cost: 0,
+      estimated_duration_minutes: 0,
+      position: 1,
+    });
+    expect(store.plannerState.stops[0].id).toMatch(/^scope-ai-stop-/);
+
+    geocodeMock.mockResolvedValueOnce({
+      data: [{ latitude: 32.1, longitude: -96.8, formattedAddress: 'Should not overwrite' }],
+    });
+    store.applyActionBlock({
+      actions: [{
+        type: 'ADD_STOP',
+        stop: {
+          id: 'addressed-stop',
+          name: 'Addressed Stop',
+          address: 'Existing Address',
+          type: 'food',
+        },
+      }],
+    });
+    await flushPromises();
+    expect(store.plannerState.stops.find((stop) => stop.id === 'addressed-stop')).toMatchObject({
+      address: 'Existing Address',
+      latitude: 32.1,
+      longitude: -96.8,
+    });
+
+    geocodeMock.mockResolvedValueOnce({
+      data: [{ latitude: 33.1, longitude: -97.8, formattedAddress: 'Removed Stop Address' }],
+    });
+    store.applyActionBlock({
+      actions: [
+        {
+          type: 'ADD_STOP',
+          stop: {
+            id: 'removed-before-geocode',
+            name: 'Removed Stop',
+            address: 'Removed Stop Address',
+            type: 'culture',
+          },
+        },
+        { type: 'REMOVE_STOP', stop_id: 'removed-before-geocode' },
+      ],
+    });
+    await flushPromises();
+    expect(store.plannerState.stops.some((stop) => stop.id === 'removed-before-geocode')).toBe(false);
+
+    const undoDepth = store.undoStack.length;
+    expect(store.applyActionBlock({
+      actions: [
+        { type: 'SEARCH_NEARBY_FUEL', sort_by: 'closest' },
+        { type: 'SEARCH_NEARBY_PLACES', query: 'coffee' },
+        { type: 'SAVE_TRIP_DRAFT' },
+        { type: 'REQUEST_DELETE_TRIP_DRAFT' },
+        { type: 'DELETE_TRIP_DRAFT' },
+        { type: 'OPEN_SHARE_MODAL' },
+        { type: 'INVITE_TRIP_MEMBER', email: 'friend@example.com' },
+        { type: 'SET_TRIP_VISIBILITY', visibility: 'public' },
+        { type: 'SET_MAP_COMMAND', command: { type: 'fit-route' } },
+      ] as any,
+    })).toBe(true);
+    expect(store.undoStack).toHaveLength(undoDepth);
+
+    const resolvedNoOps = await store.applyActionBlockResolved({
+      actions: [
+        { type: 'SEARCH_NEARBY_FUEL', sort_by: 'best_price' },
+        { type: 'SEARCH_NEARBY_PLACES', query: 'parks' },
+        { type: 'SAVE_TRIP_DRAFT' },
+        { type: 'REQUEST_DELETE_TRIP_DRAFT' },
+        { type: 'DELETE_TRIP_DRAFT' },
+        { type: 'OPEN_SHARE_MODAL' },
+        { type: 'INVITE_TRIP_MEMBER', email: 'friend@example.com' },
+        { type: 'SET_TRIP_VISIBILITY', visibility: 'private' },
+        { type: 'SET_MAP_COMMAND', command: { type: 'show-stop', stopId: 'addressed-stop' } },
+      ] as any,
+    });
+    expect(resolvedNoOps).toEqual({
+      applied: true,
+      resolutions: [],
+    });
+    expect(store.undoStack).toHaveLength(undoDepth);
+
+    store.applyActionBlock({ actions: [{ type: 'SET_FIELD', field: 'end_date', value: '2027-05-18' }] });
+    const dateUndoDepth = store.undoStack.length;
+    await expect(store.applyActionBlockResolved({
+      actions: [{ type: 'SET_FIELD', field: 'end_date', value: '2027-05-18' }],
+    })).resolves.toEqual({
+      applied: false,
+      resolutions: [],
+    });
+    expect(store.undoStack).toHaveLength(dateUndoDepth);
+  });
+
+  it('keeps remaining planner state boundary fallbacks deterministic', async () => {
+    const store = useScopeAiPlannerStore();
+    const resolvedPlace = (label: string, latitude: number, longitude: number) => ({
+      id: label.toLowerCase().replace(/\s+/g, '-'),
+      placeName: label,
+      formattedAddress: `${label}, Texas`,
+      latitude,
+      longitude,
+      source: 'mapbox',
+      sourceLabel: 'Mapbox',
+      providerVerified: true,
+    });
+
+    expect(store.applyActionBlock(null)).toBe(false);
+    await expect(store.applyActionBlockResolved({ actions: [] })).resolves.toEqual({ applied: false, resolutions: [] });
+
+    store.applyActionBlock({
+      actions: [
+        { type: 'SET_FIELD', field: 'budget_max', value: 400 },
+        { type: 'SET_FIELD', field: 'budget_min', value: 500 },
+      ],
+    });
+    expect(store.plannerState.budget_min).toBe(500);
+    expect(store.plannerState.budget_max).toBe(500);
+
+    store.plannerState.start = 'Fort Worth';
+    store.plannerState.startLatitude = 32.7555;
+    store.plannerState.startLongitude = -97.3308;
+    store.plannerState.endLatitude = undefined;
+    store.plannerState.endLongitude = undefined;
+    searchLocationsMock.mockResolvedValueOnce({ data: [resolvedPlace('Austin', 30.2672, -97.7431)] });
+    await store.applyActionBlockResolved({
+      actions: [{ type: 'SET_FIELD', field: 'end', value: 'Austin' }],
+    });
+    expect(searchLocationsMock.mock.calls.at(-1)?.[1]).toMatchObject({
+      proximity: { latitude: 32.7555, longitude: -97.3308 },
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({ data: [] });
+    const unresolved = await store.applyActionBlockResolved({
+      actions: [{ type: 'ADD_STOP', stop: { name: '', address: '', type: 'food' } }],
+    });
+    expect(unresolved.resolutions[0]).toMatchObject({
+      type: 'stop',
+      status: 'not_found',
+    });
+
+    geocodeMock.mockResolvedValueOnce({
+      data: [{
+        placeName: 'Fallback Stop',
+        latitude: 31.1,
+        longitude: -97.2,
+      }],
+    });
+    store.applyActionBlock({
+      actions: [{ type: 'ADD_STOP', stop: { id: 'fallback-stop', name: '', address: '', type: 'food' } }],
+    });
+    await flushPromises();
+    expect(store.plannerState.stops.find((stop) => stop.id === 'fallback-stop')).toMatchObject({
+      name: 'Suggested stop',
+      latitude: 31.1,
+      longitude: -97.2,
+    });
+
+    store.incrementPendingScopeAiContextTurn();
+    store.setPendingScopeAiContext({
+      kind: 'place-candidates',
+      sourcePrompt: 'coffee',
+      rawValue: 'coffee',
+      results: [],
+      lastAnswer: 'Pick one',
+      createdAt: 1,
+      turnCount: 2,
+    } as any);
+    store.incrementPendingScopeAiContextTurn();
+    expect(store.pendingScopeAiContext).toBeNull();
+
+    const actionBlock = { actions: [{ type: 'SET_FIELD', field: 'start', value: 'Dallas' }] };
+    store.addSessionEntry({ role: 'assistant', content: 'updated', actionBlock });
+    actionBlock.actions[0].value = 'Mutated after save';
+    store.addSessionEntry({ role: 'assistant', content: 'plain' } as any);
+    expect(store.sessionHistory[0].actionBlock?.actions[0]).toMatchObject({ value: 'Dallas' });
+    expect(store.sessionHistory[1].actionBlock).toBeNull();
+
+    store.trackRejectedType('Food');
+    store.seedPreferredTypes(['Food', 'Scenic', 'Scenic']);
+    expect(store.preferences.preferred_types).toEqual(['Scenic']);
   });
 });

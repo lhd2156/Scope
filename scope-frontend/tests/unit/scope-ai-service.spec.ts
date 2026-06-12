@@ -241,6 +241,138 @@ describe('scope AI service local planner responses', () => {
     expect(parsed.confirmationText).not.toContain('cannot confidently answer');
   });
 
+  it('keeps Scope AI command parsing, local fallbacks, and backend payload guards bounded across edge prompts', async () => {
+    const coverage = __scopeAiServiceCoverage!;
+    const plannerState = {
+      start: 'Dallas',
+      end: 'Austin',
+      start_date: '2026-05-20',
+      end_date: '2026-05-22',
+      budget_min: 500,
+      budget_max: 1500,
+      stops: [{ id: 'stop-1', name: 'Waco Arcade', type: 'entertainment' }],
+      pace: 'moderate',
+      theme: ['food'],
+    };
+
+    expect(coverage.normalizeNoisyScopeAiPrompt('budgte??? zom out mpa!!')).toContain('budget');
+    expect(coverage.normalizeNoisyScopeAiPrompt('')).toBe('');
+    expect(coverage.collapseRepeatedLetters('soooo cooool!!!')).toBe('so col!!!');
+    expect(coverage.extractDateTokens('leave May 17 and return 18 June 2026')).toEqual(expect.any(Array));
+    expect(coverage.parseDateToken('May 17', 2026)).toMatchObject({ iso: '2026-05-17' });
+    expect(coverage.parseDateToken('17 May 26', 2026)).toMatchObject({ iso: '2026-05-17' });
+    expect(coverage.parseDateToken('', 2026)).toBeNull();
+    expect(coverage.buildDateClarification(plannerState, { iso: '2026-05-01', explicitYear: false })).toMatchObject({
+      responseText: expect.stringContaining('before the current start date'),
+    });
+    expect(coverage.buildDateClarification(plannerState, { iso: '2026-05-25', explicitYear: false })).toBeNull();
+
+    expect(coverage.extractBudgetRange('budget 900 to 700')).toEqual([700, 900]);
+    expect(coverage.extractBudgetRange('budget min nope max 700')).toBeNull();
+    expect(coverage.extractSingleBudget('set budget to 650')).toBe(650);
+    expect(coverage.extractSingleBudget('budget party route')).toBeNull();
+    expect(coverage.buildSingleBudgetActions(400, plannerState)).toEqual([
+      { type: 'SET_FIELD', field: 'budget_min', value: 400 },
+      { type: 'SET_FIELD', field: 'budget_max', value: 400 },
+    ]);
+    expect(coverage.extractPartySize('for 7 people')).toBe(7);
+    expect(coverage.extractPartySize('for many people')).toBeNull();
+    expect(coverage.extractRadiusKm('within 15 miles')).toBeGreaterThan(20);
+    expect(coverage.extractRadiusKm('nearby')).toBeNull();
+
+    expect(coverage.extractMapCommand('zoom out the map')).toMatchObject({ command: 'zoom_out' });
+    expect(coverage.extractMapCommand('make the map dark')).toMatchObject({ command: 'map_style_dark' });
+    expect(coverage.extractMapCommand('focus map on Waco')).toMatchObject({ command: 'zoom_to_place', query: 'Waco' });
+    expect(coverage.extractMapCommand('open route list')).toMatchObject({ command: 'fit_route' });
+    expect(coverage.extractMapCommand('show receipts later')).toBeNull();
+    expect(coverage.parseScopeAiPlannerCommand('invite maya@example.com as viewer')).toMatchObject({
+      intent: 'invite_member',
+      invite: { recipient: 'maya@example.com', role: 'viewer' },
+    });
+    expect(coverage.parseScopeAiPlannerCommand('make trip private')).toMatchObject({ intent: 'visibility', visibility: false });
+    expect(coverage.parseScopeAiPlannerCommand('rename trip Hill Country Loop')).toMatchObject({ intent: 'rename_trip', title: 'Hill Country Loop' });
+    expect(coverage.parseScopeAiPlannerCommand('remove destination')).toMatchObject({ intent: 'clear_endpoint', clearEndpoint: 'end' });
+    expect(coverage.parseScopeAiPlannerCommand('find coffee nearby within 4 km')).toMatchObject({ intent: 'nearby_places' });
+
+    const mixedMessage = 'set budget 700 and zoom out map and find cheapest diesel within 10 miles';
+    const mixed = coverage.buildMixedIntentResponse(
+      mixedMessage,
+      coverage.normalizeNoisyScopeAiPrompt(mixedMessage).toLowerCase(),
+      plannerState,
+    );
+    expect(mixed.responseText).toContain('```action');
+    expect(coverage.extractActionsFromLocalResponse(mixed)).toEqual(expect.any(Array));
+    expect(coverage.buildLocalScopeAiResponse({
+      ...baseInput,
+      message: 'check route status',
+      plannerState,
+    }).responseText).toContain('Dallas');
+    expect(coverage.buildLocalScopeAiResponse({
+      ...baseInput,
+      message: 'asdkj qweqwe ???',
+      plannerState,
+    }).responseText).toContain('cannot confidently answer');
+    expect(coverage.shouldUseLocalResponse('set budget 700', 'Here is a generic backend answer.', plannerState)).toBe(true);
+    expect(coverage.shouldUseLocalResponse('what should I do in Dallas', 'Here is a generic backend answer.', plannerState)).toBe(false);
+    expect(coverage.extractExplicitLocationRecommendationQuery('destination is Austin')).toBeNull();
+
+    const destinationSetter = await callScopeAi({
+      ...baseInput,
+      message: 'destination is Austin',
+      plannerState,
+    });
+    expect(parseScopeAiResponse(destinationSetter.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'end', value: 'Austin, TX' },
+    ]);
+    expect(apiPostMock).not.toHaveBeenCalled();
+
+    const suffixedDateSetter = await callScopeAi({
+      ...baseInput,
+      message: 'end date maybe May 18 2027 no guessing',
+      plannerState: {
+        ...plannerState,
+        start_date: '2027-05-17',
+        end_date: '2027-05-18',
+      },
+    });
+    expect(parseScopeAiResponse(suffixedDateSetter.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'end_date', value: '2027-05-18' },
+    ]);
+    expect(apiPostMock).not.toHaveBeenCalled();
+
+    apiPostMock.mockResolvedValueOnce({
+      data: {
+        response: 'Backend image route answer.',
+        model: undefined,
+        actions: [{ type: 'SET_FIELD', field: 'pace', value: 'packed' }],
+        chips: ['Build it'],
+        place_cards: [{ title: 'Cafe', subtitle: 'Waco', reason: 'On route', source_label: 'Scope' }],
+      },
+    });
+    const backend = await callScopeAi({
+      ...baseInput,
+      message: 'Inspect attached image for this route',
+      images: [
+        { filename: 'one.jpg', mime_type: 'image/jpeg', data: 'abc' },
+        { filename: 'two.png', mime_type: 'image/png', data: 'def' },
+        { filename: 'three.webp', mime_type: 'image/webp', data: 'ghi' },
+        { filename: 'four.gif', mime_type: 'image/gif', data: 'skip' },
+      ],
+      plannerState,
+    });
+    expect(backend.model).toBe('scope-ai');
+    expect(backend.responseText).toContain('Backend image route answer.');
+    expect(backend.responseText).toContain('```action');
+    expect(apiPostMock.mock.calls.at(-1)?.[1].images).toHaveLength(3);
+
+    apiPostMock.mockResolvedValueOnce({ data: { response: '  Backend route answer  ', model: 'live-model' } });
+    await expect(callScopeAi({
+      ...baseInput,
+      message: 'Tell me whether this route is worth it',
+      plannerState,
+    })).resolves.toMatchObject({ responseText: 'Backend route answer', model: 'live-model' });
+  });
+
   it.each([
     ['what to do Dallas this weekend', 'recommended'],
     ['fun things Dallas', 'recommended'],

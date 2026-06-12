@@ -175,3 +175,42 @@ func TestRunContinuesWhenSentryInitializationFails(t *testing.T) {
 		t.Fatalf("expected server closed error, got %v", err)
 	}
 }
+
+func TestSentryEnvironmentPrefersExplicitEnvironmentThenEnvFallback(t *testing.T) {
+	t.Setenv("SENTRY_ENVIRONMENT", "production")
+	t.Setenv("ENV", "staging")
+	if got := sentryEnvironment(); got != "production" {
+		t.Fatalf("expected explicit sentry environment, got %q", got)
+	}
+
+	t.Setenv("SENTRY_ENVIRONMENT", " ")
+	if got := sentryEnvironment(); got != "staging" {
+		t.Fatalf("expected ENV fallback, got %q", got)
+	}
+
+	t.Setenv("ENV", " ")
+	if got := sentryEnvironment(); got != "" {
+		t.Fatalf("expected blank environment when no value is configured, got %q", got)
+	}
+}
+
+func TestSentryTracesSampleRateValidatesConfiguredRate(t *testing.T) {
+	for name, value := range map[string]string{
+		"blank":      "",
+		"nonnumeric": "sometimes",
+		"negative":   "-0.01",
+		"above_one":  "1.01",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("SENTRY_TRACES_SAMPLE_RATE", value)
+			if got := sentryTracesSampleRate(); got != 0.1 {
+				t.Fatalf("expected invalid sample rate %q to fall back to 0.1, got %f", value, got)
+			}
+		})
+	}
+
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "0.42")
+	if got := sentryTracesSampleRate(); got != 0.42 {
+		t.Fatalf("expected configured sample rate, got %f", got)
+	}
+}

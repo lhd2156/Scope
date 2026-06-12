@@ -606,6 +606,61 @@ async function loadProfileWorkspace(userId: string) {
   isLoading.value = false;
 }
 
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeCollectionItems,
+          activeCollectionMeta,
+          activeProfileCollection,
+          authoredSpots,
+          averageRating,
+          buildCategorySignalFocusSummary,
+          buildPreferenceFocusSummary,
+          buildSpotSummaryFromTripSpot,
+          cityCount,
+          collaborativeTrips,
+          countryCount,
+          daysTraveled,
+          dedupeSpotList,
+          dedupedSavedProfileSpots,
+          favoriteCategory,
+          formatFocusCategory,
+          getTripDurationDays,
+          getUniqueFocusCategories,
+          isCurrentUser,
+          isMobileProfileLayout,
+          isSpotCategory,
+          loadProfileWorkspace,
+          mapDescription,
+          primaryActionLabel,
+          primaryActionTo,
+          profileCollectionTabs,
+          profileError,
+          profileFocus,
+          profileFocusCategory,
+          profileFocusLabel,
+          profileFootprintSpots,
+          profileFriendPresence,
+          profileMapTitle,
+          profilePresence,
+          profileSpots,
+          profileTrips,
+          profileUser,
+          resolveIsMobileProfileLayout,
+          routeUserId,
+          savedProfileSpots,
+          secondaryActionLabel,
+          secondaryActionTo,
+          syncMobileProfileLayout,
+          visitedMapSpots,
+          visitedTripSpots,
+          workspaceNotice,
+        },
+      }
+    : {}),
+});
+
 onMounted(() => {
   syncMobileProfileLayout();
   window.addEventListener('resize', syncMobileProfileLayout, { passive: true });

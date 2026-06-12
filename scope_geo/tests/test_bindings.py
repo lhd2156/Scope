@@ -206,3 +206,106 @@ def test_invalid_native_inputs_surface_as_python_value_errors(scope_geo_module):
             ],
             scope_geo_module.Viewport(0.0, 0.0, 10.0, 10.0),
         )
+
+
+def test_native_branch_edges_are_visible_through_python_bindings(scope_geo_module):
+    valid_viewport = scope_geo_module.Viewport(0.0, 0.0, 10.0, 10.0)
+    invalid_viewport = scope_geo_module.Viewport(10.0, 0.0, 0.0, 10.0)
+    invalid_max_coordinate_viewport = scope_geo_module.Viewport(0.0, 0.0, 95.0, 10.0)
+    inverted_longitude_viewport = scope_geo_module.Viewport(0.0, 10.0, 10.0, 0.0)
+    inside = scope_geo_module.Coordinate(5.0, 5.0)
+    below_latitude = scope_geo_module.Coordinate(-1.0, 5.0)
+    below_longitude = scope_geo_module.Coordinate(5.0, -1.0)
+    outside = scope_geo_module.Coordinate(11.0, 5.0)
+    invalid_coordinate = scope_geo_module.Coordinate(95.0, 0.0)
+
+    assert scope_geo_module.is_coordinate_valid(invalid_coordinate) is False
+    assert scope_geo_module.is_coordinate_valid(scope_geo_module.Coordinate(0.0, -181.0)) is False
+    assert scope_geo_module.is_coordinate_valid(scope_geo_module.Coordinate(0.0, 181.0)) is False
+    assert scope_geo_module.is_viewport_valid(valid_viewport) is True
+    assert scope_geo_module.is_viewport_valid(invalid_viewport) is False
+    assert scope_geo_module.is_viewport_valid(invalid_max_coordinate_viewport) is False
+    assert scope_geo_module.is_viewport_valid(inverted_longitude_viewport) is False
+    assert scope_geo_module.viewport_contains(valid_viewport, inside) is True
+    assert scope_geo_module.viewport_contains(valid_viewport, outside) is False
+    assert scope_geo_module.viewport_contains(valid_viewport, below_latitude) is False
+    assert scope_geo_module.viewport_contains(valid_viewport, below_longitude) is False
+    assert scope_geo_module.viewport_contains(valid_viewport, invalid_coordinate) is False
+    assert scope_geo_module.viewport_contains(invalid_viewport, inside) is False
+
+    assert scope_geo_module.cluster_points_in_viewport([], valid_viewport) == []
+    assert scope_geo_module.cluster_points_in_viewport(
+        [scope_geo_module.SpatialPoint("outside", outside)],
+        valid_viewport,
+    ) == []
+
+    with pytest.raises(ValueError, match="valid viewport"):
+        scope_geo_module.cluster_points_in_viewport([], invalid_viewport)
+    with pytest.raises(ValueError, match="bucket counts"):
+        scope_geo_module.cluster_points_in_viewport(
+            [scope_geo_module.SpatialPoint("inside", inside)],
+            valid_viewport,
+            scope_geo_module.ViewportClusteringOptions(0, 2),
+        )
+    with pytest.raises(ValueError, match="non-empty point ids"):
+        scope_geo_module.cluster_points_in_viewport(
+            [scope_geo_module.SpatialPoint("", inside)],
+            valid_viewport,
+        )
+
+
+def test_rtree_and_path_graph_branch_edges_are_visible_through_python_bindings(scope_geo_module):
+    points = [
+        scope_geo_module.SpatialPoint("east", scope_geo_module.Coordinate(0.0, 1.0)),
+        scope_geo_module.SpatialPoint("west", scope_geo_module.Coordinate(0.0, -1.0)),
+        scope_geo_module.SpatialPoint("north", scope_geo_module.Coordinate(1.0, 0.0)),
+        scope_geo_module.SpatialPoint("south", scope_geo_module.Coordinate(-1.0, 0.0)),
+        scope_geo_module.SpatialPoint("far", scope_geo_module.Coordinate(5.0, 5.0)),
+    ]
+    index = scope_geo_module.RTreeIndex(points, 1)
+
+    assert scope_geo_module.RTreeIndex([], 1).nearest_neighbors(scope_geo_module.Coordinate(0.0, 0.0), 1) == []
+    assert index.nearest_neighbors(scope_geo_module.Coordinate(0.0, 0.0), 0) == []
+    assert [neighbor.point.id for neighbor in index.nearest_neighbors(scope_geo_module.Coordinate(0.0, 0.0), 4)] == [
+        "east",
+        "north",
+        "south",
+        "west",
+    ]
+    assert [neighbor.point.id for neighbor in index.nearest_neighbors(scope_geo_module.Coordinate(5.0, 5.0), 2)] == [
+        "far",
+        "north",
+    ]
+    with pytest.raises(ValueError, match="Query coordinate"):
+        index.nearest_neighbor(scope_geo_module.Coordinate(91.0, 0.0))
+
+    assert "bidirectional=True" in repr(scope_geo_module.GraphEdge("a", "b", 1.0, True))
+
+    nodes = [
+        scope_geo_module.GraphNode("a", scope_geo_module.Coordinate(0.0, 0.0)),
+        scope_geo_module.GraphNode("b", scope_geo_module.Coordinate(0.0, 1.0)),
+        scope_geo_module.GraphNode("c", scope_geo_module.Coordinate(0.0, 2.0)),
+    ]
+    directed_graph = scope_geo_module.PathGraph(
+        nodes,
+        [scope_geo_module.GraphEdge("a", "b", 1.0, False)],
+    )
+
+    assert directed_graph.shortest_path_dijkstra("b", "a") is None
+    assert directed_graph.shortest_path_a_star("a", "a").node_ids == ["a"]
+    with pytest.raises(ValueError, match="unknown graph node"):
+        directed_graph.shortest_path_dijkstra("a", "missing")
+    with pytest.raises(ValueError, match="must be non-empty"):
+        scope_geo_module.PathGraph([scope_geo_module.GraphNode("", scope_geo_module.Coordinate(0.0, 0.0))], [])
+    with pytest.raises(ValueError, match="Duplicate graph node"):
+        scope_geo_module.PathGraph([nodes[0], nodes[0]], [])
+    with pytest.raises(ValueError, match="finite non-negative cost"):
+        scope_geo_module.PathGraph(nodes, [scope_geo_module.GraphEdge("a", "b", -1.0, True)])
+    with pytest.raises(ValueError, match="finite non-negative cost"):
+        scope_geo_module.PathGraph(nodes, [scope_geo_module.GraphEdge("a", "b", float("nan"), True)])
+    with pytest.raises(ValueError, match="non-empty node ids"):
+        scope_geo_module.PathGraph(nodes, [scope_geo_module.GraphEdge("", "b", 1.0, True)])
+    with pytest.raises(ValueError, match="non-empty node ids"):
+        scope_geo_module.PathGraph(nodes, [scope_geo_module.GraphEdge("a", "", 1.0, True)])
+    with pytest.raises(ValueError, match="unknown node id"):
+        scope_geo_module.PathGraph(nodes, [scope_geo_module.GraphEdge("missing", "b", 1.0, True)])

@@ -670,6 +670,58 @@ watch(homeBase, (nextHomeBase) => {
     void loadHomeBaseSuggestions(query);
   }, HOME_BASE_SEARCH_DEBOUNCE_MS);
 });
+
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeHomeBaseIndex,
+          activeHomeBaseOptionId,
+          buildPreferenceUpdate,
+          clearHomeBase,
+          clearHomeBaseSearchTimer,
+          clearProfilePhoto,
+          dedupeHomeBaseSuggestions,
+          formError,
+          getHomeBaseOptionId,
+          getHomeBaseSuggestionMeta,
+          getHomeBaseSuggestionName,
+          getHomeBaseSuggestionType,
+          handleHomeBaseBlur,
+          handleHomeBaseFocus,
+          handleHomeBaseKeydown,
+          handleProfilePhotoSelection,
+          hasSelectedHomeBase,
+          homeBase,
+          homeBaseHelperCopy,
+          homeBaseSearchState,
+          homeBaseSuggestions,
+          homeBaseSuggestionsId,
+          homeBaseStatusCopy,
+          isSubmitting,
+          loadHomeBaseSuggestions,
+          moveHomeBaseSelection,
+          persistPreferenceUpdate,
+          profileDisplayName,
+          profilePhotoPreview,
+          profilePhotoUrl,
+          resetHomeBaseSuggestions,
+          resolveRedirectTarget,
+          revokeSelectedProfilePhotoUrl,
+          selectedHomeBaseLabel,
+          selectedInterests,
+          selectHomeBaseSuggestion,
+          selectionHelperCopy,
+          showHomeBaseStatus,
+          showHomeBaseSuggestions,
+          skip,
+          submit,
+          toggleInterest,
+          validateProfilePhotoFile,
+        },
+      }
+    : {}),
+});
 </script>
 
 <style scoped>

@@ -124,6 +124,8 @@ public sealed class HubMoreTests
 
         await Assert.ThrowsAsync<HubException>(() => hub.JoinTrip(tripId));
         await Assert.ThrowsAsync<HubException>(() => hub.ShareLocation(tripId, 91, -97.3));
+        await Assert.ThrowsAsync<HubException>(() => hub.ShareLocation(tripId, double.NaN, -97.3));
+        await Assert.ThrowsAsync<HubException>(() => hub.ShareLocation(tripId, 32.7, double.PositiveInfinity));
         await hub.ShareLocation(tripId, 32.7, -97.3);
 
         var session = await dbContext.LiveSessions.SingleAsync();
@@ -133,6 +135,22 @@ public sealed class HubMoreTests
         groups.Verify(x => x.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         clients.Verify(x => x.Group(It.IsAny<string>()), Times.Never);
         proxy.Verify(x => x.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LocationHub_UsesEmptyBearerTokenWhenAuthorizationHeaderIsMissing()
+    {
+        var userId = Guid.NewGuid();
+        var tripId = Guid.NewGuid();
+        await using var dbContext = TestData.CreateDbContext();
+        var validator = new Mock<ITripMembershipValidator>();
+        validator.Setup(x => x.IsMemberAsync(tripId, userId, "", It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var hub = CreateLocationHub(dbContext, userId, validator.Object, out var groups, out _, out _, bearerToken: null);
+
+        await hub.JoinTrip(tripId);
+
+        validator.Verify(x => x.IsMemberAsync(tripId, userId, "", It.IsAny<CancellationToken>()), Times.Once);
+        groups.Verify(x => x.AddToGroupAsync("connection-1", $"trip:{tripId}", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -186,7 +204,8 @@ public sealed class HubMoreTests
         ITripMembershipValidator validator,
         out Mock<IGroupManager> groups,
         out Mock<IHubCallerClients> clients,
-        out Mock<IClientProxy> proxy)
+        out Mock<IClientProxy> proxy,
+        string? bearerToken = "token")
     {
         proxy = new Mock<IClientProxy>();
         clients = new Mock<IHubCallerClients>();
@@ -194,7 +213,7 @@ public sealed class HubMoreTests
         groups = new Mock<IGroupManager>();
         return new LocationHub(dbContext, validator)
         {
-            Context = CreateHubContext(userId, "token"),
+            Context = CreateHubContext(userId, bearerToken),
             Groups = groups.Object,
             Clients = clients.Object,
         };

@@ -42,6 +42,8 @@ const pinnedSpots: SpotSummary[] = [
   },
 ];
 
+const focusSpotByIdMock = vi.fn();
+
 function mountProfileMap(props: Record<string, unknown> = {}) {
   return mount(ProfileMap, {
     props,
@@ -50,6 +52,9 @@ function mountProfileMap(props: Record<string, unknown> = {}) {
         MapView: {
           props: ['spots', 'showMapStyleToggle'],
           emits: ['spot-select'],
+          methods: {
+            focusSpotById: focusSpotByIdMock,
+          },
           template: '<section data-test="map-view" :data-style-toggle="String(showMapStyleToggle)">{{ spots.length }} map spots<button v-if="spots[0]" data-test="map-select-first" @click="$emit(\'spot-select\', spots[0])">Select first</button></section>',
         },
         RouterLink: { template: '<a><slot /></a>' },
@@ -61,6 +66,10 @@ function mountProfileMap(props: Record<string, unknown> = {}) {
 }
 
 describe('ProfileMap', () => {
+  beforeEach(() => {
+    focusSpotByIdMock.mockClear();
+  });
+
   it('renders the live map workspace and updates the spotlight when a place is selected', async () => {
     const wrapper = mountProfileMap({
       visitedSpots: spots,
@@ -142,5 +151,139 @@ describe('ProfileMap', () => {
     expect(wrapper.find('[data-test="profile-map-empty-state"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="empty-state-panel"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('No mapped visits yet');
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    expect(coverage.activeSpots.value).toEqual([]);
+    expect(coverage.selectedSpot.value).toBeNull();
+    expect(coverage.selectedSpotLocation.value).toBe('Scope map pin');
+    expect(coverage.selectedSpotImageUrl.value).toBe(coverage.selectedSpotImageFallback.value);
+    expect(coverage.countryCount.value).toBe(0);
+    expect(coverage.activeMetrics.value).toEqual([
+      { label: 'spots', value: '0' },
+      { label: 'cities', value: '0' },
+      { label: 'countries', value: '0' },
+    ]);
+    expect(coverage.inferProfileMapCountryFromRegion(undefined)).toBe('');
+  });
+
+  it('covers profile map normalization, location labels, and viewport branches', async () => {
+    const invalidSpot = {
+      ...spots[0],
+      id: 'invalid-coordinates',
+      latitude: 95,
+      longitude: -197,
+    };
+    const duplicateSpot = {
+      ...spots[0],
+      id: 'duplicate-rooftop',
+      createdAt: '2026-03-29T20:00:00Z',
+    };
+    const unknownCountrySpot: SpotSummary = {
+      ...spots[1],
+      id: 'unknown-country',
+      title: 'Harbor Lookout',
+      city: 'Cape Town',
+      country: 'ZA',
+      latitude: -33.9249,
+      longitude: 18.4241,
+      category: 'scenic',
+      createdAt: '2026-03-30T10:00:00Z',
+    };
+
+    const wrapper = mountProfileMap({
+      spots: [spots[0], duplicateSpot, invalidSpot, unknownCountrySpot],
+      visitedSpots: [],
+      pinnedSpots: [],
+      wishlistSpots: [pinnedSpots[0]],
+      showWishlist: false,
+      description: '  ',
+      ownerName: 'Riley Scout',
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(coverage.availableCollections.value.map((collection: { id: string }) => collection.id)).toEqual([
+      'all',
+      'visited',
+      'pinned',
+    ]);
+    expect(coverage.activeCollection.value.id).toBe('visited');
+    expect(coverage.fallbackSpots.value.map((spot: SpotSummary) => spot.id)).toEqual([
+      'unknown-country',
+      'spot-1',
+    ]);
+    expect(coverage.hasValidCoordinates(spots[0])).toBe(true);
+    expect(coverage.hasValidCoordinates(invalidSpot)).toBe(false);
+    expect(coverage.hasValidCoordinates({ ...spots[0], latitude: Number.NaN })).toBe(false);
+    expect(coverage.normalizeSpots([spots[0], duplicateSpot, invalidSpot])).toHaveLength(1);
+
+    expect(coverage.effectiveDescription.value).toContain("Riley Scout's trip stops");
+    expect(coverage.formatCategory('nightlife')).toBe('Nightlife');
+    expect(coverage.formatProfileMapCountry(' usa ')).toBe('United States');
+    expect(coverage.formatProfileMapCountry('Atlantis')).toBe('Atlantis');
+    expect(coverage.formatProfileMapCountry('   ')).toBe('');
+    expect(coverage.inferProfileMapCountryFromRegion(' tx ')).toBe('US');
+    expect(coverage.inferProfileMapCountryFromRegion('Barcelona')).toBe('');
+    expect(coverage.resolveDisplayRegion('US', 'us')).toBe('');
+    expect(coverage.resolveDisplayRegion('Catalonia', 'Spain')).toBe('Catalonia');
+    expect(coverage.dedupeLocationParts([' Austin ', 'Texas', 'austin', '', 'United States'])).toEqual([
+      'Austin',
+      'Texas',
+      'United States',
+    ]);
+    expect(coverage.formatSpotLocation({
+      ...spots[0],
+      city: 'Austin',
+      country: 'US',
+      region: 'TX',
+    })).toBe('Austin, TX, United States');
+    expect(coverage.formatSpotLocation({
+      ...spots[0],
+      city: '',
+      country: '',
+      region: '',
+    })).toBe('Location syncing');
+    expect(coverage.formatSpotLocation(unknownCountrySpot)).toBe('Cape Town, Western Cape, South Africa');
+
+    expect(coverage.countryCount.value).toBe(1);
+    expect(coverage.cityCount.value).toBe(2);
+    expect(coverage.activeMetrics.value).toEqual([
+      { label: 'spots', value: '2' },
+      { label: 'cities', value: '2' },
+      { label: 'country', value: '1' },
+    ]);
+    expect(coverage.mapPoints.value.map((point: { id: string }) => point.id)).toEqual([
+      'unknown-country',
+      'spot-1',
+    ]);
+    expect(coverage.resolveSpotImageUrl(spots[0], 320)).toContain('images.unsplash.com');
+
+    expect(coverage.resolveViewportZoom(1, 0)).toBe(11.5);
+    expect(coverage.resolveViewportZoom(2, 120)).toBe(2.35);
+    expect(coverage.resolveViewportZoom(2, 40)).toBe(3.1);
+    expect(coverage.resolveViewportZoom(2, 14)).toBe(4.6);
+    expect(coverage.resolveViewportZoom(2, 5)).toBe(6.2);
+    expect(coverage.resolveViewportZoom(2, 2)).toBe(8.1);
+    expect(coverage.resolveViewportZoom(2, 0.5)).toBe(10.2);
+    expect(coverage.buildViewportForSpots([]).center).toEqual([-98.5795, 39.8283]);
+    expect(coverage.buildViewportForSpots([spots[0]]).zoom).toBe(11.5);
+    expect(coverage.buildViewportForSpots([spots[0], unknownCountrySpot]).zoom).toBe(2.35);
+
+    coverage.selectMode('pinned');
+    expect(coverage.activeMode.value).toBe('pinned');
+    expect(coverage.hasUserSelectedMode.value).toBe(true);
+    coverage.handleSpotSelect({ id: 'spot-3' });
+    expect(coverage.selectedSpotId.value).toBe('spot-3');
+    coverage.selectSpot('spot-3');
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    expect(focusSpotByIdMock).toHaveBeenCalledWith('spot-3');
+
+    await wrapper.setProps({ showWishlist: true });
+    await wrapper.vm.$nextTick();
+    coverage.selectMode('wishlist');
+    expect(coverage.activeMetrics.value[0]).toEqual({ label: 'saves', value: '1' });
+    expect(coverage.selectedSpotLocation.value).toContain('Dallas');
+
+    wrapper.unmount();
   });
 });

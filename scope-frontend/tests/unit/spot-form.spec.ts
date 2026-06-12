@@ -521,4 +521,391 @@ describe('SpotForm', () => {
     wrapper.unmount();
     scrollIntoView.mockRestore();
   });
+
+  it('covers SpotForm normalization, provider fallback, and public gate branches', async () => {
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: {
+          ...validInput,
+          latitude: 0,
+          longitude: 0,
+          address: '',
+          city: '',
+          country: '',
+          postalCode: '',
+          providerPlaceId: '',
+          providerPlaceName: '',
+          providerPlaceAddress: '',
+          verificationStatus: 'unverified',
+        },
+        initialPhotos: [{
+          id: 'photo-safe',
+          url: 'https://images.example/safe.jpg',
+          caption: 'Clean caption',
+        }],
+        serverRejection: {
+          id: 9,
+          title: 'Server guidance',
+          message: 'Fix highlighted fields.',
+          action: 'Try again.',
+          fields: ['story', 'unknown_field', 'unknown_field', 'publish', 'visibility', 'location'],
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const read = (value: any) => value?.value ?? value;
+
+    expect(coverage.todayValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(coverage.createDefaultForm(null)).toMatchObject({
+      title: '',
+      category: 'food',
+      pillars: ['hidden-gem'],
+      rating: 4.5,
+      isPublic: true,
+    });
+    const clonedPhotos = coverage.clonePhotos([{ id: 'clone', url: 'https://images.example/clone.jpg', caption: 'Clone' }]);
+    clonedPhotos[0].caption = 'Changed';
+    expect(coverage.clonePhotos([{ id: 'clone', url: 'https://images.example/clone.jpg', caption: 'Clone' }])[0].caption).toBe('Clone');
+    expect(coverage.formatCategory('scenic')).toBe('Scenic');
+    expect(coverage.formatPillar('hidden-gem')).toBe('Hidden gem');
+    expect(coverage.formatPillar('custom-pillar')).toBe('custom-pillar');
+    expect(coverage.isValidLatitude(-91)).toBe(false);
+    expect(coverage.isValidLatitude(45)).toBe(true);
+    expect(coverage.isValidLongitude(-181)).toBe(false);
+    expect(coverage.isValidLongitude(120)).toBe(true);
+    expect(coverage.isServerFieldHighlighted('description')).toBe(true);
+    expect(read(coverage.serverRejectionLabels)).toEqual([
+      'Story',
+      'unknown field',
+      'Publish settings',
+      'Visibility',
+    ]);
+
+    coverage.errors.value = { title: 'Title needed' };
+    coverage.clearError('vibe');
+    expect(coverage.errors.value.title).toBe('Title needed');
+    coverage.clearError('title');
+    expect(coverage.errors.value.title).toBeUndefined();
+    coverage.clearServerRejectionFor(['visibility']);
+    expect(wrapper.emitted('server-rejection-cleared')).toBeTruthy();
+
+    expect(coverage.isPreciseGeocodeResult({ precision: 'coordinate' })).toBe(false);
+    expect(coverage.isPreciseGeocodeResult({ precision: 'poi' })).toBe(true);
+    coverage.form.title = '';
+    coverage.form.address = 'Existing address';
+    coverage.form.providerPlaceAddress = 'Existing provider address';
+    coverage.applyGeocodeResultToForm({
+      latitude: 32.1,
+      longitude: -97.1,
+      precision: 'fallback',
+      placeName: 'Should not apply',
+      formattedAddress: 'Nope',
+    }, { overwriteTitle: true, updateCoordinates: true });
+    expect(coverage.form.title).toBe('');
+    coverage.applyGeocodeResultToForm({
+      latitude: 32.1111119,
+      longitude: -97.2222229,
+      precision: 'poi',
+      placeName: 'Pinned location',
+      formattedAddress: '',
+      address: '',
+      category: 'museum',
+    }, { overwriteTitle: true, updateCoordinates: true });
+    expect(coverage.form.address).toBe('Pinned location');
+    expect(coverage.form.providerPlaceAddress).toBe('Existing provider address');
+    expect(coverage.form.latitude).toBe(32.111112);
+    expect(coverage.form.longitude).toBe(-97.222223);
+
+    coverage.applyGeocodeResultToForm({
+      latitude: 33,
+      longitude: -96,
+      precision: 'poi',
+      placeName: 'Modern Museum',
+      formattedAddress: '100 Museum Way, Dallas, TX',
+      address: '',
+      providerPlaceId: 'mapbox.modern-museum',
+      city: 'Dallas',
+      countryCode: 'us',
+      postalCode: '75201',
+      category: 'museum',
+    }, { overwriteTitle: true });
+    expect(coverage.form).toMatchObject({
+      title: 'Modern Museum',
+      address: '100 Museum Way, Dallas, TX',
+      providerPlaceName: 'Modern Museum',
+      providerPlaceAddress: '100 Museum Way, Dallas, TX',
+      providerPlaceId: 'mapbox.modern-museum',
+      city: 'Dallas',
+      country: 'US',
+      postalCode: '75201',
+      category: 'culture',
+    });
+    expect(coverage.readCategorySignals({
+      placeName: 'Trailhead',
+      formattedAddress: 'Park Road',
+      categoryLabel: 'Park',
+    })).toEqual(expect.arrayContaining(['Park', 'Trailhead', 'Park Road']));
+    expect(coverage.getNearestPinnedPlace([
+      { precision: 'fallback', distanceKm: 0.01 },
+      { precision: 'poi', distanceKm: 0.2 },
+      { precision: 'poi', distanceKm: 0.03, placeName: 'Nearby precise place' },
+    ])).toMatchObject({ placeName: 'Nearby precise place' });
+    expect(coverage.getNearestPinnedPlace([{ precision: 'coordinate', distanceKm: 0.01 }])).toBeNull();
+
+    coverage.setVisibility(true);
+    coverage.setVisibility(false);
+    expect(coverage.form.isPublic).toBe(false);
+    expect(read(coverage.publishDisabled)).toBe(false);
+    expect(read(coverage.privateDraftDisabled)).toBe(false);
+    expect(read(coverage.composerSteps).find((step: any) => step.id === 'location')).toMatchObject({
+      sub: 'Matched',
+      ready: true,
+    });
+    expect(read(coverage.readinessItems)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'location', detail: 'Provider matched', ready: true }),
+      expect.objectContaining({ key: 'visibility', label: 'Private', detail: 'Hidden draft' }),
+    ]));
+    expect(read(coverage.pinMapPoints)[0]).toMatchObject({
+      title: 'Modern Museum',
+      city: 'Dallas',
+      category: 'culture',
+    });
+    expect(read(coverage.pinMapViewport)).toMatchObject({
+      center: [-97.222223, 32.111112],
+      zoom: 13.35,
+    });
+
+    coverage.form.providerPlaceId = '';
+    coverage.form.providerPlaceName = '';
+    coverage.form.providerPlaceAddress = '';
+    coverage.form.latitude = 0;
+    coverage.form.longitude = 0;
+    coverage.form.isPublic = true;
+    await coverage.handleSubmit();
+    await flushPromises();
+    expect(coverage.errors.value.locationVerification).toBe('Choose the place on the map before publishing.');
+
+    await wrapper.setProps({
+      initialPhotos: [{
+        id: 'photo-unsafe',
+        url: 'https://images.example/unsafe.jpg',
+        caption: 'scope test blocked slur',
+      }],
+    });
+    coverage.form.title = 'Clean title';
+    coverage.form.description = 'Clean description';
+    coverage.form.vibe = 'calm';
+    coverage.form.pillars = ['hidden-gem'];
+    coverage.form.providerPlaceId = 'mapbox.safe-place';
+    coverage.form.providerPlaceName = 'Safe Place';
+    coverage.form.providerPlaceAddress = 'Safe Place Address';
+    coverage.form.latitude = 32;
+    coverage.form.longitude = -97;
+    await coverage.handleSubmit();
+    await flushPromises();
+    expect(coverage.errors.value.safety).toBe('This contains a blocked slur or hate term.');
+  });
+
+  it('keeps private drafts usable without public location proof and normalizes geocode fallbacks', async () => {
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: {
+          ...validInput,
+          latitude: 0,
+          longitude: 0,
+          address: '',
+          city: '',
+          country: '',
+          postalCode: undefined,
+          isPublic: false,
+          providerPlaceId: '',
+          providerPlaceName: '',
+          providerPlaceAddress: '',
+          verificationStatus: 'unverified',
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const read = (value: any) => value?.value ?? value;
+
+    expect(read(coverage.composerSteps).find((step: any) => step.id === 'location')).toMatchObject({
+      sub: 'Needs place',
+      ready: true,
+    });
+    expect(read(coverage.readinessItems)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'photos',
+        detail: 'Needed for public',
+        ready: true,
+      }),
+      expect.objectContaining({
+        key: 'location',
+        label: 'Private place',
+        detail: 'Needed for public',
+        ready: true,
+      }),
+    ]));
+
+    coverage.form.title = '';
+    coverage.form.address = '';
+    coverage.form.providerPlaceAddress = '';
+    coverage.applyGeocodeResultToForm({
+      latitude: 12.345678,
+      longitude: -98.765432,
+      precision: 'poi',
+      formattedAddress: 'Formatted-only address',
+      country: 'mx',
+      categoryLabel: 'Trail',
+    });
+    expect(coverage.form.title).toBe('');
+    expect(coverage.form.address).toBe('Formatted-only address');
+    expect(coverage.form.providerPlaceAddress).toBe('Formatted-only address');
+    expect(coverage.form.country).toBe('MX');
+    expect(coverage.form.latitude).toBe(0);
+    expect(coverage.form.longitude).toBe(0);
+
+    coverage.form.address = '';
+    coverage.form.providerPlaceAddress = '';
+    coverage.applyGeocodeResultToForm({
+      latitude: 12,
+      longitude: -98,
+      precision: 'poi',
+      address: 'Street-only address',
+      category: 'park',
+    });
+    expect(coverage.form.address).toBe('Street-only address');
+    expect(coverage.form.providerPlaceAddress).toBe('Street-only address');
+
+    coverage.form.address = 'Manual fallback address';
+    coverage.applyGeocodeResultToForm({
+      latitude: 12,
+      longitude: -98,
+      precision: 'poi',
+    });
+    expect(coverage.form.address).toBe('Manual fallback address');
+
+    coverage.form.verificationStatus = 'verified';
+    coverage.form.verificationSource = undefined;
+    coverage.form.providerPlaceName = undefined;
+    coverage.form.providerPlaceAddress = undefined;
+    coverage.form.verificationDistanceMeters = undefined;
+    coverage.resetVerificationFromForm();
+    expect(coverage.placeVerification).toMatchObject({
+      status: 'verified',
+      source: '',
+      providerPlaceName: '',
+      providerPlaceAddress: '',
+      distanceMeters: null,
+    });
+    const stableSignature = coverage.placeVerification.signature;
+    coverage.markVerificationStale();
+    expect(coverage.placeVerification.status).toBe('verified');
+    expect(coverage.placeVerification.signature).toBe(stableSignature);
+
+    wrapper.unmount();
+  });
+
+  it('renders fallback photo labels and cleans upload previews when revokeObjectURL is unavailable', async () => {
+    const wrapper = mount(SpotForm, {
+      props: {
+        initialValue: validInput,
+        initialPhotos: [{
+          id: 'photo-without-caption',
+          url: 'https://images.example/no-caption.jpg',
+          caption: '',
+        }],
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    const existingImage = wrapper.get('[data-test="photo-preview-card"] img');
+    const existingRemove = wrapper.get('[data-test="photo-preview-card"] button');
+    expect(existingImage.attributes('alt')).toBe('Spot photo');
+    expect(existingRemove.attributes('aria-label')).toBe('Remove spot photo');
+
+    const photo = new File(['scope'], 'night-market.webp', { type: 'image/webp' });
+    const photoInput = wrapper.get('[data-test="photo-upload-input"]');
+    Object.defineProperty(photoInput.element, 'files', {
+      value: [photo],
+      configurable: true,
+    });
+
+    await photoInput.trigger('change');
+    expect(coverage.uploads.value).toHaveLength(1);
+
+    Object.defineProperty(globalThis.URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+    expect(() => coverage.removeUpload(coverage.uploads.value[0].id)).not.toThrow();
+    expect(coverage.uploads.value).toHaveLength(0);
+
+    Object.defineProperty(photoInput.element, 'files', {
+      value: [photo],
+      configurable: true,
+    });
+    await photoInput.trigger('change');
+    expect(coverage.uploads.value).toHaveLength(1);
+    expect(() => wrapper.unmount()).not.toThrow();
+  });
+
+  it('renders validation messages and in-progress draft labels without hiding private save recovery', async () => {
+    const wrapper = mount(SpotForm, {
+      props: {
+        submitting: true,
+        initialValue: {
+          ...validInput,
+          title: '',
+          description: '',
+          address: '',
+          city: '',
+          country: '',
+          postalCode: '',
+          latitude: Number.NaN,
+          longitude: Number.NaN,
+          rating: 8,
+          visitedAt: 'bad-date',
+          vibe: 'scope test blocked slur',
+          isPublic: false,
+          providerPlaceId: '',
+          providerPlaceName: '',
+          providerPlaceAddress: '',
+          verificationStatus: 'unverified',
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    coverage.errors.value = {
+      title: 'Name the spot.',
+      description: 'Tell travelers why this spot is worth saving.',
+      vibe: 'Use safer vibe copy.',
+      pillars: 'Pick at least one pillar.',
+      rating: 'Rating must be between 0 and 5.',
+      visitedAt: 'Use a valid visit date.',
+      address: 'Add a street address.',
+      postalCode: 'Add a postal code.',
+      latitude: 'Latitude is outside the map.',
+      longitude: 'Longitude is outside the map.',
+      locationVerification: 'Choose a provider-backed place.',
+      safety: 'Safety review failed.',
+    };
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="spot-save-private"]').text()).toBe('Saving...');
+    expect(wrapper.get('[data-test="spot-submit"]').text()).toBe('Saving...');
+    expect(wrapper.text()).toContain('Name the spot.');
+    expect(wrapper.text()).toContain('Use safer vibe copy.');
+    expect(wrapper.text()).toContain('Rating must be between 0 and 5.');
+    expect(wrapper.text()).toContain('Use a valid visit date.');
+    expect(wrapper.text()).toContain('Tell travelers why this spot is worth saving.');
+    expect(wrapper.text()).toContain('Add a street address.');
+    expect(wrapper.text()).toContain('Add a postal code.');
+    expect(wrapper.text()).toContain('Latitude is outside the map.');
+    expect(wrapper.text()).toContain('Longitude is outside the map.');
+    expect(wrapper.text()).toContain('Safety review failed.');
+    expect(coverage.previewTitle.value).toBe('Name the spot');
+    expect(coverage.previewSubtitle.value).toBe('Drop a precise pin');
+  });
 });

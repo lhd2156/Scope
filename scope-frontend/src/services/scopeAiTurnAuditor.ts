@@ -245,7 +245,7 @@ function confirmsFailedPlannerMutation(content: string, result: ScopeAiTurnActio
     return false;
   }
 
-  if (!result.applied && /\b(set|added|updated|changed|removed)\b/i.test(content)) {
+  if (!result.applied && result.resolutions.length > 0 && /\b(set|added|updated|changed|removed)\b/i.test(content)) {
     return true;
   }
 

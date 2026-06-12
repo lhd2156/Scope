@@ -300,4 +300,97 @@ describe('scope AI location resolver', () => {
       longitude: 2,
     })).toBe('Pinned location');
   });
+
+  it('keeps state, locality, distance, and provider-error resolution edges explicit', async () => {
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: 'Austin',
+          formattedAddress: 'Austin, Minnesota, United States',
+          latitude: 43.6666,
+          longitude: -92.9746,
+          source: 'mapbox',
+        },
+        {
+          placeName: 'Austin',
+          formattedAddress: 'Austin, Texas, United States',
+          latitude: 30.2672,
+          longitude: -97.7431,
+          source: 'mapbox',
+        },
+      ],
+    });
+
+    let result = await resolveScopeAiLocationIntent('Austin, TX');
+    expect(result.status).toBe('resolved');
+    expect(result.result?.formattedAddress).toContain('Texas');
+    expect(result.candidates).toHaveLength(2);
+
+    searchLocationsMock.mockRejectedValueOnce(new Error('search down'));
+    geocodeMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: '200 Main Street',
+          formattedAddress: '200 Main Street, Fort Worth, Texas 76102, United States',
+          latitude: 32.7555,
+          longitude: -97.3308,
+        },
+        {
+          placeName: '200 Main Street',
+          formattedAddress: '200 Main Street, Dallas, Texas 75201, United States',
+          latitude: 32.7767,
+          longitude: -96.797,
+        },
+      ],
+    });
+    result = await resolveScopeAiLocationIntent('200 Main Street, Fort Worth, TX 76102', {
+      proximity: { latitude: 32.75, longitude: -97.33 },
+    });
+    expect(result.status).toBe('resolved');
+    expect(result.result).toMatchObject({
+      formattedAddress: expect.stringContaining('Fort Worth'),
+      source: 'mapbox',
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: '100 Main Street',
+          formattedAddress: '100 Main Street, Plano, Texas 75024, United States',
+          latitude: 33.07,
+          longitude: -96.82,
+          source: 'mapbox',
+        },
+      ],
+    });
+    result = await resolveScopeAiLocationIntent('100 Main Street, Austin, TX 78701');
+    expect(result.status).toBe('ambiguous');
+    expect(result.candidates).toHaveLength(1);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: 'Route Biased Cafe',
+          formattedAddress: 'Route Biased Cafe, Fort Worth, Texas, United States',
+          latitude: 32.755,
+          longitude: -97.331,
+          distanceKm: undefined,
+          source: 'mapbox',
+        },
+        {
+          placeName: 'Route Biased Cafe',
+          formattedAddress: 'Route Biased Cafe, Austin, Texas, United States',
+          latitude: 30.2672,
+          longitude: -97.7431,
+          distanceKm: 300,
+          source: 'mapbox',
+        },
+      ],
+    });
+    result = await resolveScopeAiLocationIntent('Route Biased Cafe', {
+      proximity: { latitude: 32.7555, longitude: -97.3308 },
+    });
+    expect(result.candidates[0]?.formattedAddress).toContain('Fort Worth');
+    expect(result.candidates[0]?.distanceKm).toEqual(expect.any(Number));
+  });
 });

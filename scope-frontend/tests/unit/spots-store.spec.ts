@@ -386,6 +386,82 @@ describe('spots store API contracts', () => {
     expect(store.selectedSpot?.liked).toBe(false);
   });
 
+  it('uses item, selected-detail, and nearby fallbacks for featured, liked, and toggle flows', async () => {
+    const listedSpot = {
+      id: 'listed-1',
+      title: 'Listed Food Hall',
+      description: 'A ranked listed place.',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      category: 'food',
+      city: 'Fort Worth',
+      vibe: 'electric',
+      rating: 4.9,
+      liked: false,
+      createdAt: '2026-03-29T12:00:00Z',
+    };
+    const nearbyLikedSpot = {
+      id: 'nearby-liked',
+      title: 'Nearby Saved Garden',
+      description: 'Liked from nearby results.',
+      latitude: 32.749,
+      longitude: -97.363,
+      category: 'nature',
+      city: 'Fort Worth',
+      vibe: 'calm',
+      rating: 4.7,
+      liked: true,
+      createdAt: '2026-03-28T18:00:00Z',
+    };
+    const selectedLikedDetail = buildSpotDetail({
+      id: 'selected-liked',
+      title: 'Selected Liked Gallery',
+      photoUrl: undefined,
+      photos: [{ id: 'photo-selected', url: 'https://example.com/selected-gallery.jpg', caption: 'Gallery', sortOrder: 0 }],
+      liked: true,
+      likesCount: 5,
+    });
+    const unlikeSpot = vi.fn().mockResolvedValue({
+      data: buildSpotDetail({ id: 'nearby-liked', liked: false, likesCount: 2 }),
+    });
+    const likeSpot = vi.fn().mockResolvedValue({
+      data: buildSpotDetail({ id: 'unknown-new-like', liked: true, likesCount: 1 }),
+    });
+
+    vi.doMock('@/services/spotService', () => ({
+      listSpots: vi.fn().mockResolvedValue({ data: [listedSpot] }),
+      listTrendingSpots: vi.fn().mockResolvedValue({ data: [] }),
+      listNearbySpots: vi.fn().mockResolvedValue({ data: [nearbyLikedSpot] }),
+      getSpotDetail: vi.fn().mockResolvedValue({ data: selectedLikedDetail }),
+      createSpot: vi.fn(),
+      updateSpot: vi.fn(),
+      deleteSpot: vi.fn(),
+      likeSpot,
+      unlikeSpot,
+    }));
+
+    const store = await bootstrapSpotsStore();
+
+    await store.fetchSpots({ city: 'Fort', vibe: 'electric' });
+    await store.fetchTrending();
+    expect(store.featuredSpots[0]?.id).toBe('listed-1');
+
+    await store.fetchNearby({ latitude: 32.75, longitude: -97.33 });
+    await store.fetchSpot('selected-liked');
+    expect(store.selectedSpot?.photoUrl).toBeUndefined();
+    expect(store.likedSpots.map((spot) => spot.id)).toEqual(expect.arrayContaining([
+      'nearby-liked',
+      'selected-liked',
+    ]));
+    expect(store.likedSpots.find((spot) => spot.id === 'selected-liked')?.photoUrl).toBe('https://example.com/selected-gallery.jpg');
+
+    await store.toggleLike('nearby-liked');
+    expect(unlikeSpot).toHaveBeenCalledWith('nearby-liked');
+
+    await store.toggleLike('unknown-new-like');
+    expect(likeSpot).toHaveBeenCalledWith('unknown-new-like');
+  });
+
   it('captures read and mutation failures without leaving loading flags behind', async () => {
     vi.doMock('@/services/spotService', () => ({
       listSpots: vi.fn(),

@@ -215,6 +215,7 @@ def test_grpc_server_startup_paths_with_fake_proto(monkeypatch):
     grpc_server._server = None
     grpc_server._thread = None
     monkeypatch.setenv("GRPC_INTERNAL_TOKEN", TEST_GRPC_INTERNAL_TOKEN)
+    monkeypatch.setenv("GRPC_ENABLE_REFLECTION", "true")
 
     class FakeServer:
         def __init__(self, bound_port=grpc_server.GRPC_PORT):
@@ -240,8 +241,10 @@ def test_grpc_server_startup_paths_with_fake_proto(monkeypatch):
 
     server = FakeServer()
     monkeypatch.setattr(grpc_server.grpc, "server", lambda executor, **_kwargs: server)
+    monkeypatch.setattr(grpc_server.reflection, "enable_server_reflection", lambda names, current_server: current_server.calls.append(("reflection", tuple(names))))
     assert grpc_server.serve_grpc() is server
     assert server.started is True
+    assert any(call[0] == "reflection" for call in server.calls)
     assert grpc_server.serve_grpc() is server
 
     grpc_server._server = None
@@ -273,6 +276,9 @@ def test_grpc_server_startup_paths_with_fake_proto(monkeypatch):
     assert waited_server.waited is True
 
     monkeypatch.setattr(grpc_server, "serve_grpc", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    grpc_server._run_grpc()
+
+    monkeypatch.setattr(grpc_server, "serve_grpc", lambda: None)
     grpc_server._run_grpc()
 
 
@@ -311,6 +317,49 @@ def test_grpc_auth_interceptor_rejects_missing_token_and_accepts_internal_token(
         SimpleNamespace(method="/grpc.health.v1.Health/Check", invocation_metadata=[]),
     )
     assert health_handler is handler
+
+    assert grpc_server._metadata_has_valid_token(
+        [("x-scope-internal-token", TEST_GRPC_INTERNAL_TOKEN)],
+        TEST_GRPC_INTERNAL_TOKEN,
+    )
+    assert not grpc_server._metadata_has_valid_token([("authorization", "Basic nope")], TEST_GRPC_INTERNAL_TOKEN)
+    assert not grpc_server._metadata_has_valid_token(None, TEST_GRPC_INTERNAL_TOKEN)
+
+    handler_cases = [
+        (
+            grpc.unary_stream_rpc_method_handler(lambda _request, _context: iter(["ok"])),
+            lambda rejected_handler: list(rejected_handler.unary_stream(object(), AbortContext())),
+        ),
+        (
+            grpc.stream_unary_rpc_method_handler(lambda _request_iterator, _context: "ok"),
+            lambda rejected_handler: rejected_handler.stream_unary(iter([object()]), AbortContext()),
+        ),
+        (
+            grpc.stream_stream_rpc_method_handler(lambda _request_iterator, _context: iter(["ok"])),
+            lambda rejected_handler: list(rejected_handler.stream_stream(iter([object()]), AbortContext())),
+        ),
+    ]
+    for current_handler, invoke in handler_cases:
+        rejected_handler = interceptor.intercept_service(
+            lambda _details, selected=current_handler: selected,
+            SimpleNamespace(method="/scope.v1.IntelService/GetRecommendations", invocation_metadata=[]),
+        )
+        with pytest.raises(RuntimeError, match="UNAUTHENTICATED"):
+            invoke(rejected_handler)
+
+    empty_handler = SimpleNamespace(unary_unary=None, unary_stream=None, stream_unary=None, stream_stream=None)
+    assert grpc_server._unauthenticated_handler(empty_handler) is empty_handler
+
+
+def test_grpc_ensure_proto_path_adds_missing_path(monkeypatch):
+    sys.modules.pop("app.grpc_server", None)
+    grpc_server = importlib.import_module("app.grpc_server")
+    proto_path = str(grpc_server.Path(grpc_server.__file__).resolve().parent / "proto")
+    monkeypatch.setattr(sys, "path", [entry for entry in sys.path if entry != proto_path])
+
+    grpc_server._ensure_proto_path()
+
+    assert sys.path[0] == proto_path
 
 
 def test_grpc_requires_internal_token_before_starting(monkeypatch):

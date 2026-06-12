@@ -58,6 +58,10 @@ public sealed class NotificationsControllerMoreTests
             new NotificationPreferenceRequest("security", true, true, true, "instant", -1, null, "UTC"),
             CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(badPreference);
+        var badPreferenceEnd = await controller.UpdatePreference(
+            new NotificationPreferenceRequest("security", true, true, true, "instant", 0, 1440, "UTC"),
+            CancellationToken.None);
+        Assert.IsType<BadRequestObjectResult>(badPreferenceEnd);
 
         var savedPreference = await controller.UpdatePreference(
             new NotificationPreferenceRequest(" security-alerts ", true, false, true, " weekly ", 60, 120, " America/Chicago "),

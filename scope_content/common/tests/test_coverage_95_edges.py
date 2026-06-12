@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import uuid
 import json
+import os
+import runpy
 import sys
 from io import BytesIO
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -13,28 +16,40 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpResponse
 from django.test import RequestFactory, override_settings
+from django.urls import Resolver404
 from PIL import Image
 from rest_framework.exceptions import ValidationError
 
 from comments.models import Comment, CommentMention
 from comments.serializers import CommentSerializer, create_mentions
+from common.apps import CommonConfig
+from common import auth as content_auth
 from common import db_router
 from common import exceptions as exception_module
 from common import indexing
 from common import kafka_producer
 from common import telemetry
+from common.middleware.api_errors import ApiNotFoundJsonMiddleware
 from common.middleware import rate_limit as legacy_rate_limit
 from common.middleware import request_logging
 from common.middleware import ratelimit
 from common.pagination import FeedCursorPagination, StandardPageNumberPagination
 from common.views import _client_ip, _health_payload, _metrics_allowlist, metrics_view
+from common.views_search import SearchView
+from common.authentication import JWTAuthentication
+from feed.services.feed_aggregator import FeedAggregator, FeedReference
 from photos.models import Photo
 from photos import serializers as photo_serializers
 from photos import views as photo_views
+from photos import delivery as photo_delivery
+from reviews.models import Review
 from spots import serializers as spot_serializers
 from spots import views as spot_views
 from spots.models import Spot
-from trips.models import Like
+from trips import views as trip_views
+from trips.models import Like, Trip, TripMember, TripSpot
+from trips.serializers import TripAddSpotSerializer, TripMemberCreateSerializer, TripReorderSerializer, TripSerializer
+from scope_content import settings as content_settings
 
 pytestmark = pytest.mark.django_db
 
@@ -43,6 +58,513 @@ def _png_upload(name="photo.png") -> SimpleUploadedFile:
     buffer = BytesIO()
     Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buffer, format="PNG")
     return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+
+def _run_content_settings(monkeypatch, **env):
+    managed_keys = {
+        "ALLOW_SQLITE_FALLBACK",
+        "ALLOWED_HOSTS",
+        "CORE_FRONTEND_ORIGIN",
+        "CORE_JWT_SECRET",
+        "DATABASE_REPLICA_URL",
+        "DATABASE_URL",
+        "DEBUG",
+        "DEVELOPMENT_FRONTEND_ORIGIN",
+        "DJANGO_CACHE_BACKEND",
+        "DJANGO_DATABASE_REPLICA_URL",
+        "DJANGO_DATABASE_URL",
+        "DJANGO_DEBUG",
+        "DJANGO_SECRET_KEY",
+        "FRONTEND_ORIGIN",
+        "SENTRY_DSN",
+        "SENTRY_ENVIRONMENT",
+        "SENTRY_PROFILES_SAMPLE_RATE",
+        "SENTRY_RELEASE",
+        "SENTRY_TRACES_SAMPLE_RATE",
+        "WHITENOISE_ENABLED",
+    }
+    for key in managed_keys:
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    return runpy.run_path(str(Path(content_settings.__file__).resolve()))
+
+
+def test_content_settings_env_import_branches_for_prod_debug_and_fallbacks(monkeypatch, tmp_path):
+    captured_sentry_inits = []
+    monkeypatch.setitem(sys.modules, "sentry_sdk", SimpleNamespace(init=lambda **kwargs: captured_sentry_inits.append(kwargs)))
+
+    env_file = tmp_path / "content.env"
+    monkeypatch.delenv("EDGE_ENV_VALUE", raising=False)
+    monkeypatch.setenv("EXISTING_ENV_VALUE", "kept")
+    content_settings._load_env_file(tmp_path / "missing.env")
+    env_file.write_text(
+        "\n# comment\nMALFORMED\nEDGE_ENV_VALUE='loaded'\nEXISTING_ENV_VALUE=overridden\n",
+        encoding="utf-8",
+    )
+    content_settings._load_env_file(env_file)
+    assert os.environ["EDGE_ENV_VALUE"] == "loaded"
+    assert os.environ["EXISTING_ENV_VALUE"] == "kept"
+
+    assert content_settings._float_env("MISSING_FLOAT", 0.25) == 0.25
+    monkeypatch.setenv("MISSING_FLOAT", "bad")
+    assert content_settings._float_env("MISSING_FLOAT", 0.25) == 0.25
+    monkeypatch.setenv("MISSING_FLOAT", "7.5")
+    assert content_settings._float_env("MISSING_FLOAT", 0.25) == 1.0
+    monkeypatch.setenv("MISSING_FLOAT", "-3")
+    assert content_settings._float_env("MISSING_FLOAT", 0.25) == 0.0
+    assert content_settings._normalize_origin(None) is None
+    assert content_settings._normalize_origin(" https://scope.example/// ") == "https://scope.example"
+    assert content_settings._normalize_origin("  ") is None
+
+    prod_settings = _run_content_settings(
+        monkeypatch,
+        CORE_JWT_SECRET="core-secret-for-content-coverage",
+        DEBUG="false",
+        DJANGO_CACHE_BACKEND="django.core.cache.backends.redis.RedisCache",
+        DJANGO_DATABASE_REPLICA_URL="postgres://replica_user:secret@replica:5432/content_replica,sqlite:///replica.sqlite",
+        DJANGO_DATABASE_URL="mssql://scope_user:scope_pass@sql.example:1433/content",
+        DJANGO_SECRET_KEY="secure-content-secret-for-prod-coverage",
+        FRONTEND_ORIGIN="https://scope.example/",
+        SENTRY_DSN="https://public@example.invalid/1",
+        SENTRY_ENVIRONMENT="staging",
+        SENTRY_PROFILES_SAMPLE_RATE="bad",
+        SENTRY_RELEASE="content@coverage",
+        SENTRY_TRACES_SAMPLE_RATE="2.5",
+        WHITENOISE_ENABLED="true",
+    )
+
+    assert prod_settings["CORS_ALLOWED_ORIGINS"] == ["https://scope.example"]
+    assert prod_settings["DATABASES"]["default"]["ENGINE"] == "mssql"
+    assert prod_settings["DATABASES"]["replica"]["ENGINE"] == "django.db.backends.postgresql"
+    assert prod_settings["DATABASES"]["replica_1"]["ENGINE"] == "django.db.backends.sqlite3"
+    assert prod_settings["DATABASE_ROUTERS"] == ["common.db_router.PrimaryReplicaRouter"]
+    assert prod_settings["CACHES"]["default"]["OPTIONS"]["pool_class"] == "redis.BlockingConnectionPool"
+    assert prod_settings["STORAGES"]["staticfiles"]["BACKEND"].endswith("CompressedManifestStaticFilesStorage")
+    assert captured_sentry_inits[-1]["traces_sample_rate"] == 1.0
+    assert captured_sentry_inits[-1]["profiles_sample_rate"] == 0.1
+
+    debug_settings = _run_content_settings(
+        monkeypatch,
+        ALLOW_SQLITE_FALLBACK="false",
+        CORE_JWT_SECRET="core-secret-for-debug-coverage",
+        DEBUG="true",
+        DEVELOPMENT_FRONTEND_ORIGIN="http://localhost:5173/",
+        DJANGO_SECRET_KEY="django-insecure-debug-is-ok",
+        WHITENOISE_ENABLED="false",
+    )
+
+    assert debug_settings["DATABASES"]["default"]["ENGINE"] == "django.db.backends.sqlite3"
+    assert debug_settings["CORS_ALLOWED_ORIGINS"] == ["http://localhost:5173"]
+    assert "rest_framework.renderers.BrowsableAPIRenderer" in debug_settings["REST_FRAMEWORK"]["DEFAULT_RENDERER_CLASSES"]
+    assert "STORAGES" not in debug_settings
+
+    with pytest.raises(content_settings.ImproperlyConfigured, match="placeholder DJANGO_SECRET_KEY"):
+        _run_content_settings(
+            monkeypatch,
+            CORE_JWT_SECRET="core-secret-for-bad-key",
+            DEBUG="false",
+            DJANGO_DATABASE_URL="sqlite:///prod.sqlite3",
+            DJANGO_SECRET_KEY="django-insecure-placeholder",
+            FRONTEND_ORIGIN="https://scope.example",
+        )
+
+    with pytest.raises(content_settings.ImproperlyConfigured, match="FRONTEND_ORIGIN"):
+        _run_content_settings(
+            monkeypatch,
+            CORE_JWT_SECRET="core-secret-for-missing-origin",
+            DEBUG="false",
+            DJANGO_DATABASE_URL="sqlite:///prod.sqlite3",
+            DJANGO_SECRET_KEY="secure-content-secret",
+        )
+
+    with pytest.raises(content_settings.ImproperlyConfigured, match="Unsupported DATABASE_URL scheme"):
+        _run_content_settings(
+            monkeypatch,
+            CORE_JWT_SECRET="core-secret-for-bad-db",
+            DEBUG="false",
+            DJANGO_DATABASE_URL="oracle://db/content",
+            DJANGO_SECRET_KEY="secure-content-secret",
+            FRONTEND_ORIGIN="https://scope.example",
+        )
+
+    with pytest.raises(content_settings.ImproperlyConfigured, match="DJANGO_DATABASE_URL must be set"):
+        _run_content_settings(
+            monkeypatch,
+            CORE_JWT_SECRET="core-secret-for-no-db",
+            DEBUG="false",
+            DJANGO_SECRET_KEY="secure-content-secret",
+            FRONTEND_ORIGIN="https://scope.example",
+        )
+
+
+def test_common_startup_auth_and_api_not_found_branch_edges(monkeypatch):
+    import common.search as search_module
+
+    ready_calls: list[str] = []
+    start_calls: list[str] = []
+    monkeypatch.setattr(search_module, "ensure_indexes", lambda: ready_calls.append("indexes"))
+    monkeypatch.setenv("GRPC_ENABLED", "false")
+    config = CommonConfig("common", sys.modules["common"])
+    config.ready()
+
+    monkeypatch.setenv("GRPC_ENABLED", "true")
+    monkeypatch.setattr(sys, "argv", ["manage.py", "pytest"])
+    config.ready()
+    monkeypatch.setattr(sys, "argv", ["worker"])
+    config.ready()
+    monkeypatch.setattr(sys, "argv", ["gunicorn"])
+    monkeypatch.setattr("common.grpc_server.start_grpc_background", lambda: start_calls.append("grpc"))
+    config.ready()
+
+    assert ready_calls == ["indexes", "indexes", "indexes", "indexes"]
+    assert start_calls == ["grpc"]
+
+    assert content_auth.extract_bearer_token(None) is None
+    assert content_auth.extract_bearer_token("Basic token") is None
+    assert content_auth.extract_bearer_token("Bearer   ") is None
+    assert content_auth.extract_bearer_token("Bearer token") == "token"
+    roles = content_auth._collect_roles(
+        {
+            "roles": ["Admin", "viewer"],
+            "role": "EDITOR",
+            "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": {"ops"},
+        }
+    )
+    assert roles == ["admin", "viewer", "editor", "ops"]
+    assert content_auth.TokenUser(id="user", roles=["admin"]).is_admin is True
+    assert content_auth.TokenUser(id="user", roles=None).is_admin is False
+    assert content_auth.TokenUser(id="user").is_anonymous is False
+
+    factory = RequestFactory()
+    api_404 = ApiNotFoundJsonMiddleware(lambda _request: (_ for _ in ()).throw(Resolver404()))
+    response = api_404(factory.get("/api/content/missing"))
+    assert response.status_code == 404
+    assert json.loads(response.content)["error"]["code"] == "NOT_FOUND"
+
+    with pytest.raises(Resolver404):
+        api_404(factory.get("/plain/missing"))
+
+    html_404 = ApiNotFoundJsonMiddleware(lambda _request: HttpResponse("missing", status=404, content_type="text/html"))
+    assert json.loads(html_404(factory.get("/api/content/html-missing")).content)["error"]["message"] == "API route does not exist"
+
+    json_404 = HttpResponse('{"error": true}', status=404, content_type="application/json")
+    assert ApiNotFoundJsonMiddleware(lambda _request: json_404)(factory.get("/api/content/json-missing")) is json_404
+
+
+def test_feed_aggregator_cursor_empty_and_missing_hydration_branches(auth_header):
+    _, user_id = auth_header
+    older = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    newer = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    spot = Spot.objects.create(
+        user_id=user_id,
+        title="Feed spot",
+        latitude=32.7,
+        longitude=-97.1,
+        is_public=True,
+        created_at=newer,
+    )
+    trip = Trip.objects.create(
+        creator_id=user_id,
+        title="Feed trip",
+        status="planning",
+        is_public=True,
+        created_at=older,
+    )
+    review = Review.objects.create(spot=spot, user_id=user_id, rating=4, comment="Nice", created_at=older)
+    Spot.objects.filter(id=spot.id).update(created_at=newer)
+    Trip.objects.filter(id=trip.id).update(created_at=older)
+    Review.objects.filter(id=review.id).update(created_at=older)
+    spot.refresh_from_db()
+    trip.refresh_from_db()
+    review.refresh_from_db()
+    aggregator = FeedAggregator()
+
+    assert aggregator._hydrate_spots([]) == {}
+    assert aggregator._hydrate_trips([]) == {}
+    assert aggregator._hydrate_reviews([]) == {}
+    assert aggregator._load_spot_references(newer, 5) == []
+    assert aggregator._load_trip_references(newer, 5) == [FeedReference(type="trip", item_id=trip.id, created_at=older)]
+    assert aggregator._load_review_references(newer, 5) == [FeedReference(type="review", item_id=review.id, created_at=older)]
+
+    hydrated = aggregator._hydrate_entries(
+        [
+            FeedReference(type="spot", item_id=spot.id, created_at=newer),
+            FeedReference(type="trip", item_id=trip.id, created_at=older),
+            FeedReference(type="review", item_id=review.id, created_at=older),
+            FeedReference(type="spot", item_id=uuid.uuid4(), created_at=older),
+        ]
+    )
+    assert [entry.type for entry in hydrated] == ["spot", "trip", "review"]
+    page = aggregator.social_feed_page(page_size=1)
+    assert len(page.entries) == 1
+    assert page.has_more is True
+
+
+def test_trip_view_helper_and_serializer_branch_edges(auth_header):
+    _, owner_user_id = auth_header
+    other_user_id = str(uuid.uuid4())
+    owner = SimpleNamespace(id=owner_user_id, is_authenticated=True, is_admin=False)
+    other = SimpleNamespace(id=other_user_id, is_authenticated=True, is_admin=False)
+    admin = SimpleNamespace(id=str(uuid.uuid4()), is_authenticated=True, is_admin=True)
+    anonymous = SimpleNamespace(is_authenticated=False, is_admin=False)
+    trip = Trip.objects.create(creator_id=owner_user_id, title="Coverage trip", status="planning", is_public=False)
+    TripMember.objects.create(trip=trip, user_id=owner_user_id, role="owner")
+    editor_member = TripMember.objects.create(trip=trip, user_id=other_user_id, role="editor")
+
+    assert trip_views.is_trip_member(anonymous, trip) is False
+    assert trip_views.is_trip_member(admin, trip) is True
+    assert trip_views.can_edit_trip(anonymous, trip) is False
+    assert trip_views.can_edit_trip(other, trip) is True
+    assert trip_views.can_view_trip(anonymous, trip) is False
+    trip.is_public = True
+    assert trip_views.can_view_trip(anonymous, trip) is True
+    trip.is_public = False
+    assert trip_views._coerce_uuid(None) is None
+    assert trip_views._coerce_uuid("not-a-uuid") is None
+
+    public_spot = Spot.objects.create(
+        user_id=owner_user_id,
+        title="Saved spot",
+        latitude=1,
+        longitude=2,
+        is_public=True,
+    )
+    generated_spot = Spot.objects.create(
+        user_id=owner_user_id,
+        title="Generated spot",
+        latitude=3,
+        longitude=4,
+        is_public=False,
+    )
+    generated_trip_spot = TripSpot.objects.create(
+        trip=trip,
+        spot=generated_spot,
+        source="planner_generated",
+        sort_order=0,
+    )
+
+    assert trip_views._resolve_spot_for_trip(trip, owner, {"spot_id": str(public_spot.id)}) == (public_spot, "saved_spot")
+    assert trip_views._resolve_spot_for_trip(trip, owner, {"spot_id": str(generated_spot.id)}) == (
+        generated_spot,
+        "planner_generated",
+    )
+    assert trip_views._resolve_spot_for_trip(
+        trip,
+        admin,
+        {"spot_id": str(generated_spot.id)},
+    )[0] == generated_spot
+    with pytest.raises(ValidationError):
+        trip_views._resolve_spot_for_trip(trip, owner, {"spot_id": str(uuid.uuid4())})
+
+    trip_views._sync_trip_spots_from_payload(trip, owner, None)
+    with pytest.raises(ValidationError):
+        trip_views._sync_trip_spots_from_payload(trip, owner, {"not": "a list"})
+    trip_views._sync_trip_spots_from_payload(trip, owner, [])
+    assert not TripSpot.objects.filter(id=generated_trip_spot.id).exists()
+    assert not Spot.objects.filter(id=generated_spot.id).exists()
+
+    trip_views._sync_trip_members_from_payload(trip, None)
+    with pytest.raises(ValidationError):
+        trip_views._sync_trip_members_from_payload(trip, {"not": "a list"})
+    trip_views._sync_trip_members_from_payload(
+        trip,
+        [
+            {"user_id": str(uuid.uuid4()), "role": "owner"},
+            {"userId": owner_user_id, "role": "viewer"},
+            {"id": other_user_id, "status": "viewer"},
+        ],
+    )
+    editor_member.refresh_from_db()
+    assert editor_member.role == "viewer"
+
+    serializer = TripSerializer()
+    assert serializer.to_internal_value({"title": "  Trimmed  ", "budget": "1.00"})["title"] == "Trimmed"
+    with pytest.raises(ValidationError):
+        serializer.validate_title("   ")
+    with pytest.raises(ValidationError):
+        serializer.validate_budget(Decimal("-1"))
+    with pytest.raises(ValidationError):
+        serializer.validate_currency("US")
+    with pytest.raises(ValidationError):
+        TripAddSpotSerializer(data={"spotId": str(uuid.uuid4())}, context={"user": owner}).is_valid(raise_exception=True)
+    duplicate = TripReorderSerializer(
+        data={
+            "spots": [
+                {"spotId": str(public_spot.id), "sortOrder": 0},
+                {"spotId": str(public_spot.id), "sortOrder": 1},
+            ]
+        }
+    )
+    with pytest.raises(ValidationError):
+        duplicate.is_valid(raise_exception=True)
+
+
+def test_photo_delivery_content_and_remaining_trip_helper_edges(api_client, auth_header, monkeypatch, settings):
+    _, owner_user_id = auth_header
+    settings.AWS_STORAGE_BUCKET_NAME = "scope-bucket"
+    settings.AWS_REGION = "us-west-2"
+    owner = SimpleNamespace(id=owner_user_id, is_authenticated=True, is_admin=False)
+    trip = Trip.objects.create(creator_id=owner_user_id, title="Cleanup trip", status="planning", is_public=False)
+    other_trip = Trip.objects.create(creator_id=owner_user_id, title="Other trip", status="planning", is_public=False)
+    generated_spot = Spot.objects.create(user_id=owner_user_id, title="Shared generated", latitude=1, longitude=2)
+    trip_spot = TripSpot.objects.create(trip=trip, spot=generated_spot, source="planner_generated")
+    TripSpot.objects.create(trip=other_trip, spot=generated_spot, source="planner_generated")
+    trip_views._delete_generated_spot_if_orphaned(trip_spot)
+    assert Spot.objects.filter(id=generated_spot.id).exists()
+
+    co_owner_id = str(uuid.uuid4())
+    TripMember.objects.create(trip=trip, user_id=co_owner_id, role="owner")
+    trip_views._sync_trip_members_from_payload(trip, [{"user_id": co_owner_id, "role": "viewer"}])
+    assert TripMember.objects.get(trip=trip, user_id=co_owner_id).role == "owner"
+
+    assert content_settings._required_env("DJANGO_SECRET_KEY")
+    monkeypatch.delenv("CONTENT_REQUIRED_MISSING", raising=False)
+    with pytest.raises(content_settings.ImproperlyConfigured):
+        content_settings._required_env("CONTENT_REQUIRED_MISSING")
+    assert content_settings._parse_database_url("") is None
+    assert content_settings._replica_config("") is None
+
+    public_spot = Spot.objects.create(
+        user_id=owner_user_id,
+        title="Public photo spot",
+        latitude=3,
+        longitude=4,
+        is_public=True,
+    )
+    photo = Photo.objects.create(
+        spot=public_spot,
+        user_id=owner_user_id,
+        storage_key="photos/original.png",
+        storage_url="https://scope-bucket.s3.us-west-2.amazonaws.com/photos/original.png",
+        thumbnail_url="https://scope-bucket.s3.us-west-2.amazonaws.com/photos/thumb.webp",
+    )
+
+    class FakeStorage:
+        enabled = True
+
+        def __init__(self, missing=False):
+            self.missing = missing
+
+        def presigned_read_url(self, key, expires_in=3600):
+            if self.missing or "missing" in str(key):
+                return ""
+            return f"https://signed.example/{expires_in}/{key}"
+
+        def storage_key_from_url(self, url):
+            return "photos/thumb.webp" if "thumb" in url else None
+
+    monkeypatch.setattr(photo_views, "S3StorageService", lambda: FakeStorage())
+    avatar_key = "avatars/0123456789abcdef0123456789abcdef/01234567-89ab-cdef-0123-456789abcdef.png"
+    avatar_response = api_client.get(f"/api/content/photos/avatar/content?key={avatar_key}")
+    assert avatar_response.status_code == 302
+    assert avatar_response["Cache-Control"] == "public, max-age=900"
+
+    photo_response = api_client.get(f"/api/content/photos/{photo.id}/content?variant=thumbnail")
+    assert photo_response.status_code == 302
+    assert "photos/thumb.webp" in photo_response["Location"]
+
+    monkeypatch.setattr(photo_views, "S3StorageService", lambda: FakeStorage(missing=True))
+    assert api_client.get(f"/api/content/photos/avatar/content?key={avatar_key}").status_code == 404
+    assert api_client.get(f"/api/content/photos/{photo.id}/content").status_code == 404
+
+    class RequestWithUri:
+        def build_absolute_uri(self, path):
+            return f"https://api.example{path}"
+
+    monkeypatch.setattr(photo_delivery, "S3StorageService", lambda: FakeStorage())
+    assert photo_delivery.photo_delivery_url(
+        photo_id=photo.id,
+        source_url="",
+        is_public=True,
+    ) is None
+    assert photo_delivery.photo_delivery_url(
+        photo_id=photo.id,
+        source_url="https://cdn.example/photo.png",
+        is_public=True,
+    ) == "https://cdn.example/photo.png"
+    assert photo_delivery.photo_delivery_url(
+        photo_id=photo.id,
+        source_url=photo.storage_url,
+        is_public=True,
+        request=RequestWithUri(),
+        variant="thumbnail",
+    ).endswith(f"/api/content/photos/{photo.id}/content?variant=thumbnail")
+    assert photo_delivery.photo_delivery_url(
+        photo_id=photo.id,
+        source_url=photo.storage_url,
+        is_public=True,
+        request=RequestWithUri(),
+        variant="original",
+    ).endswith(f"/api/content/photos/{photo.id}/content")
+    assert photo_delivery.photo_delivery_url(
+        photo_id=photo.id,
+        source_url=photo.storage_url,
+        is_public=False,
+    ).startswith("https://signed.example/")
+
+
+def test_spot_payload_safety_verification_and_trip_member_serializer_edges(monkeypatch):
+    dirty_result = SimpleNamespace(clean=False, field="title")
+    clean_result = SimpleNamespace(clean=True, field=None)
+    monkeypatch.setattr(spot_views, "evaluate_text_fields", lambda _fields: dirty_result)
+    with pytest.raises(ValidationError):
+        spot_views._check_spot_safety({"title": "bad"}, captions=["caption"])
+    monkeypatch.setattr(spot_views, "evaluate_text_fields", lambda _fields: clean_result)
+    assert spot_views._check_spot_safety({"pillars": "not-list"}).clean is True
+
+    assert spot_views._coerce_json_object({"title": "ok"}) == {"title": "ok"}
+    assert spot_views._coerce_json_object('{"title": "ok"}') == {"title": "ok"}
+    with pytest.raises(ValidationError):
+        spot_views._coerce_json_object("{bad json")
+    with pytest.raises(ValidationError):
+        spot_views._coerce_json_object('["not-object"]')
+
+    assert spot_views._extract_list_field(SimpleNamespace(data={"pillars": '["food", 7]'}), "pillars") == ["food", "7"]
+    assert spot_views._extract_list_field(SimpleNamespace(data={"pillars": '{"not": "list"}'}), "pillars") == ['{"not": "list"}']
+    getlist_request = SimpleNamespace(data=SimpleNamespace(getlist=lambda _name: ['["one", "two"]']))
+    assert spot_views._extract_list_field(getlist_request, "pillars") == ["one", "two"]
+    getlist_non_list_request = SimpleNamespace(data=SimpleNamespace(getlist=lambda _name: ['{"not": "list"}']))
+    assert spot_views._extract_list_field(getlist_non_list_request, "pillars") == ['{"not": "list"}']
+
+    spot = Spot(title="Verified", latitude=1, longitude=2, city="", country="", postal_code="")
+    spot_views._apply_verified_state(
+        spot,
+        {
+            "source": "google",
+            "providerPlaceId": "place-1",
+            "providerPlaceName": "Verified Place",
+            "providerPlaceAddress": "1 Main",
+            "city": "Dallas",
+            "country": "US",
+            "postalCode": "75001",
+            "distanceMeters": "bad",
+        },
+    )
+    assert spot.address == "1 Main"
+    assert spot.city == "Dallas"
+    assert spot.country == "US"
+    assert spot.postal_code == "75001"
+    assert spot.verification_distance_meters is None
+    error = spot_views._verification_error({"reason": "Too far", "candidates": [1, 2, 3, 4]})
+    assert [str(candidate) for candidate in error.detail["candidates"]] == ["1", "2", "3"]
+    assert "location" in spot_views._verification_error({}).detail
+    spot_views._MSSQL_FULLTEXT_AVAILABLE = None
+    monkeypatch.setenv("CONTENT_MSSQL_FULLTEXT_ENABLED", "true")
+    assert spot_views._mssql_fulltext_available() is True
+    monkeypatch.setenv("CONTENT_MSSQL_FULLTEXT_ENABLED", "false")
+    assert spot_views._mssql_fulltext_available() is True
+    spot_views._MSSQL_FULLTEXT_AVAILABLE = None
+
+    assert SearchView._fields_for("reviews") == ["text"]
+    assert SearchView._fields_for("trips") == ["name^3", "description"]
+    assert SearchView._fields_for("unknown") == ["name", "description", "text"]
+    assert SearchView._phrase_prefix_fields_for("reviews") == ["text"]
+    assert JWTAuthentication().authenticate(SimpleNamespace(headers={"Authorization": ""})) is None
+
+    member_serializer = TripMemberCreateSerializer(data={"user_id": str(uuid.uuid4()), "role": "owner"})
+    with pytest.raises(ValidationError):
+        member_serializer.is_valid(raise_exception=True)
 
 
 def test_validation_detail_flattening_handles_nested_empty_and_django_message_lists():
@@ -582,7 +1104,7 @@ def test_ratelimit_redis_rules_fallback_and_headers(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_REDIS_URL", "redis://env-cache")
     assert middleware._redis_url() == "redis://env-cache"
     monkeypatch.delenv("RATE_LIMIT_REDIS_URL")
-    monkeypatch.delenv("DJANGO_CACHE_LOCATION")
+    monkeypatch.delenv("DJANGO_CACHE_LOCATION", raising=False)
 
     with override_settings(CACHES={"default": {"BACKEND": "django_redis.cache.RedisCache", "LOCATION": "redis://settings-cache"}}):
         assert middleware._redis_url() == "redis://settings-cache"

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Scope.Core.API.Hubs;
 using Scope.Core.API.Services;
 using Scope.Core.Domain.Entities;
@@ -119,8 +120,97 @@ public sealed class NotificationServiceCoveragePushTests
         Assert.All(deliveries, delivery => Assert.True(delivery.NextAttemptAt <= DateTimeOffset.UtcNow.AddMinutes(1)));
     }
 
+    [Fact]
+    public async Task QueueDeliveryAttempts_CoversNoChannelExistingDeliveryAndQuietHourSchedulingBranches()
+    {
+        await using var dbContext = TestData.CreateDbContext();
+        var user = TestData.User(displayName: "Recipient");
+        dbContext.Users.Add(user);
+        var general = Notification(user.Id, "general", "normal");
+        var security = Notification(user.Id, "security", "normal");
+        dbContext.Notifications.AddRange(general, security);
+        dbContext.NotificationPreferences.Add(new NotificationPreference
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Category = "security",
+            InAppEnabled = true,
+            PushEnabled = true,
+            EmailEnabled = true,
+            DigestCadence = "instant",
+            QuietHoursStartMinutes = 0,
+            QuietHoursEndMinutes = 60,
+            TimeZoneId = "UTC",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        dbContext.NotificationDeliveries.Add(new NotificationDelivery
+        {
+            Id = Guid.NewGuid(),
+            NotificationId = security.Id,
+            UserId = user.Id,
+            Channel = "email",
+            Status = "pending",
+            Attempts = 0,
+            NextAttemptAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+        var service = new NotificationService(dbContext, QuietHubContext().Object, NullLogger<NotificationService>.Instance);
+
+        await service.QueueDeliveryAttemptsAsync(general, CancellationToken.None);
+        await service.QueueDeliveryAttemptsAsync(security, CancellationToken.None);
+
+        Assert.Empty(await dbContext.NotificationDeliveries.Where(x => x.NotificationId == general.Id).ToListAsync());
+        var securityChannels = await dbContext.NotificationDeliveries
+            .Where(x => x.NotificationId == security.Id)
+            .Select(x => x.Channel)
+            .OrderBy(x => x)
+            .ToListAsync();
+        Assert.Equal(new[] { "email", "push" }, securityChannels);
+
+        var quietPreference = new NotificationPreference { QuietHoursStartMinutes = 22 * 60, QuietHoursEndMinutes = 2 * 60 };
+        var quietNow = new DateTimeOffset(2026, 1, 1, 23, 30, 0, TimeSpan.Zero);
+        var normalNext = InvokeResolveNextAttemptAt(quietNow, quietPreference, "normal");
+        Assert.Equal(quietNow.AddMinutes(150), normalNext);
+        Assert.Equal(quietNow, InvokeResolveNextAttemptAt(quietNow, quietPreference, "urgent"));
+        var nonQuietNow = quietNow.AddHours(-12);
+        Assert.Equal(nonQuietNow, InvokeResolveNextAttemptAt(nonQuietNow, quietPreference, "normal"));
+        Assert.Equal(quietNow, InvokeResolveNextAttemptAt(quietNow, new NotificationPreference(), "normal"));
+
+        Assert.Empty(InvokeReadDigestItems(null));
+        Assert.Empty(InvokeReadDigestItems("""{"items":null}"""));
+    }
+
     private static NotificationDigestItem Digest(Guid actorId, string referenceType, string referenceId)
         => new("spot.created", $"Title {referenceId}", null, "/spots/1", actorId, referenceType, referenceId, DateTimeOffset.UtcNow);
+
+    private static Notification Notification(Guid userId, string category, string priority) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Type = $"{category}.test",
+        TemplateKey = $"{category}.test",
+        Category = category,
+        Priority = priority,
+        Title = "Title",
+        CreatedAt = DateTimeOffset.UtcNow,
+    };
+
+    private static DateTimeOffset InvokeResolveNextAttemptAt(DateTimeOffset now, NotificationPreference preference, string priority)
+    {
+        var method = typeof(NotificationService).GetMethod("ResolveNextAttemptAt", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(nameof(NotificationService), "ResolveNextAttemptAt");
+        return (DateTimeOffset)method.Invoke(null, [now, preference, priority])!;
+    }
+
+    private static IReadOnlyList<NotificationDigestItem> InvokeReadDigestItems(string? metadataJson)
+    {
+        var method = typeof(NotificationService).GetMethod("ReadDigestItems", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(nameof(NotificationService), "ReadDigestItems");
+        return (IReadOnlyList<NotificationDigestItem>)method.Invoke(null, [metadataJson])!;
+    }
 
     private static Mock<IHubContext<NotificationHub>> QuietHubContext()
     {

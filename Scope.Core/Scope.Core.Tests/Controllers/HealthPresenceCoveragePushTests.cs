@@ -1,3 +1,4 @@
+using System.Reflection;
 using Scope.Core.API.Contracts.Requests;
 using Scope.Core.API.Controllers;
 using Scope.Core.Domain.Entities;
@@ -46,6 +47,14 @@ public sealed class HealthPresenceCoveragePushTests
     }
 
     [Fact]
+    public void HealthController_ServiceVersionPrefersInformationalThenAssemblyThenUnknown()
+    {
+        Assert.Equal("build+sha", ResolveServiceVersion("build+sha", new Version(1, 2, 3)));
+        Assert.Equal("1.2.3", ResolveServiceVersion(null, new Version(1, 2, 3)));
+        Assert.Equal("unknown", ResolveServiceVersion(null, null));
+    }
+
+    [Fact]
     public async Task PresenceHeartbeat_UpdatesExistingPresenceAndDefaultsUnknownStatus()
     {
         var userId = Guid.NewGuid();
@@ -89,5 +98,12 @@ public sealed class HealthPresenceCoveragePushTests
         var services = new ServiceCollection();
         services.AddSingleton(redis);
         return services.BuildServiceProvider();
+    }
+
+    private static string ResolveServiceVersion(string? informationalVersion, Version? assemblyVersion)
+    {
+        var method = typeof(HealthController).GetMethod("ResolveServiceVersion", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(nameof(HealthController), "ResolveServiceVersion");
+        return (string)method.Invoke(null, [informationalVersion, assemblyVersion])!;
     }
 }
