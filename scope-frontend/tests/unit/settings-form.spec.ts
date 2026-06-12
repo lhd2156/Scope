@@ -134,6 +134,8 @@ describe('SettingsForm', () => {
     expect(payload.categoryPreferences).toEqual(['culture', 'adventure', 'other']);
     expect(options.source).toBe('manual');
 
+    await wrapper.get('[data-test="settings-cancel"]').trigger('click');
+    await flushPromises();
     await wrapper.setProps({
       initialValue: {
         ...initialValue,
@@ -168,6 +170,39 @@ describe('SettingsForm', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect((wrapper.get('input[placeholder="How your name appears in Scope"]').element as HTMLInputElement).value).toBe('Louis Do');
+  });
+
+  it('preserves active draft fields when refreshed settings arrive in the background', async () => {
+    searchLocationsMock.mockResolvedValue({ data: [] });
+
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+      },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name', 'src'], template: '<div class="avatar-stub">{{ name }} {{ src }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const locationInput = wrapper.get('input[placeholder="City, neighborhood, or address"]');
+
+    await locationInput.setValue('1502 Commerce St Fort Worth TX');
+    await wrapper.setProps({
+      initialValue: {
+        ...initialValue,
+        avatarUrl: 'https://cdn.example/fresh-avatar.png',
+        emailAlerts: false,
+      },
+    });
+    await flushPromises();
+
+    expect((locationInput.element as HTMLInputElement).value).toBe('1502 Commerce St Fort Worth TX');
+    expect(coverage.form.avatarUrl).toBe('https://cdn.example/fresh-avatar.png');
+    expect(coverage.form.emailAlerts).toBe(false);
+    expect(wrapper.text()).toContain('Unsaved profile changes');
   });
 
   it('toggles analytics consent immediately from the privacy controls', async () => {
