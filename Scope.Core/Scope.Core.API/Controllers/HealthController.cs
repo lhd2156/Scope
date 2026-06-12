@@ -15,10 +15,15 @@ public sealed class HealthController(
     IConfiguration configuration,
     IServiceProvider services) : ControllerBase
 {
-    private static readonly string ServiceVersion =
-        typeof(HealthController).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-        ?? typeof(HealthController).Assembly.GetName().Version?.ToString()
-        ?? "unknown";
+    private static readonly string ServiceVersion = ResolveAssemblyServiceVersion(typeof(HealthController).Assembly);
+
+    private static string ResolveAssemblyServiceVersion(Assembly assembly)
+        => ResolveServiceVersion(
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            assembly.GetName().Version);
+
+    private static string ResolveServiceVersion(string? informationalVersion, Version? assemblyVersion)
+        => informationalVersion ?? assemblyVersion?.ToString() ?? "unknown";
 
     [HttpGet]
     [AllowAnonymous]

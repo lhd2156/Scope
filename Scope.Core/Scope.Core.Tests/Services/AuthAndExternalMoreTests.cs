@@ -2,6 +2,7 @@ using Scope.Core.Infrastructure.AI;
 using Scope.Core.Infrastructure.Configuration;
 using Scope.Core.Infrastructure.GrpcClients;
 using Scope.Core.Infrastructure.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,11 +23,21 @@ public sealed class AuthAndExternalMoreTests
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("lo", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("bad space", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "   ", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "A", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou 🤖", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1))));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-130))));
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("lou", "lou@example.com", "password", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
             service.RegisterAsync("lou", "lou@example.com", "SecurePass123!", "Lou", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)), "12"));
         await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
@@ -52,6 +63,17 @@ public sealed class AuthAndExternalMoreTests
 
         var expired = await dbContext.RefreshTokens.SingleAsync(x => x.Token == RefreshTokenHasher.Hash("expired"));
         Assert.Equal("expired", expired.RevokedReason);
+    }
+
+    [Fact]
+    public async Task AuthService_RegisterAsync_RejectsBreachedPasswords()
+    {
+        var breach = new Moq.Mock<Scope.Core.Domain.Interfaces.IPasswordBreachChecker>();
+        breach.Setup(x => x.IsBreachedAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var service = BuildService(out _, breachChecker: breach.Object);
+
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.ValidationException>(() =>
+            service.RegisterAsync("breached", "breached@example.com", "SecurePass123!", "Breach Test", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24))));
     }
 
     [Fact]
@@ -82,6 +104,37 @@ public sealed class AuthAndExternalMoreTests
         user.InterestsJson = "not-json";
         await dbContext.SaveChangesAsync();
         Assert.Empty((await service.GetCurrentUserAsync(user.Id)).Interests);
+
+        user.InterestsJson = "null";
+        await dbContext.SaveChangesAsync();
+        Assert.Empty((await service.GetCurrentUserAsync(user.Id)).Interests);
+    }
+
+    [Fact]
+    public async Task AuthService_RefreshAsync_WithRelationalProviderRevokesAllActiveTokensOnReplay()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<Scope.Core.Infrastructure.Data.CoreDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var dbContext = new Scope.Core.Infrastructure.Data.CoreDbContext(options);
+        await dbContext.Database.EnsureCreatedAsync();
+        var service = BuildService(dbContext);
+
+        await service.RegisterAsync("replayuser", "replay@example.com", "SecurePass123!", "Replay User", DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-24)));
+        var login = await service.LoginAsync("replay@example.com", "SecurePass123!");
+        var stolenRefreshToken = login.Result!.RefreshToken;
+        await service.RefreshAsync(stolenRefreshToken);
+
+        await Assert.ThrowsAsync<Scope.Core.Domain.Exceptions.UnauthorizedException>(() => service.RefreshAsync(stolenRefreshToken));
+
+        dbContext.ChangeTracker.Clear();
+        var user = await dbContext.Users.AsNoTracking().SingleAsync(x => x.Email == "replay@example.com");
+        var tokens = await dbContext.RefreshTokens.AsNoTracking().Where(x => x.UserId == user.Id).ToListAsync();
+        Assert.NotEmpty(tokens);
+        Assert.All(tokens, token => Assert.NotNull(token.RevokedAt));
+        Assert.Contains(tokens, token => token.RevokedReason == "replay_detected");
     }
 
     [Fact]
@@ -165,9 +218,18 @@ public sealed class AuthAndExternalMoreTests
 
     private static Scope.Core.Infrastructure.Services.AuthService BuildService(
         out Scope.Core.Infrastructure.Data.CoreDbContext dbContext,
-        Scope.Core.Domain.Interfaces.IMfaService? mfa = null)
+        Scope.Core.Domain.Interfaces.IMfaService? mfa = null,
+        Scope.Core.Domain.Interfaces.IPasswordBreachChecker? breachChecker = null)
     {
         dbContext = TestData.CreateDbContext();
+        return BuildService(dbContext, mfa, breachChecker);
+    }
+
+    private static Scope.Core.Infrastructure.Services.AuthService BuildService(
+        Scope.Core.Infrastructure.Data.CoreDbContext dbContext,
+        Scope.Core.Domain.Interfaces.IMfaService? mfa = null,
+        Scope.Core.Domain.Interfaces.IPasswordBreachChecker? breachChecker = null)
+    {
         var jwt = new JwtTokenService(Options.Create(new JwtOptions
         {
             Secret = new string('x', 32),
@@ -176,8 +238,13 @@ public sealed class AuthAndExternalMoreTests
             AccessTokenMinutes = 15,
             RefreshTokenDays = 7,
         }));
-        var breach = new Moq.Mock<Scope.Core.Domain.Interfaces.IPasswordBreachChecker>();
-        breach.Setup(x => x.IsBreachedAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var breach = breachChecker;
+        if (breach is null)
+        {
+            var breachMock = new Moq.Mock<Scope.Core.Domain.Interfaces.IPasswordBreachChecker>();
+            breachMock.Setup(x => x.IsBreachedAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<CancellationToken>())).ReturnsAsync(false);
+            breach = breachMock.Object;
+        }
         return new Scope.Core.Infrastructure.Services.AuthService(
             dbContext,
             new PasswordHasherService(),
@@ -185,7 +252,7 @@ public sealed class AuthAndExternalMoreTests
             new CapturingKafkaProducerService(),
             Options.Create(new JwtOptions { Secret = new string('x', 32), RefreshTokenDays = 7 }),
             new PasswordPolicy(),
-            breach.Object,
+            breach,
             mfa ?? Moq.Mock.Of<Scope.Core.Domain.Interfaces.IMfaService>(),
             NullLogger<Scope.Core.Infrastructure.Services.AuthService>.Instance);
     }

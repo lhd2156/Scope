@@ -1522,6 +1522,237 @@ describe('Navbar', () => {
     wrapper.unmount();
   });
 
+  it('renders mobile recommendation loading, fallback, photo, and error states', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+
+    type DeferredRecommendations = {
+      promise: Promise<any[]>;
+      resolve: (value: any[]) => void;
+    };
+    const createDeferredRecommendations = (): DeferredRecommendations => {
+      let resolve!: DeferredRecommendations['resolve'];
+      const promise = new Promise<any[]>((innerResolve) => {
+        resolve = innerResolve;
+      });
+      return { promise, resolve };
+    };
+
+    const deferredRecommendations = createDeferredRecommendations();
+    loadSearchPlaceRecommendationsMock.mockReturnValueOnce(deferredRecommendations.promise);
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="mobile-menu-toggle"]').trigger('click');
+    await flushPromises();
+
+    const mobileSearchInput = wrapper.findAll('[data-test="search-input"]').at(-1)!;
+    await mobileSearchInput.trigger('focusin');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('Loading recommended places...');
+
+    deferredRecommendations.resolve([
+      {
+        id: 'mobile-photo-rec',
+        title: 'Mobile Garden Cafe',
+        description: 'Coffee by the conservatory.',
+        latitude: 32.74,
+        longitude: -97.34,
+        category: 'food',
+        city: 'Fort Worth',
+        country: 'US',
+        rating: 4.8,
+        photoUrl: 'https://images.example.com/mobile-garden-cafe.jpg',
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'recommendation',
+      },
+      {
+        id: 'mobile-icon-rec',
+        title: 'Mobile Quiet Plaza',
+        latitude: 32.75,
+        longitude: -97.35,
+        category: 'scenic',
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'recommendation',
+      },
+    ]);
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    const dropdown = wrapper.get('[data-test="quick-search-dropdown"]');
+    expect(dropdown.text()).toContain('Recommended for you');
+    expect(dropdown.text()).toContain('2 places');
+    expect(dropdown.text()).toContain('Mobile Garden Cafe');
+    expect(dropdown.text()).toContain('Mobile Quiet Plaza');
+    expect(dropdown.text()).toContain('Strong signal from current Scope Trips places.');
+    expect(wrapper.get('[data-test="quick-search-recommendation-photo"]').attributes('src')).toBe(
+      'https://images.example.com/mobile-garden-cafe.jpg',
+    );
+
+    await wrapper.findAll('[data-test="quick-search-recommendation"]').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(recordSearchPlaceSuggestionClickMock).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'mobile-icon-rec',
+      searchSuggestionSource: 'recommendation',
+    }));
+    expect(router.currentRoute.value.fullPath).toBe('/spots/mobile-quiet-plaza');
+    expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
+
+    wrapper.unmount();
+
+    loadSearchPlaceRecommendationsMock.mockRejectedValueOnce(new Error('recommendation outage'));
+    const errorRouter = buildRouter();
+    await errorRouter.push('/');
+    await errorRouter.isReady();
+
+    const errorWrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [errorRouter],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+
+    await errorWrapper.get('[data-test="mobile-menu-toggle"]').trigger('click');
+    await flushPromises();
+    await errorWrapper.findAll('[data-test="search-input"]').at(-1)!.trigger('focusin');
+    await flushPromises();
+
+    expect(errorWrapper.get('[data-test="quick-search-dropdown"]').text()).toContain(
+      'Recommended places are temporarily unavailable.',
+    );
+
+    errorWrapper.unmount();
+  });
+
+  it('covers navbar helper edge cases for fallback profile and lean quick-search data', async () => {
+    authStoreMock.isAuthenticated = true;
+    authStoreMock.currentUser = {
+      id: 'user-lean',
+      displayName: 'Lean Traveler',
+      avatarUrl: '',
+    };
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          NotificationDropdown: { template: '<div>Notifications</div>' },
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          Avatar: { template: '<div>Avatar</div>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(wrapper.get('.profile-chip__copy small').text()).toBe('Traveler profile');
+
+    expect(coverage.formatQuickSearchResultMeta({
+      id: 'rich-meta',
+      name: 'Rich Meta',
+      category: 'food',
+      tags: ['food', 'Dallas', 'US', 'late-night'],
+      city: 'Dallas',
+      country: 'US',
+      avg_rating: 4.6,
+      review_count: 14,
+    })).toBe('food / Dallas, US / 4.6 rating');
+
+    expect(coverage.mapSearchResultToQuickPlace({
+      id: ' minimal-search ',
+      name: 'Minimal Search',
+    })).toEqual({
+      id: 'minimal-search',
+      title: 'Minimal Search',
+      source: 'search',
+    });
+
+    expect(coverage.mapSuggestionToQuickPlace({
+      id: 'minimal-suggestion',
+      title: 'Minimal Suggestion',
+      latitude: 1,
+      longitude: 2,
+      category: 'scenic',
+      rating: 0,
+      createdAt: '2026-03-24T14:10:00Z',
+      searchSuggestionSource: 'trending',
+    })).toEqual({
+      id: 'minimal-suggestion',
+      title: 'Minimal Suggestion',
+      category: 'scenic',
+      rating: 0,
+      source: 'trending',
+    });
+
+    expect(coverage.scoreQuickSearchPlace({
+      id: 'contains-title',
+      title: 'Riverwalk',
+      source: 'search',
+    }, ['walk'])).toBe(6);
+    expect(coverage.scoreQuickSearchPlace({
+      id: 'no-rating',
+      title: 'Mismatch',
+      source: 'search',
+    }, ['zz'])).toBe(0);
+
+    const minimalMerge = coverage.mergeQuickSearchPlace(
+      { id: 'minimal', title: 'Minimal', source: 'search' },
+      { id: 'minimal', title: 'Minimal', source: 'recommendation' },
+    );
+    expect(minimalMerge).toEqual({ id: 'minimal', title: 'Minimal', source: 'search' });
+    expect(coverage.buildQuickSearchPlaceKeys({ id: 'blank-title', title: '   ', source: 'search' })).toEqual([
+      'id:blank-title',
+    ]);
+
+    await coverage.openQuickSearchResult({
+      id: 'unknown-rec',
+      title: 'Unknown Rec',
+      source: 'recommendation',
+    });
+    await flushPromises();
+    expect(recordSearchPlaceSuggestionClickMock).not.toHaveBeenCalled();
+    expect(router.currentRoute.value.fullPath).toBe('/spots/unknown-rec');
+
+    await coverage.openMobileMenu('panel');
+    await flushPromises();
+    const mobileDrawer = wrapper.get('[data-test="mobile-drawer"]');
+    const drawerShiftTab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true });
+    mobileDrawer.element.focus();
+    coverage.handleMobileDrawerKeydown(drawerShiftTab);
+    expect(drawerShiftTab.defaultPrevented).toBe(true);
+
+    wrapper.unmount();
+  });
+
   it('ranks and merges quick-search places without losing provider metadata', async () => {
     const router = buildRouter();
     await router.push('/');
@@ -1615,6 +1846,8 @@ describe('Navbar', () => {
     expect(coverage.scoreQuickSearchPlace(searchablePlace, ['worth'])).toBeGreaterThan(4);
     expect(coverage.scoreQuickSearchPlace(searchablePlace, ['patio'])).toBeGreaterThan(0);
     expect(coverage.scoreQuickSearchPlace(searchablePlace, ['us'])).toBeGreaterThan(0);
+    expect(coverage.scoreQuickSearchPlace({ ...searchablePlace, title: 'Museum', city: '', country: '', tags: ['quiet'] }, ['qu'])).toBeGreaterThan(4.8);
+    expect(coverage.scoreQuickSearchPlace({ ...searchablePlace, title: 'Museum', city: '', country: '', tags: [] }, ['zz'])).toBe(4.8);
 
     const merged = coverage.mergeQuickSearchPlace(
       { id: 'shared', title: 'Shared Place', source: 'search' },
@@ -1665,6 +1898,213 @@ describe('Navbar', () => {
       description: 'Provider description',
       recommendationReason: 'Strong match',
     });
+
+    wrapper.unmount();
+  });
+
+  it('keeps recommendation search, default menu opens, and browser-global fallbacks stable', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+    searchContentMock.mockResolvedValue({
+      query: 'river',
+      type: 'spots',
+      total: 0,
+      offset: 0,
+      limit: 6,
+      results: [],
+    });
+    loadSearchPlaceRecommendationsMock.mockResolvedValue([
+      {
+        id: 'river-rec',
+        title: 'River Garden Walk',
+        description: 'Quiet river trail with flowers.',
+        latitude: 32.749,
+        longitude: -97.363,
+        category: 'nature',
+        city: 'Fort Worth',
+        country: 'US',
+        rating: 4.7,
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'recommendation',
+      },
+    ]);
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    coverage.handleQuickSearchFocus();
+    await flushPromises();
+    await wrapper.get('[data-test="search-input"]').setValue('river');
+    await coverage.handleSearch('river');
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('Quick search');
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('River Garden Walk');
+
+    await coverage.openFeatureMenu();
+    await coverage.openMenu();
+    expect(coverage.getFeatureMenuItems()).toEqual(expect.any(Array));
+    expect(coverage.getMenuItems()).toEqual(expect.any(Array));
+
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined,
+    });
+    coverage.updateScrollState();
+    coverage.handleViewportResize();
+    if (windowDescriptor) {
+      Object.defineProperty(globalThis, 'window', windowDescriptor);
+    }
+
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: undefined,
+    });
+    coverage.moveFeatureMenuFocus(1);
+    coverage.moveMenuFocus(-1);
+    if (documentDescriptor) {
+      Object.defineProperty(globalThis, 'document', documentDescriptor);
+    }
+
+    await coverage.openMobileMenu('panel');
+    await flushPromises();
+    const drawer = wrapper.get('[data-test="mobile-drawer"]');
+    drawer.element.focus();
+    const tabForward = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    coverage.focusMobileDrawerBoundary('last');
+    coverage.handleMobileDrawerKeydown(tabForward);
+    expect(tabForward.defaultPrevented).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('keeps navbar menu focus wrapping and lean quick-search state transitions stable', async () => {
+    authStoreMock.isAuthenticated = true;
+    authStoreMock.currentUser = {
+      id: 'user-focus',
+      username: '',
+      email: 'focus@example.com',
+      displayName: '',
+      avatarUrl: '',
+    };
+    searchContentMock.mockResolvedValue({
+      query: 'nomatch',
+      type: 'spots',
+      total: 0,
+      offset: 0,
+      limit: 6,
+      results: [],
+    });
+    loadSearchPlaceRecommendationsMock.mockResolvedValue([
+      {
+        id: 'focus-rec',
+        title: 'Focus Recommendation',
+        description: '',
+        latitude: 32.7,
+        longitude: -97.3,
+        category: 'food',
+        rating: 4.5,
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'recommendation',
+      },
+    ]);
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          NotificationDropdown: { template: '<div>Notifications</div>' },
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          Avatar: { template: '<div>Avatar</div>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(wrapper.get('.profile-chip').text()).toContain('focus@example.com');
+    expect(coverage.formatProfileHandle('')).toBe('@');
+    coverage.handleQuickSearchFocus();
+    await flushPromises();
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('Recommended for you');
+    await wrapper.get('[data-test="search-input"]').setValue('focus');
+    await coverage.handleSearch('focus');
+    await flushPromises();
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain('Focus Recommendation');
+    coverage.closeQuickSearch();
+
+    await coverage.openFeatureMenu('last');
+    await flushPromises();
+    const featureMenu = wrapper.get('.feature-menu-dropdown');
+    expect(document.activeElement).toBe(featureMenu.findAll('[role="menuitem"]').at(-1)?.element);
+    const featureArrowDown = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    coverage.handleFeatureMenuKeydown(featureArrowDown);
+    expect(featureArrowDown.defaultPrevented).toBe(true);
+    const featureArrowUp = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true });
+    coverage.handleFeatureMenuKeydown(featureArrowUp);
+    expect(featureArrowUp.defaultPrevented).toBe(true);
+
+    await coverage.openMenu('last');
+    await flushPromises();
+    const menu = wrapper.get('.menu-dropdown');
+    expect(document.activeElement).toBe(menu.findAll('[role="menuitem"]').at(-1)?.element);
+    const menuArrowDown = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    coverage.handleMenuKeydown(menuArrowDown);
+    expect(menuArrowDown.defaultPrevented).toBe(true);
+    const menuArrowUp = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true });
+    coverage.handleMenuKeydown(menuArrowUp);
+    expect(menuArrowUp.defaultPrevented).toBe(true);
+
+    await coverage.openMobileMenu('last');
+    await flushPromises();
+    const mobileDrawer = wrapper.get('[data-test="mobile-drawer"]');
+    const mobileBackward = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true });
+    coverage.focusMobileDrawerBoundary('first');
+    coverage.handleMobileDrawerKeydown(mobileBackward);
+    expect(mobileBackward.defaultPrevented).toBe(true);
+    const mobileForward = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    coverage.focusMobileDrawerBoundary('last');
+    coverage.handleMobileDrawerKeydown(mobileForward);
+    expect(mobileForward.defaultPrevented).toBe(true);
+    const defaultKey = new KeyboardEvent('keydown', { key: 'Home', cancelable: true });
+    coverage.handleMobileDrawerKeydown(defaultKey);
+    expect(defaultKey.defaultPrevented).toBe(true);
+    expect(mobileDrawer.exists()).toBe(true);
+
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: undefined,
+    });
+    coverage.setMobileScrollLock(true);
+    coverage.setMobileScrollLock(false);
+    if (documentDescriptor) {
+      Object.defineProperty(globalThis, 'document', documentDescriptor);
+    }
 
     wrapper.unmount();
   });

@@ -73,4 +73,35 @@ describe('VirtualList', () => {
 
     expect(primitiveWrapper.text()).toContain('Primitive fallback');
   });
+
+  it('uses built-in numeric keys and leaves scroll alone when shrink stays in range', async () => {
+    const wrapper = mount(VirtualList, {
+      props: {
+        items: [
+          { id: 101, label: 'Numeric key' },
+          { label: 'Index fallback' },
+          { id: 'string-key', label: 'String key' },
+        ],
+        itemHeight: 25,
+        viewportHeight: 75,
+        overscan: 0,
+      },
+      slots: {
+        default: ({ item }: { item: { label: string } }) => `<div class="row">${item.label}</div>`,
+      },
+    });
+
+    const container = wrapper.get('.virtual-list').element as HTMLElement;
+    container.scrollTop = 0;
+    await wrapper.setProps({
+      items: [
+        { id: 101, label: 'Numeric key' },
+        { label: 'Index fallback' },
+      ],
+    });
+
+    expect(container.scrollTop).toBe(0);
+    expect(wrapper.text()).toContain('Numeric key');
+    expect(wrapper.text()).toContain('Index fallback');
+  });
 });

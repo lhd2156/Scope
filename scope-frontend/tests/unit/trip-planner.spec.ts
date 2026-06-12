@@ -836,7 +836,7 @@ describe('TripPlanner', () => {
       },
     });
 
-    await wrapper.get('.packing-item input').setValue(true);
+    await wrapper.get('input[aria-label="Driver license and registration"]').setValue(true);
     await wrapper.get('.packing-add-form input').setValue('Blanket');
     await wrapper.get('.packing-add-form').trigger('submit');
 
@@ -1522,6 +1522,73 @@ describe('TripPlanner', () => {
     expect(cards[0]?.classes()).not.toContain('is-dragging');
   });
 
+  it('renders mobile wizard summaries for submitted and optional-interest route states', async () => {
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue: {
+          destination: '100 Main Street, Fort Worth, TX',
+          endDestination: 'Austin, TX',
+          startDate: '2026-04-01',
+          endDate: '2026-04-01',
+          interests: ['other'],
+          pace: 'relaxed',
+          budgetFloor: 0,
+          budget: 1000,
+        },
+        selectedStops: [
+          {
+            spotId: 'mobile-stop',
+            title: '',
+            latitude: 32.7555,
+            longitude: -97.3308,
+            category: 'other',
+            city: '',
+            photoUrl: undefined,
+            estimatedCost: undefined,
+            timeSlot: undefined,
+          },
+        ],
+        mobileWizard: true,
+        mobileActiveStep: 3,
+        submitting: true,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.attributes('data-planner-mode')).toBe('mobile-wizard');
+    expect(wrapper.text()).toContain('100 Main Street, Fort Worth to Austin, TX');
+    expect(wrapper.text()).toContain('1 day');
+    expect(wrapper.text()).toContain('1 stop');
+    expect(wrapper.text()).toContain('Relaxed pace');
+    expect(wrapper.text()).toContain('1 interest');
+    expect(wrapper.text()).toContain('Guide is building...');
+    expect(wrapper.find('[data-test="planner-step-3-back"]').exists()).toBe(true);
+    expect(wrapper.find('.field-error').exists()).toBe(false);
+
+    await wrapper.setProps({
+      initialValue: {
+        destination: '',
+        endDestination: '',
+        interests: [],
+        pace: 'packed',
+      },
+      selectedStops: [],
+      mobileActiveStep: 1,
+      submitting: false,
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Pick a place to plan around');
+    expect(wrapper.text()).toContain('Stops appear after a destination is selected.');
+    expect(wrapper.text()).toContain('Packed pace');
+    expect(wrapper.text()).toContain('vibes optional');
+    expect(wrapper.text()).toContain('Build with Trip Guide');
+
+    await wrapper.get('[data-test="planner-step-1-continue"]').trigger('click');
+    expect(wrapper.emitted('wizard-step-change')?.at(-1)?.[0]).toBe(2);
+  });
+
   it('surfaces route validation errors for blank, start-only, and reversed-date drafts', async () => {
     const blankWrapper = mount(TripPlanner, {
       props: {
@@ -1681,6 +1748,17 @@ describe('TripPlanner', () => {
     expect(coverage.shouldShowLocationSuggestions('destination')).toBe(false);
     coverage.handleLocationBlur('destination');
     coverage.resetLocationSuggestionState('destination');
+    coverage.errors.value = { endDestination: 'Pick a final destination.' };
+    coverage.clearEndDestination();
+    expect(coverage.errors.value.endDestination).toBeUndefined();
+    expect(coverage.resolveErrorStep({ destination: 'Missing start' })).toBe(1);
+    expect(coverage.resolveErrorStep({ endDestination: 'Missing end' })).toBe(1);
+    expect(coverage.resolveErrorStep({ startDate: 'Missing start date' })).toBe(1);
+    expect(coverage.resolveErrorStep({ endDate: 'Missing end date' })).toBe(1);
+    expect(coverage.resolveErrorStep({ budget: 'Bad budget' })).toBe(1);
+    expect(coverage.resolveErrorStep({ groupSize: 'Bad group' })).toBe(1);
+    expect(coverage.resolveErrorStep({ interests: 'Pick one interest' })).toBe(3);
+    expect(coverage.resolveErrorStep({})).toBe(1);
 
     expect(coverage.normalizeBudgetRange([1000, 500])).toMatchObject({ min: 500, max: 1000 });
     expect(coverage.normalizeBudgetValue(Number.NaN, 77)).toBe(77);
@@ -1692,9 +1770,404 @@ describe('TripPlanner', () => {
       destinationLatitude: undefined,
       endDestinationLongitude: undefined,
     });
+    coverage.form.endDestination = 'Dallas, TX';
     expect(coverage.buildPlannerPayload()).toMatchObject({
       destination: 'Fort Worth, TX',
       endDestination: 'Dallas, TX',
     });
+  });
+
+  it('keeps packing and location helpers safe when browser storage or suggestion results are unavailable', async () => {
+    const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const storageUnavailableWrapper = mount(TripPlanner, {
+        props: {
+          initialValue,
+          packingChecklistScope: 'trip:offline-storage',
+        },
+      });
+      const offlineCoverage = (storageUnavailableWrapper.vm as any).__coverage as Record<string, any>;
+
+      expect(offlineCoverage.readPackingChecklistStorage()).toBeNull();
+      expect(offlineCoverage.loadPackingChecklist()).toHaveLength(6);
+      expect(() => offlineCoverage.persistPackingChecklist()).not.toThrow();
+
+      storageUnavailableWrapper.unmount();
+    } finally {
+      if (storageDescriptor) {
+        Object.defineProperty(window, 'localStorage', storageDescriptor);
+      }
+    }
+
+    localStorage.setItem(
+      'scope-trip-planner-packing-checklist:trip:empty-normalized',
+      JSON.stringify([{ id: '', label: '   ' }, { checked: true }]),
+    );
+
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue,
+        packingChecklistScope: 'trip:empty-normalized',
+        locationSearchProximity: {
+          latitude: 35,
+          longitude: -90,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    expect(coverage.readPackingChecklistStorage('scope-trip-planner-packing-checklist:trip:empty-normalized')).toBeNull();
+    expect(coverage.normalizePackingChecklistScope()).toBe('trip:empty-normalized');
+    expect(coverage.getPackingChecklistStorageKey()).toBe('scope-trip-planner-packing-checklist:trip:empty-normalized');
+    expect(coverage.normalizeBudgetRange()).toMatchObject({ step: 100 });
+    expect(coverage.normalizeBudgetValue(undefined)).toBe(0);
+    expect(coverage.buildFormState({})).toMatchObject({
+      destination: '',
+      endDestination: '',
+      budgetFloor: 500,
+      budget: 1500,
+      interests: [],
+      pace: 'relaxed',
+      groupSize: 1,
+    });
+
+    const timers = {
+      destination: setTimeout(() => undefined, 1),
+      endDestination: null,
+    };
+    coverage.clearLocationTimer(timers, 'destination');
+    expect(timers.destination).toBeNull();
+
+    coverage.resetLocationSuggestionState('destination');
+    coverage.handleLocationFocus('destination');
+    const arrowDown = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    coverage.handleLocationKeydown('destination', arrowDown);
+    expect(arrowDown.defaultPrevented).toBe(true);
+
+    const arrowUp = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true });
+    coverage.handleLocationKeydown('destination', arrowUp);
+    expect(arrowUp.defaultPrevented).toBe(true);
+
+    const enterWithoutSelection = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    coverage.handleLocationKeydown('destination', enterWithoutSelection);
+    expect(enterWithoutSelection.defaultPrevented).toBe(false);
+
+    coverage.form.endDestinationLatitude = 34;
+    coverage.form.endDestinationLongitude = -91;
+    expect(coverage.resolveLocationSearchProximity('destination')).toEqual({
+      latitude: 34,
+      longitude: -91,
+    });
+    coverage.form.endDestinationLatitude = undefined;
+    coverage.form.endDestinationLongitude = undefined;
+    expect(coverage.resolveLocationSearchProximity('destination')).toEqual({
+      latitude: 35,
+      longitude: -90,
+    });
+
+    wrapper.unmount();
+  });
+
+  it('covers planner computed fallbacks, route labels, stop mutations, and budget guards', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T09:15:00.000Z'));
+
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue: {
+          ...initialValue,
+          destination: '100 Main Street, Fort Worth, TX',
+          endDestination: 'Fort Worth, TX',
+          budgetFloor: 1000,
+          budget: 600,
+          interests: ['food', 'culture', 'nightlife', 'nature'],
+          pace: 'packed',
+          groupSize: 20,
+        },
+        suggestedStops,
+        selectedStops: [selectedStops[0]!],
+        packingChecklistScope: '  ',
+        fuelSettings: {
+          mpg: 0,
+          gasPricePerGallon: 25,
+          fuelType: 'premium',
+        },
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    expect(coverage.getLocationSegments(' 100 Main Street, Fort Worth, TX ')).toEqual([
+      '100 Main Street',
+      'Fort Worth',
+      'TX',
+    ]);
+    expect(coverage.getLocationRegionHint('100 Main Street, Fort Worth, TX')).toBe('TX');
+    expect(coverage.getLocationRegionHint('Fort Worth, TX, US')).toBe('TX, US');
+    expect(coverage.getLikelyCityLabel('100 Main Street, Fort Worth, TX')).toBe('Fort Worth');
+    expect(coverage.getLikelyCityLabel('Fort Worth, TX')).toBe('Fort Worth');
+    expect(coverage.getLikelyCityLabel('Solo City')).toBe('Solo City');
+    expect(coverage.buildWeatherSearchLabels('Fort Worth, TX', 'Dallas, TX')).toEqual(['Fort Worth']);
+    expect(coverage.buildWeatherSearchLabels('100 Main Street, Fort Worth, TX', 'Dallas, TX')).toEqual([
+      'Fort Worth, TX',
+      'Fort Worth',
+    ]);
+    expect(read(coverage.weatherLookupPoints)).toHaveLength(2);
+    expect(read<string>(coverage.weatherLookupKey)).toContain('100 Main Street');
+    expect(read<string>(coverage.weatherStatusCopy)).toContain('route has a city');
+
+    expect(coverage.formatRouteEndpointLabel(undefined)).toBe('');
+    expect(coverage.formatRouteEndpointLabel('100 Main Street, Fort Worth, TX')).toBe('100 Main Street, Fort Worth');
+    expect(read<string>(coverage.destinationLabel)).toBe('100 Main Street, Fort Worth to Fort Worth, TX');
+    expect(read<boolean>(coverage.hasPlannerRouteSeed)).toBe(true);
+    expect(read<string>(coverage.interestsMetaLabel)).toBe('4 selected');
+    expect(read<string>(coverage.interestsLabel)).toBe('Food, Culture, Nightlife +1 more');
+    expect(read<string>(coverage.guideHandoffCopy)).toContain('route first');
+    expect(read<Array<string>>(coverage.visibleInterestCategories)).toEqual(expect.not.arrayContaining(['other']));
+    coverage.toggleCategory('other');
+    expect(read<Array<string>>(coverage.visibleInterestCategories)).toContain('other');
+    expect(read<string>(coverage.stepOneSummary)).toContain('3 days');
+    expect(read<string>(coverage.stepTwoSummary)).toContain('1 stop');
+    expect(read<string>(coverage.stepThreeSummary)).toContain('5 interests');
+
+    expect(read<string>(coverage.fuelSettingsSummary)).toBe('Check fuel inputs');
+    expect(read<string>(coverage.fuelMpgError)).toBe('');
+    expect(read<string>(coverage.fuelGasPriceError)).toContain('$20.00/gal');
+    await wrapper.setProps({
+      fuelSettings: {
+        mpg: 24.5,
+        gasPricePerGallon: 4.199,
+        fuelType: 'diesel',
+      },
+    });
+    await flushPromises();
+    expect(read<string>(coverage.fuelSettingsSummary)).toContain('Diesel / 24.5 MPG / $4.20/gal');
+
+    expect(read<string>(coverage.packingProgressLabel)).toBe('0/6 packed');
+    coverage.addPackingItem('  Backup rain poncho  ');
+    expect(read<string>(coverage.packingProgressLabel)).toBe('0/7 packed');
+    coverage.addPackingItem('   ');
+    expect(read<string>(coverage.packingProgressLabel)).toBe('0/7 packed');
+    coverage.removePackingItem('backup rain poncho');
+    expect(read<string>(coverage.packingProgressLabel)).toBe('0/6 packed');
+
+    const normalizedStops = coverage.normalizeStops([
+      { spotId: 'alpha', title: 'Alpha', latitude: 1, longitude: 2, category: 'food', timeSlot: undefined },
+      { spotId: 'beta', title: 'Beta', latitude: 3, longitude: 4, category: 'culture', timeSlot: undefined },
+      { spotId: 'gamma', title: 'Gamma', latitude: 5, longitude: 6, category: 'nature', timeSlot: undefined },
+      { spotId: 'delta', title: 'Delta', latitude: 7, longitude: 8, category: 'scenic', timeSlot: undefined },
+      { spotId: 'epsilon', title: 'Epsilon', latitude: 9, longitude: 10, category: 'nightlife', timeSlot: undefined },
+    ]);
+    expect(normalizedStops.every((stop: TripSpot) => Boolean(stop.timeSlot))).toBe(true);
+    coverage.syncStops(normalizedStops.slice(0, 2));
+    expect(wrapper.emitted('update:stops')?.at(-1)?.[0]).toHaveLength(2);
+
+    coverage.removeStop('alpha');
+    expect(wrapper.emitted('update:stops')?.at(-1)?.[0]).toHaveLength(1);
+    coverage.removeStop('beta');
+    expect(wrapper.emitted('update:stops')?.at(-1)?.[0]).toHaveLength(1);
+
+    coverage.handleAddSuggestedStop();
+    expect(wrapper.emitted('update:stops')?.at(-1)?.[0]).toHaveLength(2);
+
+    const transfer = {
+      effectAllowed: '',
+      setData: vi.fn(),
+    };
+    coverage.handleDragStart('stop-1', { dataTransfer: transfer } as unknown as DragEvent);
+    expect(transfer.effectAllowed).toBe('move');
+    expect(transfer.setData).toHaveBeenCalledWith('text/plain', 'stop-1');
+    coverage.handleDragEnter('stop-2');
+    coverage.handleDrop('stop-2');
+    expect(wrapper.emitted('update:stops')?.at(-1)?.[0]).toEqual(expect.any(Array));
+    coverage.handleDrop('missing');
+    coverage.handleDragEnd();
+
+    const floorInput = document.createElement('input');
+    floorInput.value = '-100';
+    coverage.handleBudgetFloorNumberInput({ target: floorInput } as unknown as Event);
+    expect(read<string>(coverage.budgetRangeLabel)).toContain('$0');
+    const ceilingInput = document.createElement('input');
+    ceilingInput.value = '250';
+    coverage.handleBudgetCeilingNumberInput({ target: ceilingInput } as unknown as Event);
+    expect(read<string>(coverage.dailyBudgetLabel)).toContain('/ day');
+    coverage.updateGroupSize(99);
+    expect(coverage.form.groupSize).toBe(12);
+    coverage.updateGroupSize(-4);
+    expect(coverage.form.groupSize).toBe(1);
+
+    expect(coverage.toCalendarDayNumber('2026-02-30')).toEqual(Number.NaN);
+    expect(coverage.toCalendarDayNumber('2026-02-28')).toEqual(expect.any(Number));
+    coverage.form.destination = '';
+    coverage.form.endDestination = '';
+    coverage.form.destinationLatitude = undefined;
+    coverage.form.destinationLongitude = undefined;
+    coverage.form.endDestinationLatitude = undefined;
+    coverage.form.endDestinationLongitude = undefined;
+    coverage.syncStops([]);
+    expect(read<boolean>(coverage.hasPlannerRouteSeed)).toBe(false);
+    expect(read<string>(coverage.destinationLabel)).toBe('Pick a place to plan around');
+    expect(read<string>(coverage.guideHandoffCopy)).toContain('Set a real route first');
+    expect(read<string>(coverage.stepTwoSummary)).toContain('Stops appear');
+
+    wrapper.unmount();
+  });
+
+  it('drives planner guard states for weather, wizard, fuel, budget, and location suggestions', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue: {
+          destination: '',
+          endDestination: undefined as never,
+          startDate: '2026-07-04',
+          endDate: '2026-07-04',
+          budgetFloor: 200,
+          budget: 400,
+          interests: [],
+          pace: 'mystery' as never,
+          groupSize: 1,
+        },
+        mobileWizard: true,
+        mobileActiveStep: 2,
+      },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+
+    coverage.weatherState.value = 'loading';
+    expect(read<string>(coverage.weatherStatusCopy)).toBe('Checking live weather...');
+    coverage.weatherState.value = 'missing-key';
+    expect(read<string>(coverage.weatherStatusCopy)).toContain('browser fetch');
+    coverage.weatherState.value = 'error';
+    coverage.weatherErrorMessage.value = '';
+    expect(read<string>(coverage.weatherStatusCopy)).toBe('Weather is unavailable right now.');
+    coverage.weatherState.value = 'empty';
+    expect(read<string>(coverage.weatherStatusCopy)).toContain('Add an origin');
+
+    expect(coverage.getWizardStepState(1)).toBe('complete');
+    expect(coverage.getWizardStepState(2)).toBe('current');
+    expect(coverage.getWizardStepState(3)).toBe('upcoming');
+    expect(coverage.getWizardStepLabel(1)).toBe('Done');
+    expect(coverage.getWizardStepLabel(2)).toBe('Current');
+    expect(coverage.getWizardStepLabel(3)).toBe('Next');
+    expect(coverage.clampWizardStep(0)).toBe(1);
+    expect(coverage.clampWizardStep(9)).toBe(4);
+    coverage.emitWizardStepChange(9);
+    expect(wrapper.emitted('wizard-step-change')?.at(-1)?.[0]).toBe(4);
+
+    coverage.form.pace = 'unknown';
+    expect(read<string>(coverage.stepThreeSummary)).toContain('Moderate pace');
+    coverage.selectedFuelType.value = 'not-real';
+    coverage.fuelMpgInput.value = '';
+    coverage.fuelGasPriceInput.value = '';
+    expect(read<string>(coverage.fuelSettingsSummary)).toBe('Regular tank');
+    coverage.fuelMpgInput.value = '24';
+    expect(read<string>(coverage.fuelSettingsSummary)).toBe('Regular / add gas price');
+    coverage.fuelMpgInput.value = '';
+    coverage.fuelGasPriceInput.value = '4.50';
+    expect(read<string>(coverage.fuelSettingsSummary)).toBe('Regular / add MPG');
+
+    coverage.budgetFloor.value = -1;
+    coverage.budgetCeiling.value = 100;
+    expect(coverage.validatePlanner()).toMatchObject({ budget: 'Budget values must be zero or higher.' });
+    coverage.budgetFloor.value = 500;
+    coverage.budgetCeiling.value = 100;
+    expect(coverage.validatePlanner()).toMatchObject({
+      budget: 'Maximum budget must be at least the minimum budget.'
+    });
+    coverage.normalizeBudgetInputs();
+    expect(coverage.budgetCeiling.value).toBeGreaterThanOrEqual(coverage.budgetFloor.value);
+
+    expect(coverage.formatRouteEndpointLabel('')).toBe('');
+    expect(coverage.formatRouteEndpointLabel(', Austin, TX')).toBe('Austin, TX');
+    expect(coverage.getLocationRegionHint('100 Main Street, Fort Worth')).toBe('');
+    expect(coverage.buildWeatherSearchLabels('Fort Worth, TX', 'Fort Worth, TX')).toEqual(['Fort Worth']);
+    coverage.form.endDestination = undefined;
+    expect(coverage.buildPlannerPayload()).not.toHaveProperty('endDestination');
+    coverage.form.destinationLatitude = 91;
+    coverage.form.destinationLongitude = -97;
+    expect(coverage.resolveLocationCoordinatePayload('destination')).toEqual({});
+
+    const poiResult = {
+      placeName: 'Coffee Hall',
+      formattedAddress: '',
+      address: '',
+      latitude: 32.75,
+      longitude: -97.33,
+      precision: 'poi',
+      city: '',
+      country: '',
+      category: 'coffee',
+      distanceKm: 1.5,
+    };
+    expect(coverage.formatLocationSuggestionTitle(poiResult)).toBe('Coffee Hall');
+    expect(coverage.formatLocationSuggestionMeta(poiResult)).toContain('0.9 mi away');
+    expect(coverage.formatLocationSuggestionMeta({
+      ...poiResult,
+      precision: 'address',
+      city: 'Fort Worth',
+      country: 'United States',
+      distanceKm: undefined,
+    })).toBe('Fort Worth, United States');
+    expect(coverage.formatLocationSuggestionMeta({
+      ...poiResult,
+      precision: 'address',
+      placeName: '',
+      city: '',
+      country: '',
+      distanceKm: undefined,
+    })).toBe('32.7500, -97.3300');
+    expect(coverage.formatLocationSuggestionBadge(poiResult, 0)).toBe('Closest');
+    expect(coverage.formatLocationSuggestionBadge({ ...poiResult, distanceKm: undefined }, 0)).toBe('Best match');
+    expect(coverage.formatLocationSuggestionBadge(poiResult, 1)).toBe('');
+
+    const state = coverage.locationSuggestions.destination;
+    coverage.setLocationFieldValue('destination', 'Co');
+    state.open = true;
+    state.loading = false;
+    state.error = '';
+    state.results = [];
+    expect(coverage.shouldShowLocationSuggestions('destination')).toBe(false);
+    coverage.setLocationFieldValue('destination', 'Coffee');
+    expect(coverage.shouldShowLocationSuggestions('destination')).toBe(true);
+    state.error = 'Provider down';
+    expect(coverage.shouldShowLocationSuggestions('destination')).toBe(true);
+    state.error = '';
+    state.loading = true;
+    expect(coverage.shouldShowLocationSuggestions('destination')).toBe(true);
+    state.loading = false;
+    state.results = [poiResult];
+    state.activeIndex = 0;
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    coverage.handleLocationKeydown('destination', enter);
+    expect(enter.defaultPrevented).toBe(true);
+    expect(coverage.form.destination).toBe('Coffee Hall');
+    expect(coverage.resolveLocationCoordinatePayload('destination')).toMatchObject({
+      destinationLatitude: 32.75,
+      destinationLongitude: -97.33,
+    });
+
+    coverage.errors.value = { destination: 'Required', endDestination: 'Required' };
+    coverage.setLocationFieldValue('destination', 'Dallas');
+    coverage.handleLocationInput('destination');
+    expect(coverage.errors.value.destination).toBeUndefined();
+    coverage.clearEndDestination();
+    expect(coverage.errors.value.endDestination).toBeUndefined();
+
+    wrapper.unmount();
   });
 });

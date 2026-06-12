@@ -58,7 +58,7 @@ public sealed class NotificationEventConsumerService(
             try
             {
                 var result = consumer.Consume(stoppingToken);
-                if (result?.Message?.Value is null)
+                if (!ShouldProcessConsumedMessage(result))
                 {
                     continue;
                 }
@@ -78,6 +78,9 @@ public sealed class NotificationEventConsumerService(
             }
         }
     }
+
+    private static bool ShouldProcessConsumedMessage(ConsumeResult<string, string>? result)
+        => result?.Message?.Value is not null;
 
     private async Task HandleMessageAsync(string topic, long offset, string message, CancellationToken cancellationToken)
     {

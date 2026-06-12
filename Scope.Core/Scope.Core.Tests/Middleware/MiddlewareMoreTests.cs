@@ -1,9 +1,14 @@
 using System.Net;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using Scope.Core.API.Middleware;
 using Scope.Core.Domain.Exceptions;
 using Scope.Core.Domain.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -151,6 +156,39 @@ public sealed class MiddlewareMoreTests
     }
 
     [Fact]
+    public async Task MetricsAllowlistMiddleware_CoversMappedIpv4PartialMasksAndMalformedRanges()
+    {
+        var called = 0;
+        var middleware = new MetricsAllowlistMiddleware(
+            _ =>
+            {
+                called += 1;
+                return Task.CompletedTask;
+            },
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["METRICS_ALLOWED_CIDRS"] = "bad-cidr;999.0.0.1/24;203.0.113.0/nope;203.0.113.128/25",
+            }).Build(),
+            NullLogger<MetricsAllowlistMiddleware>.Instance);
+
+        await middleware.InvokeAsync(Context("/metrics", "::ffff:203.0.113.130"));
+        Assert.Equal(1, called);
+
+        var mismatchedFamily = Context("/metrics", "::2");
+        await middleware.InvokeAsync(mismatchedFamily);
+        Assert.Equal(StatusCodes.Status403Forbidden, mismatchedFamily.Response.StatusCode);
+
+        var outsidePartialMask = Context("/metrics", "203.0.113.10");
+        await middleware.InvokeAsync(outsidePartialMask);
+        Assert.Equal(StatusCodes.Status403Forbidden, outsidePartialMask.Response.StatusCode);
+
+        var unknownRemote = NewJsonContext();
+        await middleware.InvokeAsync(unknownRemote);
+        Assert.Equal(StatusCodes.Status403Forbidden, unknownRemote.Response.StatusCode);
+        Assert.Equal(1, called);
+    }
+
+    [Fact]
     public async Task RateLimitMiddleware_BypassesMetricsAndLimitsAuthAndGlobalBuckets()
     {
         var nextCalls = 0;
@@ -210,6 +248,26 @@ public sealed class MiddlewareMoreTests
     }
 
     [Fact]
+    public void RateLimitMiddleware_LocalWindowExpiresOldEntriesAndLimitsCurrentOnes()
+    {
+        var store = new ConcurrentDictionary<string, Queue<DateTimeOffset>>();
+        var key = $"test:{Guid.NewGuid()}";
+        var now = DateTimeOffset.UtcNow;
+        store[key] = new Queue<DateTimeOffset>(
+        [
+            now.AddSeconds(-61),
+            now.AddSeconds(-61),
+            now.AddSeconds(-1),
+        ]);
+
+        Assert.True(PermitLocal(store, key, now, limit: 2, TimeSpan.FromSeconds(60)));
+        Assert.False(PermitLocal(store, key, now, limit: 2, TimeSpan.FromSeconds(60)));
+
+        var emptyKey = $"empty:{Guid.NewGuid()}";
+        Assert.True(PermitLocal(store, emptyKey, now, limit: 1, TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
     public async Task RequestLoggingMiddleware_RecordsSuccessAndRethrowsFailures()
     {
         var success = Context("/api/core/users/me", "203.0.113.47");
@@ -223,6 +281,58 @@ public sealed class MiddlewareMoreTests
         failure.Request.Method = "POST";
         var throwing = new RequestLoggingMiddleware(_ => throw new InvalidOperationException("boom"), NullLogger<RequestLoggingMiddleware>.Instance);
         await Assert.ThrowsAsync<InvalidOperationException>(() => throwing.InvokeAsync(failure));
+
+        var serverError = Context("/api/core/trips", "203.0.113.49");
+        serverError.Request.Method = "PATCH";
+        serverError.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await middleware.InvokeAsync(serverError);
+    }
+
+    [Fact]
+    public async Task RequestLoggingMiddleware_TagsActivityForSuccessAndThrownFailure()
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == ScopeObservability.ActivitySourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var success = Context("/api/core/health", "203.0.113.50");
+        success.Request.Method = "GET";
+        success.Request.Headers["X-Correlation-Id"] = "corr-123";
+        success.Response.StatusCode = StatusCodes.Status204NoContent;
+        var middleware = new RequestLoggingMiddleware(_ => Task.CompletedTask, NullLogger<RequestLoggingMiddleware>.Instance);
+
+        await middleware.InvokeAsync(success);
+
+        var failure = Context("/api/core/health", "203.0.113.51");
+        failure.Request.Method = "DELETE";
+        var throwing = new RequestLoggingMiddleware(_ => throw new InvalidOperationException("activity boom"), NullLogger<RequestLoggingMiddleware>.Instance);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => throwing.InvokeAsync(failure));
+    }
+
+    [Fact]
+    public void ScopeObservability_ResolvesEndpointRoutesAndNormalizesFallbackPaths()
+    {
+        var endpointContext = NewJsonContext();
+        endpointContext.SetEndpoint(new RouteEndpoint(
+            _ => Task.CompletedTask,
+            RoutePatternFactory.Parse("api/core/users/{id:guid}"),
+            order: 0,
+            EndpointMetadataCollection.Empty,
+            displayName: "user route"));
+
+        Assert.Equal("/api/core/users/{id:guid}", ScopeObservability.ResolveRoute(endpointContext));
+
+        var emptyPath = NewJsonContext();
+        emptyPath.Request.Path = PathString.Empty;
+        Assert.Equal("/", ScopeObservability.ResolveRoute(emptyPath));
+
+        var rootedPath = NewJsonContext();
+        rootedPath.Request.Path = "/api/core/health";
+        Assert.Equal("/api/core/health", ScopeObservability.ResolveRoute(rootedPath));
     }
 
     private static DefaultHttpContext Context(string path, string ip)
@@ -246,5 +356,17 @@ public sealed class MiddlewareMoreTests
         return (await JsonSerializer.DeserializeAsync<ErrorEnvelope>(
             context.Response.Body,
             new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
+    }
+
+    private static bool PermitLocal(
+        ConcurrentDictionary<string, Queue<DateTimeOffset>> store,
+        string key,
+        DateTimeOffset now,
+        int limit,
+        TimeSpan window)
+    {
+        var method = typeof(RateLimitMiddleware).GetMethod("PermitLocal", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(nameof(RateLimitMiddleware), "PermitLocal");
+        return (bool)method.Invoke(null, [store, key, now, limit, window])!;
     }
 }

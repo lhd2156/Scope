@@ -118,6 +118,94 @@ public sealed class FriendsControllerCoveragePushTests
         Assert.IsType<OkObjectResult>(await controller.Suggestions("mutuals", 2, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Pending_BuildsRequestNotesForNoMutualsSingularAndPluralMutuals()
+    {
+        var currentUserId = Guid.NewGuid();
+        var noMutualRequesterId = Guid.NewGuid();
+        var oneMutualRequesterId = Guid.NewGuid();
+        var pluralMutualRequesterId = Guid.NewGuid();
+        var mutualOneId = Guid.NewGuid();
+        var mutualTwoId = Guid.NewGuid();
+        await using var dbContext = TestData.CreateDbContext();
+        dbContext.Users.AddRange(
+            TestData.User(currentUserId, "current", displayName: "Current"),
+            TestData.User(noMutualRequesterId, "nomutual", displayName: "No Mutual"),
+            TestData.User(oneMutualRequesterId, "onemutual", displayName: "One Mutual", interestsJson: """["cafes"]"""),
+            TestData.User(pluralMutualRequesterId, "pluralmutual", displayName: "Plural Mutual"),
+            TestData.User(mutualOneId, "mutualone"),
+            TestData.User(mutualTwoId, "mutualtwo"));
+
+        dbContext.Friendships.AddRange(
+            new Friendship { Id = Guid.NewGuid(), RequesterId = noMutualRequesterId, AddresseeId = currentUserId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-3) },
+            new Friendship { Id = Guid.NewGuid(), RequesterId = oneMutualRequesterId, AddresseeId = currentUserId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) },
+            new Friendship { Id = Guid.NewGuid(), RequesterId = pluralMutualRequesterId, AddresseeId = currentUserId, Status = "pending", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) },
+            Accepted(currentUserId, mutualOneId),
+            Accepted(currentUserId, mutualTwoId),
+            Accepted(oneMutualRequesterId, mutualOneId),
+            Accepted(pluralMutualRequesterId, mutualOneId),
+            Accepted(pluralMutualRequesterId, mutualTwoId));
+        await dbContext.SaveChangesAsync();
+
+        var controller = new FriendsController(dbContext, new CapturingKafkaProducerService()).WithUser(currentUserId);
+
+        var result = await controller.Pending(CancellationToken.None);
+
+        var notes = Assert.IsAssignableFrom<IEnumerable<object>>(TestData.Response(Assert.IsType<OkObjectResult>(result)).Data)
+            .Select(x => TestData.Prop<string>(x, "note"))
+            .ToList();
+        Assert.Contains("Matched through Scope travel activity.", notes);
+        Assert.Contains("Matched through 1 mutual friend and cafes travel vibes.", notes);
+        Assert.Contains("Matched through 2 mutual friends and Scope travel activity.", notes);
+    }
+
+    [Fact]
+    public async Task Suggestions_CoverHiddenSharedInterestSameHomeAndPluralMutualReasons()
+    {
+        var callerId = Guid.NewGuid();
+        var hiddenSharedId = Guid.NewGuid();
+        var hiddenSameHomeId = Guid.NewGuid();
+        var pluralMutualCandidateId = Guid.NewGuid();
+        var recentPublicId = Guid.NewGuid();
+        var mutualOneId = Guid.NewGuid();
+        var mutualTwoId = Guid.NewGuid();
+        await using var dbContext = TestData.CreateDbContext();
+        dbContext.Users.AddRange(
+            TestData.User(callerId, "caller", displayName: "Caller", interestsJson: """["food"]""", homeBase: "Austin, TX"),
+            TestData.User(hiddenSharedId, "hiddenshared", displayName: "Hidden Shared", interestsJson: """["food"]""", homeBase: "Austin, TX"),
+            TestData.User(hiddenSameHomeId, "hiddensame", displayName: "Hidden Same", homeBase: "Austin, TX"),
+            TestData.User(pluralMutualCandidateId, "pluralcandidate", displayName: "Plural Candidate", profileVisibility: "public"),
+            TestData.User(recentPublicId, "recentpublic", displayName: "Recent Public", interestsJson: """["food"]""", profileVisibility: "public"),
+            TestData.User(mutualOneId, "mutualone"),
+            TestData.User(mutualTwoId, "mutualtwo"));
+        dbContext.Friendships.AddRange(
+            Accepted(callerId, mutualOneId),
+            Accepted(callerId, mutualTwoId),
+            Accepted(pluralMutualCandidateId, mutualOneId),
+            Accepted(pluralMutualCandidateId, mutualTwoId));
+        dbContext.UserPresences.Add(Presence(recentPublicId, "online", DateTimeOffset.UtcNow));
+        await dbContext.SaveChangesAsync();
+
+        var controller = new FriendsController(dbContext, new CapturingKafkaProducerService()).WithUser(callerId);
+
+        var result = await controller.Suggestions("   ", 24, CancellationToken.None);
+
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(TestData.Response(Assert.IsType<OkObjectResult>(result)).Data).ToList();
+        Assert.Contains(items, x =>
+            TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == hiddenSharedId
+            && TestData.Prop<string>(x, "reason") == "Suggested Scope traveler"
+            && Assert.IsAssignableFrom<string[]>(TestData.Prop<object>(x, "sharedInterests")).Length == 0);
+        Assert.Contains(items, x =>
+            TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == hiddenSameHomeId
+            && TestData.Prop<string>(x, "reason") == "Fresh Scope traveler");
+        Assert.Contains(items, x =>
+            TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == pluralMutualCandidateId
+            && TestData.Prop<string>(x, "reason") == "2 mutual friends");
+        Assert.Contains(items, x =>
+            TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == recentPublicId
+            && TestData.Prop<int>(x, "score") >= 6);
+    }
+
     private static Friendship Accepted(Guid requesterId, Guid addresseeId) => new()
     {
         Id = Guid.NewGuid(),

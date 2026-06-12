@@ -1561,14 +1561,6 @@ function getRouteBuildSuggestion(route: string): string {
     descriptors.push('balanced');
   }
 
-  if (missingKeys.includes('pace') && props.draft.pace) {
-    descriptors.push(`${paceLabel.value.toLowerCase()} pace`);
-  }
-
-  if (missingKeys.includes('travelParty') && Number.isFinite(props.draft.groupSize) && props.draft.groupSize > 0) {
-    descriptors.push(formatTravelPartyLabel(props.draft.groupSize));
-  }
-
   return descriptors.length
     ? `Build a ${descriptors.join(' ')} itinerary from ${route}`
     : `Build the itinerary from ${route}`;
@@ -2954,7 +2946,9 @@ function extractWeatherQuery(value: string): string | null {
   const normalizedPrompt = value.replace(/[?!.\s]+$/g, '').trim();
   const match = normalizedPrompt.match(/\b(?:weather|forecast|rain|storm|hot|cold|wind|snow)\b(?:\s+(?:in|for|at|near|around))?\s+(.+)$/i);
   const rawQuery = match?.[1]
+    ?.replace(/\[[^\]]+\]/g, ' ')
     ?.replace(/\b(?:today|tomorrow|this weekend|for the trip|on the route|for this route)\b/gi, ' ')
+    .replace(/\s+(?:please|pls|thanks|for real|if that makes sense|no guessing|do not guess|don't guess)$/i, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -7334,7 +7328,9 @@ defineExpose({
           parseChipBlocks,
           parseAssistantResponseBlocks,
           sanitizeChipLabel,
+          hasConversationExchange,
           isRecord,
+          messages,
           readStringField,
           readPositiveInteger,
           normalizeScopeActionType,
@@ -7355,7 +7351,9 @@ defineExpose({
           getPreviousAssistantMessagesForAudit,
           getPreviousUserPromptForAudit,
           auditAssistantMessageForRender,
+          starterMessage,
           getContextualNextMoveText,
+          voiceStatus,
           isStartCityRecommendationPrompt,
           scrollAssistIntoView,
           focusComposer,

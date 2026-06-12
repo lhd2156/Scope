@@ -123,4 +123,67 @@ describe('AppErrorBoundary', () => {
     expect(sessionStorage.getItem('scope-route-chunk-reload:/already-reloaded')).toBe('reloaded');
     expect(sessionStorage.getItem('scope-route-error-recovery:/trips/retry/edit')).toBe('recovered');
   });
+
+  it('normalizes string and blank thrown errors for the fallback and route diagnostics', async () => {
+    const ThrowStringChild = defineComponent({
+      setup() {
+        return () => {
+          throw 'plain string route failure';
+        };
+      },
+    });
+    const stringWrapper = mount(AppErrorBoundary, {
+      props: { resetKey: '/string-error' },
+      slots: {
+        default: () => h(ThrowStringChild),
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          RouterLink: { template: '<a href="/">Back home</a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(stringWrapper.text()).toContain('page-level error');
+    expect(window.__SCOPE_ROUTE_ERROR__).toMatchObject({
+      message: 'plain string route failure',
+      name: 'Error',
+      resetKey: '/string-error',
+    });
+
+    delete window.__SCOPE_ROUTE_ERROR__;
+    const blankError = new Error('   ');
+    blankError.name = '';
+    const ThrowBlankErrorChild = defineComponent({
+      setup() {
+        return () => {
+          throw blankError;
+        };
+      },
+    });
+
+    mount(AppErrorBoundary, {
+      props: { resetKey: '/blank-error' },
+      slots: {
+        default: () => h(ThrowBlankErrorChild),
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          RouterLink: { template: '<a href="/">Back home</a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(window.__SCOPE_ROUTE_ERROR__).toMatchObject({
+      message: 'Unknown route error',
+      name: 'Error',
+      resetKey: '/blank-error',
+    });
+
+    stringWrapper.unmount();
+  });
 });

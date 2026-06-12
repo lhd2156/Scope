@@ -194,6 +194,7 @@ const LIVE_SWEEP_TIMEOUT_MS = 45 * 60 * 1000;
 const ACTION_TIMEOUT_MS = 30_000;
 const NAVIGATION_TIMEOUT_MS = 45_000;
 const AUTH_REFRESH_PATH = '/api/core/auth/refresh';
+const LIVE_SWEEP_CSRF_TOKEN = 'scopeLiveSweepCsrfToken000000000';
 
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(LIVE_SWEEP_TIMEOUT_MS);
@@ -2131,6 +2132,20 @@ async function assertStackHealth(): Promise<void> {
     const response = await fetch(new URL(path, BASE_URL));
     expect(response.status, `${path} health status`).toBe(200);
   }
+
+  const coreDeletePreflight = await fetch(new URL('/api/core/users/00000000-0000-0000-0000-000000000000', BASE_URL), {
+    method: 'OPTIONS',
+    headers: {
+      Accept: 'application/json',
+      Origin: new URL(BASE_URL).origin,
+      Referer: `${new URL(BASE_URL).origin}/`,
+    },
+  });
+  const allowedCoreMethods = coreDeletePreflight.headers.get('allow') ?? '';
+  expect(
+    allowedCoreMethods,
+    'Live sweep requires deployed Core account deletion before creating disposable production users',
+  ).toMatch(/\bDELETE\b/i);
 }
 
 function assertNoMockPayload(payload: unknown, label: string): void {
@@ -2175,6 +2190,11 @@ async function api(method: string, path: string, options: ApiOptions = {}) {
       Referer: `${baseUrl.origin}/`,
       ...options.headers,
     };
+    if (path.startsWith('/api/content/') && !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+      headers.Cookie = `csrftoken=${LIVE_SWEEP_CSRF_TOKEN}`;
+      headers['X-CSRFToken'] = LIVE_SWEEP_CSRF_TOKEN;
+      headers['X-CSRF-Token'] = LIVE_SWEEP_CSRF_TOKEN;
+    }
     if (bearerToken) {
       headers.Authorization = `Bearer ${bearerToken}`;
     }

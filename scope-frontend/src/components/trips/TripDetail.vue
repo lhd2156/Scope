@@ -198,6 +198,26 @@ const mapSpots = computed<MapPoint[]>(() =>
     routeRole: index === 0 ? 'start' : index === stops.length - 1 ? 'end' : 'stop',
   })) ?? [],
 );
+
+defineExpose(import.meta.env.MODE === 'test'
+  ? {
+      __coverage: {
+        budgetLabel,
+        buildFallbackItinerary,
+        dateRangeLabel,
+        estimatedSpendLabel,
+        flattenItineraryStops,
+        heroImageFallback,
+        heroImageUrl,
+        mapSpots,
+        resolvedItinerary,
+        routeIntensityLabel,
+        routeStops,
+        totalDays,
+        weatherLabel,
+      },
+    }
+  : {});
 </script>
 
 <style scoped>

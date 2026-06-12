@@ -150,4 +150,87 @@ describe('Scope AI service edge contracts', () => {
     expect(response.responseText).toContain('Default Detail Place - provider-backed nearby option');
     expect(response.responseText).toContain('CHIPS: ["Open map"]');
   });
+
+  it('keeps parser edge fallbacks bounded for dates, images, map commands, and mixed actions', async () => {
+    expect(coverage.parseDateToken('2026-05-17', 2026)).toEqual({
+      iso: '2026-05-17',
+      explicitYear: true,
+    });
+    expect(coverage.parseDateToken('5/17/27', 2026)).toEqual({
+      iso: '2027-05-17',
+      explicitYear: true,
+    });
+    expect(coverage.parseDateToken('May 17 27', 2026)).toEqual({
+      iso: '2027-05-17',
+      explicitYear: true,
+    });
+    expect(coverage.parseDateToken('17 May 2027', 2026)).toEqual({
+      iso: '2027-05-17',
+      explicitYear: true,
+    });
+    expect(coverage.extractDateCommand('trip from May 17', plannerState)).toBeNull();
+    expect(coverage.extractDateCommand('keep the route flexible', plannerState)).toBeNull();
+
+    expect(coverage.normalizeScopeAiImagePayload([
+      { mime_type: 'image/png', data: 'data:image/png;base64,' },
+      { mime_type: 'image/jpeg', data: ' cmVjZWlwdA== ' },
+    ])).toEqual([
+      { mime_type: 'image/jpeg', data: 'cmVjZWlwdA==' },
+    ]);
+
+    expect(coverage.extractMapCommand('zoom out')).toEqual({ command: 'zoom_out' });
+    expect(coverage.extractMapCommand('open the whole route map')).toEqual({ command: 'fit_route' });
+    expect(coverage.extractMapCommand('map mode')).toEqual({ command: 'zoom_to_place', query: 'mode' });
+    expect(coverage.cleanupMapTargetQuery('show the map around San Antonio please')).toBe('show the map around San Antonio');
+    expect(coverage.extractExplicitLocationRecommendationQuery('best coffee Dallas')).toBe('Dallas');
+    expect(coverage.extractExplicitLocationRecommendationQuery('coffee nightlife scenic')).toBeNull();
+
+    const actions: object[] = [];
+    const confirmations: string[] = [];
+    coverage.addParsedPlannerCommandAction(
+      coverage.parseScopeAiPlannerCommand('clear start'),
+      actions,
+      confirmations,
+    );
+    coverage.addParsedPlannerCommandAction(
+      coverage.parseScopeAiPlannerCommand('clear start'),
+      actions,
+      confirmations,
+    );
+    expect(actions).toEqual([{ type: 'CLEAR_FIELD', field: 'start' }]);
+    expect(confirmations).toEqual(['start removal']);
+
+    const mixedPrompt = 'budget between $400 and $600 and find cheapest diesel within 20 miles and final destination Austin';
+    const mixed = coverage.buildMixedIntentResponse(
+      mixedPrompt,
+      mixedPrompt.toLowerCase(),
+      { ...plannerState, budget_min: 300 },
+    );
+    const parsedMixed = parseScopeAiResponse(mixed?.responseText ?? '');
+    expect(parsedMixed.actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'budget_max', value: 400 },
+      { type: 'SET_FIELD', field: 'fuel_type', value: 'diesel' },
+      { type: 'SEARCH_NEARBY_FUEL', sort_by: 'best_price', radius_km: 32, limit: 5 },
+      { type: 'SET_FIELD', field: 'end', value: 'Austin, TX' },
+    ]);
+
+    apiPostMock.mockResolvedValueOnce({
+      data: {
+        response: 'Provider-backed Dallas ideas are ready.',
+        model: 'scope-ai-provider',
+        actions: [{ type: 'SET_FIELD', field: 'budget_max', value: 500 }],
+        chips: ['Keep it cheap', 'Keep it cheap', ''],
+      },
+    });
+
+    const response = await callScopeAi({
+      message: 'Compare Dallas lunch options with current provider data',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+
+    expect(response.responseText).toContain('```action');
+    expect(response.responseText).toContain('CHIPS: ["Keep it cheap"]');
+  });
 });

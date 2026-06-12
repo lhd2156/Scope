@@ -799,6 +799,44 @@ function stopFriendPresenceRefresh(): void {
   }
 }
 
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeTab,
+          categoriesForUser,
+          coverPhotoForCategories,
+          currentFriendsPage,
+          discoverMode,
+          findPeopleError,
+          firstName,
+          friendActionLabel,
+          friendPagination,
+          goToFriendsPage,
+          hasSentRequestTo,
+          isAlreadyFriend,
+          isFriendActionDisabled,
+          isMobileFriendsLayout,
+          isSpotCategory,
+          matchesSearch,
+          normalizePeopleQuery,
+          parseRouteTab,
+          pluralize,
+          railPresenceLabel,
+          removeConnection,
+          runFindPeopleSearch,
+          selectDiscoverMode,
+          shouldAutoRefreshFriends,
+          showPanelHeader,
+          showPlainEmptyState,
+          suggestionReasonForUser,
+          syncMobileFriendsLayout,
+          syncVisibleFriendPresence,
+        },
+      }
+    : {}),
+});
+
 watch(
   () => route.query.tab,
   (nextTab) => {

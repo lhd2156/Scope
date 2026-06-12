@@ -179,6 +179,44 @@ describe('friends store API contracts', () => {
     ]);
   });
 
+  it('handles invalid activity timestamps and missing pagination metadata', async () => {
+    vi.doMock('@/services/friendService', () => ({
+      listFriends: vi.fn().mockResolvedValue({
+        data: [
+          buildConnection({
+            user: buildUser({ id: 'user-invalid-date', displayName: 'Invalid Date' }),
+            presence: 'offline',
+            lastActiveAt: 'not-a-date',
+          }),
+          buildConnection({
+            user: buildUser({ id: 'user-valid-date', displayName: 'Valid Date' }),
+            presence: 'offline',
+            lastActiveAt: '2026-05-01T12:00:00Z',
+          }),
+        ],
+        meta: undefined,
+      }),
+      listPendingFriendRequests: vi.fn().mockResolvedValue({ data: [] }),
+      listFriendSuggestions: vi.fn().mockResolvedValue({ data: [], meta: undefined }),
+      searchFriendCandidates: vi.fn(),
+      sendFriendRequest: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      rejectFriendRequest: vi.fn(),
+      removeFriend: vi.fn(),
+    }));
+
+    const store = await bootstrapFriendsStore();
+
+    await store.fetchAll();
+    await store.refreshSuggestions();
+
+    expect(store.meta).toBeNull();
+    expect(store.rankedConnections.map((connection) => connection.user.displayName)).toEqual([
+      'Valid Date',
+      'Invalid Date',
+    ]);
+  });
+
   it('refreshes friend connections without disturbing requests', async () => {
     const firstConnection = buildConnection({ user: buildUser({ id: 'user-old' }) });
     const nextConnection = buildConnection({ user: buildUser({ id: 'user-new' }), presence: 'planning' });

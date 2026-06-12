@@ -104,38 +104,8 @@
         />
 
         <div class="planner-workspace__right">
-          <section v-if="isTripPlannerAuditMode" class="glass-panel planner-audit-preview" data-test="planner-audit-preview">
-            <div class="planner-audit-preview__header">
-              <div>
-                <p class="eyebrow">Preview snapshot</p>
-                <h2>{{ plannerTitle }}</h2>
-              </div>
-              <span class="planner-audit-preview__pill">{{ resolvedPreviewItinerary?.destination ?? plannerDraft.destination }}</span>
-            </div>
-
-            <p class="section-copy">
-              Scope keeps this view focused on the trip brief, route count, and budget summary while preserving the user-facing planner flow.
-            </p>
-
-            <div class="planner-audit-preview__metrics">
-              <article class="planner-audit-preview__metric">
-                <span class="eyebrow">Days</span>
-                <strong>{{ plannerAuditDayCount }}</strong>
-              </article>
-              <article class="planner-audit-preview__metric">
-                <span class="eyebrow">Stops</span>
-                <strong>{{ plannerAuditStopCount }}</strong>
-              </article>
-              <article class="planner-audit-preview__metric">
-                <span class="eyebrow">Budget</span>
-                <strong>{{ plannerAuditBudgetLabel }}</strong>
-              </article>
-            </div>
-          </section>
-
           <ItineraryView
             ref="plannerItineraryView"
-            v-else
             :itinerary="resolvedPreviewItinerary"
             :draft="plannerDraft"
             :trip-title="plannerTitle"
@@ -3977,6 +3947,157 @@ onBeforeUnmount(() => {
   editableTripHydrationRequestId += 1;
   window.removeEventListener('resize', syncMobilePlannerLayout);
 });
+
+defineExpose(import.meta.env.MODE === 'test'
+  ? {
+      __coverage: {
+        buildDraftTripInput,
+        buildDraftAutosaveSignature,
+        buildGeneratedDraftTitle,
+        buildPlannerHandoffPrompt,
+        buildRouteLibraryCard,
+        buildRouteLibraryPhotoCacheKey,
+        buildRouteLibraryPreviewItinerary,
+        buildRouteLibraryStopPreview,
+        buildRouteLibraryVisualImages,
+        canPersistRouteLibraryPhotoCache,
+        canEditCurrentTrip,
+        canManageCurrentTrip,
+        clampPlannerStep,
+        compactRouteLibraryLocation,
+        compareItineraryStops,
+        createDefaultPlannerDraft,
+        createPlannerDraftSessionId,
+        currentDraftTrip,
+        currentUserTripRole,
+        draftSaveState,
+        formatPlannerHandoffDateSpan,
+        formatPlannerHandoffInterests,
+        formatPlannerHandoffStops,
+        formatRouteLibraryBudgetLabel,
+        formatRouteLibraryCategory,
+        formatRouteLibraryDate,
+        formatRouteLibraryDateLabel,
+        formatRouteLibraryPhotoCoordinate,
+        focusPlannerMapForScopeAiEndpointChange,
+        didDraftEndpointCoordinateChange,
+        getCachedRouteLibraryPhoto,
+        getDraftEndpointCoordinate,
+        getGeneratedTitleEndpoint,
+        getMaxItineraryDayNumber,
+        getMobileStepState,
+        getRouteLibraryEndpointLabels,
+        getRouteLibraryFallbackPhoto,
+        getRouteLibraryLookupPhoto,
+        getRouteLibraryPhotoFromStop,
+        getRouteLibraryPhotoLookupRequests,
+        getRouteLibraryRemixBudget,
+        getRouteLibraryRemixEndpointLabels,
+        getRouteLibraryRemixInterests,
+        getRouteLibrarySplitFallbackPhoto,
+        getRouteLibraryStopLocation,
+        getRouteLibraryStopMeta,
+        getRouteLibraryVisualCategories,
+        handleAiItineraryBuildRequest,
+        handleDeleteCurrentDraft,
+        handleFuelPriceSelect,
+        handleFuelSettingsRequest,
+        handleFuelSettingsUpdate,
+        handleFuelTypeSelect,
+        handleFeaturedRouteVisualHover,
+        handleFeaturedRouteVisualLeave,
+        handleDraftUpdate,
+        handleGenerate,
+        handleInviteMember,
+        handleItineraryStopsUpdate,
+        handleMapLocationSelect,
+        handleMemberRoleUpdate,
+        handleOpenTripAi,
+        handlePlannerHandoff,
+        handleRouteEndpointRemove,
+        handleRouteStopAdd,
+        handleRouteStopRemove,
+        handleRouteStopsReplace,
+        handleSaveDraft,
+        handleScopeAiMapCommand,
+        handleScopeAiTripCommand,
+        handleShareDraft,
+        handleTitleUpdate,
+        handleTripVisibilityUpdate,
+        handleWizardStepChange,
+        hasCoordinatePair,
+        hasAutosavableDraftInput,
+        hasAutosavableRouteContent,
+        hasMeaningfulPlannerEndpointLabel,
+        hasPlannerHomeBaseSearchAnchor,
+        hasPlannerDayByDayContent,
+        isMobilePlannerLayout,
+        isGeneratedPlannerTitleForDraft,
+        isPlannerRouteDraftBlank,
+        isPlannerEndDateUserLocked,
+        loadRouteSpotIntoPlanner,
+        cancelDeleteCurrentDraft,
+        confirmDeleteCurrentDraft,
+        deletePlannerDraftFromAi,
+        inviteTripMemberFromAi,
+        buildScopeAiMapQueryVariants,
+        formatScopeAiMapTargetLabel,
+        hasScopeAiGlobalMapHint,
+        hasScopeAiUnitedStatesRegionHint,
+        isBroadScopeAiMapPrecision,
+        isUnitedStatesScopeAiMapTarget,
+        lookupRouteLibraryPhoto,
+        markDraftAutosavePending,
+        mobileWizardStep,
+        normalizeItineraryDayNumber,
+        normalizeItineraryStops,
+        normalizeItineraryTimeSlot,
+        normalizePlannerInputForCompare,
+        plannerAuditBudgetLabel,
+        plannerAuditDayCount,
+        plannerAuditStopCount,
+        plannerDraft,
+        plannerIsPublic,
+        plannerLocationSearchProximity,
+        plannerMapViewport,
+        plannerStops,
+        plannerTitle,
+        plannerMembers,
+        resetBlankPlannerRouteWorkspace,
+        rebuildPreviewItineraryFromStops,
+        normalizeRouteLibraryLocation,
+        normalizeRouteLibraryImageKey,
+        normalizeRouteLibraryPhotoCacheText,
+        readRouteLibraryPhotoCache,
+        resolveIsMobilePlannerLayout,
+        routeLibraryPhotoLookupPending,
+        routeSpotId,
+        resolveScopeAiMapTargetZoom,
+        normalizeScopeAiMapTargetText,
+        queryMentionsScopeAiMapTargetCountry,
+        runDraftAutosave,
+        savePlannerDraft,
+        scoreScopeAiMapTargetMatch,
+        selectScopeAiMapTargetResult,
+        scheduleDraftAutosave,
+        scrollMobileStepIntoView,
+        setCachedRouteLibraryPhoto,
+        setRouteLibraryLookupPhoto,
+        shouldLookupRouteLibraryPhoto,
+        shouldStopNewDraftAutosaveRetry,
+        shouldUseRouteLibrarySplitVisual,
+        shiftRouteLibraryPreviewItineraryDates,
+        syncBlankPlannerRouteWorkspace,
+        syncEndDateFromTimelineStops,
+        syncMobilePlannerLayout,
+        syncPresetExperience,
+        syncScopeAiStateToPlanner,
+        tripFuelSettings,
+        ownerMember,
+        writeRouteLibraryPhotoCache,
+      },
+    }
+  : {});
 </script>
 
 <style scoped>

@@ -446,6 +446,37 @@ async function handleSave(payload: SettingsFormValue, options: SettingsSubmitOpt
     });
   }
 }
+
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeSection,
+          buildDefaultNotificationPreference,
+          buildSettingsValueFromProfile,
+          deriveSettingsNotificationPreferences,
+          formError,
+          goToSection,
+          handleDeleteAccount,
+          handleReplayTutorial,
+          handleSave,
+          isDeletingAccount,
+          isSaving,
+          loadNotificationPreferences,
+          normalizeTripInviteCadence,
+          notificationPreferences,
+          readLocalSettingsPreferences,
+          settingsValue,
+          successToastMessage,
+          syncModeDescription,
+          syncModeLabel,
+          syncSettingsNotificationPreferences,
+          toCategoryPreferences,
+          writeLocalSettingsPreferences,
+        },
+      }
+    : {}),
+});
 </script>
 
 <style scoped>

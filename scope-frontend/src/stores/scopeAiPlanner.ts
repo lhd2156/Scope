@@ -270,6 +270,8 @@ const VALID_PACES = new Set<ScopeAiPace>(['relaxed', 'standard', 'packed']);
 const VALID_FUEL_TYPES = new Set<ScopeAiFuelType>(['regular', 'midgrade', 'premium', 'diesel', 'ev']);
 const ARRAY_FIELDS = new Set(['stops', 'theme']);
 const NON_PLANNER_MUTATION_ACTION_TYPES = new Set([
+  'ADD_PACKING_ITEM',
+  'REMOVE_PACKING_ITEM',
   'UNDO',
   'SEARCH_NEARBY_FUEL',
   'SEARCH_NEARBY_PLACES',
@@ -506,8 +508,16 @@ export const useScopeAiPlannerStore = defineStore('scopeAiPlanner', () => {
     plannerState.value.stops.length,
   ));
 
+  function pushPlannerSnapshot(snapshot: ScopeAiPlannerState): void {
+    undoStack.value = [...undoStack.value, deepClone(snapshot)].slice(-MAX_UNDO_STACK);
+  }
+
   function snapshotPlannerState(): void {
-    undoStack.value = [...undoStack.value, deepClone(plannerState.value)].slice(-MAX_UNDO_STACK);
+    pushPlannerSnapshot(plannerState.value);
+  }
+
+  function getPlannerStateSignature(state: ScopeAiPlannerState = plannerState.value): string {
+    return JSON.stringify(state);
   }
 
   function restorePlannerState(snapshot: ScopeAiPlannerState): void {
@@ -1039,9 +1049,9 @@ export const useScopeAiPlannerStore = defineStore('scopeAiPlanner', () => {
       return false;
     }
 
-    if (block.actions.some((action) => !NON_PLANNER_MUTATION_ACTION_TYPES.has(action.type))) {
-      snapshotPlannerState();
-    }
+    const shouldSnapshot = block.actions.some((action) => !NON_PLANNER_MUTATION_ACTION_TYPES.has(action.type));
+    const previousState = shouldSnapshot ? deepClone(plannerState.value) : null;
+    const previousSignature = previousState ? getPlannerStateSignature(previousState) : '';
 
     const stopsToGeocode: ScopeAiStop[] = [];
     for (const action of block.actions) {
@@ -1053,6 +1063,10 @@ export const useScopeAiPlannerStore = defineStore('scopeAiPlanner', () => {
       } catch (error) {
         console.error('Scope AI planner action failed', error);
       }
+    }
+
+    if (previousState && getPlannerStateSignature() !== previousSignature) {
+      pushPlannerSnapshot(previousState);
     }
 
     stopsToGeocode.forEach((stop) => {
@@ -1069,9 +1083,10 @@ export const useScopeAiPlannerStore = defineStore('scopeAiPlanner', () => {
       };
     }
 
-    if (block.actions.some((action) => !NON_PLANNER_MUTATION_ACTION_TYPES.has(action.type))) {
-      snapshotPlannerState();
-    }
+    const hasNonPlannerActions = block.actions.some((action) => NON_PLANNER_MUTATION_ACTION_TYPES.has(action.type));
+    const shouldSnapshot = block.actions.some((action) => !NON_PLANNER_MUTATION_ACTION_TYPES.has(action.type));
+    const previousState = shouldSnapshot ? deepClone(plannerState.value) : null;
+    const previousSignature = previousState ? getPlannerStateSignature(previousState) : getPlannerStateSignature();
 
     const stopsToGeocode: ScopeAiStop[] = [];
     const resolutions: ScopeAiActionResolution[] = [];
@@ -1105,9 +1120,14 @@ export const useScopeAiPlannerStore = defineStore('scopeAiPlanner', () => {
       }
     }
 
+    const changedPlannerState = getPlannerStateSignature() !== previousSignature;
+    if (previousState && changedPlannerState) {
+      pushPlannerSnapshot(previousState);
+    }
+
     await Promise.all(stopsToGeocode.map((stop) => geocodeStopCoordinates(stop.id)));
     return {
-      applied: true,
+      applied: changedPlannerState || resolutions.length > 0 || stopsToGeocode.length > 0 || hasNonPlannerActions,
       resolutions,
     };
   }

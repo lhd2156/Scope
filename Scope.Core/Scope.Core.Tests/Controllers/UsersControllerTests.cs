@@ -430,6 +430,27 @@ public sealed class UsersControllerTests
             LastActiveAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
+        dbContext.UserReports.AddRange(
+            new UserReport
+            {
+                Id = Guid.NewGuid(),
+                ReporterId = userId,
+                TargetUserId = friendId,
+                TargetType = "user",
+                TargetId = friendId.ToString(),
+                Reason = "own report",
+                CreatedAt = DateTimeOffset.UtcNow,
+            },
+            new UserReport
+            {
+                Id = Guid.NewGuid(),
+                ReporterId = friendId,
+                TargetUserId = userId,
+                TargetType = "user",
+                TargetId = userId.ToString(),
+                Reason = "report against deleted user",
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
         await dbContext.SaveChangesAsync();
 
         var result = await CreateController(dbContext, userId).Deactivate(userId, CancellationToken.None);
@@ -450,6 +471,9 @@ public sealed class UsersControllerTests
         Assert.Empty(dbContext.Notifications);
         Assert.Empty(dbContext.NotificationDeliveries);
         Assert.Empty(dbContext.UserPresences);
+        var remainingReport = Assert.Single(dbContext.UserReports);
+        Assert.Equal(friendId, remainingReport.ReporterId);
+        Assert.Null(remainingReport.TargetUserId);
     }
 
     [Fact]

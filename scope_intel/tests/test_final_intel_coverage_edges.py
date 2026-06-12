@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import signal
+import socket
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import pytest
+import urllib3
 from marshmallow import ValidationError
 
 from app.api.place_photos import PlacePhotoQuerySchema
@@ -84,6 +87,136 @@ def test_tagger_url_validation_redirect_limits_and_size_guards(monkeypatch):
     monkeypatch.setattr(tagger, "_open_public_image_url", lambda url, timeout_seconds: EmptyRedirect())
     with pytest.raises(ValueError, match="redirect"):
         tagger.classify_from_url("https://8.8.8.8/image.png")
+
+
+def test_tagger_fetcher_rejects_bad_response_and_network_edges(monkeypatch):
+    monkeypatch.setattr(
+        tagger.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+
+    class ClosingResponse:
+        def __init__(self, status=200, headers=None):
+            self.status = status
+            self.headers = headers or {}
+            self.closed = False
+
+        def iter_content(self, chunk_size):
+            yield b"image"
+
+        def close(self):
+            self.closed = True
+
+    response = ClosingResponse(status=503)
+    monkeypatch.setattr(tagger, "_open_public_image_url", lambda url, timeout_seconds: response)
+    with pytest.raises(ValueError, match="error status"):
+        tagger.classify_from_url("https://example.com/image.png")
+    assert response.closed is True
+
+    response = ClosingResponse(headers={"Content-Type": "text/html; charset=utf-8"})
+    monkeypatch.setattr(tagger, "_open_public_image_url", lambda url, timeout_seconds: response)
+    with pytest.raises(ValueError, match="content type"):
+        tagger.classify_from_url("https://example.com/image.png")
+    assert response.closed is True
+
+    monkeypatch.setattr(
+        tagger,
+        "_open_public_image_url",
+        lambda url, timeout_seconds: (_ for _ in ()).throw(urllib3.exceptions.HTTPError("boom")),
+    )
+    with pytest.raises(ValueError, match="Unable to fetch"):
+        tagger.classify_from_url("https://example.com/image.png")
+
+    def fail_dns(*args, **kwargs):
+        raise socket.gaierror("missing")
+
+    monkeypatch.setattr(tagger.socket, "getaddrinfo", fail_dns)
+    with pytest.raises(ValueError, match="could not be resolved"):
+        tagger._validate_public_image_url("https://missing.example/image.png")
+
+
+def test_tagger_pinned_fetcher_helpers_and_stream_limits(monkeypatch):
+    monkeypatch.setattr(
+        tagger.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+    assert tagger._request_target(urlparse("https://example.com")) == "/"
+    assert tagger._request_target(urlparse("https://example.com/path?q=1")) == "/path?q=1"
+    assert tagger._host_header(urlparse("https://[2001:4860:4860::8888]:8443/path")) == "[2001:4860:4860::8888]:8443"
+
+    class RawResponse:
+        status = 200
+        headers = {"Content-Type": "image/png"}
+
+        def __init__(self):
+            self.released = False
+
+        def stream(self, chunk_size, decode_content=False):
+            assert decode_content is False
+            yield b"a"
+            yield b"b"
+
+        def release_conn(self):
+            self.released = True
+
+    class RecordingPool:
+        instances = []
+
+        def __init__(self, address, **kwargs):
+            self.address = address
+            self.kwargs = kwargs
+            self.closed = False
+            self.urlopen_calls = []
+            self.response = RawResponse()
+            RecordingPool.instances.append(self)
+
+        def urlopen(self, method, target, headers, preload_content, redirect):
+            self.urlopen_calls.append((method, target, headers, preload_content, redirect))
+            return self.response
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(urllib3, "HTTPSConnectionPool", RecordingPool)
+    wrapped = tagger._open_public_image_url("https://example.com:8443/path?q=1", timeout_seconds=1)
+    assert list(wrapped.iter_content(1)) == [b"a", b"b"]
+    wrapped.close()
+    https_pool = RecordingPool.instances[-1]
+    assert https_pool.address == "93.184.216.34"
+    assert https_pool.kwargs["port"] == 8443
+    assert https_pool.urlopen_calls[0][1] == "/path?q=1"
+    assert https_pool.urlopen_calls[0][2]["Host"] == "example.com:8443"
+    assert https_pool.response.released is True
+    assert https_pool.closed is True
+
+    monkeypatch.setattr(urllib3, "HTTPConnectionPool", RecordingPool)
+    wrapped = tagger._open_public_image_url("http://example.com/plain", timeout_seconds=2)
+    wrapped.close()
+    http_pool = RecordingPool.instances[-1]
+    assert http_pool.kwargs["port"] == 80
+    assert http_pool.urlopen_calls[0][1] == "/plain"
+
+    class FailingPool(RecordingPool):
+        def urlopen(self, *args, **kwargs):
+            raise RuntimeError("connect failed")
+
+    monkeypatch.setattr(urllib3, "HTTPConnectionPool", FailingPool)
+    with pytest.raises(RuntimeError, match="connect failed"):
+        tagger._open_public_image_url("http://example.com/plain", timeout_seconds=2)
+    assert FailingPool.instances[-1].closed is True
+
+    class ChunkedNoLengthResponse:
+        headers = {}
+
+        def iter_content(self, chunk_size):
+            yield b""
+            yield b"abc"
+            yield b"def"
+
+    with pytest.raises(ValueError, match="too large"):
+        tagger._read_limited_response(ChunkedNoLengthResponse(), max_bytes=4)
 
 
 def test_kafka_worker_and_producer_edges(monkeypatch):

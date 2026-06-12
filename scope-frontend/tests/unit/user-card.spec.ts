@@ -78,4 +78,25 @@ describe('UserCard', () => {
 
     expect(wrapper.text()).toContain(label);
   });
+
+  it('uses stat fallbacks, unknown presence fallback, and single-action layouts', async () => {
+    const wrapper = mount(UserCard, {
+      props: {
+        user: {
+          ...user,
+          stats: {},
+        },
+        presence: 'mystery' as never,
+        primaryActionLabel: 'Follow',
+      },
+    });
+
+    expect(wrapper.find('.presence-pill').text()).toBe('');
+    expect(wrapper.text()).toContain('0');
+    expect(wrapper.find('.eyebrow').exists()).toBe(false);
+    expect(wrapper.findAll('button')).toHaveLength(1);
+
+    await wrapper.get('button').trigger('click');
+    expect(wrapper.emitted('primary-action')?.[0]).toEqual(['user-1']);
+  });
 });

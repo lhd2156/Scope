@@ -4,16 +4,44 @@ import { spawn } from 'node:child_process';
 
 const workspaceRoot = resolve(import.meta.dirname, '..');
 const playwrightCliPath = resolve(workspaceRoot, 'node_modules', '@playwright', 'test', 'cli.js');
+const managedPreviewScriptPath = resolve(workspaceRoot, 'scripts', 'run-playwright-managed-preview.mjs');
+const currentScriptPath = resolve(workspaceRoot, 'scripts', 'run-playwright-coverage.mjs');
 const e2eDirectory = resolve(workspaceRoot, 'tests', 'e2e');
 const e2eCoverageDirectory = resolve(workspaceRoot, 'test-results', 'e2e-coverage');
 const coverageArtifactDirectory = resolve(workspaceRoot, 'test-results', 'playwright-coverage-artifacts');
 const forwardedArguments = process.argv.slice(2);
-const defaultSpecTimeoutMs = 20 * 60 * 1000;
+const defaultSpecTimeoutMs = 15 * 60 * 1000;
 const specTimeoutMs = Number.parseInt(
   process.env.PLAYWRIGHT_COVERAGE_SPEC_TIMEOUT_MS ?? String(defaultSpecTimeoutMs),
   10,
 );
 const preserveExistingCoverage = process.env.PLAYWRIGHT_COVERAGE_PRESERVE === 'true';
+
+async function delegateToManagedPreview() {
+  const childProcess = spawn(
+    process.execPath,
+    [managedPreviewScriptPath, currentScriptPath, ...forwardedArguments],
+    {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_MANAGED_PREVIEW: 'false',
+        VITE_COVERAGE: 'true',
+        PLAYWRIGHT_COVERAGE: 'true',
+      },
+      stdio: 'inherit',
+    },
+  );
+
+  return new Promise((resolveExit, reject) => {
+    childProcess.on('exit', (code, signal) => resolveExit(signal ? 1 : code ?? 1));
+    childProcess.on('error', reject);
+  });
+}
+
+if (process.env.PLAYWRIGHT_SKIP_WEBSERVER !== 'true' && process.env.PLAYWRIGHT_MANAGED_PREVIEW !== 'false') {
+  process.exit(await delegateToManagedPreview());
+}
 
 async function defaultTestFiles() {
   const entries = await readdir(e2eDirectory, { withFileTypes: true });

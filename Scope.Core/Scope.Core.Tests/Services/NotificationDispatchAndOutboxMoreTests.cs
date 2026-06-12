@@ -97,6 +97,80 @@ public sealed class NotificationDispatchAndOutboxMoreTests
     }
 
     [Fact]
+    public async Task DispatchBatchAsync_SendsPushWhenActiveSubscriptionExists()
+    {
+        await using var dbContext = TestData.CreateDbContext();
+        var userId = Guid.NewGuid();
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Type = "security",
+            TemplateKey = "security",
+            Category = "security",
+            Priority = "urgent",
+            Title = "Security",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var delivery = Delivery(notification, userId, "push", attempts: 0);
+        dbContext.Notifications.Add(notification);
+        dbContext.NotificationDeliveries.Add(delivery);
+        dbContext.PushSubscriptions.Add(PushSubscription(userId, "https://1.1.1.1/push"));
+        await dbContext.SaveChangesAsync();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<INotificationChannelSender>(new FakeSender("push", _ => new NotificationChannelSendResult(true, "push-provider-1")));
+        using var provider = services.BuildServiceProvider();
+        var dispatcher = new NotificationDeliveryDispatcher(provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<NotificationDeliveryDispatcher>.Instance);
+
+        await InvokePrivateBatch(dispatcher);
+
+        Assert.Equal("sent", delivery.Status);
+        Assert.Equal("push-provider-1", delivery.ProviderMessageId);
+        Assert.Null(delivery.ErrorCode);
+    }
+
+    [Fact]
+    public async Task WebPushSender_DisablesUnsafeSubscriptionEndpointBeforeProviderSend()
+    {
+        await using var dbContext = TestData.CreateDbContext();
+        var userId = Guid.NewGuid();
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Type = "security",
+            TemplateKey = "security",
+            Category = "security",
+            Priority = "urgent",
+            Title = "Security",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var subscription = PushSubscription(userId, "https://127.0.0.1/private-push");
+        dbContext.PushSubscriptions.Add(subscription);
+        await dbContext.SaveChangesAsync();
+
+        var sender = new WebPushNotificationSender(
+            dbContext,
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["WEB_PUSH_PUBLIC_KEY"] = "public",
+                ["WEB_PUSH_PRIVATE_KEY"] = "private",
+                ["WEB_PUSH_SUBJECT"] = "mailto:test@example.com",
+            }).Build(),
+            NullLogger<WebPushNotificationSender>.Instance);
+
+        var result = await sender.SendAsync(Delivery(notification, userId, "push", attempts: 0), notification, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal("web_push_failed", result.ErrorCode);
+        Assert.Contains("public host", result.ErrorMessage);
+        Assert.False(subscription.IsEnabled);
+        Assert.NotNull(subscription.RevokedAt);
+    }
+
+    [Fact]
     public async Task ProcessOutboxRecordAsync_CoversDigestReactionTripAndFailurePaths()
     {
         await using var dbContext = TestData.CreateDbContext();
@@ -211,6 +285,18 @@ public sealed class NotificationDispatchAndOutboxMoreTests
         PayloadJson = JsonSerializer.Serialize(payload),
         Status = "pending",
         AvailableAt = DateTimeOffset.UtcNow,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow,
+    };
+
+    private static PushSubscription PushSubscription(Guid userId, string endpoint) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Endpoint = endpoint,
+        P256dh = "p256dh",
+        Auth = "auth",
+        IsEnabled = true,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
     };

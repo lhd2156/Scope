@@ -350,7 +350,7 @@ def _format_interest_phrase(interests: str) -> str:
 
 
 def _parse_planner_stop_names(prompt: str) -> list[str]:
-    matched = re.search(r"^Stops:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|$)", prompt, flags=re.IGNORECASE | re.MULTILINE)
+    matched = re.search(r"^Stops:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|\Z)", prompt, flags=re.IGNORECASE | re.MULTILINE)
     if not matched:
         return []
 

@@ -252,4 +252,47 @@ describe('DateField', () => {
 
     wrapper.unmount();
   });
+
+  it('keeps date formatting helpers and picker guard branches stable', async () => {
+    const wrapper = mountDateField({
+      modelValue: '2001-02-03',
+      error: 'Birthday is required.',
+      help: 'You must be 13 or older to use Scope.',
+      showMessage: true,
+      preferHelpWhenError: false,
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.messageText.value).toBe('Birthday is required.');
+    expect(coverage.messageHasError.value).toBe(true);
+    expect(coverage.formatCompactDateDraft('')).toBe('');
+    expect(coverage.formatCompactDateDraft('letters only')).toBe('');
+    expect(coverage.formatCompactDateDraft('12')).toBe('12');
+    expect(coverage.formatCompactDateDraft('1231')).toBe('12/31');
+    expect(coverage.formatCompactDateDraft('2026-05-10-extra')).toBe('2026-05-10');
+    expect(coverage.parseDateInput('')).toBeNull();
+    expect(coverage.parseDateInput('01022000')).toEqual(new Date(2000, 0, 2));
+    expect(coverage.parseDateInput('bad-date')).toBeNull();
+
+    coverage.monthMenuOpen.value = true;
+    coverage.selectMonth(-1);
+    expect(coverage.monthMenuOpen.value).toBe(false);
+
+    coverage.yearMenuOpen.value = true;
+    coverage.selectYear(Number.NaN);
+    expect(coverage.yearMenuOpen.value).toBe(false);
+
+    coverage.open.value = false;
+    coverage.closePopover();
+    expect(coverage.open.value).toBe(false);
+
+    coverage.openPopover();
+    await flushPromises();
+    expect(coverage.open.value).toBe(true);
+    coverage.closePopover();
+    await flushPromises();
+    expect(coverage.open.value).toBe(false);
+
+    wrapper.unmount();
+  });
 });

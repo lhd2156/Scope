@@ -289,6 +289,113 @@ describe('SpotComposerPage', () => {
     expect(wrapper.get('[data-test="spot-form-visibility"]').text()).toBe('false');
   });
 
+  it('passes sparse edit spots through safe initial form fallbacks', async () => {
+    spotsStoreMock.selectedSpot = buildSelectedSpot({
+      description: undefined,
+      address: undefined,
+      city: '',
+      country: undefined,
+      postalCode: undefined,
+      pillars: [],
+      vibe: undefined,
+      isPublic: undefined,
+      providerPlaceId: 'provider-1',
+      providerPlaceName: 'Provider Garden',
+      providerPlaceAddress: '500 Provider Way',
+      verificationStatus: 'verified',
+      verificationSource: 'google',
+      verificationDistanceMeters: 12,
+      verifiedAt: '2026-04-01T00:00:00Z',
+      photos: [{ id: 'photo-1', url: 'https://images.example.com/photo.jpg', caption: '' }],
+    });
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
+      ],
+    });
+
+    await router.push('/spots/spot-7/edit');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            props: ['initialValue', 'initialPhotos'],
+            template: `
+              <div>
+                <span data-test="spot-description">{{ initialValue.description }}</span>
+                <span data-test="spot-country">{{ initialValue.country }}</span>
+                <span data-test="spot-pillars">{{ initialValue.pillars.join(',') }}</span>
+                <span data-test="spot-public">{{ String(initialValue.isPublic) }}</span>
+                <span data-test="spot-photos">{{ initialPhotos.length }}</span>
+                <span data-test="spot-provider">{{ initialValue.providerPlaceName }}</span>
+              </div>
+            `,
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="spot-description"]').text()).toBe('');
+    expect(wrapper.get('[data-test="spot-country"]').text()).toBe('US');
+    expect(wrapper.get('[data-test="spot-pillars"]').text()).toBe('hidden-gem');
+    expect(wrapper.get('[data-test="spot-public"]').text()).toBe('true');
+    expect(wrapper.get('[data-test="spot-photos"]').text()).toBe('1');
+    expect(wrapper.get('[data-test="spot-provider"]').text()).toBe('Provider Garden');
+  });
+
+  it('renders the audit preview with create fallbacks and skips live loading', async () => {
+    const locationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
+    window.history.replaceState({}, '', '/spots/new?scopeQaSession=guest');
+    authStoreMock.currentUser = {
+      id: 'user-1',
+      homeBase: '',
+    };
+    spotsStoreMock.loading = true;
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/new', name: 'spot-create', component: SpotComposerPage },
+      ],
+    });
+
+    await router.push('/spots/new?scopeQaSession=guest');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: { template: '<div data-test="spot-form-stub" />' },
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Spot composer preview');
+    expect(wrapper.text()).toContain('Pin creation stays condensed for quick previews.');
+    expect(wrapper.text()).toContain('Creating new pin');
+    expect(wrapper.text()).toContain('Choose a city');
+    expect(wrapper.text()).toContain('food');
+    expect(wrapper.find('[data-test="spot-form-stub"]').exists()).toBe(false);
+    expect(spotsStoreMock.fetchSpot).not.toHaveBeenCalled();
+
+    if (locationDescriptor) {
+      Object.defineProperty(window, 'location', locationDescriptor);
+    }
+    window.history.replaceState({}, '', '/');
+  });
+
   it('shows the edit loading state while the current spot draft is being fetched', async () => {
     spotsStoreMock.loading = true;
 
@@ -445,6 +552,41 @@ describe('SpotComposerPage', () => {
     expect(router.currentRoute.value.fullPath).toBe('/spots/garden-gallery-fort-worth');
   });
 
+  it('cancels edit mode back to explore when the selected spot is unavailable', async () => {
+    spotsStoreMock.selectedSpot = null;
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
+        { path: '/explore', name: 'explore', component: { template: '<div>Explore target</div>' } },
+      ],
+    });
+
+    await router.push('/spots/spot-7/edit');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            emits: ['cancel'],
+            template: '<button data-test="spot-form-cancel" @click="$emit(\'cancel\')">Cancel</button>',
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    spotsStoreMock.selectedSpot = null;
+    await wrapper.get('[data-test="spot-form-cancel"]').trigger('click');
+    await flushPromises();
+
+    expect(router.currentRoute.value.fullPath).toBe('/explore');
+  });
+
   it('shows a save error when spot creation fails and emits an error toast', async () => {
     spotsStoreMock.createSpot.mockImplementation(async () => {
       spotsStoreMock.error = 'Scope could not save that spot right now.';
@@ -489,5 +631,50 @@ describe('SpotComposerPage', () => {
     await wrapper.get('[data-test="clear-server-rejection"]').trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-test="server-rejection-panel"]').exists()).toBe(false);
+  });
+
+  it('uses fallback save error copy when the store does not provide one', async () => {
+    spotsStoreMock.error = '';
+    spotsStoreMock.updateSpot.mockRejectedValueOnce(new Error('Update failed'));
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/spots/:id/edit', name: 'spot-edit', component: SpotComposerPage },
+        { path: '/spots/:id', name: 'spot-detail', component: { template: '<div>Spot detail target</div>' } },
+      ],
+    });
+
+    await router.push('/spots/spot-7/edit');
+    await router.isReady();
+
+    const wrapper = mount(SpotComposerPage, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: '<div><slot /></div>' },
+          SpotForm: {
+            props: ['serverRejection'],
+            emits: ['submit'],
+            template: `
+              <div>
+                <button data-test="spot-form-submit" @click="$emit('submit', { spot: { title: 'Updated Spot', description: 'Demo', latitude: 32.7, longitude: -97.3, address: '123 Main', city: 'Fort Worth', country: 'US', category: 'food', vibe: 'electric', rating: 4.7, visitedAt: '2026-03-29', isPublic: true }, existingPhotos: [], newPhotos: [] })">Save</button>
+                <p v-if="serverRejection" data-test="server-rejection-message">{{ serverRejection.message }}</p>
+              </div>
+            `,
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-test="spot-form-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="server-rejection-message"]').text()).toBe('Scope could not save that spot right now.');
+    expect(toastStoreMock.showError).toHaveBeenCalledWith({
+      title: 'Spot save failed',
+      message: 'Scope could not save that spot right now.',
+    });
   });
 });

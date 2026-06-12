@@ -923,4 +923,57 @@ describe('notifications store async error handling', () => {
     expect(store.items.find((notification) => notification.id === 'notification-1')?.isRead).toBe(true);
     setItemSpy.mockRestore();
   });
+
+  it('persists read state for non-removing actions and leaves custom actions non-optimistic', async () => {
+    const performNotificationAction = vi.fn().mockResolvedValue({ ok: true });
+
+    vi.doMock('@/services/feedService', () => ({
+      getNotifications: vi.fn().mockResolvedValue({ data: unreadNotificationFixtures }),
+      markNotificationRead: vi.fn(),
+      markAllNotificationsRead: vi.fn(),
+      performNotificationAction,
+    }));
+
+    vi.doMock('@/services/signalrService', () => ({
+      startNotificationStream: vi.fn(),
+      stopNotificationStream: vi.fn(),
+    }));
+
+    vi.doMock('@/stores/auth', () => ({
+      useAuthStore: () => ({
+        isAuthenticated: true,
+        token: 'secure-token',
+        currentUser: { id: 'user-1', email: 'demo@scope.travel', username: 'scopedemo' },
+      }),
+    }));
+
+    vi.doMock('@/stores/toasts', () => ({
+      useToastStore: () => ({ showInfo: vi.fn(), showError: vi.fn() }),
+    }));
+
+    const store = await bootstrapNotificationsStore();
+
+    await store.fetchNotifications();
+    await store.performAction('notification-1', 'open');
+    expect(store.items).toHaveLength(2);
+    expect(store.items.find((notification) => notification.id === 'notification-1')?.isRead).toBe(true);
+
+    await store.performAction('notification-2', 'mark_read');
+    expect(store.items.find((notification) => notification.id === 'notification-2')?.isRead).toBe(true);
+
+    store.addNotification({
+      id: 'notification-custom',
+      title: 'Custom workflow',
+      body: 'Do not mark optimistically.',
+      isRead: false,
+      createdAt: '2026-03-30T20:00:00Z',
+      type: 'custom.workflow',
+    });
+    await store.performAction('notification-custom', 'snooze_for_later');
+    expect(store.items.find((notification) => notification.id === 'notification-custom')?.isRead).toBe(false);
+    expect(performNotificationAction).toHaveBeenCalledWith('notification-custom', 'snooze_for_later');
+
+    const persisted = JSON.parse(localStorage.getItem('scope-notification-read-state-v1:user-1') ?? '{}') as { readIds: string[] };
+    expect(persisted.readIds).toEqual(expect.arrayContaining(['notification-1', 'notification-2', 'notification-custom']));
+  });
 });

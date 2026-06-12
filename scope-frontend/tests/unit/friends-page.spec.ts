@@ -45,6 +45,14 @@ vi.mock('@/services/socialMockData', () => ({
 
 import FriendsPage from '@/views/FriendsPage.vue';
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -835,6 +843,67 @@ describe('FriendsPage', () => {
     expect(wrapper.text()).not.toContain('Alpha Route');
   });
 
+  it('keeps friend helper copy, pagination clamps, and default action errors stable', async () => {
+    const candidate = buildUser({
+      id: 'user-helper',
+      username: 'helper.friend',
+      displayName: 'Helper Friend',
+      interests: ['unknown-vibe'],
+    });
+    const { wrapper, friendsStore } = await mountFriendsPageWithSeed({
+      connections: [buildConnection({ id: 'connection-helper', user: candidate, presence: 'hidden' })],
+      suggestions: [buildSuggestion({
+        id: 'suggestion-helper',
+        user: buildUser({ id: 'user-suggested-helper', username: 'suggested.helper', displayName: 'Suggested Helper', interests: [] }),
+        sharedInterests: [],
+        favoriteCategories: [],
+        reason: '',
+      })],
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.normalizePeopleQuery('@@Helper.Friend ')).toBe('helper.friend');
+    expect(coverage.matchesSearch(['Helper Friend'])).toBe(true);
+    expect(coverage.firstName('Solo')).toBe('Solo');
+    expect(coverage.pluralize(1, 'friend')).toBe('1 friend');
+    expect(coverage.pluralize(2, 'friend')).toBe('2 friends');
+    expect(coverage.parseRouteTab(['online'])).toBe('online');
+    expect(coverage.parseRouteTab(['bad-tab'])).toBeUndefined();
+    expect(coverage.railPresenceLabel('planning')).toBe('Planning');
+    expect(coverage.railPresenceLabel('online')).toBe('Online');
+    expect(coverage.railPresenceLabel('idle')).toBe('Idle');
+    expect(coverage.railPresenceLabel('hidden')).toBe('Active');
+    expect(coverage.categoriesForUser(candidate)).toEqual(['other']);
+    expect(coverage.coverPhotoForCategories([])).toContain('w=480');
+    expect(coverage.isSpotCategory('food')).toBe(true);
+    expect(coverage.isSpotCategory('coffee')).toBe(false);
+    expect(coverage.suggestionReasonForUser('missing-user')).toBe('Suggested by shared Scope vibes');
+
+    friendsStore.sentRequestUserIds = new Set(['user-pending-helper']);
+    expect(coverage.hasSentRequestTo('user-pending-helper')).toBe(true);
+    expect(coverage.friendActionLabel('user-pending-helper')).toBe('Request sent');
+    expect(coverage.isFriendActionDisabled('user-pending-helper')).toBe(true);
+    friendsStore.sentRequestUserIds = new Set();
+    expect(coverage.friendActionLabel('user-helper')).toBe('Friends');
+
+    coverage.goToFriendsPage(100);
+    expect(coverage.currentFriendsPage.value).toBe(1);
+    friendsStore.removeConnection = vi.fn(async () => {
+      friendsStore.error = null;
+      throw new Error('remove failed');
+    });
+    await coverage.removeConnection('connection-helper');
+    expect(coverage.findPeopleError.value).toBe('Scope could not remove that friend right now.');
+
+    setViewportWidth(500);
+    coverage.syncMobileFriendsLayout();
+    expect(coverage.isMobileFriendsLayout.value).toBe(true);
+    delete (window as Window & { __SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__?: boolean }).__SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__;
+    expect(coverage.shouldAutoRefreshFriends()).toBe(false);
+    (window as Window & { __SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__?: boolean }).__SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__ = true;
+    expect(coverage.shouldAutoRefreshFriends()).toBe(true);
+  });
+
   it('ignores stale member-search failures after a newer query succeeds', async () => {
     vi.useFakeTimers();
     const betaUser = buildUser({ id: 'user-beta-ok', username: 'beta.ok', displayName: 'Beta Ok', interests: ['scenic'] });
@@ -1010,5 +1079,89 @@ describe('FriendsPage', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-test="find-people-error"]').text()).toContain('member search');
+  });
+
+  it('keeps friend pagination, discover reuse, and visibility refresh guard branches stable', async () => {
+    const suggestions = [
+      buildSuggestion({
+        id: 'suggestion-reuse',
+        user: buildUser({ id: 'user-reuse', username: 'reuse.mode', displayName: 'Reuse Mode', interests: ['food'] }),
+      }),
+    ];
+    const connections = Array.from({ length: 8 }, (_, index) => buildConnection({
+      id: `connection-clamp-${index}`,
+      user: buildUser({
+        id: `user-clamp-${index}`,
+        username: `clamp.${index}`,
+        displayName: `Clamp Friend ${index}`,
+        interests: index % 2 === 0 ? ['food'] : ['culture'],
+      }),
+      presence: index === 0 ? 'online' : 'offline',
+    }));
+    const { wrapper, friendsStore } = await mountFriendsPageWithSeed({
+      connections,
+      suggestions,
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    coverage.goToFriendsPage(99);
+    expect(coverage.currentFriendsPage.value).toBe(coverage.friendPagination.value.totalPages);
+
+    friendsStore.fetchSuggestions = vi.fn().mockResolvedValue(undefined);
+    coverage.discoverMode.value = 'best';
+    await coverage.selectDiscoverMode('best');
+    expect(friendsStore.fetchSuggestions).not.toHaveBeenCalled();
+    friendsStore.suggestions = [];
+    friendsStore.fetchSuggestions = vi.fn(async () => {
+      friendsStore.error = 'Suggested travelers unavailable.';
+      throw new Error('suggestions failed');
+    });
+    await coverage.selectDiscoverMode('nearby');
+    expect(coverage.findPeopleError.value).toBe('');
+
+    friendsStore.refreshConnections = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    });
+    coverage.syncVisibleFriendPresence();
+    expect(friendsStore.refreshConnections).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    (window as Window & { __SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__?: boolean }).__SCOPE_ENABLE_FRIENDS_PRESENCE_REFRESH__ = true;
+    coverage.syncVisibleFriendPresence();
+    await flushPromises();
+    expect(friendsStore.refreshConnections).toHaveBeenCalledTimes(1);
+
+    friendsStore.error = null;
+    friendsStore.acceptRequest = vi.fn(async () => {
+      throw new Error('accept default');
+    });
+    friendsStore.rejectRequest = vi.fn(async () => {
+      throw new Error('reject default');
+    });
+    friendsStore.requests = [
+      buildRequest({
+        id: 'request-default-error',
+        user: buildUser({ id: 'user-default-error', displayName: 'Default Error', interests: ['scenic'] }),
+      }),
+    ];
+    await wrapper.get('[data-test="tab-requests"]').trigger('click');
+    await flushPromises();
+    await wrapper.get('[data-test="accept-request-request-default-error"]').trigger('click');
+    await flushPromises();
+    expect(coverage.findPeopleError.value).toBe('Scope could not accept that request right now.');
+    await wrapper.get('[data-test="decline-request-request-default-error"]').trigger('click');
+    await flushPromises();
+    expect(coverage.findPeopleError.value).toBe('Scope could not decline that request right now.');
+
+    expect(coverage.firstName('')).toBe('');
+    expect(coverage.pluralize(0, 'active friend')).toBe('0 active friends');
+    expect(coverage.suggestionReasonForUser('user-reuse')).toBe('Suggested by shared Scope vibes');
+
+    wrapper.unmount();
   });
 });

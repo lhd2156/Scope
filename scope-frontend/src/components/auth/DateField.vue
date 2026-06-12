@@ -645,6 +645,27 @@ function handleEscape(event: KeyboardEvent) {
   }
 }
 
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          closePopover,
+          formatCompactDateDraft,
+          messageHasError,
+          messageText,
+          monthMenuOpen,
+          open,
+          openPopover,
+          parseDateInput,
+          parseIso,
+          selectMonth,
+          selectYear,
+          yearMenuOpen,
+        },
+      }
+    : {}),
+});
+
 watch(open, (next) => {
   if (typeof window === 'undefined') return;
   if (!next) {

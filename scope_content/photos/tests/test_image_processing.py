@@ -4,6 +4,8 @@ from io import BytesIO
 from types import SimpleNamespace
 from uuid import UUID
 
+import pytest
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from PIL import Image
@@ -16,6 +18,26 @@ def _image_upload(name: str, image_format: str, content_type: str, size: tuple[i
     buffer = BytesIO()
     Image.new('RGB', size, color='red').save(buffer, format=image_format)
     return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+@override_settings(MAX_UPLOAD_BYTES=4)
+def test_process_uploaded_image_enforces_stream_size_limit(monkeypatch) -> None:
+    monkeypatch.setattr('photos.services.image_processor._native_bindings', lambda: None)
+    upload = BytesIO(b'12345')
+    upload.name = 'oversized.png'
+    upload.content_type = 'image/png'
+
+    with pytest.raises(DjangoValidationError, match='File too large'):
+        process_uploaded_image(upload)
+
+
+@override_settings(MAX_IMAGE_PIXELS=3)
+def test_process_uploaded_image_rejects_decompression_bomb_dimensions(monkeypatch) -> None:
+    monkeypatch.setattr('photos.services.image_processor._native_bindings', lambda: None)
+    upload = _image_upload('wide.png', 'PNG', 'image/png', size=(2, 2))
+
+    with pytest.raises(DjangoValidationError, match='Image dimensions exceed 3 pixels'):
+        process_uploaded_image(upload)
 
 
 def test_process_uploaded_image_uses_native_bindings_when_available(monkeypatch) -> None:

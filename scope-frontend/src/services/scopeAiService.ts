@@ -539,6 +539,7 @@ function normalizeNoisyScopeAiPrompt(value: string): string {
     .replace(/\bov\b/gi, 'of')
     .replace(/([a-z])!+\s+/gi, '$1 ')
     .replace(/[?!]{2,}/g, (match) => match[0] ?? '')
+    .replace(/\s+(?:please|pls|thanks|for real|if that makes sense|no guessing|do not guess|don't guess)$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -1867,6 +1868,21 @@ function isEndCorrectionCommand(message: string): boolean {
   return /\b(?:change|replace|correct|update|switch)\s+(?:the\s+)?(?:end|finish|destination|final destination)\b/i.test(message);
 }
 
+function isEndpointSetterCommand(message: string): boolean {
+  const normalized = message.replace(/[?!.\s]+$/g, '').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const endpointTarget = String.raw`(?:start(?:ing)?(?:\s+(?:place|point|location|city|address))?|end|finish|destination|final\s+destination|end\s+(?:place|point|location|city|address))`;
+  return (
+    new RegExp(String.raw`\b(?:set\s+)?${endpointTarget}\s*(?:to|as|at|in|from|is|should\s+be|=)\s+\S`, 'i').test(normalized) ||
+    /\b(?:change|replace|correct|update|switch)\s+(?:the\s+)?(?:start|starting|end|finish|destination|final destination)\b/i.test(normalized) ||
+    /\b(?:use|try)\s+.+\s+as\s+(?:the\s+)?(?:start|starting|end|finish|destination|final destination)\b/i.test(normalized) ||
+    /\b(?:begin|leave|leaving)\s+(?:at|in|from)\s+\S/i.test(normalized)
+  );
+}
+
 function formatRouteLabel(plannerState: LocalPlannerState): string {
   const start = plannerState.start?.trim();
   const end = plannerState.end?.trim();
@@ -2088,7 +2104,8 @@ export function extractExplicitLocationRecommendationQuery(message: string): str
 
   if (
     /\b(?:set|change|replace|correct|clear|delete|remove|rename|budget|mpg|invite|share|save|publish|private|public)\b/i.test(normalizedMessage) ||
-    isEndpointCorrectionCommand(normalizedMessage)
+    isEndpointCorrectionCommand(normalizedMessage) ||
+    isEndpointSetterCommand(normalizedMessage)
   ) {
     return null;
   }

@@ -144,6 +144,25 @@ describe('scope AI turn auditor', () => {
     expect(variant.approved).toBe(true);
   });
 
+  it('does not replace idempotent resolved mutation confirmations as failed planner changes', () => {
+    const audit = auditScopeAiTurn(text('Set the trip budget to $400 - $600.'), {
+      userPrompt: 'between 400 and 600',
+      planner: {
+        ...planner,
+        budgetMin: 400,
+        budgetMax: 600,
+      },
+      actionApplyResult: {
+        applied: false,
+        resolutions: [],
+      },
+    });
+
+    expect(audit.approved).toBe(true);
+    expect(audit.reasons).not.toContain('confirmed_failed_planner_mutation');
+    expect(audit.message.content).toBe('Set the trip budget to $400 - $600.');
+  });
+
   it('redacts unsafe language from visible assistant text, chips, and provider queries', () => {
     const severe = unsafeTerm([110, 105, 103, 103, 101, 114]);
     const prompt = `start 100 Example Road ${severe}`;
@@ -197,5 +216,52 @@ describe('scope AI turn auditor', () => {
     ].join(' ');
     expect(visible).toContain('[redacted]');
     expect(visible).not.toContain(severe);
+  });
+
+  it('uses partial planner state in replacement replies and drops empty unsafe chips', () => {
+    const startOnly = auditScopeAiTurn(text('Please add your start and end before I can help.', ['   ']), {
+      userPrompt: 'what now?',
+      planner: {
+        start: 'Dallas, Texas',
+        end: '',
+        stopCount: 0,
+        budgetMax: null,
+        pace: 'standard',
+      },
+    });
+    const endOnly = auditScopeAiTurn(text('Please add your start and end before I can help.', ['Build', 'Build']), {
+      userPrompt: 'what now?',
+      planner: {
+        start: '',
+        end: 'Austin, Texas',
+        stopCount: 0,
+        budgetMax: null,
+        pace: '',
+      },
+    });
+
+    expect(startOnly.approved).toBe(false);
+    expect(startOnly.message.content).toContain('I already have the start as Dallas');
+    if (startOnly.message.kind === 'text') {
+      expect(startOnly.message.chips).toEqual(['Check route status', 'Build the itinerary', 'Find verified stops']);
+    }
+
+    expect(endOnly.approved).toBe(false);
+    expect(endOnly.message.content).toContain('I already have the final destination as Austin');
+    if (endOnly.message.kind === 'text') {
+      expect(endOnly.message.chips).toEqual(['Check route status', 'Build the itinerary', 'Find verified stops']);
+    }
+
+    const emptyChips = auditScopeAiTurn(text('Ready to keep planning.', ['   ']), {
+      userPrompt: 'status',
+      planner: {
+        stopCount: 0,
+      },
+    });
+    expect(emptyChips.approved).toBe(false);
+    expect(emptyChips.reasons).toContain('deduped_chips');
+    if (emptyChips.message.kind === 'text') {
+      expect(emptyChips.message.chips).toBeUndefined();
+    }
   });
 });

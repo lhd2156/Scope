@@ -599,4 +599,64 @@ describe('OnboardingOverlay', () => {
       vi.useRealTimers();
     }
   });
+
+  it('covers defensive document/window guards and real back-button navigation', async () => {
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    activeWrapper = mount(Shell, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          teleport: true,
+          Transition: TransitionStub,
+        },
+      },
+    });
+    const wrapper = activeWrapper;
+    const overlay = wrapper.findComponent(OnboardingOverlay);
+    const coverage = (
+      (overlay.vm as any).__coverage ??
+      (overlay.vm as any).$?.exposed?.__coverage
+    ) as Record<string, any>;
+    const onboardingStore = useOnboardingStore();
+
+    onboardingStore.start('home-hero');
+    await settleOnboarding();
+    coverage.handleAdvance();
+    await settleOnboarding();
+
+    const backButton = wrapper.findAll('button').find((button) => button.text() === 'Back');
+    expect(backButton?.exists()).toBe(true);
+    await backButton!.trigger('click');
+    await settleOnboarding();
+    expect(onboardingStore.activeStepIndex).toBe(0);
+
+    const originalDocument = document;
+    vi.stubGlobal('document', undefined);
+    expect(() => coverage.setDocumentScrollLock(true)).not.toThrow();
+    vi.stubGlobal('document', originalDocument);
+
+    const originalWindow = window;
+    const target = wrapper.get('[data-onboarding-target="home-hero"]').element as HTMLElement;
+    vi.stubGlobal('window', undefined);
+    expect(coverage.isTargetVisible(target)).toBe(true);
+    vi.stubGlobal('window', originalWindow);
+
+    onboardingStore.goToStep(2);
+    await settleOnboarding();
+    expect(router.currentRoute.value.name).toBe('map');
+    expect(coverage.resolveDefaultCardPosition().width).toBeGreaterThan(0);
+
+    (onboardingStore.steps[onboardingStore.activeStepIndex] as any).placement = 'top';
+    const topPlacement = coverage.resolveCardPosition({ top: 460, left: 420, width: 180, height: 120 });
+    expect(topPlacement.top).toBeLessThan(460);
+
+    const firstSync = coverage.syncPresentation();
+    const secondSync = coverage.syncPresentation();
+    await Promise.all([firstSync, secondSync]);
+    expect(wrapper.find('.onboarding-overlay__card').exists()).toBe(true);
+  });
 });

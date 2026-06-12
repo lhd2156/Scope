@@ -272,6 +272,75 @@ describe('user store API contracts', () => {
     );
   });
 
+  it('uses loaded profile and auth account defaults for stats and deactivation targets', async () => {
+    const logout = vi.fn().mockResolvedValue(undefined);
+    const getUserStats = vi.fn(async (userId: string) => ({
+      data: userId === 'user-2'
+        ? { spots: 12, trips: 4, friends: 8 }
+        : { spots: 5, trips: 2, friends: 3 },
+    }));
+    const deactivateUserProfile = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('@/stores/auth', () => ({
+      useAuthStore: () => ({
+        currentUser: {
+          id: 'user-1',
+          username: 'louisdo',
+          email: 'louis@example.com',
+          displayName: 'Louis Do',
+          stats: { spots: 1, trips: 1, friends: 1 },
+        },
+        updateCurrentUser: vi.fn(),
+        logout,
+      }),
+    }));
+
+    vi.doMock('@/services/userService', () => ({
+      getCurrentUserProfile: vi.fn(),
+      getUserProfile: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-2',
+          username: 'maya',
+          email: 'maya@example.com',
+          displayName: 'Maya Chen',
+          stats: { spots: 9, trips: 3, friends: 7 },
+        },
+      }),
+      getUserStats,
+      searchUsers: vi.fn().mockResolvedValue({
+        data: [
+          { id: 'user-1', username: 'louisdo', email: 'louis@example.com', displayName: 'Louis Do' },
+          { id: 'user-2', username: 'maya', email: 'maya@example.com', displayName: 'Maya Chen' },
+        ],
+      }),
+      updateUserProfile: vi.fn(),
+      deactivateUserProfile,
+      deleteCurrentUserContent: vi.fn(),
+    }));
+
+    const store = await bootstrapUserStore();
+
+    await store.searchProfiles('scope');
+    await store.fetchStats();
+    expect(getUserStats).toHaveBeenLastCalledWith('user-1');
+    expect(store.stats).toEqual({ spots: 5, trips: 2, friends: 3 });
+
+    await store.fetchProfile('user-2');
+    await store.fetchStats();
+    expect(getUserStats).toHaveBeenLastCalledWith('user-2');
+    expect(store.stats).toEqual({ spots: 12, trips: 4, friends: 8 });
+
+    await store.deactivateProfile();
+    expect(deactivateUserProfile).toHaveBeenLastCalledWith('user-2');
+    expect(store.searchResults.map((user) => user.id)).toEqual(['user-1']);
+    expect(logout).not.toHaveBeenCalled();
+
+    store.clearProfileContext();
+    await store.deactivateProfile();
+    expect(deactivateUserProfile).toHaveBeenLastCalledWith('user-1');
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+
   it('reports profile, stats, search, save, and deactivation failures with stable flags', async () => {
     vi.doMock('@/stores/auth', () => ({
       useAuthStore: () => ({

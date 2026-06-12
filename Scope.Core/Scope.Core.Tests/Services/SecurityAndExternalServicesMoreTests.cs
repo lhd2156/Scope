@@ -181,6 +181,44 @@ public sealed class SecurityAndExternalServicesMoreTests
     }
 
     [Fact]
+    public async Task TripMembershipValidator_HandlesArrayPayloadsFallbackRolesAndMisses()
+    {
+        var statusTripId = Guid.NewGuid();
+        var viewerTripId = Guid.NewGuid();
+        var missedTripId = Guid.NewGuid();
+        var forbiddenTripId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""[{},{"user_id":"{{userId}}","status":"accepted"}]""")
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""[{"user_id":"{{userId}}"}]""")
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""[{"user_id":"{{otherUserId}}","role":"editor"}]""")
+            },
+            new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var validator = new TripMembershipValidator(
+            new ReusableHandlerFactory(handler),
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["CONTENT_SERVICE_URL"] = "https://content.test/api/content"
+            }).Build(),
+            NullLogger<TripMembershipValidator>.Instance);
+
+        Assert.Equal("accepted", await validator.GetRoleAsync(statusTripId, userId, "token", CancellationToken.None));
+        Assert.Equal("viewer", await validator.GetRoleAsync(viewerTripId, userId, "token", CancellationToken.None));
+        Assert.Null(await validator.GetRoleAsync(missedTripId, userId, "token", CancellationToken.None));
+        Assert.Null(await validator.GetRoleAsync(forbiddenTripId, userId, "token", CancellationToken.None));
+        Assert.Equal(4, handler.Calls);
+    }
+
+    [Fact]
     public async Task JwtAndKafkaServices_CoverTokenCreationAndNoBootstrapPublish()
     {
         var jwt = new JwtTokenService(Options.Create(new JwtOptions
@@ -218,6 +256,11 @@ public sealed class SecurityAndExternalServicesMoreTests
     private sealed class SingleClientFactory(HttpClient client) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => client;
+    }
+
+    private sealed class ReusableHandlerFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 
     private sealed class SequenceHandler(params HttpResponseMessage[] responses) : HttpMessageHandler

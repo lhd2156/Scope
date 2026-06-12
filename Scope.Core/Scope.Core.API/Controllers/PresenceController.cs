@@ -118,8 +118,7 @@ public sealed class PresenceController(
                 return true;
             }
 
-            if (current is SqlException sqlException
-                && (sqlException.IsTransient || sqlException.Number is -2 or 1205))
+            if (current is SqlException sqlException && IsTransientSqlFailure(sqlException))
             {
                 return true;
             }
@@ -127,6 +126,12 @@ public sealed class PresenceController(
 
         return false;
     }
+
+    private static bool IsTransientSqlFailure(SqlException sqlException)
+        => sqlException.IsTransient || IsTransientSqlErrorNumber(sqlException.Number);
+
+    private static bool IsTransientSqlErrorNumber(int number)
+        => number is -2 or 1205;
 
     private static void ApplyHeartbeat(UserPresence presence, PresenceHeartbeatRequest request, string requestedStatus, DateTimeOffset now)
     {

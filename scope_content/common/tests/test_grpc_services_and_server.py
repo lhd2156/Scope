@@ -172,6 +172,7 @@ def test_grpc_server_start_reuse_bound_failure_and_background_thread(monkeypatch
     grpc_server._server = None
     grpc_server._thread = None
     monkeypatch.setenv("GRPC_INTERNAL_TOKEN", TEST_GRPC_INTERNAL_TOKEN)
+    monkeypatch.setenv("GRPC_ENABLE_REFLECTION", "true")
     calls = []
 
     class FakeServer:
@@ -198,11 +199,13 @@ def test_grpc_server_start_reuse_bound_failure_and_background_thread(monkeypatch
 
     fake_server = FakeServer()
     monkeypatch.setattr(grpc_server.grpc, "server", lambda executor, **_kwargs: fake_server)
+    monkeypatch.setattr(grpc_server.reflection, "enable_server_reflection", lambda names, server: calls.append(("reflection", tuple(names), server)))
 
     server = grpc_server.serve_grpc()
 
     assert server is fake_server
     assert server.started is True
+    assert any(call[0] == "reflection" for call in calls)
     assert grpc_server.serve_grpc() is fake_server
 
     grpc_server._server = None
@@ -274,6 +277,57 @@ def test_grpc_auth_interceptor_rejects_missing_token_and_accepts_internal_token(
     assert health_handler is handler
 
 
+def test_grpc_auth_interceptor_accepts_bearer_token_and_blocks_all_handler_shapes():
+    interceptor = grpc_server.InternalGrpcAuthInterceptor(TEST_GRPC_INTERNAL_TOKEN)
+
+    assert grpc_server._metadata_has_valid_token(
+        [("authorization", f"Bearer {TEST_GRPC_INTERNAL_TOKEN}")],
+        TEST_GRPC_INTERNAL_TOKEN,
+    )
+    assert not grpc_server._metadata_has_valid_token([("authorization", "Basic nope")], TEST_GRPC_INTERNAL_TOKEN)
+    assert not grpc_server._metadata_has_valid_token(None, TEST_GRPC_INTERNAL_TOKEN)
+
+    class AbortContext:
+        def abort(self, code, details):
+            raise RuntimeError(f"{code.name}:{details}")
+
+    handler_cases = [
+        (
+            grpc.unary_stream_rpc_method_handler(lambda _request, _context: iter(["ok"])),
+            lambda handler: list(handler.unary_stream(object(), AbortContext())),
+        ),
+        (
+            grpc.stream_unary_rpc_method_handler(lambda _request_iterator, _context: "ok"),
+            lambda handler: handler.stream_unary(iter([object()]), AbortContext()),
+        ),
+        (
+            grpc.stream_stream_rpc_method_handler(lambda _request_iterator, _context: iter(["ok"])),
+            lambda handler: list(handler.stream_stream(iter([object()]), AbortContext())),
+        ),
+    ]
+
+    for handler, invoke in handler_cases:
+        rejected = interceptor.intercept_service(
+            lambda _details, current=handler: current,
+            SimpleNamespace(method="/scope.v1.SpotService/ListSpots", invocation_metadata=[]),
+        )
+        with pytest.raises(RuntimeError, match="UNAUTHENTICATED"):
+            invoke(rejected)
+
+    empty_handler = SimpleNamespace(unary_unary=None, unary_stream=None, stream_unary=None, stream_stream=None)
+    assert grpc_server._unauthenticated_handler(empty_handler) is empty_handler
+
+    accepted_handler = grpc.unary_unary_rpc_method_handler(lambda _request, _context: "ok")
+    accepted = interceptor.intercept_service(
+        lambda _details: accepted_handler,
+        SimpleNamespace(
+            method="/scope.v1.SpotService/ListSpots",
+            invocation_metadata=[("authorization", f"Bearer {TEST_GRPC_INTERNAL_TOKEN}")],
+        ),
+    )
+    assert accepted.unary_unary(object(), object()) == "ok"
+
+
 def test_grpc_requires_internal_token_before_starting(monkeypatch):
     monkeypatch.delenv("GRPC_INTERNAL_TOKEN", raising=False)
 
@@ -295,6 +349,9 @@ def test_run_grpc_waits_and_swallows_start_errors(monkeypatch):
     assert server.waited is True
 
     monkeypatch.setattr(grpc_server, "serve_grpc", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    grpc_server._run_grpc()
+
+    monkeypatch.setattr(grpc_server, "serve_grpc", lambda: None)
     grpc_server._run_grpc()
 
 

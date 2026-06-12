@@ -321,3 +321,40 @@ def test_creator_membership_cannot_be_downgraded_or_removed(auth_header):
     assert remove_response.status_code == 200
     assert remove_response.json()['data']['removed'] is False
     assert TripMember.objects.get(trip=trip, user_id=owner_user_id).role == 'owner'
+
+
+@pytest.mark.django_db
+def test_trip_mutation_permission_denials_and_existing_share_token(auth_header):
+    _, owner_user_id = auth_header
+    viewer_user_id = str(uuid4())
+    trip = Trip.objects.create(creator_id=owner_user_id, title='Guarded trip', status='planning', is_public=False)
+    TripMember.objects.create(trip=trip, user_id=owner_user_id, role='owner')
+    TripMember.objects.create(trip=trip, user_id=viewer_user_id, role='viewer')
+    spot = Spot.objects.create(user_id=owner_user_id, title='Stop', latitude=1, longitude=2, is_public=True)
+    TripSpot.objects.create(trip=trip, spot=spot, sort_order=0)
+
+    viewer_client = _client_for_user(viewer_user_id)
+    owner_client = _client_for_user(owner_user_id)
+
+    add_response = viewer_client.post(
+        f'/api/content/trips/{trip.id}/spots',
+        {'spot_id': str(spot.id)},
+        format='json',
+    )
+    reorder_response = viewer_client.put(
+        f'/api/content/trips/{trip.id}/spots/reorder',
+        {'spots': [{'spotId': str(spot.id), 'sortOrder': 1}]},
+        format='json',
+    )
+    remove_member_response = viewer_client.delete(f'/api/content/trips/{trip.id}/members/{owner_user_id}')
+    share_denied_response = viewer_client.post(f'/api/content/trips/{trip.id}/share')
+    first_share_response = owner_client.post(f'/api/content/trips/{trip.id}/share')
+    second_share_response = owner_client.post(f'/api/content/trips/{trip.id}/share')
+
+    assert add_response.status_code == 403
+    assert reorder_response.status_code == 403
+    assert remove_member_response.status_code == 403
+    assert share_denied_response.status_code == 403
+    assert first_share_response.status_code == 200
+    assert second_share_response.status_code == 200
+    assert second_share_response.json()['data']['token'] == first_share_response.json()['data']['token']

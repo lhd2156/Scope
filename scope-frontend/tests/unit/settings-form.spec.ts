@@ -544,6 +544,13 @@ describe('SettingsForm', () => {
       'Fort Worth',
       'Austin',
     ]);
+    expect(coverage.formatLocationTitle({ address: '500 Main Street' })).toBe('500 Main Street');
+    expect(coverage.formatLocationTitle({ formattedAddress: 'River Walk, San Antonio, TX' })).toBe('River Walk');
+    expect(coverage.formatLocationTitle({ city: 'Santa Fe' })).toBe('Santa Fe');
+    expect(coverage.formatLocationTitle({})).toBe('');
+    expect(coverage.formatLocationMeta({ city: 'Austin', country: 'United States' })).toBe('Austin, United States');
+    expect(coverage.formatLocationMeta({ placeName: 'Verified Base' })).toBe('Verified Base');
+    expect(coverage.formatLocationMeta({})).toBe('Verified location');
   });
 
   it('ignores stale location provider responses and can reopen search from the keyboard', async () => {
@@ -637,5 +644,103 @@ describe('SettingsForm', () => {
     await expect(coverage.readFileAsDataUrl(file)).resolves.toBe('');
 
     vi.stubGlobal('FileReader', originalFileReader);
+  });
+
+  it('keeps location, avatar, and destructive-action fallbacks bounded during settings edits', async () => {
+    vi.useFakeTimers();
+    searchLocationsMock.mockResolvedValue({ data: [] });
+
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue: {
+          ...initialValue,
+          homeBase: 'Fort Worth',
+        },
+        tutorialCompleted: true,
+        tutorialStepCount: 1,
+      },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name'], template: '<div class="avatar-stub">{{ name }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    coverage.handleLocationBlur();
+    coverage.handleLocationFocus();
+    expect(coverage.locationOpen.value).toBe(true);
+    await flushPromises();
+    expect(searchLocationsMock).toHaveBeenCalledWith('Fort Worth', expect.objectContaining({ limit: 6 }));
+
+    coverage.form.homeBase = coverage.selectedLocationLabel.value;
+    coverage.handleLocationInput();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(coverage.selectedLocationLabel.value).toBe('Fort Worth');
+
+    coverage.locationResults.value = [
+      {
+        latitude: 32.7555,
+        longitude: -97.3308,
+        placeName: 'Fort Worth',
+        formattedAddress: 'Fort Worth, TX, United States',
+        source: 'mapbox',
+      },
+      {
+        latitude: 30.2672,
+        longitude: -97.7431,
+        placeName: 'Austin',
+        formattedAddress: 'Austin, TX, United States',
+        source: 'mapbox',
+      },
+    ];
+    coverage.locationOpen.value = true;
+    coverage.locationActiveIndex.value = 0;
+    const arrowUp = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true });
+    coverage.handleLocationKeydown(arrowUp);
+    expect(arrowUp.defaultPrevented).toBe(true);
+    expect(coverage.locationActiveIndex.value).toBe(1);
+    coverage.handleLocationKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(coverage.locationOpen.value).toBe(false);
+
+    coverage.selectLocation({ placeName: '   ', formattedAddress: '', latitude: 0, longitude: 0 });
+    expect(wrapper.emitted('submit')).toBeUndefined();
+
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined,
+    });
+    coverage.confirmDeleteAccount();
+    expect(wrapper.emitted('delete-account')).toBeUndefined();
+    if (windowDescriptor) {
+      Object.defineProperty(globalThis, 'window', windowDescriptor);
+    }
+
+    const clickSpy = vi.fn();
+    coverage.avatarUploading.value = true;
+    coverage.openAvatarPicker();
+    await wrapper.vm.$nextTick();
+    expect(clickSpy).not.toHaveBeenCalled();
+
+    class ArrayBufferFileReader {
+      result: string | ArrayBuffer | null = new ArrayBuffer(4);
+      private listeners = new Map<string, () => void>();
+
+      addEventListener(type: string, listener: () => void) {
+        this.listeners.set(type, listener);
+      }
+
+      readAsDataURL() {
+        this.listeners.get('load')?.();
+      }
+    }
+    const originalFileReader = globalThis.FileReader;
+    vi.stubGlobal('FileReader', ArrayBufferFileReader);
+    await expect(coverage.readFileAsDataUrl(new File(['avatar'], 'avatar.png', { type: 'image/png' }))).resolves.toBe('');
+    vi.stubGlobal('FileReader', originalFileReader);
+
+    vi.useRealTimers();
   });
 });

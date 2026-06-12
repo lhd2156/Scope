@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import sys
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -34,7 +35,7 @@ def test_registry_loaders_and_device_branches(monkeypatch, tmp_path):
     assert registry.get_model("manual") == {"ok": True}
 
     monkeypatch.setattr("app.ml.device.get_device", lambda: torch.device("cpu"))
-    monkeypatch.setattr("transformers.pipeline", lambda *args, **kwargs: {"pipeline": kwargs})
+    monkeypatch.setitem(sys.modules, "transformers", SimpleNamespace(pipeline=lambda *args, **kwargs: {"pipeline": kwargs}))
     sentiment_model = registry.load_sentiment_model()
     assert registry.load_sentiment_model() is sentiment_model
     assert sentiment_model["pipeline"]["device"] == -1

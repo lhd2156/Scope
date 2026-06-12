@@ -428,4 +428,211 @@ describe('intel service contracts', () => {
 
     await expect(intelService.vibeMatch({ vibe: 'quiet' })).resolves.toEqual({ data: [] });
   });
+
+  it('distinguishes plain spot recommendation arrays from wire items and hydrates id-only fallbacks', async () => {
+    const apiPost = vi.fn(async (url: string) => {
+      if (url.endsWith('/recommend/spots')) {
+        return {
+          data: {
+            data: [
+              {
+                id: 'array-wire-id',
+                name: 'Array wire fallback',
+                category: 'culture',
+                reason: 'Fallback from a wire array',
+                signalBreakdown: {
+                  ' ': 0.9,
+                  ignored: 'bad',
+                },
+              },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`Unexpected POST ${url}`);
+    });
+    const getSpotDetail = vi.fn().mockRejectedValue(new Error('detail unavailable'));
+
+    vi.doMock('@/services/api', () => ({
+      default: {
+        post: apiPost,
+      },
+    }));
+    vi.doMock('@/services/spotService', () => ({
+      getSpotDetail,
+    }));
+
+    const intelService = await import('@/services/intelService');
+    const wireResponse = await intelService.recommendSpots({
+      interests: ['culture'],
+      limit: 1,
+    });
+
+    expect(getSpotDetail).toHaveBeenCalledWith('array-wire-id');
+    expect(wireResponse.data[0]).toMatchObject({
+      id: 'array-wire-id',
+      title: 'Array wire fallback',
+      category: 'culture',
+      recommendationReason: 'Fallback from a wire array',
+      recommendationSignalBreakdown: undefined,
+    });
+
+    vi.resetModules();
+    const plainSpotPost = vi.fn().mockResolvedValue({
+      data: {
+        data: [
+          {
+            ...foodSpot,
+            id: 'plain-spot',
+            title: 'Plain API Spot',
+          },
+        ],
+      },
+    });
+    vi.doMock('@/services/api', () => ({
+      default: {
+        post: plainSpotPost,
+      },
+    }));
+    const plainIntelService = await import('@/services/intelService');
+
+    const plainResponse = await plainIntelService.recommendSpots({
+      interests: ['food'],
+      limit: 1,
+    });
+
+    expect(plainResponse.data[0]).toMatchObject({
+      id: 'plain-spot',
+      title: 'Plain API Spot',
+      category: 'food',
+    });
+  });
+
+  it('orders fallback route points by latitude when longitudes tie', async () => {
+    vi.stubEnv('VITE_ENABLE_INTEL_MOCK_FALLBACK', 'true');
+    vi.doMock('@/services/api', () => ({
+      default: {
+        post: vi.fn().mockRejectedValue(new Error('intel offline')),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue({
+        mockSpots: [],
+      }),
+    }));
+
+    const intelService = await import('@/services/intelService');
+    const optimized = await intelService.optimizeRoute({
+      points: [
+        {
+          id: 'north',
+          title: 'North stop',
+          latitude: 33,
+          longitude: -97,
+          category: 'scenic',
+        },
+        {
+          id: 'south',
+          title: 'South stop',
+          latitude: 31,
+          longitude: -97,
+          category: 'food',
+        },
+      ],
+    });
+
+    expect(optimized.data.map((point) => point.id)).toEqual(['south', 'north']);
+  });
+
+  it('sanitizes sparse recommendation metadata and uses default fallback scoring inputs', async () => {
+    const apiPost = vi.fn(async (url: string) => {
+      if (url.endsWith('/recommend/spots')) {
+        return {
+          data: {
+            recommendations: [
+              {
+                spotId: 123,
+                title: 'Numeric id fallback',
+                category: 'scenic',
+                score: 0.44,
+                signalBreakdown: null,
+              },
+              {
+                spotId: 'spot-b',
+                reason: '',
+                score: 'bad-score',
+                signalBreakdown: {
+                  popularity: 'bad',
+                },
+              },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`Unexpected POST ${url}`);
+    });
+    const getSpotDetail = vi.fn()
+      .mockRejectedValueOnce(new Error('numeric detail unavailable'))
+      .mockResolvedValueOnce({ data: scenicSpot });
+
+    vi.doMock('@/services/api', () => ({
+      default: {
+        post: apiPost,
+      },
+    }));
+    vi.doMock('@/services/spotService', () => ({
+      getSpotDetail,
+    }));
+
+    const intelService = await import('@/services/intelService');
+    const liveRecommendations = await intelService.recommendSpots({});
+
+    expect(liveRecommendations.data).toEqual([
+      expect.objectContaining({
+        id: '123',
+        title: 'Numeric id fallback',
+        recommendationScore: 0.44,
+        recommendationSignalBreakdown: undefined,
+      }),
+      expect.objectContaining({
+        id: 'spot-b',
+        title: 'Sunset overlook',
+        recommendationReason: undefined,
+        recommendationScore: undefined,
+        recommendationSignalBreakdown: undefined,
+      }),
+    ]);
+
+    vi.resetModules();
+    vi.stubEnv('VITE_ENABLE_INTEL_MOCK_FALLBACK', 'true');
+    vi.doMock('@/services/api', () => ({
+      default: {
+        post: vi.fn().mockRejectedValue(new Error('intel offline')),
+      },
+    }));
+    vi.doMock('@/services/mockDataLoader', () => ({
+      loadMockData: vi.fn().mockResolvedValue({
+        mockSpots: [
+          { ...foodSpot, city: 'Austin', likesCount: undefined },
+          { ...scenicSpot, city: 'Austin', likesCount: 300 },
+        ],
+      }),
+    }));
+
+    const fallbackIntelService = await import('@/services/intelService');
+    const defaultFallback = await fallbackIntelService.recommendSpots({});
+    expect(defaultFallback.data).toHaveLength(2);
+
+    const scoredFallback = await fallbackIntelService.recommendSpots({
+      destination: 'Austin',
+      interests: ['scenic'],
+      limit: 1,
+    });
+    expect(scoredFallback.data[0]).toMatchObject({
+      id: 'spot-b',
+      category: 'scenic',
+    });
+  });
 });

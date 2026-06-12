@@ -438,6 +438,69 @@ describe('trip planner intel service contracts', () => {
     expect(response.stations[0]?.pricePerUnit).toBeGreaterThan(3.5);
   });
 
+  it('uses safe fuel defaults and ignores unavailable development proxy payloads before fallback caching', async () => {
+    vi.stubEnv('MODE', 'development');
+    apiMock.get.mockRejectedValue(new Error('fuel endpoint unavailable'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: {
+            configured: false,
+            coverage: 'Proxy disabled',
+            source: '',
+            stations: 'not-an-array',
+          },
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = await import('@/services/fuelPriceService');
+    const unavailable = await service.getNearbyFuelStations({
+      latitude: 40.1234,
+      longitude: -105.9876,
+    });
+    const unconfigured = await service.getNearbyFuelStations({
+      latitude: 40.2234,
+      longitude: -105.8876,
+      fuelType: 'all',
+    });
+    const cachedUnavailable = await service.getNearbyFuelStations({
+      latitude: 40.1234,
+      longitude: -105.9876,
+    });
+
+    expect(apiMock.get).toHaveBeenCalledTimes(2);
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, '/api/intel/fuel/stations', {
+      params: {
+        lat: 40.1234,
+        lng: -105.9876,
+        radiusKm: 10,
+        fuelType: 'all',
+        limit: 5,
+        sortBy: 'closest',
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(unavailable).toMatchObject({
+      configured: false,
+      coverage: 'Google Places fuel lookup is unavailable right now.',
+      radiusKm: 10,
+      sortBy: 'closest',
+      stations: [],
+    });
+    expect(unconfigured).toMatchObject({
+      configured: false,
+      source: 'Google Places',
+      stations: [],
+    });
+    expect(cachedUnavailable).toBe(unavailable);
+  });
+
   it('rejects malformed backend weather when client fallback is disabled', async () => {
     getAccessTokenMock.mockReturnValue('live-access-token');
     apiMock.get.mockResolvedValue({

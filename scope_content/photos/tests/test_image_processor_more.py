@@ -4,6 +4,7 @@ import importlib.machinery
 from io import BytesIO
 from types import SimpleNamespace
 
+import pytest
 from PIL import Image
 
 from photos.services import image_processor
@@ -62,6 +63,8 @@ def test_native_bindings_missing_bad_spec_unavailable_and_available(monkeypatch,
 def test_format_resolution_and_native_payload_helpers():
     assert image_processor._normalize_format_name("JPG") == "jpeg"
     assert image_processor._normalize_format_name(" TIFF ") is None
+    assert image_processor._resolve_extension("photo.jpeg", None) == ".jpg"
+    assert image_processor._resolve_extension("ignored.bin", "png") == ".png"
     assert image_processor._resolve_extension("photo.webp", None) == ".webp"
     assert image_processor._resolve_extension("photo.unknown", None) == ".jpg"
     assert image_processor._resolve_content_type("image/gif", None, ".gif") == "image/gif"
@@ -73,6 +76,10 @@ def test_format_resolution_and_native_payload_helpers():
         assert payload.channels == channels
         assert payload.width == 2
         assert payload.height == 2
+
+    too_large = SimpleNamespace(size="999999999", read=lambda _size: b"")
+    with pytest.raises(image_processor.DjangoValidationError, match="File too large"):
+        image_processor._read_upload_bytes(too_large)
 
 
 def test_save_native_thumbnail_blurhash_and_no_pillow_branch(monkeypatch):
@@ -143,3 +150,53 @@ def test_process_uploaded_image_native_fallback_and_generate_thumbnail(monkeypat
     image_processor.generate_thumbnail(source, dest, size=(2, 2))
 
     assert dest.read_bytes()
+
+
+def test_process_uploaded_image_without_seek_and_native_strip_success(monkeypatch):
+    class NoSeekUpload:
+        name = "no-seek.png"
+        content_type = "image/png"
+        size = None
+
+        def read(self, _size):
+            return _image_bytes("PNG")
+
+    monkeypatch.setattr(image_processor, "_native_bindings", lambda: None)
+    monkeypatch.setattr(image_processor, "_jpeg_orientation_value", lambda _image: 3)
+    payload = image_processor.process_uploaded_image(NoSeekUpload(), size=(2, 2))
+    assert payload.original_extension == ".png"
+    assert payload.original_bytes.startswith(b"\x89PNG")
+
+    class SuccessfulBindings:
+        def detect_format(self, _raw):
+            return "jpeg"
+
+        def strip_exif(self, _raw):
+            return b"stripped-jpeg"
+
+        def generate_thumbnail_pixels(self, pixels, **_kwargs):
+            return SimpleNamespace(width=1, height=1, pixels=Image.new("RGB", (1, 1), color="red").tobytes())
+
+        def encode_blurhash_pixels(self, *_args, **_kwargs):
+            return "hash"
+
+    monkeypatch.setattr(image_processor, "_native_bindings", lambda: SuccessfulBindings())
+    monkeypatch.setattr(image_processor, "_jpeg_orientation_value", lambda _image: 1)
+    upload = BytesIO(_image_bytes("JPEG"))
+    upload.name = "photo.jpg"
+    upload.content_type = "image/jpeg"
+
+    stripped = image_processor.process_uploaded_image(upload, size=(1, 1))
+
+    assert stripped.original_bytes == b"stripped-jpeg"
+    assert stripped.blurhash == "hash"
+
+    monkeypatch.setattr(image_processor, "_jpeg_orientation_value", lambda _image: 3)
+    rotated_upload = BytesIO(_image_bytes("JPEG"))
+    rotated_upload.name = "rotated.jpg"
+    rotated_upload.content_type = "image/jpeg"
+
+    rotated = image_processor.process_uploaded_image(rotated_upload, size=(1, 1))
+
+    assert rotated.original_bytes != b"stripped-jpeg"
+    assert rotated.original_extension == ".jpg"

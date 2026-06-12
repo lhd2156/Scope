@@ -802,6 +802,64 @@ function openGalleryDialog(photoId = activeGalleryPhoto.value?.id ?? ''): void {
   isGalleryDialogOpen.value = Boolean(galleryPhotos.value.length);
 }
 
+defineExpose({
+  ...(import.meta.env.MODE === 'test'
+    ? {
+        __coverage: {
+          activeGalleryPhoto,
+          addressLine,
+          averageRating,
+          averageRatingNumber,
+          categoryLabel,
+          displayReviews,
+          formatCategory,
+          formatDate,
+          formatRegion,
+          formatSimilarLocation,
+          galleryPhotos,
+          handleReviewSubmit,
+          handleShare,
+          heroImageFallback,
+          heroImageUrl,
+          highlightCards,
+          isGalleryDialogOpen,
+          isGalleryPhotoSlot,
+          isSaved,
+          isViewAllGallerySlot,
+          loadPersistedReviews,
+          loadingSimilar,
+          loadSimilarSpots,
+          locationLine,
+          miniMapSpots,
+          normalizeGalleryPhoto,
+          normalizeGalleryUrl,
+          openGalleryDialog,
+          overviewCopy,
+          persistedReviews,
+          photoCountLabel,
+          publishedLabel,
+          reviewCountLabel,
+          reviewErrorMessage,
+          saveCount,
+          saveCountLabel,
+          savingSavedState,
+          selectedPhotoId,
+          showReviewToast,
+          showShareToast,
+          similarSpots,
+          submittingReview,
+          thumbnailPhotos,
+          toggleSaved,
+          travelCue,
+          tripFitCopy,
+          tripFitHeading,
+          tripPlannerLink,
+          vibeLabel,
+        },
+      }
+    : {}),
+});
+
 watch(
   () => props.spot,
   (spot) => {

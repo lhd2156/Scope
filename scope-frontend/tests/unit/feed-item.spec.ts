@@ -276,4 +276,69 @@ describe('FeedItem', () => {
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/spots/downtown-food-hall');
   });
+
+  it('keeps feed helper copy stable across trip, pin, review, and anonymous actor fallbacks', () => {
+    const wrapper = mount(FeedItem, {
+      props: {
+        item: {
+          ...item,
+          type: 'spot',
+          title: 'Completed',
+          excerpt: 'Saved for a future map pass.',
+          targetId: 'spot-pin',
+          targetPath: '/spots/direct-pin',
+          targetLocation: '',
+          actor: {
+            ...item.actor,
+            username: '',
+            displayName: '',
+            homeBase: '',
+            stats: {},
+          },
+        },
+      },
+      global: {
+        stubs: {
+          LazyImage: lazyImageStub(),
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(coverage.actorDisplayName.value).toBe('Scope traveler');
+    expect(coverage.actorDisplayHandle.value).toBe('@scope.traveler');
+    expect(coverage.headlineCopy.value).toBe('Scope traveler completed');
+    expect(coverage.activityLabel.value).toBe('Completed a trip');
+    expect(coverage.destinationRoute.value).toBe('/spots/direct-pin');
+    expect(coverage.locationCopy.value).toBe('Scope community');
+    expect(coverage.typeLabel.value).toBe('Pinned spot');
+    expect(coverage.typeIcon.value).toBe('pin');
+    expect(coverage.overlayTitle.value).toBe('Pinned moment');
+    expect(coverage.noteLabel.value).toBe('Pinned context');
+    expect(coverage.noteCopy.value).toBe('Saved for a future map pass.');
+    expect(coverage.reviewRatingCopy.value).toBe('');
+    expect(coverage.reviewRatingLabel.value).toBe('Review activity');
+
+    expect(coverage.resolveActivityLabel('Dropped a marker', 'spot')).toBe('Dropped a pin');
+    expect(coverage.resolveActivityLabel('Wandered without a known action', 'trip')).toBe('Trip activity');
+    expect(coverage.resolveActivityLabel('Wandered without a known action', 'spot')).toBe('Spot activity');
+    expect(coverage.resolveActorDisplayHandle({ ...item.actor, username: '', displayName: 'Scope & Traveler!' })).toBe('@scope.traveler');
+    expect(coverage.resolveActorDisplayHandle({ ...item.actor, username: ' @maya ' })).toBe('@maya');
+    expect(coverage.resolveHeadlineCopy('', { ...item.actor, displayName: 'Maya Chen' })).toBe('Maya Chen');
+    expect(coverage.trimActorPrefix('Reviewed Lake Trail', { ...item.actor, displayName: '', username: '' })).toBe('Reviewed Lake Trail');
+    expect(coverage.resolveSpotTitleFromFeedItem({
+      ...item,
+      type: 'review',
+      title: 'Maya reviewed Lakeside Market',
+      excerpt: 'No numeric rating in this review.',
+      targetId: 'lakeside-market',
+    })).toBe('Lakeside Market');
+    expect(coverage.resolveSpotDestinationRoute({
+      ...item,
+      type: 'spot',
+      title: 'Pinned Gallery Row',
+      targetId: 'gallery-row',
+      targetPath: '',
+    })).toBe('/spots/gallery-row');
+  });
 });
