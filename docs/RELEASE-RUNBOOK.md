@@ -141,8 +141,9 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Core auth endpoints respond as expected
 - [ ] Content read paths work
 - [ ] Intel recommendation/health endpoints respond
-- [ ] Scope Metrics `/healthz` and `/metrics` respond
-- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes
+- [ ] Scope Metrics health responds; raw `/metrics` responds only from an allowed internal scrape network
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes for internal scrape-accessible environments
+- [ ] production public smoke uses `-SkipMetricsScrape` when raw `/metrics` is intentionally private, while still checking Scope Metrics health
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
 - [ ] Sentry receives release-tagged events for server and browser projects, with `SENTRY_RELEASE` / `VITE_SENTRY_RELEASE` matching the deployed commit; if `SENTRY_DSN_MODE=temporary-placeholder`, this is a known temporary gap and must be rotated before relying on monitoring
 - [ ] logs show no immediate crash loops or startup failures
@@ -158,6 +159,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
 ```
 
 This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes, and Scope Metrics `/healthz` + `/metrics`, and exits non-zero whenever any smoke check fails.
+
+For the public production edge, raw Prometheus scrape access is intentionally private. Use:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -EdgeBaseUrl "https://scopetrips.com" `
+  -MetricsHealthUrl "https://scopetrips.com/api/metrics/health" `
+  -SkipMetricsScrape
+```
+
+That public production mode still checks Scope Metrics health and avoids turning the expected private `/metrics` response into release noise.
 
 ### Recommended spot checks
 
