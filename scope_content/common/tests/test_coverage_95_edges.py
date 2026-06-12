@@ -582,7 +582,7 @@ def test_ratelimit_redis_rules_fallback_and_headers(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_REDIS_URL", "redis://env-cache")
     assert middleware._redis_url() == "redis://env-cache"
     monkeypatch.delenv("RATE_LIMIT_REDIS_URL")
-    monkeypatch.delenv("DJANGO_CACHE_LOCATION")
+    monkeypatch.delenv("DJANGO_CACHE_LOCATION", raising=False)
 
     with override_settings(CACHES={"default": {"BACKEND": "django_redis.cache.RedisCache", "LOCATION": "redis://settings-cache"}}):
         assert middleware._redis_url() == "redis://settings-cache"
