@@ -236,7 +236,10 @@ describe('admin app surfaces', () => {
 
     expect(wrapper.text()).toContain('active');
     expect(wrapper.text()).toContain('user');
-    await wrapper.findAll('button').find((button) => button.text() === 'Toggle status')?.trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Toggle status')
+      ?.trigger('click');
     await flushPromises();
 
     expect(updateUserStatus).toHaveBeenCalledWith('user-banned', 'active');

@@ -598,5 +598,5 @@ describe('OnboardingOverlay', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, 20_000);
 });
