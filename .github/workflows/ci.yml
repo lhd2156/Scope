@@ -11,6 +11,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 # NOTE: CI secrets must come from GitHub encrypted secrets or be generated at
 # runtime. Do NOT hard-code passwords, JWT secrets, or API keys here.
 # When a secret is missing, fall back to an ephemeral random value so tests can
@@ -51,6 +54,8 @@ jobs:
           KAFKA_BOOTSTRAP_SERVERS: kafka:9092
           AWS_REGION: us-east-1
           AWS_S3_BUCKET: scope-photos-ci
+          AWS_ACCESS_KEY_ID: ci-compose-placeholder
+          AWS_SECRET_ACCESS_KEY: ci-compose-placeholder
           VITE_MAPBOX_TOKEN: pk.test-ci-token
           VITE_API_BASE_URL: /
           VITE_ENABLE_LOCAL_PREVIEW: 'false'

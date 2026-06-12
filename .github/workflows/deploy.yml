@@ -89,6 +89,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ${{ github.repository_owner }}
 
@@ -130,6 +131,8 @@ jobs:
           GRAFANA_ADMIN_PASSWORD: ${{ steps.preflight.outputs.grafana }}
           AWS_REGION: us-east-1
           AWS_S3_BUCKET: scope-photos-deploy
+          AWS_ACCESS_KEY_ID: deploy-compose-placeholder
+          AWS_SECRET_ACCESS_KEY: deploy-compose-placeholder
           VITE_MAPBOX_TOKEN: pk.deploy-token
           VITE_API_BASE_URL: /
           VITE_ENABLE_LOCAL_PREVIEW: 'false'
