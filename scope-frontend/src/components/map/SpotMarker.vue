@@ -102,7 +102,7 @@ const showPhoto = computed(
   () => Boolean(photoUrl.value) && props.variant !== 'sequence' && !props.pinOnly,
 );
 
-const cityLine = computed(() => formatMapPinCityLine(props.spot.city));
+const cityLine = computed(() => formatMapPinCityLine(props.spot));
 const ratingLabel = computed(() => (
   typeof props.spot.rating === 'number' && Number.isFinite(props.spot.rating)
     ? props.spot.rating.toFixed(1)
@@ -196,7 +196,7 @@ const ratingLabel = computed(() => (
 }
 
 .spot-marker__label-copy strong,
-.spot-marker__label-copy small {
+.spot-marker__distance {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -209,10 +209,13 @@ const ratingLabel = computed(() => (
 }
 
 .spot-marker__meta {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.38rem;
+  gap: 0.42rem;
   min-width: 0;
+  max-width: 100%;
+  line-height: 1.25;
+  vertical-align: middle;
 }
 
 .spot-marker__city {
@@ -226,16 +229,20 @@ const ratingLabel = computed(() => (
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
+  justify-content: center;
   gap: 0.18rem;
   color: var(--accent-gold);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.25;
+  vertical-align: middle;
 }
 
 .spot-marker__rating :deep(.scope-icon) {
   width: 1rem;
   height: 1rem;
+  flex: 0 0 1rem;
+  display: block;
   filter: drop-shadow(0 0 0.35rem color-mix(in srgb, var(--accent-gold) 32%, transparent));
 }
 

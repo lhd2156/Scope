@@ -41,10 +41,13 @@ describe('formatVibeLabel', () => {
 });
 
 describe('formatMapPinCityLine', () => {
-  it('strips commas and extra spaces for map pin sublines', () => {
-    expect(formatMapPinCityLine('Dallas, TX')).toBe('Dallas TX');
-    expect(formatMapPinCityLine('Dallas,  TX')).toBe('Dallas TX');
-    expect(formatMapPinCityLine('Dallas,')).toBe('Dallas');
+  it('formats map pin sublines as city, state before the rating group', () => {
+    expect(formatMapPinCityLine('Dallas, TX')).toBe('Dallas, TX');
+    expect(formatMapPinCityLine('Dallas,  TX')).toBe('Dallas, TX');
+    expect(formatMapPinCityLine('Dallas,')).toBe('Dallas, TX');
+    expect(formatMapPinCityLine({ city: 'Chicago', stateCode: 'us-il' })).toBe('Chicago, IL');
+    expect(formatMapPinCityLine({ city: 'Chicago, IL', stateCode: 'IL' })).toBe('Chicago, IL');
+    expect(formatMapPinCityLine({ id: '90000000-0000-0000-0000-000000000010', title: 'Millennium Park Bean Loop' })).toBe('Chicago, IL');
   });
 
   it('uses fallback when city is empty', () => {

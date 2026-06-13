@@ -712,6 +712,12 @@ export function sanitizeMapPoint(point: MapPoint): MapPoint {
     ...point,
     title: sanitizeSingleLineText(point.title) || DEFAULT_SPOT_TITLE,
     city: optionalSingleLineText(point.city),
+    country: optionalSingleLineText(point.country),
+    adminArea: optionalSingleLineText(point.adminArea),
+    province: optionalSingleLineText(point.province),
+    region: optionalSingleLineText(point.region),
+    state: optionalSingleLineText(point.state),
+    stateCode: optionalSingleLineText(point.stateCode),
     vibe: optionalSingleLineText(point.vibe),
     photoUrl: resolveSpotPhotoUrl(point.category, sanitizeImageUrl(point.photoUrl)),
   };

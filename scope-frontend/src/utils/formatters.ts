@@ -195,7 +195,7 @@ export function formatVibeLabel(vibe: string): string {
 }
 
 /**
- * Map pin subline: drop commas in city/region so the line reads "Dallas star 4.6" not "Dallas, TX , star".
+ * Map pin subline: keep location copy as "City, State" before the rating group.
  */
 export interface RegionAwareLocation {
   id?: string;
@@ -449,13 +449,31 @@ export function formatHomeBaseLocation(location: HomeBaseLocation): string {
     '';
 }
 
-export function formatMapPinCityLine(city: string | undefined): string {
-  if (!city?.trim()) {
+export function formatMapPinCityLine(location: RegionAwareLocation | string | undefined): string {
+  const normalizedCity = (typeof location === 'string' ? location : location?.city)
+    ?.replace(/\s*,\s*/g, ', ')
+    .replace(/\s+/g, ' ')
+    .replace(/,\s*$/g, '')
+    .trim();
+  const explicitRegion = typeof location === 'string'
+    ? ''
+    : normalizeRegionCode(location?.stateCode || location?.state || location?.region || location?.province || location?.adminArea);
+  if (normalizedCity && explicitRegion && normalizedCity.toLowerCase().endsWith(`, ${explicitRegion.toLowerCase()}`)) {
+    return normalizedCity;
+  }
+
+  const locationInput: RegionAwareLocation = typeof location === 'string'
+    ? { city: normalizedCity }
+    : { ...(location ?? {}), city: normalizedCity };
+  const resolvedLocation = resolveCityRegionLocation(locationInput);
+
+  if (resolvedLocation?.label) {
+    return resolvedLocation.label;
+  }
+
+  if (!normalizedCity) {
     return 'Scope spot';
   }
 
-  return city
-    .replace(/,+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizedCity;
 }
