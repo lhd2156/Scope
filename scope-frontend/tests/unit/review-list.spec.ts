@@ -1,7 +1,22 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, vi } from 'vitest';
 import ReviewList from '@/components/spots/ReviewList.vue';
 import type { Review } from '@/types';
+
+const { authStoreMock, getUserProfileMock } = vi.hoisted(() => ({
+  authStoreMock: {
+    isAuthenticated: true,
+  },
+  getUserProfileMock: vi.fn(),
+}));
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authStoreMock,
+}));
+
+vi.mock('@/services/userService', () => ({
+  getUserProfile: getUserProfileMock,
+}));
 
 const reviews: Review[] = [
   {
@@ -25,6 +40,8 @@ describe('ReviewList', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-08T12:00:00Z'));
+    authStoreMock.isAuthenticated = true;
+    getUserProfileMock.mockReset();
   });
 
   afterEach(() => {
@@ -45,10 +62,79 @@ describe('ReviewList', () => {
     expect(wrapper.text()).toContain('4.8');
     expect(wrapper.text()).toContain('Perfect rooftop energy right before sunset');
     expect(wrapper.text()).not.toContain('Perfect rooftop energy right before sunset.');
+    expect(getUserProfileMock).not.toHaveBeenCalled();
 
     const ratingClips = wrapper.find('.review-rating').findAll('.star-rating__clip');
     expect(ratingClips).toHaveLength(5);
     expect(ratingClips[4].attributes('style')).toContain('width: 80%');
+  });
+
+  it('hydrates generated reviewer placeholders with the latest Core profile for signed-in viewers', async () => {
+    const userId = '22222222-2222-4222-8222-222222222222';
+    getUserProfileMock.mockResolvedValueOnce({
+      data: {
+        id: userId,
+        username: 'fresh.traveler',
+        email: '',
+        displayName: 'Fresh Traveler',
+        avatarUrl: 'https://cdn.example.com/fresh-avatar.webp',
+        interests: ['culture'],
+      },
+    });
+
+    const wrapper = mount(ReviewList, {
+      props: {
+        reviews: [
+          {
+            ...reviews[0],
+            id: 'review-generated',
+            user: {
+              id: userId,
+              username: 'traveler-22222222',
+              email: '',
+              displayName: 'Traveler 22222222',
+              avatarUrl: '',
+              interests: [],
+            },
+          },
+        ],
+      },
+    });
+
+    await flushPromises();
+
+    expect(getUserProfileMock).toHaveBeenCalledWith(userId);
+    expect(wrapper.text()).toContain('Fresh Traveler');
+    expect(wrapper.text()).toContain('@fresh.traveler');
+    expect(wrapper.find('.review-author__avatar img').attributes('src')).toBe('https://cdn.example.com/fresh-avatar.webp');
+  });
+
+  it('keeps generated reviewer fallbacks for guests without making profile calls', async () => {
+    authStoreMock.isAuthenticated = false;
+
+    const wrapper = mount(ReviewList, {
+      props: {
+        reviews: [
+          {
+            ...reviews[0],
+            id: 'review-guest',
+            user: {
+              id: '33333333-3333-4333-8333-333333333333',
+              username: 'traveler-33333333',
+              email: '',
+              displayName: 'Traveler 33333333',
+              avatarUrl: '',
+              interests: [],
+            },
+          },
+        ],
+      },
+    });
+
+    await flushPromises();
+
+    expect(getUserProfileMock).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Traveler 33333333');
   });
 
   it('renders the empty state when no reviews are available', () => {
