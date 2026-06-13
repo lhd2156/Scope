@@ -669,6 +669,12 @@ const miniMapSpots = computed<MapPoint[]>(() => {
       longitude: props.spot.longitude,
       category: props.spot.category,
       ...(props.spot.city ? { city: props.spot.city } : {}),
+      ...(props.spot.country ? { country: props.spot.country } : {}),
+      ...(props.spot.adminArea ? { adminArea: props.spot.adminArea } : {}),
+      ...(props.spot.province ? { province: props.spot.province } : {}),
+      ...(props.spot.region ? { region: props.spot.region } : {}),
+      ...(props.spot.state ? { state: props.spot.state } : {}),
+      ...(props.spot.stateCode ? { stateCode: props.spot.stateCode } : {}),
       ...(props.spot.vibe ? { vibe: props.spot.vibe } : {}),
       rating: props.spot.rating,
       /* Same resolved URL as the hero so the map pin can show a thumbnail, not a flat icon. */

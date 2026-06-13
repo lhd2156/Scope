@@ -9,6 +9,7 @@ const spot: MapPoint = {
   longitude: -97.3308,
   category: 'food',
   city: 'Fort Worth',
+  stateCode: 'TX',
   rating: 4.8,
 };
 
@@ -24,7 +25,7 @@ describe('SpotMarker', () => {
     expect(wrapper.classes()).toContain('badge-food');
     expect(wrapper.classes()).toContain('is-active');
     expect(wrapper.text()).toContain('Sunset Rooftop Tacos');
-    expect(wrapper.text()).toContain('Fort Worth');
+    expect(wrapper.text()).toContain('Fort Worth, TX');
     expect(wrapper.find('use').attributes('href')).toBe('/scope-icons.svg#icon-food');
   });
 
@@ -38,6 +39,7 @@ describe('SpotMarker', () => {
 
     const rating = wrapper.get('.spot-marker__rating');
 
+    expect(wrapper.get('.spot-marker__city').text()).toBe('Fort Worth, TX');
     expect(rating.attributes('aria-label')).toBe('Rated 4.8 out of 5');
     expect(rating.text()).toBe('4.8');
     expect(rating.get('use').attributes('href')).toBe('/scope-icons.svg#icon-star-filled');
