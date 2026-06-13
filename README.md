@@ -1,275 +1,124 @@
-﻿# Scope
+# Scope
 
-Scope is a real-world adventure platform where people document, discover, and plan experiences on an interactive map.
+Scope is a production-deployed, map-first travel and social app for saving real places, exploring community spots, and planning trips with AI-assisted route context.
 
-Think:
+- Production app: https://scopetrips.com
+- Default branch: `main`
+- Production deploy path: `.github/workflows/deploy.yml` with `terraform_environment=production` and `terraform_profile=ec2-compose`
 
-- **Instagram for real places**
-- **trip planning from community data**
-- **map-first social discovery**
-- **AI itinerary generation layered over user-created content**
+## Repository Map
 
-## Repository status
+| Area | Directory | Stack | Purpose |
+| --- | --- | --- | --- |
+| Core API | `Scope.Core/` | ASP.NET Core 8 | Auth, users, friends, notifications, live sessions |
+| Content API | `scope_content/` | Django 5 | Spots, trips, photos, reviews, feed data |
+| Intel API | `scope_intel/` | Flask 3 | Planning, recommendations, itinerary intelligence |
+| RAG API | `scope-rag/` | Python | Chat grounding and retrieval context |
+| Frontend | `scope-frontend/` | Vue 3, Vite | Public app, map, trip planning, social UI |
+| Admin | `scope-admin/` | Vue 3, Vite | Operational admin UI |
+| Site | `scope-site/` | Vue 3, Vite | Public web surface |
+| Metrics | `scope-metrics/` | Go | Prometheus/exporter health probes |
+| CLI | `scope-cli/` | Rust | Health checks, seeding, deploy validation |
+| Geo/Media | `scope_geo/`, `scope_media/` | C/C++, Python | Native helpers and bindings |
+| Infra | `docker-compose.yml`, `nginx/`, `k8s/`, `terraform/` | Compose, Kubernetes, Terraform | Runtime and cloud infrastructure |
 
-This repository now includes:
+## Local Quick Start
 
-- the full multi-service codebase
-- Docker Compose integration for local full-stack runs
-- GitHub Actions CI
-- GitHub Actions deploy automation for image publishing, Terraform, and Lightsail runtime rollout
-- Playwright critical-flow smoke coverage
-- Kubernetes manifests
-- Terraform baseline
-- SQL schema + seed data assets
-- deployment runbook documentation
+Prerequisites:
 
-## Architecture
-
-Scope is a polyglot microservice system with multiple service surfaces:
-
-| Service | Stack | Directory | Responsibility |
-|---|---|---|---|
-| Core API | ASP.NET Core 8 / C# | `Scope.Core/` | auth, users, friendships, notifications, live sessions |
-| Content API | Django 5 / Python | `scope_content/` | spots, trips, photos, reviews, social feed |
-| Intel API | Flask 3 / Python | `scope_intel/` | itinerary generation, recommendations, vibe matching |
-| RAG API | Python | `scope-rag/` | Scope AI chat grounding, retrieval, app catalog context |
-| Metrics Agent | Go | `scope-metrics/` | Prometheus exporter, dependency probes, alert rules |
-| CLI Toolkit | Rust | `scope-cli/` | health checks, seeding, deploy validation, benchmarking |
-| Frontend | Vue 3 / TypeScript | `scope-frontend/` | map UX, social/product UI, trip planning flows |
-| Admin | Vue 3 / TypeScript | `scope-admin/` | operational/admin UI |
-| Site | Vue 3 / TypeScript | `scope-site/` | public web surface |
-| Geo | C++ / Python | `scope_geo/` | geospatial primitives and bindings |
-| Media | C / Python | `scope_media/` | image and media processing helpers |
-
-Supporting infrastructure in-repo:
-
-- SQL Server
-- Kafka + Zookeeper
-- Nginx reverse proxy
-- Kubernetes manifests under `k8s/`
-- Terraform baseline under `terraform/`
-
-## Repository layout
-
-```text
-Scope.Core/          Core backend (.NET)
-scope_content/       Content backend (Django)
-scope_intel/         Intelligence backend (Flask)
-scope-rag/           Retrieval/chat grounding API
-scope-metrics/       Metrics exporter + alerting (Go)
-scope-cli/           Ops toolkit (Rust)
-scope-frontend/      Frontend (Vue + Vite)
-scope-admin/         Admin UI (Vue + Vite)
-scope-site/          Public site (Vue + Vite)
-scope_geo/           Geospatial primitives + Python bindings
-scope_media/         Media helpers + Python bindings
-scope-assets/        Design tokens, icons, mockups
-scripts/sql/         SQL schema + seed scripts
-docs/                SDLC, deployment, integration, and release documentation
-k8s/                 Kubernetes manifests
-terraform/           Terraform baseline
-```
-
-## Prerequisites
-
-For local development:
-
-- Docker Desktop / Docker Engine with Compose v2
+- Docker Desktop or Docker Engine with Compose v2
 - .NET SDK 8+
 - Python 3.14+
-- Node.js 24+
-- npm 11+
-
-## Quick start
-
-### 1. Create local environment file
+- Node.js 24+ and npm
+- Go 1.26+ and Rust stable for metrics/CLI work
 
 ```powershell
 Copy-Item .env.example .env
-```
-
-Review and replace development defaults before running anything shared.
-
-### 2. Start the full stack
-
-```powershell
 docker compose up --build -d
+docker compose ps
 ```
 
-Useful follow-up commands:
+Review `.env` before running shared or production-like environments. Never commit real secrets.
+
+Useful local commands:
 
 ```powershell
-docker compose ps
 docker compose logs -f
 docker compose config
+docker compose down
 ```
 
-### 3. Seed demo data
+## Validation
 
-Execution order is documented in:
+Run the checks for the surface you changed:
 
-- `scripts/sql/README.md`
+| Surface | Commands |
+| --- | --- |
+| Core | `cd Scope.Core; dotnet build Scope.Core.sln; dotnet test Scope.Core.sln` |
+| Content | `cd scope_content; python manage.py check; python -m pytest` |
+| Intel | `cd scope_intel; python -m pytest tests` |
+| RAG | `cd scope-rag; python -m pytest tests` |
+| Frontend | `cd scope-frontend; npm run build; npm run test` |
+| Frontend e2e | `cd scope-frontend; npm run test:e2e -- --project=chromium` |
+| Admin | `cd scope-admin; npm run build; npm run test` |
+| Site | `cd scope-site; npm run build; npm run test` |
+| Metrics | `cd scope-metrics; go test ./...; go build ./cmd/scope-metrics` |
+| CLI | `cd scope-cli; cargo test` |
 
-### 4. Run validation commands
-
-#### Core
+Post-deploy smoke:
 
 ```powershell
-cd Scope.Core
-dotnet build Scope.Core.sln
-dotnet test Scope.Core.sln
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -EdgeBaseUrl "https://scopetrips.com" `
+  -MetricsHealthUrl "https://scopetrips.com/api/metrics/health" `
+  -SkipMetricsScrape
 ```
 
-#### Content
+## Deployment
+
+Production releases go through GitHub Actions from `main`:
 
 ```powershell
-cd scope_content
-python manage.py check
-python -m pytest
+gh workflow run deploy.yml --repo lhd2156/Scope --ref main `
+  -f publish_images=false `
+  -f terraform_action=apply `
+  -f terraform_environment=production `
+  -f terraform_profile=ec2-compose `
+  -f terraform_registry=ghcr `
+  -f deploy_lightsail_app=true `
+  -f run_starter_seed=true `
+  -f deploy_kubernetes_app=false `
+  -f install_kubernetes_addons=true
 ```
 
-#### Intel
+The deploy workflow builds the release bundle, verifies production DNS, opens temporary runner SSH to the Compose host, uploads the bundle, restarts services, and runs health checks.
 
-```powershell
-cd scope_intel
-python -m pytest tests
-```
+## GitHub Automation
 
-#### RAG
+- `.github/workflows/ci.yml` runs build, test, security, infrastructure, and config checks.
+- `.github/workflows/deploy.yml` handles image publishing, Terraform plan/apply, and Compose-host deployment.
+- `.github/dependabot.yml` tracks current Scope services only.
+- `.github/CODEOWNERS` routes security-sensitive and production config changes to the repo owner.
 
-```powershell
-cd scope-rag
-python -m pytest tests
-```
+## Documentation
 
-#### Metrics Agent
+- `docs/API-REFERENCE.md` - API route reference
+- `docs/DEPLOYMENT.md` - local, staging, and production deployment notes
+- `docs/RELEASE-RUNBOOK.md` - release, verification, and rollback flow
+- `docs/PRODUCTION-HARDENING.md` - production hardening checklist
+- `docs/EDGE-ROUTE-CACHE-OWNERSHIP.md` - canonical host, cache, and CSP ownership
+- `docs/SDLC.md` and `docs/SDLC-CONTROLS.md` - SDLC policy and validation matrix
+- `SECURITY.md` - vulnerability reporting and security posture
+- `CONTRIBUTING.md` - contribution expectations
 
-```powershell
-cd scope-metrics
-go test ./...
-go build ./cmd/scope-metrics
-```
+## Working Conventions
 
-#### CLI Toolkit
-
-```powershell
-cd scope-cli
-cargo test
-```
-
-#### Frontend
-
-```powershell
-cd scope-frontend
-npm run build
-npm run test
-npm run test:e2e -- --project=chromium
-```
-
-#### Admin
-
-```powershell
-cd scope-admin
-npm run build
-npm run test
-```
-
-#### Site
-
-```powershell
-cd scope-site
-npm run build
-npm run test
-```
-
-#### Geo
-
-```powershell
-cd scope_geo
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build
-python -m pytest tests
-```
-
-#### Media
-
-```powershell
-cd scope_media
-python -m pytest tests
-```
-
-## Browser smoke coverage
-
-The repository includes a Playwright critical-flow smoke test covering:
-
-1. register
-2. login
-3. create spot
-4. view map
-5. plan trip
-
-Files:
-
-- `scope-frontend/playwright.config.ts`
-- `scope-frontend/tests/e2e/critical-flows.spec.ts`
-
-## Deployment + infrastructure docs
-
-See:
-
-- `docs/SDLC.md` - software development life cycle policy for Scope
-- `docs/SDLC-CONTROLS.md` - control matrix and per-service validation checklist
-- `docs/API-REFERENCE.md` - current API route reference across Core, Content, and Intel
-- `docs/DEPLOYMENT.md` - current local/staging deployment runbook
-- `docs/PRODUCTION-HARDENING.md` - production hardening and readiness guidance
-- `docs/RELEASE-RUNBOOK.md` - release, verification, and rollback procedure
-- `scripts/smoke-test.ps1` - post-deploy edge + service + metrics smoke validation
-- `scripts/sql/README.md` - schema + seed execution order
-- `terraform/README.md` - Terraform baseline usage notes
-
-## Automation in repo
-
-### CI
-
-- `.github/workflows/ci.yml`
-
-Runs build/test validation for the core application surfaces and Docker Compose
-config. Use `docs/SDLC-CONTROLS.md` for the full per-service validation matrix.
-
-### Deploy automation
-
-- `.github/workflows/deploy.yml`
-
-Publishes service images to GHCR, can run Terraform plan/apply manually, and can deploy the Lightsail runtime after a successful `lightsail` apply when the required GitHub secrets are configured.
-
-## Current known gaps
-
-The repository has strong integration scaffolding, but some production-hardening work still remains:
-
-- runtime validation of the Terraform baseline on a machine with Terraform installed
-- broader production environment hardening/tuning
-- final cloud-environment guidance beyond the current local/staging deployment runbook
-
-## Working style for this repo
-
-- PowerShell is the default shell on the primary workstation
-- use semicolons (`;`) instead of `&&` for chained commands in PowerShell
-- prefer small, milestone-scoped commits
-- use Conventional Commits
-- validate builds/tests after each meaningful change
-
-## Related docs
-
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `docs/SDLC.md`
-- `docs/SDLC-CONTROLS.md`
-- `docs/API-REFERENCE.md`
-- `docs/DEPLOYMENT.md`
-- `scripts/sql/README.md`
-- `terraform/README.md`
+- Keep `main` deployable.
+- Use small, focused commits.
+- Stage only the files in scope.
+- Run the relevant validation before pushing.
+- Keep generated caches, screenshots, test output, local state, and credentials out of git.
 
 ## License
 
-No license has been declared in this repository yet.
+No license has been declared.
