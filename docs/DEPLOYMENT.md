@@ -1,10 +1,23 @@
 # Scope Deployment Runbook
 
-This document captures the **current deployable shape** of Scope after the Phase 4 integration milestones that are already in the repository.
+This document captures the current deployable shape of Scope for local development, staging validation, and the production single-host runtime.
 
-## What is deployable today
+## Current Production Shape
 
-Scope can currently be launched as a **single-machine Docker Compose stack** with:
+Production is served at `https://scopetrips.com` from the `main` branch through the `Scope Deploy` GitHub Actions workflow. The current production profile is Terraform-managed `ec2-compose`: one AWS EC2 Compose host, Nginx as the public edge, and the full app stack running in Docker Compose.
+
+The production workflow:
+
+1. builds and uploads a release bundle,
+2. verifies production DNS points at the Compose host,
+3. opens temporary runner SSH,
+4. uploads the bundle,
+5. restarts the Compose services,
+6. runs service and edge health checks.
+
+## Local Compose Shape
+
+Scope can also be launched locally as a Docker Compose stack with:
 
 - SQL Server
 - Zookeeper
@@ -19,15 +32,6 @@ Scope can currently be launched as a **single-machine Docker Compose stack** wit
 An **optional ops profile** is also wired for the Rust CLI toolkit (`scope-cli`) so release and smoke flows can run from the same container network.
 
 GitHub Actions CI is also in place to validate the codebase on pushes and pull requests.
-
-## What is not finished yet
-
-The following items are still pending lead-owned integration/infrastructure work:
-
-- executing the Terraform plan/apply path against a real AWS target account and tuning the resulting resources
-- full production environment guide for managed cloud services and environment-specific tuning
-
-Treat this runbook as the **current local/staging deployment guide**, not the final production playbook.
 
 ---
 
@@ -399,7 +403,7 @@ Current automation coverage:
 - GHCR image publishing for Core, Content, Intel, Frontend, Scope Metrics, and Scope CLI on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts, Lightsail helper scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
-- Terraform baseline is now shipped inside the deployment artifact even though it still needs real-account `terraform plan` execution against an actual AWS target
+- Terraform baseline is shipped inside the deployment artifact and is exercised by the production `ec2-compose` deploy path
 - Prometheus scrape config for Scope Metrics plus the Core, Content, and Intel `/metrics` endpoints in Kubernetes
 
 Dependabot is also configured for:
@@ -458,23 +462,23 @@ Required GitHub configuration (repository-level or environment-level for `stagin
 Before dispatching a production single-host plan/apply, run the local GitHub readiness gate:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile lightsail -DeployComposeHost
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile ec2-compose -DeployComposeHost
 ```
 
-Use `-TerraformProfile ec2-compose -DeployComposeHost` for the EC2 fallback, or omit `-DeployComposeHost` when checking a Terraform-only foundation plan.
+Use `-TerraformProfile lightsail -DeployComposeHost` only when intentionally deploying the Lightsail profile, or omit `-DeployComposeHost` when checking a Terraform-only foundation plan.
 
 Then run the `Scope Deploy` workflow manually with:
 
 - `publish_images = false` or `true` as needed
 - `terraform_action = plan` to generate and upload a reviewed plan artifact, or `terraform_action = apply` to plan and then apply
 - `terraform_environment = staging` or `production`
-- `terraform_profile = credit-saver` for the low-cost default, `lightsail` for the preferred always-on single-box runtime, `ec2-compose` for the Terraform-managed AWS fallback while Lightsail approval is pending, or `full` for the original EKS/RDS stack
+- `terraform_profile = ec2-compose` for the current production single-host runtime, `credit-saver` for the low-cost foundation, `lightsail` for the optional Lightsail profile, or `full` for the EKS/RDS stack
 - `terraform_registry = ghcr` to skip ECR, or `ecr` if AWS-hosted repositories are required
 - `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied single host
 
 The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to the selected Compose host with `scripts/lightsail/deploy-remote.sh`. Production applies and Compose-host deploys must run from `main`. Production Lightsail deploys should keep Terraform SSH ingress empty and use `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true`; if that is disabled, use exact runner, VPN, or admin `/32` CIDRs. Terraform refuses world-open SSH for `production`, and the high-cost `full` profile is blocked in production unless `ALLOW_FULL_PRODUCTION_INFRA=true`.
 
-The current production environment uses temporary Sentry placeholder DSNs so the deployment path can be exercised before the real free Sentry projects are created. Keep `SENTRY_TRACES_SAMPLE_RATE=0` and `SENTRY_PROFILES_SAMPLE_RATE=0` while placeholders are active, then rotate `SCOPE_SENTRY_DSN` and `VITE_SENTRY_DSN` to real Sentry DSNs and restore the desired sample rates.
+If a non-production environment uses temporary Sentry placeholder DSNs, keep `SENTRY_TRACES_SAMPLE_RATE=0` and `SENTRY_PROFILES_SAMPLE_RATE=0` while placeholders are active, then rotate `SCOPE_SENTRY_DSN` and `VITE_SENTRY_DSN` to real Sentry DSNs before relying on observability.
 
 ## 9. Operational notes
 
@@ -512,15 +516,15 @@ Before calling a deployment candidate ready:
 - [ ] production secrets replace all development defaults
 - [x] seed data scripts are added and documented
 - [x] deploy workflow is added and reviewed
-- [ ] Terraform plan/apply workflow is executed successfully against a real AWS target account with actual GitHub vars/secrets/OIDC role configuration
+- [ ] Terraform plan/apply workflow is executed successfully for the intended AWS profile with actual GitHub vars/secrets/OIDC role configuration
 - [ ] Kubernetes manifests are reviewed against the target cluster and real image namespace/secrets
 
 ---
 
-## 11. Current next integration milestones
+## 11. Current maintenance priorities
 
-The next lead-owned milestones after this runbook are:
+Keep these items in normal maintenance rotation:
 
-1. Execute the Terraform plan workflow against a real AWS target account and tune any failing resources/quotas
-2. broader production deploy workflow expansion beyond the current Lightsail + bundle rollout path
-3. broader deployment documentation and release automation
+1. Review remaining Dependabot PRs in small, tested batches
+2. Keep production secrets, Sentry DSNs, SSH allowlists, and IAM/OIDC settings current
+3. Validate the Kubernetes profile before sending production traffic to it
