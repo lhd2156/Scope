@@ -127,6 +127,46 @@ async function logoutFromNavbar(page: Page): Promise<void> {
 }
 
 test.describe('Scope auth flow', () => {
+  test('keeps authenticated chrome visible while a persisted session refreshes', async ({ page, scopeApi }) => {
+    await scopeApi.seedSession(page, {
+      email: 'louis@example.com',
+      displayName: 'Louis Do',
+    });
+    await page.addInitScript(() => {
+      const windowWithAuthFlash = window as Window & { __scopeGuestAuthFlash?: boolean };
+      windowWithAuthFlash.__scopeGuestAuthFlash = false;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const detectGuestAuthActions = () => {
+          if (document.querySelector('.guest-actions, .guest-navbar__auth-actions, .navbar__mobile-guest-actions')) {
+            windowWithAuthFlash.__scopeGuestAuthFlash = true;
+          }
+        };
+
+        detectGuestAuthActions();
+        new MutationObserver(detectGuestAuthActions).observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      });
+    });
+    await page.route('**/api/core/auth/refresh', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await route.fallback();
+    });
+
+    await page.goto('/map', { waitUntil: 'domcontentloaded' });
+
+    const navbar = page.locator('header.navbar');
+    await expect(navbar.locator('[data-test="auth-session-placeholder"]')).toBeVisible();
+    await expect(navbar.getByRole('link', { name: 'Log in' })).toHaveCount(0);
+    await expect(navbar.getByRole('link', { name: 'Create account' })).toHaveCount(0);
+    await expect(page.locator('button.profile-chip')).toContainText('Louis Do');
+    await expect
+      .poll(() => page.evaluate(() => Boolean((window as Window & { __scopeGuestAuthFlash?: boolean }).__scopeGuestAuthFlash)))
+      .toBe(false);
+  });
+
   test('registers with validation, logs in with a redirect target, persists the session across reload, and logs out cleanly', async ({ page }) => {
     test.setTimeout(6 * 60 * 1000);
 

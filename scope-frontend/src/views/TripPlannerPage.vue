@@ -142,6 +142,7 @@
             :members="plannerMembers"
             :stops="plannerStops"
             :initial-map-viewport="plannerMapViewport"
+            :reset-map-viewport="plannerResetMapViewport"
             :submitting="tripsStore.planning"
             :mobile-wizard="isMobilePlannerLayout"
             :mobile-active-step="mobileWizardStep"
@@ -569,6 +570,7 @@ const plannerCrew = ref<TripMember[]>([]);
 const tripFuelSettings = ref<TripFuelSettings>({});
 const selectedFuelPricesByPlaceId = ref<Record<string, number>>({});
 const plannerMapViewport = ref<MapViewport>(createPlannerMapViewport(getPlannerDefaultMapViewport()));
+const plannerResetMapViewport = createPlannerMapViewport(getPlannerDefaultMapViewport());
 const hasPlannerHomeBaseSearchAnchor = ref(false);
 const currentDraftTrip = ref<Trip | null>(null);
 const plannerDraftSessionId = ref(createPlannerDraftSessionId());
@@ -2776,8 +2778,11 @@ async function handleShareDraft() {
   touchPlannerPresence('share');
   try {
     const savedTrip = await savePlannerDraft({ announce: !currentDraftTrip.value, preserveRoute: true });
-    const shareLink = await tripsStore.createShareLink(savedTrip.id);
-    tripShareLink.value = shareLink.url;
+    tripShareLink.value = '';
+    if (savedTrip.isPublic) {
+      const shareLink = await tripsStore.createShareLink(savedTrip.id);
+      tripShareLink.value = shareLink.url;
+    }
     isShareModalOpen.value = true;
   } catch {
     toastStore.showError({
@@ -2964,10 +2969,18 @@ async function handleScopeAiTripCommand(payload: ScopeAiTripCommandPayload): Pro
 
     if (payload.type === 'share') {
       const savedTrip = await savePlannerDraft({ announce: !currentDraftTrip.value, preserveRoute: true });
-      const shareLink = await tripsStore.createShareLink(savedTrip.id);
-      tripShareLink.value = shareLink.url;
+      tripShareLink.value = '';
+      if (savedTrip.isPublic) {
+        const shareLink = await tripsStore.createShareLink(savedTrip.id);
+        tripShareLink.value = shareLink.url;
+      }
       isShareModalOpen.value = true;
-      return { ok: true, message: 'Created a live share link for this trip draft.' };
+      return {
+        ok: true,
+        message: savedTrip.isPublic
+          ? 'Created a live share link for this trip draft.'
+          : 'Opened private crew invites. Only invited Scope members can access this trip.',
+      };
     }
 
     if (payload.type === 'delete') {

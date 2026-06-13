@@ -37,7 +37,7 @@
             data-test="trip-share-link-input"
             type="url"
             readonly
-            placeholder="Save the trip to create a live share link"
+            :placeholder="shareLinkPlaceholder"
             @focus="$event.target instanceof HTMLInputElement && $event.target.select()"
           />
         </div>
@@ -184,7 +184,14 @@ const attemptedSubmit = ref(false);
 const linkCopy = computed(() =>
   props.shareLink
     ? 'Anyone with this URL can open the shared trip view. Members still need invites for edit access.'
-    : 'Save this trip first to create a live backend share token.',
+    : props.trip && !props.trip.isPublic
+      ? 'This trip is private. Only invited Scope members can open it; no anonymous link is available.'
+      : 'Save this trip first to create a live backend share token.',
+);
+const shareLinkPlaceholder = computed(() =>
+  props.trip && !props.trip.isPublic
+    ? 'Private trips do not have anonymous links'
+    : 'Save the trip to create a live share link',
 );
 
 const errorMessage = computed(() => {

@@ -856,6 +856,7 @@ const props = withDefaults(
     showLocationTracker?: boolean;
     clickToSelect?: boolean;
     initialViewport?: MapViewport;
+    resetViewport?: MapViewport;
     showFilterPanel?: boolean;
     showSummary?: boolean;
     showControls?: boolean;
@@ -4475,7 +4476,7 @@ function syncActiveNearbyPlaceMarkerLayer(): void {
     const isActive = markerId === activeNearbyPlaceMarkerId.value;
     controller.element.classList.toggle('is-active', isActive);
     controller.element.dataset.active = isActive ? 'true' : 'false';
-    controller.element.style.zIndex = isActive ? '300' : '160';
+    controller.element.style.zIndex = isActive ? '600' : '160';
     updateNearbyPlaceMarkerPopoverPlacement(controller, isActive);
     if (isActive) {
       activeMarkerStillExists = true;
@@ -4716,6 +4717,12 @@ function resolveBaseViewport(): MapViewport {
   return props.initialViewport
     ? cloneMapViewport(props.initialViewport)
     : cloneMapViewport(DEFAULT_MAP_VIEWPORT);
+}
+
+function resolveResetViewport(): MapViewport {
+  return props.resetViewport
+    ? cloneMapViewport(props.resetViewport)
+    : resolveBaseViewport();
 }
 
 function getDefaultMapProjectionMode(): MapProjectionName {
@@ -6918,7 +6925,7 @@ function handleLocationBadgeActivate(location: UserLocation | null) {
 
 function resetMapViewport(): boolean {
   const instance = map.value;
-  const targetViewport = resolveBaseViewport();
+  const targetViewport = resolveResetViewport();
   const targetStyle = resolveRequestedMapStyle(targetViewport.style);
   const targetCamera = {
     center: targetViewport.center,
@@ -10408,7 +10415,7 @@ defineExpose({
 }
 
 .map-canvas :deep(.map-feature-place-popup) {
-  z-index: 180;
+  z-index: 620;
 }
 
 .map-canvas :deep(.map-feature-place-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip) {
@@ -10480,6 +10487,7 @@ defineExpose({
 }
 
 .map-canvas :deep(.nearby-place-marker.is-active .nearby-place-marker__popover) {
+  z-index: 1;
   transform: translate(calc(-50% + var(--nearby-place-popover-shift-x, 0px)), 0);
   opacity: 1;
   pointer-events: auto;

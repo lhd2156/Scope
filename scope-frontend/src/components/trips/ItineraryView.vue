@@ -45,6 +45,7 @@
             :label-mode="mapLabelMode"
             :click-to-select="isMapPickModeEnabled"
             :initial-viewport="initialMapViewport"
+            :reset-viewport="resetMapViewport"
             :optimize-route-order="shouldOptimizeRouteOrder"
             :show-nearby-places="routeNearbyDrawerOpen || routeNearbyPinnedPlaces.length > 0"
             :auto-search-nearby-places="false"
@@ -1180,6 +1181,7 @@ const props = withDefaults(
     members?: TripMember[];
     stops?: TripSpot[];
     initialMapViewport?: MapViewport;
+    resetMapViewport?: MapViewport;
     submitting?: boolean;
     mobileWizard?: boolean;
     mobileActiveStep?: PlannerWizardStep;

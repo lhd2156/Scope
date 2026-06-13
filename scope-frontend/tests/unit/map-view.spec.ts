@@ -474,6 +474,33 @@ describe('MapView', () => {
     expect(wrapper.find('[data-test="map-fallback-marker-route-start"]').exists()).toBe(true);
   });
 
+  it('uses an explicit reset viewport instead of the location-aware initial viewport', async () => {
+    const initialViewport = {
+      center: [-97.3308, 32.7555] as [number, number],
+      zoom: 11,
+    };
+    const resetViewport = {
+      center: [-98.5795, 39.8283] as [number, number],
+      zoom: 3.25,
+    };
+    const wrapper = mount(MapView, {
+      props: {
+        spots: [],
+        initialViewport,
+        resetViewport,
+      },
+    });
+    const mapStore = useMapStore();
+    mapStore.setCenter(initialViewport.center);
+    mapStore.setZoom(15);
+
+    await wrapper.get('button[aria-label="Reset map"]').trigger('click');
+    await nextTick();
+
+    expect(mapStore.viewport.center).toEqual(resetViewport.center);
+    expect(mapStore.viewport.zoom).toBe(resetViewport.zoom);
+  });
+
   it('reports that planner map commands cannot move the live map while Mapbox is offline', async () => {
     const wrapper = mount(MapView, {
       props: {
