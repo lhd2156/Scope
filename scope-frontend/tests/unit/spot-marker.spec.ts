@@ -28,6 +28,22 @@ describe('SpotMarker', () => {
     expect(wrapper.find('use').attributes('href')).toBe('/scope-icons.svg#icon-food');
   });
 
+  it('renders the rating with a full-size filled star icon', () => {
+    const wrapper = mount(SpotMarker, {
+      props: {
+        spot,
+        active: true,
+      },
+    });
+
+    const rating = wrapper.get('.spot-marker__rating');
+
+    expect(rating.attributes('aria-label')).toBe('Rated 4.8 out of 5');
+    expect(rating.text()).toBe('4.8');
+    expect(rating.get('use').attributes('href')).toBe('/scope-icons.svg#icon-star-filled');
+    expect(wrapper.text()).not.toContain('* 4.8');
+  });
+
   it('emits select when clicked', async () => {
     const wrapper = mount(SpotMarker, {
       props: {
