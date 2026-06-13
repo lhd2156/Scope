@@ -4,6 +4,7 @@ PUBLIC_ROUTE_EXCEPTIONS = {
     "/api/intel/health",
     "/api/intel/metrics",
     "/api/intel/ml/info",
+    "/api/intel/place-photo",
 }
 
 PROTECTED_ROUTE_CASES = [

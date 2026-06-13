@@ -139,7 +139,7 @@
     >
       <ScopeIcon :name="mapWeatherIconName" label="Current weather" />
       <strong>{{ mapWeatherTemperatureLabel }}</strong>
-      <span v-if="mapWeatherStatus !== 'ready'" class="map-weather-badge__status">{{ mapWeatherStatusLabel }}</span>
+      <span v-if="mapWeatherStatus === 'error'" class="map-weather-badge__status">{{ mapWeatherStatusLabel }}</span>
     </div>
 
     <div
@@ -1822,12 +1822,12 @@ const mapWeatherTemperatureLabel = computed(() => {
     return `${Math.round(temperature)}°F`;
   }
 
-  return mapWeatherStatus.value === 'loading' ? '...' : '--°F';
+  return mapWeatherStatus.value === 'loading' ? 'Loading...' : '--°F';
 });
 const mapWeatherIconName = computed(() => mapWeatherSnapshot.value ? getWeatherSnapshotIconName(mapWeatherSnapshot.value) : 'weather');
 const mapWeatherStatusLabel = computed(() => {
   if (mapWeatherStatus.value === 'loading') {
-    return 'Loading';
+    return 'Loading...';
   }
 
   if (mapWeatherStatus.value === 'error') {
@@ -4332,7 +4332,7 @@ function syncMapFeaturePlacePopup(): void {
 
   const popupContent = buildNearbyPlacePopupContent(place, {
     deferFallbackPhoto: shouldDeferNearbyPlaceFallbackPhoto(place),
-    allowInstantFallbackPhoto: true,
+    allowInstantFallbackPhoto: shouldAllowInstantNearbyPlaceFallbackPhoto(place),
     includeCloseButton: true,
   });
   bindNearbyPlacePopupAddHandler(popupContent, place);

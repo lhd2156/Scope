@@ -1,7 +1,6 @@
 from marshmallow import Schema, ValidationError, fields, validates_schema
 from flask import Blueprint, request
 
-from app.auth import require_auth
 from app.api.validation import validate_latitude, validate_longitude, validate_required_text
 from app.rate_limit import rate_limited
 from app.responses import success_response
@@ -35,7 +34,6 @@ query_schema = PlacePhotoQuerySchema()
 
 @place_photos_bp.get("/place-photo")
 @rate_limited(limit_config_key="PLACE_PHOTO_RATE_LIMIT_PER_MINUTE")
-@require_auth
 def get_place_photo():
     payload = query_schema.load(request.args)
     return success_response(

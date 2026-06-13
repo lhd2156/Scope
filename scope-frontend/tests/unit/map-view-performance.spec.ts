@@ -2912,8 +2912,8 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
     let popup = wrapper.find('.map-feature-place-popup');
     expect(popup.exists()).toBe(true);
     expect(popup.text()).toContain('QuikTrip');
-    expect(popup.find('[data-photo-source="fallback"]').exists()).toBe(true);
-    expect(popup.find('[data-test="nearby-place-photo"]').exists()).toBe(true);
+    expect(popup.find('[data-photo-source="fallback"]').exists()).toBe(false);
+    expect(popup.find('[data-test="nearby-place-photo"]').exists()).toBe(false);
     expect(getPlacePhoto).toHaveBeenCalledWith(expect.objectContaining({
       title: 'QuikTrip',
     }));
@@ -3726,7 +3726,7 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
     hooks.syncMapFeaturePlacePopup();
     await nextTick();
     expect(container.querySelector('[data-test="nearby-place-popup-close"]')).not.toBeNull();
-    expect(container.querySelector('[data-test="nearby-place-photo"]')).not.toBeNull();
+    expect(container.querySelector('[data-test="nearby-place-photo"]')).toBeNull();
     expect(container.textContent).not.toContain('<span aria-hidden');
 
     hooks.handleRenderedMapFeatureHover({

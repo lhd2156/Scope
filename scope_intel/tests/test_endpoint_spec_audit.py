@@ -29,6 +29,7 @@ PUBLIC_INTEL_ENDPOINTS = {
     "/api/intel/health",
     "/api/intel/metrics",
     "/api/intel/ml/info",
+    "/api/intel/place-photo",
 }
 
 

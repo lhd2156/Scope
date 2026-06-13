@@ -12,9 +12,9 @@
     @keydown.space.prevent="handleActivate"
   >
     <div class="status-indicator" :class="{ 'is-live': trackingState === 'tracking' }" />
-    <div>
+    <div class="location-tracker__copy">
       <strong>{{ statusTitle }}</strong>
-      <p>{{ statusMessage }}</p>
+      <p>{{ compactStatusMessage }}</p>
     </div>
   </aside>
 </template>
@@ -65,7 +65,7 @@ const statusTitle = computed(() => {
 
 const statusMessage = computed(() => {
   if (trackingState.value === 'tracking' && lastLocation.value) {
-    return `Precision ${Math.round(lastLocation.value.accuracy)} m`;
+    return `Precision +/- ${Math.round(lastLocation.value.accuracy)} m`;
   }
 
   if (trackingState.value === 'denied' || trackingState.value === 'error') {
@@ -84,6 +84,14 @@ const statusMessage = computed(() => {
 });
 
 const isActionable = computed(() => trackingState.value !== 'unsupported');
+
+const compactStatusMessage = computed(() => {
+  if (trackingState.value === 'tracking' && lastLocation.value) {
+    return `+/- ${Math.round(lastLocation.value.accuracy)} m`;
+  }
+
+  return statusMessage.value;
+});
 
 function setTrackingState(nextState: TrackingState) {
   trackingState.value = nextState;
@@ -184,13 +192,14 @@ onBeforeUnmount(() => {
 .location-tracker {
   display: inline-flex;
   align-items: center;
-  gap: 0.46rem;
+  justify-content: center;
+  gap: 0.42rem;
   box-sizing: border-box;
   min-width: 0;
   width: max-content;
-  max-width: min(8.2rem, calc(100vw - 2rem));
-  min-height: 2.24rem;
-  padding: 0.38rem 0.58rem;
+  max-width: min(7.85rem, calc(100vw - 2rem));
+  min-height: 2.12rem;
+  padding: 0.34rem 0.52rem;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
   box-shadow:
@@ -221,15 +230,17 @@ onBeforeUnmount(() => {
 }
 
 .status-indicator {
-  width: 0.64rem;
-  height: 0.64rem;
+  width: 0.58rem;
+  height: 0.58rem;
   border-radius: var(--radius-full);
   background: var(--text-muted);
-  box-shadow: 0 0 0 0.3rem var(--accent-teal-light);
+  box-shadow: 0 0 0 0.25rem var(--accent-teal-light);
   flex: 0 0 auto;
 }
 
-.location-tracker > div {
+.location-tracker__copy {
+  display: grid;
+  align-content: center;
   min-width: 0;
 }
 
@@ -240,8 +251,8 @@ onBeforeUnmount(() => {
 
 .location-tracker strong {
   display: block;
-  margin-bottom: 0.1rem;
-  font-size: 0.78rem;
+  margin-bottom: 0;
+  font-size: 0.76rem;
   line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,6 +260,7 @@ onBeforeUnmount(() => {
 }
 
 .location-tracker p {
+  display: none;
   position: absolute;
   width: 1px;
   height: 1px;
@@ -258,15 +270,30 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.location-tracker.state-tracking p {
+  display: block;
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0.06rem 0 0;
+  overflow: hidden;
+  clip-path: none;
+  color: var(--text-secondary);
+  font-size: 0.64rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
 .location-tracker.state-denied .status-indicator,
 .location-tracker.state-error .status-indicator {
   background: var(--danger);
-  box-shadow: 0 0 0 0.35rem var(--glass-border);
+  box-shadow: 0 0 0 0.28rem var(--glass-border);
 }
 
 .location-tracker.state-unsupported .status-indicator,
 .location-tracker.state-idle .status-indicator {
-  box-shadow: 0 0 0 0.35rem var(--glass-border);
+  box-shadow: 0 0 0 0.28rem var(--glass-border);
 }
 
 .location-tracker.state-idle,
