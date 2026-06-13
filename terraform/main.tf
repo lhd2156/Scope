@@ -22,20 +22,19 @@ provider "aws" {
 }
 
 locals {
-  normalized_environment          = lower(var.environment)
-  stack_profile                   = lower(var.stack_profile)
-  container_registry              = lower(var.container_registry)
-  deploy_lightsail                = local.stack_profile == "lightsail"
-  deploy_ec2_compose              = local.stack_profile == "ec2-compose"
-  deploy_full_stack               = local.stack_profile == "full"
-  deploy_sqlserver                = local.deploy_full_stack
-  deploy_eks                      = local.deploy_full_stack
-  deploy_ecr                      = local.deploy_full_stack && local.container_registry == "ecr"
-  enable_nat_gateway              = local.deploy_full_stack
-  enable_photos_bucket_versioning = local.deploy_full_stack
-  runtime_platform                = local.deploy_full_stack ? "eks" : local.deploy_lightsail ? "lightsail" : local.deploy_ec2_compose ? "ec2-compose" : "foundation-only"
-  name_prefix                     = "${var.project_name}-${var.environment}"
-  cluster_name                    = "${var.eks_cluster_name}-${var.environment}"
+  normalized_environment = lower(var.environment)
+  stack_profile          = lower(var.stack_profile)
+  container_registry     = lower(var.container_registry)
+  deploy_lightsail       = local.stack_profile == "lightsail"
+  deploy_ec2_compose     = local.stack_profile == "ec2-compose"
+  deploy_full_stack      = local.stack_profile == "full"
+  deploy_sqlserver       = local.deploy_full_stack
+  deploy_eks             = local.deploy_full_stack
+  deploy_ecr             = local.deploy_full_stack && local.container_registry == "ecr"
+  enable_nat_gateway     = local.deploy_full_stack
+  runtime_platform       = local.deploy_full_stack ? "eks" : local.deploy_lightsail ? "lightsail" : local.deploy_ec2_compose ? "ec2-compose" : "foundation-only"
+  name_prefix            = "${var.project_name}-${var.environment}"
+  cluster_name           = "${var.eks_cluster_name}-${var.environment}"
   service_images = toset([
     "scope-admin",
     "scope-cli",
@@ -321,7 +320,7 @@ resource "aws_s3_bucket_versioning" "photos" {
   bucket = aws_s3_bucket.photos.id
 
   versioning_configuration {
-    status = local.enable_photos_bucket_versioning ? "Enabled" : "Suspended"
+    status = "Enabled"
   }
 }
 
@@ -339,18 +338,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "photos" {
     }
   }
 
-  dynamic "rule" {
-    for_each = local.enable_photos_bucket_versioning ? [1] : []
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
 
-    content {
-      id     = "expire-noncurrent-versions"
-      status = "Enabled"
+    filter {}
 
-      filter {}
-
-      noncurrent_version_expiration {
-        noncurrent_days = 7
-      }
+    noncurrent_version_expiration {
+      noncurrent_days = 7
     }
   }
 }

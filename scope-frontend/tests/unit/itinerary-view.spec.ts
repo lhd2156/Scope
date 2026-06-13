@@ -5861,6 +5861,8 @@ describe('ItineraryView', () => {
     expect(coverage.normalizeDraftEndpointLabel('Planning route', false)).toBe('');
     expect(coverage.normalizeDraftEndpointLabel('Planning route', true)).toBe('Planning route');
     expect(coverage.cleanLocationDisplay('Austin 78701, Texas, United States')).toBe('Austin, Texas');
+    expect(coverage.stripRouteNearbyLocationPrefix('Cafe - 123 Main St, Dallas, TX')).toBe('123 Main St, Dallas, TX');
+    expect(coverage.stripRouteNearbyLocationPrefix('Dallas - Dallas Museum')).toBe('Dallas Museum');
 
     expect(coverage.parseRouteNearbyCustomRadiusMiles('0')).toBe(1);
     expect(coverage.parseRouteNearbyCustomRadiusMiles('22.5')).toBe(22.5);
@@ -5877,7 +5879,21 @@ describe('ItineraryView', () => {
     expect(coverage.hasRouteNearbyTextSignal({ title: '   ', subtitle: '', address: '' }, /museum/i)).toBe(false);
     expect(coverage.hasRouteNearbyTextSignal({ title: 'Quiet museum', subtitle: '', address: '' }, /museum/i)).toBe(true);
     expect(coverage.normalizeRouteNearbyCategory('gas_station', 'other')).toBe('other');
+    expect(coverage.normalizeRouteNearbyCategory('river trail', 'other')).toBe('nature');
+    expect(coverage.normalizeRouteNearbyCategory('scenic overlook', 'other')).toBe('scenic');
+    expect(coverage.normalizeRouteNearbyCategory('art museum', 'other')).toBe('culture');
+    expect(coverage.normalizeRouteNearbyCategory('kayak adventure', 'other')).toBe('adventure');
+    expect(coverage.normalizeRouteNearbyCategory('public market', 'other')).toBe('shopping');
+    expect(coverage.normalizeRouteNearbyCategory('movie arcade', 'other')).toBe('entertainment');
+    expect(coverage.normalizeRouteNearbyCategory('live music bar', 'other')).toBe('nightlife');
     expect(coverage.normalizeTravelSuggestionCategory('entertainment', 'other')).toBe('entertainment');
+    expect(coverage.normalizeTravelSuggestionCategory('coffee bakery', 'other')).toBe('food');
+    expect(coverage.normalizeTravelSuggestionCategory('outdoor park', 'other')).toBe('nature');
+    expect(coverage.normalizeTravelSuggestionCategory('tourist landmark', 'other')).toBe('scenic');
+    expect(coverage.normalizeTravelSuggestionCategory('historic gallery', 'other')).toBe('culture');
+    expect(coverage.normalizeTravelSuggestionCategory('rv camp', 'other')).toBe('adventure');
+    expect(coverage.normalizeTravelSuggestionCategory('grocery pharmacy', 'other')).toBe('shopping');
+    expect(coverage.normalizeTravelSuggestionCategory('night music', 'other')).toBe('nightlife');
     expect(coverage.formatRouteNearbyDistance(undefined)).toBe('nearby');
     expect(coverage.formatRouteNearbyDistance(0.04)).toBe('<0.1 mi');
     expect(coverage.formatRouteNearbyDistance(11.2)).toBe('7.0 mi');
@@ -5888,10 +5904,16 @@ describe('ItineraryView', () => {
     expect(coverage.cleanRouteNearbyLocationText('Map place near Austin, United States')).toBe('Map place near Austin');
     expect(coverage.stripRouteNearbyLocationPrefix('near Dallas')).toBe('near Dallas');
     expect(coverage.formatRouteNearbyResultLocation({ address: '', subtitle: '', city: '', sourceLabel: '' })).toBe('Near this route');
+    expect(coverage.formatRouteNearbyResultLocation({ kind: 'fuel', address: '', subtitle: '', city: '', sourceLabel: '' })).toBe('Fuel stop');
+    expect(coverage.isRouteNearbyFoodPlace({ title: 'Highway patrol weigh station', category: 'food' })).toBe(false);
     expect(coverage.isRouteNearbyFoodPlace({ title: 'Coffee bar', category: 'other' })).toBe(true);
+    expect(coverage.isRouteNearbyStayPlace({ title: 'Gas station motel', category: 'stay' })).toBe(false);
     expect(coverage.isRouteNearbyStayPlace({ title: 'Boutique hotel', category: 'other' })).toBe(true);
+    expect(coverage.isRouteNearbyEssentialsPlace({ title: 'Museum pharmacy', category: 'essentials' })).toBe(false);
     expect(coverage.isRouteNearbyEssentialsPlace({ title: 'Pharmacy market', category: 'other' })).toBe(true);
+    expect(coverage.isRouteNearbyScenicPlace({ title: 'Fuel overlook', category: 'scenic' })).toBe(false);
     expect(coverage.isRouteNearbyScenicPlace({ title: 'River overlook', category: 'other' })).toBe(true);
+    expect(coverage.isRouteNearbyEntertainmentPlace({ title: 'Courthouse arcade', category: 'entertainment' })).toBe(false);
     expect(coverage.isRouteNearbyEntertainmentPlace({ title: 'Movie arcade', category: 'other' })).toBe(true);
 
     const anchor = {
@@ -5966,6 +5988,184 @@ describe('ItineraryView', () => {
       score: expect.any(Number),
       difficulty: expect.stringMatching(/Easy|Moderate|Challenging/),
     }));
+
+    wrapper.unmount();
+  });
+
+  it('keeps residual route-nearby filters, timeline parsing, and fuel pricing fallbacks explicit', async () => {
+    const stubs = {
+      MapView: {
+        template: '<div data-test="route-map">Route map stub</div>',
+      },
+      LazyImage: {
+        props: ['src', 'alt'],
+        template: '<img :src="src" :alt="alt" />',
+      },
+      ScopeIcon: {
+        template: '<span />',
+      },
+    };
+    const wrapper = mount(ItineraryView, {
+      props: {
+        itinerary: null,
+        draft: {
+          destination: 'Dallas, TX',
+          endDestination: 'Austin, TX',
+          destinationLatitude: 32.7767,
+          destinationLongitude: -96.797,
+          endDestinationLatitude: 30.2672,
+          endDestinationLongitude: -97.7431,
+          startDate: '2026-04-01',
+          endDate: '2026-04-02',
+          budgetFloor: 200,
+          budget: 700,
+          interests: [],
+          pace: 'moderate',
+        },
+        stops: [
+          {
+            spotId: 'branch-stop',
+            title: 'Branch Stop',
+            latitude: 31.55,
+            longitude: -97.15,
+            category: 'other',
+            city: '',
+            timeSlot: '',
+          },
+        ],
+        fuelSettings: {
+          mpg: 24,
+          gasPricePerGallon: 3.5,
+          fuelType: 'regular',
+        },
+      },
+      global: { stubs },
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? (entry as { value: T }).value : entry as T
+    );
+
+    expect(coverage.parseTimelineTimeInput('123')).toBe('01:23');
+    expect(coverage.parseTimelineTimeInput('1234')).toBe('12:34');
+    expect(coverage.parseTimelineTimeInput('9')).toBe('09:00');
+    expect(coverage.parseTimelineTimeInput(':15')).toBeNull();
+    expect(coverage.parseTimelineTimeInput('24:00')).toBeNull();
+    expect(coverage.parseTimelineTimeInput('7:')).toBe('07:00');
+    expect(coverage.parseTimelineTimeInput('7:999')).toBeNull();
+    expect(coverage.normalizeTimeSlot(undefined, 200)).toMatch(/^\d{2}:\d{2}$/);
+    coverage.emitTimelineStopUpdate('timeline-endpoint-start', { dayNumber: 2 });
+    coverage.emitTimelineStopUpdate('timeline-endpoint-start', { timeSlot: '5:30' });
+    coverage.emitTimelineStopUpdate('branch-stop', { dayNumber: 2, timeSlot: '14:15' });
+    expect(coverage.getTimelineSpotBadgeText({ timelineRouteRole: undefined, timelineRouteLabel: '' })).toBe('Stop 1');
+    expect(coverage.getTimelineSpotBadgeText({ timelineRouteRole: 'start', timelineRouteLabel: '' })).toBe('Origin');
+    expect(coverage.getTimelineSpotBadgeText({ timelineRouteRole: 'end', timelineRouteLabel: '' })).toBe('Destination');
+    expect(coverage.formatTimelineSpotReason({ confidence: undefined, reason: '' })).toBe('');
+    expect(coverage.formatTimelineSpotReason({ confidence: 0.62, reason: 'Provider-backed stop' })).toContain('Provider-backed stop');
+    expect(coverage.labelRouteSequencePoints([{ id: 'solo', title: 'Solo' }])).toEqual([
+      expect.objectContaining({ routeLabel: '1' }),
+    ]);
+    expect(coverage.labelRouteSequencePoints([
+      { id: 'startish', title: 'Startish', routeRole: undefined },
+      { id: 'middle', title: 'Middle', routeRole: undefined },
+      { id: 'endish', title: 'Endish', routeRole: undefined },
+    ])).toEqual([
+      expect.objectContaining({ routeLabel: '1' }),
+      expect.objectContaining({ routeLabel: '2' }),
+      expect.objectContaining({ routeLabel: '3' }),
+    ]);
+    expect(coverage.labelRouteSequencePoints([
+      { id: 'start', title: 'Start', routeRole: 'start' },
+      { id: 'stop', title: 'Stop', routeRole: 'stop' },
+      { id: 'end', title: 'End', routeRole: 'end' },
+    ])).toEqual([
+      expect.objectContaining({ routeLabel: 'S' }),
+      expect.objectContaining({ routeLabel: '2' }),
+      expect.objectContaining({ routeLabel: 'E' }),
+    ]);
+    expect(coverage.keepVisualRouteEndpoints([{ id: 'only', title: 'Only', latitude: 1, longitude: 1 }])).toHaveLength(1);
+
+    coverage.selectedRouteNearbyQueryId.value = 'custom';
+    expect(coverage.buildRouteNearbySearchQuery()).toBe('places');
+    expect(read<string>(coverage.routeNearbyFilterLabel)).toBe('Custom search');
+    coverage.selectRouteNearbyQuery('food');
+    expect(coverage.buildRouteNearbySearchQuery()).toContain('food');
+    coverage.selectRouteNearbyQuery('recommended');
+    expect(coverage.getRouteNearbyPlaceCategories({ id: 'recommended', placeCategories: ['tourist_attraction'] })).toEqual(['tourist_attraction']);
+    expect(coverage.getRouteNearbyPlaceCategories({ id: 'custom' })).toEqual([]);
+    expect(coverage.getRouteNearbyPlaceCategories({ id: 'recommended' })).toEqual([]);
+    expect(coverage.getFuelTypeLabel('mystery')).toBe('Regular');
+    expect(coverage.normalizeTripFuelType('premium')).toBe('premium');
+    expect(coverage.normalizeTripFuelType('mystery')).toBe('regular');
+    expect(coverage.isRegularFuelType('unleaded e10')).toBe(true);
+    expect(coverage.isRegularFuelType('premium')).toBe(false);
+    expect(coverage.isMidgradeFuelType('plus sp93')).toBe(true);
+    expect(coverage.isMidgradeFuelType('diesel plus')).toBe(false);
+    expect(coverage.isPremiumFuelType('supreme sp98')).toBe(true);
+    expect(coverage.isDieselFuelType('diesel')).toBe(true);
+    expect(coverage.isEvFuelType('supercharger')).toBe(true);
+
+    coverage.selectRouteNearbyFuelFilter('regular');
+    expect(coverage.getSelectedFuelStationPrice({
+      currency: '',
+      fuelType: 'diesel',
+      prices: [
+        { fuelType: 'regular', price: 3.41, currency: '' },
+        { fuelType: 'regular', price: 3.19 },
+      ],
+    })).toMatchObject({
+      price: 3.19,
+      currency: 'USD',
+      fuelType: 'regular',
+    });
+    expect(coverage.getSelectedFuelStationPrice({
+      fuelType: 'regular',
+      pricePerUnit: 3.29,
+      currency: '',
+    })).toMatchObject({
+      price: 3.29,
+      currency: 'USD',
+    });
+    expect(coverage.getSelectedFuelStationPrice({
+      fuelType: 'diesel',
+      pricePerUnit: undefined,
+      prices: [{ fuelType: 'diesel', price: Number.NaN }],
+    })).toBeNull();
+    coverage.selectRouteNearbyFuelFilter('ev');
+    expect(coverage.getSelectedFuelStationPrice({
+      fuelType: 'regular',
+      pricePerUnit: 3.29,
+    })).toBeNull();
+
+    coverage.selectRouteNearbyFuelFilter('regular');
+    coverage.selectRouteNearbyFuelSortMode('best-price');
+    expect(coverage.compareRouteNearbyFuelPlaces(
+      { id: 'cheap', title: 'Cheap', kind: 'fuel', source: 'fuel', fuelType: 'regular', priceValue: 3.01, distanceKm: 10 },
+      { id: 'near', title: 'Near', kind: 'fuel', source: 'fuel', fuelType: 'regular', priceValue: 3.21, distanceKm: 1 },
+    )).toBeLessThan(0);
+    coverage.selectRouteNearbyFuelSortMode('closest');
+    expect(coverage.compareRouteNearbyFuelPlaces(
+      { id: 'far', title: 'Far', kind: 'fuel', priceValue: undefined, distanceKm: 10 },
+      { id: 'near', title: 'Near', kind: 'fuel', priceValue: undefined, distanceKm: 1 },
+    )).toBeGreaterThan(0);
+    expect(coverage.buildRouteNearbyRecommendationReason({
+      source: 'discovery',
+      category: 'other',
+      distanceKm: undefined,
+    })).toBe('Nearby other pick within nearby');
+    expect(coverage.buildRouteNearbyRecommendationReason({
+      source: 'discovery',
+      category: 'food',
+      distanceKm: 3.2,
+    })).toContain('within');
+    expect(coverage.getRouteNearbyCategoryLabel({ kind: 'fuel', category: 'gas_station' })).toBe('Fuel');
+    expect(coverage.getRouteNearbyCategoryLabel({ kind: 'place', category: 'museum' })).toBe('Museum');
+    expect(coverage.getDriveStartHour()).toBeGreaterThanOrEqual(0);
+    expect(coverage.estimateHighwayPercent(Number.NaN)).toBe(0.35);
+    expect(coverage.estimateHighwayPercent(20)).toBe(0.1);
+    expect(coverage.estimateHighwayPercent(90)).toBeLessThanOrEqual(0.95);
 
     wrapper.unmount();
   });

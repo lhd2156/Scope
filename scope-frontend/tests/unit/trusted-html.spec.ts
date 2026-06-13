@@ -15,6 +15,8 @@ describe('trusted HTML utilities', () => {
     expect(toTrustedHtml(null)).toBe('');
     expect(toTrustedHtml('<strong>scope</strong>')).toBe('&lt;strong&gt;scope&lt;/strong&gt;');
     expect(toTrustedSanitizedHtml('<strong>scope</strong>')).toBe('<strong>scope</strong>');
+    expect(toTrustedSanitizedHtml('<mark onclick="alert(1)">scope</mark><img src=x onerror=alert(1)>'))
+      .toBe('&lt;mark onclick=&quot;alert(1)&quot;&gt;scope</mark>&lt;img src=x onerror=alert(1)&gt;');
   });
 
   it('installs the default policy once and reuses the scope HTML policy', async () => {
@@ -65,6 +67,7 @@ describe('trusted HTML utilities', () => {
 
     expect(toTrustedHtml('<p>first</p>')).toBe('trusted:&lt;p&gt;first&lt;/p&gt;');
     expect(toTrustedSanitizedHtml('<p>second</p>')).toBe('trusted:<p>second</p>');
+    expect(toTrustedSanitizedHtml('<script>alert(1)</script><br />')).toBe('trusted:&lt;script&gt;alert(1)&lt;/script&gt;<br>');
     expect(trustedTypes.createPolicy).toHaveBeenCalledTimes(2);
   });
 
@@ -82,6 +85,6 @@ describe('trusted HTML utilities', () => {
 
     expect(() => installTrustedTypesDefaultPolicy()).not.toThrow();
     expect(toTrustedHtml('<em>fallback</em>')).toBe('&lt;em&gt;fallback&lt;/em&gt;');
-    expect(toTrustedSanitizedHtml('<em>fallback</em>')).toBe('<em>fallback</em>');
+    expect(toTrustedSanitizedHtml('<em>fallback</em>')).toBe('&lt;em&gt;fallback&lt;/em&gt;');
   });
 });

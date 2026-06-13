@@ -148,4 +148,50 @@ describe('demo photo surfaces', () => {
     expect(wrapper.find('.avatar-silhouette').exists()).toBe(true);
     expect(wrapper.find('.avatar-ring--placeholder').exists()).toBe(true);
   });
+
+  it('renders profile presence states and safe bio link punctuation', () => {
+    const user: UserProfile = {
+      id: 'user-link',
+      username: 'linktraveler',
+      email: 'link@example.com',
+      displayName: 'Link Traveler',
+      interests: ['scenic', 'unknown-vibe'],
+      homeBase: '',
+      avatarUrl: 'https://images.example.com/avatar.jpg',
+      bio: 'www.scope.example/routes, then https://scope.example/profile.',
+    };
+
+    const wrapper = mount(ProfileHeader, {
+      props: {
+        user,
+        presence: 'hidden',
+        isCurrentUser: true,
+        primaryActionLabel: 'Edit',
+        primaryActionTo: '/settings',
+        secondaryActionLabel: 'Friends',
+        secondaryActionTo: '/friends',
+      },
+      global: {
+        stubs: {
+          LazyImage: lazyImageStub,
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="typeof to === \'string\' ? to : \'/mock\'"><slot /></a>',
+          },
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Your scope');
+    expect(wrapper.text()).toContain('No location');
+    expect(wrapper.text()).toContain('Activity hidden');
+    expect(wrapper.findAll('.bio-copy__link').map((link) => link.attributes('href'))).toEqual([
+      'https://www.scope.example/routes',
+      'https://scope.example/profile',
+    ]);
+    expect(wrapper.text()).toContain(',');
+    expect(wrapper.text()).toContain('.');
+    expect(wrapper.get('.badge-other').text()).toContain('Unknown-vibe');
+  });
 });

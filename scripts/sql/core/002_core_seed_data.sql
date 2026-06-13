@@ -18,6 +18,31 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID('core.Users', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('core.Users', 'Role') IS NOT NULL
+        UPDATE core.Users SET Role = N'user' WHERE Role IS NULL;
+
+    IF COL_LENGTH('core.Users', 'ShowActivityStatus') IS NOT NULL
+        UPDATE core.Users SET ShowActivityStatus = 1 WHERE ShowActivityStatus IS NULL;
+
+    IF COL_LENGTH('core.Users', 'ProfileVisibility') IS NOT NULL
+        UPDATE core.Users SET ProfileVisibility = N'friends' WHERE ProfileVisibility IS NULL;
+
+    IF COL_LENGTH('core.Users', 'IsShowcase') IS NOT NULL
+        UPDATE core.Users SET IsShowcase = 0 WHERE IsShowcase IS NULL;
+
+    IF COL_LENGTH('core.Users', 'IsActive') IS NOT NULL
+        UPDATE core.Users SET IsActive = 1 WHERE IsActive IS NULL;
+
+    IF COL_LENGTH('core.Users', 'FailedLoginAttempts') IS NOT NULL
+        UPDATE core.Users SET FailedLoginAttempts = 0 WHERE FailedLoginAttempts IS NULL;
+
+    IF COL_LENGTH('core.Users', 'MfaEnabled') IS NOT NULL
+        UPDATE core.Users SET MfaEnabled = 0 WHERE MfaEnabled IS NULL;
+END;
+GO
+
 DECLARE @Now DATETIMEOFFSET = SYSDATETIMEOFFSET();
 
 DECLARE @ShowcaseUsers TABLE (
@@ -71,15 +96,18 @@ WHEN MATCHED THEN UPDATE SET
     HomeBase = source.HomeBase,
     InterestsJson = source.InterestsJson,
     ShowActivityStatus = 1,
+    ProfileVisibility = N'public',
     Role = N'user',
     IsActive = 1,
     IsShowcase = 1,
+    FailedLoginAttempts = 0,
+    MfaEnabled = 0,
     UpdatedAt = @Now
 WHEN NOT MATCHED THEN INSERT (
     Id, Username, Email, PasswordHash, DisplayName, AvatarUrl, Bio, HomeBase, InterestsJson,
-    ShowActivityStatus, Role, IsActive, IsShowcase, CreatedAt, UpdatedAt
+    ShowActivityStatus, ProfileVisibility, Role, IsActive, IsShowcase, FailedLoginAttempts, MfaEnabled, CreatedAt, UpdatedAt
 ) VALUES (
     source.Id, source.Username, source.Email, source.PasswordHash, source.DisplayName, source.AvatarUrl, source.Bio, source.HomeBase, source.InterestsJson,
-    1, N'user', 1, 1, DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now
+    1, N'public', N'user', 1, 1, 0, 0, DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now
 );
 GO

@@ -1,5 +1,6 @@
 let scopeHtmlPolicy: TrustedTypePolicy | null = null;
 let defaultPolicyAttempted = false;
+const ALLOWED_HTML_TAGS = new Set(['p', '/p', 'br', 'strong', '/strong', 'mark', '/mark']);
 
 function escapeHtml(value: string): string {
   return value
@@ -25,6 +26,26 @@ function allowScopeWasmModuleScript(value: string): string {
   return value;
 }
 
+function sanitizeAllowedHtml(value: string): string {
+  return value.replace(/<[^>]*>/g, (tag) => {
+    const normalizedTag = tag
+      .replace(/^<\s*/, '')
+      .replace(/\s*\/?\s*>$/, '')
+      .trim()
+      .toLowerCase();
+
+    if (ALLOWED_HTML_TAGS.has(normalizedTag)) {
+      if (normalizedTag === 'br') {
+        return '<br>';
+      }
+
+      return `<${normalizedTag}>`;
+    }
+
+    return escapeHtml(tag);
+  });
+}
+
 export function installTrustedTypesDefaultPolicy(): void {
   if (defaultPolicyAttempted || typeof window === 'undefined' || !window.trustedTypes) {
     return;
@@ -47,7 +68,7 @@ export function toTrustedHtml(value: string | null | undefined): string {
 }
 
 export function toTrustedSanitizedHtml(value: string | null | undefined): string {
-  const html = String(value ?? '');
+  const html = sanitizeAllowedHtml(String(value ?? ''));
   if (typeof window === 'undefined' || !window.trustedTypes) {
     return html;
   }

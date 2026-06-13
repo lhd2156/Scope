@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
 using Scope.Core.API.Configuration;
+using Scope.Core.API.Infrastructure;
 using Scope.Core.API.Middleware;
 using Scope.Core.API.Services;
 using Scope.Core.Domain.Interfaces;
@@ -352,6 +353,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 context.Token = StartupConfiguration.ResolveHubAccessToken(accessToken, path) ?? context.Token;
 
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<CoreDbContext>();
+                var isActiveUser = await ActiveUserTokenValidator.IsActiveUserAsync(
+                    context.Principal,
+                    dbContext,
+                    context.HttpContext.RequestAborted);
+                if (!isActiveUser)
+                {
+                    context.Fail("Token subject is inactive or missing.");
+                }
             },
         };
     });

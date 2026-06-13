@@ -1802,4 +1802,67 @@ describe('MapPage', () => {
 
     wrapper.unmount();
   });
+
+  it('keeps map selection fallbacks stable for empty categories and anchored preview lists', async () => {
+    spotsStoreMock.items = Array.from({ length: 11 }, (_, index) => ({
+      id: `branch-map-${index}`,
+      title: index === 4 ? 'Selected Branch Spot' : `Branch Map ${index}`,
+      description: '',
+      latitude: 32.7 + index / 100,
+      longitude: -97.3 - index / 100,
+      category: index % 2 === 0 ? 'food' : 'culture',
+      city: index === 4 ? 'Dallas' : '',
+      country: index === 4 ? 'US' : '',
+      vibe: '',
+      rating: 4.5,
+      photoUrl: '',
+    }));
+    tripsStoreMock.items = [];
+    tripsStoreMock.loading = false;
+    mapStoreMock.activeCategories = ['food', 'culture'];
+    mapStoreMock.visibleSpotIdsMeasured = true;
+    mapStoreMock.visibleSpotIds = spotsStoreMock.items.map((spot) => spot.id);
+    mapStoreMock.selectedSpotId = 'branch-map-4';
+
+    const wrapper = mountMapPage();
+    await flushPromises();
+
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+    const read = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const write = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    expect(read<Array<{ id: string }>>(coverage.visibleSpotPreviews)).toHaveLength(8);
+    expect(read<string>(coverage.selectedMapOverlayLocation)).toBe('Scope');
+    coverage.handleSpotSelect(read<Array<{ id: string }>>(coverage.mapSpots)[0]);
+    expect(mapStoreMock.setSelectedSpotId).toHaveBeenLastCalledWith('branch-map-0');
+
+    mapStoreMock.activeCategories = [];
+    mapStoreMock.selectedSpotId = null;
+    const emptySidebarWrapper = mountMapPage();
+    await flushPromises();
+    const emptyCoverage = (emptySidebarWrapper.vm as any).__coverage as Record<string, any>;
+    const emptyRead = <T>(entry: T | { value: T }): T => (
+      entry && typeof entry === 'object' && 'value' in entry ? entry.value : entry as T
+    );
+    const emptyWrite = <T>(entry: { value: T }, value: T) => {
+      entry.value = value;
+    };
+
+    emptyWrite(emptyCoverage.mapSidebarRef, null);
+    emptyWrite(emptyCoverage.isMobileMapLayout, false);
+    emptyCoverage.syncMapSidebarScrollState();
+    expect(emptyRead<boolean>(emptyCoverage.isMapSidebarScrolled)).toBe(false);
+    expect(emptyRead<null>(emptyCoverage.selectedSpot)).toBeNull();
+    expect(emptyRead<string>(emptyCoverage.selectedSpotLocation)).toBe('Scope');
+    expect(emptyRead<string>(emptyCoverage.selectedSpotPhoto)).toBeTruthy();
+
+    expect(emptyCoverage.handleFeaturedRouteCardClick()).toBeUndefined();
+
+    wrapper.unmount();
+    emptySidebarWrapper.unmount();
+  });
 });

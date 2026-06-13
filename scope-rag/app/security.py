@@ -27,6 +27,8 @@ _FALLBACK_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
 _FALLBACK_LOCK = asyncio.Lock()
 _redis_client: Any | None = None
 _redis_unavailable = False
+_redis_unavailable_until = 0.0
+REDIS_RETRY_SECONDS = 30.0
 
 
 def reset_rate_limit_state() -> None:
@@ -193,6 +195,8 @@ def _remote_addr_is_trusted_proxy(remote_addr: str) -> bool:
 
 
 async def _permit(key: str, limit: int) -> tuple[bool, int]:
+    global _redis_client, _redis_unavailable, _redis_unavailable_until
+
     client = await _get_redis()
     if client is not None:
         cache_key = f"scope:rag:rl:{key}"
@@ -205,16 +209,24 @@ async def _permit(key: str, limit: int) -> tuple[bool, int]:
             ttl = await client.ttl(cache_key)
             return False, max(1, int(ttl if ttl and ttl > 0 else WINDOW_SECONDS))
         except Exception:
+            _redis_client = None
+            _redis_unavailable = True
+            _redis_unavailable_until = time.time() + REDIS_RETRY_SECONDS
             pass
 
     return await _permit_local(key, limit)
 
 
 async def _get_redis():
-    global _redis_client, _redis_unavailable
+    global _redis_client, _redis_unavailable, _redis_unavailable_until
 
-    if _redis_unavailable or not settings.rag_rate_limit_redis_url:
+    if not settings.rag_rate_limit_redis_url:
         return None
+    if _redis_unavailable:
+        if time.time() < _redis_unavailable_until:
+            return None
+        _redis_unavailable = False
+        _redis_unavailable_until = 0.0
     if _redis_client is not None:
         return _redis_client
 
@@ -230,6 +242,7 @@ async def _get_redis():
         return _redis_client
     except Exception:
         _redis_unavailable = True
+        _redis_unavailable_until = time.time() + REDIS_RETRY_SECONDS
         return None
 
 

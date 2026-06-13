@@ -12,6 +12,9 @@
 
 .EXAMPLE
     powershell -File .\scripts\smoke-test.ps1 -EdgeBaseUrl https://scope.example.com -MetricsBaseUrl https://metrics.scope.example.com
+
+.EXAMPLE
+    powershell -File .\scripts\smoke-test.ps1 -EdgeBaseUrl https://scopetrips.com -MetricsHealthUrl https://scopetrips.com/api/metrics/health -SkipMetricsScrape
 #>
 [CmdletBinding()]
 param(
@@ -27,6 +30,11 @@ param(
     [string]$MetricsHealthUrl,
     [string]$MetricsUrl,
     [int]$TimeoutSeconds = 10,
+    [switch]$SkipEdgeHealth,
+    [switch]$SkipMetrics,
+    [switch]$SkipMetricsHealth,
+    [switch]$SkipMetricsScrape,
+    [switch]$SkipSecurityHeaderChecks,
     [switch]$AllowInsecureTls
 )
 
@@ -311,6 +319,43 @@ function Assert-MetricsPayload {
     return 'prometheus scrape healthy'
 }
 
+function Assert-SecurityHeaders {
+    param([Parameter(Mandatory = $true)]$Response)
+
+    if ($SkipSecurityHeaderChecks) {
+        return $null
+    }
+
+    $duplicatePatterns = @(
+        @{ Header = 'Strict-Transport-Security'; Pattern = ',\s*max-age='; Reason = 'multiple HSTS policies' },
+        @{ Header = 'Content-Security-Policy'; Pattern = ',\s*default-src'; Reason = 'multiple CSP policies' },
+        @{ Header = 'X-Content-Type-Options'; Pattern = ','; Reason = 'multiple X-Content-Type-Options values' },
+        @{ Header = 'X-Frame-Options'; Pattern = ','; Reason = 'multiple X-Frame-Options values' },
+        @{ Header = 'Referrer-Policy'; Pattern = ','; Reason = 'multiple Referrer-Policy values' },
+        @{ Header = 'Cross-Origin-Opener-Policy'; Pattern = ','; Reason = 'multiple COOP values' },
+        @{ Header = 'Cross-Origin-Resource-Policy'; Pattern = ','; Reason = 'multiple CORP values' },
+        @{ Header = 'Permissions-Policy'; Pattern = ',\s*camera=\(\)'; Reason = 'multiple Permissions-Policy values' }
+    )
+
+    foreach ($rule in $duplicatePatterns) {
+        $value = Get-HeaderValue -Response $Response -Name $rule.Header
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            continue
+        }
+
+        $normalized = $value -replace '\s+', ' '
+        if ($normalized -match $rule.Pattern) {
+            if ($normalized.Length -gt 180) {
+                $normalized = $normalized.Substring(0, 177) + '...'
+            }
+
+            throw "Security header '$($rule.Header)' appears duplicated ($($rule.Reason)): $normalized"
+        }
+    }
+
+    return 'headers=ok'
+}
+
 $envValues = Get-EnvMap -Path $EnvFile
 
 if (-not $PSBoundParameters.ContainsKey('EdgeBaseUrl')) {
@@ -353,8 +398,9 @@ $checks = @(
             param($response)
             $json = ConvertFrom-JsonSafe -Content $response.Content
             $detail = Assert-JsonStatus -Json $json -ExpectedStatus 'healthy'
-            if ($null -ne $json.PSObject.Properties['service'] -and [string]$json.service -ne 'nginx') {
-                throw "Expected edge service='nginx' but received '$($json.service)'."
+            $allowedEdgeServices = @('nginx', 'scope-frontend', 'scope-site')
+            if ($null -ne $json.PSObject.Properties['service'] -and [string]$json.service -notin $allowedEdgeServices) {
+                throw "Expected edge service to be one of '$($allowedEdgeServices -join "', '")' but received '$($json.service)'."
             }
             return $detail
         }
@@ -413,6 +459,18 @@ $checks = @(
     }
 )
 
+if ($SkipEdgeHealth) {
+    $checks = @($checks | Where-Object { $_.Name -ne 'Edge health' })
+}
+
+if ($SkipMetrics -or $SkipMetricsHealth) {
+    $checks = @($checks | Where-Object { $_.Name -ne 'Scope Metrics health' })
+}
+
+if ($SkipMetrics -or $SkipMetricsScrape) {
+    $checks = @($checks | Where-Object { $_.Name -ne 'Scope Metrics scrape' })
+}
+
 $results = New-Object System.Collections.Generic.List[object]
 
 Write-Host ''
@@ -432,6 +490,10 @@ try {
         try {
             $response = Invoke-SmokeRequest -Uri $check.Url
             $detail = & $check.Validate $response
+            $headerDetail = Assert-SecurityHeaders -Response $response
+            if (-not [string]::IsNullOrWhiteSpace($headerDetail)) {
+                $detail = "$detail; $headerDetail"
+            }
             $elapsedMs = [Math]::Round(((Get-Date) - $started).TotalMilliseconds, 0)
             $results.Add([pscustomobject]@{
                     Name      = $check.Name

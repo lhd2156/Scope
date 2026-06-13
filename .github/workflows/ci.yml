@@ -632,6 +632,28 @@ jobs:
             fi
           done
 
+          upstream_hidden=(
+            "Strict-Transport-Security"
+            "Content-Security-Policy"
+            "X-Content-Type-Options"
+            "X-Frame-Options"
+            "Referrer-Policy"
+            "Permissions-Policy"
+            "Cross-Origin-Opener-Policy"
+            "Cross-Origin-Resource-Policy"
+          )
+          for header in "${upstream_hidden[@]}"; do
+            if ! grep -q "proxy_hide_header $header;" nginx/nginx.conf; then
+              echo "::error::nginx.conf must hide upstream $header before applying the edge policy"
+              exit 1
+            fi
+          done
+
+          if ! grep -q "nginx/security-headers.conf" nginx/Dockerfile; then
+            echo "::error::nginx image must copy nginx/security-headers.conf into the runtime snippets directory"
+            exit 1
+          fi
+
           pages_required=(
             "Strict-Transport-Security"
             "X-Content-Type-Options"

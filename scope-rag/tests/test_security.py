@@ -24,6 +24,7 @@ class RequestStub:
 def setup_function():
     security._redis_client = None
     security._redis_unavailable = False
+    security._redis_unavailable_until = 0.0
     security.reset_rate_limit_state()
     security.settings.core_jwt_secret = TEST_SECRET
     security.settings.rag_rate_limit_redis_url = ""
@@ -256,6 +257,8 @@ async def test_permit_uses_redis_allows_denies_and_falls_back(monkeypatch):
     monkeypatch.setattr(security, "_permit_local", fake_local)
 
     assert await security._permit("generation:ip", 2) == (True, 44)
+    assert security._redis_client is None
+    assert security._redis_unavailable is True
 
 
 @pytest.mark.asyncio
@@ -265,6 +268,7 @@ async def test_get_redis_returns_none_when_disabled_or_marked_unavailable():
 
     security.settings.rag_rate_limit_redis_url = "redis://example/0"
     security._redis_unavailable = True
+    security._redis_unavailable_until = security.time.time() + 30
     assert await security._get_redis() is None
 
 
@@ -280,6 +284,32 @@ async def test_get_redis_initializes_client_and_marks_factory_failures(monkeypat
 
     assert await security._get_redis() is None
     assert security._redis_unavailable is True
+    assert security._redis_unavailable_until > 0
+
+
+@pytest.mark.asyncio
+async def test_get_redis_retries_after_factory_failure_cooldown(monkeypatch):
+    now = {"value": 1000.0}
+
+    class FakeRedisClient:
+        pass
+
+    def fake_from_url(*args, **kwargs):
+        if now["value"] < 1030.0:
+            raise RuntimeError("bad url")
+        return FakeRedisClient()
+
+    monkeypatch.setattr(security.time, "time", lambda: now["value"])
+    monkeypatch.setattr(redis_asyncio, "from_url", fake_from_url)
+    security.settings.rag_rate_limit_redis_url = "redis://example/0"
+
+    assert await security._get_redis() is None
+    assert security._redis_unavailable is True
+    now["value"] += security.REDIS_RETRY_SECONDS + 1
+
+    client = await security._get_redis()
+    assert isinstance(client, FakeRedisClient)
+    assert security._redis_unavailable is False
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.db.models import Q
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -17,7 +18,6 @@ from common.responses import data_response
 from spots.models import Spot
 from spots.querysets import visible_to_request
 from trips.models import Trip
-from trips.views import can_view_trip
 
 producer = ScopeKafkaProducer()
 
@@ -37,6 +37,17 @@ def _check_comment_safety(body: str) -> None:
         raise ValidationError({'body': ['This contains a blocked slur or hate term.']})
 
 
+def _visible_trip_queryset(request):
+    user = getattr(request, 'user', None)
+    user_id = getattr(user, 'id', None)
+    queryset = Trip.objects.all()
+    if getattr(user, 'is_admin', False):
+        return queryset
+    if user_id is None:
+        return queryset.filter(is_public=True)
+    return queryset.filter(Q(is_public=True) | Q(creator_id=user_id) | Q(members__user_id=user_id)).distinct()
+
+
 def _target_context(request, target_type: str, target_id):
     if target_type == Comment.TARGET_SPOT:
         spot = get_object_or_404(visible_to_request(Spot.objects.all(), request), pk=target_id)
@@ -45,9 +56,7 @@ def _target_context(request, target_type: str, target_id):
             'targetOwnerUserId': str(spot.user_id),
         }
 
-    trip = get_object_or_404(Trip, pk=target_id)
-    if not can_view_trip(request.user, trip):
-        raise PermissionDenied
+    trip = get_object_or_404(_visible_trip_queryset(request), pk=target_id)
     return {
         'targetTitle': trip.title,
         'targetOwnerUserId': str(trip.creator_id),

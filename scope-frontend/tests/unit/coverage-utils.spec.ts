@@ -51,6 +51,11 @@ describe('long-tail utility coverage', () => {
     expect(getFocusableElements(null)).toEqual([]);
     expect(focusFirstElement(null)).toBe(false);
     expect(focusLastElement(document.createElement('div'))).toBe(false);
+
+    const originalWindow = window;
+    vi.stubGlobal('window', undefined);
+    expect(getFocusableElements(container).map((element) => element.id)).toEqual(['first', 'second']);
+    vi.stubGlobal('window', originalWindow);
   });
 
   it('skips style-hidden controls and moves backward from outside the focus group', async () => {
@@ -73,6 +78,11 @@ describe('long-tail utility coverage', () => {
     expect(moveFocus(container, -1)).toBe(true);
     expect(document.activeElement?.id).toBe('last-visible');
     expect(moveFocus(document.createElement('div'), 1)).toBe(false);
+
+    const originalDocument = document;
+    vi.stubGlobal('document', undefined);
+    expect(moveFocus(container, 1)).toBe(true);
+    vi.stubGlobal('document', originalDocument);
   });
 
   it('reads QA sessions from URLs and keeps document state in sync', async () => {
@@ -179,6 +189,11 @@ describe('long-tail utility coverage', () => {
     expect(store.error).toBe('search down');
     expect(store.results).toBeNull();
 
+    searchServiceMock.searchContent.mockRejectedValueOnce('search down');
+    await store.search('tea');
+    expect(store.error).toBe('Search failed');
+    expect(store.results).toBeNull();
+
     searchServiceMock.searchNearby.mockResolvedValueOnce({
       center: { lat: 32.75, lon: -97.33 },
       radius: '10km',
@@ -192,6 +207,11 @@ describe('long-tail utility coverage', () => {
     searchServiceMock.searchNearby.mockRejectedValueOnce('nearby down');
     await store.nearby(32.75, -97.33);
     expect(store.error).toBe('Nearby search failed');
+    expect(store.geoResults).toBeNull();
+
+    searchServiceMock.searchNearby.mockRejectedValueOnce(new Error('nearby offline'));
+    await store.nearby(32.75, -97.33);
+    expect(store.error).toBe('nearby offline');
     expect(store.geoResults).toBeNull();
 
     store.clearResults();

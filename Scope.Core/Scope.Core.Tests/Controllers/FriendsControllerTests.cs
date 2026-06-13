@@ -106,6 +106,35 @@ public sealed class FriendsControllerTests
     }
 
     [Fact]
+    public async Task Suggestions_HidesPresence_WhenPlanningContextHidden()
+    {
+        var callerId = Guid.NewGuid();
+        var candidateId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateUser(callerId, "caller"),
+            CreateUser(candidateId, "candidate"));
+        dbContext.UserPresences.Add(new UserPresence
+        {
+            UserId = candidateId,
+            Status = "online",
+            LastActiveAt = DateTimeOffset.UtcNow,
+            LastPlanningAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+
+        var result = await controller.Suggestions("best", 8, CancellationToken.None);
+
+        var item = Assert.Single(Assert.IsAssignableFrom<IEnumerable<object>>(
+            Assert.IsType<ApiResponse<object>>(Assert.IsType<OkObjectResult>(result).Value).Data));
+        Assert.Equal("hidden", GetString(item, "presence"));
+        Assert.Equal(0, item.GetType().GetProperty("score")?.GetValue(item));
+    }
+
+    [Fact]
     public async Task CreateRequest_AllowsDirectShowcaseProfileRequest()
     {
         var callerId = Guid.NewGuid();
@@ -126,6 +155,33 @@ public sealed class FriendsControllerTests
         Assert.Equal(callerId, friendship.RequesterId);
         Assert.Equal(showcaseId, friendship.AddresseeId);
         Assert.Equal("pending", friendship.Status);
+    }
+
+    [Fact]
+    public async Task CreateRequest_RejectsWhenEitherUserBlocked()
+    {
+        var callerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            CreateUser(callerId, "caller"),
+            CreateUser(targetId, "target"));
+        dbContext.UserBlocks.Add(new UserBlock
+        {
+            Id = Guid.NewGuid(),
+            BlockerId = targetId,
+            BlockedId = callerId,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+
+        var result = await controller.CreateRequest(targetId, CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Empty(dbContext.Friendships);
+        Assert.Empty(dbContext.Notifications);
     }
 
     private static CoreDbContext CreateDbContext()

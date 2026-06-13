@@ -134,6 +134,8 @@ describe('SettingsForm', () => {
     expect(payload.categoryPreferences).toEqual(['culture', 'adventure', 'other']);
     expect(options.source).toBe('manual');
 
+    await wrapper.get('[data-test="settings-cancel"]').trigger('click');
+    await flushPromises();
     await wrapper.setProps({
       initialValue: {
         ...initialValue,
@@ -168,6 +170,39 @@ describe('SettingsForm', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect((wrapper.get('input[placeholder="How your name appears in Scope"]').element as HTMLInputElement).value).toBe('Louis Do');
+  });
+
+  it('preserves active draft fields when refreshed settings arrive in the background', async () => {
+    searchLocationsMock.mockResolvedValue({ data: [] });
+
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue,
+      },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name', 'src'], template: '<div class="avatar-stub">{{ name }} {{ src }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+    const locationInput = wrapper.get('input[placeholder="City, neighborhood, or address"]');
+
+    await locationInput.setValue('1502 Commerce St Fort Worth TX');
+    await wrapper.setProps({
+      initialValue: {
+        ...initialValue,
+        avatarUrl: 'https://cdn.example/fresh-avatar.png',
+        emailAlerts: false,
+      },
+    });
+    await flushPromises();
+
+    expect((locationInput.element as HTMLInputElement).value).toBe('1502 Commerce St Fort Worth TX');
+    expect(coverage.form.avatarUrl).toBe('https://cdn.example/fresh-avatar.png');
+    expect(coverage.form.emailAlerts).toBe(false);
+    expect(wrapper.text()).toContain('Unsaved profile changes');
   });
 
   it('toggles analytics consent immediately from the privacy controls', async () => {
@@ -742,5 +777,78 @@ describe('SettingsForm', () => {
     vi.stubGlobal('FileReader', originalFileReader);
 
     vi.useRealTimers();
+  });
+
+  it('covers sparse settings clones, non-array location envelopes, and avatar preview fallbacks', async () => {
+    vi.useFakeTimers();
+    searchLocationsMock.mockResolvedValueOnce({ data: { not: 'an array' } });
+    getPresignedUploadTargetMock.mockResolvedValueOnce({
+      uploadUrl: 'blob:local-upload-target',
+      fileUrl: '',
+    });
+    uploadFileToPresignedTargetMock.mockResolvedValueOnce('');
+    const originalCreateObjectUrl = globalThis.URL.createObjectURL;
+    Object.defineProperty(globalThis.URL, 'createObjectURL', {
+      configurable: true,
+      value: undefined,
+    });
+
+    const wrapper = mount(SettingsForm, {
+      props: {
+        initialValue: {
+          ...initialValue,
+          homeBase: '',
+          themeMode: undefined as never,
+          categoryPreferences: undefined as never,
+        },
+        deletingAccount: true,
+        submitting: true,
+      },
+      global: {
+        stubs: {
+          ScopeIcon: { props: ['name'], template: '<span class="icon-stub">{{ name }}</span>' },
+          Avatar: { props: ['name', 'src'], template: '<div class="avatar-stub">{{ name }} {{ src }}</div>' },
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage;
+
+    expect(wrapper.text()).toContain('Deleting account');
+    expect(wrapper.text()).toContain('Saving changes');
+    expect(coverage.cloneSettingsFormValue({})).toMatchObject({
+      themeMode: 'dark',
+      categoryPreferences: [],
+    });
+
+    const locationInput = wrapper.get('input[placeholder="City, neighborhood, or address"]');
+    await locationInput.setValue('Austin');
+    await vi.advanceTimersByTimeAsync(250);
+    await flushPromises();
+    expect(coverage.locationResults.value).toEqual([]);
+
+    await locationInput.setValue('A');
+    coverage.locationOpen.value = false;
+    coverage.locationResults.value = [];
+    coverage.handleLocationKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
+    expect(coverage.locationOpen.value).toBe(false);
+
+    vi.useRealTimers();
+    await coverage.handleAvatarFileSelection({
+      target: {
+        files: [new File(['avatar'], 'avatar.png', { type: 'image/png' })],
+        value: 'stale',
+      },
+    });
+    await flushPromises();
+    expect(coverage.form.avatarUrl).toMatch(/^data:image\/png;base64,/);
+    expect((wrapper.emitted('submit')?.at(-1)?.[0] as SettingsFormValue).avatarUrl).toMatch(/^data:image\/png;base64,/);
+
+    await coverage.handleAvatarFileSelection({ target: { files: [new File(['avatar'], 'avatar.png', { type: 'image/png' })] } });
+    await flushPromises();
+
+    Object.defineProperty(globalThis.URL, 'createObjectURL', {
+      configurable: true,
+      value: originalCreateObjectUrl,
+    });
   });
 });

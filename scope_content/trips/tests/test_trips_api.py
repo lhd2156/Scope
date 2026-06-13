@@ -187,6 +187,7 @@ def test_planner_payload_visibility_share_and_delete_cleanup(authenticated_clien
     shared_response = anonymous_client.get(f"/api/content/trips/share/{share_path.rsplit('/', 1)[-1]}")
     assert shared_response.status_code == 200
     assert shared_response.json()['data']['id'] == trip_id
+    assert shared_response.json()['data']['members'] == []
 
     public_response = authenticated_client.put(
         f'/api/content/trips/{trip_id}',
@@ -201,7 +202,9 @@ def test_planner_payload_visibility_share_and_delete_cleanup(authenticated_clien
         format='json',
     )
     assert public_response.status_code == 200
-    assert anonymous_client.get(f'/api/content/trips/{trip_id}').status_code == 200
+    anonymous_public_detail = anonymous_client.get(f'/api/content/trips/{trip_id}')
+    assert anonymous_public_detail.status_code == 200
+    assert anonymous_public_detail.json()['members'] == []
 
     delete_response = authenticated_client.delete(f'/api/content/trips/{trip_id}')
     assert delete_response.status_code == 204
@@ -292,6 +295,31 @@ def test_public_trips_can_filter_by_profile_member_before_pagination(auth_header
     payload = response.json()
     assert payload['meta']['total'] == 1
     assert [trip['id'] for trip in payload['data']] == [str(profile_trip.id)]
+    assert payload['data'][0]['members'] == []
+
+
+@pytest.mark.django_db
+def test_public_trip_responses_do_not_expose_member_roster_to_non_members(auth_header):
+    _, owner_user_id = auth_header
+    member_user_id = str(uuid4())
+    trip = Trip.objects.create(
+        creator_id=owner_user_id,
+        title='Public social graph',
+        status='planning',
+        is_public=True,
+    )
+    TripMember.objects.create(trip=trip, user_id=owner_user_id, role='owner')
+    TripMember.objects.create(trip=trip, user_id=member_user_id, role='viewer')
+    anonymous_client = APIClient()
+
+    detail_response = anonymous_client.get(f'/api/content/trips/{trip.id}')
+    list_response = anonymous_client.get('/api/content/trips/public')
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()['members'] == []
+    assert list_response.status_code == 200
+    public_trip = next(item for item in list_response.json()['data'] if item['id'] == str(trip.id))
+    assert public_trip['members'] == []
 
 
 @pytest.mark.django_db

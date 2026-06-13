@@ -572,9 +572,41 @@ describe('MapView', () => {
       latitude: 32.7555,
       longitude: -97.3308,
     });
+    expect(coverage.getMapFeatureCoordinates({
+      ...poiFeature,
+      geometry: { type: 'Point', coordinates: ['bad', 95] },
+    }, fallbackLngLat)).toEqual({
+      latitude: 32.7,
+      longitude: -96.8,
+    });
+    expect(coverage.sanitizeMapFeatureText(null)).toBe('');
+    expect(coverage.sanitizeMapFeatureText('  multi   space value  ', 11)).toBe('multi space');
+    expect(coverage.readMapFeatureProperty({ properties: { empty: '   ', fallback: '  usable  ' } }, ['empty', 'fallback'])).toBe('usable');
+    expect(coverage.readMapFeatureProperty({ properties: undefined }, ['missing'])).toBe('');
+    expect(coverage.getMapFeatureLayerSourceLayer({ layer: undefined })).toBe('');
     expect(coverage.buildAddressFromMapFeatureParts(poiFeature)).toBe('100 Main Street, Fort Worth, TX, 76102');
+    expect(coverage.buildAddressFromMapFeatureParts({
+      properties: {
+        street_name: 'North Main',
+      },
+    })).toBe('North Main');
+    expect(coverage.buildAddressFromMapFeatureParts({
+      properties: {
+        locality: 'Austin',
+        postal_code: '78701',
+      },
+    })).toBe('Austin, 78701');
+    expect(coverage.getMapFeatureAddress({ properties: {} })).toBeUndefined();
+    expect(coverage.getMapFeatureAddress({
+      properties: {
+        address: '  200 Commerce Street  ',
+      },
+    })).toBe('200 Commerce Street');
+    expect(coverage.titleCaseMapFeatureCategory('custom-category_label')).toBe('Custom Category Label');
     expect(coverage.getMapFeatureCategory(poiFeature, 'QT Travel Center')).toBe('gas_station');
     expect(coverage.getMapFeatureCategoryLabel(poiFeature, 'QT Travel Center')).toBe('Gas station');
+    expect(coverage.getMapFeatureCategory({ properties: { maki: '' } }, '')).toBe('place');
+    expect(coverage.getMapFeatureCategoryLabel({ properties: { category: 'custom_waypoint_label' } }, '')).toBe('Custom Waypoint Label');
 
     const pin = coverage.mapRenderedFeatureToNearbyPlacePin(poiFeature, fallbackLngLat);
 
@@ -592,6 +624,25 @@ describe('MapView', () => {
       ...poiFeature,
       layer: { id: 'road-label', type: 'symbol', 'source-layer': 'road_label' },
     }, fallbackLngLat)).toBeNull();
+    expect(coverage.mapRenderedFeatureToNearbyPlacePin({
+      ...poiFeature,
+      id: '',
+      properties: {
+        category: 'charging',
+        name: 'Charging waypoint',
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: ['bad', 'also-bad'],
+      },
+    }, fallbackLngLat)).toMatchObject({
+      id: expect.stringContaining('Charging waypoint'),
+      title: 'Charging waypoint',
+      category: 'charging',
+      categoryLabel: 'Charging',
+      latitude: 32.7,
+      longitude: -96.8,
+    });
 
     const cacheKey = coverage.buildMapFeaturePlaceEnrichmentKey(pin);
     coverage.cacheMapFeaturePlaceEnrichment(cacheKey, {
@@ -835,12 +886,16 @@ describe('MapView', () => {
     expect(coverage.normalizeNearbyPlaceCategoryLabel('museum')).toBe('Museum');
     expect(coverage.normalizeNearbyPlaceCategoryLabel('hotel lodging')).toBe('Hotel');
     expect(coverage.normalizeNearbyPlaceCategoryLabel('plain thing', '', 'fallback place')).toBe('Plain Thing');
+    expect(coverage.normalizeNearbyPlaceCategoryLabel(undefined, '', 'fallback place')).toBe('Fallback Place');
     expect(coverage.resolveNearbyPlaceCategoryValue(undefined, undefined)).toBe('place');
     expect(coverage.resolveNearbyPlaceCategoryValue('coffee shop', 'Daily Coffee')).toBe('coffee');
+    expect(coverage.resolveNearbyPlaceCategoryValue('charging', 'Plain Charger')).toBe('charging');
     expect(coverage.isFuelPlaceCategory('place', 'Shell Food Mart')).toBe(true);
     expect(coverage.isFuelPlaceCategory('museum', 'Shell Gallery')).toBe(false);
 
     expect(coverage.getNearbyPlaceKind(place({ category: 'park' }))).toBe('park');
+    expect(coverage.getNearbyPlaceKind(place({ category: 'charging', title: 'Plain Charger' }))).toBe('fuel');
+    expect(coverage.getNearbyPlaceKind(place({ category: 'lodg', title: 'Plain Stay' }))).toBe('lodging');
     expect(coverage.getNearbyPlaceKind(place({ category: 'unknown', categoryLabel: 'unknown' }))).toBe('other');
     expect(coverage.getNearbyPlaceIconName(place({ category: 'park' }))).toBe('nature');
     expect(coverage.getNearbyPlaceIconName(place({ category: 'school' }))).toBe('culture');
@@ -4536,7 +4591,7 @@ describe('MapView', () => {
       subtitle: '100 Market Street',
       address: '100 Market Street, Fort Worth, TX',
       category: 'entertainment',
-      categoryLabel: 'Entertainment',
+      categoryLabel: 'Park',
       latitude: 32.7555,
       longitude: -97.3308,
       distanceKm: 0.05,
@@ -5492,5 +5547,360 @@ describe('MapView', () => {
     vi.stubGlobal('performance', originalPerformance);
 
     wrapper.unmount();
+  });
+
+  it('keeps nearby place category, feature, and distance fallbacks deterministic', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        routePoints: spots,
+        showNearbyPlaces: true,
+        selectedSpotId: 'spot-1',
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const place = (overrides: Record<string, unknown> = {}) => ({
+      id: 'nearby-place',
+      title: 'Nearby Place',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      kind: 'place',
+      category: 'place',
+      categoryLabel: '',
+      sourceLabel: 'Mapbox',
+      ...overrides,
+    });
+
+    expect(coverage.normalizeNearbyPlaceCategoryLabel('entertainment venue', 'Arcade Zoo')).toBe('Entertainment');
+    expect(coverage.normalizeNearbyPlaceCategoryLabel('parking', 'Downtown Garage')).toBe('Parking');
+    expect(coverage.normalizeNearbyPlaceCategoryLabel('atm', 'Lobby ATM')).toBe('ATM');
+    expect(coverage.normalizeNearbyPlaceCategoryLabel('gas station', 'Shell')).toBe('Gas station');
+    expect(coverage.getNearbyPlaceKind(place({ title: 'Movie arcade', category: 'entertainment' }))).toBe('entertainment');
+    expect(coverage.getNearbyPlaceKind(place({ title: 'Road hotel', category: 'hotel' }))).toBe('lodging');
+    expect(coverage.getNearbyPlaceKind(place({ title: 'Quick fuel', category: 'gas station' }))).toBe('fuel');
+    expect(coverage.getNearbyPlaceIconName(place({ title: 'Movie arcade', category: 'entertainment' }))).toBe('entertainment');
+    expect(coverage.getNearbyPlaceIconName(place({ title: 'Campus hall', category: 'university' }))).toBe('culture');
+    expect(coverage.getNearbyPlaceIconName(place({ title: 'Unknown stop', category: 'unknown' }))).toBe('pin');
+    expect(coverage.formatNearbyPlaceCategory(place({ kind: 'fuel', categoryLabel: '', category: '' }))).toBe('Gas station');
+    expect(coverage.formatNearbyPlaceAddress(place({ address: '', subtitle: '' }))).toBe('');
+
+    const fallbackFeature = {
+      id: '',
+      layer: { id: 'poi-label', type: 'symbol', 'source-layer': 'poi_label' },
+      properties: {
+        brand: 'Provider Arcade',
+        maki: 'amusement_park',
+        street: 'Fun Ave',
+        city: 'Fort Worth',
+        region: 'TX',
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [Number.NaN, 32.7555],
+      },
+    };
+    expect(coverage.mapRenderedFeatureToNearbyPlacePin(fallbackFeature, { lng: -97.3308, lat: 32.7555 })).toMatchObject({
+      title: 'Provider Arcade',
+      categoryLabel: 'Park',
+      address: 'Fun Ave, Fort Worth, TX',
+      latitude: 32.7555,
+      longitude: -97.3308,
+    });
+
+    expect(coverage.formatDistanceLabel(0.005, 8, 'user')).toBeNull();
+    expect(coverage.formatDistanceLabel(0.08, 129, 'user')).toBe('125 m away');
+    expect(coverage.formatDistanceLabel(0.08, 129, 'selected')).toBe('125 m from selected');
+    expect(coverage.formatDistanceLabel(12.2, 19_600, 'selected')).toBe('12 mi from selected');
+
+    wrapper.unmount();
+  });
+
+  it('keeps map render gate and camera transition timer branches deterministic', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        routePoints: spots,
+        routeVariant: 'planner',
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    coverage.interactiveMapEnabled.value = true;
+
+    coverage.finishMapCameraRenderTransition(999_999, 5);
+    coverage.startMapCameraRenderTransition();
+    coverage.stopMapCameraRenderTransitionVisuals();
+    vi.runOnlyPendingTimers();
+
+    coverage.startMapCameraRenderTransition({
+      timeoutMs: 5,
+      minimumVisibleMs: 0,
+      captureSnapshot: true,
+      renderGate: false,
+      tileSettling: false,
+    });
+    vi.advanceTimersByTime(5);
+
+    coverage.openMapRenderGate();
+    coverage.revealMapRenderGate(0);
+    vi.runOnlyPendingTimers();
+    coverage.closeMapRenderGate();
+    coverage.clearMapCameraTransitionTimers();
+    coverage.clearMapRenderGateTimer();
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('keeps map feature enrichment, attribution, and visible-prefetch fallbacks deterministic', async () => {
+    const wrapper = mount(MapView, {
+      props: {
+        spots,
+        routePoints: spots,
+        showNearbyPlaces: true,
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    const basePin = {
+      id: 'map-feature-provider-place',
+      title: 'Provider Place',
+      subtitle: 'Original subtitle',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      kind: 'place',
+      category: 'culture',
+      categoryLabel: 'Culture',
+      sourceLabel: 'Mapbox',
+    };
+    const cacheKey = coverage.buildMapFeaturePlaceEnrichmentKey(basePin);
+    coverage.cacheMapFeaturePlaceEnrichment(cacheKey, { title: 'Cached Provider Place' });
+    expect(coverage.applyCachedMapFeaturePlaceEnrichment(basePin)).toMatchObject({
+      title: 'Cached Provider Place',
+      subtitle: 'Original subtitle',
+    });
+    coverage.cacheMapFeaturePlaceEnrichment(cacheKey, { address: '100 Main Street, Fort Worth, TX' });
+    expect(coverage.applyCachedMapFeaturePlaceEnrichment(basePin)).toMatchObject({
+      address: '100 Main Street, Fort Worth, TX',
+      subtitle: '100 Main Street, Fort Worth, TX',
+    });
+    expect(coverage.hasWarmMapFeaturePlaceEnrichment({ ...basePin, photoUrl: '' })).toBe(false);
+    coverage.cacheMapFeaturePlaceEnrichment(cacheKey, {
+      photoUrl: 'https://images.example.com/provider.jpg',
+      photoLookupStatus: 'complete',
+    });
+    expect(coverage.hasRealMapFeaturePlacePhoto(basePin)).toBe(true);
+    expect(coverage.hasSettledMapFeaturePlacePhotoLookup(basePin)).toBe(true);
+
+    const locationDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    Object.defineProperty(globalThis, 'location', {
+      configurable: true,
+      value: undefined,
+    });
+    expect(coverage.normalizeNearbyPlaceAttributionUrl('/credits')).toBe('https://scopetrips.com/credits');
+    if (locationDescriptor) {
+      Object.defineProperty(globalThis, 'location', locationDescriptor);
+    }
+    expect(coverage.normalizeNearbyPlaceAttributionUrl('javascript:alert(1)')).toBeUndefined();
+    expect(coverage.normalizeNearbyPlaceAttributionUrl('   ')).toBeUndefined();
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 640 });
+    Object.defineProperty(container, 'clientHeight', { configurable: true, value: 420 });
+    coverage.mapContainer.value = container;
+    const feature = {
+      id: 'feature-1',
+      layer: { id: 'poi-label', type: 'symbol', 'source-layer': 'poi_label' },
+      properties: {
+        name: 'Visible Museum',
+        category: 'museum',
+        full_address: '200 Museum Way, Fort Worth, TX',
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [-97.33, 32.75],
+      },
+    };
+    const visibleMap = {
+      getZoom: () => 15,
+      getStyle: () => ({
+        layers: [
+          { id: 'background', type: 'background' },
+          { id: 'poi-label', type: 'symbol', 'source-layer': 'poi_label' },
+        ],
+      }),
+      getCanvas: () => ({ clientWidth: 640, clientHeight: 420, width: 640, height: 420 }),
+      getContainer: () => container,
+      getCenter: () => ({ lng: -97.33, lat: 32.75 }),
+      queryRenderedFeatures: vi.fn(() => [feature]),
+      project: vi.fn(() => {
+        throw new Error('projection settling');
+      }),
+    };
+    expect(coverage.getVisibleMapFeaturePlacePhotoPrefetchPins({
+      ...visibleMap,
+      getZoom: () => 4,
+    })).toEqual([]);
+    expect(coverage.getVisibleMapFeaturePlacePhotoPrefetchPins({
+      ...visibleMap,
+      getStyle: () => ({ layers: [] }),
+    })).toEqual([]);
+    coverage.mapContainer.value = null;
+    expect(coverage.getVisibleMapFeaturePlacePhotoPrefetchPins({
+      ...visibleMap,
+      getCanvas: () => ({ clientWidth: 0, clientHeight: 0, width: 0, height: 0 }),
+      getContainer: () => ({ clientWidth: 0, clientHeight: 0 }),
+    })).toEqual([]);
+    coverage.mapContainer.value = container;
+    expect(coverage.getVisibleMapFeaturePlacePhotoPrefetchPins(visibleMap)).toHaveLength(1);
+
+    wrapper.unmount();
+  });
+
+  it('keeps map runtime helper fallbacks deterministic for coverage-gate edge cases', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const wrapper = mount(MapView, {
+      props: {
+        spots: [
+          {
+            id: 'blank-label',
+            title: '',
+            latitude: 32.7555,
+            longitude: -97.3308,
+            category: 'other',
+            city: '',
+          },
+        ],
+        routePoints: [],
+        routeVariant: 'planner',
+      },
+    });
+    await nextTick();
+
+    const coverage = getMapCoverage(wrapper);
+    expect(coverage.fallbackMarkers.value[0]).toMatchObject({
+      id: 'blank-label',
+      label: 'Scope pin',
+    });
+    expect(coverage.getMapHardwareConcurrency()).toEqual(expect.any(Number));
+
+    const emptyWrapper = mount(MapView, {
+      props: {
+        spots: [],
+        routePoints: [],
+      },
+    });
+    await nextTick();
+    expect(getMapCoverage(emptyWrapper).fallbackMarkers.value).toEqual([]);
+
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: undefined,
+    });
+    expect(coverage.getDocumentTheme()).toBe('dark');
+    if (documentDescriptor) {
+      Object.defineProperty(globalThis, 'document', documentDescriptor);
+    }
+
+    const hardwareConcurrencyDescriptor = Object.getOwnPropertyDescriptor(navigator, 'hardwareConcurrency');
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      configurable: true,
+      value: undefined,
+    });
+    expect(coverage.getMapHardwareConcurrency()).toBe(0);
+    if (hardwareConcurrencyDescriptor) {
+      Object.defineProperty(navigator, 'hardwareConcurrency', hardwareConcurrencyDescriptor);
+    }
+
+    const mapContainer = document.createElement('div');
+    Object.defineProperty(mapContainer, 'clientWidth', { configurable: true, value: 0 });
+    Object.defineProperty(mapContainer, 'clientHeight', { configurable: true, value: 0 });
+    const readyCanvas = {
+      classList: {
+        add: vi.fn(),
+      },
+      clientWidth: 640,
+      clientHeight: 420,
+      width: 640,
+      height: 420,
+      toDataURL: vi.fn(() => 'data:image/png;base64,c2NvcGU='),
+    };
+    const readyMap = {
+      getCanvas: () => readyCanvas,
+      getContainer: () => mapContainer,
+      getCenter: () => ({ lng: -97.3308, lat: 32.7555 }),
+      getBounds: () => ({
+        contains: vi.fn(() => true),
+      }),
+      getZoom: () => 12,
+      getStyle: () => ({ layers: [{ id: 'poi-label', type: 'symbol', 'source-layer': 'poi_label' }], sprite: 'sprite' }),
+      isStyleLoaded: () => true,
+      loaded: () => true,
+      project: vi.fn(() => ({ x: 20, y: 20 })),
+      queryRenderedFeatures: vi.fn(() => []),
+      triggerRepaint: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+      once: vi.fn((_event: string, callback: () => void) => callback()),
+      remove: vi.fn(),
+      setStyle: vi.fn(),
+    };
+
+    const windowRequestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(window, 'requestAnimationFrame');
+    const windowCancelAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(window, 'cancelAnimationFrame');
+    Object.defineProperty(window, 'requestAnimationFrame', {
+      configurable: true,
+      value: vi.fn(() => 123),
+    });
+    Object.defineProperty(window, 'cancelAnimationFrame', {
+      configurable: true,
+      value: undefined,
+    });
+    coverage.schedulePlannerMapCanvasPreview(readyMap);
+    coverage.clearPlannerMapCanvasPreviewFrame();
+    if (windowRequestAnimationFrameDescriptor) {
+      Object.defineProperty(window, 'requestAnimationFrame', windowRequestAnimationFrameDescriptor);
+    }
+    if (windowCancelAnimationFrameDescriptor) {
+      Object.defineProperty(window, 'cancelAnimationFrame', windowCancelAnimationFrameDescriptor);
+    }
+
+    const globalRequestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame');
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: undefined,
+    });
+    const framePromise = coverage.waitForNextAnimationFrame();
+    vi.advanceTimersByTime(1);
+    await framePromise;
+    coverage.scheduleMapStylePresentationRefresh();
+    if (globalRequestAnimationFrameDescriptor) {
+      Object.defineProperty(globalThis, 'requestAnimationFrame', globalRequestAnimationFrameDescriptor);
+    }
+
+    coverage.interactiveMapEnabled.value = true;
+    coverage.map.value = readyMap;
+    coverage.mapContainer.value = null;
+    expect(coverage.resolveMapFeaturePlacePopupAnchor(readyMap, {
+      id: 'popup-pin',
+      title: 'Popup pin',
+      latitude: 32.7555,
+      longitude: -97.3308,
+      category: 'culture',
+      sourceLabel: 'Mapbox',
+    })).toBe('bottom');
+    coverage.startMapStyleTransition({ variant: 'switch' });
+    coverage.finishMapStyleTransition(999_999);
+    vi.runOnlyPendingTimers();
+
+    emptyWrapper.unmount();
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 });

@@ -6567,12 +6567,20 @@ describe('TripPlannerPage', () => {
     coverage.handleFuelSettingsUpdate({ fuelType: 'diesel', mpg: -1, gasPricePerGallon: Number.NaN });
     expect(coverage.tripFuelSettings.value).toMatchObject({ fuelType: 'diesel' });
     coverage.handleFuelPriceSelect({ placeId: ' ', pricePerGallon: 3.5, fuelType: 'regular' });
+    coverage.handleFuelPriceSelect({ placeId: 'fuel-empty', pricePerGallon: -1, fuelType: 'regular' });
     coverage.handleFuelPriceSelect({ placeId: 'fuel-a', pricePerGallon: 3.1, fuelType: 'regular' });
     coverage.handleFuelPriceSelect({ placeId: 'fuel-b', pricePerGallon: 3.5, fuelType: 'regular' });
     expect(coverage.tripFuelSettings.value.gasPricePerGallon).toBe(3.3);
     coverage.handleFuelTypeSelect('ev');
+    coverage.handleFuelTypeSelect('ev');
     expect(coverage.tripFuelSettings.value.fuelType).toBe('ev');
 
+    coverage.handleMapLocationSelect({
+      target: 'destination',
+      label: '   ',
+      latitude: 32.7767,
+      longitude: -96.797,
+    });
     coverage.handleMapLocationSelect({
       target: 'destination',
       label: 'Dallas, TX',
@@ -6780,10 +6788,19 @@ describe('TripPlannerPage', () => {
     }, 'fallback')).toBe('Paris');
     expect(coverage.normalizeScopeAiMapTargetText(' City of Dallas, TX! ')).toContain('city of dallas');
     expect(coverage.buildScopeAiMapQueryVariants('city of Austin, TX')).toContain('austin tx');
+    expect(coverage.buildScopeAiMapQueryVariants('')).toEqual([]);
+    expect(coverage.buildScopeAiMapQueryVariants('near Paris USA')).toEqual(expect.arrayContaining([
+      'near paris united states',
+      'paris usa',
+    ]));
     expect(coverage.hasScopeAiGlobalMapHint('tokyo japan')).toBe(true);
     expect(coverage.hasScopeAiUnitedStatesRegionHint('texas')).toBe(true);
+    expect(coverage.hasScopeAiUnitedStatesRegionHint('ca')).toBe(true);
     expect(coverage.isUnitedStatesScopeAiMapTarget({ country: 'USA', countryCode: '' })).toBe(true);
+    expect(coverage.queryMentionsScopeAiMapTargetCountry('', { country: 'France', countryCode: 'FR' })).toBe(false);
     expect(coverage.queryMentionsScopeAiMapTargetCountry('france', { country: 'France', countryCode: 'FR' })).toBe(true);
+    expect(coverage.queryMentionsScopeAiMapTargetCountry('u s', { country: 'United States', countryCode: 'US' })).toBe(true);
+    expect(coverage.queryMentionsScopeAiMapTargetCountry('fr', { country: 'France', countryCode: 'FR' })).toBe(true);
     expect(coverage.isBroadScopeAiMapPrecision('state')).toBe(true);
     expect(coverage.scoreScopeAiMapTargetMatch('texas', {
       placeName: 'Texas',
@@ -6947,6 +6964,43 @@ describe('TripPlannerPage', () => {
       { ...buildRouteStop('day-three', 'Day Three', 3, 'food') },
     ])).toBe(true);
     expect(coverage.plannerDraft.value.endDate).toBe('2026-06-03');
+
+    coverage.plannerDraft.value = {
+      ...defaultDraft,
+      destination: 'Dallas, TX',
+      endDestination: undefined as never,
+    };
+    expect(coverage.buildGeneratedDraftTitle()).toBe('Dallas itinerary');
+    expect(coverage.isGeneratedPlannerTitleForDraft('Dallas itinerary')).toBe(true);
+
+    const seedLookupTrip = buildRouteLibraryTrip({
+      id: 'route-austin-hill-country-food-loop',
+      title: 'Seed Lookup Route',
+      destination: '',
+      spots: [
+        { ...buildRouteStop('seed-start', 'Seed Start', 1, 'food'), photoUrl: '' },
+        { ...buildRouteStop('seed-end', 'Seed End', 1, 'culture'), photoUrl: '' },
+      ],
+    });
+    coverage.setRouteLibraryLookupPhoto(seedLookupTrip.id, 'single', 'https://images.example.com/seed-single.jpg');
+    expect(coverage.buildRouteLibraryVisualImages(seedLookupTrip, seedLookupTrip.spots, { start: '', end: '' }, new Set())).toEqual([
+      { key: 'single', src: 'https://images.example.com/seed-single.jpg', alt: 'Seed Lookup Route route photo' },
+    ]);
+    expect(coverage.getRouteLibraryRemixEndpointLabels({ ...oneDayTrip, destination: '', spots: [] }, [])).toEqual({
+      start: '',
+      end: '',
+    });
+
+    coverage.currentDraftTrip.value = buildRouteLibraryTrip({ id: 'private-command-trip', isPublic: true });
+    coverage.plannerIsPublic.value = true;
+    tripsStoreMock.updateTrip.mockResolvedValueOnce({
+      ...coverage.currentDraftTrip.value,
+      isPublic: false,
+    });
+    await expect(coverage.handleScopeAiTripCommand({ type: 'visibility', isPublic: false })).resolves.toMatchObject({
+      ok: true,
+      message: 'Made this trip private.',
+    });
 
     wrapper.unmount();
   });

@@ -41,6 +41,24 @@ def _required_env(name: str) -> str:
     )
 
 
+def _validate_production_secret(name: str, value: str) -> None:
+    if DEBUG:
+        return
+    normalized = value.strip().lower().replace('_', '-')
+    weak_markers = (
+        'change-me',
+        'changeme',
+        'placeholder',
+        'django-' + 'insecure',
+        'collectstatic-ephemeral',
+    )
+    if len(value.strip()) < 32 or any(marker in normalized for marker in weak_markers):
+        raise ImproperlyConfigured(
+            f'Refusing to start with a placeholder {name} while DEBUG=false. '
+            'Generate a unique 32+ byte secret and supply it via the deployment secret manager.'
+        )
+
+
 def _float_env(name: str, default: float) -> float:
     try:
         value = float(os.getenv(name, str(default)))
@@ -104,12 +122,7 @@ if SENTRY_DSN and sentry_sdk is not None:
 SECRET_KEY = _required_env('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DEBUG', os.getenv('DJANGO_DEBUG', 'false')).lower() == 'true'
 ALLOWED_HOSTS = [host for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if host]
-_INSECURE_KEY_PREFIX = 'django-' + 'insecure'
-if not DEBUG and SECRET_KEY.startswith(_INSECURE_KEY_PREFIX):
-    raise ImproperlyConfigured(
-        'Refusing to start with a placeholder DJANGO_SECRET_KEY while DEBUG=false. '
-        'Generate one with `python -c "import secrets; print(secrets.token_urlsafe(64))"`.'
-    )
+_validate_production_secret('DJANGO_SECRET_KEY', SECRET_KEY)
 FRONTEND_ORIGIN = _normalize_origin(os.getenv('FRONTEND_ORIGIN') or os.getenv('CORE_FRONTEND_ORIGIN'))
 DEVELOPMENT_FRONTEND_ORIGIN = _normalize_origin(
     os.getenv('DEVELOPMENT_FRONTEND_ORIGIN', DEFAULT_DEVELOPMENT_FRONTEND_ORIGIN)
@@ -266,7 +279,7 @@ def _parse_database_url(url: str) -> dict | None:
             'driver': os.getenv('DJANGO_MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server'),
             'extra_params': os.getenv(
                 'DJANGO_MSSQL_EXTRA_PARAMS',
-                'Encrypt=yes;TrustServerCertificate=yes',
+                'Encrypt=yes;TrustServerCertificate=no',
             ),
         }
     return config
@@ -386,6 +399,7 @@ REST_FRAMEWORK = {
 }
 
 JWT_SECRET = _required_env('CORE_JWT_SECRET')
+_validate_production_secret('CORE_JWT_SECRET', JWT_SECRET)
 JWT_ISSUER = os.getenv('CORE_JWT_ISSUER', 'scope-core')
 JWT_AUDIENCE = os.getenv('CORE_JWT_AUDIENCE', 'scope-frontend')
 SERVICE_VERSION = os.getenv('CONTENT_SERVICE_VERSION', '1.0.0')

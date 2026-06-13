@@ -1215,19 +1215,37 @@ describe('Navbar', () => {
 
     await coverage.openFeatureMenu('first');
     await coverage.openFeatureMenu('last');
+    wrapper.get('.feature-menu-dropdown').element.focus();
+    coverage.moveFeatureMenuFocus(1);
+    expect(document.activeElement).toBe(wrapper.get('.feature-menu-dropdown').findAll('[role="menuitem"]').at(0)?.element);
+    wrapper.get('.feature-menu-dropdown').element.focus();
+    coverage.moveFeatureMenuFocus(-1);
+    expect(document.activeElement).toBe(wrapper.get('.feature-menu-dropdown').findAll('[role="menuitem"]').at(-1)?.element);
     coverage.handleFeatureMenuKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
     coverage.handleFeatureMenuKeydown(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
     coverage.handleFeatureMenuKeydown(new KeyboardEvent('keydown', { key: 'Home' }));
     coverage.handleFeatureMenuKeydown(new KeyboardEvent('keydown', { key: 'End' }));
+    const featureUnknownKey = new KeyboardEvent('keydown', { key: 'PageDown', cancelable: true });
+    coverage.handleFeatureMenuKeydown(featureUnknownKey);
+    expect(featureUnknownKey.defaultPrevented).toBe(false);
     coverage.handleFeatureMenuButtonKeydown(new KeyboardEvent('keydown', { key: ' ' }));
     coverage.handleFeatureMenuFocusOut(new FocusEvent('focusout', { relatedTarget: document.body }));
 
     await coverage.openMenu('first');
     await coverage.openMenu('last');
+    wrapper.get('.menu-dropdown').element.focus();
+    coverage.moveMenuFocus(1);
+    expect(document.activeElement).toBe(wrapper.get('.menu-dropdown').findAll('[role="menuitem"]').at(0)?.element);
+    wrapper.get('.menu-dropdown').element.focus();
+    coverage.moveMenuFocus(-1);
+    expect(document.activeElement).toBe(wrapper.get('.menu-dropdown').findAll('[role="menuitem"]').at(-1)?.element);
     coverage.handleMenuKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
     coverage.handleMenuKeydown(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
     coverage.handleMenuKeydown(new KeyboardEvent('keydown', { key: 'Home' }));
     coverage.handleMenuKeydown(new KeyboardEvent('keydown', { key: 'End' }));
+    const menuUnknownKey = new KeyboardEvent('keydown', { key: 'PageDown', cancelable: true });
+    coverage.handleMenuKeydown(menuUnknownKey);
+    expect(menuUnknownKey.defaultPrevented).toBe(false);
     coverage.handleMenuButtonKeydown(new KeyboardEvent('keydown', { key: 'Enter' }));
     coverage.handleMenuFocusOut(new FocusEvent('focusout', { relatedTarget: document.body }));
 
@@ -1719,6 +1737,13 @@ describe('Navbar', () => {
       source: 'search',
     }, ['walk'])).toBe(6);
     expect(coverage.scoreQuickSearchPlace({
+      id: 'short-miss',
+      title: 'Museum',
+      city: 'Dallas',
+      country: 'US',
+      source: 'search',
+    }, ['zz'])).toBe(0);
+    expect(coverage.scoreQuickSearchPlace({
       id: 'no-rating',
       title: 'Mismatch',
       source: 'search',
@@ -1729,6 +1754,10 @@ describe('Navbar', () => {
       { id: 'minimal', title: 'Minimal', source: 'recommendation' },
     );
     expect(minimalMerge).toEqual({ id: 'minimal', title: 'Minimal', source: 'search' });
+    expect(coverage.mergeQuickSearchPlaces([
+      { id: 'new-search', title: 'New Place', source: 'search' },
+      { id: 'new-rec', title: 'Recommended Place', source: 'recommendation' },
+    ])).toHaveLength(2);
     expect(coverage.buildQuickSearchPlaceKeys({ id: 'blank-title', title: '   ', source: 'search' })).toEqual([
       'id:blank-title',
     ]);
@@ -1749,6 +1778,71 @@ describe('Navbar', () => {
     mobileDrawer.element.focus();
     coverage.handleMobileDrawerKeydown(drawerShiftTab);
     expect(drawerShiftTab.defaultPrevented).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('renders lean mobile search fallbacks for query errors and empty matches', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.currentUser = null;
+    searchContentMock.mockRejectedValueOnce(new Error('search outage')).mockResolvedValueOnce({
+      query: 'nomatch',
+      type: 'spots',
+      total: 0,
+      offset: 0,
+      limit: 6,
+      results: [],
+    });
+    loadSearchPlaceRecommendationsMock.mockResolvedValue([
+      {
+        id: 'mobile-query-rec',
+        title: 'Mobile Query Rec',
+        description: '',
+        latitude: 32.74,
+        longitude: -97.34,
+        category: 'food',
+        rating: 4.5,
+        createdAt: '2026-03-24T14:10:00Z',
+        searchSuggestionSource: 'recommendation',
+      },
+    ]);
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: buildInteractiveSearchStub(),
+          ThemeToggle: { template: '<button data-test="theme-toggle-stub">Theme</button>' },
+          ScopeIcon: { template: '<span class="icon-stub" />' },
+          Transition: false,
+        },
+      },
+    });
+    const coverage = (wrapper.vm as any).__coverage as Record<string, any>;
+
+    await coverage.openMobileMenu('panel');
+    await flushPromises();
+
+    const mobileSearchInput = wrapper.findAll('[data-test="search-input"]').at(-1)!;
+    await mobileSearchInput.setValue('query failure');
+    await coverage.handleSearch('query failure');
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="quick-search-dropdown"]').text()).toContain(
+      'Scope Trips could not load quick search right now.',
+    );
+
+    await mobileSearchInput.setValue('nomatch');
+    await coverage.handleSearch('nomatch');
+    await flushPromises();
+
+    const dropdown = wrapper.get('[data-test="quick-search-dropdown"]');
+    expect(dropdown.text()).toContain('No quick matches yet.');
 
     wrapper.unmount();
   });

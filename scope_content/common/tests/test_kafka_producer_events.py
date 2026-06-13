@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from io import BytesIO
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -16,6 +16,7 @@ import spots.views as spot_views
 import trips.views as trip_views
 from common.kafka_producer import ScopeKafkaProducer
 from interactions.models import Interaction
+from spots.models import Spot
 
 pytestmark = pytest.mark.django_db
 
@@ -270,6 +271,37 @@ def test_interactions_are_append_only_and_publish_event_envelopes(authenticated_
     datetime.fromisoformat(first_event['occurredAt'].replace('Z', '+00:00'))
     assert second_event['context'] == {'surface': 'detail'}
     datetime.fromisoformat(second_event['occurredAt'].replace('Z', '+00:00'))
+
+
+@pytest.mark.django_db
+def test_interactions_reject_cross_user_private_spots(authenticated_client, auth_header, published_events):
+    _, caller_user_id = auth_header
+    private_spot = Spot.objects.create(
+        user_id=uuid4(),
+        title='Private overlook',
+        description='Not visible to this caller',
+        latitude=32.75,
+        longitude=-97.33,
+        city='Fort Worth',
+        country='US',
+        category='scenic',
+        vibe='quiet',
+        is_public=False,
+    )
+
+    response = authenticated_client.post(
+        '/api/content/interactions/',
+        {
+            'spotId': str(private_spot.id),
+            'interactionType': 'save',
+            'context': {'surface': 'direct-id'},
+        },
+        format='json',
+    )
+
+    assert response.status_code == 404
+    assert Interaction.objects.filter(user_id=caller_user_id, spot_id=private_spot.id).count() == 0
+    assert published_events == []
 
 
 @pytest.mark.django_db

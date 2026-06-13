@@ -116,6 +116,47 @@ describe('scope AI turn auditor', () => {
     }
   });
 
+  it('replaces empty or keyless place cards without leaking unsafe context', () => {
+    const empty = auditScopeAiTurn({
+      id: 'empty-places',
+      role: 'assistant',
+      kind: 'places',
+      content: 'No verified places.',
+      queryLabel: 'empty',
+      results: [],
+    }, {
+      userPrompt: 'find stops',
+      planner: {
+        start: '',
+        end: '',
+      },
+    });
+    const keyless = auditScopeAiTurn({
+      id: 'keyless-places',
+      role: 'assistant',
+      kind: 'places',
+      content: 'Keyless place',
+      queryLabel: 'keyless',
+      results: [{
+        id: '',
+        placeName: '',
+        formattedAddress: '',
+        address: '',
+        latitude: Number.NaN,
+        longitude: Number.NaN,
+      }],
+    }, {
+      userPrompt: 'find stops',
+      planner,
+    });
+
+    expect(empty.approved).toBe(false);
+    expect(empty.reasons).toContain('empty_place_results');
+    expect(empty.message.content).toContain('I could not verify distinct place results');
+    expect(keyless.approved).toBe(false);
+    expect(keyless.reasons).toContain('empty_place_results');
+  });
+
   it('replaces exact duplicate assistant replies only when the user repeats the same prompt without state changes', () => {
     const audit = auditScopeAiTurn(text('Set the max trip budget to $400.'), {
       userPrompt: 'max 400',
@@ -142,6 +183,44 @@ describe('scope AI turn auditor', () => {
     expect(audit.reasons).toContain('duplicate_assistant_reply');
     expect(audit.message.content).toContain('No new change');
     expect(variant.approved).toBe(true);
+  });
+
+  it('keeps non-text duplicates and empty current text out of duplicate replacement', () => {
+    const emptyText = auditScopeAiTurn(text('   '), {
+      userPrompt: 'status',
+      previousUserPrompt: 'status',
+      planner,
+      previousAssistantMessages: [{
+        kind: 'text',
+        content: '   ',
+        stateSignature: 'fw-austin',
+      }],
+    });
+    const places = auditScopeAiTurn({
+      id: 'places-repeat',
+      role: 'assistant',
+      kind: 'places',
+      content: 'Found places',
+      queryLabel: 'places',
+      results: [{
+        id: 'place-1',
+        placeName: 'Place One',
+        latitude: 32,
+        longitude: -97,
+      }],
+    }, {
+      userPrompt: 'places',
+      previousUserPrompt: 'places',
+      planner,
+      previousAssistantMessages: [{
+        kind: 'text',
+        content: 'Found places',
+        stateSignature: 'fw-austin',
+      }],
+    });
+
+    expect(emptyText.reasons).not.toContain('duplicate_assistant_reply');
+    expect(places.reasons).not.toContain('duplicate_assistant_reply');
   });
 
   it('does not replace idempotent resolved mutation confirmations as failed planner changes', () => {
