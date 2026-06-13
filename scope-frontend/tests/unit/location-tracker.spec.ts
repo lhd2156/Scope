@@ -28,7 +28,8 @@ describe('LocationTracker', () => {
 
     expect(geolocationMocks.startLocationWatch).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain('Location on');
-    expect(wrapper.text()).toContain('Precision 12 m');
+    expect(wrapper.text()).toContain('+/- 12 m');
+    expect(wrapper.attributes('title')).toBe('Precision +/- 12 m');
     expect(wrapper.emitted('update:location')?.[0]?.[0]).toMatchObject({ latitude: 32.7555, longitude: -97.3308 });
     expect(wrapper.emitted('tracking-state')?.at(-1)).toEqual(['tracking']);
 

@@ -18,10 +18,15 @@ def test_place_photo_explains_google_places_configuration(app, client, auth_head
     assert payload["source"] == "Google Places"
 
 
-def test_place_photo_requires_auth(client):
+def test_place_photo_allows_public_rate_limited_lookup(app, client):
+    app.config["GOOGLE_PLACES_API_KEY"] = ""
+
     response = client.get("/api/intel/place-photo", query_string={"q": "Soulman's BBQ", "lat": 32.837, "lng": -97.189})
 
-    assert response.status_code == 401
+    assert response.status_code == 200
+    payload = response.get_json()["data"]
+    assert payload["configured"] is False
+    assert payload["source"] == "Google Places"
 
 
 def test_place_photo_service_normalizes_google_photo_response(app, monkeypatch):
