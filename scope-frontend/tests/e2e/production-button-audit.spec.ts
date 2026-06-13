@@ -1,4 +1,4 @@
-import type { Page, Response, Route } from '@playwright/test';
+import type { Locator, Page, Response, Route } from '@playwright/test';
 import { expect, test } from './fixtures/coverage-test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
@@ -1509,17 +1509,27 @@ async function seedLogin(page: Page, user: AuditUser): Promise<void> {
 }
 
 async function gotoRegistrationForm(page: Page): Promise<void> {
-  const registerFormReady = async () => (
-    await page.getByRole('heading', { name: /Create your Scope account/i }).isVisible({ timeout: 8_000 }).catch(() => false) ||
-    await page.getByLabel('First name').isVisible({ timeout: 1_000 }).catch(() => false) &&
-      await page.getByRole('button', { name: /^Create Account$/i }).isVisible({ timeout: 1_000 }).catch(() => false) ||
-    await page.locator('form').filter({ hasText: /First name/i }).filter({ hasText: /Create Account/i }).first()
-      .isVisible({ timeout: 1_000 }).catch(() => false)
-  );
+  const registerFormReady = async () => {
+    if (await waitForVisible(page.getByRole('heading', { name: /Create your Scope account/i }), 8_000)) {
+      return true;
+    }
+
+    const firstNameReady = await waitForVisible(page.getByLabel('First name').first(), 3_000);
+    const createButtonReady = await waitForVisible(page.getByRole('button', { name: /^Create Account$/i }).first(), 3_000);
+    if (firstNameReady && createButtonReady) {
+      return true;
+    }
+
+    return waitForVisible(
+      page.locator('form').filter({ hasText: /First name/i }).filter({ hasText: /Create Account/i }).first(),
+      3_000,
+    );
+  };
 
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     await clearBrowserSession(page);
     await gotoAllowingImmediateRedirect(page, `/register?buttonAuditRegister=${Date.now()}-${attempt}`);
+    await page.waitForLoadState('domcontentloaded', { timeout: NAVIGATION_TIMEOUT_MS }).catch(() => undefined);
     await dismissCookieBanner(page);
 
     if (await registerFormReady()) {
@@ -1539,8 +1549,21 @@ async function gotoRegistrationForm(page: Page): Promise<void> {
     }
   }
 
+  if (await registerFormReady()) {
+    return;
+  }
+
   const bodyText = await page.locator('body').innerText({ timeout: 3_000 }).catch(() => '');
   throw new Error(`Register form did not become visible. url=${page.url()} body=${bodyText.slice(0, 1200)}`);
+}
+
+async function waitForVisible(locator: Locator, timeout: number): Promise<boolean> {
+  try {
+    await locator.waitFor({ state: 'visible', timeout });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function refreshAuditUserViaApi(page: Page, user: AuditUser): Promise<void> {

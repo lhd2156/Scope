@@ -806,6 +806,15 @@ export default defineConfig(({ mode }) => {
   if (mode !== 'test') {
     workspaceMapboxToken = exposeWorkspaceMapboxToken(mode);
   }
+  const defineValues: Record<string, string> = {};
+  if (workspaceMapboxToken) {
+    defineValues['import.meta.env.VITE_MAPBOX_TOKEN'] = JSON.stringify(workspaceMapboxToken);
+  }
+  if (process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS !== undefined) {
+    defineValues['import.meta.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS'] = JSON.stringify(
+      process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS,
+    );
+  }
 
   return {
   root: realConfigDirectory,
@@ -826,11 +835,7 @@ export default defineConfig(({ mode }) => {
     copyOptionalWasmArtifacts(),
     googleFuelDevProxyPlugin(mode),
   ],
-  define: workspaceMapboxToken
-    ? {
-        'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(workspaceMapboxToken),
-      }
-    : undefined,
+  define: Object.keys(defineValues).length > 0 ? defineValues : undefined,
   server: {
     host: '0.0.0.0',
     port: 5173,

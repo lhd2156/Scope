@@ -176,7 +176,6 @@
             :key="request.id"
             :request="request"
             :categories="categoriesForUser(request.user)"
-            :cover-photo="coverPhotoForCategories(categoriesForUser(request.user))"
             :saving="friendsStore.saving"
             @open="openProfile"
             @accept="acceptRequest"
@@ -258,7 +257,6 @@ import { trackFriendAdd } from '@/services/analyticsService';
 import { useFriendsStore } from '@/stores/friends';
 import { useNotificationsStore } from '@/stores/notifications';
 import type { FriendPresence, FriendSuggestion, SpotCategory, UserProfile } from '@/types';
-import { CATEGORY_TRAVEL_PHOTOS } from '@/utils/travelMedia';
 
 type FriendTab = 'all' | 'online' | 'requests' | 'discover';
 type DiscoverMode = 'best' | 'mutuals' | 'vibes' | 'random';
@@ -588,12 +586,6 @@ function isSpotCategory(value: string): value is SpotCategory {
 function categoriesForUser(user: UserProfile): SpotCategory[] {
   const matches = user.interests.filter((interest): interest is SpotCategory => isSpotCategory(interest));
   return matches.length ? matches : ['other'];
-}
-
-function coverPhotoForCategories(categories: SpotCategory[]): string {
-  return CATEGORY_TRAVEL_PHOTOS[categories[0] ?? 'other']
-    .replace('w=640', 'w=480')
-    .replace('q=60', 'q=48');
 }
 
 function openProfile(userId: string): void {

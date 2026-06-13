@@ -1,21 +1,23 @@
 <template>
   <div class="avatar" :class="{ 'avatar--placeholder': isPlaceholder }" :style="avatarStyle" role="img" :aria-label="label ?? name">
-    <LazyImage
+    <img
       v-if="hasImage && !failed"
+      class="avatar__image"
       :src="imageSource"
-      eager
+      :class="{ 'is-loaded': loaded }"
+      loading="eager"
+      decoding="async"
       alt=""
       aria-hidden="true"
+      @load="onImageLoad"
       @error="onImageError"
     />
-    <ScopeIcon v-else class="avatar__silhouette" name="user" label="Default profile picture" />
+    <span v-if="isPlaceholder" class="avatar__initials" aria-hidden="true">{{ initials }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import LazyImage from '@/components/common/LazyImage.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -32,26 +34,44 @@ const props = withDefaults(
 );
 
 const failed = ref(false);
+const loaded = ref(false);
 
 watch(
   () => [props.src, props.name, props.size] as const,
   () => {
     failed.value = false;
+    loaded.value = false;
   },
 );
 
 const imageSource = computed(() => props.src?.trim() ?? '');
 const hasImage = computed(() => imageSource.value.length > 0);
-const isPlaceholder = computed(() => !hasImage.value || failed.value);
+const isPlaceholder = computed(() => !hasImage.value || failed.value || !loaded.value);
+const initials = computed(() => {
+  const nameParts = props.name.trim().split(/\s+/).filter(Boolean);
+  if (!nameParts.length) {
+    return '?';
+  }
+
+  const firstInitial = nameParts[0]?.charAt(0) ?? '';
+  const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1]?.charAt(0) ?? '' : '';
+  return `${firstInitial}${lastInitial}`.toUpperCase();
+});
 const avatarStyle = computed(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
   minWidth: `${props.size}px`,
   minHeight: `${props.size}px`,
+  fontSize: `${Math.max(13, Math.round(props.size * 0.34))}px`,
 }));
 
 function onImageError() {
   failed.value = true;
+  loaded.value = false;
+}
+
+function onImageLoad() {
+  loaded.value = true;
 }
 </script>
 
@@ -71,26 +91,33 @@ function onImageError() {
   box-shadow: var(--shadow-sm);
 }
 
-/*
-  Instagram-style neutral placeholder: a flat gray disc with a white
-  silhouette. Used when no avatar URL has been set (or the image failed
-  to load) so new accounts never show a seeded face that isn't theirs.
-*/
 .avatar--placeholder {
-  background: color-mix(in srgb, var(--bg-tertiary) 82%, var(--bg-secondary));
-  border-color: color-mix(in srgb, var(--text-secondary) 22%, transparent);
-  color: color-mix(in srgb, var(--text-secondary) 92%, var(--text-primary));
+  background:
+    radial-gradient(circle at 30% 24%, color-mix(in srgb, var(--accent-gold) 26%, transparent), transparent 48%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-teal) 38%, var(--bg-tertiary)), var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--accent-teal) 34%, transparent);
+  color: var(--text-primary);
 }
 
-img {
+.avatar__image {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
 }
 
-.avatar__silhouette {
-  width: 68%;
-  height: 68%;
-  stroke-width: 1.6;
+.avatar__image.is-loaded {
+  opacity: 1;
+}
+
+.avatar__initials {
+  font-size: inherit;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow: 0 1px 8px color-mix(in srgb, var(--bg-primary) 70%, transparent);
 }
 </style>
