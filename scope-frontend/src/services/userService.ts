@@ -17,6 +17,7 @@ import {
   sanitizeSingleLineText,
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
+import { resolveShowcaseUserProfile } from '@/utils/showcaseActors';
 
 const AUTH_BASE_PATH = '/api/core/auth';
 const USERS_BASE_PATH = '/api/core/users';
@@ -209,6 +210,11 @@ export async function getUserProfile(userId: string): Promise<ApiEnvelope<UserPr
     const { data } = await api.get<ApiEnvelope<UserProfile> | UserProfile>(`${USERS_BASE_PATH}/${userId}`);
     return sanitizeUserEnvelope({ data: unwrapUserProfilePayload(data) });
   } catch (error) {
+    const showcaseProfile = !USER_MOCK_FALLBACK_ENABLED ? resolveShowcaseUserProfile(userId) : undefined;
+    if (showcaseProfile) {
+      return sanitizeUserEnvelope({ data: showcaseProfile });
+    }
+
     if (!USER_MOCK_FALLBACK_ENABLED) {
       throw error;
     }

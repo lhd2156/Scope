@@ -338,6 +338,44 @@ describe('friends store API contracts', () => {
     expect(store.error).toBe('Request offline');
   });
 
+  it('keeps showcase traveler requests local so they never fake a backend accept', async () => {
+    const sendFriendRequest = vi.fn();
+    const sofia = buildUser({
+      id: '44444444-4444-4444-4444-444444444441',
+      username: 'sofia.ramirez',
+      displayName: 'Sofia Ramirez',
+      avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+      interests: ['food', 'culture'],
+    });
+
+    vi.doMock('@/services/friendService', () => ({
+      listFriends: vi.fn(),
+      listPendingFriendRequests: vi.fn(),
+      listFriendSuggestions: vi.fn(),
+      searchFriendCandidates: vi.fn(),
+      sendFriendRequest,
+      acceptFriendRequest: vi.fn(),
+      rejectFriendRequest: vi.fn(),
+      removeFriend: vi.fn(),
+    }));
+
+    const store = await bootstrapFriendsStore();
+    store.suggestions = [buildSuggestion({ user: sofia, mutualFriends: 0 })];
+
+    await store.sendRequest(sofia);
+
+    expect(sendFriendRequest).not.toHaveBeenCalled();
+    expect(store.hasSentRequestTo(sofia.id)).toBe(true);
+    expect(store.requests).toEqual([
+      expect.objectContaining({
+        id: `outgoing-${sofia.id}`,
+        direction: 'outgoing',
+        user: sofia,
+      }),
+    ]);
+    expect(store.connections).toEqual([]);
+  });
+
   it('accepts, rejects, removes, and reports social mutation failures', async () => {
     const request = buildRequest({ id: 'request-1', user: buildUser({ id: 'user-request' }) });
     const acceptedConnection = buildConnection({ id: 'connection-user-request', user: request.user });

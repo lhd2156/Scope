@@ -16,7 +16,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     username: 'maya.chen',
     email: '',
     displayName: 'Maya Chen',
-    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
     bio: 'Scope starter profile for gardens, museums, and design-forward weekend pacing.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
@@ -27,7 +27,7 @@ const SHOWCASE_ACTORS: Record<string, Omit<UserProfile, 'id'>> = {
     username: 'elijah.brooks',
     email: '',
     displayName: 'Elijah Brooks',
-    avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+    avatarUrl: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
     bio: 'Scope starter profile for outdoor resets, strong coffee, and high-energy city walks.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
@@ -102,8 +102,43 @@ const SHOWCASE_ACTORS_BY_REPEATED_DIGIT: Record<string, Omit<UserProfile, 'id'>>
   '8': SHOWCASE_ACTORS['88888888888888888888888888888881'],
 };
 
+const SHOWCASE_ID_BY_KEY: Record<string, string> = {
+  '11111111111111111111111111111111': '11111111-1111-1111-1111-111111111111',
+  '22222222222222222222222222222222': '22222222-2222-2222-2222-222222222222',
+  '33333333333333333333333333333333': '33333333-3333-3333-3333-333333333333',
+  '44444444444444444444444444444441': '44444444-4444-4444-4444-444444444441',
+  '55555555555555555555555555555551': '55555555-5555-5555-5555-555555555551',
+  '66666666666666666666666666666661': '66666666-6666-6666-6666-666666666661',
+  '77777777777777777777777777777771': '77777777-7777-7777-7777-777777777771',
+  '88888888888888888888888888888881': '88888888-8888-8888-8888-888888888881',
+};
+
+const SHOWCASE_KEYS_BY_ALIAS: Record<string, string> = {
+  'demo-user-1': '11111111111111111111111111111111',
+  'alex.morgan': '11111111111111111111111111111111',
+  'demo-user-2': '22222222222222222222222222222222',
+  'maya.chen': '22222222222222222222222222222222',
+  'demo-user-3': '33333333333333333333333333333333',
+  'elijah.brooks': '33333333333333333333333333333333',
+  'demo-user-4': '44444444444444444444444444444441',
+  'sofia.ramirez': '44444444444444444444444444444441',
+  'demo-user-5': '55555555555555555555555555555551',
+  'jordan.reed': '55555555555555555555555555555551',
+  'demo-user-6': '66666666666666666666666666666661',
+  'aisha.bello': '66666666666666666666666666666661',
+  'demo-user-7': '77777777777777777777777777777771',
+  'theo.alvarez': '77777777777777777777777777777771',
+  'demo-user-8': '88888888888888888888888888888881',
+  'priya.nair': '88888888888888888888888888888881',
+};
+
 export function normalizeShowcaseActorKey(value: string | undefined): string {
   return String(value ?? '').replace(/[^a-f0-9]/gi, '').toLowerCase();
+}
+
+function resolveAliasKey(value: string | undefined): string | undefined {
+  const alias = String(value ?? '').trim().toLowerCase().replace(/^@+/, '');
+  return SHOWCASE_KEYS_BY_ALIAS[alias];
 }
 
 function resolveActorTemplate(key: string): Omit<UserProfile, 'id'> | undefined {
@@ -116,7 +151,7 @@ function resolveActorTemplate(key: string): Omit<UserProfile, 'id'> | undefined 
 }
 
 export function resolveShowcaseUserProfile(userId: string | undefined): UserProfile | undefined {
-  const key = normalizeShowcaseActorKey(userId);
+  const key = resolveAliasKey(userId) ?? normalizeShowcaseActorKey(userId);
   const actor = resolveActorTemplate(key);
 
   return actor
@@ -125,4 +160,38 @@ export function resolveShowcaseUserProfile(userId: string | undefined): UserProf
       ...actor,
     }
     : undefined;
+}
+
+export function listShowcaseUserProfiles(): UserProfile[] {
+  return Object.entries(SHOWCASE_ACTORS).map(([key, actor]) => ({
+    id: SHOWCASE_ID_BY_KEY[key] ?? key,
+    ...actor,
+  }));
+}
+
+export function searchShowcaseUserProfiles(query: string, page = 1, pageSize = 10): UserProfile[] {
+  const normalizedQuery = String(query ?? '').trim().toLowerCase().replace(/^@+/, '');
+  const queryTerms = normalizedQuery.split(/\s+/).filter(Boolean);
+
+  if (!queryTerms.length || normalizedQuery.length < 2) {
+    return [];
+  }
+
+  const matches = listShowcaseUserProfiles().filter((user) => {
+    const searchableContent = [
+      user.username,
+      user.displayName,
+      user.email,
+      user.homeBase,
+      ...(user.interests ?? []),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return queryTerms.every((term) => searchableContent.includes(term));
+  });
+  const start = Math.max(0, (page - 1) * pageSize);
+  return matches.slice(start, start + pageSize);
+}
+
+export function isShowcaseUserId(userId: string | undefined): boolean {
+  const key = resolveAliasKey(userId) ?? normalizeShowcaseActorKey(userId);
+  return Boolean(resolveActorTemplate(key));
 }

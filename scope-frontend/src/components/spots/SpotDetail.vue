@@ -576,6 +576,11 @@ const averageRatingNumber = computed(() => {
     return 0;
   }
 
+  if (displayReviews.value.length) {
+    const totalRating = displayReviews.value.reduce((sum, review) => sum + review.rating, 0);
+    return totalRating / displayReviews.value.length;
+  }
+
   return props.spot.rating;
 });
 const averageRating = computed(() => averageRatingNumber.value.toFixed(1));

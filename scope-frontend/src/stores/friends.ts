@@ -12,6 +12,7 @@ import {
 } from '@/services/friendService';
 import type { FriendConnection, FriendPresence, FriendRequest, FriendSuggestion, PaginationMeta, UserProfile } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
+import { isShowcaseUserId } from '@/utils/showcaseActors';
 
 const ONLINE_PRESENCES = new Set<FriendPresence>(['planning', 'online']);
 const PRESENCE_RANK: Record<FriendPresence, number> = {
@@ -185,7 +186,9 @@ export const useFriendsStore = defineStore('friends', () => {
 
     try {
       const matchingSuggestion = suggestions.value.find((suggestion) => suggestion.user.id === user.id);
-      await sendFriendRequestRequest(user.id);
+      if (!isShowcaseUserId(user.id)) {
+        await sendFriendRequestRequest(user.id);
+      }
       suggestions.value = suggestions.value.filter((suggestion) => suggestion.user.id !== user.id);
       requests.value = [
         {
