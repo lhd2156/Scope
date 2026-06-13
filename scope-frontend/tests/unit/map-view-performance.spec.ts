@@ -1049,6 +1049,7 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
       label: 'Map center',
       latitude: 32.76,
       longitude: -97.33,
+      allowPublicFallback: true,
     });
     expect(wrapper.get('[data-test="map-weather-badge"]').text()).toContain('76');
     expect(wrapper.get('[data-test="map-traffic-key"]').text()).toContain('Live traffic');

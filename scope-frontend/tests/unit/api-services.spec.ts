@@ -1545,6 +1545,53 @@ describe('API service fallbacks', () => {
     })).rejects.toThrow('Weather location is missing.');
   });
 
+  it('allows map weather to use public Open-Meteo fallback without a client API key', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          current: {
+            temperature_2m: 77.3,
+            weather_code: 1,
+            wind_speed_10m: 9.4,
+            is_day: 1,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          current: { us_aqi: 42 },
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const weatherService = await import('@/services/openWeatherMapService');
+    const snapshot = await weatherService.getOpenWeatherMapSnapshot({
+      label: 'Map center',
+      latitude: 32.8343,
+      longitude: -97.2289,
+      allowPublicFallback: true,
+    });
+
+    expect(apiMock.get).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('api.open-meteo.com/v1/forecast');
+    expect(snapshot).toMatchObject({
+      provider: 'openmeteo',
+      providerLabel: 'Open-Meteo',
+      temperatureF: 77.3,
+      windMph: 9.4,
+      airQuality: {
+        index: 42,
+        label: 'Good',
+        scale: 'us',
+      },
+    });
+  });
+
   it('latches OpenWeatherMap unavailable after auth failures and skips it on later lookups', async () => {
     vi.stubEnv('VITE_ENABLE_CLIENT_WEATHER_FALLBACK', 'true');
     vi.stubEnv('VITE_OPENWEATHERMAP_API_KEY', 'owm-test-key');
