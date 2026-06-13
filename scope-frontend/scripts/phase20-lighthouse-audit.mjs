@@ -53,6 +53,7 @@ function commandName(command) {
 function createAuditEnv(overrides = {}) {
   return {
     ...process.env,
+    VITE_ENABLE_LOCAL_PREVIEW: 'true',
     VITE_DEMO_MODE: 'true',
     VITE_ENABLE_AUTH_MOCK_FALLBACK: 'true',
     VITE_ENABLE_USER_MOCK_FALLBACK: 'true',

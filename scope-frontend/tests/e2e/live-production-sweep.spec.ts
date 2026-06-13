@@ -18,6 +18,7 @@ interface LiveUser {
   displayName: string;
   accessToken: string;
   refreshToken: string;
+  interests?: string[];
 }
 
 interface LiveSweepData {
@@ -343,6 +344,23 @@ test.describe('live production sweep without route mocks', () => {
     await expect(page.locator('[data-test="profile-avatar"] img').first()).toBeVisible();
 
     await gotoProtectedPath(page, liveData.owner, '/settings');
+    const scenicPreference = page.locator('[data-test="preference-pill-scenic"]');
+    if (!((await scenicPreference.getAttribute('class')) ?? '').includes('is-active')) {
+      const interestsSavePromise = page.waitForResponse((response) =>
+        response.url().includes(`/api/core/users/${liveData.owner.id}`) && response.request().method() === 'PUT',
+      );
+      await scenicPreference.click();
+      const interestsSave = await interestsSavePromise;
+      expect(interestsSave.ok(), `scenic preference autosave returned ${interestsSave.status()}`).toBeTruthy();
+    }
+    const preferenceReadback = await api('GET', `/api/core/users/${liveData.owner.id}`, {
+      token: liveData.owner.accessToken,
+    });
+    expect(preferenceReadback.data.interests).toContain('scenic');
+    liveData.owner.interests = Array.isArray(preferenceReadback.data.interests)
+      ? [...preferenceReadback.data.interests]
+      : liveData.owner.interests;
+
     await page.locator('[data-test="theme-option-light"]').click();
     await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
     await expect.poll(() => page.evaluate(() => window.localStorage.getItem('scope-theme'))).toBe('light');
@@ -530,8 +548,17 @@ test.describe('live production sweep without route mocks', () => {
     await gotoProtectedPath(page, liveData.owner, '/trips/new');
     const planner = page.locator('[data-test="trip-planner"]');
     await expect(planner).toBeVisible();
-    await expect(planner.locator('[data-test="trip-interest-food"]')).toHaveClass(/active/);
-    await expect(planner.locator('[data-test="trip-interest-scenic"]')).toHaveClass(/active/);
+    const ownerProfile = await api('GET', `/api/core/users/${liveData.owner.id}`, {
+      token: liveData.owner.accessToken,
+    });
+    const expectedInterests = Array.isArray(ownerProfile.data.interests)
+      ? ownerProfile.data.interests.filter((interest: unknown): interest is string => typeof interest === 'string')
+      : liveData.owner.interests ?? [];
+    expect(expectedInterests).toContain('food');
+    expect(expectedInterests).toContain('scenic');
+    for (const interest of expectedInterests) {
+      await expect(planner.locator(`[data-test="trip-interest-${interest}"]`)).toHaveClass(/active/);
+    }
 
     await planner.locator('[data-test="trip-title-input"]').fill(tripTitle);
     await planner.getByLabel('Start date').fill('2026-06-05');
