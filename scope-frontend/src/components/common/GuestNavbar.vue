@@ -7,7 +7,7 @@
       <div class="guest-navbar__leading">
         <RouterLink to="/" class="guest-navbar__brand" @click="closeMobileMenu()">
           <span class="guest-navbar__brand-mark" aria-hidden="true">
-            <ScopeIcon name="logo" />
+            <img class="guest-navbar__brand-mark-image" :src="SCOPE_TRIPS_LOGO_MARK_SRC" alt="" />
           </span>
           <span class="guest-navbar__brand-text">Scope Trips</span>
         </RouterLink>
@@ -113,6 +113,7 @@ import ScopeIcon from '@/components/common/ScopeIcon.vue';
 const route = useRoute();
 const isScrolled = ref(false);
 const isMobileMenuOpen = ref(false);
+const SCOPE_TRIPS_LOGO_MARK_SRC = '/branding/scope-trips-logo-mark.png';
 const mobileDrawerRef = ref<HTMLElement | null>(null);
 const mobileMenuId = `guest-navbar-mobile-menu-${useId()}`;
 const mobileMenuTitleId = `guest-navbar-mobile-menu-title-${useId()}`;
@@ -277,18 +278,17 @@ onBeforeUnmount(() => {
   height: 2rem;
   border-radius: 0.625rem;
   border: 1px solid color-mix(in srgb, var(--highlight-sheen) 14%, transparent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent-teal) 82%, var(--bg-secondary)),
-    color-mix(in srgb, var(--accent-teal-hover, var(--accent-teal)) 74%, var(--bg-secondary))
-  );
-  color: var(--text-inverse);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 18%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 16%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  overflow: hidden;
 }
 
-.guest-navbar__brand-mark :deep(svg) {
-  width: 1rem;
-  height: 1rem;
+.guest-navbar__brand-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .guest-navbar__links {

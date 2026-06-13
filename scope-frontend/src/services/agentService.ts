@@ -1015,13 +1015,13 @@ function buildConversationalAnswer(
       hasRoute
         ? [
             'Anytime. I am here when you want to tune the route, check timing, or sanity-check a stop.',
-            'Of course. When you want the next pass, I can help tighten timing, stops, or budget.',
+            'When you want the next pass, I can help tighten timing, stops, or budget.',
             'You got it. Send the next route detail and I will keep the answer focused.',
             'No problem. I can keep working the route whenever you want another angle.',
           ]
         : [
             'Anytime. When you are ready, give me a start, end, or trip mood and I will help from there.',
-            'Of course. Drop the start, finish, or vibe whenever you want the plan shaped.',
+            'Drop the start, finish, or vibe whenever you want the plan shaped.',
             'You got it. Send the next trip detail and I will help turn it into something usable.',
             'No problem. I am here when you want to move from idea to route.',
           ],

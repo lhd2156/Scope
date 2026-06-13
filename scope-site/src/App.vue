@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { navLinks } from "@/data";
 
 const menuOpen = ref(false);
+const scopeTripsLogoMarkSrc = "/branding/scope-trips-logo-mark.png";
 </script>
 
 <template>
@@ -15,7 +16,9 @@ const menuOpen = ref(false);
         class="brand"
         to="/"
       >
-        <span class="brand-mark">ST</span>
+        <span class="brand-mark" aria-hidden="true">
+          <img :src="scopeTripsLogoMarkSrc" alt="" />
+        </span>
         <span>Scope Trips</span>
       </RouterLink>
       <div
@@ -55,7 +58,9 @@ const menuOpen = ref(false);
         class="brand"
         to="/"
       >
-        <span class="brand-mark">ST</span>
+        <span class="brand-mark" aria-hidden="true">
+          <img :src="scopeTripsLogoMarkSrc" alt="" />
+        </span>
         <span>Scope Trips</span>
       </RouterLink>
       <p>Real spots, smarter routes, and shareable trip plans for curious people.</p>

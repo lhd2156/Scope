@@ -7,9 +7,9 @@ const testFilePath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(testFilePath), '../..');
 const serviceWorkerSource = readFileSync(path.join(projectRoot, 'public/sw.js'), 'utf8');
 const ORIGIN = 'https://scope.local';
-const APP_SHELL_CACHE = 'scope-shell-v4';
-const STATIC_ASSET_CACHE = 'scope-static-v4';
-const NAVIGATION_CACHE = 'scope-navigation-v4';
+const APP_SHELL_CACHE = 'scope-shell-v5';
+const STATIC_ASSET_CACHE = 'scope-static-v5';
+const NAVIGATION_CACHE = 'scope-navigation-v5';
 
 type RequestLike =
   | string
@@ -184,6 +184,9 @@ describe('service worker offline caching', () => {
         '/offline.html',
         '/manifest.webmanifest',
         '/site.webmanifest',
+        '/favicon-64.png',
+        '/branding/scope-trips-logo-mark.png',
+        '/branding/scope-trips-logo-with-name.png',
         '/pwa/icons/icon-192.png',
         '/pwa/icons/icon-512.png',
         '/pwa/icons/icon-maskable-192.png',
