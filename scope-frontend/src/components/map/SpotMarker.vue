@@ -32,8 +32,12 @@
     <span v-if="showLabel" class="spot-marker__label" @click.stop.prevent="emitSelect">
       <span class="spot-marker__label-copy">
         <strong>{{ spot.title }}</strong>
-        <small>
-          {{ cityLine }}<span v-if="spot.rating">&nbsp;* {{ spot.rating.toFixed(1) }}</span>
+        <small class="spot-marker__meta">
+          <span class="spot-marker__city">{{ cityLine }}</span>
+          <span v-if="ratingLabel" class="spot-marker__rating" :aria-label="`Rated ${ratingLabel} out of 5`">
+            <ScopeIcon name="star-filled" />
+            <span>{{ ratingLabel }}</span>
+          </span>
         </small>
         <small v-if="distanceLabel" class="spot-marker__distance">{{ distanceLabel }}</small>
       </span>
@@ -99,6 +103,11 @@ const showPhoto = computed(
 );
 
 const cityLine = computed(() => formatMapPinCityLine(props.spot.city));
+const ratingLabel = computed(() => (
+  typeof props.spot.rating === 'number' && Number.isFinite(props.spot.rating)
+    ? props.spot.rating.toFixed(1)
+    : ''
+));
 </script>
 
 <style scoped>
@@ -197,6 +206,37 @@ const cityLine = computed(() => formatMapPinCityLine(props.spot.city));
 .spot-marker__label-copy small {
   margin-top: var(--space-1);
   color: var(--text-secondary);
+}
+
+.spot-marker__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.spot-marker__city {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spot-marker__rating {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.18rem;
+  color: var(--accent-gold);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.spot-marker__rating :deep(.scope-icon) {
+  width: 1rem;
+  height: 1rem;
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, var(--accent-gold) 32%, transparent));
 }
 
 .spot-marker__distance {
