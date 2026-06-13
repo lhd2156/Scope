@@ -138,4 +138,19 @@ describe('TripShareModal', () => {
     await wrapper.get('[data-test="copy-trip-link"]').trigger('click');
     expect(wrapper.get('[data-test="copy-trip-link"]').text()).toContain('Copy');
   });
+
+  it('keeps private trips invite-only without exposing an anonymous URL', () => {
+    const wrapper = mountModal({
+      trip,
+      shareLink: '',
+    });
+
+    expect(wrapper.text()).toContain('Only invited Scope members can open it');
+    expect(wrapper.get<HTMLInputElement>('[data-test="trip-share-link-input"]').element.value).toBe('');
+    expect(wrapper.get('[data-test="trip-share-link-input"]').attributes('placeholder')).toBe(
+      'Private trips do not have anonymous links',
+    );
+    expect(wrapper.get('[data-test="copy-trip-link"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[data-test="trip-share-form"]').exists()).toBe(true);
+  });
 });

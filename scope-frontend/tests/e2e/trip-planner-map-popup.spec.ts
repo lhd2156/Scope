@@ -865,6 +865,10 @@ test.describe('Trip planner nearby place popover alignment (Mapbox)', () => {
     await page.mouse.click(target.x, target.y);
     await expect(page.locator('.nearby-place-popup').first()).toBeVisible();
     await expect(page.locator('[data-test="nearby-place-add-stop"]').first()).toBeVisible();
+    const popupZIndex = await page.locator('.map-feature-place-popup').first().evaluate((element) =>
+      Number.parseInt(window.getComputedStyle(element).zIndex, 10),
+    );
+    expect(popupZIndex, 'clicked place popup should render above selected route and spot markers').toBeGreaterThan(420);
     await page.waitForTimeout(250);
     await expect(
       page.locator('.nearby-place-popup__photo[data-photo-source="fallback"]'),

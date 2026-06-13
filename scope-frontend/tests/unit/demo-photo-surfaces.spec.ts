@@ -142,10 +142,11 @@ describe('demo photo surfaces', () => {
       },
     });
 
-    // No pravatar face fetched; the component should fall back to the
-    // silhouette icon inside a placeholder-styled avatar ring.
+    // No pravatar face fetched; the shared Avatar should render its neutral
+    // person icon without attempting to load an image.
     expect(wrapper.find('.lazy-image-stub').exists()).toBe(false);
-    expect(wrapper.find('.avatar-silhouette').exists()).toBe(true);
-    expect(wrapper.find('.avatar-ring--placeholder').exists()).toBe(true);
+    expect(wrapper.find('[data-test="profile-avatar"] img').exists()).toBe(false);
+    expect(wrapper.find('[data-test="profile-avatar"] .avatar__placeholder-icon').exists()).toBe(true);
+    expect(wrapper.find('[data-test="profile-avatar"] .avatar--placeholder').exists()).toBe(true);
   });
 });

@@ -586,7 +586,7 @@ async function loadProfileWorkspace(userId: string) {
 
   if (tripsResult.status === 'fulfilled') {
     profileTrips.value = tripsResult.value.data.filter((trip) =>
-      trip.members.some((member) => member.id === profileResult.value.id),
+      trip.isPublic && trip.members.some((member) => member.id === profileResult.value.id),
     );
   }
 

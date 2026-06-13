@@ -18,10 +18,6 @@ describe('ProfileHeader', () => {
     props,
     global: {
       stubs: {
-        LazyImage: {
-          props: ['src', 'alt'],
-          template: '<img class="lazy-image-stub" :src="src" :alt="alt" />',
-        },
         RouterLink: {
           props: ['to'],
           template: '<a :href="typeof to === \'string\' ? to : \'/mock\'"><slot /></a>',
@@ -47,7 +43,7 @@ describe('ProfileHeader', () => {
     expect(wrapper.text()).toContain('Edit preferences');
     expect(wrapper.text()).toContain('View friends');
     expect(wrapper.text()).toContain('Food');
-    expect(wrapper.find('.avatar-ring').exists()).toBe(true);
+    expect(wrapper.find('[data-test="profile-avatar"] .avatar__placeholder-icon').exists()).toBe(true);
   });
 
   it('renders fallback identity copy, avatar media, and presence states for other travelers', async () => {
@@ -73,7 +69,7 @@ describe('ProfileHeader', () => {
     expect(wrapper.text()).toContain('Building a Scope footprint one memorable pin at a time.');
     expect(wrapper.text()).toContain('Planning now');
     expect(wrapper.find('.avatar-presence--planning').exists()).toBe(true);
-    expect(wrapper.find('.lazy-image-stub').attributes('src')).toBe('https://images.example.com/maya.jpg');
+    expect(wrapper.find('[data-test="profile-avatar"] img').attributes('src')).toBe('https://images.example.com/maya.jpg');
     expect(wrapper.find('.badge-adventure').exists()).toBe(true);
     expect(wrapper.find('.badge-other').exists()).toBe(true);
 

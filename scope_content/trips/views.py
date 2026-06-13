@@ -424,6 +424,8 @@ def share_trip(request, pk):
     trip = get_object_or_404(Trip, pk=pk)
     if not is_trip_owner(request.user, trip):
         raise PermissionDenied
+    if not trip.is_public:
+        raise ValidationError({'visibility': ['Make this trip public before creating a share link.']})
     if trip.share_token is None:
         trip.share_token = uuid4()
     trip.share_created_at = timezone.now()
@@ -436,5 +438,8 @@ def share_trip(request, pk):
 
 @api_view(['GET'])
 def shared_trip_detail(request, token):
-    trip = get_object_or_404(with_trip_relations(Trip.objects.all()), share_token=token)
+    trip = get_object_or_404(
+        with_trip_relations(Trip.objects.filter(is_public=True)),
+        share_token=token,
+    )
     return data_response(TripSerializer(trip).data)

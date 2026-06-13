@@ -11,6 +11,9 @@ const {
 } = vi.hoisted(() => ({
   authStoreMock: {
     isAuthenticated: true,
+    hasSessionHint: false,
+    isHydratingSession: false,
+    hasHydratedSession: true,
     error: null as string | null,
     currentUser: null as any,
     logout: vi.fn().mockResolvedValue(undefined),
@@ -108,6 +111,9 @@ describe('Navbar', () => {
       value: 1024,
     });
     authStoreMock.isAuthenticated = true;
+    authStoreMock.hasSessionHint = false;
+    authStoreMock.isHydratingSession = false;
+    authStoreMock.hasHydratedSession = true;
     authStoreMock.error = null;
     authStoreMock.currentUser = null;
     authStoreMock.logout.mockClear();
@@ -641,6 +647,9 @@ describe('Navbar', () => {
 
   it('shows guest actions when no authenticated user is present', async () => {
     authStoreMock.isAuthenticated = false;
+    authStoreMock.hasSessionHint = false;
+    authStoreMock.isHydratingSession = false;
+    authStoreMock.hasHydratedSession = true;
     authStoreMock.currentUser = null;
 
     const router = buildRouter();
@@ -678,6 +687,41 @@ describe('Navbar', () => {
     expect(wrapper.find('[data-test="mobile-drawer"]').exists()).toBe(false);
 
     wrapper.unmount();
+  });
+
+  it('never flashes guest actions while a stored session is being restored', async () => {
+    authStoreMock.isAuthenticated = false;
+    authStoreMock.hasSessionHint = true;
+    authStoreMock.isHydratingSession = true;
+    authStoreMock.hasHydratedSession = false;
+    authStoreMock.currentUser = null;
+
+    const router = buildRouter();
+    await router.push('/');
+    await router.isReady();
+
+    const wrapper = mount(Navbar, {
+      global: {
+        plugins: [router],
+        stubs: {
+          SearchBar: { template: '<div>Search</div>' },
+          ThemeToggle: { template: '<div data-test="theme-toggle-stub">Theme</div>' },
+          Transition: false,
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-test="auth-session-placeholder"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Restoring session');
+    expect(wrapper.text()).not.toContain('Log in');
+    expect(wrapper.text()).not.toContain('Create account');
+    expect(wrapper.find('.feature-menu-button').exists()).toBe(true);
+
+    await wrapper.get('[data-test="mobile-menu-toggle"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.navbar__mobile-account--loading').exists()).toBe(true);
+    expect(wrapper.find('.navbar__mobile-guest-actions').exists()).toBe(false);
   });
 
   it('surfaces quick-search empty and error states and clears stale panels for blank searches', async () => {

@@ -181,12 +181,12 @@ def test_planner_payload_visibility_share_and_delete_cleanup(authenticated_clien
     assert {member['user_id'] for member in trip_data['members']} >= {owner_user_id, invited_user_id}
     assert anonymous_client.get(f'/api/content/trips/{trip_id}').status_code == 404
 
-    share_response = authenticated_client.post(f'/api/content/trips/{trip_id}/share')
-    assert share_response.status_code == 200
-    share_path = share_response.json()['data']['path']
-    shared_response = anonymous_client.get(f"/api/content/trips/share/{share_path.rsplit('/', 1)[-1]}")
-    assert shared_response.status_code == 200
-    assert shared_response.json()['data']['id'] == trip_id
+    private_share_response = authenticated_client.post(f'/api/content/trips/{trip_id}/share')
+    assert private_share_response.status_code == 400
+    assert {
+        'field': 'visibility',
+        'message': 'Make this trip public before creating a share link.',
+    } in private_share_response.json()['error']['details']
 
     public_response = authenticated_client.put(
         f'/api/content/trips/{trip_id}',
@@ -202,6 +202,30 @@ def test_planner_payload_visibility_share_and_delete_cleanup(authenticated_clien
     )
     assert public_response.status_code == 200
     assert anonymous_client.get(f'/api/content/trips/{trip_id}').status_code == 200
+
+    share_response = authenticated_client.post(f'/api/content/trips/{trip_id}/share')
+    assert share_response.status_code == 200
+    share_path = share_response.json()['data']['path']
+    share_token = share_path.rsplit('/', 1)[-1]
+    shared_response = anonymous_client.get(f'/api/content/trips/share/{share_token}')
+    assert shared_response.status_code == 200
+    assert shared_response.json()['data']['id'] == trip_id
+
+    private_again_response = authenticated_client.put(
+        f'/api/content/trips/{trip_id}',
+        {
+            'title': 'German fuel loop',
+            'destination': 'Berlin to Hamburg',
+            'isPublic': False,
+            'startDate': '2026-06-01',
+            'endDate': '2026-06-03',
+            'spots': trip_data['spots'],
+        },
+        format='json',
+    )
+    assert private_again_response.status_code == 200
+    assert anonymous_client.get(f'/api/content/trips/{trip_id}').status_code == 404
+    assert anonymous_client.get(f'/api/content/trips/share/{share_token}').status_code == 404
 
     delete_response = authenticated_client.delete(f'/api/content/trips/{trip_id}')
     assert delete_response.status_code == 204

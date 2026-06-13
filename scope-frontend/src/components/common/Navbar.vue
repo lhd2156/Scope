@@ -21,7 +21,7 @@
           <RouterLink to="/explore">Explore</RouterLink>
           <RouterLink to="/map">Map</RouterLink>
 
-          <div v-if="authStore.isAuthenticated" ref="featureMenuRef" class="feature-menu-shell" @focusout="handleFeatureMenuFocusOut">
+          <div v-if="showAuthenticatedChrome" ref="featureMenuRef" class="feature-menu-shell" @focusout="handleFeatureMenuFocusOut">
             <button
               :id="featureMenuButtonId"
               ref="featureMenuButtonRef"
@@ -245,6 +245,22 @@
           </Transition>
         </div>
 
+        <div
+          v-else-if="isSessionHydrationPending"
+          class="profile-chip profile-chip--loading"
+          data-test="auth-session-placeholder"
+          role="status"
+          aria-label="Restoring your Scope Trips session"
+        >
+          <span class="profile-chip__avatar-shell profile-chip__avatar-shell--loading" aria-hidden="true">
+            <ScopeIcon name="user" />
+          </span>
+          <span class="profile-chip__copy">
+            <strong>Welcome back</strong>
+            <small>Restoring session</small>
+          </span>
+        </div>
+
         <div v-else class="guest-actions">
           <RouterLink class="ghost-link" to="/login">Log in</RouterLink>
           <RouterLink class="accent-link" to="/register">Create account</RouterLink>
@@ -309,6 +325,20 @@
             <strong>{{ authStore.currentUser.displayName }}</strong>
             <p>{{ profileMetaLine }}</p>
             <span class="navbar__mobile-account-chip">{{ mobileDrawerStatus }}</span>
+          </div>
+        </div>
+
+        <div
+          v-else-if="isSessionHydrationPending"
+          class="navbar__mobile-account navbar__mobile-account--loading surface-card"
+          role="status"
+        >
+          <span class="navbar__mobile-account-placeholder" aria-hidden="true">
+            <ScopeIcon name="user" />
+          </span>
+          <div class="navbar__mobile-account-copy">
+            <strong>Welcome back</strong>
+            <p>Restoring your Scope Trips session...</p>
           </div>
         </div>
 
@@ -438,6 +468,10 @@
             <span>Log out</span>
           </button>
 
+          <span v-else-if="isSessionHydrationPending" class="navbar__mobile-session-status" role="status">
+            Restoring session...
+          </span>
+
           <div v-else class="navbar__mobile-guest-actions">
             <RouterLink class="navbar__mobile-secondary" to="/login" @click="closeMobileMenu()">Log in</RouterLink>
             <RouterLink class="navbar__mobile-primary" to="/register" @click="closeMobileMenu()">Create account</RouterLink>
@@ -482,6 +516,13 @@ const authStore = useAuthStore();
 const toastStore = useToastStore();
 const route = useRoute();
 const router = useRouter();
+const isSessionHydrationPending = computed(() =>
+  !authStore.currentUser &&
+  (authStore.isHydratingSession || (authStore.hasSessionHint && !authStore.hasHydratedSession)),
+);
+const showAuthenticatedChrome = computed(() =>
+  authStore.isAuthenticated || isSessionHydrationPending.value,
+);
 const searchQuery = ref('');
 const quickSearchResults = ref<SearchResult[]>([]);
 const quickSearchRecommendations = ref<SearchPlaceSuggestion[]>([]);
@@ -2249,10 +2290,39 @@ onBeforeUnmount(() => {
   transform: translateY(0) scale(0.97);
 }
 
+.profile-chip--loading {
+  min-width: 11.5rem;
+  cursor: default;
+}
+
+.profile-chip--loading:hover,
+.profile-chip--loading:focus-visible,
+.profile-chip--loading:active {
+  transform: none;
+  border-color: color-mix(in srgb, var(--glass-border) 96%, transparent);
+  background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 12%, transparent),
+    0 1rem 2rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
+}
+
 .profile-chip__avatar-shell {
   position: relative;
   display: inline-grid;
   border-radius: var(--radius-full);
+}
+
+.profile-chip__avatar-shell--loading {
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.profile-chip__avatar-shell--loading :deep(.scope-icon) {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .profile-chip__avatar-shell::after {
@@ -2683,6 +2753,21 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.navbar__mobile-account-placeholder {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.navbar__mobile-account-placeholder :deep(.scope-icon) {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .navbar__mobile-account-copy {
   min-width: 0;
   display: grid;
@@ -2856,6 +2941,15 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.navbar__mobile-session-status {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
 }
 
 .navbar-mobile-backdrop-enter-active,

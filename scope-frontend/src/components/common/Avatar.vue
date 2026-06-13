@@ -12,12 +12,18 @@
       @load="onImageLoad"
       @error="onImageError"
     />
-    <span v-if="isPlaceholder" class="avatar__initials" aria-hidden="true">{{ initials }}</span>
+    <ScopeIcon
+      v-if="isPlaceholder"
+      class="avatar__placeholder-icon"
+      name="user"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import ScopeIcon from '@/components/common/ScopeIcon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -47,16 +53,6 @@ watch(
 const imageSource = computed(() => props.src?.trim() ?? '');
 const hasImage = computed(() => imageSource.value.length > 0);
 const isPlaceholder = computed(() => !hasImage.value || failed.value || !loaded.value);
-const initials = computed(() => {
-  const nameParts = props.name.trim().split(/\s+/).filter(Boolean);
-  if (!nameParts.length) {
-    return '?';
-  }
-
-  const firstInitial = nameParts[0]?.charAt(0) ?? '';
-  const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1]?.charAt(0) ?? '' : '';
-  return `${firstInitial}${lastInitial}`.toUpperCase();
-});
 const avatarStyle = computed(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
@@ -113,11 +109,9 @@ function onImageLoad() {
   opacity: 1;
 }
 
-.avatar__initials {
-  font-size: inherit;
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
-  letter-spacing: 0;
-  text-shadow: 0 1px 8px color-mix(in srgb, var(--bg-primary) 70%, transparent);
+.avatar__placeholder-icon {
+  width: 58%;
+  height: 58%;
+  color: var(--text-secondary);
 }
 </style>

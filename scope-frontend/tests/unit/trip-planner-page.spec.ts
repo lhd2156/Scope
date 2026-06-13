@@ -4978,6 +4978,7 @@ describe('TripPlannerPage', () => {
     await flushPromises();
 
     expect(tripsStoreMock.createTrip).toHaveBeenCalledTimes(1);
+    expect(tripsStoreMock.createShareLink).not.toHaveBeenCalled();
     expect(wrapper.get('[data-test="direct-share-modal"]').text()).toBe('open');
   });
 

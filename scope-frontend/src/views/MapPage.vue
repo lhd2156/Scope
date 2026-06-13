@@ -301,6 +301,7 @@
             :auto-resolve-route-geometry="false"
             :selected-spot-id="mapStore.selectedSpotId"
             :initial-viewport="mapBaseViewport"
+            :reset-viewport="mapResetViewport"
             :label-mode="mapLabelMode"
             :show-place-labels="true"
             map-presentation="scope"
@@ -379,7 +380,7 @@ import { analyticsPageEngagementTracker } from '@/services/analyticsService';
 import { LOCAL_PREVIEW_ENABLED, localFallbackEnabled } from '@/services/demoMode';
 import { getDefaultDiscoveryMapViewport, resolveHomeBaseMapViewport } from '@/services/mapViewportService';
 import { resolveRoadRoute, type RoadRouteSummary } from '@/services/roadRouteService';
-import { cloneMapViewport } from '@/config/mapViewport';
+import { cloneMapViewport, UNITED_STATES_MAP_VIEWPORT } from '@/config/mapViewport';
 import { useAuthStore } from '@/stores/auth';
 import { useMapStore } from '@/stores/map';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -485,6 +486,7 @@ if (!isMapAuditMode) {
 const isMobileMapLayout = ref(false);
 const mapSidebarRef = ref<HTMLElement | null>(null);
 const mapBaseViewport = ref<MapViewport>(getDefaultDiscoveryMapViewport());
+const mapResetViewport = cloneMapViewport(UNITED_STATES_MAP_VIEWPORT);
 const isMapSidebarScrolled = ref(false);
 const roadRoute = ref<RoadRouteSummary | null>(null);
 const roadRouteLoading = ref(false);

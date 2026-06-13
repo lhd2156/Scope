@@ -388,6 +388,28 @@ describe('ProfilePage', () => {
     expect(wrapper.find('[data-test="profile-saved-spots"]').exists()).toBe(false);
   });
 
+  it('never renders private trips returned by an upstream profile request', async () => {
+    listPublicTripsMock.mockResolvedValueOnce({
+      data: [
+        fixtures.trips[0],
+        {
+          ...fixtures.trips[0],
+          id: 'private-trip',
+          title: 'Private profile route',
+          isPublic: false,
+        },
+      ],
+    });
+
+    const wrapper = mountProfilePage();
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('North Texas Night + Food Loop');
+    expect(wrapper.text()).not.toContain('Private profile route');
+    expect(wrapper.findAll('.trip-card-stub')).toHaveLength(1);
+  });
+
   it('ignores stale workspace responses after a fast profile route change', async () => {
     const firstProfile = createDeferred<typeof fixtures.profile>();
     const secondProfile = createDeferred<typeof fixtures.profile>();

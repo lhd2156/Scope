@@ -2,15 +2,13 @@
   <header class="profile-header" data-test="profile-header">
     <div class="profile-header__row">
       <div class="avatar-shell" data-test="profile-avatar">
-        <div class="avatar-ring" :class="{ 'avatar-ring--placeholder': !avatarSource }">
-          <LazyImage
-            v-if="avatarSource"
-            :src="avatarSource"
-            :alt="`${user.displayName} profile photo`"
-            class="avatar-image"
-          />
-          <ScopeIcon v-else class="avatar-silhouette" name="user" label="Default profile picture" />
-        </div>
+        <Avatar
+          :name="user.displayName"
+          :src="user.avatarUrl"
+          :size="88"
+          :label="`${user.displayName} profile picture`"
+          class="profile-avatar"
+        />
         <span v-if="presenceLabel" class="avatar-presence" :class="`avatar-presence--${presence}`" :aria-label="presenceLabel" />
       </div>
 
@@ -72,8 +70,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
+import Avatar from '@/components/common/Avatar.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
-import LazyImage from '@/components/common/LazyImage.vue';
 import type { FriendPresence, SpotCategory, UserProfile } from '@/types';
 
 const props = withDefaults(
@@ -102,7 +100,6 @@ type BioSegment =
   | { type: 'link'; text: string; href: string };
 
 const bioCopy = computed(() => props.user.bio?.trim() || 'Building a Scope footprint one memorable pin at a time.');
-const avatarSource = computed(() => props.user.avatarUrl?.trim() ?? '');
 const bioSegments = computed(() => linkifyBioCopy(bioCopy.value));
 const presenceLabel = computed(() => {
   switch (props.presence) {
@@ -219,37 +216,9 @@ function linkifyBioCopy(value: string): BioSegment[] {
   flex-shrink: 0;
 }
 
-.avatar-ring {
-  width: 100%;
-  height: 100%;
-  padding: 2px;
-  border-radius: var(--radius-full);
+.avatar-shell :deep(.profile-avatar) {
   border: 2px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
-  background: var(--bg-primary);
-}
-
-.avatar-image,
-.avatar-silhouette {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-full);
-}
-
-.avatar-image {
-  display: block;
-  object-fit: cover;
-  background: var(--bg-tertiary);
-}
-
-.avatar-silhouette {
-  display: block;
-  padding: 22%;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.avatar-ring--placeholder {
-  background: var(--bg-tertiary);
+  background-color: var(--bg-tertiary);
 }
 
 .avatar-presence {
