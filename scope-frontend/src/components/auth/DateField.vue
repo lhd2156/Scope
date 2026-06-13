@@ -23,7 +23,6 @@
         :aria-invalid="Boolean(error)"
         :aria-describedby="describedBy"
         aria-haspopup="dialog"
-        :aria-expanded="open"
         spellcheck="false"
         @keydown="handleInputKeydown"
         @input="handleInputEvent"

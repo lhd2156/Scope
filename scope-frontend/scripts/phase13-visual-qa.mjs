@@ -10,6 +10,7 @@ const DEFAULT_SETTLE_MS = 2200;
 const ROUTE_TIMEOUT_MS = 45000;
 const IMAGE_SETTLE_TIMEOUT_MS = 20000;
 const AUTO_SCROLL_STEP_DELAY_MS = 250;
+const ALLOW_FALLBACK_NETWORK_ERRORS = process.env.SCOPE_VISUAL_ALLOW_FALLBACK_NETWORK_ERRORS === 'true';
 const MOCK_REFRESH_PAYLOAD = {
   id: 'user-1',
   username: 'louisdo',
@@ -23,20 +24,30 @@ const guestRoutes = [
   { slug: 'home', path: '/', readySelector: '#home-hero-title' },
   { slug: 'explore', path: '/explore', readySelector: '.explore-page .discovery-shell h1' },
   { slug: 'map', path: '/map', readySelector: '.map-page .filter-panel h1', settleMs: 3000 },
-  { slug: 'spot-detail', path: '/spots/spot-1', readySelector: '[data-test="spot-gallery"]', settleMs: 2800 },
+  {
+    slug: 'spot-detail',
+    path: '/spots/sunset-rooftop-tacos-fort-worth',
+    readySelector: '[data-test="spot-gallery"]',
+    settleMs: 2800,
+  },
   { slug: 'login', path: '/login', readySelector: '.auth-card__header h2' },
   { slug: 'register', path: '/register', readySelector: '.auth-card__header h2' },
   { slug: 'not-found', path: '/missing/path', readySelector: '.state-card h2' },
 ];
 
 const authRoutes = [
-  { slug: 'friends', path: '/friends', readySelector: '.friends-page .network-shell h1' },
+  { slug: 'friends', path: '/friends', readySelector: '[data-test="network-panel"]' },
   { slug: 'profile', path: '/profile/user-1', readySelector: '.profile-page .profile-hero', settleMs: 2800 },
-  { slug: 'settings', path: '/settings', readySelector: '.settings-page .settings-shell h1' },
+  { slug: 'settings', path: '/settings', readySelector: '[data-test="settings-section-profile"]' },
   { slug: 'trip-planner', path: '/trips/new', readySelector: '[data-test="trip-planner"]', settleMs: 2800 },
   { slug: 'trip-detail', path: '/trips/trip-1', readySelector: '[data-test="trip-detail"]', settleMs: 2800 },
   { slug: 'spot-create', path: '/spots/new', readySelector: '[data-test="spot-form"]' },
-  { slug: 'spot-edit', path: '/spots/spot-1/edit', readySelector: '[data-test="spot-form"]', settleMs: 2600 },
+  {
+    slug: 'spot-edit',
+    path: '/spots/sunset-rooftop-tacos-fort-worth/edit',
+    readySelector: '[data-test="spot-form"]',
+    settleMs: 2600,
+  },
 ];
 
 function sanitizePath(routePath) {
@@ -73,13 +84,24 @@ function buildScreenshotPath(theme, slug) {
 async function attachDiagnostics(page, summary) {
   page.on('console', (message) => {
     if (message.type() === 'error') {
-      summary.consoleErrors.push({ route: summary.currentRoute ?? 'unknown', text: message.text() });
+      const text = message.text();
+      if (!isAllowedFallbackNetworkError(text)) {
+        summary.consoleErrors.push({ route: summary.currentRoute ?? 'unknown', text });
+      }
     }
   });
 
   page.on('pageerror', (error) => {
     summary.pageErrors.push({ route: summary.currentRoute ?? 'unknown', text: error.message });
   });
+}
+
+function isAllowedFallbackNetworkError(text) {
+  return (
+    ALLOW_FALLBACK_NETWORK_ERRORS &&
+    /^Failed to load resource:/.test(text) &&
+    /net::ERR_(CONNECTION_REFUSED|FAILED|UNSAFE_PORT)|status of 404/.test(text)
+  );
 }
 
 async function createInstrumentedPage(context, summary) {
@@ -272,8 +294,8 @@ async function signIn(page, theme, summary) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 0 });
   await waitForPageSettled(page, loginRoute);
 
-  await page.locator('input[type="email"]').fill('louis@example.com');
-  await page.locator('input[type="password"]').fill('SecurePass123!');
+  await page.getByLabel('Email, phone, or display name').fill('louis@example.com');
+  await page.locator('input[autocomplete="current-password"]').fill('SecurePass123!');
   await Promise.all([
     page.waitForURL((url) => url.pathname === '/map', { timeout: 0 }),
     page.getByRole('button', { name: 'Sign In' }).click(),

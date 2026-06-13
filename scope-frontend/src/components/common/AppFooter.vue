@@ -187,7 +187,7 @@ const footerGroups: FooterGroup[] = [
   gap: var(--space-4);
   padding-top: var(--space-6);
   border-top: 1px solid color-mix(in srgb, var(--glass-border) 68%, transparent);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-caption);
 }
 
