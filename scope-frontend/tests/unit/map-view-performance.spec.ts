@@ -2911,8 +2911,8 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
     let popup = wrapper.find('.map-feature-place-popup');
     expect(popup.exists()).toBe(true);
     expect(popup.text()).toContain('QuikTrip');
-    expect(popup.find('[data-photo-source="fallback"]').exists()).toBe(false);
-    expect(popup.find('[data-test="nearby-place-photo"]').exists()).toBe(false);
+    expect(popup.find('[data-photo-source="fallback"]').exists()).toBe(true);
+    expect(popup.find('[data-test="nearby-place-photo"]').exists()).toBe(true);
     expect(getPlacePhoto).toHaveBeenCalledWith(expect.objectContaining({
       title: 'QuikTrip',
     }));
@@ -3714,16 +3714,19 @@ describe('MapView performance-sensitive camera and theme transitions', () => {
     expect(hooks.buildNearbyPlaceMarkerId({ ...pin, id: '' }, 2)).toContain('Scope Cafe');
     expect(hooks.buildNearbyPlaceMarkerSignature(pin)).toContain('Scope Cafe');
 
-    const activePin = hooks.upsertMapFeaturePlacePin(pin, { activate: true });
     instance.zoom = 12;
     instance.renderedFeatures = [];
-    expect(hooks.isMapFeaturePlacePopupPreciseEnough(instance, activePin)).toBe(false);
+    expect(hooks.isMapFeaturePlacePopupPreciseEnough(instance, pin)).toBe(false);
     instance.zoom = 16;
     instance.renderedFeatures = [feature];
+    const activePin = hooks.upsertMapFeaturePlacePin(pin, { activate: true });
     expect(hooks.isMapFeaturePlacePopupPreciseEnough(instance, activePin)).toBe(true);
     expect(hooks.resolveMapFeaturePlacePopupAnchor(instance, activePin)).toMatch(/top|bottom/);
     hooks.syncMapFeaturePlacePopup();
     await nextTick();
+    expect(container.querySelector('[data-test="nearby-place-popup-close"]')).not.toBeNull();
+    expect(container.querySelector('[data-test="nearby-place-photo"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('<span aria-hidden');
 
     hooks.handleRenderedMapFeatureHover({
       point: { x: 100, y: 100 },
