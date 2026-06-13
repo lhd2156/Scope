@@ -98,7 +98,7 @@ class PhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Photo
         fields = ['id', 'spot', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'created_at']
-        read_only_fields = ['id', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'created_at']
+        read_only_fields = ['id', 'spot', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'created_at']
 
     def validate_caption(self, value: str) -> str:
         return value.strip()

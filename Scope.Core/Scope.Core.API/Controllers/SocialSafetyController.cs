@@ -54,8 +54,12 @@ public sealed class SocialSafetyController(CoreDbContext dbContext) : Controller
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             dbContext.UserBlocks.Add(block);
-            await dbContext.SaveChangesAsync(cancellationToken);
         }
+
+        dbContext.Friendships.RemoveRange(dbContext.Friendships.Where(
+            x => (x.RequesterId == userId && x.AddresseeId == blockedUserId)
+                || (x.RequesterId == blockedUserId && x.AddresseeId == userId)));
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new ApiResponse<object>(block));
     }

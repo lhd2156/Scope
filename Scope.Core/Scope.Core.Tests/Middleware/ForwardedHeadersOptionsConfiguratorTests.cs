@@ -61,6 +61,7 @@ public sealed class ForwardedHeadersOptionsConfiguratorTests
     [Theory]
     [InlineData(ForwardedHeadersOptionsConfigurator.KnownProxiesKey, "not-an-ip")]
     [InlineData(ForwardedHeadersOptionsConfigurator.KnownNetworksKey, "10.0.0.0")]
+    [InlineData(ForwardedHeadersOptionsConfigurator.KnownNetworksKey, "10.0.0.0/-1")]
     [InlineData(ForwardedHeadersOptionsConfigurator.KnownNetworksKey, "2001:db8::/129")]
     [InlineData(ForwardedHeadersOptionsConfigurator.ForwardLimitKey, "0")]
     [InlineData(ForwardedHeadersOptionsConfigurator.ForwardLimitKey, "many")]

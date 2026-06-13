@@ -342,6 +342,48 @@ describe('trip planner intel service contracts', () => {
     expect(response.radiusKm).toBeUndefined();
   });
 
+  it('applies nullish fuel metadata defaults from sparse backend payloads', async () => {
+    apiMock.get.mockResolvedValue({
+      data: {
+        configured: true,
+        stations: [
+          {
+            id: undefined,
+            name: undefined,
+            address: undefined,
+            pricePerUnit: undefined,
+            distanceKm: undefined,
+          },
+        ],
+      },
+    });
+
+    const service = await import('@/services/fuelPriceService');
+    const response = await service.getNearbyFuelStations({
+      latitude: 36.1627,
+      longitude: -86.7816,
+      radiusKm: 6,
+      limit: 1,
+    });
+
+    expect(response).toMatchObject({
+      configured: true,
+      coverage: '',
+      source: 'Google Places',
+      stations: [
+        {
+          id: 'Fuel station',
+          name: 'Fuel station',
+          address: '',
+          fuelType: 'all',
+          currency: 'USD',
+          pricePerUnit: null,
+          distanceKm: undefined,
+        },
+      ],
+    });
+  });
+
   it('uses the local development Google fuel proxy before falling back to demo data', async () => {
     vi.stubEnv('MODE', 'development');
     apiMock.get.mockRejectedValue(new Error('fuel endpoint unavailable'));
@@ -438,6 +480,38 @@ describe('trip planner intel service contracts', () => {
     expect(response.stations[0]?.pricePerUnit).toBeGreaterThan(3.5);
   });
 
+  it('maps all-fuel demo lookups to regular prices and tolerates unknown runtime fuel types', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    vi.stubEnv('VITE_ENABLE_DEMO_FUEL_PRICES', 'true');
+    apiMock.get.mockRejectedValue(new Error('fuel endpoint unavailable'));
+
+    const service = await import('@/services/fuelPriceService');
+    const allFuel = await service.getNearbyFuelStations({
+      latitude: 35.221,
+      longitude: -101.831,
+      radiusKm: 4,
+      fuelType: 'all',
+      limit: 1,
+    });
+    const unknownFuel = await service.getNearbyFuelStations({
+      latitude: 35.221,
+      longitude: -101.831,
+      radiusKm: 4,
+      fuelType: 'synthetic' as never,
+      limit: 1,
+    });
+
+    expect(allFuel.stations).toHaveLength(1);
+    expect(allFuel.stations[0]).toMatchObject({
+      fuelType: 'regular',
+      currency: 'USD',
+    });
+    expect(unknownFuel.stations[0]).toMatchObject({
+      fuelType: 'synthetic',
+      pricePerUnit: allFuel.stations[0]?.pricePerUnit,
+    });
+  });
+
   it('uses safe fuel defaults and ignores unavailable development proxy payloads before fallback caching', async () => {
     vi.stubEnv('MODE', 'development');
     apiMock.get.mockRejectedValue(new Error('fuel endpoint unavailable'));
@@ -499,6 +573,136 @@ describe('trip planner intel service contracts', () => {
       stations: [],
     });
     expect(cachedUnavailable).toBe(unavailable);
+  });
+
+  it('normalizes direct-array Intel spot recommendations', async () => {
+    apiMock.post.mockResolvedValue({
+      data: [
+        {
+          id: 'spot-direct-1',
+          title: '  Direct Array Cafe  ',
+          latitude: 30.2672,
+          longitude: -97.7431,
+          category: 'food',
+          rating: 4.5,
+          createdAt: '2026-05-20T12:00:00.000Z',
+        },
+      ],
+    });
+
+    const service = await import('@/services/intelService');
+    const response = await service.recommendSpots({
+      destination: 'Austin, TX',
+      interests: ['food'],
+      limit: 1,
+    });
+
+    expect(apiMock.post).toHaveBeenCalledWith('/api/intel/recommend/spots', {
+      interests: ['food'],
+      limit: 1,
+    });
+    expect(response.data).toEqual([
+      expect.objectContaining({
+        id: 'spot-direct-1',
+        title: 'Direct Array Cafe',
+        category: 'food',
+        rating: 4.5,
+      }),
+    ]);
+  });
+
+  it('uses the default similar-spots limit and preserves envelope responses', async () => {
+    apiMock.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: 'similar-spot-1',
+            title: 'Similar Trail',
+            latitude: 36.12,
+            longitude: -115.17,
+            category: 'nature',
+            rating: 4.7,
+            createdAt: '2026-05-21T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    const service = await import('@/services/intelService');
+    const response = await service.recommendSimilarSpots('source-spot-1');
+
+    expect(apiMock.post).toHaveBeenCalledWith('/api/intel/recommend/similar/source-spot-1', {
+      limit: 4,
+    });
+    expect(response.data[0]).toMatchObject({
+      id: 'similar-spot-1',
+      title: 'Similar Trail',
+      category: 'nature',
+    });
+  });
+
+  it('normalizes direct-array Intel vibe matches', async () => {
+    apiMock.post.mockResolvedValue({
+      data: [
+        {
+          id: 'vibe-direct-1',
+          title: 'Neon Market',
+          latitude: 36.1699,
+          longitude: -115.1398,
+          category: 'nightlife',
+          rating: 4.2,
+          createdAt: '2026-05-22T12:00:00.000Z',
+        },
+      ],
+    });
+
+    const service = await import('@/services/intelService');
+    const response = await service.vibeMatch({
+      vibe: 'late night lights',
+      limit: 1,
+    });
+
+    expect(apiMock.post).toHaveBeenCalledWith('/api/intel/vibe-match', {
+      description: 'late night lights',
+      limit: 1,
+    });
+    expect(response.data[0]).toMatchObject({
+      id: 'vibe-direct-1',
+      title: 'Neon Market',
+      category: 'nightlife',
+    });
+  });
+
+  it('uses the default vibe fallback limit when Intel matching is offline', async () => {
+    vi.stubEnv('VITE_ENABLE_INTEL_MOCK_FALLBACK', 'true');
+    apiMock.post.mockRejectedValue(new Error('intel matcher offline'));
+
+    const service = await import('@/services/intelService');
+    const response = await service.vibeMatch({
+      vibe: '',
+    });
+
+    expect(response.data).toHaveLength(4);
+  });
+
+  it('treats route optimization responses without ordered spots as an empty route', async () => {
+    apiMock.post.mockResolvedValue({
+      data: {
+        estimatedDistance: 0,
+      },
+    });
+
+    const service = await import('@/services/intelService');
+    const response = await service.optimizeRoute({
+      points: [],
+    });
+
+    expect(apiMock.post).toHaveBeenCalledWith('/api/intel/route/optimize', {
+      spots: [],
+      startLat: undefined,
+      startLng: undefined,
+    });
+    expect(response.data).toEqual([]);
   });
 
   it('rejects malformed backend weather when client fallback is disabled', async () => {

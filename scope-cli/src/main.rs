@@ -1587,7 +1587,7 @@ mod tests {
 
     #[test]
     fn split_sql_batches_respects_go_boundaries() {
-        let sql = "SELECT 1\nGO\n\nSELECT 2\n go \nSELECT 3\n";
+        let sql = "GO\nSELECT 1\nGO\n\nSELECT 2\n go \nGO\nSELECT 3\n";
         let batches = split_sql_batches(sql);
 
         assert_eq!(batches, vec!["SELECT 1", "SELECT 2", "SELECT 3"]);
@@ -1681,13 +1681,14 @@ EXTRA_KEY=1\n\
     #[test]
     fn parses_sql_server_connection_strings() {
         let parsed = parse_connection_string(
-            "Server=sqlserver,1433;Database=ScopeDb;User Id=sa;Password=secret;TrustServerCertificate=True;",
+            "Server=sqlserver,1433;Database=ScopeDb;User Id=sa;Password=secret;TrustServerCertificate=True;=ignored;",
         );
 
         assert_eq!(parsed.get("server"), Some(&"sqlserver,1433".to_string()));
         assert_eq!(parsed.get("database"), Some(&"ScopeDb".to_string()));
         assert_eq!(parsed.get("user id"), Some(&"sa".to_string()));
         assert_eq!(parsed.get("password"), Some(&"secret".to_string()));
+        assert!(!parsed.contains_key(""));
     }
 
     #[test]
@@ -1884,6 +1885,28 @@ EXTRA_KEY=1\n\
         .await
         .expect_err("unhealthy service should fail");
         assert!(error.to_string().contains("Health checks failed for: bad"));
+
+        let context = AppContext {
+            config: ScopeConfig {
+                services: vec![ServiceTarget {
+                    name: "broken".to_string(),
+                    health_url: "not a url".to_string(),
+                }],
+                seed_directory: PathBuf::from("scripts/sql"),
+                env_file: PathBuf::from(".env"),
+                env_example_file: PathBuf::from(".env.example"),
+            },
+        };
+        let error = run_health(
+            HealthArgs {
+                verbose: true,
+                timeout_seconds: 1.0,
+            },
+            &context,
+        )
+        .await
+        .expect_err("invalid verbose service should fail without an HTTP status");
+        assert!(error.to_string().contains("Health checks failed for: broken"));
     }
 
     #[tokio::test]
@@ -2006,6 +2029,37 @@ EXTRA_KEY=1\n\
         assert!(error.to_string().contains("No SQL files"));
     }
 
+    #[tokio::test]
+    async fn run_seed_execute_validates_database_config_before_connecting() {
+        let directory = tempdir().expect("tempdir");
+        let seed_dir = directory.path().join("scripts").join("sql");
+        fs::create_dir_all(seed_dir.join("core")).expect("seed dir");
+        fs::write(seed_dir.join("core").join("001_core.sql"), "SELECT 1;\nGO\n").expect("sql");
+        let env_file = directory.path().join(".env");
+        fs::write(&env_file, "SCOPE_DB_PORT=not-a-port\n").expect("env");
+        let context = AppContext {
+            config: ScopeConfig {
+                services: vec![],
+                seed_directory: seed_dir,
+                env_file,
+                env_example_file: directory.path().join(".env.example"),
+            },
+        };
+
+        let error = run_seed(
+            SeedArgs {
+                directory: None,
+                env_file: None,
+                dry_run: false,
+            },
+            &context,
+        )
+        .await
+        .expect_err("execute mode should validate database settings before connecting");
+
+        assert!(error.to_string().contains("Invalid database port"));
+    }
+
     #[test]
     fn seed_plan_counts_batches_and_sorts_unknown_services_last() {
         let directory = tempdir().expect("tempdir");
@@ -2054,6 +2108,10 @@ EXTRA_KEY=1\n\
         assert_eq!(
             expanded,
             "SELECT N'pa''ss$(DB_USER)' AS password, N'scope_app' AS username, N'$(UNKNOWN)' AS unknown;"
+        );
+        assert_eq!(
+            expand_seed_sql_variables("SELECT '$(DB_PASSWORD", &config),
+            "SELECT '$(DB_PASSWORD"
         );
     }
 
@@ -2136,6 +2194,12 @@ SCOPE_DB_TRUST_CERT=false
             "IF DB_ID(N'scope]prod''s') IS NULL CREATE DATABASE [scope]]prod's];"
         );
         assert!(connect_sql(&config).await.is_err());
+        assert!(connect_sql(&DatabaseConfig {
+            trust_cert: false,
+            ..config.clone()
+        })
+        .await
+        .is_err());
         assert!(ensure_database_exists(&config).await.is_err());
     }
 
@@ -2197,14 +2261,20 @@ CORE_JWT_SECRET=real-secret
         assert!(message.contains("port conflicts"));
         assert!(message.contains("https certificate checks"));
 
+        let nginx_listener = TcpListener::bind("127.0.0.1:0").expect("nginx listener");
+        let core_listener = TcpListener::bind("127.0.0.1:0").expect("core listener");
         fs::write(
             &env_file,
-            "\
-NGINX_PORT=45671
-CORE_PORT=45672
+            format!(
+                "\
+NGINX_PORT={}
+CORE_PORT={}
 SA_PASSWORD=real-password
 CORE_JWT_SECRET=real-secret
 ",
+                nginx_listener.local_addr().expect("nginx address").port(),
+                core_listener.local_addr().expect("core address").port()
+            ),
         )
         .expect("env");
         run_deploy_validate_with_runner(
@@ -2219,6 +2289,29 @@ CORE_JWT_SECRET=real-secret
         )
         .await
         .expect("fake process runner and valid env should pass");
+
+        fs::write(
+            &env_file,
+            "\
+NGINX_PORT=45671
+CORE_PORT=45672
+SA_PASSWORD=real-password
+",
+        )
+        .expect("env");
+        let env_error = run_deploy_validate_with_runner(
+            DeployValidateArgs {
+                env_file: env_file.clone(),
+                example_file: example_file.clone(),
+                compose_file: compose_file.clone(),
+                https_urls: vec![],
+                timeout_seconds: 1.0,
+            },
+            &runner,
+        )
+        .await
+        .expect_err("missing required env should fail deploy validation");
+        assert!(env_error.to_string().contains("environment contract"));
 
         let failing_runner = |_program: &str, _args: &[&str], _working_directory: &Path| -> CliResult<String> {
             Err(boxed_error("tool unavailable"))
@@ -2419,6 +2512,17 @@ NO_EQUALS
             placeholder_keys: vec!["SA_PASSWORD".to_string()],
             populated_keys: 3,
         };
+        assert!(!empty_report.has_failures(true));
+        let blank_only_report = EnvCheckReport {
+            env_file: directory.path().join(".env"),
+            example_file: directory.path().join(".env.example"),
+            missing_required: vec![],
+            blank_required: vec!["DJANGO_SECRET_KEY".to_string()],
+            extra_keys: vec![],
+            placeholder_keys: vec![],
+            populated_keys: 1,
+        };
+        assert!(blank_only_report.has_failures(false));
         assert!(populated_report.has_failures(false));
         assert!(populated_report.has_failures(true));
         print_env_check_report(&populated_report, false);

@@ -74,6 +74,7 @@ def _run_content_settings(monkeypatch, **env):
         "DJANGO_DATABASE_REPLICA_URL",
         "DJANGO_DATABASE_URL",
         "DJANGO_DEBUG",
+        "DJANGO_MSSQL_EXTRA_PARAMS",
         "DJANGO_SECRET_KEY",
         "FRONTEND_ORIGIN",
         "SENTRY_DSN",
@@ -119,12 +120,12 @@ def test_content_settings_env_import_branches_for_prod_debug_and_fallbacks(monke
 
     prod_settings = _run_content_settings(
         monkeypatch,
-        CORE_JWT_SECRET="core-secret-for-content-coverage",
+        CORE_JWT_SECRET="core-secret-for-content-coverage-32",
         DEBUG="false",
         DJANGO_CACHE_BACKEND="django.core.cache.backends.redis.RedisCache",
         DJANGO_DATABASE_REPLICA_URL="postgres://replica_user:secret@replica:5432/content_replica,sqlite:///replica.sqlite",
         DJANGO_DATABASE_URL="mssql://scope_user:scope_pass@sql.example:1433/content",
-        DJANGO_SECRET_KEY="secure-content-secret-for-prod-coverage",
+        DJANGO_SECRET_KEY="secure-content-secret-for-prod-coverage-32",
         FRONTEND_ORIGIN="https://scope.example/",
         SENTRY_DSN="https://public@example.invalid/1",
         SENTRY_ENVIRONMENT="staging",
@@ -136,6 +137,7 @@ def test_content_settings_env_import_branches_for_prod_debug_and_fallbacks(monke
 
     assert prod_settings["CORS_ALLOWED_ORIGINS"] == ["https://scope.example"]
     assert prod_settings["DATABASES"]["default"]["ENGINE"] == "mssql"
+    assert prod_settings["DATABASES"]["default"]["OPTIONS"]["extra_params"] == "Encrypt=yes;TrustServerCertificate=no"
     assert prod_settings["DATABASES"]["replica"]["ENGINE"] == "django.db.backends.postgresql"
     assert prod_settings["DATABASES"]["replica_1"]["ENGINE"] == "django.db.backends.sqlite3"
     assert prod_settings["DATABASE_ROUTERS"] == ["common.db_router.PrimaryReplicaRouter"]
@@ -169,31 +171,41 @@ def test_content_settings_env_import_branches_for_prod_debug_and_fallbacks(monke
             FRONTEND_ORIGIN="https://scope.example",
         )
 
+    with pytest.raises(content_settings.ImproperlyConfigured, match="placeholder CORE_JWT_SECRET"):
+        _run_content_settings(
+            monkeypatch,
+            CORE_JWT_SECRET="change-me-core-jwt-secret",
+            DEBUG="false",
+            DJANGO_DATABASE_URL="sqlite:///prod.sqlite3",
+            DJANGO_SECRET_KEY="secure-content-secret-for-core-secret-check",
+            FRONTEND_ORIGIN="https://scope.example",
+        )
+
     with pytest.raises(content_settings.ImproperlyConfigured, match="FRONTEND_ORIGIN"):
         _run_content_settings(
             monkeypatch,
-            CORE_JWT_SECRET="core-secret-for-missing-origin",
+            CORE_JWT_SECRET="core-secret-for-missing-origin-32",
             DEBUG="false",
             DJANGO_DATABASE_URL="sqlite:///prod.sqlite3",
-            DJANGO_SECRET_KEY="secure-content-secret",
+            DJANGO_SECRET_KEY="secure-content-secret-for-missing-origin",
         )
 
     with pytest.raises(content_settings.ImproperlyConfigured, match="Unsupported DATABASE_URL scheme"):
         _run_content_settings(
             monkeypatch,
-            CORE_JWT_SECRET="core-secret-for-bad-db",
+            CORE_JWT_SECRET="core-secret-for-bad-db-32-characters",
             DEBUG="false",
             DJANGO_DATABASE_URL="oracle://db/content",
-            DJANGO_SECRET_KEY="secure-content-secret",
+            DJANGO_SECRET_KEY="secure-content-secret-for-bad-db-check",
             FRONTEND_ORIGIN="https://scope.example",
         )
 
     with pytest.raises(content_settings.ImproperlyConfigured, match="DJANGO_DATABASE_URL must be set"):
         _run_content_settings(
             monkeypatch,
-            CORE_JWT_SECRET="core-secret-for-no-db",
+            CORE_JWT_SECRET="core-secret-for-no-db-32-characters",
             DEBUG="false",
-            DJANGO_SECRET_KEY="secure-content-secret",
+            DJANGO_SECRET_KEY="secure-content-secret-for-missing-db",
             FRONTEND_ORIGIN="https://scope.example",
         )
 

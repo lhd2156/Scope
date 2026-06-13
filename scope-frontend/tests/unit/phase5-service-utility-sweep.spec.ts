@@ -90,6 +90,15 @@ describe('Phase 5 service and utility edge coverage', () => {
 
     const unknownSpot = { id: 'unknown', title: 'Unknown', category: 'food', photos: [] };
     expect(enrichStarterSpotGallery(unknownSpot as never)).toBe(unknownSpot);
+
+    const fallbackCategory = enrichStarterSpotGallery({
+      id: 'demo-spot-1',
+      title: 'Fallback Category Gallery',
+      category: 'mystery',
+      photoUrl: 'not-a-url?',
+      photos: [{ id: 'existing', url: 'not-a-url?cache=1' }],
+    } as never);
+    expect(fallbackCategory.photos.map((photo: { caption?: string }) => photo.caption)).toContain('Stockyards texture detail');
   });
 
   it('normalizes image fallback, feed, trip cover, and travel media URLs', async () => {

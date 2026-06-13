@@ -536,6 +536,7 @@ const locationInputRef = ref<HTMLInputElement | null>(null);
 const form = reactive<SettingsFormValue>(cloneSettingsFormValue(props.initialValue));
 const errorMessage = defineModel<string>('errorMessage', { default: '' });
 const selectedLocationLabel = ref(props.initialValue.homeBase.trim());
+const lastAppliedInitialValue = ref<SettingsFormValue>(cloneSettingsFormValue(props.initialValue));
 
 const locationOpen = ref(false);
 const locationLoading = ref(false);
@@ -789,13 +790,80 @@ const isFormDirty = computed(() => {
   return initialCategories !== currentCategories;
 });
 
+function hasSameCategoryPreferences(left: string[], right: string[]): boolean {
+  return [...left].sort().join('|') === [...right].sort().join('|');
+}
+
+function hasSameSettingsFormValue(left: SettingsFormValue, right: SettingsFormValue): boolean {
+  return left.displayName === right.displayName &&
+    left.username === right.username &&
+    left.firstName === right.firstName &&
+    left.lastName === right.lastName &&
+    left.phoneNumber === right.phoneNumber &&
+    left.dateOfBirth === right.dateOfBirth &&
+    left.avatarUrl === right.avatarUrl &&
+    left.bio === right.bio &&
+    left.homeBase === right.homeBase &&
+    left.showActivityStatus === right.showActivityStatus &&
+    left.privacy === right.privacy &&
+    left.tripInvites === right.tripInvites &&
+    left.emailAlerts === right.emailAlerts &&
+    left.themeMode === right.themeMode &&
+    hasSameCategoryPreferences(left.categoryPreferences, right.categoryPreferences);
+}
+
+function mergeIncomingInitialValueIntoUntouchedFields(previousInitial: SettingsFormValue, nextInitial: SettingsFormValue): void {
+  const mutableForm = form as unknown as Record<string, unknown>;
+  const scalarKeys = [
+    'displayName',
+    'username',
+    'firstName',
+    'lastName',
+    'phoneNumber',
+    'dateOfBirth',
+    'avatarUrl',
+    'bio',
+    'homeBase',
+    'showActivityStatus',
+    'privacy',
+    'tripInvites',
+    'emailAlerts',
+    'themeMode',
+  ] as const;
+
+  for (const key of scalarKeys) {
+    if (form[key] === previousInitial[key]) {
+      mutableForm[key] = nextInitial[key];
+    }
+  }
+
+  if (hasSameCategoryPreferences(form.categoryPreferences, previousInitial.categoryPreferences)) {
+    form.categoryPreferences = [...nextInitial.categoryPreferences];
+  }
+}
+
 watch(
   () => props.initialValue,
   (nextValue) => {
-    Object.assign(form, cloneSettingsFormValue(nextValue));
-    selectedLocationLabel.value = nextValue.homeBase.trim();
-    releaseAvatarPreview();
-    errorMessage.value = '';
+    const previousInitial = lastAppliedInitialValue.value;
+    const nextInitial = cloneSettingsFormValue(nextValue);
+    const formMatchesPreviousInitial = hasSameSettingsFormValue(form, previousInitial);
+    const formMatchesNextInitial = hasSameSettingsFormValue(form, nextInitial);
+
+    lastAppliedInitialValue.value = cloneSettingsFormValue(nextInitial);
+
+    if (formMatchesPreviousInitial || formMatchesNextInitial) {
+      Object.assign(form, nextInitial);
+      selectedLocationLabel.value = nextInitial.homeBase.trim();
+      releaseAvatarPreview();
+      errorMessage.value = '';
+      return;
+    }
+
+    mergeIncomingInitialValueIntoUntouchedFields(previousInitial, nextInitial);
+    if (form.homeBase === nextInitial.homeBase) {
+      selectedLocationLabel.value = nextInitial.homeBase.trim();
+    }
   },
   { deep: true },
 );

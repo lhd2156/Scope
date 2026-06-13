@@ -38,6 +38,10 @@ public sealed class FriendsController(
         {
             return NotFound(new ApiResponse<object>(new { message = "User not found" }));
         }
+        if (await IsBlockedEitherWayAsync(requesterId, userId, cancellationToken))
+        {
+            return NotFound(new ApiResponse<object>(new { message = "User not found" }));
+        }
         var duplicate = await dbContext.Friendships.AsNoTracking().AnyAsync(
             x => (x.RequesterId == requesterId && x.AddresseeId == userId) || (x.RequesterId == userId && x.AddresseeId == requesterId),
             cancellationToken);
@@ -197,9 +201,11 @@ public sealed class FriendsController(
     public async Task<IActionResult> Pending(CancellationToken cancellationToken)
     {
         var userId = User.GetRequiredUserId();
+        var blockedUserIds = await GetBlockedEitherWayUserIdsAsync(userId, cancellationToken);
         var rows = await dbContext.Friendships
             .AsNoTracking()
             .Where(x => x.Status == FriendshipStatusPending && x.AddresseeId == userId)
+            .Where(x => !blockedUserIds.Contains(x.RequesterId))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -239,8 +245,9 @@ public sealed class FriendsController(
             .Where(x => x.RequesterId == userId || x.AddresseeId == userId)
             .Select(x => x.RequesterId == userId ? x.AddresseeId : x.RequesterId)
             .ToListAsync(cancellationToken);
+        var blockedUserIds = await GetBlockedEitherWayUserIdsAsync(userId, cancellationToken);
 
-        var excludedIds = linkedUserIds.Append(userId).ToHashSet();
+        var excludedIds = linkedUserIds.Concat(blockedUserIds).Append(userId).ToHashSet();
         var candidates = await dbContext.Users
             .AsNoTracking()
             .Where(x => x.IsActive
@@ -267,18 +274,24 @@ public sealed class FriendsController(
         var suggestions = new List<SuggestionCandidate>();
         foreach (var candidate in candidates)
         {
-            var candidateInterests = ParseInterests(candidate.InterestsJson);
+            var canSeePlanningContext = CanNonFriendSeePlanningContext(candidate);
+            var candidateInterests = canSeePlanningContext
+                ? ParseInterests(candidate.InterestsJson)
+                : Array.Empty<string>();
             var sharedInterests = candidateInterests.Where(currentInterests.Contains).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var mutualFriends = await CountMutualFriendsAsync(userId, candidate.Id, currentFriendIds, cancellationToken);
-            var sameHomeBase = !string.IsNullOrWhiteSpace(currentUser?.HomeBase)
+            var sameHomeBase = canSeePlanningContext
+                && !string.IsNullOrWhiteSpace(currentUser?.HomeBase)
                 && string.Equals(currentUser.HomeBase, candidate.HomeBase, StringComparison.OrdinalIgnoreCase);
-            var presence = await GetPresenceProjectionAsync(candidate.Id, cancellationToken);
+            var presence = canSeePlanningContext
+                ? await GetPresenceProjectionAsync(candidate.Id, cancellationToken)
+                : null;
             var score = (mutualFriends * 12)
                 + (sharedInterests.Length * 4)
                 + (sameHomeBase ? 5 : 0)
                 + (presence?.LastActiveAt > DateTimeOffset.UtcNow.Subtract(OnlineWindow) ? 2 : 0);
 
-            suggestions.Add(new SuggestionCandidate(candidate, mutualFriends, sharedInterests, score, sameHomeBase, presence));
+            suggestions.Add(new SuggestionCandidate(candidate, mutualFriends, sharedInterests, score, sameHomeBase, presence, canSeePlanningContext));
         }
 
         IEnumerable<SuggestionCandidate> ordered = normalizedMode switch
@@ -318,15 +331,15 @@ public sealed class FriendsController(
     private object ToSuggestionPayload(SuggestionCandidate candidate) => new
     {
         id = candidate.User.Id,
-        user = ToUserPayload(candidate.User, CanNonFriendSeePlanningContext(candidate.User)),
+        user = ToUserPayload(candidate.User, candidate.CanSeePlanningContext),
         mutualFriends = candidate.MutualFriends,
-        sharedInterests = CanNonFriendSeePlanningContext(candidate.User)
-            ? candidate.SharedInterests
-            : Array.Empty<string>(),
-        favoriteCategories = CanNonFriendSeePlanningContext(candidate.User)
+        sharedInterests = candidate.SharedInterests,
+        favoriteCategories = candidate.CanSeePlanningContext
             ? ParseInterests(candidate.User.InterestsJson).Take(4).ToArray()
             : Array.Empty<string>(),
-        presence = ResolvePresence(candidate.User, candidate.Presence),
+        presence = candidate.CanSeePlanningContext
+            ? ResolvePresence(candidate.User, candidate.Presence)
+            : "hidden",
         reason = BuildSuggestionReason(candidate),
         score = candidate.Score,
     };
@@ -362,6 +375,20 @@ public sealed class FriendsController(
             .AsNoTracking()
             .Where(x => x.Status == FriendshipStatusAccepted && (x.RequesterId == userId || x.AddresseeId == userId))
             .Select(x => x.RequesterId == userId ? x.AddresseeId : x.RequesterId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+    private async Task<bool> IsBlockedEitherWayAsync(Guid userId, Guid otherUserId, CancellationToken cancellationToken)
+        => await dbContext.UserBlocks
+            .AsNoTracking()
+            .AnyAsync(x => (x.BlockerId == userId && x.BlockedId == otherUserId)
+                || (x.BlockerId == otherUserId && x.BlockedId == userId), cancellationToken);
+
+    private async Task<HashSet<Guid>> GetBlockedEitherWayUserIdsAsync(Guid userId, CancellationToken cancellationToken)
+        => (await dbContext.UserBlocks
+            .AsNoTracking()
+            .Where(x => x.BlockerId == userId || x.BlockedId == userId)
+            .Select(x => x.BlockerId == userId ? x.BlockedId : x.BlockerId)
             .ToListAsync(cancellationToken))
             .ToHashSet();
 
@@ -461,9 +488,7 @@ public sealed class FriendsController(
 
         if (candidate.SharedInterests.Length > 0)
         {
-            return CanNonFriendSeePlanningContext(candidate.User)
-                ? $"Shared {string.Join(", ", candidate.SharedInterests.Take(2))} vibe"
-                : "Suggested Scope traveler";
+            return $"Shared {string.Join(", ", candidate.SharedInterests.Take(2))} vibe";
         }
 
         return candidate.SameHomeBase && CanNonFriendSeePlanningContext(candidate.User)
@@ -517,5 +542,6 @@ public sealed class FriendsController(
         string[] SharedInterests,
         int Score,
         bool SameHomeBase,
-        PresenceProjection? Presence);
+        PresenceProjection? Presence,
+        bool CanSeePlanningContext);
 }

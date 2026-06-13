@@ -293,7 +293,15 @@ describe('NotificationsPage', () => {
       { id: 'security', title: 'Security', body: 'Security', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'security.login' },
       { id: 'account', title: 'Account', body: 'Account', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'profile.updated' },
       { id: 'system', title: 'System', body: 'System', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'system.maintenance' },
+      { id: 'friends-alias', title: 'Friends alias', body: 'Friends', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'friends' },
+      { id: 'trips-alias', title: 'Trips alias', body: 'Trips', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'trips' },
+      { id: 'comments-alias', title: 'Comments alias', body: 'Comments', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'comments' },
+      { id: 'mentions-alias', title: 'Mentions alias', body: 'Mentions', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'mentions' },
+      { id: 'routes-alias', title: 'Routes alias', body: 'Routes', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'routes' },
+      { id: 'spots-alias', title: 'Spots alias', body: 'Spots', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'spots' },
+      { id: 'systems-alias', title: 'Systems alias', body: 'Systems', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'systems' },
       { id: 'general', title: 'General', body: 'General', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: '' },
+      { id: 'custom-type', title: 'Custom type', body: 'Custom type', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event' },
       { id: 'custom', title: 'Custom', body: 'Custom', isRead: true, createdAt: '2026-01-01T10:00:00Z', type: 'custom.event', category: 'Custom Alerts' },
     ];
     notificationsStoreState.unreadCount = 0;

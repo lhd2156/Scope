@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 
@@ -8,6 +9,8 @@ from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
 from interactions.models import Interaction
 from interactions.serializers import InteractionSerializer
+from spots.models import Spot
+from spots.querysets import visible_to_request
 
 producer = ScopeKafkaProducer()
 
@@ -24,6 +27,7 @@ def record_interaction(request):
     """
     serializer = InteractionSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    get_object_or_404(visible_to_request(Spot.objects.all(), request), pk=serializer.validated_data['spot_id'])
     interaction = Interaction.objects.create(
         user_id=request.user.id,
         spot_id=serializer.validated_data['spot_id'],

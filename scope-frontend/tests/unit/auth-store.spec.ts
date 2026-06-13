@@ -14,6 +14,7 @@ describe('auth store security hardening', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_DEMO_MODE', 'false');
     vi.stubEnv('VITE_ENABLE_AUTH_MOCK_FALLBACK', 'false');
@@ -25,6 +26,7 @@ describe('auth store security hardening', () => {
   afterEach(() => {
     vi.doUnmock('@/services/authService');
     vi.doUnmock('@/services/api');
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     localStorage.clear();
     sessionStorage.clear();
@@ -187,6 +189,41 @@ describe('auth store security hardening', () => {
     expect(refreshSessionRequest).toHaveBeenCalledWith({ allowMockFallback: false });
     expect(store.isAuthenticated).toBe(true);
     expect(store.token).toBe('restored-access-token');
+  });
+
+  it('does not dehydrate an active session when its storage hint is removed', async () => {
+    const loginRequest = vi.fn().mockResolvedValue({
+      id: 'user-active',
+      username: 'active-traveler',
+      email: 'active@example.com',
+      displayName: 'Active Traveler',
+      accessToken: 'active-access-token',
+      refreshToken: 'active-refresh-token',
+    });
+
+    vi.doMock('@/services/authService', () => ({
+      login: loginRequest,
+      register: vi.fn(),
+      loginWithCognito: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+    }));
+
+    const store = await bootstrapAuthStore();
+    await store.login({
+      email: 'active@example.com',
+      password: 'SecurePass123!',
+      rememberMe: false,
+    });
+
+    sessionStorage.removeItem(AUTH_SESSION_HINT_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_REFRESH_TOKEN_STORAGE_KEY);
+    window.dispatchEvent(new Event(AUTH_SESSION_HINT_CHANGE_EVENT));
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.hasSessionHint).toBe(false);
+    expect(store.hasHydratedSession).toBe(true);
+    expect(store.token).toBe('active-access-token');
   });
 
   it('hydrates a stored remembered browser session by refreshing with the stored refresh token', async () => {
@@ -395,6 +432,45 @@ describe('auth store security hardening', () => {
     expect(store.sessionExpiredMessage).toBeNull();
   });
 
+  it('generates deterministic QA tokens with crypto-backed randomness when available', async () => {
+    const setAccessToken = vi.fn();
+    const getRandomValues = vi.fn((array: Uint32Array) => {
+      array.set([0x10, 0x20, 0x30, 0x40]);
+      return array;
+    });
+
+    vi.doMock('@/services/api', async () => {
+      const actual = await vi.importActual<typeof import('@/services/api')>('@/services/api');
+      return {
+        ...actual,
+        setAccessToken,
+      };
+    });
+    vi.doMock('@/services/authService', () => ({
+      login: vi.fn(),
+      register: vi.fn(),
+      loginWithCognito: vi.fn(),
+      logout: vi.fn(),
+      refreshSession: vi.fn(),
+    }));
+
+    vi.stubGlobal('crypto', { getRandomValues } as unknown as Crypto);
+    window.history.replaceState({}, '', '/?scopeQaSession=authenticated');
+
+    const store = await bootstrapAuthStore();
+
+    await expect(store.hydrateSession()).resolves.toBe(true);
+
+    expect(getRandomValues).toHaveBeenCalledWith(expect.any(Uint32Array));
+    expect(store.token).toBe('scope-qa-10203040');
+    expect(setAccessToken).toHaveBeenCalledWith('scope-qa-10203040');
+    expect(store.currentUser).toMatchObject({
+      username: 'scope-qa',
+      displayName: 'Scope traveler',
+      interests: ['food', 'culture', 'nightlife'],
+    });
+  });
+
   it('registers, signs in with Cognito, and sanitizes current-user updates', async () => {
     const registerRequest = vi.fn().mockResolvedValue({
       id: 'user-new',
@@ -498,7 +574,8 @@ describe('auth store security hardening', () => {
       .mockRejectedValueOnce(new ApiClientError({ message: 'Validation failed', status: 422 }))
       .mockRejectedValueOnce(new ApiClientError({ message: 'Gateway unavailable', status: 503 }))
       .mockRejectedValueOnce(new ApiClientError({ message: 'Socket closed', isNetworkError: true }))
-      .mockRejectedValueOnce(new ApiClientError({ message: 'Email confirmation required', status: 409 }));
+      .mockRejectedValueOnce(new ApiClientError({ message: 'Email confirmation required', status: 409 }))
+      .mockRejectedValueOnce(new ApiClientError({ message: '', status: 409 }));
 
     vi.doMock('@/services/authService', () => ({
       login: loginRequest,
@@ -522,6 +599,9 @@ describe('auth store security hardening', () => {
 
     await expect(store.login(payload)).rejects.toThrow('Email confirmation required');
     expect(store.error).toBe('Email confirmation required');
+
+    await expect(store.login(payload)).rejects.toThrow('');
+    expect(store.error).toBe('Invalid username or password.');
   });
 
   it('logs out remotely when possible and falls back to local sign-out on service failure', async () => {
@@ -646,6 +726,10 @@ describe('auth store security hardening', () => {
         accessToken: 'prod-token',
         refreshToken: 'prod-refresh',
       })
+      .mockResolvedValueOnce({
+        id: 'prod-sparse-1',
+        accessToken: 'prod-sparse-token',
+      })
       .mockRejectedValueOnce(new Error('request timeout'))
       .mockRejectedValueOnce(new Error(''))
       .mockRejectedValueOnce('bad credentials');
@@ -675,6 +759,16 @@ describe('auth store security hardening', () => {
       username: 'prod.traveler',
       email: '',
       displayName: 'prod.traveler',
+    });
+
+    await store.login({ email: 'sparse@example.com', password: 'SecurePass123!' });
+    expect(store.currentUser).toMatchObject({
+      id: 'prod-sparse-1',
+      username: 'scope-user',
+      email: '',
+      displayName: 'New explorer',
+      interests: [],
+      showActivityStatus: true,
     });
 
     await expect(store.login({ email: 'prod@example.com', password: 'bad' })).rejects.toThrow('request timeout');

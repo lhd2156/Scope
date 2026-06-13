@@ -553,4 +553,55 @@ describe('ScopeAIPage', () => {
     expect(askScopeAIMock.mock.calls[0][0].question).toContain('Destination: Austin');
     expect(askScopeAIMock.mock.calls[0][0].question).toContain('Traveler question: What should I prioritize?');
   });
+
+  it('keeps image-reader and sparse trip-context fallbacks bounded', async () => {
+    routeMock.query = {
+      mode: 'trip-planning',
+      tripId: 'trip-sparse',
+    };
+    fetchTripMock.mockResolvedValueOnce({
+      title: 'Sparse Loop',
+      destination: 'Fort Worth',
+      startDate: '2026-06-01',
+      endDate: '2026-06-02',
+      budget: undefined,
+      spots: [],
+    });
+    class RawFileReader {
+      result: string | ArrayBuffer | null = 'raw-base64';
+      onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown) | null = null;
+      onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown) | null = null;
+
+      readAsDataURL() {
+        this.onload?.call(this as unknown as FileReader, {} as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', RawFileReader);
+    askScopeAIMock.mockRejectedValueOnce('string failure');
+    const wrapper = mountScopeAIPage();
+    await flushPromises();
+
+    const fileInput = wrapper.get('[data-test="scope-ai-image-input"]').element as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [new File(['scope'], '', { type: 'image/png' })],
+    });
+    await wrapper.get('[data-test="scope-ai-image-input"]').trigger('change');
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="scope-ai-pending-images"]').text()).toContain('Scope image');
+
+    await askQuestion(wrapper, 'Use the sparse trip');
+
+    expect(askScopeAIMock.mock.calls[0][0].question).toContain('Budget: Not set');
+    expect(askScopeAIMock.mock.calls[0][0].question).toContain('Stops: No saved stops yet');
+    expect(askScopeAIMock.mock.calls[0][0].images).toEqual([
+      {
+        filename: 'Scope image',
+        mime_type: 'image/png',
+        data: 'raw-base64',
+      },
+    ]);
+    expect(wrapper.text()).toContain('Scope AI could not process that question right now.');
+  });
 });

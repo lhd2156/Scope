@@ -393,4 +393,54 @@ describe('scope AI location resolver', () => {
     expect(result.candidates[0]?.formattedAddress).toContain('Fort Worth');
     expect(result.candidates[0]?.distanceKm).toEqual(expect.any(Number));
   });
+
+  it('keeps global no-match and fallback candidate boundaries explicit', async () => {
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: 'Austin',
+          formattedAddress: 'Austin, Texas, United States',
+          latitude: 30.2672,
+          longitude: -97.7431,
+          source: 'mapbox',
+        },
+        {
+          placeName: 'Austin',
+          formattedAddress: 'Austin, Minnesota, United States',
+          latitude: 43.6666,
+          longitude: -92.9746,
+          source: 'mapbox',
+        },
+      ],
+    });
+    let result = await resolveScopeAiLocationIntent('Austin', { scope: 'global' });
+    expect(searchLocationsMock).toHaveBeenCalledWith('Austin', {
+      limit: 3,
+      sortByDistance: false,
+    });
+    expect(result.status).toBe('ambiguous');
+    expect(result.result).toBeNull();
+
+    searchLocationsMock.mockResolvedValueOnce({ data: [] });
+    geocodeMock.mockRejectedValueOnce(new Error('geocoder down'));
+    result = await resolveScopeAiLocationIntent('Nowhere Valid');
+    expect(result.status).toBe('not_found');
+    expect(result.result).toBeNull();
+    expect(result.candidates).toEqual([]);
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [
+        {
+          placeName: '100 Main Street',
+          formattedAddress: '100 Main Street, Dallas, Texas 75201, United States',
+          latitude: 32.7767,
+          longitude: -96.797,
+          source: 'mapbox',
+        },
+      ],
+    });
+    result = await resolveScopeAiLocationIntent('100 Main Street, Austin, TX 78701');
+    expect(result.status).toBe('ambiguous');
+    expect(result.candidates).toHaveLength(1);
+  });
 });

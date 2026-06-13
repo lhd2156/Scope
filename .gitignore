@@ -11,6 +11,7 @@ auth-profiles.json
 **/*.pem
 **/*.key
 **/*.pfx
+**/.wrangler/
 .openclaw/auth/
 .clawhub/credentials/
 /.scope-google-places-usage.json

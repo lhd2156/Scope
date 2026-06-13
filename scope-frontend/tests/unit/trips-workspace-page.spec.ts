@@ -136,6 +136,34 @@ describe('TripsWorkspacePage', () => {
     expect(wrapper.text()).toContain('Shared');
   });
 
+  it('opens upcoming as the first populated workspace view for signed-out readers', async () => {
+    authStoreMock.currentUser = null as any;
+    tripsStoreMock.items = [
+      buildTrip({
+        id: 'future-trip',
+        title: 'Future Coast Route',
+        destination: 'Monterey, CA',
+        description: 'Confirmed future route.',
+        isPublic: true,
+        status: 'confirmed',
+        startDate: '2026-08-10',
+        endDate: '2026-08-12',
+        spots: [],
+        members: [{ id: 'owner-1', displayName: 'Owner One', status: 'owner' }],
+      }),
+    ];
+
+    const { wrapper } = await mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('.metric-card--active').text()).toContain('Upcoming');
+    expect(wrapper.text()).toContain('Future Coast Route');
+    expect(wrapper.text()).toContain('1 traveler');
+    expect(wrapper.text()).toContain('Public');
+
+    authStoreMock.currentUser = { id: 'user-1' };
+  });
+
   it('switches workspace sections and deletes draft trips with success feedback', async () => {
     tripsStoreMock.items = [
       buildTrip({
@@ -207,6 +235,27 @@ describe('TripsWorkspacePage', () => {
     expect(toastStoreMock.showError).toHaveBeenCalledWith({
       title: 'Draft delete failed',
       message: 'Delete is still syncing.',
+    });
+  });
+
+  it('uses fallback copy when an untitled draft deletes successfully', async () => {
+    tripsStoreMock.items = [
+      buildTrip({
+        id: 'untitled-draft',
+        title: '',
+      }),
+    ];
+
+    const { wrapper } = await mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="delete-draft-trip"]').trigger('click');
+    await flushPromises();
+
+    expect(tripsStoreMock.deleteTrip).toHaveBeenCalledWith('untitled-draft');
+    expect(toastStoreMock.showSuccess).toHaveBeenCalledWith({
+      title: 'Draft deleted',
+      message: 'Trip draft was removed from your workspace.',
     });
   });
 

@@ -119,8 +119,14 @@ git push origin v1.0.0
    - GHCR images publish successfully
    - deployment bundle artifact uploads successfully
 4. when infrastructure changes are included, dispatch `Scope Deploy` manually with `terraform_action = plan`, review the uploaded plan artifact, then rerun with `terraform_action = apply` after approval
-5. for the single-box AWS path, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile lightsail -DeployComposeHost`, then use `terraform_profile = lightsail` plus `deploy_lightsail_app = true` so the workflow uploads the runtime bundle and starts Scope on the Lightsail host after apply; keep `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true` for Lightsail so SSH opens only to the active runner during deployment, or configure exact SSH allowlists (`LIGHTSAIL_ADMIN_*` / `EC2_COMPOSE_ADMIN_IPV4_CIDRS`) if dynamic SSH is disabled; production also requires a 32+ character `SCOPE_GRPC_INTERNAL_TOKEN`
-6. promote/deploy from the generated image set and bundle
+5. for the single-box AWS path, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -Environment production -TerraformProfile ec2-compose -DeployComposeHost` or the matching `lightsail` profile check, then use `deploy_lightsail_app = true` so the workflow uploads the runtime bundle and starts Scope on the selected Compose host. Use `terraform_action = apply` when infrastructure must change, or `terraform_action = skip` for an app-only redeploy from the existing Terraform state. Keep dynamic runner SSH enabled so SSH opens only to the active runner during deployment, or configure exact SSH allowlists (`LIGHTSAIL_ADMIN_*` / `EC2_COMPOSE_ADMIN_IPV4_CIDRS`) if dynamic SSH is disabled; production also requires a 32+ character `SCOPE_GRPC_INTERNAL_TOKEN`
+6. when `scopetrips.com/api/*` is served by the Cloudflare API proxy Worker, deploy `cloudflare/api-proxy` with a Wrangler token that can edit Worker scripts and routes:
+
+```powershell
+npx wrangler deploy --config .\cloudflare\api-proxy\wrangler.toml
+```
+
+7. promote/deploy from the generated image set and bundle
 
 ### Option B — manual deployment path
 
@@ -141,8 +147,9 @@ Use when automation is unavailable or when performing a controlled staging rollo
 - [ ] Core auth endpoints respond as expected
 - [ ] Content read paths work
 - [ ] Intel recommendation/health endpoints respond
-- [ ] Scope Metrics `/healthz` and `/metrics` respond
-- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -PublicBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes
+- [ ] Scope Metrics `/healthz` and `/metrics` respond when a metrics endpoint is directly exposed to the validation network
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -EdgeBaseUrl "https://scope.example.com" -MetricsBaseUrl "https://metrics.scope.example.com"` passes for full-stack deployments
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 -EdgeBaseUrl "https://scopetrips.com" -MetricsHealthUrl "https://scopetrips.com/api/metrics/health" -SkipMetricsScrape` passes for the current same-domain `scopetrips.com` production shape
 - [ ] Playwright critical-flow smoke passes against the deployed target if feasible
 - [ ] Sentry receives release-tagged events for server and browser projects, with `SENTRY_RELEASE` / `VITE_SENTRY_RELEASE` matching the deployed commit; if `SENTRY_DSN_MODE=temporary-placeholder`, this is a known temporary gap and must be rotated before relying on monitoring
 - [ ] logs show no immediate crash loops or startup failures
@@ -153,11 +160,22 @@ Use the repository smoke-test script as the fast post-deploy gate:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
-  -PublicBaseUrl "https://scope.example.com" `
+  -EdgeBaseUrl "https://scope.example.com" `
   -MetricsBaseUrl "https://metrics.scope.example.com"
 ```
 
 This covers the frontend root, edge `/healthz`, Core/Content/Intel health routes, and Scope Metrics `/healthz` + `/metrics`, and exits non-zero whenever any smoke check fails.
+
+For the current `https://scopetrips.com` production shape, metrics health is reachable through the app API proxy while raw Prometheus scrape output is not publicly exposed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -EdgeBaseUrl "https://scopetrips.com" `
+  -MetricsHealthUrl "https://scopetrips.com/api/metrics/health" `
+  -SkipMetricsScrape
+```
+
+If this smoke fails with duplicate security headers on Core, Content, or Intel health routes, confirm both layers have been deployed: the origin Nginx config must hide upstream security headers before adding the edge policy, and the Cloudflare API proxy Worker must normalize the proxied API response headers before returning them to browsers.
 
 ### Recommended spot checks
 

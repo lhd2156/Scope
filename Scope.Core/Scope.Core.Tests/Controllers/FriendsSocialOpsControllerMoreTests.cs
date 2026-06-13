@@ -77,6 +77,14 @@ public sealed class FriendsSocialOpsControllerMoreTests
         var targetId = Guid.NewGuid();
         await using var dbContext = TestData.CreateDbContext();
         dbContext.Users.AddRange(TestData.User(callerId, "caller"), TestData.User(targetId, "target"));
+        dbContext.Friendships.Add(new Friendship
+        {
+            Id = Guid.NewGuid(),
+            RequesterId = targetId,
+            AddresseeId = callerId,
+            Status = "pending",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
         await dbContext.SaveChangesAsync();
         var controller = new SocialSafetyController(dbContext).WithUser(callerId);
 
@@ -85,6 +93,7 @@ public sealed class FriendsSocialOpsControllerMoreTests
 
         var block = await controller.Block(targetId, CancellationToken.None);
         Assert.Equal(targetId, Assert.IsType<UserBlock>(TestData.Response(Assert.IsType<OkObjectResult>(block)).Data).BlockedId);
+        Assert.Empty(dbContext.Friendships);
         var duplicate = await controller.Block(targetId, CancellationToken.None);
         Assert.Equal(targetId, Assert.IsType<UserBlock>(TestData.Response(Assert.IsType<OkObjectResult>(duplicate)).Data).BlockedId);
 

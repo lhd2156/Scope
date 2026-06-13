@@ -119,6 +119,58 @@ public sealed class UsersControllerTests
     }
 
     [Fact]
+    public async Task Search_DoesNotMatchExactHomeBase_ForNonFriend()
+    {
+        var callerId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        await using var dbContext = CreateDbContext();
+        dbContext.Users.AddRange(
+            new User
+            {
+                Id = callerId,
+                Username = "caller",
+                Email = "caller@example.com",
+                DisplayName = "Caller",
+                PasswordHash = "hash",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            },
+            new User
+            {
+                Id = targetId,
+                Username = "target",
+                Email = "target@example.com",
+                DisplayName = "Visible Traveler",
+                HomeBase = "7620 Deaver Drive, North Richland Hills, TX",
+                ProfileVisibility = "public",
+                PasswordHash = "hash",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, callerId);
+        var hiddenSearch = await controller.Search("Deaver", cancellationToken: CancellationToken.None);
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<object>>(
+            Assert.IsType<ApiResponse<object>>(Assert.IsType<OkObjectResult>(hiddenSearch).Value).Data));
+
+        dbContext.Friendships.Add(new Friendship
+        {
+            Id = Guid.NewGuid(),
+            RequesterId = callerId,
+            AddresseeId = targetId,
+            Status = "accepted",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var friendSearch = await controller.Search("Deaver", cancellationToken: CancellationToken.None);
+        var visibleItem = Assert.Single(Assert.IsAssignableFrom<IEnumerable<object>>(
+            Assert.IsType<ApiResponse<object>>(Assert.IsType<OkObjectResult>(friendSearch).Value).Data));
+        Assert.Equal(targetId, visibleItem.GetType().GetProperty("Id")?.GetValue(visibleItem));
+    }
+
+    [Fact]
     public async Task Search_ExcludesPrivateProfilesAndRejectsInvalidVisibility()
     {
         var callerId = Guid.NewGuid();

@@ -177,6 +177,10 @@ describe('DateField', () => {
     await flushPromises();
     expect(wrapper.get('button[aria-label="Month"]').attributes('aria-expanded')).toBe('true');
 
+    await wrapper.get('button[aria-label="Month"]').trigger('mousedown');
+    await flushPromises();
+    expect(wrapper.get('button[aria-label="Month"]').attributes('aria-expanded')).toBe('true');
+
     await wrapper.get('button[aria-label="Previous month"]').trigger('mousedown');
     await flushPromises();
     expect(wrapper.get('button[aria-label="Month"]').attributes('aria-expanded')).toBe('false');

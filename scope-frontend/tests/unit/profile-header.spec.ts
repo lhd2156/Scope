@@ -81,6 +81,10 @@ describe('ProfileHeader', () => {
     expect(wrapper.text()).toContain('Activity hidden');
     expect(wrapper.find('.presence-chip--hidden').exists()).toBe(true);
 
+    await wrapper.setProps({ presence: 'idle' });
+    expect(wrapper.text()).toContain('Idle');
+    expect(wrapper.find('.avatar-presence--idle').exists()).toBe(true);
+
     await wrapper.setProps({ presence: 'offline' });
     expect(wrapper.text()).toContain('Offline');
     expect(wrapper.find('.avatar-presence--offline').exists()).toBe(true);
@@ -109,5 +113,24 @@ describe('ProfileHeader', () => {
     expect(links[1].text()).toBe('www.scopetrips.com/profile');
     expect(links[1].attributes('href')).toBe('https://www.scopetrips.com/profile');
     expect(wrapper.text()).toContain('profile.');
+  });
+
+  it('keeps unsafe or punctuation-trimmed bio URLs as stable text/link segments', () => {
+    const wrapper = mountProfileHeader({
+      user: {
+        ...user,
+        bio: 'Saved list: https://example.com/trips). Broken link: http://,',
+      },
+      primaryActionLabel: 'Edit preferences',
+      primaryActionTo: '/settings',
+    });
+
+    const links = wrapper.findAll('.bio-copy__link');
+
+    expect(links).toHaveLength(1);
+    expect(links[0].text()).toBe('https://example.com/trips');
+    expect(links[0].attributes('href')).toBe('https://example.com/trips');
+    expect(wrapper.text()).toContain(').');
+    expect(wrapper.text()).toContain('http://,');
   });
 });

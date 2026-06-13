@@ -1,6 +1,13 @@
 const API_ORIGIN = 'https://api.scopetrips.com';
 const CANONICAL_APP_HOST = 'scopetrips.com';
 const LEGACY_APP_HOST = 'app.scopetrips.com';
+const REDIRECT_SECURITY_HEADERS = {
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
 
 function canonicalHostRedirect(request) {
   const incomingUrl = new URL(request.url);
@@ -9,7 +16,13 @@ function canonicalHostRedirect(request) {
   }
 
   incomingUrl.hostname = CANONICAL_APP_HOST;
-  return Response.redirect(incomingUrl.toString(), 301);
+  return new Response(null, {
+    status: 301,
+    headers: {
+      Location: incomingUrl.toString(),
+      ...REDIRECT_SECURITY_HEADERS,
+    },
+  });
 }
 
 function jsonResponse(status, payload) {

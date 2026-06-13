@@ -198,7 +198,7 @@ When the Content service is running without S3 credentials, nginx also proxies `
 Run the CLI toolkit inside the Compose network when you want a containerized health check:
 
 ```powershell
-docker compose --profile ops run --rm scope-cli health --verbose
+docker compose --profile ops run --rm --no-deps scope-cli health --verbose
 ```
 
 ---
@@ -235,8 +235,17 @@ Remote example:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
-  -PublicBaseUrl "https://scope.example.com" `
+  -EdgeBaseUrl "https://scope.example.com" `
   -MetricsBaseUrl "https://metrics.scope.example.com"
+```
+
+Current `scopetrips.com` production example:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1 `
+  -EdgeBaseUrl "https://scopetrips.com" `
+  -MetricsHealthUrl "https://scopetrips.com/api/metrics/health" `
+  -SkipMetricsScrape
 ```
 
 The script exits non-zero if any check fails, so it is safe to use in deployment verification steps.
@@ -395,7 +404,7 @@ Current automation coverage:
 - Kubernetes YAML syntax checks in CI
 - Terraform `fmt` / `init -backend=false` / `validate` checks in CI
 - optional manual Terraform plan/apply via `.github/workflows/deploy.yml` when AWS OIDC + Terraform vars/secrets are configured
-- optional manual single-host runtime deployment after `terraform_profile=lightsail` or `ec2-compose` + `terraform_action=apply`
+- optional manual single-host runtime deployment after `terraform_profile=lightsail` or `ec2-compose` with either `terraform_action=apply` for infra changes or `terraform_action=skip` for an app-only redeploy from existing Terraform state
 - GHCR image publishing for Core, Content, Intel, Frontend, Scope Metrics, and Scope CLI on `main` / manual deploy runs
 - deployment bundle artifact publishing (`docker-compose.yml`, `k8s/`, `terraform/`, docs, nginx config, SQL seed scripts, Lightsail helper scripts)
 - workflow syntax and environment-driven build validation via GitHub Actions job setup
@@ -466,11 +475,11 @@ Use `-TerraformProfile ec2-compose -DeployComposeHost` for the EC2 fallback, or 
 Then run the `Scope Deploy` workflow manually with:
 
 - `publish_images = false` or `true` as needed
-- `terraform_action = plan` to generate and upload a reviewed plan artifact, or `terraform_action = apply` to plan and then apply
+- `terraform_action = plan` to generate and upload a reviewed plan artifact, `terraform_action = apply` to plan and then apply, or `terraform_action = skip` for an app-only redeploy from existing Terraform state
 - `terraform_environment = staging` or `production`
 - `terraform_profile = credit-saver` for the low-cost default, `lightsail` for the preferred always-on single-box runtime, `ec2-compose` for the Terraform-managed AWS fallback while Lightsail approval is pending, or `full` for the original EKS/RDS stack
 - `terraform_registry = ghcr` to skip ECR, or `ecr` if AWS-hosted repositories are required
-- `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied single host
+- `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the selected single host. With `terraform_action = apply`, the deploy follows the fresh infra apply; with `terraform_action = skip`, it reads the existing Terraform state outputs and performs only the app/runtime redeploy.
 
 The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to the selected Compose host with `scripts/lightsail/deploy-remote.sh`. Production applies and Compose-host deploys must run from `main`. Production Lightsail deploys should keep Terraform SSH ingress empty and use `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true`; if that is disabled, use exact runner, VPN, or admin `/32` CIDRs. Terraform refuses world-open SSH for `production`, and the high-cost `full` profile is blocked in production unless `ALLOW_FULL_PRODUCTION_INFRA=true`.
 

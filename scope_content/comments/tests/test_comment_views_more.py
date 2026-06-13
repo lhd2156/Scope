@@ -6,6 +6,7 @@ from datetime import datetime, timezone as dt_timezone
 import jwt
 import pytest
 from django.conf import settings
+from django.http import Http404
 from rest_framework.test import APIClient
 
 from comments.models import Comment
@@ -146,5 +147,23 @@ def test_trip_target_context_requires_view_permission(auth_header):
     trip = Trip.objects.create(creator_id=uuid.uuid4(), title="Private trip", is_public=False)
     request = type("Request", (), {"user": type("User", (), {"id": uuid.UUID(user_id), "is_admin": False})()})()
 
-    with pytest.raises(Exception):
+    with pytest.raises(Http404):
         comment_views._target_context(request, Comment.TARGET_TRIP, trip.id)
+
+
+def test_comment_create_hides_private_trip_for_non_member(auth_header):
+    _, user_id = auth_header
+    trip = Trip.objects.create(creator_id=uuid.uuid4(), title="Private trip", is_public=False)
+
+    response = _client_for(user_id).post(
+        "/api/content/comments/",
+        {
+            "targetType": "trip",
+            "targetId": str(trip.id),
+            "body": "This should not attach to another user's trip.",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 404
+    assert Comment.objects.count() == 0

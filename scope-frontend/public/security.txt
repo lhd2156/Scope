@@ -1,0 +1,5 @@
+Contact: mailto:security@scopetrips.com
+Expires: 2099-01-01T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://scopetrips.com/.well-known/security.txt
+Policy: https://scopetrips.com/security

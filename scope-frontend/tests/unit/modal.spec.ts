@@ -77,6 +77,12 @@ describe('Modal', () => {
     await wrapper.vm.$nextTick();
     expect(document.activeElement).toBe(closeButton);
 
+    secondaryButton.focus();
+    const allowedShiftTab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true });
+    window.dispatchEvent(allowedShiftTab);
+    await wrapper.vm.$nextTick();
+    expect(allowedShiftTab.defaultPrevented).toBe(false);
+
     closeButton.focus();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true }));
     await wrapper.vm.$nextTick();
@@ -232,5 +238,49 @@ describe('Modal', () => {
     expect(wrapper.emitted('close')).toBeUndefined();
 
     wrapper.unmount();
+  });
+
+  it('keeps body scroll locked until the last stacked modal closes', async () => {
+    document.body.style.overflow = 'auto';
+
+    const firstWrapper = mount(Modal, {
+      props: {
+        open: true,
+        title: 'First modal',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    await firstWrapper.vm.$nextTick();
+
+    const secondWrapper = mount(Modal, {
+      props: {
+        open: true,
+        title: 'Second modal',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    });
+
+    await secondWrapper.vm.$nextTick();
+
+    expect(document.body.style.overflow).toBe('hidden');
+
+    secondWrapper.unmount();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    firstWrapper.unmount();
+    expect(document.body.style.overflow).toBe('auto');
   });
 });

@@ -26,8 +26,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN DJANGO_SECRET_KEY="collectstatic-ephemeral" \
-    CORE_JWT_SECRET="collectstatic-ephemeral-key-must-be-32-bytes-or-longer" \
+RUN DJANGO_SECRET_KEY="buildonly9W2X8J6k3mQ7v5r1s4t6u8w0y2p4a6c8e0" \
+    CORE_JWT_SECRET="buildonly8F4d2s9A7h6J5k3L1q0W9e8R7t6Y5u4I3o2P" \
     DEBUG=false \
     ALLOWED_HOSTS=localhost \
     FRONTEND_ORIGIN=http://localhost \

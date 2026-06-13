@@ -298,7 +298,6 @@ public sealed class UsersController(CoreDbContext dbContext) : ControllerBase
                     || x.DisplayName.Contains(query)
                     || ((isAdmin
                             || x.Id == callerId
-                            || x.ProfileVisibility == ProfileVisibilityPolicy.Public
                             || acceptedFriendIds.Contains(x.Id))
                         && x.HomeBase != null
                         && x.HomeBase.Contains(query)));

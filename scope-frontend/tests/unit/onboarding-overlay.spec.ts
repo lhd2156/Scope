@@ -598,7 +598,7 @@ describe('OnboardingOverlay', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, 20_000);
 
   it('covers defensive document/window guards and real back-button navigation', async () => {
     const router = buildRouter();

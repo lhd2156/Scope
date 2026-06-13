@@ -148,6 +148,120 @@ describe('user store API contracts', () => {
     expect(store.saving).toBe(false);
   });
 
+  it('preserves stats and skips auth sync when profile responses omit optional stats', async () => {
+    const updateCurrentUser = vi.fn();
+    const getUserStats = vi.fn().mockResolvedValue({
+      data: { spots: 7, trips: 3, friends: 5 },
+    });
+    const getCurrentUserProfile = vi.fn().mockResolvedValue({
+      data: {
+        id: 'user-2',
+        username: 'maya',
+        email: 'maya@example.com',
+        displayName: 'Maya Chen',
+        interests: ['scenic'],
+      },
+    });
+    const updateUserProfile = vi.fn().mockResolvedValue({
+      data: {
+        id: 'user-2',
+        username: 'maya',
+        email: 'maya@example.com',
+        displayName: 'Maya Updated',
+        interests: ['culture'],
+      },
+    });
+
+    vi.doMock('@/stores/auth', () => ({
+      useAuthStore: () => ({
+        currentUser: {
+          id: 'user-1',
+          username: 'louisdo',
+          email: 'louis@example.com',
+          displayName: 'Louis Do',
+          stats: { spots: 1, trips: 1, friends: 1 },
+        },
+        updateCurrentUser,
+        logout: vi.fn(),
+      }),
+    }));
+
+    vi.doMock('@/services/userService', () => ({
+      getCurrentUserProfile,
+      getUserProfile: vi.fn(),
+      getUserStats,
+      searchUsers: vi.fn().mockResolvedValue({ data: [] }),
+      updateUserProfile,
+      deactivateUserProfile: vi.fn(),
+      deleteCurrentUserContent: vi.fn(),
+    }));
+
+    const store = await bootstrapUserStore();
+
+    await store.fetchStats();
+    expect(store.stats).toEqual({ spots: 7, trips: 3, friends: 5 });
+
+    await store.fetchCurrentProfile();
+    expect(store.profile?.id).toBe('user-2');
+    expect(store.stats).toEqual({ spots: 7, trips: 3, friends: 5 });
+    expect(updateCurrentUser).not.toHaveBeenCalled();
+
+    await store.searchProfiles('nobody');
+    expect(store.searchMeta).toBeNull();
+
+    await store.saveProfile({ displayName: 'Maya Updated' }, 'user-2');
+    expect(store.profile?.displayName).toBe('Maya Updated');
+    expect(store.stats).toEqual({ spots: 7, trips: 3, friends: 5 });
+    expect(updateCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it('syncs the auth copy when a fetched profile is the signed-in user without embedded stats', async () => {
+    const updateCurrentUser = vi.fn();
+
+    vi.doMock('@/stores/auth', () => ({
+      useAuthStore: () => ({
+        currentUser: {
+          id: 'user-1',
+          username: 'louisdo',
+          email: 'louis@example.com',
+          displayName: 'Louis Do',
+          stats: { spots: 2, trips: 1, friends: 3 },
+        },
+        updateCurrentUser,
+        logout: vi.fn(),
+      }),
+    }));
+
+    vi.doMock('@/services/userService', () => ({
+      getCurrentUserProfile: vi.fn(),
+      getUserProfile: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-1',
+          username: 'louisdo',
+          email: 'louis@example.com',
+          displayName: 'Louis Scope',
+          interests: ['food'],
+        },
+      }),
+      getUserStats: vi.fn(),
+      searchUsers: vi.fn(),
+      updateUserProfile: vi.fn(),
+      deactivateUserProfile: vi.fn(),
+      deleteCurrentUserContent: vi.fn(),
+    }));
+
+    const store = await bootstrapUserStore();
+
+    await store.fetchProfile('user-1');
+
+    expect(store.profile?.displayName).toBe('Louis Scope');
+    expect(store.stats).toEqual({ spots: 2, trips: 1, friends: 3 });
+    expect(updateCurrentUser).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'user-1',
+      displayName: 'Louis Scope',
+    }));
+  });
+
   it('loads other profiles, stats, and clears profile context without touching auth when not current user', async () => {
     const updateCurrentUser = vi.fn();
 
@@ -376,6 +490,9 @@ describe('user store API contracts', () => {
     await expect(store.fetchStats('user-404')).rejects.toThrow('Stats offline');
     expect(store.loading).toBe(false);
     expect(store.error).toBe('Stats offline');
+
+    await expect(store.fetchStats()).resolves.toBeNull();
+    expect(store.loading).toBe(false);
 
     await expect(store.searchProfiles('maya')).rejects.toThrow('Search offline');
     expect(store.loading).toBe(false);

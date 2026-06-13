@@ -47,6 +47,7 @@ describe('registerAppServiceWorker', () => {
   it('skips registration outside production builds', async () => {
     const register = vi.fn();
 
+    await expect(registerAppServiceWorker()).resolves.toBeNull();
     await expect(
       registerAppServiceWorker({
         isProduction: false,
@@ -89,6 +90,11 @@ describe('registerAppServiceWorker', () => {
 
   it('skips registration when service workers are unavailable or explicitly disabled', async () => {
     await expect(registerAppServiceWorker({ isProduction: true })).resolves.toBeNull();
+
+    const originalNavigator = navigator;
+    vi.stubGlobal('navigator', undefined);
+    await expect(registerAppServiceWorker({ isProduction: true })).resolves.toBeNull();
+    vi.stubGlobal('navigator', originalNavigator);
 
     vi.stubEnv('VITE_DISABLE_SERVICE_WORKER', 'true');
     const register = vi.fn();

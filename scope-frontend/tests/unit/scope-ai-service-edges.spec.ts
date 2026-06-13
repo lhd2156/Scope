@@ -233,4 +233,103 @@ describe('Scope AI service edge contracts', () => {
     expect(response.responseText).toContain('```action');
     expect(response.responseText).toContain('CHIPS: ["Keep it cheap"]');
   });
+
+  it('keeps local command fallbacks deterministic for sparse command text', async () => {
+    expect(coverage.cleanupKeywordTargetValue(' a ')).toBeNull();
+    expect(coverage.cleanupMapTargetQuery('x on the map')).toBeNull();
+    expect(coverage.extractMapCommand('map route frame')).toEqual({ command: 'fit_route' });
+    expect(coverage.extractMapCommand('zoom further')).toEqual({ command: 'zoom_out' });
+    expect(coverage.extractRadiusKm('within 3 km')).toBe(3);
+    expect(coverage.extractExplicitLocationRecommendationQuery('best coffee @@@')).toBe('best');
+
+    const mixedFuelPrompt = 'find fuel and set max budget 500';
+    const mixedFuel = coverage.buildMixedIntentResponse(
+      mixedFuelPrompt,
+      mixedFuelPrompt,
+      plannerState,
+    );
+    expect(parseScopeAiResponse(mixedFuel?.responseText ?? '').actionBlock?.actions).toEqual(expect.arrayContaining([
+      { type: 'SEARCH_NEARBY_FUEL', sort_by: 'closest', radius_km: 10, limit: 5 },
+      { type: 'SET_FIELD', field: 'budget_max', value: 500 },
+    ]));
+
+    const mpg = await callScopeAi({
+      message: 'mpg 31',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(parseScopeAiResponse(mpg.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'mpg', value: 31 },
+    ]);
+
+    const gas = await callScopeAi({
+      message: 'gas is 3.21',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(parseScopeAiResponse(gas.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'gas_price', value: 3.21 },
+    ]);
+
+    const fuelFallbackSort = await callScopeAi({
+      message: 'find fuel nearby',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(parseScopeAiResponse(fuelFallbackSort.responseText).actionBlock?.actions).toEqual([
+      { type: 'SEARCH_NEARBY_FUEL', sort_by: 'best_price', radius_km: 10, limit: 5 },
+    ]);
+
+    const routeWithBudgetRange = await callScopeAi({
+      message: 'from Dallas to Austin with budget 400 to 600 for 3 people',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(parseScopeAiResponse(routeWithBudgetRange.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'start', value: 'Dallas, TX' },
+      { type: 'SET_FIELD', field: 'end', value: 'Austin, TX' },
+      { type: 'SET_FIELD', field: 'budget_min', value: 400 },
+      { type: 'SET_FIELD', field: 'budget_max', value: 600 },
+      { type: 'SET_FIELD', field: 'party_size', value: 3 },
+    ]);
+
+    const routeWithExactBudget = await callScopeAi({
+      message: 'from Dallas to Austin with budget at 700',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(parseScopeAiResponse(routeWithExactBudget.responseText).actionBlock?.actions).toEqual([
+      { type: 'SET_FIELD', field: 'start', value: 'Dallas, TX' },
+      { type: 'SET_FIELD', field: 'end', value: 'Austin, TX' },
+      { type: 'SET_FIELD', field: 'budget_min', value: 700 },
+      { type: 'SET_FIELD', field: 'budget_max', value: 700 },
+    ]);
+
+    const blankTighten = await callScopeAi({
+      message: 'tighten route',
+      plannerState,
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(blankTighten.responseText).toContain('I do not have route endpoints yet');
+
+    apiPostMock.mockResolvedValueOnce({ data: {} });
+    const missingBackendResponse = await callScopeAi({
+      message: 'Any fun ideas for this route',
+      plannerState: {
+        ...plannerState,
+        start: 'Dallas',
+        end: 'Austin',
+      },
+      sessionHistory: [],
+      preferences: {},
+    });
+    expect(apiPostMock).toHaveBeenCalledTimes(1);
+    expect(missingBackendResponse.model).toBe('scope-ai-local');
+  });
 });

@@ -12355,4 +12355,431 @@ describe('TripPlannerAiAssist', () => {
 
     wrapper.unmount();
   });
+
+  it('keeps residual assistant fallbacks for sparse context and UI commands bounded', async () => {
+    Object.defineProperty(window, 'SpeechRecognition', {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
+    const scopeAiStore = createScopeAiStore();
+    const emittedStops: any[] = [];
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      tripTitle: '',
+      draft: {
+        destination: '',
+        endDestination: undefined,
+        destinationLatitude: 32.7555,
+        destinationLongitude: -97.3308,
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+      },
+      stops: [{
+        spotId: 'plain-stop',
+        title: 'Plain Stop',
+        latitude: 31.5,
+        longitude: -97.1,
+      }],
+      onRouteStopAdd: (payload: any) => emittedStops.push(payload),
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+    expect(coverage.buildDraftContextLines()).toEqual(expect.arrayContaining([
+      expect.stringContaining('Plain Stop'),
+    ]));
+    expect(coverage.buildDraftContextLines().join('\n')).not.toContain('End:');
+    expect(coverage.getCurrentStartAnchor()).toMatchObject({
+      label: 'route start',
+      role: 'start',
+    });
+    await expect(coverage.resolveEndpointRecommendationAnchor({
+      target: 'endDestination',
+      anchorQuery: 'here',
+      preference: 'balanced',
+    })).resolves.toMatchObject({
+      status: 'resolved',
+      anchor: { label: 'route start' },
+    });
+
+    coverage.startVoiceInput();
+    const recognition = MockSpeechRecognition.instances.at(-1)!;
+    coverage.voiceStatus.value = 'Voice captured. Review or send it.';
+    recognition.onend?.();
+    expect(coverage.voiceStatus.value).toBe('Voice captured. Review or send it.');
+
+    await expect(coverage.executeScopeAiUiActions({
+      actions: [
+        { type: 'SET_MAP_COMMAND', command: 'zoom_to_place' },
+        { type: 'SET_TRIP_VISIBILITY', is_public: false },
+        { type: 'INVITE_TRIP_MEMBER' },
+        { type: '' },
+      ],
+    })).resolves.toMatchObject({
+      message: expect.stringContaining('Zooming the planner map to that place.'),
+      chips: expect.arrayContaining(['Open sharing', 'Invite @maya', 'Share this trip']),
+    });
+
+    searchLocationsMock.mockResolvedValueOnce({
+      data: [{
+        id: '',
+        placeName: '',
+        formattedAddress: '',
+        address: '101 Provider Rd',
+        latitude: 31.77,
+        longitude: -97.11,
+        category: '',
+        source: 'mapbox',
+        providerVerified: true,
+      }],
+    });
+    await coverage.applyAddMarkerAction({
+      action: 'add_marker',
+      place_name: 'provider fallback',
+      order: 99,
+    });
+    expect(emittedStops.at(-1)).toMatchObject({
+      title: 'provider fallback',
+      notes: 'provider fallback',
+    });
+
+    wrapper.unmount();
+  });
+
+  it('keeps attachment, prompt, and pending-context fallbacks explicit', async () => {
+    const scopeAiStore = createScopeAiStore();
+    const wrapper = mountPlannerAssist({
+      scopeAiStore,
+      tripTitle: '',
+      draft: {
+        destination: '',
+        endDestination: undefined,
+        startDate: '',
+        endDate: '',
+        pace: 'balanced',
+        groupSize: undefined,
+        budgetFloor: undefined,
+        budget: undefined,
+        interests: [],
+      },
+      stops: [],
+    });
+    await flushPromises();
+
+    const coverage = (wrapper.vm as unknown as { __coverage: Record<string, any> }).__coverage;
+
+    class RawFileReader {
+      result: string | ArrayBuffer | null = 'raw-base64';
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.(new ProgressEvent('load') as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', RawFileReader);
+    await expect(coverage.readImageFileAsBase64(new File(['raw'], '', { type: '' }))).resolves.toBe('raw-base64');
+    await expect(coverage.buildChatAttachment(new File(['raw'], '', { type: '' }))).resolves.toMatchObject({
+      name: 'Attached image',
+      type: 'image',
+      base64Data: 'raw-base64',
+    });
+
+    class EmptyDataUrlFileReader {
+      result: string | ArrayBuffer | null = 'data:image/png;base64,';
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.(new ProgressEvent('load') as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', EmptyDataUrlFileReader);
+    await expect(coverage.readImageFileAsBase64(new File(['empty'], 'empty.png', { type: 'image/png' }))).resolves.toBeUndefined();
+
+    class MissingFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL() {
+        this.onload?.(new ProgressEvent('load') as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', MissingFileReader);
+    await expect(coverage.readImageFileAsBase64(new File(['missing'], 'missing.png', { type: 'image/png' }))).resolves.toBeUndefined();
+    vi.stubGlobal('FileReader', MockFileReader);
+
+    coverage.messages.value = [
+      { id: 'user-1', role: 'user', kind: 'text', content: 'Find a stop near Waco' },
+      { id: 'assistant-1', role: 'assistant', kind: 'text', content: 'Try this route stop', model: 'scope-local' },
+    ];
+    expect(coverage.hasConversationExchange.value).toBe(true);
+    expect(coverage.buildRecentChatContext('Find a stop near Waco')).toEqual([
+      'User: Find a stop near Waco',
+      'Scope AI: Try this route stop',
+    ]);
+    expect(coverage.parseScopeActionBlocks('Before [SCOPE_ACTION]{\"actions\":[{\"type\":\"SAVE_TRIP_DRAFT\"}]}[/SCOPE_ACTION] after')).toEqual({
+      content: 'Before  after',
+      actions: [{ actions: [{ type: 'SAVE_TRIP_DRAFT' }] }],
+    });
+    expect(coverage.parseScopeActionBlocks('[SCOPE_ACTION][{\"type\":\"SET_MAP_COMMAND\",\"command\":\"fit_route\"}][/SCOPE_ACTION]')).toEqual({
+      content: '',
+      actions: [{ type: 'SET_MAP_COMMAND', command: 'fit_route' }],
+    });
+    expect(coverage.parseScopeActionBlocks('Keep [SCOPE_ACTION]null[/SCOPE_ACTION] going')).toEqual({
+      content: 'Keep  going',
+      actions: [],
+    });
+    expect(coverage.parseChipLabels('[\"Fit route\", \"\", null, \"Add stop\"]')).toEqual(['Fit route', 'Add stop']);
+    expect(coverage.parseChipLabels('Fit route, Add stop\nWeather')).toEqual(['Fit route', 'Add stop', 'Weather']);
+    expect(coverage.buildAssistantPrompt('What next?')).toContain('Planner context:');
+    expect(coverage.buildPromptWithAttachmentContext('Question', [])).toBe('Question');
+    expect(coverage.buildPromptWithAttachmentContext('Question', [
+      { id: 'image-1', name: 'view.png', type: 'image/png', size: 10, base64Data: 'abc', previewUrl: '' },
+    ])).toContain('Attached images:');
+    expect(coverage.extractLocationLookupQuery('where is the upload image icon')).toBeNull();
+    expect(coverage.extractPlaceSearchIntent('show stops')).toMatchObject({
+      query: 'coffee',
+      mode: 'places',
+      requiresAnchor: true,
+    });
+    expect(coverage.inferRouteStopSearchQuery('find a local stop')).toBe('coffee');
+    expect(coverage.doesPromptAnswerPendingBrief('anything works', { missingKeys: [] })).toBe(true);
+    expect(coverage.buildScopeAiImagePayload([
+      { id: 'ok', name: 'ok.png', type: 'image/png', size: 10, base64Data: 'abc', previewUrl: '' },
+      { id: 'too-big', name: 'big.png', type: 'image/png', size: 10_000_000, base64Data: 'abc', previewUrl: '' },
+      { id: 'bad-type', name: 'bad.gif', type: 'image/gif', size: 10, base64Data: 'abc', previewUrl: '' },
+      { id: 'no-data', name: 'empty.png', type: 'image/png', size: 10, base64Data: '', previewUrl: '' },
+    ])).toEqual([{ filename: 'ok.png', mime_type: 'image/png', data: 'abc' }]);
+
+    const sparsePendingItemsContext = {
+      kind: 'location-resolution',
+      sourcePrompt: 'ambiguous',
+      targetField: 'start',
+      rawValue: 'ambiguous place',
+      candidates: [
+        { label: '   ', value: 'ignored' },
+        { label: 'Provider One', value: 'Provider One, TX', meta: { city: 'Fort Worth' } },
+      ],
+      results: [
+        { label: 'Provider Two', value: 'Provider Two, TX', source: 'mapbox', meta: { reason: 'scenic' } },
+      ],
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    expect(coverage.isTrustedPendingContextItem({ latitude: 31.1, longitude: -97.1, source: undefined, meta: { source: undefined } })).toBe(true);
+    expect(coverage.isTrustedPendingContextItem({ latitude: 31.1, longitude: -97.1, source: 'unverified blog', meta: { providerVerified: false } })).toBe(false);
+    expect(coverage.isTrustedPendingContextItem({ latitude: 31.1, longitude: -97.1, source: 'mapbox', meta: { source: 'google places' } })).toBe(true);
+    expect(coverage.getPendingContextItems(sparsePendingItemsContext).map((item: any) => item.label)).toEqual([
+      'Provider One',
+      'Provider Two',
+    ]);
+    expect(coverage.extractOrdinalSelection('number 5 please')).toBe(4);
+    expect(coverage.extractOrdinalSelection('sixth option')).toBeNull();
+    expect(coverage.extractStateQualifier('near TX')).toBe('Texas');
+    expect(coverage.cleanupFollowUpQualifier('please choose exact match first place')).toBeNull();
+    expect(coverage.cleanupReplacementLocationQuery('actually 123 Main Street')).toBe('123 Main Street');
+    expect(coverage.cleanupReplacementLocationQuery('not a street')).toBeNull();
+    expect(coverage.isLikelyStaleRawLocationContext('budget vibes and itinerary')).toBe(true);
+    expect(coverage.isLikelyStaleRawLocationContext('123 Main Street')).toBe(false);
+    expect(coverage.extractLocationDisambiguationQualifier('near Austin, TX')).toBe('Texas');
+    expect(coverage.extractLocationDisambiguationQualifier('show more details')).toBeNull();
+    expect(coverage.selectPendingContextItem('   ', sparsePendingItemsContext)).toBeNull();
+    expect(coverage.filterPendingItemsByFollowUp('provider', sparsePendingItemsContext)).toHaveLength(2);
+    expect(coverage.buildPendingLocationFollowUpQuery('near Austin', {
+      ...sparsePendingItemsContext,
+      rawValue: 'budget vibes and itinerary',
+    })).toBeNull();
+    expect(coverage.buildPendingLocationFollowUpQuery('near Illinois', {
+      ...sparsePendingItemsContext,
+      rawValue: 'Springfield',
+    })).toBe('Springfield Illinois');
+    expect(coverage.buildPendingLocationFollowUpQuery('actually 123 Main Street', sparsePendingItemsContext)).toBe('123 Main Street');
+    expect(coverage.buildPendingLocationAction({ ...sparsePendingItemsContext, targetField: 'stop' }, 'Coffee Stop')).toEqual({
+      actions: [{ type: 'ADD_STOP', stop: { name: 'Coffee Stop', address: 'Coffee Stop' } }],
+    });
+    expect(coverage.buildPendingLocationAction({ ...sparsePendingItemsContext, targetField: 'enddestination' }, 'Austin')).toEqual({
+      actions: [{ type: 'SET_FIELD', field: 'end', value: 'Austin' }],
+    });
+    expect(coverage.buildPendingLocationAction({ ...sparsePendingItemsContext, targetField: '' }, 'Dallas')).toEqual({
+      actions: [{ type: 'SET_FIELD', field: 'start', value: 'Dallas' }],
+    });
+    expect(coverage.extractRadiusKmFromFollowUp('within 0 miles')).toBeNull();
+    expect(coverage.extractRadiusKmFromFollowUp('inside 100 kilometers')).toBe(80);
+    expect(coverage.extractRadiusKmFromFollowUp('within 2 mi')).toBeCloseTo(3.218688);
+    expect(coverage.inferNearbyCategoryFromFollowUp('latte stop')).toBe('coffee');
+    expect(coverage.inferNearbyCategoryFromFollowUp('charge the EV')).toBe('fuel');
+    expect(coverage.inferNearbyCategoryFromFollowUp('dinner')).toBe('food');
+    expect(coverage.inferNearbyCategoryFromFollowUp('trail outdoors')).toBe('outdoors');
+    expect(coverage.inferNearbyCategoryFromFollowUp('photo overlook')).toBe('scenic');
+    expect(coverage.inferNearbyCategoryFromFollowUp('museum gallery')).toBe('culture');
+    expect(coverage.inferNearbyCategoryFromFollowUp('shopping market')).toBe('shopping');
+    expect(coverage.inferNearbyCategoryFromFollowUp('movie arcade')).toBe('entertainment');
+    expect(coverage.inferNearbyCategoryFromFollowUp('quiet stop', 'parks')).toBe('parks');
+    await expect(coverage.applyPendingLocationFollowUp('near Austin', {
+      ...sparsePendingItemsContext,
+      rawValue: 'trip vibes and budget',
+    }, scopeAiStore)).resolves.toBeNull();
+    await expect(coverage.resolvePendingWeatherFollowUp('near Austin', {
+      ...sparsePendingItemsContext,
+      kind: 'weather-location',
+      rawValue: 'trip vibes and budget',
+    }, scopeAiStore)).resolves.toBeNull();
+
+    const untrustedCandidateContext = {
+      kind: 'endpoint-candidates',
+      sourcePrompt: 'endpoint ideas',
+      targetField: 'end',
+      rawValue: 'route end',
+      results: [{
+        id: 'candidate-no-coordinates',
+        label: '1. Candidate without coordinates',
+        value: 'Candidate without coordinates',
+        source: 'mapbox',
+        meta: { providerVerified: true },
+      }],
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 0,
+    };
+    expect(coverage.scopeAiPlaceResultToPendingItem({
+      id: '',
+      placeName: 'Fallback Place',
+      formattedAddress: '',
+      latitude: 31.1,
+      longitude: -97.1,
+      source: '',
+    }, 0)).toMatchObject({
+      id: '',
+      value: 'Fallback Place',
+      source: '',
+    });
+    expect(coverage.scopeAiFuelStationToPendingItem({
+      id: 'fuel-1',
+      name: 'Unnamed source fuel',
+      address: '10 Fuel Rd',
+      latitude: 31.2,
+      longitude: -97.2,
+      fuelType: 'regular',
+      pricePerUnit: 3.25,
+      source: '',
+    }, 0, '')).toMatchObject({
+      source: 'configured fuel lookup',
+      meta: expect.objectContaining({ providerVerified: false }),
+    });
+    expect(coverage.getScopeAiSearchCoordinate({
+      plannerState: {
+        startLatitude: 31.1,
+        startLongitude: -97.1,
+        start: '',
+      },
+    })).toMatchObject({ label: 'the start' });
+    expect(coverage.getScopeAiSearchCoordinate({
+      plannerState: {
+        endLatitude: 31.2,
+        endLongitude: -97.2,
+        end: '',
+      },
+    })).toMatchObject({ label: 'the end' });
+    expect(coverage.getScopeAiSearchCoordinate({
+      plannerState: {
+        stops: [{ latitude: 31.3, longitude: -97.3, name: '' }],
+      },
+    })).toMatchObject({ label: 'the first stop' });
+    await expect(coverage.resolvePendingCandidateFollowUp('1', untrustedCandidateContext, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('provider-backed candidate includes coordinates') },
+      intentKind: 'location',
+    });
+    await expect(coverage.resolvePendingCandidateFollowUp('candidate', {
+      ...untrustedCandidateContext,
+      results: [
+        ...untrustedCandidateContext.results,
+        {
+          id: 'candidate-two-no-coordinates',
+          label: '2. Candidate backup without coordinates',
+          value: 'Candidate backup without coordinates',
+          source: 'mapbox',
+          meta: { providerVerified: true },
+        },
+      ],
+    }, scopeAiStore)).resolves.toMatchObject({
+      assistantMessage: { content: expect.stringContaining('I narrowed those provider-backed options') },
+      intentKind: 'location',
+    });
+
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('for 0 people', {
+      kind: 'planner-setting',
+      sourcePrompt: 'travelers',
+      targetField: 'party_size',
+      rawValue: 'travelers',
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+    await expect(coverage.resolvePendingPlannerSettingFollowUp('make it 4', {
+      kind: 'planner-setting',
+      sourcePrompt: 'unknown',
+      targetField: '',
+      rawValue: 'unknown',
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 0,
+    }, scopeAiStore)).resolves.toBeNull();
+
+    expect(coverage.resolvePendingExplanationFollowUp('ok', {
+      kind: 'explanation',
+      sourcePrompt: 'why',
+      rawValue: 'why',
+      lastAnswer: '',
+      createdAt: Date.now(),
+      turnCount: 0,
+    })).toBeNull();
+    expect(coverage.resolvePendingExplanationFollowUp('show more', {
+      kind: 'explanation',
+      sourcePrompt: 'why',
+      rawValue: 'why',
+      lastAnswer: 'A'.repeat(260),
+      createdAt: Date.now(),
+      turnCount: 0,
+    })?.assistantMessage.content).toContain('Previous answer');
+
+    expect(coverage.buildLocationResolutionConfirmation('', {
+      applied: true,
+      resolutions: [
+        { status: 'resolved', field: 'start', rawValue: 'Dallas', resolvedLabel: 'Dallas, TX' },
+        { status: 'resolved', field: 'end', rawValue: 'Austin', resolvedLabel: 'Austin, TX' },
+      ],
+    }, { actions: [] })).toBe('Set the route endpoints to Dallas, TX and Austin, TX.');
+    expect(coverage.buildLocationResolutionConfirmation('', {
+      applied: true,
+      resolutions: [
+        { status: 'resolved', field: 'stop', rawValue: 'Coffee', resolvedLabel: 'Coffee Stop' },
+      ],
+    }, { actions: [] })).toBe('Added the stop as Coffee Stop.');
+    expect(coverage.buildLocationResolutionConfirmation('Fallback applied.', {
+      applied: true,
+      resolutions: [],
+    }, {
+      actions: [
+        { type: 'SET_FIELD', field: 'start', value: 'Dallas' },
+        { type: 'SET_FIELD', field: 'end', value: 'Austin' },
+      ],
+    })).toBe('Fallback applied.');
+
+    expect(coverage.buildPendingContextReminderResolution({
+      kind: 'location-resolution',
+      sourcePrompt: 'ambiguous place',
+      targetField: 'start',
+      rawValue: 'ambiguous place',
+      lastAnswer: 'Pick one',
+      createdAt: Date.now(),
+      turnCount: 2,
+    }, 'location', scopeAiStore).assistantMessage.content).toContain('I cleared that earlier follow-up');
+    expect(scopeAiStore.clearPendingScopeAiContext).toHaveBeenCalledWith('pending-context-unrelated-turn-limit');
+
+    wrapper.unmount();
+  });
 });

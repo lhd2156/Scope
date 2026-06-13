@@ -73,7 +73,7 @@ class TripMemberSerializer(serializers.ModelSerializer):
 
 class TripSerializer(serializers.ModelSerializer):
     spots = TripSpotSerializer(source='trip_spots', many=True, read_only=True)
-    members = TripMemberSerializer(many=True, read_only=True)
+    members = serializers.SerializerMethodField()
 
     class Meta:
         model = Trip
@@ -95,6 +95,26 @@ class TripSerializer(serializers.ModelSerializer):
             'members',
         ]
         read_only_fields = ['id', 'creator_id', 'created_at', 'spots', 'members']
+
+    def get_members(self, obj: Trip) -> list[dict]:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not self._can_view_members(obj, user):
+            return []
+        return TripMemberSerializer(obj.members.all(), many=True).data
+
+    @staticmethod
+    def _can_view_members(obj: Trip, user) -> bool:
+        if getattr(user, 'is_admin', False):
+            return True
+        if not getattr(user, 'is_authenticated', False):
+            return False
+        user_id = getattr(user, 'id', None)
+        if user_id is None:
+            return False
+        if str(obj.creator_id) == str(user_id):
+            return True
+        return any(str(member.user_id) == str(user_id) for member in obj.members.all())
 
     def to_internal_value(self, data):
         if hasattr(data, 'copy'):

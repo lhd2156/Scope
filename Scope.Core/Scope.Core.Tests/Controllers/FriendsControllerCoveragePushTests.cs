@@ -193,7 +193,7 @@ public sealed class FriendsControllerCoveragePushTests
         var items = Assert.IsAssignableFrom<IEnumerable<object>>(TestData.Response(Assert.IsType<OkObjectResult>(result)).Data).ToList();
         Assert.Contains(items, x =>
             TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == hiddenSharedId
-            && TestData.Prop<string>(x, "reason") == "Suggested Scope traveler"
+            && TestData.Prop<string>(x, "reason") == "Fresh Scope traveler"
             && Assert.IsAssignableFrom<string[]>(TestData.Prop<object>(x, "sharedInterests")).Length == 0);
         Assert.Contains(items, x =>
             TestData.Prop<Guid>(TestData.Prop<object>(x, "user"), "id") == hiddenSameHomeId

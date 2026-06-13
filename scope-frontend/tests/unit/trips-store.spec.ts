@@ -78,6 +78,76 @@ describe('trips store API contracts', () => {
     expect(store.loading).toBe(false);
   });
 
+  it('uses safe defaults for empty trip lists, missing metadata, and non-selected deletes', async () => {
+    const listTrips = vi.fn()
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'trip-1',
+            title: 'Primary trip',
+            destination: 'Dallas, TX',
+            description: 'Selected fallback candidate.',
+            isPublic: false,
+            startDate: '2026-06-01',
+            endDate: '2026-06-02',
+            spots: [],
+            members: [{ id: 'user-1', displayName: 'Louis Do', status: 'owner' }],
+          },
+          {
+            id: 'trip-2',
+            title: 'Secondary trip',
+            destination: 'Austin, TX',
+            description: 'Delete candidate.',
+            isPublic: true,
+            startDate: '2026-06-03',
+            endDate: '2026-06-04',
+            spots: [],
+            members: [],
+          },
+        ],
+      });
+    const deleteTrip = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('@/services/tripService', () => ({
+      listTrips,
+      getTripDetail: vi.fn(),
+      getTripByShareToken: vi.fn(),
+      getTripMembers: vi.fn(),
+      createTripShareLink: vi.fn(),
+      createTrip: vi.fn(),
+      updateTrip: vi.fn(),
+      deleteTrip,
+      addTripSpot: vi.fn(),
+      removeTripSpot: vi.fn(),
+      reorderTripSpots: vi.fn(),
+      inviteTripMember: vi.fn(),
+      updateTripMemberRole: vi.fn(),
+    }));
+
+    vi.doMock('@/services/intelService', () => ({
+      generateItinerary: vi.fn(),
+    }));
+
+    const store = await bootstrapTripsStore();
+
+    expect(store.activeTrip).toBeNull();
+
+    await store.fetchTrips();
+    expect(store.activeTrip).toBeNull();
+    expect(store.meta).toBeNull();
+
+    await store.fetchTrips(2);
+    expect(store.activeTrip?.id).toBe('trip-1');
+    expect(store.meta).toBeNull();
+
+    await store.deleteTrip('trip-2');
+    expect(deleteTrip).toHaveBeenCalledWith('trip-2');
+    expect(store.items.map((trip) => trip.id)).toEqual(['trip-1']);
+    expect(store.activeTrip?.id).toBe('trip-1');
+    expect(store.members).toEqual([]);
+  });
+
   it('surfaces a trip detail failure instead of opening stale listed data', async () => {
     const listedTrip = {
       id: 'enw',

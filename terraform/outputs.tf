@@ -8,6 +8,16 @@ output "vpc_cidr" {
   value       = aws_vpc.scope.cidr_block
 }
 
+output "vpc_flow_log_id" {
+  description = "VPC REJECT flow log identifier when network flow logging is enabled."
+  value       = aws_flow_log.scope_rejects.id
+}
+
+output "vpc_flow_log_group_name" {
+  description = "CloudWatch Logs group for VPC REJECT flow logs when enabled."
+  value       = aws_cloudwatch_log_group.vpc_flow_logs.name
+}
+
 output "stack_profile" {
   description = "Active Terraform deployment profile."
   value       = local.stack_profile

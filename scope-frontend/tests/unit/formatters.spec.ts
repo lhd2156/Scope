@@ -55,6 +55,7 @@ describe('formatMapPinCityLine', () => {
 
 describe('date and identity formatters', () => {
   it('formats relative time, month/day labels, and inclusive day spans', () => {
+    expect(formatRelativeTime('2026-05-20T12:00:00Z', '2026-05-20T12:00:00Z')).toBe('now');
     expect(formatRelativeTime('2026-05-20T12:01:00Z', '2026-05-20T12:00:00Z')).toContain('in 1 minute');
     expect(formatRelativeTime('2026-05-20T12:00:30Z', '2026-05-20T12:00:00Z')).toBe('in 30 seconds');
     expect(formatRelativeTime('2026-05-20T14:00:00Z', '2026-05-20T12:00:00Z')).toBe('in 2 hours');
@@ -64,6 +65,7 @@ describe('date and identity formatters', () => {
     expect(formatRelativeTime('2027-05-20', '2026-05-20')).toBe('in 1 year');
     expect(formatRelativeTime('not-a-date', '2026-05-20T12:00:00Z')).toBe('');
     expect(formatRelativeTime('2026-05-20T12:00:00Z', 'not-a-date')).toBe('');
+    expect(formatRelativeTime(new Date())).toBe('now');
     expect(formatMonthDay('2026-05-20')).toContain('May');
     expect(formatMonthDayYear('2026-06-08T12:00:00Z')).toBe('Jun 8, 2026');
     expect(formatPostTimestamp('2026-06-01T12:00:00Z', '2026-06-08T12:00:00Z')).toBe('1 week ago');
@@ -84,15 +86,19 @@ describe('date and identity formatters', () => {
 
   it('formats initials and region-aware locations', () => {
     expect(getInitials('Louis Do')).toBe('LD');
+    expect(getInitials('é')).toBe('É');
     expect(getInitials('   ')).toBe('AT');
     expect(formatCategoryLabel('nightlife')).toBe('Nightlife');
     expect(formatCategoryLabel('')).toBe('');
     expect(formatCategoryLabel(undefined)).toBe('');
     expect(formatCountryLabel('us')).toBe('USA');
+    expect(formatCountryLabel(' united states of america ')).toBe('USA');
     expect(formatCountryLabel('prt')).toBe('PRT');
     expect(formatCountryLabel('Portugal')).toBe('Portugal');
+    expect(formatCountryLabel('')).toBe('');
     expect(formatCountryLabel(undefined)).toBe('');
     expect(resolveLocationRegion({ city: 'Chicago' })).toBe('IL');
+    expect(resolveLocationRegion({ stateCode: 'CA-BC' })).toBe('BC');
     expect(resolveLocationRegion({ adminArea: 'British Columbia' })).toBe('British Columbia');
     expect(resolveLocationRegion({ stateCode: 'US-TX' })).toBe('TX');
     expect(resolveLocationRegion({ city: 'Lisbon', country: 'Portugal' })).toBe('Lisbon');
@@ -186,11 +192,24 @@ describe('date and identity formatters', () => {
       precision: 'address',
     })).toBe('500 Main Street');
     expect(formatHomeBaseLocation({
+      city: 'Dallas',
+      stateCode: 'TX',
+      country: 'US',
+      precision: 'address',
+    })).toBe('Dallas, TX');
+    expect(formatHomeBaseLocation({
       formattedAddress: '',
       placeName: '',
       address: 'Only address fallback',
       precision: 'city',
     })).toBe('Only address fallback');
     expect(formatCityRegionLocation({ city: 'Remote Island', country: 'mx' })).toBe('Remote Island, MX');
+    expect(formatHomeBaseLocation({
+      placeName: 'Dallas, TX',
+      city: 'Dallas',
+      stateCode: 'TX',
+      country: 'US',
+      precision: 'address',
+    })).toBe('Dallas, TX');
   });
 });

@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: core
-          image: ghcr.io/lhd2156/scope/scope-core:latest
+          image: ghcr.io/lhd2156/scope/scope-core:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -157,7 +157,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: content
-          image: ghcr.io/lhd2156/scope/scope-content:latest
+          image: ghcr.io/lhd2156/scope/scope-content:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -258,7 +258,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: content-worker
-          image: ghcr.io/lhd2156/scope/scope-content:latest
+          image: ghcr.io/lhd2156/scope/scope-content:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -338,7 +338,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: content-celery
-          image: ghcr.io/lhd2156/scope/scope-content:latest
+          image: ghcr.io/lhd2156/scope/scope-content:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -470,7 +470,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: intel
-          image: ghcr.io/lhd2156/scope/scope-intel:latest
+          image: ghcr.io/lhd2156/scope/scope-intel:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -560,7 +560,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: intel-worker
-          image: ghcr.io/lhd2156/scope/scope-intel:latest
+          image: ghcr.io/lhd2156/scope/scope-intel:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -667,7 +667,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: rag
-          image: ghcr.io/lhd2156/scope/scope-rag:latest
+          image: ghcr.io/lhd2156/scope/scope-rag:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -769,7 +769,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: scope-metrics
-          image: ghcr.io/lhd2156/scope/scope-metrics:latest
+          image: ghcr.io/lhd2156/scope/scope-metrics:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -847,7 +847,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: site
-          image: ghcr.io/lhd2156/scope/scope-site:latest
+          image: ghcr.io/lhd2156/scope/scope-site:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -926,7 +926,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: admin
-          image: ghcr.io/lhd2156/scope/scope-admin:latest
+          image: ghcr.io/lhd2156/scope/scope-admin:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -999,7 +999,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: scope-cli
-              image: ghcr.io/lhd2156/scope/scope-cli:latest
+              image: ghcr.io/lhd2156/scope/scope-cli:deploy-placeholder
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -1071,7 +1071,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: frontend
-          image: ghcr.io/lhd2156/scope/scope-frontend:latest
+          image: ghcr.io/lhd2156/scope/scope-frontend:deploy-placeholder
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
