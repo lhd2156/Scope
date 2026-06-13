@@ -18,9 +18,12 @@ auth-profiles.json
 # Agent / editor workspace artifacts
 /.cursor/
 /.codex-artifacts/
+/.codex-local/
 /.codex-logs/
+/.local-runbooks/
 /.clawhub/
 /.openclaw/
+/codex-repair/
 /models.json
 
 # Legacy agent orchestration / task artifacts
@@ -72,6 +75,10 @@ coverage/
 *.cover
 .coverage
 .coverage.*
+coverage.xml
+**/coverage.xml
+**/coverage-runtime.xml
+**/lcov.info
 artifacts/
 TestResults/
 test-results/
@@ -92,6 +99,7 @@ output/
 .terraform/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 __pycache__/
 *.profraw
 *.profdata
@@ -136,12 +144,15 @@ env/
 
 # Docker override files
 docker-compose.override.yml
+.docker-codex/
 .docker-config/
 .dotnet-home/
 .dotnet-sdk/
 .tooling/
 .gocache/
 .gomodcache/
+.wrangler/
+**/.wrangler/
 
 # Terraform local state
 **/.terraform/
@@ -164,6 +175,7 @@ terraform/backend.hcl
 /scope-frontend/production-review-*.png
 /weather-provider-hidden-check.png
 /scope-frontend/coverage-summary-saved.json
+/scope-frontend/coverage-target-*/
 /scope-metrics/coverage
 /scope-metrics/alerts
 /scope-metrics/all

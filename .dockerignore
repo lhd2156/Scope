@@ -16,6 +16,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.secrets.baseline
+.pre-commit-config.yaml
 
 # Logs
 *.log
