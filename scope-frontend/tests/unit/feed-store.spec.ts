@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia';
+import { nextTick } from 'vue';
 
 async function bootstrapFeedStore() {
   setActivePinia(createPinia());
@@ -143,5 +144,66 @@ describe('feed store API contracts', () => {
     expect(getFeed).not.toHaveBeenCalled();
     expect(store.items).toEqual([{ id: 'home-feed-1' }]);
     expect(store.meta).toMatchObject({ page: 1, pageSize: 6, total: 1 });
+  });
+
+  it('keeps the signed-in actor identity fresh after profile changes', async () => {
+    vi.doMock('@/services/feedService', () => ({
+      getFeed: vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'feed-review-current-user',
+            type: 'review',
+            actor: {
+              id: 'user-auth',
+              username: 'traveler-user-auth',
+              email: '',
+              displayName: 'Traveler user-auth',
+              interests: [],
+              avatarUrl: '',
+            },
+            title: 'Traveler user-auth reviewed Sunset Rooftop Tacos',
+            excerpt: '5/5: Identity should follow settings.',
+            createdAt: '2026-03-29T13:00:00Z',
+            targetId: 'spot-1',
+          },
+        ],
+        meta: null,
+      }),
+      getHomeActivityFeed: vi.fn().mockResolvedValue({ data: [], meta: null }),
+      getTrendingSpots: vi.fn(),
+    }));
+
+    const store = await bootstrapFeedStore();
+    const { useAuthStore } = await import('@/stores/auth');
+    const authStore = useAuthStore();
+    authStore.currentUser = {
+      id: 'user-auth',
+      username: 'launch-ready',
+      email: 'launch-ready@example.com',
+      displayName: 'Launch Ready Louis',
+      interests: ['food'],
+      avatarUrl: 'https://images.example.com/avatar-updated.jpg',
+    };
+
+    await store.fetchFeed();
+
+    expect(store.items[0].actor).toMatchObject({
+      id: 'user-auth',
+      username: 'launch-ready',
+      displayName: 'Launch Ready Louis',
+      avatarUrl: 'https://images.example.com/avatar-updated.jpg',
+    });
+    expect(store.items[0].title).toBe('Launch Ready Louis reviewed Sunset Rooftop Tacos');
+
+    authStore.currentUser = {
+      ...authStore.currentUser,
+      displayName: 'Public Launch Louis',
+      avatarUrl: 'https://images.example.com/avatar-public.jpg',
+    };
+    await nextTick();
+
+    expect(store.items[0].actor.displayName).toBe('Public Launch Louis');
+    expect(store.items[0].actor.avatarUrl).toBe('https://images.example.com/avatar-public.jpg');
+    expect(store.items[0].title).toBe('Public Launch Louis reviewed Sunset Rooftop Tacos');
   });
 });
