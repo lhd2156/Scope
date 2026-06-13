@@ -194,9 +194,10 @@ describe('SpotDetail', () => {
 
     const reviewSummary = wrapper.find('.reviews-summary');
     expect(reviewSummary.exists()).toBe(true);
+    expect(reviewSummary.text()).toContain('4.9');
     expect(reviewSummary.text()).not.toMatch(/average/i);
     expect(reviewSummary.text()).not.toContain('|');
-    expect(reviewSummary.findAll('.star-rating__clip')[4].attributes('style')).toContain('width: 80%');
+    expect(reviewSummary.findAll('.star-rating__clip')[4].attributes('style')).toContain('width: 90%');
 
     const similarRating = wrapper.find('.similar-card__rating');
     expect(similarRating.text()).toContain('4.7');
@@ -415,6 +416,54 @@ describe('SpotDetail', () => {
     expect(reviewListText).toContain('Launch Ready Louis');
     expect(reviewListText).toContain('https://images.example.com/avatar-updated.jpg');
     expect(reviewListText).toContain('Identity should stay fresh after settings save.');
+  });
+
+  it('refreshes an existing spot after another review updates its live average', async () => {
+    const secondReview = {
+      id: 'review-2',
+      spotId: 'spot-1',
+      rating: 4.1,
+      comment: 'Second traveler changed the public average.',
+      createdAt: '2026-03-29T11:00:00Z',
+      user: {
+        id: 'user-2',
+        username: 'jordan',
+        email: 'jordan@example.com',
+        displayName: 'Jordan Reed',
+        interests: ['nature'],
+        avatarUrl: 'https://images.example.com/jordan.jpg',
+      },
+    };
+    listSpotReviewsMock
+      .mockResolvedValueOnce({ data: spot.reviews })
+      .mockResolvedValueOnce({ data: [...spot.reviews, secondReview] });
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('1 review');
+    expect(wrapper.get('.reviews-summary__score').text()).toBe('4.9');
+
+    await wrapper.get('[data-test="submit-review"]').trigger('click');
+    await flushPromises();
+
+    expect(createSpotReviewMock).toHaveBeenCalledWith('spot-1', {
+      rating: 5,
+      comment: 'Perfect quiet reset.',
+    });
+    expect(listSpotReviewsMock).toHaveBeenCalledTimes(2);
+    expect(fetchSpotMock).toHaveBeenCalledWith('spot-1');
+    expect(wrapper.text()).toContain('2 reviews');
+    expect(wrapper.text()).toContain('Second traveler changed the public average.');
+    expect(wrapper.get('.reviews-summary__score').text()).toBe('4.5');
   });
 
   it('shows a clean error when review publishing fails', async () => {

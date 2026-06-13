@@ -710,6 +710,21 @@ describe('API service fallbacks', () => {
     );
   });
 
+  it('opens production showcase profiles without enabling mock account fallback', async () => {
+    vi.stubEnv('VITE_ENABLE_USER_MOCK_FALLBACK', 'false');
+    apiMock.get.mockRejectedValueOnce(new Error('profile offline'));
+
+    const userService = await import('@/services/userService');
+
+    await expect(userService.getUserProfile('demo-user-4')).resolves.toMatchObject({
+      data: {
+        displayName: 'Sofia Ramirez',
+        username: 'sofia.ramirez',
+        avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+      },
+    });
+  });
+
   it('sanitizes preview profile updates before mutating the local user catalog', async () => {
     vi.stubEnv('VITE_ENABLE_USER_MOCK_FALLBACK', 'true');
     apiMock.put.mockRejectedValue(new Error('profile offline'));
@@ -959,6 +974,38 @@ describe('API service fallbacks', () => {
     });
     expect(apiMock.get).toHaveBeenCalledWith('/api/core/users/search', {
       params: { q: 'maya', page: 2, pageSize: 5 },
+    });
+  });
+
+  it('merges searchable showcase people after real Scope member results', async () => {
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: 'real-sofia',
+            username: 'sofia.live',
+            email: 'sofia.live@example.com',
+            displayName: 'Sofia Live',
+            interests: ['food'],
+          },
+        ],
+        meta: { page: 1, pageSize: 6, total: 1, totalPages: 1 },
+      },
+    });
+
+    const friendService = await import('@/services/friendService');
+    const response = await friendService.searchFriendCandidates('sofia', 1, 6);
+
+    expect(response.data).toEqual([
+      expect.objectContaining({ id: 'real-sofia', displayName: 'Sofia Live' }),
+      expect.objectContaining({
+        id: '44444444-4444-4444-4444-444444444441',
+        displayName: 'Sofia Ramirez',
+        avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+      }),
+    ]);
+    expect(apiMock.get).toHaveBeenCalledWith('/api/core/users/search', {
+      params: { q: 'sofia', page: 1, pageSize: 6 },
     });
   });
 

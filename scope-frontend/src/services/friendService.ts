@@ -12,6 +12,7 @@ import type {
   UserProfile,
 } from '@/types';
 import { sanitizeFriendConnection, sanitizeFriendRequest, sanitizeImageUrl, sanitizeSingleLineText, sanitizeUserProfile } from '@/utils/sanitizers';
+import { searchShowcaseUserProfiles } from '@/utils/showcaseActors';
 
 const FRIENDS_BASE_PATH = '/api/core/friends';
 const SPOT_CATEGORIES = new Set<SpotCategory>(['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic', 'other']);
@@ -184,7 +185,31 @@ export async function listFriendSuggestions(mode: 'best' | 'mutuals' | 'vibes' |
 }
 
 export async function searchFriendCandidates(query: string, page = 1, pageSize = 10): Promise<ApiEnvelope<UserProfile[]>> {
-  return searchUsersLive(normalizeHandleQuery(query), page, pageSize);
+  const normalizedQuery = normalizeHandleQuery(query);
+  const liveResponse = await searchUsersLive(normalizedQuery, page, pageSize);
+  const mergedUsers = new Map<string, UserProfile>();
+
+  liveResponse.data.forEach((user) => {
+    mergedUsers.set(user.id, user);
+  });
+  searchShowcaseUserProfiles(normalizedQuery, page, pageSize).forEach((user) => {
+    if (!mergedUsers.has(user.id)) {
+      mergedUsers.set(user.id, user);
+    }
+  });
+
+  const data = [...mergedUsers.values()].slice(0, pageSize);
+  return {
+    ...liveResponse,
+    data,
+    meta: liveResponse.meta
+      ? {
+        ...liveResponse.meta,
+        total: Math.max(liveResponse.meta.total ?? data.length, data.length),
+        totalPages: Math.max(liveResponse.meta.totalPages ?? 1, Math.ceil(data.length / pageSize) || 1),
+      }
+      : liveResponse.meta,
+  };
 }
 
 export async function sendFriendRequest(userId: string): Promise<void> {

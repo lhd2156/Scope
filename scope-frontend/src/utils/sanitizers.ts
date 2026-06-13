@@ -632,7 +632,7 @@ export function sanitizeSpotSummary(
   options: SpotSanitizerOptions = {},
 ): SpotSummary {
   const wireSpot = spot as SpotSummary & SpotWireFields;
-  const rating = sanitizeOptionalNumber(spot.rating) ?? sanitizeOptionalNumber(wireSpot.average_rating) ?? 0;
+  const rating = sanitizeOptionalNumber(wireSpot.average_rating) ?? sanitizeOptionalNumber(spot.rating) ?? 0;
   const likesCount = sanitizeOptionalNumber(spot.likesCount) ?? sanitizeOptionalNumber(wireSpot.likes_count);
   const category = sanitizeSpotCategory(spot.category);
   const pillars = sanitizeSpotPillars((spot as SpotSummary & { pillars?: unknown }).pillars);

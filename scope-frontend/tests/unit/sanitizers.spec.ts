@@ -525,6 +525,24 @@ describe('sanitizers', () => {
     });
   });
 
+  it('prefers backend review averages over the creator seed rating when present', () => {
+    expect(sanitizeSpotSummary({
+      id: 'spot-average',
+      title: 'Average Updated Spot',
+      description: 'Review average should drive public rating.',
+      latitude: 32.7,
+      longitude: -97.3,
+      address: '1 Main',
+      city: 'Fort Worth',
+      country: 'US',
+      category: 'food',
+      rating: 4.9,
+      average_rating: '4.25',
+      photoUrl: '',
+      createdAt: '2026-03-29T10:00:00Z',
+    } as unknown as SpotSummary).rating).toBe(4.25);
+  });
+
   it('normalizes incomplete trip and spot wire variants without inventing unsafe values', () => {
     expect(sanitizeSpotSummary({
       id: 'wire-spot',
