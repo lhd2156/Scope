@@ -109,7 +109,7 @@ const spotDetailStubs = {
   },
   ReviewList: {
     props: ['reviews'],
-    template: '<div data-test="review-list">{{ reviews.map((review) => review.comment).join(" | ") }}</div>',
+    template: '<div data-test="review-list">{{ reviews.map((review) => `${review.user?.displayName ?? "No user"}:${review.user?.avatarUrl ?? ""}:${review.comment}`).join(" | ") }}</div>',
   },
 };
 
@@ -369,6 +369,52 @@ describe('SpotDetail', () => {
 
     expect(wrapper.text()).toContain('Excellent anchor stop for an evening route.');
     expect(wrapper.text()).toContain('Scope could not refresh live reviews right now.');
+  });
+
+  it('uses the latest signed-in identity for current user reviews returned with stale profile data', async () => {
+    authStoreMock.currentUser = {
+      id: 'user-auth',
+      username: 'launch-ready',
+      email: 'launch-ready@example.com',
+      displayName: 'Launch Ready Louis',
+      interests: ['food', 'culture'],
+      avatarUrl: 'https://images.example.com/avatar-updated.jpg',
+    };
+    listSpotReviewsMock.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'review-current-user',
+          spotId: 'spot-1',
+          rating: 5,
+          comment: 'Identity should stay fresh after settings save.',
+          createdAt: '2026-03-29T10:00:00Z',
+          user: {
+            id: 'user-auth',
+            username: 'traveler-user-auth',
+            email: '',
+            displayName: 'Traveler user-aut',
+            interests: [],
+            avatarUrl: '',
+          },
+        },
+      ],
+    });
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot,
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
+    const reviewListText = wrapper.get('[data-test="review-list"]').text();
+    expect(reviewListText).toContain('Launch Ready Louis');
+    expect(reviewListText).toContain('https://images.example.com/avatar-updated.jpg');
+    expect(reviewListText).toContain('Identity should stay fresh after settings save.');
   });
 
   it('shows a clean error when review publishing fails', async () => {

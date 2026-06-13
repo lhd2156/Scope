@@ -383,6 +383,7 @@ import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallback
 import { scheduleNonCriticalTask, type CancelScheduledTask } from '@/utils/scheduleNonCriticalTask';
 import { formatCityRegionLocation, formatVibeLabel } from '@/utils/formatters';
 import { buildSpotPath } from '@/utils/spotRoutes';
+import { applyCurrentUserIdentityToReviews } from '@/utils/currentUserIdentity';
 import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';
 
 const DESIRED_GALLERY_SIZE = 5;
@@ -562,7 +563,10 @@ const photoCountLabel = computed(() => {
   const totalPhotos = galleryPhotos.value.length;
   return `${totalPhotos} photo${totalPhotos === 1 ? '' : 's'}`;
 });
-const displayReviews = computed(() => persistedReviews.value.length ? persistedReviews.value : props.spot?.reviews ?? []);
+const displayReviews = computed(() => applyCurrentUserIdentityToReviews(
+  persistedReviews.value.length ? persistedReviews.value : props.spot?.reviews ?? [],
+  authStore.currentUser,
+));
 const reviewCountLabel = computed(() => {
   const totalReviews = displayReviews.value.length;
   return `${totalReviews} review${totalReviews === 1 ? '' : 's'}`;

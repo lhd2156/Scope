@@ -1,10 +1,13 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { defineStore } from 'pinia';
 import { getFeed, getHomeActivityFeed, getTrendingSpots } from '@/services/feedService';
+import { useAuthStore } from '@/stores/auth';
 import type { FeedItem, PaginationMeta, SpotSummary } from '@/types';
 import { toAsyncErrorMessage } from '@/utils/errors';
+import { applyCurrentUserIdentityToFeedItems } from '@/utils/currentUserIdentity';
 
 export const useFeedStore = defineStore('feed', () => {
+  const authStore = useAuthStore();
   const items = ref<FeedItem[]>([]);
   const meta = ref<PaginationMeta | null>(null);
   const trendingSpots = ref<SpotSummary[]>([]);
@@ -24,10 +27,10 @@ export const useFeedStore = defineStore('feed', () => {
 
     try {
       const response = await getFeed(page, pageSize);
-      items.value = response.data;
+      items.value = applyCurrentUserIdentityToFeedItems(response.data, authStore.currentUser);
       meta.value = response.meta ?? null;
       hasLoaded.value = true;
-      return response.data;
+      return items.value;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Scope could not load the activity feed right now.');
       throw nextError;
@@ -46,10 +49,10 @@ export const useFeedStore = defineStore('feed', () => {
 
     try {
       const response = await getHomeActivityFeed(page, pageSize);
-      items.value = response.data;
+      items.value = applyCurrentUserIdentityToFeedItems(response.data, authStore.currentUser);
       meta.value = response.meta ?? null;
       hasLoaded.value = true;
-      return response.data;
+      return items.value;
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Scope could not load the activity feed right now.');
       throw nextError;
@@ -73,6 +76,14 @@ export const useFeedStore = defineStore('feed', () => {
       trendingLoading.value = false;
     }
   }
+
+  watch(
+    () => authStore.currentUser,
+    (currentUser) => {
+      items.value = applyCurrentUserIdentityToFeedItems(items.value, currentUser);
+    },
+    { deep: true },
+  );
 
   return {
     items,
