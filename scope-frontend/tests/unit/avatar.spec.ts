@@ -24,7 +24,7 @@ describe('Avatar', () => {
       });
     }
   });
-  it('renders a neutral silhouette placeholder and preserves size styles when no image is provided', async () => {
+  it('renders a visible initials placeholder and preserves size styles when no image is provided', async () => {
     const wrapper = mount(Avatar, {
       props: {
         name: 'Louis Do',
@@ -35,13 +35,14 @@ describe('Avatar', () => {
     await nextTick();
 
     expect(wrapper.find('img').exists()).toBe(false);
-    expect(wrapper.find('.avatar__silhouette').exists()).toBe(true);
+    expect(wrapper.find('.avatar__initials').text()).toBe('LD');
     expect(wrapper.classes()).toContain('avatar--placeholder');
     expect(wrapper.attributes('aria-label')).toBe('Louis Do');
     expect((wrapper.element as HTMLElement).style.width).toBe('56px');
+    expect((wrapper.element as HTMLElement).style.fontSize).toBe('19px');
   });
 
-  it('falls back to the silhouette placeholder when an explicit image fails to load', async () => {
+  it('shows initials until an explicit image loads or when it fails', async () => {
     const wrapper = mount(Avatar, {
       props: {
         name: 'Maya Chen',
@@ -51,12 +52,20 @@ describe('Avatar', () => {
 
     await nextTick();
     expect(wrapper.find('img').attributes('src')).toContain('maya.jpg');
+    expect(wrapper.find('.avatar__initials').text()).toBe('MC');
+
+    await wrapper.get('img').trigger('load');
+    await nextTick();
+
+    expect(wrapper.find('img').classes()).toContain('is-loaded');
+    expect(wrapper.find('.avatar__initials').exists()).toBe(false);
+    expect(wrapper.classes()).not.toContain('avatar--placeholder');
 
     await wrapper.get('img').trigger('error');
     await nextTick();
 
     expect(wrapper.find('img').exists()).toBe(false);
-    expect(wrapper.find('.avatar__silhouette').exists()).toBe(true);
+    expect(wrapper.find('.avatar__initials').text()).toBe('MC');
     expect(wrapper.classes()).toContain('avatar--placeholder');
   });
 });
