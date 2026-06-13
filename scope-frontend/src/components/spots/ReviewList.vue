@@ -1,6 +1,6 @@
 <template>
   <div class="review-list">
-    <article v-for="review in reviews" :key="review.id" class="review-card glass-panel">
+    <article v-for="review in displayReviews" :key="review.id" class="review-card glass-panel">
       <div class="review-header">
         <div class="review-author">
           <span class="review-author__avatar" aria-hidden="true">
@@ -46,13 +46,16 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
 import ReviewSentiment from '@/components/spots/ReviewSentiment.vue';
+import { getUserProfile } from '@/services/userService';
+import { useAuthStore } from '@/stores/auth';
 import { formatMonthDayYear, formatPostTimestamp } from '@/utils/formatters';
-import type { Review } from '@/types';
+import type { Review, UserProfile } from '@/types';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     reviews: Review[];
     emptyTitle?: string;
@@ -63,6 +66,69 @@ withDefaults(
     emptyCopy: 'Be the first traveler to leave a quick note for this stop.',
   },
 );
+
+const authStore = useAuthStore();
+const hydratedReviewers = ref<Record<string, UserProfile>>({});
+const failedHydrationIds = new Set<string>();
+const uuidLikePattern = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
+function isGeneratedReviewerName(displayName: string | undefined): boolean {
+  return /^Traveler [0-9a-f-]{4,}$/i.test(displayName?.trim() ?? '');
+}
+
+function shouldHydrateReviewer(review: Review): boolean {
+  const userId = review.user?.id?.trim();
+  return Boolean(
+    authStore.isAuthenticated
+    && userId
+    && uuidLikePattern.test(userId)
+    && isGeneratedReviewerName(review.user?.displayName)
+    && !hydratedReviewers.value[userId]
+    && !failedHydrationIds.has(userId),
+  );
+}
+
+async function hydrateReviewerProfiles(reviews: Review[]): Promise<void> {
+  const userIds = [...new Set(reviews.filter(shouldHydrateReviewer).map((review) => review.user.id))];
+  if (!userIds.length) {
+    return;
+  }
+
+  await Promise.all(userIds.map(async (userId) => {
+    try {
+      const response = await getUserProfile(userId);
+      hydratedReviewers.value = {
+        ...hydratedReviewers.value,
+        [userId]: response.data,
+      };
+    } catch {
+      failedHydrationIds.add(userId);
+    }
+  }));
+}
+
+watch(
+  () => [authStore.isAuthenticated, props.reviews.map((review) => `${review.id}:${review.user.id}:${review.user.displayName}`).join('|')] as const,
+  () => {
+    void hydrateReviewerProfiles(props.reviews);
+  },
+  { immediate: true },
+);
+
+const displayReviews = computed(() => props.reviews.map((review) => {
+  const hydratedReviewer = hydratedReviewers.value[review.user.id];
+  if (!hydratedReviewer) {
+    return review;
+  }
+
+  return {
+    ...review,
+    user: {
+      ...review.user,
+      ...hydratedReviewer,
+    },
+  };
+}));
 
 function formatReviewComment(comment: string): string {
   const trimmedComment = comment.trim();
