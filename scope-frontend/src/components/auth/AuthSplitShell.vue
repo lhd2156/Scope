@@ -11,11 +11,11 @@
       <div class="auth-stage__hero-content">
         <RouterLink class="auth-stage__brand" to="/" aria-label="Scope home">
           <span class="auth-stage__brand-mark">
-            <ScopeIcon name="logo" label="Scope logo" />
+            <img class="auth-stage__brand-mark-image" :src="SCOPE_TRIPS_LOGO_MARK_SRC" alt="" />
           </span>
           <span class="auth-stage__brand-copy">
-            <strong>Scope</strong>
-            <small>Explore the World</small>
+            <strong>Scope Trips</strong>
+            <small>Real trips, mapped</small>
           </span>
         </RouterLink>
 
@@ -55,7 +55,6 @@
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue';
 import { RouterLink } from 'vue-router';
-import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import AppFooter from '@/components/common/AppFooter.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import { isScopeQaMode as resolveScopeQaMode } from '@/utils/qaMode';
@@ -83,6 +82,7 @@ const props = withDefaults(
 
 const attrs = useAttrs();
 const ambientParticles = ['north', 'east', 'center', 'south', 'west'] as const;
+const SCOPE_TRIPS_LOGO_MARK_SRC = '/branding/scope-trips-logo-mark.png';
 const isScopeQaAuditMode = resolveScopeQaMode();
 const stageAttrs = computed(() => {
   const rest = { ...attrs };
@@ -182,14 +182,17 @@ const stageClass = computed(() => [
   width: 2.75rem;
   height: 2.75rem;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal) 16%, transparent);
-  color: var(--accent-teal);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 24%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 20%, transparent),
+    0 0 22px color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  overflow: hidden;
 }
 
-.auth-stage__brand-mark :deep(.scope-icon) {
-  width: 1.35rem;
-  height: 1.35rem;
+.auth-stage__brand-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .auth-stage__brand-copy {
@@ -628,11 +631,6 @@ const stageClass = computed(() => [
   .auth-stage__brand-mark {
     width: 2.25rem;
     height: 2.25rem;
-  }
-
-  .auth-stage__brand-mark :deep(.scope-icon) {
-    width: 1.1rem;
-    height: 1.1rem;
   }
 
   .auth-stage__brand-copy strong {

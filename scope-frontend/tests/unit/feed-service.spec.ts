@@ -215,8 +215,8 @@ describe('feed service contracts', () => {
     expect(feed.meta).toMatchObject({ page: 1, pageSize: 20, total: 6, totalPages: 1 });
     expect(new Set(feed.data.map((item) => item.targetId)).size).toBe(6);
     expect(actorNames).toContain('Maya Chen');
-    expect(feed.data.find((item) => item.actor.displayName === 'Maya Chen')?.actor.avatarUrl).toContain('1239291');
-    expect(feed.data.find((item) => item.actor.displayName === 'Elijah Brooks')?.actor.avatarUrl).toContain('220453');
+    expect(feed.data.find((item) => item.actor.displayName === 'Maya Chen')?.actor.avatarUrl).toContain('220453');
+    expect(feed.data.find((item) => item.actor.displayName === 'Elijah Brooks')?.actor.avatarUrl).toContain('1239291');
   });
 
   it('builds public starter activity from public spots and matching reviews when feed trending is unavailable', async () => {

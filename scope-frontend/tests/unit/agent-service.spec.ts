@@ -1600,7 +1600,7 @@ describe('agentService', () => {
         'User: thanks',
         'Scope AI: Anytime. I am here when you want to tune the route, check timing, or sanity-check a stop.',
         'User: thanks',
-        'Scope AI: Of course. When you want the next pass, I can help tighten timing, stops, or budget.',
+        'Scope AI: When you want the next pass, I can help tighten timing, stops, or budget.',
         'User: thanks',
         'Scope AI: You got it. Send the next route detail and I will keep the answer focused.',
         'User: thanks',

@@ -11,9 +11,9 @@ const outputRoot = path.join(publicRoot, 'pwa');
 const iconOutputRoot = path.join(outputRoot, 'icons');
 const splashOutputRoot = path.join(outputRoot, 'splash');
 
-const brandMarkSvgPath = path.join(publicRoot, 'favicon.svg');
-const brandMarkSvg = await readFile(brandMarkSvgPath, 'utf8');
-const brandMarkDataUrl = `data:image/svg+xml;base64,${Buffer.from(brandMarkSvg).toString('base64')}`;
+const brandMarkImagePath = path.join(publicRoot, 'branding', 'scope-trips-logo-mark.png');
+const brandMarkImage = await readFile(brandMarkImagePath);
+const brandMarkDataUrl = `data:image/png;base64,${Buffer.from(brandMarkImage).toString('base64')}`;
 
 const iconAssets = [
   { fileName: 'icon-192.png', size: 192, maskable: false },
@@ -58,7 +58,7 @@ const splashAssets = [
 
 function buildIconHtml(maskable) {
   const frameInset = maskable ? '16%' : '19%';
-  const badgeInset = maskable ? '22%' : '24%';
+  const badgeInset = maskable ? '7%' : '0%';
 
   return `<!doctype html>
 <html lang="en">
@@ -133,21 +133,17 @@ function buildIconHtml(maskable) {
       .icon-badge {
         position: absolute;
         inset: ${badgeInset};
+        z-index: 1;
         display: grid;
         place-items: center;
-        border-radius: 30%;
-        background:
-          radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.34), transparent 52%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
-        border: max(1px, 0.55%) solid rgba(255, 255, 255, 0.18);
-        box-shadow:
-          0 max(12px, 4.6%) max(18px, 8%) rgba(0, 0, 0, 0.35),
-          0 0 max(12px, 6%) rgba(16, 185, 129, 0.22);
+        border-radius: 24%;
+        overflow: hidden;
       }
 
       .icon-badge img {
-        width: 62%;
-        height: auto;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         filter:
           drop-shadow(0 max(2px, 1.2%) max(6px, 3%) rgba(0, 0, 0, 0.35))
           drop-shadow(0 0 max(8px, 4%) rgba(16, 185, 129, 0.2));
@@ -299,6 +295,7 @@ function buildSplashHtml() {
 
       .badge {
         position: relative;
+        z-index: 1;
         width: clamp(120px, 18vw, 220px);
         aspect-ratio: 1;
         display: grid;
@@ -375,7 +372,7 @@ function buildSplashHtml() {
           <img src="${brandMarkDataUrl}" alt="" />
         </div>
         <p class="eyebrow">Discover • Capture • Plan</p>
-        <h1>Scope</h1>
+        <h1>Scope Trips</h1>
         <p class="subtitle">Real-world adventures mapped for the moments between inspiration and departure.</p>
         <div class="feature-row" aria-hidden="true">
           <span class="pill">Open map</span>

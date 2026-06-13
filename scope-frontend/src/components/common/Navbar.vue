@@ -11,7 +11,7 @@
       <div class="navbar__leading">
         <RouterLink to="/" class="brand" @click="closeMobileMenu()">
           <span class="brand__mark" aria-hidden="true">
-            <ScopeIcon name="logo" />
+            <img class="brand__mark-image" :src="SCOPE_TRIPS_LOGO_MARK_SRC" alt="" />
           </span>
           <span class="brand__text">Scope Trips</span>
         </RouterLink>
@@ -540,6 +540,7 @@ const featureMenuRef = ref<HTMLElement | null>(null);
 const featureMenuButtonRef = ref<HTMLElement | null>(null);
 const featureMenuPanelRef = ref<HTMLElement | null>(null);
 const quickSearchRef = ref<HTMLElement | null>(null);
+const SCOPE_TRIPS_LOGO_MARK_SRC = '/branding/scope-trips-logo-mark.png';
 const mobileQuickSearchRef = ref<HTMLElement | null>(null);
 const menuRef = ref<HTMLElement | null>(null);
 const menuButtonRef = ref<HTMLElement | null>(null);
@@ -1761,14 +1762,17 @@ onBeforeUnmount(() => {
   height: 2rem;
   border-radius: 0.625rem;
   border: 1px solid color-mix(in srgb, var(--highlight-sheen) 14%, transparent);
-  background: var(--accent-teal);
-  color: var(--text-inverse);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 18%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 16%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent-teal) 16%, transparent);
+  overflow: hidden;
 }
 
-.brand__mark :deep(.scope-icon) {
-  width: 1rem;
-  height: 1rem;
+.brand__mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .brand:hover,

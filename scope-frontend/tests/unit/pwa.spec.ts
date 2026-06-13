@@ -239,7 +239,6 @@ describe('static PWA metadata', () => {
   it('publishes startup imagery, touch icons, and theme metadata in the app shell', () => {
     const htmlDocument = readHtmlDocument('index.html');
     const appleTouchIcon = htmlDocument.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
-    const maskIcon = htmlDocument.querySelector<HTMLLinkElement>('link[rel="mask-icon"]');
     const manifestLink = htmlDocument.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     const themeColorMeta = htmlDocument.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const startupImages = Array.from(
@@ -248,8 +247,6 @@ describe('static PWA metadata', () => {
 
     expect(themeColorMeta?.getAttribute('content')).toBe('#0f0f1a');
     expect(manifestLink?.getAttribute('href')).toBe('/manifest.webmanifest');
-    expect(maskIcon?.getAttribute('href')).toBe('/mask-icon.svg');
-    expect(maskIcon?.getAttribute('color')).toBe('#10b981');
     expect(appleTouchIcon?.getAttribute('href')).toBe('/pwa/icons/apple-touch-icon-180.png');
     expect(appleTouchIcon?.getAttribute('sizes')).toBe('180x180');
     expect(readPngDimensions('/pwa/icons/apple-touch-icon-180.png')).toEqual({ width: 180, height: 180 });

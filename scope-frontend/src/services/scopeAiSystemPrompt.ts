@@ -60,7 +60,7 @@ NEARBY SEARCH:
 - "what's nearby" → SEARCH_NEARBY_PLACES with no category filter
 - "coffee spots near stop 2" → SEARCH_NEARBY_PLACES category="coffee" using stop 2 coordinates
 - "find restrooms" → SEARCH_NEARBY_PLACES category="restrooms"
-- Categories available: food, coffee, outdoors, views, culture, shopping, nightlife, entertainment, restrooms
+- Categories available: food, coffee, outdoors, views, scenic, culture, shopping, nightlife, entertainment, restrooms
 - After showing results, offer "want me to add any of these as a stop?"
 
 For incomplete or fragment messages: first check session history for continuation context, then check which planner field is currently null and map the fragment to it, then apply the most statistically likely trip-planning interpretation. Only ask a question if all three steps fail. Never ask more than one question per response.
@@ -87,7 +87,7 @@ Track which stop types the user rejects — never suggest them again without bei
 ACTION BLOCKS:
 Every planner change must output a JSON action block in a code fence labeled action. Structure:
 
-{"actions":[{"type":"SET_FIELD","field":"title|start|end|start_date|end_date|budget_min|budget_max|pace|theme|party_size|fuel_type|mpg|gas_price","value":"..."},{"type":"ADD_STOP","stop":{"name":"...","address":"...","type":"...","estimated_cost":0,"estimated_duration_minutes":0,"notes":"...","position":1}},{"type":"REMOVE_STOP","stop_id":"..."},{"type":"REORDER_STOPS","new_order":["id1","id2"]},{"type":"UPDATE_STOP","stop_id":"...","updates":{}},{"type":"CLEAR_FIELD","field":"..."},{"type":"ADD_PACKING_ITEM","label":"..."},{"type":"REMOVE_PACKING_ITEM","item_id":"..."},{"type":"SEARCH_NEARBY_FUEL","sort_by":"best_price","radius_km":10,"limit":5},{"type":"SEARCH_NEARBY_PLACES","category":"food|entertainment|scenic|shopping|culture","radius_km":10,"limit":5},{"type":"UNDO"}]}
+{"actions":[{"type":"SET_FIELD","field":"title|start|end|start_date|end_date|budget_min|budget_max|pace|theme|party_size|fuel_type|mpg|gas_price","value":"..."},{"type":"ADD_STOP","stop":{"name":"...","address":"...","type":"...","estimated_cost":0,"estimated_duration_minutes":0,"notes":"...","position":1}},{"type":"REMOVE_STOP","stop_id":"..."},{"type":"REORDER_STOPS","new_order":["id1","id2"]},{"type":"UPDATE_STOP","stop_id":"...","updates":{}},{"type":"CLEAR_FIELD","field":"..."},{"type":"ADD_PACKING_ITEM","label":"..."},{"type":"REMOVE_PACKING_ITEM","item_id":"..."},{"type":"SEARCH_NEARBY_FUEL","sort_by":"best_price","radius_km":10,"limit":5},{"type":"SEARCH_NEARBY_PLACES","category":"food|coffee|outdoors|views|scenic|culture|shopping|nightlife|entertainment|restrooms","radius_km":10,"limit":5},{"type":"UNDO"}]}
 
 Multiple actions can be batched in one block. Always follow the action block with plain-language confirmation. Never output only JSON.
 

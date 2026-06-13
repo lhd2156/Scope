@@ -1,4 +1,4 @@
-const SERVICE_WORKER_VERSION = 'v4';
+const SERVICE_WORKER_VERSION = 'v5';
 const APP_SHELL_CACHE = `scope-shell-${SERVICE_WORKER_VERSION}`;
 const STATIC_ASSET_CACHE = `scope-static-${SERVICE_WORKER_VERSION}`;
 const NAVIGATION_CACHE = `scope-navigation-${SERVICE_WORKER_VERSION}`;
@@ -12,9 +12,9 @@ const APP_SHELL_URLS = [
   OFFLINE_URL,
   '/manifest.webmanifest',
   '/site.webmanifest',
-  '/favicon.svg',
-  '/favicon.ico',
-  '/mask-icon.svg',
+  '/favicon-64.png',
+  '/branding/scope-trips-logo-mark.png',
+  '/branding/scope-trips-logo-with-name.png',
   '/scope-icons.svg',
   '/social-preview.png',
   '/pwa/icons/apple-touch-icon-180.png',
@@ -93,7 +93,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: sanitizeNotificationCopy(payload.body || payload.message || 'A new Scope notification is ready.', 'A new Scope notification is ready.'),
     icon: '/pwa/icons/icon-192.png',
-    badge: '/favicon.svg',
+    badge: '/favicon-64.png',
     tag: sanitizeNotificationCopy(payload.tag || payload.id || 'scope-notification', 'scope-notification'),
     renotify: Boolean(payload.renotify),
     data: {

@@ -41,7 +41,7 @@
         >
           <div v-if="isWelcomeStep" class="onboarding-overlay__welcome-brand">
             <span class="onboarding-overlay__welcome-brand-mark" aria-hidden="true">
-              <ScopeIcon name="logo" />
+              <img class="onboarding-overlay__welcome-brand-mark-image" :src="SCOPE_TRIPS_LOGO_MARK_SRC" alt="" />
             </span>
             <div class="onboarding-overlay__welcome-brand-copy">
               <p class="onboarding-overlay__welcome-kicker">Guided welcome</p>
@@ -153,6 +153,7 @@ const ROUTE_WAIT_MS = 260;
 const ANCHORED_STEP_STAGE_MS = 180;
 const TARGET_LOOKUP_ATTEMPTS = 12;
 const TARGET_LOOKUP_INTERVAL_MS = 80;
+const SCOPE_TRIPS_LOGO_MARK_SRC = '/branding/scope-trips-logo-mark.png';
 
 const onboardingStore = useOnboardingStore();
 const reducedMotion = useReducedMotion();
@@ -818,16 +819,17 @@ onBeforeUnmount(() => {
   width: 2.28rem;
   height: 2.28rem;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-bg));
-  color: var(--accent-teal);
+  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent-teal) 24%, transparent),
-    0 0 1.25rem color-mix(in srgb, var(--accent-teal) 24%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--accent-teal) 20%, transparent),
+    0 0 1.25rem color-mix(in srgb, var(--accent-teal) 22%, transparent);
+  overflow: hidden;
 }
 
-.onboarding-overlay__welcome-brand-mark :deep(.scope-icon) {
-  width: 1.05rem;
-  height: 1.05rem;
+.onboarding-overlay__welcome-brand-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .onboarding-overlay__welcome-brand-copy {

@@ -7,6 +7,8 @@ describe('Scope AI system prompt contract', () => {
     expect(SCOPE_AI_SYSTEM_PROMPT).toContain('"actions"');
     expect(SCOPE_AI_SYSTEM_PROMPT).toContain('SEARCH_NEARBY_FUEL');
     expect(SCOPE_AI_SYSTEM_PROMPT).toContain('SEARCH_NEARBY_PLACES');
+    expect(SCOPE_AI_SYSTEM_PROMPT).toContain('Categories available: food, coffee, outdoors, views, scenic, culture, shopping, nightlife, entertainment, restrooms');
+    expect(SCOPE_AI_SYSTEM_PROMPT).toContain('category":"food|coffee|outdoors|views|scenic|culture|shopping|nightlife|entertainment|restrooms"');
     expect(SCOPE_AI_SYSTEM_PROMPT).toContain('Never output only JSON');
     expect(SCOPE_AI_SYSTEM_PROMPT).toContain('CHIPS: ["chip one", "chip two", "chip three"]');
   });
