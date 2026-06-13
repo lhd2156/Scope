@@ -132,11 +132,14 @@
     <div
       v-if="showMapWeatherBadge"
       class="map-weather-badge glass-panel"
+      :data-weather-state="mapWeatherStatus"
       data-test="map-weather-badge"
-      aria-label="Current weather near map center"
+      :aria-label="`Current weather near map center: ${mapWeatherStatusLabel}`"
+      :title="mapWeatherStatusLabel"
     >
       <ScopeIcon :name="mapWeatherIconName" label="Current weather" />
       <strong>{{ mapWeatherTemperatureLabel }}</strong>
+      <span v-if="mapWeatherStatus !== 'ready'" class="map-weather-badge__status">{{ mapWeatherStatusLabel }}</span>
     </div>
 
     <div
@@ -947,6 +950,7 @@ const liveRouteOverlaySize = ref({ width: 1, height: 1 });
 const measuredVisiblePinCount = ref<number | null>(null);
 const autoRoadRoute = ref<{ signature: string; summary: RoadRouteSummary } | null>(null);
 const mapWeatherSnapshot = ref<WeatherSnapshot | null>(null);
+const mapWeatherStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const mapWeatherRequestId = ref(0);
 const nearbyPlacesRequestId = ref(0);
 const nearbyViewportPlacePins = ref<MapNearbyPlacePin[]>([]);
@@ -1807,12 +1811,31 @@ const mapWeatherLookupKey = computed(() => {
   const point = mapWeatherPoint.value;
   return point ? `${point.latitude.toFixed(MAP_WEATHER_COORDINATE_PRECISION)}:${point.longitude.toFixed(MAP_WEATHER_COORDINATE_PRECISION)}` : '';
 });
-const showMapWeatherBadge = computed(() => Boolean(shouldLoadMapWeatherBadge.value && mapWeatherSnapshot.value && mapWeatherPoint.value));
+const showMapWeatherBadge = computed(() => Boolean(
+  shouldLoadMapWeatherBadge.value &&
+  mapWeatherPoint.value &&
+  (mapWeatherSnapshot.value || mapWeatherStatus.value !== 'idle')
+));
 const mapWeatherTemperatureLabel = computed(() => {
   const temperature = mapWeatherSnapshot.value?.temperatureF;
-  return isFiniteNumber(temperature) ? `${Math.round(temperature)}°F` : '--°F';
+  if (isFiniteNumber(temperature)) {
+    return `${Math.round(temperature)}°F`;
+  }
+
+  return mapWeatherStatus.value === 'loading' ? '...' : '--°F';
 });
 const mapWeatherIconName = computed(() => mapWeatherSnapshot.value ? getWeatherSnapshotIconName(mapWeatherSnapshot.value) : 'weather');
+const mapWeatherStatusLabel = computed(() => {
+  if (mapWeatherStatus.value === 'loading') {
+    return 'Loading';
+  }
+
+  if (mapWeatherStatus.value === 'error') {
+    return 'Weather unavailable';
+  }
+
+  return mapWeatherSnapshot.value?.condition || 'Weather';
+});
 const showMapTrafficKey = computed(() => Boolean(props.showTraffic && interactiveMapEnabled.value));
 const routeVariant = computed(() => props.routeVariant);
 const routeOrderLookup = computed(() => buildRouteOrderLookup(props.routePoints));
@@ -2411,26 +2434,31 @@ async function loadMapWeatherSnapshot(): Promise<void> {
 
   if (!point) {
     mapWeatherSnapshot.value = null;
+    mapWeatherStatus.value = 'idle';
     return;
   }
 
   try {
+    mapWeatherStatus.value = 'loading';
     const snapshot = await getOpenWeatherMapSnapshot({
       label: 'Map center',
       latitude: point.latitude,
       longitude: point.longitude,
+      allowPublicFallback: true,
     });
     if (requestId !== mapWeatherRequestId.value) {
       return;
     }
 
     mapWeatherSnapshot.value = snapshot;
+    mapWeatherStatus.value = 'ready';
   } catch {
     if (requestId !== mapWeatherRequestId.value) {
       return;
     }
 
     mapWeatherSnapshot.value = null;
+    mapWeatherStatus.value = 'error';
   }
 }
 
@@ -2439,7 +2467,12 @@ function scheduleMapWeatherRefresh(): void {
   if (!mapWeatherPoint.value) {
     mapWeatherRequestId.value += 1;
     mapWeatherSnapshot.value = null;
+    mapWeatherStatus.value = 'idle';
     return;
+  }
+
+  if (!mapWeatherSnapshot.value) {
+    mapWeatherStatus.value = 'loading';
   }
 
   const delayMs = resolveMapDecorativeWorkDelay(MAP_WEATHER_REFRESH_DEBOUNCE_MS);
@@ -10964,7 +10997,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 0.42rem;
-  max-width: min(8.5rem, calc(100% - 8rem));
+  max-width: min(12rem, calc(100% - 8rem));
   min-height: 2.35rem;
   padding: 0.46rem 0.74rem;
   border: 1px solid color-mix(in srgb, var(--accent-teal) 20%, var(--glass-border));
@@ -11000,6 +11033,16 @@ defineExpose({
 .map-weather-badge strong {
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-semibold);
+}
+
+.map-weather-badge__status {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .map-traffic-key {
@@ -11169,7 +11212,7 @@ defineExpose({
 .tracker-overlay {
   right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-4)) + 10.95rem);
   bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-4)) + 0.24rem);
-  max-width: min(12.35rem, calc(100% - 15.4rem));
+  max-width: min(8.2rem, calc(100% - 15.4rem));
   pointer-events: auto;
 }
 
@@ -11200,9 +11243,9 @@ defineExpose({
 }
 
 .map-bottom-toolbar .tracker-overlay {
-  flex: 1 1 10.5rem;
+  flex: 0 1 8.2rem;
   width: max-content;
-  max-width: min(12.35rem, 100%);
+  max-width: min(8.2rem, 100%);
 }
 
 .map-bottom-toolbar .map-style-switch {
@@ -11385,7 +11428,7 @@ code {
   .tracker-overlay {
     right: calc(var(--safe-area-right) + var(--scope-map-controls-right, var(--space-3)) + 10rem);
     bottom: calc(var(--safe-area-bottom) + var(--scope-map-controls-bottom, var(--space-3)) + 0.16rem);
-    max-width: min(11.9rem, calc(100% - 14.2rem));
+    max-width: min(8.2rem, calc(100% - 14.2rem));
   }
 
   .map-bottom-toolbar {
@@ -11396,7 +11439,7 @@ code {
   }
 
   .map-bottom-toolbar .tracker-overlay {
-    max-width: min(11.9rem, 100%);
+    max-width: min(8.2rem, 100%);
   }
 
   .map-weather-badge {

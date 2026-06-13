@@ -6,6 +6,7 @@
     :role="isActionable ? 'button' : undefined"
     :tabindex="isActionable ? 0 : undefined"
     :aria-label="isActionable ? `${statusTitle}. ${statusMessage}. Center map on this location.` : undefined"
+    :title="statusMessage"
     @click="handleActivate"
     @keydown.enter.prevent="handleActivate"
     @keydown.space.prevent="handleActivate"
@@ -183,13 +184,13 @@ onBeforeUnmount(() => {
 .location-tracker {
   display: inline-flex;
   align-items: center;
-  gap: 0.56rem;
+  gap: 0.46rem;
   box-sizing: border-box;
   min-width: 0;
   width: max-content;
-  max-width: min(12.35rem, calc(100vw - 2rem));
-  min-height: 2.65rem;
-  padding: 0.48rem 0.74rem 0.5rem;
+  max-width: min(8.2rem, calc(100vw - 2rem));
+  min-height: 2.24rem;
+  padding: 0.38rem 0.58rem;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
   box-shadow:
@@ -220,8 +221,8 @@ onBeforeUnmount(() => {
 }
 
 .status-indicator {
-  width: 0.68rem;
-  height: 0.68rem;
+  width: 0.64rem;
+  height: 0.64rem;
   border-radius: var(--radius-full);
   background: var(--text-muted);
   box-shadow: 0 0 0 0.3rem var(--accent-teal-light);
@@ -240,7 +241,7 @@ onBeforeUnmount(() => {
 .location-tracker strong {
   display: block;
   margin-bottom: 0.1rem;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -248,12 +249,12 @@ onBeforeUnmount(() => {
 }
 
 .location-tracker p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.7rem;
-  line-height: 1.25;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 

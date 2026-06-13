@@ -7,6 +7,7 @@ export interface WeatherLookupPoint {
   latitude?: number;
   longitude?: number;
   searchLabels?: string[];
+  allowPublicFallback?: boolean;
 }
 
 export interface WeatherSnapshot {
@@ -569,6 +570,7 @@ export function canLoadOpenWeatherMapWeather(): boolean {
 export async function getOpenWeatherMapSnapshot(point: WeatherLookupPoint): Promise<WeatherSnapshot> {
   const apiKey = getOpenWeatherMapApiKey();
   const label = point.label.trim();
+  const canUsePublicFallback = CLIENT_WEATHER_FALLBACK_ENABLED || point.allowPublicFallback === true;
 
   if (!label && !hasCoordinatePair(point.latitude, point.longitude)) {
     throw new Error('Weather location is missing.');
@@ -582,15 +584,15 @@ export async function getOpenWeatherMapSnapshot(point: WeatherLookupPoint): Prom
     try {
       return await getBackendCurrentWeatherSnapshot({ ...point, label });
     } catch {
-      if (!CLIENT_WEATHER_FALLBACK_ENABLED) {
+      if (!canUsePublicFallback) {
         throw new Error('Weather is unavailable right now.');
       }
     }
-  } else if (!CLIENT_WEATHER_FALLBACK_ENABLED) {
+  } else if (!canUsePublicFallback) {
     throw new Error('Weather is unavailable right now.');
   }
 
-  if (apiKey && !openWeatherMapUnavailable) {
+  if (CLIENT_WEATHER_FALLBACK_ENABLED && apiKey && !openWeatherMapUnavailable) {
     const searchLabels = buildSearchLabels({ ...point, label });
 
     for (const searchLabel of searchLabels) {
