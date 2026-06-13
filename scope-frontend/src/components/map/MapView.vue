@@ -390,6 +390,7 @@ interface NearbyPlaceMarkerController {
 interface NearbyPlacePopupRenderOptions {
   deferFallbackPhoto?: boolean;
   allowInstantFallbackPhoto?: boolean;
+  includeCloseButton?: boolean;
 }
 
 interface MapFeaturePlaceEnrichment {
@@ -3930,6 +3931,17 @@ function buildNearbyPlacePopupContent(place: MapNearbyPlacePin, options: NearbyP
   const root = document.createElement('article');
   root.className = 'nearby-place-popup';
 
+  if (options.includeCloseButton) {
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'nearby-place-popup__close';
+    closeButton.dataset.nearbyPlaceClose = 'true';
+    closeButton.dataset.test = 'nearby-place-popup-close';
+    closeButton.setAttribute('aria-label', `Close ${place.title || 'nearby place'}`);
+    closeButton.textContent = String.fromCharCode(215);
+    root.append(closeButton);
+  }
+
   const title = document.createElement('h3');
   title.textContent = place.title || 'Nearby place';
 
@@ -4255,6 +4267,13 @@ function bindNearbyPlacePopupAddHandler(popupContent: HTMLElement, place: MapNea
     emit('interaction', { type: 'nearby_place_add' });
     clearMapFeaturePlacePopup();
   });
+
+  const closeButton = popupContent.querySelector<HTMLButtonElement>('[data-nearby-place-close="true"]');
+  closeButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearMapFeaturePlacePopup();
+  });
 }
 
 function syncMapFeaturePlacePopup(): void {
@@ -4280,7 +4299,8 @@ function syncMapFeaturePlacePopup(): void {
 
   const popupContent = buildNearbyPlacePopupContent(place, {
     deferFallbackPhoto: shouldDeferNearbyPlaceFallbackPhoto(place),
-    allowInstantFallbackPhoto: shouldAllowInstantNearbyPlaceFallbackPhoto(place),
+    allowInstantFallbackPhoto: true,
+    includeCloseButton: true,
   });
   bindNearbyPlacePopupAddHandler(popupContent, place);
 
@@ -4297,7 +4317,7 @@ function syncMapFeaturePlacePopup(): void {
   const popup = new runtime.Popup({
     anchor,
     className: 'map-feature-place-popup',
-    closeButton: true,
+    closeButton: false,
     closeOnClick: false,
     focusAfterOpen: false,
     maxWidth: '18rem',
@@ -10449,6 +10469,7 @@ defineExpose({
 }
 
 .map-canvas :deep(.nearby-place-popup) {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -10473,6 +10494,30 @@ defineExpose({
 
 .map-canvas :deep(.nearby-place-popup::-webkit-scrollbar) {
   display: none;
+}
+
+.map-canvas :deep(.nearby-place-popup__close) {
+  position: absolute;
+  right: 0.55rem;
+  top: 0.55rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.map-canvas :deep(.nearby-place-popup__close:hover),
+.map-canvas :deep(.nearby-place-popup__close:focus-visible) {
+  background: color-mix(in srgb, var(--bg-primary) 92%, white 8%);
+  outline: none;
 }
 
 .map-canvas :deep(.nearby-place-popup--without-photo) {

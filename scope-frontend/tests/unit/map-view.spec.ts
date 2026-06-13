@@ -847,6 +847,17 @@ describe('MapView', () => {
     expect(pendingPopup.classList).toContain('nearby-place-popup--without-photo');
     expect(pendingPopup.querySelector('.nearby-place-popup__address--pending')).not.toBeNull();
     expect(pendingPopup.querySelector('[data-test="nearby-place-photo"]')).toBeNull();
+
+    const featurePopup = coverage.buildNearbyPlacePopupContent(pendingPlace, {
+      deferFallbackPhoto: true,
+      allowInstantFallbackPhoto: true,
+      includeCloseButton: true,
+    });
+    expect(featurePopup.classList).not.toContain('nearby-place-popup--without-photo');
+    expect(featurePopup.querySelector('[data-test="nearby-place-photo"]')).not.toBeNull();
+    expect(featurePopup.querySelector<HTMLButtonElement>('[data-test="nearby-place-popup-close"]')?.textContent)
+      .toBe(String.fromCharCode(215));
+    expect(featurePopup.textContent).not.toContain('<span');
   });
 
   it('coalesces map resizes and supports explicit overlay-free repairs', async () => {
