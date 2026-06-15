@@ -121,4 +121,4 @@ The deploy workflow builds the release bundle, verifies production DNS, opens te
 
 ## License
 
-No license has been declared.
+Copyright (c) 2026. All rights reserved.

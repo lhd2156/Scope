@@ -24,4 +24,6 @@ regexes = [
     '''pk\.deploy-token''',
     '''pk\.your-mapbox-token-here''',
     '''scope-[a-z]+-build-[a-z-]*placeholder''',
+    '''scope-intel-test-secret''',
+    '''scope-intel-test-jwt-secret-at-least-32-bytes''',
 ]
