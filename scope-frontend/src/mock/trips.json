@@ -346,5 +346,645 @@
       "Markets plus waterfronts",
       "Strong public-trip cover imagery"
     ]
+  },
+  {
+    "id": "demo-trip-5",
+    "title": "Desert Lights to Canyon Country",
+    "destination": "Las Vegas, Moab, Sedona",
+    "description": "A Southwest route that starts with neighborhood Vegas energy, then shifts into red-rock road-trip pacing and a sunset finish.",
+    "isPublic": true,
+    "startDate": "2026-04-18",
+    "endDate": "2026-04-23",
+    "coverSpotId": "demo-spot-30",
+    "budget": 1620,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Dry desert days, cool mornings, and heat-aware afternoon buffers.",
+    "memberIds": [
+      {
+        "userId": "demo-user-14",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-3",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-12",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-25",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Las Vegas Arts District First Friday as the arrival anchor for Las Vegas."
+      },
+      {
+        "spotId": "demo-spot-29",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 150,
+        "estimatedCost": 10,
+        "notes": "Use Moab Main Street Canyon Base as the route anchor for Moab."
+      },
+      {
+        "spotId": "demo-spot-30",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Sedona Airport Mesa Sunset as the route anchor for Sedona."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 770,
+      "dining": 330,
+      "tickets": 120,
+      "transport": 400
+    },
+    "highlights": [
+      "Vegas beyond the Strip",
+      "Moab basecamp logistics",
+      "Sedona sunset timing"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-02T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-6",
+    "title": "Southern Music and Coastal Cities",
+    "destination": "Nashville, Charleston, Savannah, Biloxi, Birmingham",
+    "description": "A music-to-coast Southern sampler with live blocks, shaded historic walks, Gulf pacing, and downtown green space.",
+    "isPublic": true,
+    "startDate": "2026-05-06",
+    "endDate": "2026-05-13",
+    "coverSpotId": "demo-spot-27",
+    "budget": 1880,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Warm, humid windows with the best walks in the morning and blue hour.",
+    "memberIds": [
+      {
+        "userId": "demo-user-15",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-16",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-13",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-27",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 58,
+        "notes": "Use Nashville Broadway Live Block as the arrival anchor for Nashville."
+      },
+      {
+        "spotId": "demo-spot-28",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Charleston Battery Morning Walk as the route anchor for Charleston."
+      },
+      {
+        "spotId": "demo-spot-43",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Savannah Forsyth Fountain Loop as the route anchor for Savannah."
+      },
+      {
+        "spotId": "demo-spot-45",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Biloxi Gulf Islands Ferry Dock as the route anchor for Biloxi."
+      },
+      {
+        "spotId": "demo-spot-46",
+        "dayNumber": 5,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Birmingham Railroad Park Greenway as the route anchor for Birmingham."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 860,
+      "dining": 460,
+      "tickets": 160,
+      "transport": 400
+    },
+    "highlights": [
+      "Live music nights",
+      "Historic waterfront mornings",
+      "Gulf ferry option"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/466685/pexels-photo-466685.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-03T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-7",
+    "title": "Route 66 Heartland Weekend",
+    "destination": "Tulsa, St. Louis, Chicago",
+    "description": "A compact Route 66-style run using neon, riverfront monument context, and a Chicago public-art finish.",
+    "isPublic": true,
+    "startDate": "2026-05-22",
+    "endDate": "2026-05-26",
+    "coverSpotId": "demo-spot-33",
+    "budget": 980,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Variable spring-to-summer conditions; keep evening photo stops flexible.",
+    "memberIds": [
+      {
+        "userId": "demo-user-12",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-18",
+        "status": "viewer"
+      },
+      {
+        "userId": "demo-user-1",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-33",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Tulsa Route 66 Neon Gateway as the arrival anchor for Tulsa."
+      },
+      {
+        "spotId": "demo-spot-34",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use St. Louis Gateway Arch Riverfront as the route anchor for St. Louis."
+      },
+      {
+        "spotId": "demo-spot-10",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Millennium Park Bean Loop as the route anchor for Chicago."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 430,
+      "dining": 240,
+      "tickets": 80,
+      "transport": 230
+    },
+    "highlights": [
+      "Neon quick stops",
+      "Midwest civic icons",
+      "Chicago walkable closer"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/1732414/pexels-photo-1732414.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-04T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-8",
+    "title": "Northern Lakes and Market Cities",
+    "destination": "Minneapolis, Milwaukee, Detroit, Chicago",
+    "description": "A market-and-river city loop for food halls, waterfront views, murals, and Midwest museum add-ons.",
+    "isPublic": true,
+    "startDate": "2026-06-04",
+    "endDate": "2026-06-09",
+    "coverSpotId": "demo-spot-51",
+    "budget": 1320,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Mild lake-region days with rain backups through markets and museums.",
+    "memberIds": [
+      {
+        "userId": "demo-user-18",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-13",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-2",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-51",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Minneapolis Stone Arch River View as the arrival anchor for Minneapolis."
+      },
+      {
+        "spotId": "demo-spot-52",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 34,
+        "notes": "Use Milwaukee Third Ward Market as the route anchor for Milwaukee."
+      },
+      {
+        "spotId": "demo-spot-35",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 34,
+        "notes": "Use Detroit Eastern Market Saturday as the route anchor for Detroit."
+      },
+      {
+        "spotId": "demo-spot-10",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Millennium Park Bean Loop as the route anchor for Chicago."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 620,
+      "dining": 350,
+      "tickets": 100,
+      "transport": 250
+    },
+    "highlights": [
+      "Riverfront photo stops",
+      "Food market density",
+      "Museum-adjacent routing"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-05T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-9",
+    "title": "New England Harbor and Mountain Run",
+    "destination": "Boston, Newport, Burlington, Acadia",
+    "description": "A Northeast route that balances public gardens, coastal mansions, lakefront biking, and a dawn national-park walk.",
+    "isPublic": true,
+    "startDate": "2026-06-18",
+    "endDate": "2026-06-25",
+    "coverSpotId": "demo-spot-38",
+    "budget": 2140,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Cool mornings and mild afternoons; coastal fog can shift the photo windows.",
+    "memberIds": [
+      {
+        "userId": "demo-user-10",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-18",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-9",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-36",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Boston Public Garden Swan Loop as the arrival anchor for Boston."
+      },
+      {
+        "spotId": "demo-spot-49",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Newport Cliff Walk Break as the route anchor for Newport."
+      },
+      {
+        "spotId": "demo-spot-50",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 150,
+        "estimatedCost": 10,
+        "notes": "Use Burlington Waterfront Bike Pause as the route anchor for Burlington."
+      },
+      {
+        "spotId": "demo-spot-38",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 150,
+        "estimatedCost": 10,
+        "notes": "Use Acadia Ocean Path Dawn as the route anchor for Bar Harbor."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 1010,
+      "dining": 420,
+      "tickets": 170,
+      "transport": 540
+    },
+    "highlights": [
+      "Garden-to-coast pacing",
+      "Lakefront bike pause",
+      "Acadia sunrise"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/1450353/pexels-photo-1450353.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-06T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-10",
+    "title": "Mountain Parks Survey",
+    "destination": "Grand Teton, Glacier, Boise, Denver, Anchorage",
+    "description": "A wide outdoor showcase for alpine lakes, mountain-road viewpoints, heritage lunches, rail-hall staging, and Alaska trail access.",
+    "isPublic": true,
+    "startDate": "2026-07-08",
+    "endDate": "2026-07-19",
+    "coverSpotId": "demo-spot-39",
+    "budget": 3260,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "High-variance mountain weather with early starts and flexible drive days.",
+    "memberIds": [
+      {
+        "userId": "demo-user-12",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-10",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-5",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-39",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 150,
+        "estimatedCost": 10,
+        "notes": "Use Grand Teton Jenny Lake View as the arrival anchor for Moose."
+      },
+      {
+        "spotId": "demo-spot-40",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Glacier Going-to-the-Sun Pullout as the route anchor for West Glacier."
+      },
+      {
+        "spotId": "demo-spot-48",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 34,
+        "notes": "Use Boise Basque Block Lunch as the route anchor for Boise."
+      },
+      {
+        "spotId": "demo-spot-15",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Denver Union Station Great Hall as the route anchor for Denver."
+      },
+      {
+        "spotId": "demo-spot-44",
+        "dayNumber": 5,
+        "timeSlot": "13:30",
+        "duration": 150,
+        "estimatedCost": 10,
+        "notes": "Use Anchorage Tony Knowles Coastal Trail as the route anchor for Anchorage."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 1520,
+      "dining": 560,
+      "tickets": 240,
+      "transport": 940
+    },
+    "highlights": [
+      "Alpine lake mornings",
+      "Timed mountain-road planning",
+      "City basecamp resets"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/2082103/pexels-photo-2082103.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-07T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-11",
+    "title": "European City Icons by Rail",
+    "destination": "Paris, Madrid, Rome, Milan, Porto, Amsterdam",
+    "description": "A rail-friendly European starter circuit that keeps each city anchored by one iconic but routeable place.",
+    "isPublic": true,
+    "startDate": "2026-09-03",
+    "endDate": "2026-09-15",
+    "coverSpotId": "demo-spot-53",
+    "budget": 4320,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Shoulder-season city weather with mild evenings and museum rain backups.",
+    "memberIds": [
+      {
+        "userId": "demo-user-9",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-11",
+        "status": "editor"
+      },
+      {
+        "userId": "demo-user-7",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-53",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Paris Seine Louvre Evening Walk as the arrival anchor for Paris."
+      },
+      {
+        "spotId": "demo-spot-54",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Madrid Retiro Crystal Palace Loop as the route anchor for Madrid."
+      },
+      {
+        "spotId": "demo-spot-55",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Rome Colosseum Forum Edge as the route anchor for Rome."
+      },
+      {
+        "spotId": "demo-spot-56",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Milan Duomo Roofline Piazza as the route anchor for Milan."
+      },
+      {
+        "spotId": "demo-spot-59",
+        "dayNumber": 5,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Porto Ribeira Tile-and-River Walk as the route anchor for Porto."
+      },
+      {
+        "spotId": "demo-spot-61",
+        "dayNumber": 6,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Amsterdam Canal Ring Golden Hour as the route anchor for Amsterdam."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 2100,
+      "dining": 980,
+      "tickets": 420,
+      "transport": 820
+    },
+    "highlights": [
+      "Museum and piazza anchors",
+      "Evening canal/river walks",
+      "Mid-budget rail pacing"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/208701/pexels-photo-208701.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-08T17:20:00Z"
+  },
+  {
+    "id": "demo-trip-12",
+    "title": "Asia Arrival City Circuit",
+    "destination": "Bangkok, Hong Kong, Miyajima, Seoul, Kyoto, Kuala Lumpur, Macau",
+    "description": "A compact Asia showcase built around verified cultural icons, skyline views, rail/ferry day trips, and heat-aware timing.",
+    "isPublic": true,
+    "startDate": "2026-10-10",
+    "endDate": "2026-10-23",
+    "coverSpotId": "demo-spot-57",
+    "budget": 4680,
+    "currency": "USD",
+    "status": "planning",
+    "weatherForecast": "Warm and humid city windows with early cultural starts and evening skyline stops.",
+    "memberIds": [
+      {
+        "userId": "demo-user-8",
+        "status": "owner"
+      },
+      {
+        "userId": "demo-user-10",
+        "status": "viewer"
+      },
+      {
+        "userId": "demo-user-13",
+        "status": "viewer"
+      }
+    ],
+    "stops": [
+      {
+        "spotId": "demo-spot-57",
+        "dayNumber": 1,
+        "timeSlot": "09:00",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Bangkok Grand Palace River Gate as the arrival anchor for Bangkok."
+      },
+      {
+        "spotId": "demo-spot-58",
+        "dayNumber": 2,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Hong Kong Victoria Peak Tram View as the route anchor for Hong Kong."
+      },
+      {
+        "spotId": "demo-spot-60",
+        "dayNumber": 3,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Miyajima Floating Gate Ferry Day as the route anchor for Hatsukaichi."
+      },
+      {
+        "spotId": "demo-spot-64",
+        "dayNumber": 4,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Seoul Bukchon Hanok Ridge as the route anchor for Seoul."
+      },
+      {
+        "spotId": "demo-spot-65",
+        "dayNumber": 5,
+        "timeSlot": "13:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Kyoto Fushimi Inari Lower Gates as the route anchor for Kyoto."
+      },
+      {
+        "spotId": "demo-spot-70",
+        "dayNumber": 6,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 10,
+        "notes": "Use Kuala Lumpur Petronas Park Frame as the route anchor for Kuala Lumpur."
+      },
+      {
+        "spotId": "demo-spot-71",
+        "dayNumber": 7,
+        "timeSlot": "17:30",
+        "duration": 85,
+        "estimatedCost": 28,
+        "notes": "Use Macau Senado Square Heritage Walk as the route anchor for Macau."
+      }
+    ],
+    "costBreakdown": {
+      "lodging": 2080,
+      "dining": 930,
+      "tickets": 540,
+      "transport": 1130
+    },
+    "highlights": [
+      "Morning palace and shrine timing",
+      "Skyline night views",
+      "Ferry and rail day trips"
+    ],
+    "coverImageUrl": "https://images.pexels.com/photos/1640770/pexels-photo-1640770.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    "createdAt": "2026-04-09T17:20:00Z"
   }
 ]

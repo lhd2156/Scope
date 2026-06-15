@@ -1,5 +1,4 @@
 import type { Itinerary, ItineraryDay, TripMember, TripPace, TripPlannerInput, TripSpot } from '@/types';
-import { buildInitialsAvatarUrl } from '@/utils/travelMedia';
 import { getInclusiveDaySpan } from '@/utils/formatters';
 
 export interface TripPlannerPreset {
@@ -18,6 +17,11 @@ export interface TripPlannerPreset {
 
 const timeSlots = ['08:30', '12:30', '16:30', '19:30'] as const;
 const calendarDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const plannerCrewAvatars = {
+  avaTorres: 'https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=600',
+  leoBennett: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=600',
+  noahPatel: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=600',
+} as const;
 
 function cloneStop(stop: TripSpot): TripSpot {
   return {
@@ -75,19 +79,19 @@ const patagoniaPreset: TripPlannerPreset = {
     {
       id: 'planner-member-1',
       displayName: 'Ava Torres',
-      avatarUrl: buildInitialsAvatarUrl('Ava Torres', '163b3a'),
+      avatarUrl: plannerCrewAvatars.avaTorres,
       status: 'lead',
     },
     {
       id: 'planner-member-2',
       displayName: 'Leo Bennett',
-      avatarUrl: buildInitialsAvatarUrl('Leo Bennett', '3f2d57'),
+      avatarUrl: plannerCrewAvatars.leoBennett,
       status: 'guide',
     },
     {
       id: 'planner-member-3',
       displayName: 'Noah Patel',
-      avatarUrl: buildInitialsAvatarUrl('Noah Patel', '2f4058'),
+      avatarUrl: plannerCrewAvatars.noahPatel,
       status: 'photo',
     },
   ],

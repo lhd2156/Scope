@@ -94,8 +94,8 @@ describe('user store API contracts', () => {
         data: [
           {
             id: 'user-3',
-            username: 'elijah',
-            email: 'elijah@example.com',
+            username: 'elijah.brooks',
+            email: 'elijah.brooks@showcase.scope.local',
             displayName: 'Elijah Brooks',
             interests: ['adventure'],
           },

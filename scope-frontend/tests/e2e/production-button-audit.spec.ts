@@ -10,6 +10,7 @@ const ACTION_TIMEOUT_MS = 20_000;
 const NAVIGATION_TIMEOUT_MS = 45_000;
 const MAX_CONTROLS_PER_ROUTE = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_MAX_CONTROLS ?? 140);
 const CONTROL_CLICK_TIMEOUT_MS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_CLICK_TIMEOUT_MS ?? 5_000);
+const CONTROL_ITERATION_TIMEOUT_MS = Number(process.env.PLAYWRIGHT_BUTTON_AUDIT_CONTROL_TIMEOUT_MS ?? 30_000);
 const ROUTE_FILTER = parseRouteFilter(process.env.PLAYWRIGHT_BUTTON_AUDIT_ROUTES);
 const ONBOARDING_COMPLETION_STORAGE_KEY = 'scope-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
@@ -108,6 +109,7 @@ const TRANSIENT_ROUTE_CHURN_PAGE_ERROR_PATTERNS = [
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/styles\/v1\/mapbox\/[^/?]+\/iconset\.pbf.* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/fonts\/v1\/mapbox\/.*\.pbf.* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/(?:directions|optimized-trips)\/v1\/mapbox\/.* due to access control checks\./i,
+  /Fetch API cannot load https:\s*\/+api\.mapbox\.com\/directions\/v5\/mapbox\/.* due to access control checks\./i,
   /Fetch API cannot load https:\s*\/+events\.mapbox\.com\/events\/v2.* due to access control checks\./i,
   /^Cache API operation failed: Context is stopped$/i,
   /presence\/heartbeat due to access control checks/i,
@@ -120,6 +122,9 @@ const auditUsersByRefreshToken = new Map<string, AuditUser>();
 const auditUsersById = new Map<string, AuditUser>();
 const auditUsersByEmail = new Map<string, AuditUser>();
 const auditUsersByUsername = new Map<string, AuditUser>();
+const AUDIT_AVATAR_MAYA = 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600';
+const AUDIT_AVATAR_LOUIS = 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600';
+const AUDIT_AVATAR_DEFAULT = 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600';
 
 const auditSeedUsers: AuditUser[] = [
   {
@@ -129,7 +134,7 @@ const auditSeedUsers: AuditUser[] = [
     displayName: 'Maya Chen',
     accessToken: 'audit-access-maya',
     refreshToken: 'audit-refresh-maya',
-    avatarUrl: 'https://i.pravatar.cc/160?img=47',
+    avatarUrl: AUDIT_AVATAR_MAYA,
     bio: 'Maps polished city routes with a food-first lens.',
     homeBase: 'Fort Worth, TX',
     interests: ['food', 'culture', 'nightlife'],
@@ -143,7 +148,7 @@ const auditSeedUsers: AuditUser[] = [
     displayName: 'Louis Do',
     accessToken: 'audit-access-louis',
     refreshToken: 'audit-refresh-louis',
-    avatarUrl: 'https://i.pravatar.cc/160?img=12',
+    avatarUrl: AUDIT_AVATAR_LOUIS,
     bio: 'Collects skyline dinners, museums, and quiet scenic stops.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'food', 'culture'],
@@ -266,7 +271,7 @@ const auditTrips = [
       {
         id: 'audit-user-maya',
         displayName: 'Maya Chen',
-        avatarUrl: 'https://i.pravatar.cc/160?img=47',
+        avatarUrl: AUDIT_AVATAR_MAYA,
         status: 'owner',
         inviteStatus: 'accepted',
         presence: 'active',
@@ -274,7 +279,7 @@ const auditTrips = [
       {
         id: 'audit-user-louis',
         displayName: 'Louis Do',
-        avatarUrl: 'https://i.pravatar.cc/160?img=12',
+        avatarUrl: AUDIT_AVATAR_LOUIS,
         status: 'editor',
         inviteStatus: 'accepted',
         presence: 'viewing',
@@ -956,7 +961,7 @@ function createAuditUserFromRegistration(body: Record<string, any>): AuditUser {
     displayName,
     accessToken: rotateAuditToken('audit-access', username),
     refreshToken: rotateAuditToken('audit-refresh', username),
-    avatarUrl: existing?.avatarUrl ?? 'https://i.pravatar.cc/160?img=64',
+    avatarUrl: existing?.avatarUrl ?? AUDIT_AVATAR_DEFAULT,
     bio: existing?.bio ?? 'Mapping food, culture, and scenic routes across favorite cities.',
     homeBase: existing?.homeBase ?? 'Fort Worth, TX',
     interests: existing?.interests ?? ['food', 'culture', 'scenic'],
@@ -1256,20 +1261,56 @@ async function auditRouteControls(
     if (index > 0 && index % 20 === 0) {
       console.log(`[button-audit] ${path} clickedOrSkipped=${index}/${initialControls.length}`);
     }
+    await Promise.race([
+      auditRouteControlAtIndex(page, path, originalPath, index),
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(
+          () => reject(new Error(`Control audit timed out on ${path}: [${index}] after ${CONTROL_ITERATION_TIMEOUT_MS}ms`)),
+          CONTROL_ITERATION_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+  }
+
+  await restoreRouteIfNeeded(page, originalPath, path);
+  let finalControls = await collectVisibleControls(page);
+  if (!finalControls.length) {
+    await gotoAllowingImmediateRedirect(page, path);
+    await dismissCookieBanner(page);
+    await dismissOnboardingOverlay(page);
+    await page.waitForTimeout(500);
+    finalControls = await collectVisibleControls(page);
+  }
+  if (!finalControls.length) {
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS }).catch(() => undefined);
+    await dismissCookieBanner(page);
+    await dismissOnboardingOverlay(page);
+    await page.waitForTimeout(1_000);
+    finalControls = await collectVisibleControls(page);
+  }
+  expect(finalControls.length, `${path} should still have reachable controls after audit`).toBeGreaterThan(0);
+}
+
+async function auditRouteControlAtIndex(
+  page: Page,
+  path: string,
+  originalPath: string,
+  index: number,
+): Promise<void> {
     await closeTransientUi(page);
     const controls = page.locator(CONTROL_SELECTOR);
     if (index >= await controls.count()) {
-      break;
+      return;
     }
 
     const control = controls.nth(index);
     if (!(await control.isVisible().catch(() => false))) {
-      continue;
+      return;
     }
 
     const label = await describeControl(control);
     if (!label || SKIP_CLICK_PATTERN.test(label) || shouldSkipRouteControl(path, label)) {
-      continue;
+      return;
     }
 
     await control.evaluate((element) => {
@@ -1288,7 +1329,7 @@ async function auditRouteControls(
         : element.getAttribute('aria-disabled') === 'true',
     ).catch(() => false);
     if (isDisabled) {
-      continue;
+      return;
     }
 
     const clickOptions = { timeout: CONTROL_CLICK_TIMEOUT_MS, trial: shouldTrialOnlyControl(label) };
@@ -1312,7 +1353,7 @@ async function auditRouteControls(
               TRIAL_ONLY_CLICK_TIMEOUT_PATTERN.test(retryErrorText)
             ))
           ) {
-            continue;
+            return;
           }
           throw new Error(`Control failed on ${path}: [${index}] ${label}\n${retryErrorText}`);
         }
@@ -1323,7 +1364,7 @@ async function auditRouteControls(
           TRIAL_ONLY_CLICK_TIMEOUT_PATTERN.test(errorText)
         ))
       ) {
-        continue;
+        return;
       } else {
         throw new Error(`Control failed on ${path}: [${index}] ${label}\n${errorText}`);
       }
@@ -1333,25 +1374,6 @@ async function auditRouteControls(
     await closeTransientUi(page);
     await dismissOnboardingOverlay(page);
     await restoreRouteIfNeeded(page, originalPath, path);
-  }
-
-  await restoreRouteIfNeeded(page, originalPath, path);
-  let finalControls = await collectVisibleControls(page);
-  if (!finalControls.length) {
-    await gotoAllowingImmediateRedirect(page, path);
-    await dismissCookieBanner(page);
-    await dismissOnboardingOverlay(page);
-    await page.waitForTimeout(500);
-    finalControls = await collectVisibleControls(page);
-  }
-  if (!finalControls.length) {
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS }).catch(() => undefined);
-    await dismissCookieBanner(page);
-    await dismissOnboardingOverlay(page);
-    await page.waitForTimeout(1_000);
-    finalControls = await collectVisibleControls(page);
-  }
-  expect(finalControls.length, `${path} should still have reachable controls after audit`).toBeGreaterThan(0);
 }
 
 async function collectVisibleControls(page: Page): Promise<string[]> {
@@ -1490,6 +1512,7 @@ async function seedLogin(page: Page, user: AuditUser): Promise<void> {
     const [response] = await Promise.all([
       page.waitForResponse((loginResponse) =>
         loginResponse.url().includes('/api/core/auth/login') && loginResponse.request().method() === 'POST',
+        { timeout: NAVIGATION_TIMEOUT_MS },
       ),
       page.getByRole('button', { name: /^Sign In$/i }).click(),
     ]);

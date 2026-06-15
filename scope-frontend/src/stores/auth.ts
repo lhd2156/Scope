@@ -305,14 +305,13 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
     sessionExpiredMessage.value = null;
     const refreshToken = readStoredRefreshToken();
+    clearSession();
 
     try {
       const { logout: logoutRequest } = await loadAuthService();
       await logoutRequest(refreshToken);
     } catch (nextError) {
       error.value = toAsyncErrorMessage(nextError, 'Scope could not reach logout services. You were signed out locally instead.');
-    } finally {
-      clearSession();
     }
   }
 

@@ -69,6 +69,11 @@ def test_content_client_helpers_fixture_and_mapping():
     assert mapped.estimated_cost == 0.0
     assert mapped.is_outdoor is True
     assert mapped.liked_by_users == ("user-1", "7")
+    mapped_with_context = content_client._map_content_row(
+        _row(description="Short note", city="Las Vegas", providerPlaceAddress="1025 S 1st St")
+    )
+    assert "Las Vegas" in mapped_with_context.description
+    assert "1025 S 1st St" in mapped_with_context.description
 
     entertainment = content_client._map_content_row(_row(category="entertainment"))
     assert entertainment.estimated_cost == 45.0
@@ -116,6 +121,7 @@ def test_http_content_client_fetches_caches_searches_and_handles_failures(monkey
     assert client.get_spot("bad-json") is None
     assert client.get_spot("invalid") is None
     assert client.search_spots("river", ["food"])[0].title == "River Walk"
+    assert client.search_spots("Fort Worth", ["scenic"])[0].title == "River Walk"
     assert client.nearby_spots(32.75, -97.33, 2, limit=5)[0].spot_id == "spot-1"
 
     class BrokenSession:

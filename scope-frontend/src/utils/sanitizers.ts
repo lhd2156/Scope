@@ -46,7 +46,7 @@ const MULTIPLE_NEWLINES_REGEX = /\n{3,}/g;
 const RELATIVE_URL_REGEX = /^(?:\.{1,2}\/|\/)[^\s]*$/;
 const DATA_IMAGE_URL_REGEX = /^data:image\/(?:png|jpe?g|webp|gif|avif);base64,[a-z0-9+/=\s]+$/i;
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:', 'blob:']);
-const GENERATED_AVATAR_HOSTS = new Set(['i.pravatar.cc', 'pravatar.cc']);
+const GENERATED_AVATAR_HOSTS = new Set(['i.pravatar.cc', 'pravatar.cc', 'ui-avatars.com']);
 
 const DEFAULT_DISPLAY_NAME = 'New explorer';
 const DEFAULT_SPOT_TITLE = 'Untitled spot';
@@ -57,6 +57,18 @@ const DEFAULT_NOTIFICATION_TITLE = 'Scope update';
 const DEFAULT_NOTIFICATION_BODY = 'A new Scope update is available.';
 const DEFAULT_WEATHER_FORECAST = 'Forecast pending.';
 const DEFAULT_SPOT_CATEGORY: SpotCategory = 'other';
+const ANONYMOUS_REVIEWER: UserProfile = {
+  id: 'anonymous',
+  username: 'anonymous',
+  email: '',
+  displayName: 'Anonymous traveler',
+  avatarUrl: '',
+  bio: '',
+  homeBase: '',
+  interests: [],
+  showActivityStatus: false,
+  profileVisibility: 'private',
+};
 const SPOT_CATEGORIES = new Set<SpotCategory>([
   'food',
   'nature',
@@ -146,6 +158,8 @@ type ReviewWireFields = {
   email?: unknown;
   avatarUrl?: unknown;
   avatar_url?: unknown;
+  isAnonymous?: unknown;
+  is_anonymous?: unknown;
   rating?: unknown;
   comment?: unknown;
   createdAt?: unknown;
@@ -303,7 +317,7 @@ export function sanitizeImageUrl(value: string | null | undefined): string | und
 
 export function sanitizeAvatarUrl(
   value: string | null | undefined,
-  options: AvatarSanitizerOptions = {},
+  _options: AvatarSanitizerOptions = {},
 ): string | undefined {
   const sanitized = sanitizeImageUrl(value);
 
@@ -314,7 +328,7 @@ export function sanitizeAvatarUrl(
   try {
     const url = new URL(sanitized);
 
-    if (GENERATED_AVATAR_HOSTS.has(url.hostname.toLowerCase()) && !options.allowGeneratedAvatar) {
+    if (GENERATED_AVATAR_HOSTS.has(url.hostname.toLowerCase())) {
       return undefined;
     }
   } catch {
@@ -527,6 +541,8 @@ export function sanitizeUserProfile(
 
 export function sanitizePhoto(photo: Photo): Photo {
   const wirePhoto = photo as Photo & {
+    isAnonymous?: unknown;
+    is_anonymous?: unknown;
     storageUrl?: unknown;
     storage_url?: unknown;
     thumbnailUrl?: unknown;
@@ -548,6 +564,7 @@ export function sanitizePhoto(photo: Photo): Photo {
     ...photo,
     url: sanitizeImageUrl(url) ?? '',
     caption: optionalSingleLineText(photo.caption),
+    isAnonymous: sanitizeBoolean(wirePhoto.isAnonymous, sanitizeBoolean(wirePhoto.is_anonymous, false)),
   };
 }
 
@@ -581,6 +598,21 @@ export function sanitizeReview(
     optionalWireString(wireUser?.avatar_url) ??
     optionalWireString(wireReview.avatarUrl) ??
     optionalWireString(wireReview.avatar_url);
+  const isAnonymous = sanitizeBoolean(wireReview.isAnonymous, sanitizeBoolean(wireReview.is_anonymous, false)) ||
+    userId.toLowerCase() === 'anonymous';
+  if (isAnonymous) {
+    return {
+      ...source,
+      id: optionalWireString(wireReview.id) ?? '',
+      spotId: optionalWireString(wireReview.spotId) ?? optionalWireString(wireReview.spot_id) ?? '',
+      user: { ...ANONYMOUS_REVIEWER },
+      rating: sanitizeOptionalNumber(wireReview.rating) ?? 0,
+      comment: sanitizeMultilineText(optionalWireString(wireReview.comment)),
+      createdAt: optionalWireString(wireReview.createdAt) ?? optionalWireString(wireReview.created_at) ?? '',
+      isAnonymous: true,
+      sentiment_score: sanitizeOptionalNumber(wireReview.sentimentScore ?? wireReview.sentiment_score) ?? null,
+    };
+  }
   const showcaseReviewer = resolveShowcaseUserProfile(userId);
   const shouldUseShowcaseReviewer = Boolean(
     showcaseReviewer &&
@@ -623,6 +655,7 @@ export function sanitizeReview(
     rating: sanitizeOptionalNumber(wireReview.rating) ?? 0,
     comment: sanitizeMultilineText(optionalWireString(wireReview.comment)),
     createdAt,
+    isAnonymous: false,
     sentiment_score: sentimentScore ?? null,
   };
 }
@@ -1043,6 +1076,7 @@ export function sanitizeSpotFormSubmission(submission: SpotFormSubmission): Spot
       postalCode: optionalSingleLineText(submission.spot.postalCode),
       pillars: sanitizeSpotPillars(submission.spot.pillars),
       vibe: sanitizeSingleLineText(submission.spot.vibe),
+      isAnonymous: Boolean(submission.spot.isAnonymous),
       providerPlaceId: optionalSingleLineText(submission.spot.providerPlaceId),
       providerPlaceName: optionalSingleLineText(submission.spot.providerPlaceName),
       providerPlaceAddress: optionalSingleLineText(submission.spot.providerPlaceAddress),

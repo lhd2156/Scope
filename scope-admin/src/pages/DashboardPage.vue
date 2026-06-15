@@ -1,9 +1,37 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useDashboardStore } from '@/stores/dashboardStore';
+import type { MetricPoint } from '@/types/analytics';
 import { formatDateTime, formatNumber } from '@/utils/formatters';
 
 const dashboard = useDashboardStore();
+const statCards = computed(() => [
+  { label: 'Total Users', value: dashboard.stats.totalUsers },
+  { label: 'Total Spots', value: dashboard.stats.totalSpots },
+  { label: 'Total Trips', value: dashboard.stats.totalTrips },
+  { label: 'Total Reviews', value: dashboard.stats.totalReviews },
+  { label: 'Active Sessions', value: dashboard.stats.activeSessions },
+]);
+const charts = computed(() => [
+  {
+    title: 'User signups',
+    tone: '',
+    series: dashboard.userGrowth,
+    height: (item: MetricPoint) => `${20 + (item.users ?? 0)}px`,
+  },
+  {
+    title: 'Spots created',
+    tone: 'teal',
+    series: dashboard.spotGrowth,
+    height: (item: MetricPoint) => `${20 + (item.spots ?? 0)}px`,
+  },
+  {
+    title: 'Engagement',
+    tone: 'amber',
+    series: dashboard.engagement,
+    height: (item: MetricPoint) => `${20 + (item.likes ?? 0) / 8}px`,
+  },
+]);
 
 onMounted(() => {
   void dashboard.refresh();
@@ -13,56 +41,20 @@ onMounted(() => {
 <template>
   <div class="page-stack">
     <section class="stats-grid">
-      <article class="glass-panel stat-card">
-        <span>Total Users</span>
-        <strong>{{ formatNumber(dashboard.stats.totalUsers) }}</strong>
-      </article>
-      <article class="glass-panel stat-card">
-        <span>Total Spots</span>
-        <strong>{{ formatNumber(dashboard.stats.totalSpots) }}</strong>
-      </article>
-      <article class="glass-panel stat-card">
-        <span>Total Trips</span>
-        <strong>{{ formatNumber(dashboard.stats.totalTrips) }}</strong>
-      </article>
-      <article class="glass-panel stat-card">
-        <span>Total Reviews</span>
-        <strong>{{ formatNumber(dashboard.stats.totalReviews) }}</strong>
-      </article>
-      <article class="glass-panel stat-card">
-        <span>Active Sessions</span>
-        <strong>{{ formatNumber(dashboard.stats.activeSessions) }}</strong>
+      <article v-for="stat in statCards" :key="stat.label" class="glass-panel stat-card">
+        <span>{{ stat.label }}</span>
+        <strong>{{ formatNumber(stat.value) }}</strong>
       </article>
     </section>
 
     <section class="chart-grid">
-      <article class="glass-panel admin-card">
-        <h2>User signups</h2>
-        <div class="bar-row">
+      <article v-for="chart in charts" :key="chart.title" class="glass-panel admin-card">
+        <h2>{{ chart.title }}</h2>
+        <div class="bar-row" :class="chart.tone">
           <span
-            v-for="item in dashboard.userGrowth"
+            v-for="item in chart.series"
             :key="item.label"
-            :style="{ height: `${20 + (item.users ?? 0)}px` }"
-          />
-        </div>
-      </article>
-      <article class="glass-panel admin-card">
-        <h2>Spots created</h2>
-        <div class="bar-row teal">
-          <span
-            v-for="item in dashboard.spotGrowth"
-            :key="item.label"
-            :style="{ height: `${20 + (item.spots ?? 0)}px` }"
-          />
-        </div>
-      </article>
-      <article class="glass-panel admin-card">
-        <h2>Engagement</h2>
-        <div class="bar-row amber">
-          <span
-            v-for="item in dashboard.engagement"
-            :key="item.label"
-            :style="{ height: `${20 + (item.likes ?? 0) / 8}px` }"
+            :style="{ height: chart.height(item) }"
           />
         </div>
       </article>

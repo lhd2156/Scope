@@ -49,6 +49,14 @@ def _float_env(name: str, default: float) -> float:
     return min(max(value, 0.0), 1.0)
 
 
+def _positive_float_env(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return max(value, 0.0)
+
+
 def _normalize_origin(origin: str | None) -> str | None:
     if origin is None:
         return None
@@ -456,6 +464,8 @@ if 'redis' in _cache_backend.lower():
 CACHES = {'default': _cache_default}
 CACHE_SPOTS_TIMEOUT_SECONDS = int(os.getenv('CACHE_SPOTS_TIMEOUT_SECONDS', '60'))
 CACHE_FEED_TIMEOUT_SECONDS = int(os.getenv('CACHE_FEED_TIMEOUT_SECONDS', '30'))
+CORE_SERVICE_URL = os.getenv('CORE_SERVICE_URL', '').rstrip('/')
+CORE_PROFILE_TIMEOUT_SECONDS = _positive_float_env('CORE_PROFILE_TIMEOUT_SECONDS', 1.5)
 
 # Session storage.
 #

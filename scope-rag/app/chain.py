@@ -387,6 +387,7 @@ def _format_context_item(index: int, result: dict) -> str:
     rating = metadata.get("rating", "N/A")
     return f"[{index}] Scope content: Spot={spot_name} | Rating={rating}/5 | type={source_type}\n{result['text']}"
 
+
 def _normalize_answer(value: str) -> str:
     normalized = re.sub(r"[^\w\s']", " ", value.lower())
     return " ".join(normalized.split())
@@ -499,6 +500,60 @@ def _extractive_answer(results: list[dict], conversation: list[dict] | None, que
     return _ensure_unique_answer(answer, conversation, question)
 
 
+def _no_context_response(conversation: list[dict] | None, question: str) -> dict:
+    answer = _ensure_unique_answer(
+        "I couldn't find any relevant information in Scope to answer that question. Try being more specific about the location or type of experience you're looking for.",
+        conversation,
+        question,
+    )
+    return {
+        "answer": answer,
+        "sources": [],
+        "model": active_model_name(),
+        "context_docs_used": 0,
+    }
+
+
+def _build_rag_context(results: list[dict]) -> str:
+    context_parts = [_format_context_item(index, result) for index, result in enumerate(results, 1)]
+    return "\n\n".join(context_parts) if context_parts else "No retrieved Scope source context. Use the attached image and the user's question, while staying within Scope travel and app help."
+
+
+def _generation_failure_answer(
+    *,
+    results: list[dict],
+    conversation: list[dict] | None,
+    question: str,
+    has_images: bool,
+) -> str:
+    if has_images:
+        return _ensure_unique_answer(
+            "I could not inspect the attached image cleanly on this request. Try a smaller JPEG, PNG, or WebP image, or describe what is visible and I will still help with the Scope trip context.",
+            conversation,
+            question,
+        )
+
+    return _extractive_answer(results, conversation, question)
+
+
+def _source_payloads(results: list[dict]) -> list[dict]:
+    return [
+        {
+            "source": result["metadata"].get("source"),
+            "source_type": result["metadata"].get("source_type") or result["metadata"].get("source"),
+            "title": _source_title(result["metadata"]),
+            "path": result["metadata"].get("path"),
+            "method": result["metadata"].get("method"),
+            "service": result["metadata"].get("service"),
+            "spot_name": result["metadata"].get("spot_name"),
+            "spot_id": result["metadata"].get("spot_id"),
+            "rating": result["metadata"].get("rating"),
+            "relevance_score": result["score"],
+        }
+        for result in results
+    ]
+
+
 def ask(
     question: str,
     filters: dict | None = None,
@@ -521,23 +576,9 @@ def ask(
     results = _retrieve_context(question, filters=filters, top_k=k)
 
     if not results and not image_list:
-        answer = _ensure_unique_answer(
-            "I couldn't find any relevant information in Scope to answer that question. Try being more specific about the location or type of experience you're looking for.",
-            conversation,
-            question,
-        )
-        return {
-            "answer": answer,
-            "sources": [],
-            "model": active_model_name(),
-            "context_docs_used": 0,
-        }
+        return _no_context_response(conversation, question)
 
-    context_parts = []
-    for i, result in enumerate(results, 1):
-        context_parts.append(_format_context_item(i, result))
-
-    context = "\n\n".join(context_parts) if context_parts else "No retrieved Scope source context. Use the attached image and the user's question, while staying within Scope travel and app help."
+    context = _build_rag_context(results)
     recent_chat = _format_recent_chat(conversation)
     model_name = active_model_name()
 
@@ -548,35 +589,104 @@ def ask(
         answer = _ensure_unique_answer(str(exc), conversation, question)
     except Exception:
         logger.warning("RAG generation failed; returning extractive answer", exc_info=True)
-        if image_list:
-            answer = _ensure_unique_answer(
-                "I could not inspect the attached image cleanly on this request. Try a smaller JPEG, PNG, or WebP image, or describe what is visible and I will still help with the Scope trip context.",
-                conversation,
-                question,
-            )
-        else:
-            answer = _extractive_answer(results, conversation, question)
+        answer = _generation_failure_answer(
+            results=results,
+            conversation=conversation,
+            question=question,
+            has_images=bool(image_list),
+        )
 
     return {
         "answer": answer,
-        "sources": [
-            {
-                "source": result["metadata"].get("source"),
-                "source_type": result["metadata"].get("source_type") or result["metadata"].get("source"),
-                "title": _source_title(result["metadata"]),
-                "path": result["metadata"].get("path"),
-                "method": result["metadata"].get("method"),
-                "service": result["metadata"].get("service"),
-                "spot_name": result["metadata"].get("spot_name"),
-                "spot_id": result["metadata"].get("spot_id"),
-                "rating": result["metadata"].get("rating"),
-                "relevance_score": result["score"],
-            }
-            for result in results
-        ],
+        "sources": _source_payloads(results),
         "model": model_name,
         "context_docs_used": len(results),
     }
+
+
+def _format_scope_ai_context(planner_state: dict, preferences: dict) -> str:
+    context_lines = [
+        "[CURRENT PLANNER STATE]",
+        json.dumps(planner_state, indent=2),
+        "[/CURRENT PLANNER STATE]",
+        "",
+        "[SESSION PREFERENCES]",
+        json.dumps(preferences, indent=2),
+        "[/SESSION PREFERENCES]",
+    ]
+    return "\n".join(context_lines)
+
+
+def _format_scope_ai_recent_chat(session_history: list[dict]) -> str:
+    recent_lines = []
+    for entry in session_history[-8:]:
+        role = "Scope AI" if entry.get("role") == "assistant" else "User"
+        content = str(entry.get("content") or "").strip()
+        if content:
+            recent_lines.append(f"{role}: {content[:1000]}")
+    return "\n".join(recent_lines) or "No prior chat."
+
+
+def _render_scope_ai_system_prompt(system_prompt: str, context: str, recent_chat: str) -> str:
+    full_system = system_prompt
+    if "{context}" in full_system:
+        full_system = full_system.replace("{context}", context)
+    else:
+        full_system = full_system + "\n\nCurrent planner state:\n" + context
+    if "{recent_chat}" in full_system:
+        full_system = full_system.replace("{recent_chat}", recent_chat)
+    else:
+        full_system = full_system + "\n\nRecent chat:\n" + recent_chat
+    return full_system
+
+
+def _scope_ai_gemini_payload(full_system: str, message: str, images: list[ImageAttachment]) -> dict:
+    return {
+        "systemInstruction": {"parts": [{"text": full_system}]},
+        "contents": [
+            {"role": "user", "parts": _gemini_content_parts(message, images)}
+        ],
+        "generationConfig": {
+            "temperature": 0.4,
+            "maxOutputTokens": max(settings.gemini_max_output_tokens, 1024),
+        },
+    }
+
+
+def _generate_scope_ai_with_gemini(
+    full_system: str,
+    message: str,
+    images: list[ImageAttachment],
+) -> tuple[str, str]:
+    for gemini_model in _gemini_model_names():
+        try:
+            response = httpx.post(
+                _gemini_endpoint(gemini_model),
+                params={"key": settings.gemini_api_key},
+                json=_scope_ai_gemini_payload(full_system, message, images),
+                timeout=settings.gemini_timeout_seconds,
+            )
+            response.raise_for_status()
+            answer = _extract_gemini_text(response.json())
+            return answer, gemini_model
+        except (httpx.HTTPStatusError, httpx.TimeoutException):
+            logger.warning("Scope AI Gemini model %s failed; trying next", gemini_model)
+            continue
+    raise RuntimeError("All Gemini models failed")
+
+
+def _generate_scope_ai_with_ollama(full_system: str, message: str) -> str:
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", full_system),
+        ("human", "{question}"),
+    ])
+    llm_chain = (
+        {"question": RunnablePassthrough()}
+        | prompt
+        | get_llm()
+        | StrOutputParser()
+    )
+    return llm_chain.invoke(message)
 
 
 def scope_ai_chat(
@@ -589,61 +699,14 @@ def scope_ai_chat(
 ) -> dict:
     """Generate a Scope AI route copilot response using the custom system prompt."""
     image_list = images or []
-    context_lines = [
-        "[CURRENT PLANNER STATE]",
-        json.dumps(planner_state, indent=2),
-        "[/CURRENT PLANNER STATE]",
-        "",
-        "[SESSION PREFERENCES]",
-        json.dumps(preferences, indent=2),
-        "[/SESSION PREFERENCES]",
-    ]
-    context = "\n".join(context_lines)
-
-    recent_lines = []
-    for entry in session_history[-8:]:
-        role = "Scope AI" if entry.get("role") == "assistant" else "User"
-        content = str(entry.get("content") or "").strip()
-        if content:
-            recent_lines.append(f"{role}: {content[:1000]}")
-    recent_chat = "\n".join(recent_lines) or "No prior chat."
-
-    full_system = system_prompt
-    if "{context}" in full_system:
-        full_system = full_system.replace("{context}", context)
-    else:
-        full_system = full_system + "\n\nCurrent planner state:\n" + context
-    if "{recent_chat}" in full_system:
-        full_system = full_system.replace("{recent_chat}", recent_chat)
-    else:
-        full_system = full_system + "\n\nRecent chat:\n" + recent_chat
+    context = _format_scope_ai_context(planner_state, preferences)
+    recent_chat = _format_scope_ai_recent_chat(session_history)
+    full_system = _render_scope_ai_system_prompt(system_prompt, context, recent_chat)
 
     if _should_use_gemini():
         try:
-            for gemini_model in _gemini_model_names():
-                try:
-                    response = httpx.post(
-                        _gemini_endpoint(gemini_model),
-                        params={"key": settings.gemini_api_key},
-                        json={
-                            "systemInstruction": {"parts": [{"text": full_system}]},
-                            "contents": [
-                                {"role": "user", "parts": _gemini_content_parts(message, image_list)}
-                            ],
-                            "generationConfig": {
-                                "temperature": 0.4,
-                                "maxOutputTokens": max(settings.gemini_max_output_tokens, 1024),
-                            },
-                        },
-                        timeout=settings.gemini_timeout_seconds,
-                    )
-                    response.raise_for_status()
-                    answer = _extract_gemini_text(response.json())
-                    return {"response": answer, "model": gemini_model}
-                except (httpx.HTTPStatusError, httpx.TimeoutException):
-                    logger.warning("Scope AI Gemini model %s failed; trying next", gemini_model)
-                    continue
-            raise RuntimeError("All Gemini models failed")
+            answer, model_name = _generate_scope_ai_with_gemini(full_system, message, image_list)
+            return {"response": answer, "model": model_name}
         except Exception:
             if _configured_provider() == "gemini":
                 raise
@@ -658,15 +721,5 @@ def scope_ai_chat(
             "model": active_model_name(),
         }
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", full_system),
-        ("human", "{question}"),
-    ])
-    llm_chain = (
-        {"question": RunnablePassthrough()}
-        | prompt
-        | get_llm()
-        | StrOutputParser()
-    )
-    answer = llm_chain.invoke(message)
+    answer = _generate_scope_ai_with_ollama(full_system, message)
     return {"response": answer, "model": settings.ollama_model}

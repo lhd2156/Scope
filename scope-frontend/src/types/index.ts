@@ -185,6 +185,7 @@ export interface Photo {
   id: string;
   url: string;
   caption?: string;
+  isAnonymous?: boolean;
 }
 
 export interface SpotPhotoUpload {
@@ -220,6 +221,7 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string;
+  isAnonymous?: boolean;
   sentiment_score?: number | null;
 }
 
@@ -330,6 +332,7 @@ export interface SpotFormInput {
   rating: number;
   visitedAt: string;
   isPublic: boolean;
+  isAnonymous?: boolean;
   providerPlaceId?: string;
   providerPlaceName?: string;
   providerPlaceAddress?: string;

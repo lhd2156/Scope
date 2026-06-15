@@ -1,0 +1,1376 @@
+{
+  "generatedAt": "2026-06-14T00:00:00Z",
+  "usageNote": "Aggregate travel-context profiles for fictional Scope seed places. Avoids protected-class demographic assumptions.",
+  "profiles": {
+    "demo-spot-25": {
+      "title": "Las Vegas Arts District First Friday",
+      "city": "Las Vegas",
+      "country": "US",
+      "state": "Nevada",
+      "stateCode": "NV",
+      "category": "culture",
+      "vibe": "gallery crawl",
+      "pillars": [
+        "lively",
+        "photo-worthy",
+        "group-friendly"
+      ],
+      "localVsTouristMix": "locals, repeat Vegas visitors, and first-timers looking beyond the Strip",
+      "visitorIntent": "art walk, food trucks, murals, and pre-dinner wandering",
+      "budgetBand": "low-mid",
+      "pace": "unhurried evening",
+      "crowdLevel": "busy on event nights",
+      "seasonTimeFit": "best at sunset and early evening, fall through spring is most comfortable",
+      "groupFit": "friends, couples, solo culture travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Vegas a real neighborhood anchor instead of only resort pins.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-26": {
+      "title": "Oahu North Shore Haleiwa Stop",
+      "city": "Haleiwa",
+      "country": "US",
+      "state": "Hawaii",
+      "stateCode": "HI",
+      "category": "scenic",
+      "vibe": "surf town",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "lively"
+      ],
+      "localVsTouristMix": "day-tripping visitors, surfers, families, and local lunch traffic",
+      "visitorIntent": "beach-town browsing, shave ice, surf watching, and coastal routing",
+      "budgetBand": "mid",
+      "pace": "slow half-day",
+      "crowdLevel": "busy midday and winter surf season",
+      "seasonTimeFit": "morning arrival keeps parking and heat manageable",
+      "groupFit": "families, couples, friend groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It turns Oahu into more than Waikiki by showing a believable island loop.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-27": {
+      "title": "Nashville Broadway Live Block",
+      "city": "Nashville",
+      "country": "US",
+      "state": "Tennessee",
+      "stateCode": "TN",
+      "category": "nightlife",
+      "vibe": "live music",
+      "pillars": [
+        "lively",
+        "group-friendly",
+        "date-night"
+      ],
+      "localVsTouristMix": "tourists, bachelor and friend groups, music fans, and service workers between shifts",
+      "visitorIntent": "live music, people-watching, late food, and high-energy nightlife",
+      "budgetBand": "mid-high",
+      "pace": "fast evening",
+      "crowdLevel": "very busy at night and weekends",
+      "seasonTimeFit": "best after dinner, shoulder season weekdays feel easier",
+      "groupFit": "groups and couples who want noise and music",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It is a demand-heavy US music anchor that makes trips feel socially alive.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-28": {
+      "title": "Charleston Battery Morning Walk",
+      "city": "Charleston",
+      "country": "US",
+      "state": "South Carolina",
+      "stateCode": "SC",
+      "category": "scenic",
+      "vibe": "historic waterfront",
+      "pillars": [
+        "photo-worthy",
+        "calm",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "heritage tourists, morning walkers, local runners, and family groups",
+      "visitorIntent": "waterfront photos, architecture, shade, and pre-brunch pacing",
+      "budgetBand": "low",
+      "pace": "slow morning",
+      "crowdLevel": "moderate, calmer early",
+      "seasonTimeFit": "best in spring/fall mornings or winter afternoons",
+      "groupFit": "families, couples, solo walkers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Charleston a routeable historic waterfront instead of a generic city label.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-29": {
+      "title": "Moab Main Street Canyon Base",
+      "city": "Moab",
+      "country": "US",
+      "state": "Utah",
+      "stateCode": "UT",
+      "category": "adventure",
+      "vibe": "red rock basecamp",
+      "pillars": [
+        "worth-the-drive",
+        "group-friendly",
+        "lively"
+      ],
+      "localVsTouristMix": "national park travelers, road trippers, guides, and outdoor crews",
+      "visitorIntent": "gear pickup, casual food, trail staging, and sunset-route planning",
+      "budgetBand": "mid",
+      "pace": "active half-day",
+      "crowdLevel": "busy spring/fall, quieter winter",
+      "seasonTimeFit": "spring and fall are strongest; early evening works after hikes",
+      "groupFit": "friends, solo hikers, couples",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It grounds Arches/Canyonlands trips in a real logistics hub.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-30": {
+      "title": "Sedona Airport Mesa Sunset",
+      "city": "Sedona",
+      "country": "US",
+      "state": "Arizona",
+      "stateCode": "AZ",
+      "category": "scenic",
+      "vibe": "red rock sunset",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "date-night"
+      ],
+      "localVsTouristMix": "road trippers, couples, hikers, wellness travelers, and local sunset regulars",
+      "visitorIntent": "viewpoint timing, photography, light hiking, and dinner-before-or-after routing",
+      "budgetBand": "low-mid",
+      "pace": "slow golden hour",
+      "crowdLevel": "crowded at sunset",
+      "seasonTimeFit": "best near sunset outside peak summer heat",
+      "groupFit": "couples, solo photographers, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives the Southwest catalog an iconic but realistic scenic pin.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-31": {
+      "title": "Asheville River Arts Studio Loop",
+      "city": "Asheville",
+      "country": "US",
+      "state": "North Carolina",
+      "stateCode": "NC",
+      "category": "culture",
+      "vibe": "working studios",
+      "pillars": [
+        "hidden-gem",
+        "photo-worthy",
+        "lively"
+      ],
+      "localVsTouristMix": "regional weekenders, local artists, brewery-bound visitors, and design shoppers",
+      "visitorIntent": "studio browsing, murals, cafe stops, and low-pressure culture time",
+      "budgetBand": "mid",
+      "pace": "unhurried afternoon",
+      "crowdLevel": "moderate, higher on weekends",
+      "seasonTimeFit": "spring/fall afternoons are strongest",
+      "groupFit": "couples, friend groups, solo art travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It makes Asheville feel specific through creative district texture.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-32": {
+      "title": "Hot Springs Bathhouse Row",
+      "city": "Hot Springs",
+      "country": "US",
+      "state": "Arkansas",
+      "stateCode": "AR",
+      "category": "culture",
+      "vibe": "spa heritage",
+      "pillars": [
+        "family-friendly",
+        "photo-worthy",
+        "calm"
+      ],
+      "localVsTouristMix": "national park visitors, spa travelers, families, and local downtown walkers",
+      "visitorIntent": "heritage architecture, bathhouse history, easy park access, and low-impact wandering",
+      "budgetBand": "low-mid",
+      "pace": "slow half-day",
+      "crowdLevel": "moderate weekends",
+      "seasonTimeFit": "year-round, best morning or late afternoon",
+      "groupFit": "families, couples, solo history travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Arkansas and a distinctive national-park-town format.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-33": {
+      "title": "Tulsa Route 66 Neon Gateway",
+      "city": "Tulsa",
+      "country": "US",
+      "state": "Oklahoma",
+      "stateCode": "OK",
+      "category": "scenic",
+      "vibe": "roadside neon",
+      "pillars": [
+        "photo-worthy",
+        "quick-stop",
+        "budget-friendly"
+      ],
+      "localVsTouristMix": "road trippers, Route 66 fans, locals, and photo-stop travelers",
+      "visitorIntent": "neon photos, short walks, diner routing, and cross-state drive texture",
+      "budgetBand": "low",
+      "pace": "quick stop",
+      "crowdLevel": "light-moderate",
+      "seasonTimeFit": "best blue hour or evening",
+      "groupFit": "solo road trippers, couples, friends",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives the map a classic Americana corridor anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-34": {
+      "title": "St. Louis Gateway Arch Riverfront",
+      "city": "St. Louis",
+      "country": "US",
+      "state": "Missouri",
+      "stateCode": "MO",
+      "category": "culture",
+      "vibe": "river monument",
+      "pillars": [
+        "family-friendly",
+        "photo-worthy",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "families, school groups, first-time city visitors, and downtown walkers",
+      "visitorIntent": "monument photos, museum time, riverfront walks, and compact history",
+      "budgetBand": "low-mid",
+      "pace": "balanced half-day",
+      "crowdLevel": "busy on holidays and summer weekends",
+      "seasonTimeFit": "spring/fall daylight is easiest",
+      "groupFit": "families, groups, solo history travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a recognizable Midwest waypoint for road-trip planning.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-35": {
+      "title": "Detroit Eastern Market Saturday",
+      "city": "Detroit",
+      "country": "US",
+      "state": "Michigan",
+      "stateCode": "MI",
+      "category": "food",
+      "vibe": "market murals",
+      "pillars": [
+        "lively",
+        "budget-friendly",
+        "group-friendly"
+      ],
+      "localVsTouristMix": "locals, regional food shoppers, mural hunters, and weekend visitors",
+      "visitorIntent": "market food, murals, coffee, and neighborhood discovery",
+      "budgetBand": "low-mid",
+      "pace": "active morning",
+      "crowdLevel": "busy Saturday mornings",
+      "seasonTimeFit": "best Saturday morning, spring through fall feels strongest",
+      "groupFit": "friends, families, solo food travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Detroit a food-and-art anchor with real local weight.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-36": {
+      "title": "Boston Public Garden Swan Loop",
+      "city": "Boston",
+      "country": "US",
+      "state": "Massachusetts",
+      "stateCode": "MA",
+      "category": "scenic",
+      "vibe": "garden classic",
+      "pillars": [
+        "family-friendly",
+        "calm",
+        "photo-worthy"
+      ],
+      "localVsTouristMix": "locals on lunch walks, families, first-time Boston visitors, and students",
+      "visitorIntent": "garden strolls, photos, low-stress orientation, and nearby shopping/culture links",
+      "budgetBand": "low",
+      "pace": "slow short stop",
+      "crowdLevel": "moderate in good weather",
+      "seasonTimeFit": "spring blooms and fall color are strongest",
+      "groupFit": "families, couples, solo walkers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Boston an approachable first-day anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-37": {
+      "title": "Philadelphia Independence Hall Walk",
+      "city": "Philadelphia",
+      "country": "US",
+      "state": "Pennsylvania",
+      "stateCode": "PA",
+      "category": "culture",
+      "vibe": "founding history",
+      "pillars": [
+        "family-friendly",
+        "quick-stop",
+        "photo-worthy"
+      ],
+      "localVsTouristMix": "families, school groups, history travelers, and Center City walkers",
+      "visitorIntent": "civic history, museum pairing, classic city photos, and compact routing",
+      "budgetBand": "low-mid",
+      "pace": "balanced half-day",
+      "crowdLevel": "busy midday",
+      "seasonTimeFit": "best morning, spring/fall or mild winter days",
+      "groupFit": "families, groups, solo history travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It provides a high-signal US history stop for itinerary grounding.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-38": {
+      "title": "Acadia Ocean Path Dawn",
+      "city": "Bar Harbor",
+      "country": "US",
+      "state": "Maine",
+      "stateCode": "ME",
+      "category": "nature",
+      "vibe": "rocky coast",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "calm"
+      ],
+      "localVsTouristMix": "national park travelers, photographers, hikers, and coastal road trippers",
+      "visitorIntent": "sunrise views, easy hiking, rocky shoreline, and park-day sequencing",
+      "budgetBand": "low",
+      "pace": "early slow walk",
+      "crowdLevel": "busy in summer, calmer at dawn",
+      "seasonTimeFit": "late spring through fall, sunrise is strongest",
+      "groupFit": "solo hikers, couples, families with sturdy shoes",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a major coastal park pattern missing from city-heavy maps.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-39": {
+      "title": "Grand Teton Jenny Lake View",
+      "city": "Moose",
+      "country": "US",
+      "state": "Wyoming",
+      "stateCode": "WY",
+      "category": "nature",
+      "vibe": "alpine lake",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "national park visitors, hikers, families, and road-trip photographers",
+      "visitorIntent": "lake views, boat access, trailheads, and early-day park planning",
+      "budgetBand": "low-mid",
+      "pace": "active morning",
+      "crowdLevel": "busy in summer",
+      "seasonTimeFit": "June to September mornings are strongest",
+      "groupFit": "families, hikers, couples",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives western park trips a true alpine anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-40": {
+      "title": "Glacier Going-to-the-Sun Pullout",
+      "city": "West Glacier",
+      "country": "US",
+      "state": "Montana",
+      "stateCode": "MT",
+      "category": "scenic",
+      "vibe": "mountain road",
+      "pillars": [
+        "worth-the-drive",
+        "photo-worthy",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "park road trippers, photographers, hikers, and families with timed-entry plans",
+      "visitorIntent": "viewpoint stops, scenic driving, short walks, and route pacing",
+      "budgetBand": "low",
+      "pace": "slow drive",
+      "crowdLevel": "crowded in peak summer",
+      "seasonTimeFit": "summer opening window, morning light is best",
+      "groupFit": "couples, families, road-trip groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a high-demand national park drive with real planning constraints.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-41": {
+      "title": "Portland Pearl District Bookshop Block",
+      "city": "Portland",
+      "country": "US",
+      "state": "Oregon",
+      "stateCode": "OR",
+      "category": "shopping",
+      "vibe": "bookstore district",
+      "pillars": [
+        "calm",
+        "budget-friendly",
+        "solo-friendly"
+      ],
+      "localVsTouristMix": "locals, solo travelers, book shoppers, coffee seekers, and rainy-day visitors",
+      "visitorIntent": "book browsing, cafes, galleries, and weather-proof city time",
+      "budgetBand": "low-mid",
+      "pace": "slow afternoon",
+      "crowdLevel": "moderate weekends",
+      "seasonTimeFit": "year-round, especially useful on rainy afternoons",
+      "groupFit": "solo travelers, couples, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Portland a useful non-landmark indoor/outdoor mixed anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-42": {
+      "title": "Santa Fe Plaza Gallery Circuit",
+      "city": "Santa Fe",
+      "country": "US",
+      "state": "New Mexico",
+      "stateCode": "NM",
+      "category": "culture",
+      "vibe": "adobe galleries",
+      "pillars": [
+        "photo-worthy",
+        "calm"
+      ],
+      "localVsTouristMix": "art travelers, locals, couples, and regional weekend visitors",
+      "visitorIntent": "gallery browsing, plaza walks, jewelry shopping, and heritage architecture",
+      "budgetBand": "mid-high",
+      "pace": "slow afternoon",
+      "crowdLevel": "moderate, heavier during festivals",
+      "seasonTimeFit": "spring/fall afternoons are easiest",
+      "groupFit": "couples, solo art travelers, friends",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a distinctive Southwestern culture stop that is not just desert scenery.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-43": {
+      "title": "Savannah Forsyth Fountain Loop",
+      "city": "Savannah",
+      "country": "US",
+      "state": "Georgia",
+      "stateCode": "GA",
+      "category": "scenic",
+      "vibe": "shaded squares",
+      "pillars": [
+        "photo-worthy",
+        "calm",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "weekend visitors, locals, families, wedding parties, and architecture walkers",
+      "visitorIntent": "park photos, shaded walking, cafe routing, and historic district orientation",
+      "budgetBand": "low",
+      "pace": "slow morning",
+      "crowdLevel": "moderate, busier in spring",
+      "seasonTimeFit": "spring and fall mornings are strongest",
+      "groupFit": "families, couples, solo walkers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Savannah a graceful map anchor with repeatable trip utility.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-44": {
+      "title": "Anchorage Tony Knowles Coastal Trail",
+      "city": "Anchorage",
+      "country": "US",
+      "state": "Alaska",
+      "stateCode": "AK",
+      "category": "nature",
+      "vibe": "coastal trail",
+      "pillars": [
+        "solo-friendly",
+        "photo-worthy",
+        "worth-the-drive"
+      ],
+      "localVsTouristMix": "locals, cruise-extension visitors, cyclists, runners, and wildlife-curious travelers",
+      "visitorIntent": "bike rides, skyline and inlet views, easy nature access, and layover-friendly pacing",
+      "budgetBand": "low-mid",
+      "pace": "active half-day",
+      "crowdLevel": "moderate in summer",
+      "seasonTimeFit": "summer evenings and clear mornings are strongest",
+      "groupFit": "solo travelers, couples, active families",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Alaska with a realistic city-adjacent outdoor route.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-45": {
+      "title": "Biloxi Gulf Islands Ferry Dock",
+      "city": "Biloxi",
+      "country": "US",
+      "state": "Mississippi",
+      "stateCode": "MS",
+      "category": "scenic",
+      "vibe": "gulf ferry",
+      "pillars": [
+        "family-friendly",
+        "worth-the-drive",
+        "calm"
+      ],
+      "localVsTouristMix": "families, beach travelers, casino-weekend visitors, and park day trippers",
+      "visitorIntent": "ferry staging, gulf views, beach access, and relaxed coastal timing",
+      "budgetBand": "mid",
+      "pace": "slow half-day",
+      "crowdLevel": "seasonal and weather-dependent",
+      "seasonTimeFit": "spring/fall and calm summer mornings work best",
+      "groupFit": "families, couples, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds the Gulf Coast and a ferry/day-trip pattern.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-46": {
+      "title": "Birmingham Railroad Park Greenway",
+      "city": "Birmingham",
+      "country": "US",
+      "state": "Alabama",
+      "stateCode": "AL",
+      "category": "scenic",
+      "vibe": "city greenway",
+      "pillars": [
+        "family-friendly",
+        "quick-stop",
+        "calm"
+      ],
+      "localVsTouristMix": "locals, families, downtown workers, and weekend visitors pairing food and museums",
+      "visitorIntent": "greenway walks, skyline views, picnic breaks, and easy civic routing",
+      "budgetBand": "low",
+      "pace": "short reset",
+      "crowdLevel": "moderate during events",
+      "seasonTimeFit": "spring/fall evenings are strongest",
+      "groupFit": "families, solo walkers, couples",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Alabama with a practical downtown outdoor anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-47": {
+      "title": "Louisville NuLu Market Row",
+      "city": "Louisville",
+      "country": "US",
+      "state": "Kentucky",
+      "stateCode": "KY",
+      "category": "food",
+      "vibe": "warehouse dining",
+      "pillars": [
+        "lively",
+        "group-friendly",
+        "date-night"
+      ],
+      "localVsTouristMix": "locals, bourbon travelers, food-focused visitors, and convention groups",
+      "visitorIntent": "restaurants, boutiques, murals, and evening route building",
+      "budgetBand": "mid-high",
+      "pace": "active evening",
+      "crowdLevel": "busy weekend nights",
+      "seasonTimeFit": "best dinner window, spring/fall patios help",
+      "groupFit": "groups, couples, food travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It makes Louisville usable as a food-and-nightlife stop.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-48": {
+      "title": "Boise Basque Block Lunch",
+      "city": "Boise",
+      "country": "US",
+      "state": "Idaho",
+      "stateCode": "ID",
+      "category": "food",
+      "vibe": "heritage lunch",
+      "pillars": [
+        "hidden-gem",
+        "budget-friendly",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "locals, regional visitors, road trippers, and food-curious downtown walkers",
+      "visitorIntent": "lunch, cultural context, compact walking, and a low-pressure city stop",
+      "budgetBand": "low-mid",
+      "pace": "short midday",
+      "crowdLevel": "light-moderate",
+      "seasonTimeFit": "year-round lunch window",
+      "groupFit": "solo travelers, couples, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a distinctive Idaho anchor that avoids generic outdoor-only coverage.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-49": {
+      "title": "Newport Cliff Walk Break",
+      "city": "Newport",
+      "country": "US",
+      "state": "Rhode Island",
+      "stateCode": "RI",
+      "category": "scenic",
+      "vibe": "coastal mansions",
+      "pillars": [
+        "photo-worthy",
+        "date-night",
+        "calm"
+      ],
+      "localVsTouristMix": "regional weekenders, mansion-tour visitors, couples, and coastal walkers",
+      "visitorIntent": "ocean views, architecture, light exercise, and dinner-before-or-after routing",
+      "budgetBand": "low-mid",
+      "pace": "slow walk",
+      "crowdLevel": "busy summer weekends",
+      "seasonTimeFit": "spring/fall afternoons are strongest",
+      "groupFit": "couples, families with older kids, solo walkers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Rhode Island a classic coastal route with obvious map value.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-50": {
+      "title": "Burlington Waterfront Bike Pause",
+      "city": "Burlington",
+      "country": "US",
+      "state": "Vermont",
+      "stateCode": "VT",
+      "category": "nature",
+      "vibe": "lakefront bikes",
+      "pillars": [
+        "family-friendly",
+        "calm",
+        "photo-worthy"
+      ],
+      "localVsTouristMix": "locals, college visitors, leaf-peepers, cyclists, and families",
+      "visitorIntent": "lake views, biking, picnic breaks, and relaxed downtown pairing",
+      "budgetBand": "low",
+      "pace": "slow half-day",
+      "crowdLevel": "moderate in summer/fall",
+      "seasonTimeFit": "summer evenings and fall afternoons are strongest",
+      "groupFit": "families, couples, solo cyclists",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Vermont with a realistic outdoors-plus-town rhythm.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-51": {
+      "title": "Minneapolis Stone Arch River View",
+      "city": "Minneapolis",
+      "country": "US",
+      "state": "Minnesota",
+      "stateCode": "MN",
+      "category": "scenic",
+      "vibe": "river mills",
+      "pillars": [
+        "photo-worthy",
+        "solo-friendly",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "locals, museum visitors, runners, photographers, and first-time city walkers",
+      "visitorIntent": "river views, skyline, mill history, and easy culture pairing",
+      "budgetBand": "low",
+      "pace": "short walk",
+      "crowdLevel": "moderate, busy at sunset",
+      "seasonTimeFit": "spring through fall, golden hour works well",
+      "groupFit": "solo travelers, couples, families",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It anchors Minneapolis with a strong visual and historical route.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-52": {
+      "title": "Milwaukee Third Ward Market",
+      "city": "Milwaukee",
+      "country": "US",
+      "state": "Wisconsin",
+      "stateCode": "WI",
+      "category": "food",
+      "vibe": "market hall",
+      "pillars": [
+        "group-friendly",
+        "budget-friendly",
+        "lively"
+      ],
+      "localVsTouristMix": "locals, lakefront visitors, convention groups, and food-focused weekenders",
+      "visitorIntent": "food hall browsing, riverwalk pairing, and flexible group meals",
+      "budgetBand": "low-mid",
+      "pace": "balanced lunch",
+      "crowdLevel": "busy weekend lunch",
+      "seasonTimeFit": "year-round, especially useful in cold weather",
+      "groupFit": "groups, families, solo food travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Wisconsin a practical food-market anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-53": {
+      "title": "Paris Seine Louvre Evening Walk",
+      "city": "Paris",
+      "country": "FR",
+      "region": "Ile-de-France",
+      "category": "culture",
+      "vibe": "river museum",
+      "pillars": [
+        "photo-worthy",
+        "date-night",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "first-time visitors, museum travelers, locals crossing the river, and couples",
+      "visitorIntent": "museum exterior, river walk, golden-hour photos, and dinner routing",
+      "budgetBand": "low-mid",
+      "pace": "slow evening",
+      "crowdLevel": "busy most seasons",
+      "seasonTimeFit": "spring/fall evenings and winter blue hour work well",
+      "groupFit": "couples, solo culture travelers, families",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Paris a verified iconic anchor for global trip planning.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-54": {
+      "title": "Madrid Retiro Crystal Palace Loop",
+      "city": "Madrid",
+      "country": "ES",
+      "region": "Community of Madrid",
+      "category": "culture",
+      "vibe": "park gallery",
+      "pillars": [
+        "calm",
+        "photo-worthy",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "locals, art travelers, families, and city-break visitors",
+      "visitorIntent": "park walking, glasshouse photos, museum pairing, and relaxed afternoon pacing",
+      "budgetBand": "low",
+      "pace": "slow afternoon",
+      "crowdLevel": "moderate weekends",
+      "seasonTimeFit": "spring/fall afternoons are strongest",
+      "groupFit": "families, couples, solo walkers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It makes Madrid feel park-and-culture specific.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-55": {
+      "title": "Rome Colosseum Forum Edge",
+      "city": "Rome",
+      "country": "IT",
+      "region": "Lazio",
+      "category": "culture",
+      "vibe": "ancient icon",
+      "pillars": [
+        "photo-worthy",
+        "family-friendly",
+        "worth-the-drive"
+      ],
+      "localVsTouristMix": "first-time tourists, school groups, history travelers, and locals moving through the center",
+      "visitorIntent": "ancient-site orientation, photos, guided tours, and compact walking",
+      "budgetBand": "mid",
+      "pace": "balanced half-day",
+      "crowdLevel": "very busy midday",
+      "seasonTimeFit": "early morning or late afternoon outside peak summer heat",
+      "groupFit": "families, couples, solo history travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Rome an unmistakable but route-aware anchor.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-56": {
+      "title": "Milan Duomo Roofline Piazza",
+      "city": "Milan",
+      "country": "IT",
+      "region": "Lombardy",
+      "category": "culture",
+      "vibe": "fashion piazza",
+      "pillars": [
+        "photo-worthy",
+        "luxury-feel"
+      ],
+      "localVsTouristMix": "fashion shoppers, architecture fans, business travelers, and first-time Italy visitors",
+      "visitorIntent": "cathedral views, roof tickets, gallery shopping, and aperitivo routing",
+      "budgetBand": "mid-high",
+      "pace": "balanced afternoon",
+      "crowdLevel": "busy all day",
+      "seasonTimeFit": "morning for photos, evening for atmosphere",
+      "groupFit": "couples, solo city travelers, groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Milan as a distinct style-and-architecture city, not a Rome duplicate.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-57": {
+      "title": "Bangkok Grand Palace River Gate",
+      "city": "Bangkok",
+      "country": "TH",
+      "region": "Bangkok",
+      "category": "culture",
+      "vibe": "temple palace",
+      "pillars": [
+        "photo-worthy",
+        "family-friendly",
+        "worth-the-drive"
+      ],
+      "localVsTouristMix": "international tourists, regional visitors, guides, and temple-focused travelers",
+      "visitorIntent": "palace visit, river routing, cultural orientation, and heat-aware morning planning",
+      "budgetBand": "mid",
+      "pace": "structured morning",
+      "crowdLevel": "very busy and hot midday",
+      "seasonTimeFit": "early morning, dry season is easiest",
+      "groupFit": "families, groups, solo culture travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It grounds Bangkok with a must-plan cultural anchor and clear timing constraints.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-58": {
+      "title": "Hong Kong Victoria Peak Tram View",
+      "city": "Hong Kong",
+      "country": "HK",
+      "region": "Hong Kong Island",
+      "category": "scenic",
+      "vibe": "harbor skyline",
+      "pillars": [
+        "photo-worthy",
+        "date-night",
+        "worth-the-drive"
+      ],
+      "localVsTouristMix": "first-time visitors, families, skyline photographers, and evening-date crowds",
+      "visitorIntent": "tram ride, harbor views, night photos, and compact landmark routing",
+      "budgetBand": "mid",
+      "pace": "structured evening",
+      "crowdLevel": "busy at sunset",
+      "seasonTimeFit": "clear evenings, weekdays reduce queues",
+      "groupFit": "couples, families, solo photographers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a globally legible skyline viewpoint with useful planning notes.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-59": {
+      "title": "Porto Ribeira Tile-and-River Walk",
+      "city": "Porto",
+      "country": "PT",
+      "region": "Norte",
+      "category": "scenic",
+      "vibe": "river tiles",
+      "pillars": [
+        "photo-worthy",
+        "date-night",
+        "lively"
+      ],
+      "localVsTouristMix": "city-break travelers, locals near the river, wine tourists, and couples",
+      "visitorIntent": "riverside walk, tile facades, bridge views, and dinner routing",
+      "budgetBand": "mid",
+      "pace": "slow evening",
+      "crowdLevel": "busy sunset and weekends",
+      "seasonTimeFit": "spring/fall evenings are strongest",
+      "groupFit": "couples, friends, solo photographers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Porto as a high-demand but compact European route.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-60": {
+      "title": "Miyajima Floating Gate Ferry Day",
+      "city": "Hatsukaichi",
+      "country": "JP",
+      "region": "Hiroshima",
+      "category": "culture",
+      "vibe": "island shrine",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "Japan rail travelers, families, shrine visitors, and photographers",
+      "visitorIntent": "ferry day trip, shrine timing, tide-aware photos, and gentle island walking",
+      "budgetBand": "mid",
+      "pace": "slow day trip",
+      "crowdLevel": "busy during holidays",
+      "seasonTimeFit": "spring/fall and tide-aware windows are strongest",
+      "groupFit": "families, couples, solo travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Hiroshima/Miyajima with planning texture beyond Tokyo/Kyoto.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-61": {
+      "title": "Amsterdam Canal Ring Golden Hour",
+      "city": "Amsterdam",
+      "country": "NL",
+      "region": "North Holland",
+      "category": "scenic",
+      "vibe": "canal evening",
+      "pillars": [
+        "photo-worthy",
+        "date-night",
+        "calm"
+      ],
+      "localVsTouristMix": "city-break visitors, locals biking home, couples, and museum travelers",
+      "visitorIntent": "canal photos, bridge walks, cafe timing, and low-stress orientation",
+      "budgetBand": "low-mid",
+      "pace": "slow evening",
+      "crowdLevel": "moderate, busy in peak summer",
+      "seasonTimeFit": "golden hour, spring/fall shoulder seasons",
+      "groupFit": "couples, solo walkers, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It gives Amsterdam a routeable scenic core that is not only nightlife.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-62": {
+      "title": "Istanbul Galata to Bosphorus Descent",
+      "city": "Istanbul",
+      "country": "TR",
+      "region": "Istanbul",
+      "category": "culture",
+      "vibe": "hillside harbor",
+      "pillars": [
+        "photo-worthy",
+        "lively",
+        "worth-the-drive"
+      ],
+      "localVsTouristMix": "locals, international visitors, food walkers, and photographers",
+      "visitorIntent": "tower views, steep streets, ferry links, and layered neighborhood browsing",
+      "budgetBand": "low-mid",
+      "pace": "active afternoon",
+      "crowdLevel": "busy midday and sunset",
+      "seasonTimeFit": "spring/fall afternoons are strongest",
+      "groupFit": "couples, friends, solo walkers comfortable with hills",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Istanbul with meaningful slope, ferry, and crowd context.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-63": {
+      "title": "Dubai Creek Al Seef Night Walk",
+      "city": "Dubai",
+      "country": "AE",
+      "region": "Dubai",
+      "category": "scenic",
+      "vibe": "creek lights",
+      "pillars": [
+        "family-friendly",
+        "date-night",
+        "photo-worthy"
+      ],
+      "localVsTouristMix": "families, stopover travelers, residents, and first-time visitors balancing old/new Dubai",
+      "visitorIntent": "creekside walking, dinner, heritage-style streets, and night photos",
+      "budgetBand": "mid",
+      "pace": "slow evening",
+      "crowdLevel": "moderate-busy in cool months",
+      "seasonTimeFit": "best at night, October through April",
+      "groupFit": "families, couples, groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It makes Dubai more specific than malls and towers by using a creekside route.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-64": {
+      "title": "Seoul Bukchon Hanok Ridge",
+      "city": "Seoul",
+      "country": "KR",
+      "region": "Seoul",
+      "category": "culture",
+      "vibe": "hanok lanes",
+      "pillars": [
+        "photo-worthy",
+        "calm",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "culture travelers, photographers, locals passing through, and first-time Seoul visitors",
+      "visitorIntent": "traditional lanes, viewpoint walking, cafe pairing, and respectful quiet routing",
+      "budgetBand": "low",
+      "pace": "slow morning",
+      "crowdLevel": "busy midday, residential quiet needed",
+      "seasonTimeFit": "morning or weekday shoulder times are best",
+      "groupFit": "solo travelers, couples, small respectful groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Seoul with clear local-respect and crowd guidance.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-65": {
+      "title": "Kyoto Fushimi Inari Lower Gates",
+      "city": "Kyoto",
+      "country": "JP",
+      "region": "Kyoto",
+      "category": "culture",
+      "vibe": "torii trail",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "solo-friendly"
+      ],
+      "localVsTouristMix": "Japan travelers, shrine visitors, hikers, photographers, and families",
+      "visitorIntent": "shrine walk, torii photos, early timing, and optional hike extension",
+      "budgetBand": "low",
+      "pace": "active morning",
+      "crowdLevel": "very busy after breakfast",
+      "seasonTimeFit": "dawn or early morning year-round",
+      "groupFit": "solo travelers, couples, families ready for stairs",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Kyoto with a classic place plus realistic timing advice.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-66": {
+      "title": "Buenos Aires San Telmo Market Sunday",
+      "city": "Buenos Aires",
+      "country": "AR",
+      "region": "Buenos Aires",
+      "category": "food",
+      "vibe": "market tango",
+      "pillars": [
+        "lively",
+        "budget-friendly",
+        "photo-worthy"
+      ],
+      "localVsTouristMix": "locals, antiques browsers, food travelers, tango-curious visitors, and weekend groups",
+      "visitorIntent": "market food, street music, antiques, and neighborhood walking",
+      "budgetBand": "low-mid",
+      "pace": "active Sunday",
+      "crowdLevel": "busy Sundays",
+      "seasonTimeFit": "Sunday late morning into afternoon",
+      "groupFit": "friends, solo food travelers, couples",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Buenos Aires with a real market rhythm and social energy.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-67": {
+      "title": "Rio Sugarloaf Cable Car View",
+      "city": "Rio de Janeiro",
+      "country": "BR",
+      "region": "Rio de Janeiro",
+      "category": "scenic",
+      "vibe": "bay cable car",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "date-night"
+      ],
+      "localVsTouristMix": "first-time Rio visitors, families, photographers, and sunset planners",
+      "visitorIntent": "cable car ride, bay views, sunset photos, and skyline orientation",
+      "budgetBand": "mid-high",
+      "pace": "structured half-day",
+      "crowdLevel": "busy at sunset",
+      "seasonTimeFit": "clear mornings or sunset, weather visibility matters",
+      "groupFit": "families, couples, solo photographers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a globally iconic viewpoint with weather-sensitive planning.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-68": {
+      "title": "Marrakech Jemaa el-Fnaa Food Edge",
+      "city": "Marrakech",
+      "country": "MA",
+      "region": "Marrakech-Safi",
+      "category": "food",
+      "vibe": "night market",
+      "pillars": [
+        "lively",
+        "photo-worthy",
+        "group-friendly"
+      ],
+      "localVsTouristMix": "international tourists, local vendors, families, and guided food walkers",
+      "visitorIntent": "night-market energy, food stalls, orientation, and cautious group wandering",
+      "budgetBand": "low-mid",
+      "pace": "fast evening",
+      "crowdLevel": "very busy at night",
+      "seasonTimeFit": "evening outside peak summer heat",
+      "groupFit": "groups, couples comfortable with crowds, guided solo travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Marrakech with practical crowd and pacing context.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-69": {
+      "title": "Cairo Giza Plateau First Light",
+      "city": "Giza",
+      "country": "EG",
+      "region": "Giza",
+      "category": "culture",
+      "vibe": "desert monuments",
+      "pillars": [
+        "photo-worthy",
+        "worth-the-drive",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "international tourists, history travelers, families, guides, and photographers",
+      "visitorIntent": "monument visit, early photos, heat management, and guided routing",
+      "budgetBand": "mid",
+      "pace": "structured morning",
+      "crowdLevel": "busy and hot midday",
+      "seasonTimeFit": "first light or early morning, cooler months easiest",
+      "groupFit": "families, groups, solo history travelers with guides",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Cairo/Giza with high-recognition and real timing constraints.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-70": {
+      "title": "Kuala Lumpur Petronas Park Frame",
+      "city": "Kuala Lumpur",
+      "country": "MY",
+      "region": "Kuala Lumpur",
+      "category": "scenic",
+      "vibe": "tower park",
+      "pillars": [
+        "photo-worthy",
+        "family-friendly",
+        "quick-stop"
+      ],
+      "localVsTouristMix": "families, business travelers, stopover visitors, and evening walkers",
+      "visitorIntent": "tower photos, park break, mall/dinner pairing, and easy transit access",
+      "budgetBand": "low-mid",
+      "pace": "short evening",
+      "crowdLevel": "busy at night",
+      "seasonTimeFit": "evening fountain windows and clear nights",
+      "groupFit": "families, couples, solo stopover travelers",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds a Southeast Asia stopover city with easy planner utility.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-71": {
+      "title": "Macau Senado Square Heritage Walk",
+      "city": "Macau",
+      "country": "MO",
+      "region": "Macau Peninsula",
+      "category": "culture",
+      "vibe": "heritage square",
+      "pillars": [
+        "photo-worthy",
+        "quick-stop",
+        "family-friendly"
+      ],
+      "localVsTouristMix": "day trippers, families, heritage walkers, and food snackers",
+      "visitorIntent": "Portuguese-style streets, snacks, photos, and compact day-trip routing",
+      "budgetBand": "low-mid",
+      "pace": "balanced afternoon",
+      "crowdLevel": "busy midday",
+      "seasonTimeFit": "weekday mornings or late afternoon are easiest",
+      "groupFit": "families, couples, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Macau as a compact cross-border heritage stop.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    },
+    "demo-spot-72": {
+      "title": "Ubud Campuhan Ridge Dawn Walk",
+      "city": "Ubud",
+      "country": "ID",
+      "region": "Bali",
+      "category": "nature",
+      "vibe": "ricefield ridge",
+      "pillars": [
+        "calm",
+        "photo-worthy",
+        "solo-friendly"
+      ],
+      "localVsTouristMix": "wellness travelers, local walkers, photographers, and slow-travel visitors",
+      "visitorIntent": "dawn walk, greenery, cafe finish, and low-cost outdoor reset",
+      "budgetBand": "low",
+      "pace": "slow morning",
+      "crowdLevel": "moderate after sunrise",
+      "seasonTimeFit": "dawn, dry-season mornings are easiest",
+      "groupFit": "solo travelers, couples, small groups",
+      "accessibilityFamilyFit": "standard city/outdoor access varies by exact route",
+      "whyScope": "It adds Bali with a quiet nature-first alternative to beach-only planning.",
+      "researchAnchors": [
+        "NPS 2025 visitation",
+        "Tripadvisor 2026 Things To Do",
+        "Euromonitor 2025 city rankings",
+        "Conde Nast Traveler 2026 US picks"
+      ]
+    }
+  }
+}

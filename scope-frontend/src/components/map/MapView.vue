@@ -291,6 +291,80 @@ import {
   type SpotMarkerModel,
   type ViewportMarkerModel,
 } from '@/components/map/mapMarkerState';
+import {
+  hasUsableNearbyPlaceCoordinates,
+  hasValidLatitudeLongitude,
+  hasValidMapPointCoordinates as hasValidCoordinates,
+  hasValidRouteCoordinate,
+  isFiniteNumber,
+  isValidClusterEntry,
+} from '@/components/map/mapCoordinateValidation';
+import {
+  FALLBACK_COORDINATE_PADDING_RATIO,
+  FALLBACK_MIN_COORDINATE_RANGE,
+  FALLBACK_VIEWPORT,
+  buildFallbackViewportBounds as buildFallbackViewportBoundsForViewport,
+  distanceBetweenFallbackPoints,
+  projectFallbackCoordinate,
+  projectFallbackPoint,
+  resolveFallbackProjection,
+  unprojectFallbackCoordinate,
+  type FallbackProjection,
+  type FallbackProjectionBounds,
+} from '@/components/map/mapFallbackProjection';
+import {
+  buildGoogleMapsAddressUrl,
+  formatNearbyPlaceAddress,
+  formatNearbyPlaceCategory,
+  formatNearbyPlaceDistance,
+  getPlaceCategoryOverride,
+  getNearbyPlaceIconName,
+  getNearbyPlaceKind,
+  isFuelPlaceCategory,
+  normalizeNearbyPlaceCategoryLabel,
+  normalizePlaceCategoryText,
+  resolveNearbyPlaceCategoryValue,
+  titleCaseMapFeatureCategory,
+} from '@/components/map/mapNearbyPlaceFormatting';
+import {
+  getLayerSourceLayer,
+  getNativeMajorRoadColor,
+  getNightRoadLineColor,
+  isAdministrativeBoundaryLineLayer,
+  isAridLandFillLayer,
+  isCountryBoundaryLineLayer,
+  isCountryLabelLayer,
+  isLandcoverFillLayer,
+  isLanduseFillLayer,
+  isMajorRoadLineLayer,
+  isNaturalOrWaterLabelLayer,
+  isNeighborhoodLabelLayer,
+  isPoiLabelLayer,
+  isRoadCasingLineLayer,
+  isRoadLabelLayer,
+  isRoadLineLayer,
+  isRoadShieldLayer,
+  isSettlementLabelLayer,
+  isSimpleRoadLineLayer,
+  isStateBoundaryLineLayer,
+  isStateLabelLayer,
+  isWaterLabelLayer,
+  layerIdIncludes,
+} from '@/components/map/mapLayerClassifiers';
+import {
+  isMapPresentationMode,
+  isMapProjectionMode,
+  readMapProjectionModePreference as readStoredMapProjectionModePreference,
+  readMapStyleModePreference as readStoredMapStyleModePreference,
+  writeMapProjectionModePreference as writeStoredMapProjectionModePreference,
+  writeMapStyleModePreference as writeStoredMapStyleModePreference,
+  type MapPresentationMode,
+  type MapProjectionName,
+} from '@/components/map/mapPreferences';
+import {
+  buildRouteOrderLookup,
+  getRouteMarkerSequence,
+} from '@/components/map/mapRouteMarkers';
 import { getMapPointsInsideViewport } from '@/components/map/mapViewportVisibility';
 import {
   LIGHT_MAP_STYLE,
@@ -340,10 +414,8 @@ import { getWeatherSnapshotIconName } from '@/utils/weatherDisplay';
 
 type TrackingState = 'idle' | 'locating' | 'tracking' | 'denied' | 'unsupported' | 'error';
 type MapLabelMode = 'none' | 'states' | 'majorCities' | 'full';
-type MapPresentationMode = 'scope' | 'native';
 type MapStyleTransitionVariant = 'load' | 'switch';
 type ScopeAiMapExternalCommandInput = ScopeAiMapCommand | ScopeAiMapCommandPayload;
-type MapProjectionName = 'globe' | 'mercator';
 type MapFogStyle = NonNullable<Parameters<mapboxgl.Map['setFog']>[0]>;
 interface CenterOnLocationOptions {
   allowDefer?: boolean;
@@ -456,17 +528,41 @@ interface FallbackMarker {
   showLabel: boolean;
 }
 
-const FALLBACK_VIEWPORT = {
-  width: 1200,
-  height: 900,
-};
+interface MapPresentationLayerContext {
+  instance: mapboxgl.Map;
+  layer: mapboxgl.AnyLayer;
+  layerId: string;
+  normalizedLayerId: string;
+  sourceLayer: string;
+  labelMode: MapLabelMode;
+  mode: MapPresentationMode;
+}
+
+interface MapPresentationLayerHandlers {
+  applyAdministrativeBoundary: (
+    instance: mapboxgl.Map,
+    layer: mapboxgl.AnyLayer,
+    normalizedLayerId: string,
+    sourceLayer: string,
+  ) => void;
+  applyRoad: (
+    instance: mapboxgl.Map,
+    layer: mapboxgl.AnyLayer,
+    normalizedLayerId: string,
+    sourceLayer: string,
+  ) => void;
+  applyFill: (
+    instance: mapboxgl.Map,
+    layer: mapboxgl.AnyLayer,
+    normalizedLayerId: string,
+  ) => void;
+}
+
 const LIVE_CLUSTER_RADIUS_PX = 72;
 const LIVE_CLUSTER_MIN_POINTS = 2;
 const LIVE_MARKER_VISIBILITY_BUFFER_PX = 96;
 const VISIBLE_MARKER_MIN_INTERSECTION_PX = 14;
 const MAX_LIVE_ROUTE_OVERLAY_COORDINATES = 240;
-const MAP_STYLE_MODE_STORAGE_KEY = 'scope.tripPlanner.mapStyleMode';
-const MAP_PROJECTION_MODE_STORAGE_KEY = 'scope.map.projectionMode';
 const MAP_WEATHER_MIN_ZOOM = 6;
 const MAP_WEATHER_COORDINATE_PRECISION = 2;
 const MAP_WEATHER_REFRESH_DEBOUNCE_MS = 650;
@@ -808,41 +904,6 @@ const fallbackTerrainPaths = [
   'M 888 586 C 960 542 1050 556 1114 620 C 1182 690 1182 802 1106 850 C 1018 906 854 902 786 822 C 734 760 786 648 888 586 Z',
 ];
 const fallbackRingSizes = [168, 248, 332];
-const FALLBACK_MARKER_CLEARANCE = 88;
-const FALLBACK_MARKER_PADDING = 26;
-const FALLBACK_COORDINATE_PADDING_RATIO = 0.16;
-const FALLBACK_MIN_COORDINATE_RANGE = 0.18;
-const FALLBACK_HORIZONTAL_PADDING = 120;
-const FALLBACK_VERTICAL_PADDING = 112;
-const fallbackMarkerOffsets = [
-  { x: 0, y: 0 },
-  { x: 56, y: -24 },
-  { x: -56, y: -24 },
-  { x: 0, y: 56 },
-  { x: 72, y: 24 },
-  { x: -72, y: 24 },
-  { x: 32, y: -72 },
-  { x: -32, y: -72 },
-  { x: 88, y: 0 },
-  { x: -88, y: 0 },
-  { x: 0, y: -96 },
-  { x: 0, y: 96 },
-] as const;
-const FALLBACK_DYNAMIC_OFFSET_START_RADIUS = 128;
-const FALLBACK_DYNAMIC_OFFSET_RING_GAP = 48;
-
-interface FallbackProjection {
-  x: number;
-  y: number;
-}
-
-interface FallbackProjectionBounds {
-  minLongitude: number;
-  maxLongitude: number;
-  minLatitude: number;
-  maxLatitude: number;
-}
-
 type DocumentThemeMode = 'dark' | 'light';
 
 const props = withDefaults(
@@ -2248,49 +2309,7 @@ function configurePlannerMapGestureSmoothness(instance: mapboxgl.Map): void {
 }
 
 function buildFallbackViewportBounds(): FallbackProjectionBounds {
-  const [centerLongitude, centerLatitude] = mapStore.viewport.center;
-  const zoom = clampNumber(mapStore.viewport.zoom, MIN_MAP_ZOOM, MAX_MAP_ZOOM);
-  const longitudeSpan = clampNumber(38 / 2 ** (zoom - 3), 0.08, 150);
-  const latitudeSpan = clampNumber(longitudeSpan * 0.62, 0.06, 72);
-
-  return {
-    minLongitude: centerLongitude - longitudeSpan / 2,
-    maxLongitude: centerLongitude + longitudeSpan / 2,
-    minLatitude: centerLatitude - latitudeSpan / 2,
-    maxLatitude: centerLatitude + latitudeSpan / 2,
-  };
-}
-
-function projectFallbackPoint(point: MapPoint, projectionBounds: FallbackProjectionBounds): FallbackProjection {
-  return projectFallbackCoordinate([point.longitude, point.latitude], projectionBounds);
-}
-
-function projectFallbackCoordinate(coordinate: RouteCoordinate, projectionBounds: FallbackProjectionBounds): FallbackProjection {
-  const longitudeRange = Math.max(projectionBounds.maxLongitude - projectionBounds.minLongitude, FALLBACK_MIN_COORDINATE_RANGE);
-  const latitudeRange = Math.max(projectionBounds.maxLatitude - projectionBounds.minLatitude, FALLBACK_MIN_COORDINATE_RANGE);
-  const usableWidth = FALLBACK_VIEWPORT.width - FALLBACK_HORIZONTAL_PADDING * 2;
-  const usableHeight = FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING * 2;
-  const [longitude, latitude] = coordinate;
-  const x = FALLBACK_HORIZONTAL_PADDING + (((longitude - projectionBounds.minLongitude) / longitudeRange) * usableWidth);
-  const y = FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING - (((latitude - projectionBounds.minLatitude) / latitudeRange) * usableHeight);
-
-  return {
-    x: Number(x.toFixed(2)),
-    y: Number(y.toFixed(2)),
-  };
-}
-
-function unprojectFallbackCoordinate(point: FallbackProjection, projectionBounds: FallbackProjectionBounds): RouteCoordinate {
-  const longitudeRange = Math.max(projectionBounds.maxLongitude - projectionBounds.minLongitude, FALLBACK_MIN_COORDINATE_RANGE);
-  const latitudeRange = Math.max(projectionBounds.maxLatitude - projectionBounds.minLatitude, FALLBACK_MIN_COORDINATE_RANGE);
-  const usableWidth = FALLBACK_VIEWPORT.width - FALLBACK_HORIZONTAL_PADDING * 2;
-  const usableHeight = FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING * 2;
-  const normalizedX = clampNumber((point.x - FALLBACK_HORIZONTAL_PADDING) / usableWidth, 0, 1);
-  const normalizedY = clampNumber((FALLBACK_VIEWPORT.height - FALLBACK_VERTICAL_PADDING - point.y) / usableHeight, 0, 1);
-  const longitude = projectionBounds.minLongitude + normalizedX * longitudeRange;
-  const latitude = projectionBounds.minLatitude + normalizedY * latitudeRange;
-
-  return [longitude, latitude];
+  return buildFallbackViewportBoundsForViewport(mapStore.viewport, MIN_MAP_ZOOM, MAX_MAP_ZOOM);
 }
 
 function buildRouteCoordinateRenderKey(coordinate: RouteCoordinate): string {
@@ -2327,49 +2346,6 @@ function sampleRouteCoordinatesForOverlay(coordinates: RouteCoordinate[]): Route
   return sampledCoordinates;
 }
 
-function distanceBetweenFallbackPoints(firstPoint: FallbackProjection, secondPoint: FallbackProjection): number {
-  return Math.hypot(firstPoint.x - secondPoint.x, firstPoint.y - secondPoint.y);
-}
-
-function resolveFallbackProjection(baseProjection: FallbackProjection, placedProjections: FallbackProjection[]): FallbackProjection {
-  for (const offset of getFallbackMarkerOffsetCandidates(placedProjections.length)) {
-    const candidateProjection = {
-      x: clampNumber(baseProjection.x + offset.x, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.width - FALLBACK_MARKER_PADDING),
-      y: clampNumber(baseProjection.y + offset.y, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.height - FALLBACK_MARKER_PADDING),
-    };
-
-    if (placedProjections.every((placedProjection) => distanceBetweenFallbackPoints(candidateProjection, placedProjection) >= FALLBACK_MARKER_CLEARANCE)) {
-      return candidateProjection;
-    }
-  }
-
-  return {
-    x: clampNumber(baseProjection.x, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.width - FALLBACK_MARKER_PADDING),
-    y: clampNumber(baseProjection.y, FALLBACK_MARKER_PADDING, FALLBACK_VIEWPORT.height - FALLBACK_MARKER_PADDING),
-  };
-}
-
-function getFallbackMarkerOffsetCandidates(placedCount: number): Array<{ x: number; y: number }> {
-  const dynamicOffsets: Array<{ x: number; y: number }> = [];
-  const ringCount = Math.ceil(Math.max(placedCount - fallbackMarkerOffsets.length, 0) / 8) + 3;
-
-  for (let ring = 0; ring < ringCount; ring += 1) {
-    const radius = FALLBACK_DYNAMIC_OFFSET_START_RADIUS + ring * FALLBACK_DYNAMIC_OFFSET_RING_GAP;
-    const steps = 8 + ring * 4;
-    const phase = ring % 2 === 0 ? Math.PI / 8 : 0;
-
-    for (let step = 0; step < steps; step += 1) {
-      const angle = phase + (step / steps) * Math.PI * 2;
-      dynamicOffsets.push({
-        x: Number((Math.cos(angle) * radius).toFixed(2)),
-        y: Number((Math.sin(angle) * radius).toFixed(2)),
-      });
-    }
-  }
-
-  return [...fallbackMarkerOffsets, ...dynamicOffsets];
-}
-
 function handleTrackingState(nextState: TrackingState) {
   trackingState.value = nextState;
 }
@@ -2404,10 +2380,6 @@ function syncViewportFromMap() {
 function setVisibleSpotIds(spotIds: string[], visiblePinCount = spotIds.length) {
   measuredVisiblePinCount.value = Math.max(visiblePinCount, spotIds.length, 0);
   mapStore.setVisibleSpotIds([...new Set(spotIds)]);
-}
-
-function isFiniteNumber(value: number | undefined): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function roundMapWeatherCoordinate(value: number): number {
@@ -2611,367 +2583,6 @@ function shouldLoadNearbyPlaces(instance: mapboxgl.Map): boolean {
   return canAutoSearchNearbyPlaces(instance) && instance.getZoom() >= NEARBY_PLACES_MIN_ZOOM;
 }
 
-const GAS_STATION_TITLE_PATTERN = /\b(?:qt|quik\s*trip|quick\s*trip|shell|chevron|exxon|mobil|bp|valero|texaco|circle\s*k|7-eleven|racetrac|race\s*trac|speedway|marathon|sunoco|conoco|phillips\s*66|kum\s*&\s*go|kum\s+and\s+go|casey's|love's|pilot|flying\s*j|travel\s*center|ta\s+travel|petro\s+stopping)\b/i;
-const GROCERY_TITLE_PATTERN = /\b(?:albertsons|kroger|safeway|publix|whole\s*foods|trader\s*joe'?s|h\s*-?\s*e\s*-?\s*b|heb|aldi|lidl|winco|food\s*lion|wegmans|meijer|sprouts|market\s*basket|shop\s*rite|shoprite|ralphs|vons|pavilions|tom\s*thumb|giant\s*eagle|stop\s*&\s*shop|stop\s+and\s+shop|walmart\s+neighborhood\s+market|fresh\s+market|central\s+market)\b/i;
-const RETAIL_TITLE_PATTERN = /\b(?:target|walmart|costco|sam'?s\s*club|best\s*buy|home\s*depot|lowe'?s|ikea|macy'?s|nordstrom|tj\s*maxx|marshalls|ross|dillard'?s|academy\s*sports|dick'?s\s*sporting\s*goods|bass\s*pro|cabela'?s|dollar\s+general|family\s+dollar|dollar\s+tree|five\s+below|tractor\s+supply)\b/i;
-const PHARMACY_TITLE_PATTERN = /\b(?:cvs|walgreens|rite\s*aid|pharmacy|drugstore|drug\s*store)\b/i;
-const RESTAURANT_TITLE_PATTERN = /\b(?:mcdonald'?s|burger\s*king|wendy'?s|whataburger|in\s*-?\s*n\s*-?\s*out|chick\s*-?\s*fil\s*-?\s*a|taco\s*bell|chipotle|subway|panera|olive\s*garden|texas\s*roadhouse|ihop|denny'?s|waffle\s*house|applebee'?s|chili'?s|sonic|dairy\s*queen|pizza\s*hut|domino'?s|papa\s+john'?s|popeyes|kfc|raising\s*cane'?s|panda\s*express)\b/i;
-const COFFEE_TITLE_PATTERN = /\b(?:starbucks|dunkin|dutch\s*bros|coffee|espresso|cafe|caffe)\b/i;
-const BANK_TITLE_PATTERN = /\b(?:bank|credit\s*union|chase|wells\s*fargo|bank\s*of\s*america|capital\s*one|citibank|pnc|truist|td\s*bank|us\s*bank|frost\s*bank)\b/i;
-const HOTEL_TITLE_PATTERN = /\b(?:hotel|motel|inn|suites|resort|lodg(?:e|ing)|marriott|hilton|hyatt|holiday\s*inn|hampton|la\s*quinta|best\s*western|courtyard|residence\s+inn|fairfield\s+inn|comfort\s+inn|motel\s*6|super\s*8)\b/i;
-const HEALTH_TITLE_PATTERN = /\b(?:hospital|clinic|urgent\s*care|medical|dentist|orthodont|vision|optical|veterinary|vet\s*clinic|pediatrics?|children'?s\s+(?:medical|hospital|clinic|northeast)|cook\s+children'?s)\b/i;
-const FITNESS_TITLE_PATTERN = /\b(?:gym|fitness|planet\s*fitness|la\s*fitness|anytime\s*fitness|orangetheory|crossfit|ymca|pilates|yoga)\b/i;
-const ENTERTAINMENT_TITLE_PATTERN = /\b(?:entertainment|amusement|theme\s*park|six\s*flags|cinema|theater|theatre|movie|amc|regal|cinemark|bowling|arcade|zoo|aquarium|stadium|arena|ballpark|amphitheater|amphitheatre)\b/i;
-
-interface PlaceCategoryOverride {
-  label: string;
-  category: string;
-  kind: string;
-}
-
-interface PlaceCategoryRule extends PlaceCategoryOverride {
-  categoryPattern?: RegExp;
-  titlePattern?: RegExp;
-}
-
-const PLACE_CATEGORY_RULES: readonly PlaceCategoryRule[] = [
-  {
-    label: 'Fire station',
-    category: 'fire_station',
-    kind: 'civic',
-    categoryPattern: /\bfire\s*(?:station|department)?\b/,
-    titlePattern: /\bfire\s*(?:station|department)\b/,
-  },
-  {
-    label: 'Police',
-    category: 'police',
-    kind: 'civic',
-    categoryPattern: /\b(?:police|sheriff|law\s+enforcement)\b/,
-    titlePattern: /\b(?:police|sheriff)\b/,
-  },
-  {
-    label: 'ATM',
-    category: 'atm',
-    kind: 'finance',
-    categoryPattern: /\batm\b/,
-    titlePattern: /\batm\b/,
-  },
-  {
-    label: 'Parking',
-    category: 'parking',
-    kind: 'parking',
-    categoryPattern: /\b(?:parking|car\s+park|parkade)\b/,
-    titlePattern: /\bparking\b/,
-  },
-  {
-    label: 'Transit',
-    category: 'transit',
-    kind: 'transit',
-    categoryPattern: /\b(?:airport|bus\s+station|train\s+station|railway|metro|subway|transit|transport|ferry|tram)\b/,
-    titlePattern: /\b(?:airport|bus\s+station|train\s+station|rail\s+station|terminal|transit|ferry)\b/,
-  },
-  {
-    label: 'Grocery',
-    category: 'grocery',
-    kind: 'shopping',
-    categoryPattern: /\b(?:grocery|supermarket|food\s+market)\b/,
-    titlePattern: GROCERY_TITLE_PATTERN,
-  },
-  {
-    label: 'Pharmacy',
-    category: 'pharmacy',
-    kind: 'health',
-    categoryPattern: /\b(?:pharmacy|drugstore|drug\s+store|chemist)\b/,
-    titlePattern: PHARMACY_TITLE_PATTERN,
-  },
-  {
-    label: 'Medical',
-    category: 'medical',
-    kind: 'health',
-    categoryPattern: /\b(?:hospital|clinic|urgent\s+care|emergency\s+room|medical|doctor|dentist|veterinary|optical|health)\b/,
-    titlePattern: HEALTH_TITLE_PATTERN,
-  },
-  {
-    label: 'Coffee',
-    category: 'coffee',
-    kind: 'food',
-    categoryPattern: /\b(?:coffee|cafe|cafeteria|espresso)\b/,
-    titlePattern: COFFEE_TITLE_PATTERN,
-  },
-  {
-    label: 'Restaurant',
-    category: 'restaurant',
-    kind: 'food',
-    categoryPattern: /\b(?:restaurant|fast\s+food|food\s+and\s+drink|food|diner|eatery|pizza|burger|sandwich|taco|sushi|bbq|barbecue|bakery|ice\s+cream)\b/,
-    titlePattern: RESTAURANT_TITLE_PATTERN,
-  },
-  {
-    label: 'Bar',
-    category: 'bar',
-    kind: 'food',
-    categoryPattern: /\b(?:bar|pub|brewery|beer|wine|cocktail|nightclub|nightlife)\b/,
-    titlePattern: /\b(?:bar|pub|brewery|taproom|nightclub)\b/,
-  },
-  {
-    label: 'Hotel',
-    category: 'hotel',
-    kind: 'lodging',
-    categoryPattern: /\b(?:hotel|motel|lodging|lodge|resort|hostel|inn)\b/,
-    titlePattern: HOTEL_TITLE_PATTERN,
-  },
-  {
-    label: 'Park',
-    category: 'park',
-    kind: 'park',
-    categoryPattern: /\b(?:park|gardens?|trail|nature|beach|campground|playground|picnic|recreation\s+area)\b/,
-    titlePattern: /\b(?:park|botanical\s+gardens?|water\s+gardens?|trail|trailhead|nature\s+preserve|beach|campground|playground)\b/,
-  },
-  {
-    label: 'Fitness',
-    category: 'fitness',
-    kind: 'adventure',
-    categoryPattern: /\b(?:gym|fitness|sports\s+club|recreation\s+center|yoga|pilates|climbing)\b/,
-    titlePattern: FITNESS_TITLE_PATTERN,
-  },
-  {
-    label: 'Entertainment',
-    category: 'entertainment',
-    kind: 'entertainment',
-    categoryPattern: /\b(?:entertainment|amusement|theme\s+park|cinema|movie|theater|theatre|bowling|arcade|zoo|aquarium|stadium|arena|music\s+venue|performing\s+arts)\b/,
-    titlePattern: ENTERTAINMENT_TITLE_PATTERN,
-  },
-  {
-    label: 'Museum',
-    category: 'museum',
-    kind: 'landmark',
-    categoryPattern: /\b(?:museum|gallery|art\s+gallery)\b/,
-    titlePattern: /\b(?:museum|gallery)\b/,
-  },
-  {
-    label: 'Landmark',
-    category: 'landmark',
-    kind: 'landmark',
-    categoryPattern: /\b(?:tourist|attraction|landmark|historic|monument|viewpoint|scenic|lookout)\b/,
-    titlePattern: /\b(?:landmark|monument|historic|lookout|overlook|viewpoint)\b/,
-  },
-  {
-    label: 'Place of worship',
-    category: 'worship',
-    kind: 'landmark',
-    categoryPattern: /\b(?:church|mosque|temple|synagogue|place\s+of\s+worship|religious)\b/,
-    titlePattern: /\b(?:church|mosque|temple|synagogue|cathedral)\b/,
-  },
-  {
-    label: 'Library',
-    category: 'library',
-    kind: 'landmark',
-    categoryPattern: /\blibrary\b/,
-    titlePattern: /\blibrary\b/,
-  },
-  {
-    label: 'School',
-    category: 'school',
-    kind: 'education',
-    categoryPattern: /\b(?:school|college|university|education|campus)\b/,
-    titlePattern: /\b(?:school|college|university|academy|campus)\b/,
-  },
-  {
-    label: 'Auto service',
-    category: 'auto_service',
-    kind: 'shopping',
-    categoryPattern: /\b(?:auto|automotive|car\s+wash|car\s+repair|car\s+rental|vehicle|tire|tyre|mechanic|dealership)\b/,
-    titlePattern: /\b(?:auto|automotive|car\s+wash|car\s+rental|tire|tyre|mechanic|dealership)\b/,
-  },
-  {
-    label: 'Bank',
-    category: 'bank',
-    kind: 'finance',
-    categoryPattern: /\b(?:bank|credit\s+union|finance|financial)\b/,
-    titlePattern: BANK_TITLE_PATTERN,
-  },
-  {
-    label: 'Shopping',
-    category: 'shopping',
-    kind: 'shopping',
-    categoryPattern: /\b(?:shop|shopping|store|retail|mall|department\s+store|clothing|hardware|electronics|bookstore|convenience)\b/,
-    titlePattern: RETAIL_TITLE_PATTERN,
-  },
-  {
-    label: 'Services',
-    category: 'service',
-    kind: 'other',
-    categoryPattern: /\b(?:salon|spa|barber|laundry|dry\s+cleaner|post\s+office|courthouse|city\s+hall|government|service)\b/,
-    titlePattern: /\b(?:salon|spa|barber|laundry|post\s+office|courthouse|city\s+hall)\b/,
-  },
-] as const;
-
-function normalizePlaceCategoryText(...values: Array<string | undefined>): string {
-  return values
-    .filter(Boolean)
-    .join(' ')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function getPlaceCategoryOverride(
-  rawCategory: string | undefined,
-  title: string | undefined,
-): PlaceCategoryOverride | null {
-  const categoryText = normalizePlaceCategoryText(rawCategory);
-  const titleText = normalizePlaceCategoryText(title);
-  if (!titleText && !categoryText) {
-    return null;
-  }
-
-  if (isFuelPlaceCategory(rawCategory, titleText)) return { label: 'Gas station', category: 'gas_station', kind: 'fuel' };
-
-  const matchingRule = PLACE_CATEGORY_RULES.find((rule) =>
-    Boolean(
-      (categoryText && rule.categoryPattern?.test(categoryText)) ||
-      (titleText && rule.titlePattern?.test(titleText)),
-    ),
-  );
-
-  if (matchingRule) {
-    return {
-      label: matchingRule.label,
-      category: matchingRule.category,
-      kind: matchingRule.kind,
-    };
-  }
-
-  return null;
-}
-
-function resolveNearbyPlaceCategoryValue(rawCategory: string | undefined, title: string | undefined): string {
-  return getPlaceCategoryOverride(rawCategory, title)?.category || rawCategory || 'place';
-}
-
-function isFuelPlaceCategory(category: string | undefined, title = ''): boolean {
-  const categoryText = normalizePlaceCategoryText(category);
-  const titleText = normalizePlaceCategoryText(title);
-  if (/gas station|fuel|petrol|service station|ev charging|charging station/.test(categoryText)) {
-    return true;
-  }
-
-  return GAS_STATION_TITLE_PATTERN.test(titleText) &&
-    /gas|fuel|petrol|charging|motorist|convenience|service|store|shop|poi|place/.test(categoryText || 'place');
-}
-
-function normalizeNearbyPlaceCategoryLabel(
-  label: string | undefined,
-  title = '',
-  fallback = 'Place',
-): string {
-  const categoryOverride = getPlaceCategoryOverride(label, title);
-  if (categoryOverride) {
-    return categoryOverride.label;
-  }
-
-  const labelText = normalizePlaceCategoryText(label);
-  const titleText = normalizePlaceCategoryText(title);
-  const combinedText = `${titleText} ${labelText}`;
-
-  if (/fire station|fire department|\bfire\b/.test(combinedText)) return 'Fire station';
-  if (/police|sheriff/.test(combinedText)) return 'Police';
-  if (/hospital|clinic|urgent care|emergency room|medical/.test(combinedText)) return 'Medical';
-  if (/pharmacy|drugstore/.test(combinedText)) return 'Pharmacy';
-  if (isFuelPlaceCategory(label, title)) return 'Gas station';
-  if (/motorist/.test(labelText)) return 'Travel stop';
-  if (/grocery|supermarket|market/.test(combinedText)) return 'Grocery';
-  if (/shop|store|mall|retail/.test(combinedText)) return 'Shopping';
-  if (/entertainment|amusement|theme park|cinema|movie|theater|theatre|bowling|arcade|zoo|aquarium|stadium|arena/.test(combinedText)) return 'Entertainment';
-  if (/restaurant|diner|food/.test(combinedText)) return 'Restaurant';
-  if (/coffee|cafe/.test(combinedText)) return 'Coffee';
-  if (/\bbar\b|pub|nightlife/.test(combinedText)) return 'Bar';
-  if (/park|trail|garden|nature/.test(combinedText)) return 'Park';
-  if (/museum/.test(combinedText)) return 'Museum';
-  if (/tourist|landmark|attraction|historic/.test(combinedText)) return 'Landmark';
-  if (/hotel|lodg/.test(combinedText)) return 'Hotel';
-  if (/school|college|university|education/.test(combinedText)) return 'School';
-  if (/parking/.test(combinedText)) return 'Parking';
-  if (/\batm\b/.test(combinedText)) return 'ATM';
-  if (/bank/.test(combinedText)) return 'Bank';
-  if (/shop|store|mall|retail/.test(combinedText)) return 'Shopping';
-
-  return titleCaseMapFeatureCategory(label || fallback);
-}
-
-function formatNearbyPlaceCategory(place: MapNearbyPlacePin): string {
-  const label = place.categoryLabel || place.category || (place.kind === 'fuel' ? 'Fuel' : 'Place');
-  return normalizeNearbyPlaceCategoryLabel(label, place.title, place.kind === 'fuel' ? 'Gas station' : 'Place');
-}
-
-function formatNearbyPlaceAddress(place: MapNearbyPlacePin): string {
-  return place.address || place.subtitle || '';
-}
-
-function buildGoogleMapsAddressUrl(place: MapNearbyPlacePin, address: string): string {
-  const query = address.trim() ||
-    [place.title, place.latitude.toFixed(6), place.longitude.toFixed(6)].filter(Boolean).join(' ');
-  const url = new URL('https://www.google.com/maps/search/');
-  url.searchParams.set('api', '1');
-  url.searchParams.set('query', query);
-  return url.toString();
-}
-
-function formatNearbyPlaceDistance(place: MapNearbyPlacePin): string {
-  return place.distanceLabel || '';
-}
-
-function getNearbyPlaceKind(place: MapNearbyPlacePin): string {
-  if (place.kind === 'fuel') {
-    return 'fuel';
-  }
-
-  const categoryOverride = getPlaceCategoryOverride(place.categoryLabel || place.category, place.title);
-  if (categoryOverride) {
-    return categoryOverride.kind;
-  }
-
-  const normalizedLabel = normalizeNearbyPlaceCategoryLabel(place.categoryLabel || place.category, place.title);
-  const category = `${place.category ?? ''} ${place.categoryLabel ?? ''} ${normalizedLabel} ${place.title ?? ''}`.toLowerCase();
-  if (isFuelPlaceCategory(category, place.title)) return 'fuel';
-  if (/hospital|clinic|pharmacy|health|medical/.test(category)) return 'health';
-  if (/entertainment|amusement|theme park|cinema|movie|theater|theatre|bowling|arcade|zoo|aquarium|stadium|arena/.test(category)) return 'entertainment';
-  if (/shop|store|mall|retail|grocery|supermarket|market/.test(category)) return 'shopping';
-  if (/school|college|university|education/.test(category)) return 'education';
-  if (/food|drink|coffee|restaurant|cafe|bar/.test(category)) return 'food';
-  if (/park|trail|garden|nature/.test(category)) return 'park';
-  if (/hotel|lodg/.test(category)) return 'lodging';
-  if (/gas|fuel|charging/.test(category)) return 'fuel';
-  if (/tourist|landmark|museum|historic|attraction|culture/.test(category)) return 'landmark';
-  return 'other';
-}
-
-function getNearbyPlaceIconName(place: MapNearbyPlacePin): string {
-  if (place.iconName) {
-    return place.iconName;
-  }
-
-  const kind = getNearbyPlaceKind(place);
-  switch (kind) {
-    case 'fuel':
-      return 'fuel';
-    case 'food':
-      return 'food';
-    case 'park':
-      return 'nature';
-    case 'shopping':
-      return 'shopping';
-    case 'entertainment':
-      return 'entertainment';
-    case 'landmark':
-      return 'scenic';
-    case 'education':
-      return 'culture';
-    default:
-      return 'pin';
-  }
-}
-
 function createNearbyPlaceMarkerIcon(iconName: string): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'nearby-place-marker__svg');
@@ -3062,26 +2673,12 @@ function getMapFeatureCoordinates(
   if (geometry?.type === 'Point' && Array.isArray(geometry.coordinates)) {
     const longitude = Number(geometry.coordinates[0]);
     const latitude = Number(geometry.coordinates[1]);
-    if (
-      Number.isFinite(latitude) &&
-      Number.isFinite(longitude) &&
-      latitude >= -90 &&
-      latitude <= 90 &&
-      longitude >= -180 &&
-      longitude <= 180
-    ) {
+    if (hasValidLatitudeLongitude(latitude, longitude)) {
       return { latitude, longitude };
     }
   }
 
   return { latitude: fallback.lat, longitude: fallback.lng };
-}
-
-function titleCaseMapFeatureCategory(value: string): string {
-  return value
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-    .trim();
 }
 
 function getMapFeatureCategoryLabel(feature: mapboxgl.MapboxGeoJSONFeature, title = ''): string {
@@ -4579,15 +4176,6 @@ function renderNearbyPlaceMarkers(places: MapNearbyPlacePin[], instance: mapboxg
   syncActiveNearbyPlaceMarkerLayer();
 }
 
-function hasUsableNearbyPlaceCoordinates(place: MapNearbyPlacePin): boolean {
-  return isFiniteNumber(place.latitude)
-    && isFiniteNumber(place.longitude)
-    && place.latitude >= -90
-    && place.latitude <= 90
-    && place.longitude >= -180
-    && place.longitude <= 180;
-}
-
 async function loadNearbyPlacesForViewport(): Promise<void> {
   const instance = map.value;
   const runtime = mapboxRuntime.value;
@@ -4664,49 +4252,8 @@ function scheduleNearbyPlacesRefresh(): void {
   }, NEARBY_PLACES_REFRESH_DEBOUNCE_MS);
 }
 
-function hasValidRouteCoordinate(coordinate: RouteCoordinate): boolean {
-  const [longitude, latitude] = coordinate;
-  return isFiniteNumber(latitude)
-    && isFiniteNumber(longitude)
-    && latitude >= -90
-    && latitude <= 90
-    && longitude >= -180
-    && longitude <= 180;
-}
-
-function hasValidCoordinates(point: MapPoint): boolean {
-  return isFiniteNumber(point.latitude)
-    && isFiniteNumber(point.longitude)
-    && point.latitude >= -90
-    && point.latitude <= 90
-    && point.longitude >= -180
-    && point.longitude <= 180;
-}
-
 function hasMappablePoints(): boolean {
   return props.routePoints.some(hasValidCoordinates) || props.spots.some(hasValidCoordinates);
-}
-
-function getRouteMarkerSequence(point: MapPoint, routePosition: number): string | number {
-  if (point.routeRole === 'start') {
-    return 'S';
-  }
-
-  if (point.routeRole === 'end') {
-    return 'E';
-  }
-
-  const customLabel = point.routeLabel?.trim();
-  return point.routeRole ? routePosition : customLabel || routePosition;
-}
-
-function buildRouteOrderLookup(routePoints: MapPoint[]): Map<string, string | number> {
-  return new Map(
-    routePoints.map((point, index) => [
-      point.id,
-      getRouteMarkerSequence(point, index + 1),
-    ]),
-  );
 }
 
 function resolveBaseViewport(): MapViewport {
@@ -4729,33 +4276,12 @@ function getDefaultMapProjectionMode(): MapProjectionName {
   return props.routeVariant === 'planner' ? 'globe' : 'mercator';
 }
 
-function isMapProjectionMode(value: string | null | undefined): value is MapProjectionName {
-  return value === 'globe' || value === 'mercator';
-}
-
 function readMapProjectionModePreference(): MapProjectionName | null {
-  if (!props.persistMapPreferences || typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const storedMode = window.localStorage.getItem(MAP_PROJECTION_MODE_STORAGE_KEY);
-    return isMapProjectionMode(storedMode) ? storedMode : null;
-  } catch {
-    return null;
-  }
+  return readStoredMapProjectionModePreference(props.persistMapPreferences);
 }
 
 function writeMapProjectionModePreference(mode: MapProjectionName): void {
-  if (!props.persistMapPreferences || typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(MAP_PROJECTION_MODE_STORAGE_KEY, mode);
-  } catch {
-    // Storage can be unavailable in private contexts; the in-session mode still works.
-  }
+  writeStoredMapProjectionModePreference(props.persistMapPreferences, mode);
 }
 
 function resolveInitialMapProjectionMode(): MapProjectionName {
@@ -4764,33 +4290,12 @@ function resolveInitialMapProjectionMode(): MapProjectionName {
     : getDefaultMapProjectionMode();
 }
 
-function isMapPresentationMode(value: string | null | undefined): value is MapPresentationMode {
-  return value === 'scope' || value === 'native';
-}
-
 function readMapStyleModePreference(): MapPresentationMode | null {
-  if (!props.persistMapPreferences || typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const storedMode = window.localStorage.getItem(MAP_STYLE_MODE_STORAGE_KEY);
-    return isMapPresentationMode(storedMode) ? storedMode : null;
-  } catch {
-    return null;
-  }
+  return readStoredMapStyleModePreference(props.persistMapPreferences);
 }
 
 function writeMapStyleModePreference(mode: MapPresentationMode): void {
-  if (!props.persistMapPreferences || typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(MAP_STYLE_MODE_STORAGE_KEY, mode);
-  } catch {
-    // Storage can be unavailable in private contexts; the in-session mode still works.
-  }
+  writeStoredMapStyleModePreference(props.persistMapPreferences, mode);
 }
 
 function getMapStyleForPresentation(_mode: MapPresentationMode): string {
@@ -5478,24 +4983,7 @@ async function syncAutoRoadRoute(): Promise<void> {
 
 function hasValidMarkerCoordinates(marker: ViewportMarkerModel): boolean {
   const [longitude, latitude] = getViewportMarkerCoordinates(marker);
-  return isFiniteNumber(latitude)
-    && isFiniteNumber(longitude)
-    && latitude >= -90
-    && latitude <= 90
-    && longitude >= -180
-    && longitude <= 180;
-}
-
-function isValidClusterEntry(entry: ScopeWasmClusterResult): boolean {
-  return isFiniteNumber(entry.latitude)
-    && isFiniteNumber(entry.longitude)
-    && isFiniteNumber(entry.screenX)
-    && isFiniteNumber(entry.screenY)
-    && entry.latitude >= -90
-    && entry.latitude <= 90
-    && entry.longitude >= -180
-    && entry.longitude <= 180
-    && entry.pointCount > 0;
+  return hasValidLatitudeLongitude(latitude, longitude);
 }
 
 function getLiveMarkerVisibilityBuffer(width: number, height: number): number {
@@ -8033,115 +7521,6 @@ function syncMapTrafficLayers(instance: mapboxgl.Map): void {
   }
 }
 
-function layerIdIncludes(normalizedLayerId: string, fragments: string[]): boolean {
-  return fragments.some((fragment) => normalizedLayerId.includes(fragment));
-}
-
-function getLayerSourceLayer(layer: mapboxgl.AnyLayer): string {
-  return String((layer as { 'source-layer'?: unknown })['source-layer'] ?? '').toLowerCase();
-}
-
-function isCountryLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['country']) || sourceLayer === 'country_label';
-}
-
-function isStateLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['state', 'province', 'admin-1', 'admin1']) ||
-    layerIdIncludes(sourceLayer, ['state', 'province', 'admin_1', 'admin-1']);
-}
-
-function isWaterLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['water', 'ocean', 'sea', 'lake', 'marine']) ||
-    layerIdIncludes(sourceLayer, ['water', 'marine']);
-}
-
-function isNaturalOrWaterLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return isWaterLabelLayer(normalizedLayerId, sourceLayer) ||
-    layerIdIncludes(normalizedLayerId, ['natural']) ||
-    layerIdIncludes(sourceLayer, ['natural_label']);
-}
-
-function isNeighborhoodLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['neighborhood', 'settlement-subdivision']) ||
-    layerIdIncludes(sourceLayer, ['neighborhood', 'settlement_subdivision']);
-}
-
-function isSettlementLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['place-label', 'settlement', 'city', 'town', 'village', 'hamlet']) ||
-    layerIdIncludes(sourceLayer, ['place_label', 'settlement', 'city', 'town', 'village', 'hamlet']);
-}
-
-function isPoiLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return /(^|[-_ ])poi($|[-_ ])/.test(normalizedLayerId) ||
-    layerIdIncludes(normalizedLayerId, ['point-of-interest', 'transit', 'airport']) ||
-    layerIdIncludes(sourceLayer, ['poi', 'point_of_interest', 'transit', 'airport']);
-}
-
-function isRoadLabelLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, [
-    'road-label',
-    'road-number',
-    'road-shield',
-    'route-number',
-    'route-shield',
-    'motorway-shield',
-    'motorway-junction',
-    'highway-label',
-    'highway-shield',
-  ]) ||
-    layerIdIncludes(sourceLayer, ['road_label', 'road', 'motorway_junction', 'transportation_name']);
-}
-
-function isRoadShieldLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, [
-    'road-number-shield',
-    'road-shield',
-    'route-number',
-    'route-shield',
-    'motorway-shield',
-    'highway-shield',
-  ]) ||
-    (isRoadLabelLayer(normalizedLayerId, sourceLayer) && layerIdIncludes(normalizedLayerId, ['shield']));
-}
-
-function isRoadLineLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return sourceLayer === 'road' ||
-    layerIdIncludes(normalizedLayerId, ['road', 'street', 'motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'bridge', 'tunnel']);
-}
-
-function isSimpleRoadLineLayer(normalizedLayerId: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['road-simple', 'bridge-simple', 'tunnel-simple']);
-}
-
-function isMajorRoadLineLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return isRoadLineLayer(normalizedLayerId, sourceLayer) &&
-    layerIdIncludes(normalizedLayerId, ['motorway', 'trunk', 'primary', 'highway']);
-}
-
-function isRoadCasingLineLayer(normalizedLayerId: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['case', 'casing']);
-}
-
-function getNightRoadLineColor(normalizedLayerId: string, sourceLayer: string): string {
-  if (isRoadCasingLineLayer(normalizedLayerId)) {
-    return 'rgb(31, 42, 51)';
-  }
-
-  if (isMajorRoadLineLayer(normalizedLayerId, sourceLayer)) {
-    return 'rgb(104, 119, 130)';
-  }
-
-  if (isSimpleRoadLineLayer(normalizedLayerId)) {
-    return 'rgb(70, 86, 98)';
-  }
-
-  if (layerIdIncludes(normalizedLayerId, ['secondary', 'tertiary'])) {
-    return 'rgb(78, 94, 105)';
-  }
-
-  return 'rgb(57, 72, 84)';
-}
-
 function getNightRoadLineOpacity(normalizedLayerId: string, sourceLayer: string): unknown {
   if (isRoadCasingLineLayer(normalizedLayerId)) {
     return MAP_NIGHT_ROAD_CASING_OPACITY;
@@ -8154,22 +7533,6 @@ function getNightRoadLineOpacity(normalizedLayerId: string, sourceLayer: string)
   return isMajorRoadLineLayer(normalizedLayerId, sourceLayer)
     ? MAP_NIGHT_PRIMARY_ROAD_OPACITY
     : MAP_NIGHT_LOCAL_ROAD_OPACITY;
-}
-
-function getNativeMajorRoadColor(normalizedLayerId: string): string {
-  if (isRoadCasingLineLayer(normalizedLayerId)) {
-    return 'rgb(247, 248, 244)';
-  }
-
-  if (layerIdIncludes(normalizedLayerId, ['motorway', 'trunk'])) {
-    return 'rgb(152, 161, 160)';
-  }
-
-  if (layerIdIncludes(normalizedLayerId, ['primary'])) {
-    return 'rgb(174, 181, 179)';
-  }
-
-  return 'rgb(202, 205, 200)';
 }
 
 function applyNativeMajorRoadPresentation(instance: mapboxgl.Map, layer: mapboxgl.AnyLayer, normalizedLayerId: string): void {
@@ -8216,16 +7579,6 @@ function applyNativeRoadPresentation(instance: mapboxgl.Map, layer: mapboxgl.Any
   );
   setScopedMapPaintProperty(instance, layer, 'line-width', MAP_NATIVE_LOCAL_ROAD_WIDTH);
   setScopedMapPaintProperty(instance, layer, 'line-emissive-strength', 0);
-}
-
-function isCountryBoundaryLineLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['admin-0', 'admin0', 'country']) ||
-    layerIdIncludes(sourceLayer, ['admin_0', 'admin-0', 'country']);
-}
-
-function isStateBoundaryLineLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['admin-1', 'admin1', 'state', 'province']) ||
-    layerIdIncludes(sourceLayer, ['admin_1', 'admin-1', 'state', 'province']);
 }
 
 function applyNativeAdministrativeBoundaryPresentation(
@@ -8314,18 +7667,6 @@ function applyScopeRoadPresentation(instance: mapboxgl.Map, layer: mapboxgl.AnyL
           : MAP_NIGHT_LOCAL_ROAD_WIDTH,
   );
   setScopedMapPaintProperty(instance, layer, 'line-emissive-strength', 0);
-}
-
-function isAridLandFillLayer(normalizedLayerId: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['sand', 'scrub', 'desert', 'bare', 'dry']);
-}
-
-function isLandcoverFillLayer(normalizedLayerId: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['landcover', 'natural']);
-}
-
-function isLanduseFillLayer(normalizedLayerId: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['landuse', 'land-use', 'park', 'pitch', 'school', 'airport']);
 }
 
 function applyNativeFillPresentation(instance: mapboxgl.Map, layer: mapboxgl.AnyLayer, normalizedLayerId: string): void {
@@ -8756,11 +8097,6 @@ function applyStatesModeSymbolPresentation(
   return true;
 }
 
-function isAdministrativeBoundaryLineLayer(normalizedLayerId: string, sourceLayer: string): boolean {
-  return layerIdIncludes(normalizedLayerId, ['admin', 'boundary', 'state', 'province']) ||
-    layerIdIncludes(sourceLayer, ['admin', 'boundary', 'state', 'province']);
-}
-
 function getPoiLabelMinZoom(): number {
   return props.showPlaceLabels ? MAP_POI_LABEL_MIN_ZOOM : MAP_SUBTLE_POI_LABEL_MIN_ZOOM;
 }
@@ -8821,99 +8157,183 @@ function applyPoiSymbolPresentation(instance: mapboxgl.Map, layer: mapboxgl.AnyL
   );
 }
 
-function applyNativeMapStylePresentation(instance: mapboxgl.Map): void {
-  try {
+function isMapPresentationReferenceLabelLayer(layerId: string): boolean {
+  return layerId === SCOPE_US_STATE_LABEL_LAYER_ID || layerId === SCOPE_US_STATE_NAME_LABEL_LAYER_ID;
+}
+
+function shouldSkipMapPresentationLayer(layerId: string): boolean {
+  return (MAP_TERRAIN_LAYER_IDS as readonly string[]).includes(layerId)
+    || isScopeTrafficLayerId(layerId)
+    || isScopeRoadContextLayerId(layerId);
+}
+
+function getMapPresentationLayerHandlers(mode: MapPresentationMode): MapPresentationLayerHandlers {
+  return mode === 'native'
+    ? {
+        applyAdministrativeBoundary: applyNativeAdministrativeBoundaryPresentation,
+        applyRoad: applyNativeRoadPresentation,
+        applyFill: applyNativeFillPresentation,
+      }
+    : {
+        applyAdministrativeBoundary: applyScopeAdministrativeBoundaryPresentation,
+        applyRoad: applyScopeRoadPresentation,
+        applyFill: applyScopeFillPresentation,
+      };
+}
+
+function syncMapPresentationOverlayLayers(instance: mapboxgl.Map, mode: MapPresentationMode): void {
+  if (mode === 'native') {
     removeScopeRoadContextLayers(instance);
-    syncMapTrafficLayers(instance);
-    syncReferenceLabelLayers(instance);
-    syncWaterReferenceLabelLayer(instance);
+  } else {
+    syncScopeRoadContextLayers(instance);
+  }
 
-    const labelMode = props.labelMode ?? 'full';
-    const layers = instance.getStyle().layers ?? [];
+  syncMapTrafficLayers(instance);
+  syncReferenceLabelLayers(instance);
+  syncWaterReferenceLabelLayer(instance);
+}
 
-    layers.forEach((layer) => {
-      const layerId = String(layer.id ?? '');
-      const normalizedLayerId = layerId.toLowerCase();
-      const sourceLayer = getLayerSourceLayer(layer);
+function applyMapPresentationLineLayer(
+  context: MapPresentationLayerContext,
+  handlers: MapPresentationLayerHandlers,
+): void {
+  const { instance, layer, normalizedLayerId, sourceLayer } = context;
+  if (isAdministrativeBoundaryLineLayer(normalizedLayerId, sourceLayer)) {
+    handlers.applyAdministrativeBoundary(instance, layer, normalizedLayerId, sourceLayer);
+    return;
+  }
 
-      if (!layerId) {
-        return;
-      }
+  if (isRoadLineLayer(normalizedLayerId, sourceLayer)) {
+    handlers.applyRoad(instance, layer, normalizedLayerId, sourceLayer);
+  }
+}
 
-      if ((MAP_TERRAIN_LAYER_IDS as readonly string[]).includes(layerId) || isScopeTrafficLayerId(layerId) || isScopeRoadContextLayerId(layerId)) {
-        return;
-      }
+function applyMapPresentationSymbolLayer(context: MapPresentationLayerContext): void {
+  const { instance, layer, layerId, normalizedLayerId, sourceLayer, labelMode, mode } = context;
+  if (labelMode === 'none') {
+    safelySetMapLayoutProperty(instance, layerId, 'visibility', 'none');
+    return;
+  }
 
-      applyMapPresentationLayerTransition(instance, layer);
+  restoreMapSymbolLabelVisibility(instance, layerId);
 
-      if (layer.type === 'line') {
-        if (isAdministrativeBoundaryLineLayer(normalizedLayerId, sourceLayer)) {
-          applyNativeAdministrativeBoundaryPresentation(instance, layer, normalizedLayerId, sourceLayer);
-          return;
-        }
+  if (mode === 'scope') {
+    applyScopeSolidSymbolTextPresentation(instance, layer, normalizedLayerId, sourceLayer);
+  }
 
-        if (isRoadLineLayer(normalizedLayerId, sourceLayer)) {
-          applyNativeRoadPresentation(instance, layer, normalizedLayerId, sourceLayer);
-        }
-        return;
-      }
+  if (labelMode === 'states' && applyStatesModeSymbolPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer)) {
+    return;
+  }
 
-      if (layer.type === 'background' || layer.type === 'fill') {
-        applyNativeFillPresentation(instance, layer, normalizedLayerId);
-        return;
-      }
+  if (isPoiLabelLayer(normalizedLayerId, sourceLayer)) {
+    applyPoiSymbolPresentation(instance, layer, layerId);
+    return;
+  }
 
-      if (layer.type !== 'symbol') {
-        return;
-      }
+  if (isRoadShieldLayer(normalizedLayerId, sourceLayer)) {
+    applyRoadShieldPresentation(instance, layerId);
+    return;
+  }
 
-      if (layerId === SCOPE_US_STATE_LABEL_LAYER_ID || layerId === SCOPE_US_STATE_NAME_LABEL_LAYER_ID) {
-        return;
-      }
+  if (isCountryLabelLayer(normalizedLayerId, sourceLayer)) {
+    applyCountryLabelPresentation(instance, layer, layerId);
+    return;
+  }
 
-      if (labelMode === 'none') {
-        safelySetMapLayoutProperty(instance, layerId, 'visibility', 'none');
-        return;
-      }
+  if (isStateLabelLayer(normalizedLayerId, sourceLayer)) {
+    applyStateNameLabelPresentation(instance, layerId, labelMode);
+    return;
+  }
 
-      restoreMapSymbolLabelVisibility(instance, layerId);
+  if (
+    isRoadLabelLayer(normalizedLayerId, sourceLayer) ||
+    isSettlementLabelLayer(normalizedLayerId, sourceLayer) ||
+    isNeighborhoodLabelLayer(normalizedLayerId, sourceLayer) ||
+    isNaturalOrWaterLabelLayer(normalizedLayerId, sourceLayer)
+  ) {
+    applyContextLabelPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer);
+  }
+}
 
-      if (labelMode === 'states' && applyStatesModeSymbolPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer)) {
-        return;
-      }
+function applyMapPresentationLayer(
+  context: MapPresentationLayerContext,
+  handlers: MapPresentationLayerHandlers,
+): void {
+  const { instance, layer, layerId, normalizedLayerId, mode } = context;
 
-      if (isPoiLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyPoiSymbolPresentation(instance, layer, layerId);
-        return;
-      }
+  if (layer.type === 'line') {
+    applyMapPresentationLineLayer(context, handlers);
+    return;
+  }
 
-      if (isRoadShieldLayer(normalizedLayerId, sourceLayer)) {
-        applyRoadShieldPresentation(instance, layerId);
-        return;
-      }
+  if (layer.type === 'background' || layer.type === 'fill') {
+    handlers.applyFill(instance, layer, normalizedLayerId);
+    return;
+  }
 
-      if (isCountryLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyCountryLabelPresentation(instance, layer, layerId);
-        return;
-      }
+  if (mode === 'scope' && isMapPresentationReferenceLabelLayer(layerId)) {
+    return;
+  }
 
-      if (isStateLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyStateNameLabelPresentation(instance, layerId, labelMode);
-        return;
-      }
+  if (layer.type !== 'symbol') {
+    return;
+  }
 
-      if (
-        isRoadLabelLayer(normalizedLayerId, sourceLayer) ||
-        isSettlementLabelLayer(normalizedLayerId, sourceLayer) ||
-        isNeighborhoodLabelLayer(normalizedLayerId, sourceLayer) ||
-        isNaturalOrWaterLabelLayer(normalizedLayerId, sourceLayer)
-      ) {
-        applyContextLabelPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer);
-      }
+  if (mode === 'native' && isMapPresentationReferenceLabelLayer(layerId)) {
+    return;
+  }
+
+  applyMapPresentationSymbolLayer(context);
+}
+
+function forEachMapPresentationLayer(
+  instance: mapboxgl.Map,
+  mode: MapPresentationMode,
+  applyLayer: (context: MapPresentationLayerContext) => void,
+): void {
+  const labelMode = props.labelMode ?? 'full';
+  const layers = instance.getStyle().layers ?? [];
+
+  layers.forEach((layer) => {
+    const layerId = String(layer.id ?? '');
+    const normalizedLayerId = layerId.toLowerCase();
+    const sourceLayer = getLayerSourceLayer(layer);
+
+    if (!layerId || shouldSkipMapPresentationLayer(layerId)) {
+      return;
+    }
+
+    applyMapPresentationLayerTransition(instance, layer);
+    applyLayer({
+      instance,
+      layer,
+      layerId,
+      normalizedLayerId,
+      sourceLayer,
+      labelMode,
+      mode,
     });
+  });
+}
+
+function applyMapStylePresentationForMode(instance: mapboxgl.Map, mode: MapPresentationMode): void {
+  try {
+    const handlers = getMapPresentationLayerHandlers(mode);
+    syncMapPresentationOverlayLayers(instance, mode);
+    forEachMapPresentationLayer(instance, mode, (context) => {
+      applyMapPresentationLayer(context, handlers);
+    });
+
+    if (mode === 'scope') {
+      applyScopeFinalSymbolTextPresentation(instance);
+    }
   } catch {
     // If the style is still swapping, the next style.load/load pass will try again.
   }
+}
+
+function applyNativeMapStylePresentation(instance: mapboxgl.Map): void {
+  applyMapStylePresentationForMode(instance, 'native');
 }
 
 function applyMapStylePresentation(): void {
@@ -8932,104 +8352,7 @@ function applyMapStylePresentation(): void {
     return;
   }
 
-  try {
-    syncScopeRoadContextLayers(instance);
-    syncMapTrafficLayers(instance);
-    syncReferenceLabelLayers(instance);
-    syncWaterReferenceLabelLayer(instance);
-
-    const labelMode = props.labelMode ?? 'full';
-    const layers = instance.getStyle().layers ?? [];
-
-    layers.forEach((layer) => {
-      const layerId = String(layer.id ?? '');
-      const normalizedLayerId = layerId.toLowerCase();
-      const sourceLayer = getLayerSourceLayer(layer);
-      if (!layerId) {
-        return;
-      }
-
-      if (isScopeTrafficLayerId(layerId) || isScopeRoadContextLayerId(layerId)) {
-        return;
-      }
-
-      if ((MAP_TERRAIN_LAYER_IDS as readonly string[]).includes(layerId)) {
-        return;
-      }
-
-      applyMapPresentationLayerTransition(instance, layer);
-
-      if (layer.type === 'line') {
-        if (isAdministrativeBoundaryLineLayer(normalizedLayerId, sourceLayer)) {
-          applyScopeAdministrativeBoundaryPresentation(instance, layer, normalizedLayerId, sourceLayer);
-          return;
-        }
-
-        if (isRoadLineLayer(normalizedLayerId, sourceLayer)) {
-          applyScopeRoadPresentation(instance, layer, normalizedLayerId, sourceLayer);
-        }
-        return;
-      }
-
-      if (layer.type === 'background' || layer.type === 'fill') {
-        applyScopeFillPresentation(instance, layer, normalizedLayerId);
-        return;
-      }
-
-      if (layerId === SCOPE_US_STATE_LABEL_LAYER_ID || layerId === SCOPE_US_STATE_NAME_LABEL_LAYER_ID) {
-        return;
-      }
-
-      if (layer.type !== 'symbol') {
-        return;
-      }
-
-      if (labelMode === 'none') {
-        safelySetMapLayoutProperty(instance, layerId, 'visibility', 'none');
-        return;
-      }
-
-      restoreMapSymbolLabelVisibility(instance, layerId);
-      applyScopeSolidSymbolTextPresentation(instance, layer, normalizedLayerId, sourceLayer);
-
-      if (labelMode === 'states' && applyStatesModeSymbolPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer)) {
-        return;
-      }
-
-      if (isPoiLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyPoiSymbolPresentation(instance, layer, layerId);
-        return;
-      }
-
-      if (isRoadShieldLayer(normalizedLayerId, sourceLayer)) {
-        applyRoadShieldPresentation(instance, layerId);
-        return;
-      }
-
-      if (isCountryLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyCountryLabelPresentation(instance, layer, layerId);
-        return;
-      }
-
-      if (isStateLabelLayer(normalizedLayerId, sourceLayer)) {
-        applyStateNameLabelPresentation(instance, layerId, labelMode);
-        return;
-      }
-
-      if (
-        isRoadLabelLayer(normalizedLayerId, sourceLayer) ||
-        isSettlementLabelLayer(normalizedLayerId, sourceLayer) ||
-        isNeighborhoodLabelLayer(normalizedLayerId, sourceLayer) ||
-        isNaturalOrWaterLabelLayer(normalizedLayerId, sourceLayer)
-      ) {
-        applyContextLabelPresentation(instance, layer, layerId, normalizedLayerId, sourceLayer);
-      }
-    });
-
-    applyScopeFinalSymbolTextPresentation(instance);
-  } catch {
-    // If the style is still swapping, the next style.load/load pass will try again.
-  }
+  applyMapStylePresentationForMode(instance, 'scope');
 }
 
 function markInitialMapRenderReady(instance: mapboxgl.Map): void {

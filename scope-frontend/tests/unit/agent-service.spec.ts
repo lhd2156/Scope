@@ -1878,4 +1878,36 @@ describe('agentService', () => {
     expect(repeated).toContain('Keep the route focused.');
     expect(repeated).toContain('Fresh angle');
   });
+
+  it('characterizes local trip planner heuristic outputs', async () => {
+    const { __agentServiceCoverage } = await import('@/services/agentService');
+    const coverage = __agentServiceCoverage!;
+
+    expect(coverage.parsePromptDurationDays('Trip duration: 5 days', '')).toBe(5);
+    expect(coverage.parsePromptDurationDays('Traveler request: Make this a weekend route', '')).toBe(2);
+    expect(coverage.parsePromptDurationDays('Traveler request: build a 4d food route', '')).toBe(4);
+    expect(coverage.parsePromptDurationDays('', '2026-07-02 to 2026-07-05')).toBe(4);
+    expect(coverage.parsePromptDurationDays('Trip duration: 0 days', '')).toBeNull();
+    expect(coverage.parsePromptDurationDays('', '2026-07-05 to 2026-07-02')).toBeNull();
+
+    expect(coverage.inferInterestsFromText(
+      'Coffee, museums, trails, scenic photo stops, zipline, live music, markets, aquarium',
+    )).toBe('food, culture, nature, scenic, adventure, nightlife, shopping, entertainment');
+    expect(coverage.inferPaceFromText('Keep it chill and easy')).toBe('relaxed');
+
+    expect(coverage.getMissingItineraryBriefQuestions(
+      'Traveler request: build itinerary',
+      '',
+      'Austin, TX',
+      '',
+      '',
+      '',
+    )).toEqual([
+      'What destination(s) are you visiting? Give me the start and finish, or the city/region for a one-place trip.',
+      'How many days is the trip?',
+      'What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?',
+      'Do you want the pace packed, balanced, or relaxed?',
+      'Who are you traveling with: solo, couple, group, or family?',
+    ]);
+  });
 });

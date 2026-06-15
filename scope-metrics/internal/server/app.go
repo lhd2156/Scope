@@ -119,206 +119,12 @@ type alertingResponse struct {
 	LastDispatch   alerts.DispatchResult   `json:"lastDispatch"`
 }
 
-type metricsSet struct {
-	buildInfo           *prometheus.GaugeVec
-	startTime           prometheus.Gauge
-	serviceUp           *prometheus.GaugeVec
-	serviceResponseSecs *prometheus.GaugeVec
-	serviceStatusCode   *prometheus.GaugeVec
-	lastRefreshSuccess  prometheus.Gauge
-	lastRefreshTime     prometheus.Gauge
-	lastRefreshDuration prometheus.Gauge
-	systemCPUPercent    prometheus.Gauge
-	systemMemoryUsed    prometheus.Gauge
-	systemMemoryTotal   prometheus.Gauge
-	systemMemoryPercent prometheus.Gauge
-	systemDiskUsed      *prometheus.GaugeVec
-	systemDiskTotal     *prometheus.GaugeVec
-	systemDiskPercent   *prometheus.GaugeVec
-	refreshTotal        *prometheus.CounterVec
-	httpRequestsTotal   *prometheus.CounterVec
-	alertRulesLoaded    prometheus.Gauge
-	alertRuleActive     *prometheus.GaugeVec
-	alertDispatchTotal  *prometheus.CounterVec
-	alertDispatchStatus *prometheus.GaugeVec
-}
-
 func New(cfg config.Config) *App {
 	registry := prometheus.NewRegistry()
 	ruleSet, rulesLoadError := alerts.LoadRuleSet(cfg.AlertRulesPath)
-
-	metrics := metricsSet{
-		buildInfo: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_metrics_build_info",
-				Help: "Static build metadata for the Scope metrics service.",
-			},
-			[]string{"version", "runtime"},
-		),
-		startTime: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_metrics_start_time_seconds",
-				Help: "Unix start time for the Scope metrics service.",
-			},
-		),
-		serviceUp: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_service_up",
-				Help: "Whether an Scope dependency health check responded successfully.",
-			},
-			[]string{"service", "url"},
-		),
-		serviceResponseSecs: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_service_response_seconds",
-				Help: "Response latency for Scope dependency health checks.",
-			},
-			[]string{"service", "url"},
-		),
-		serviceStatusCode: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_service_status_code",
-				Help: "Latest HTTP status code observed for an Scope dependency health check.",
-			},
-			[]string{"service", "url"},
-		),
-		lastRefreshSuccess: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_metrics_last_refresh_success",
-				Help: "Whether the most recent dependency and system-metric refresh completed successfully.",
-			},
-		),
-		lastRefreshTime: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_metrics_last_refresh_timestamp_seconds",
-				Help: "Unix timestamp of the most recent scope-metrics refresh.",
-			},
-		),
-		lastRefreshDuration: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_metrics_last_refresh_duration_seconds",
-				Help: "Duration of the most recent scope-metrics refresh.",
-			},
-		),
-		systemCPUPercent: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_system_cpu_percent",
-				Help: "Host CPU utilization percentage observed by scope-metrics.",
-			},
-		),
-		systemMemoryUsed: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_system_memory_used_bytes",
-				Help: "Host memory currently in use.",
-			},
-		),
-		systemMemoryTotal: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_system_memory_total_bytes",
-				Help: "Host memory available to the system.",
-			},
-		),
-		systemMemoryPercent: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_system_memory_used_percent",
-				Help: "Host memory utilization percentage.",
-			},
-		),
-		systemDiskUsed: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_system_disk_used_bytes",
-				Help: "Disk usage for the configured scope-metrics disk path.",
-			},
-			[]string{"path"},
-		),
-		systemDiskTotal: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_system_disk_total_bytes",
-				Help: "Total disk capacity for the configured scope-metrics disk path.",
-			},
-			[]string{"path"},
-		),
-		systemDiskPercent: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_system_disk_used_percent",
-				Help: "Disk utilization percentage for the configured scope-metrics disk path.",
-			},
-			[]string{"path"},
-		),
-		refreshTotal: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "scope_metrics_refresh_total",
-				Help: "Total number of scope-metrics refresh attempts by result.",
-			},
-			[]string{"result"},
-		),
-		httpRequestsTotal: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "scope_metrics_http_requests_total",
-				Help: "Total number of scope-metrics HTTP requests by route and method.",
-			},
-			[]string{"route", "method"},
-		),
-		alertRulesLoaded: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "scope_alert_rules_loaded",
-				Help: "Whether scope-metrics loaded its alert-rule configuration successfully.",
-			},
-		),
-		alertRuleActive: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_alert_rule_active",
-				Help: "Whether an scope alert rule is currently firing.",
-			},
-			[]string{"rule_id", "severity"},
-		),
-		alertDispatchTotal: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "scope_alert_dispatch_total",
-				Help: "Total number of webhook dispatch attempts by result.",
-			},
-			[]string{"result"},
-		),
-		alertDispatchStatus: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "scope_alert_dispatch_status",
-				Help: "Latest webhook dispatch outcome for scope-metrics.",
-			},
-			[]string{"webhook"},
-		),
-	}
-
-	registry.MustRegister(
-		metrics.buildInfo,
-		metrics.startTime,
-		metrics.serviceUp,
-		metrics.serviceResponseSecs,
-		metrics.serviceStatusCode,
-		metrics.lastRefreshSuccess,
-		metrics.lastRefreshTime,
-		metrics.lastRefreshDuration,
-		metrics.systemCPUPercent,
-		metrics.systemMemoryUsed,
-		metrics.systemMemoryTotal,
-		metrics.systemMemoryPercent,
-		metrics.systemDiskUsed,
-		metrics.systemDiskTotal,
-		metrics.systemDiskPercent,
-		metrics.refreshTotal,
-		metrics.httpRequestsTotal,
-		metrics.alertRulesLoaded,
-		metrics.alertRuleActive,
-		metrics.alertDispatchTotal,
-		metrics.alertDispatchStatus,
-	)
-	metrics.buildInfo.WithLabelValues(cfg.Version, runtime.Version()).Set(1)
-	metrics.alertDispatchTotal.WithLabelValues("success")
-	metrics.alertDispatchTotal.WithLabelValues("failure")
-	if rulesLoadError == nil {
-		metrics.alertRulesLoaded.Set(1)
-	} else {
-		metrics.alertRulesLoaded.Set(0)
-	}
+	metrics := newMetricsSet()
+	metrics.register(registry)
+	metrics.initialize(cfg.Version, rulesLoadError == nil)
 
 	startedAtUTC := time.Now().UTC()
 	metrics.startTime.Set(float64(startedAtUTC.Unix()))
@@ -513,39 +319,19 @@ func (a *App) collectRefreshSnapshot(ctx context.Context) refreshResult {
 	}
 	refreshSucceeded := true
 
-	cpuPercent, err := cpu.PercentWithContext(ctx, 0, false)
-	if err != nil {
+	if err := a.collectCPU(ctx, &snapshot.System); err != nil {
 		snapshot.Errors = append(snapshot.Errors, "cpu: "+err.Error())
 		refreshSucceeded = false
-	} else if len(cpuPercent) > 0 {
-		snapshot.System.CPUPercent = cpuPercent[0]
-		a.metrics.systemCPUPercent.Set(cpuPercent[0])
 	}
 
-	virtualMemory, err := mem.VirtualMemoryWithContext(ctx)
-	if err != nil {
+	if err := a.collectMemory(ctx, &snapshot.System); err != nil {
 		snapshot.Errors = append(snapshot.Errors, "memory: "+err.Error())
 		refreshSucceeded = false
-	} else {
-		snapshot.System.MemoryUsedBytes = virtualMemory.Used
-		snapshot.System.MemoryTotalBytes = virtualMemory.Total
-		snapshot.System.MemoryUsedPercent = virtualMemory.UsedPercent
-		a.metrics.systemMemoryUsed.Set(float64(virtualMemory.Used))
-		a.metrics.systemMemoryTotal.Set(float64(virtualMemory.Total))
-		a.metrics.systemMemoryPercent.Set(virtualMemory.UsedPercent)
 	}
 
-	diskUsage, err := disk.UsageWithContext(ctx, a.config.DiskPath)
-	if err != nil {
+	if err := a.collectDisk(ctx, &snapshot.System); err != nil {
 		snapshot.Errors = append(snapshot.Errors, "disk: "+err.Error())
 		refreshSucceeded = false
-	} else {
-		snapshot.System.DiskUsedBytes = diskUsage.Used
-		snapshot.System.DiskTotalBytes = diskUsage.Total
-		snapshot.System.DiskUsedPercent = diskUsage.UsedPercent
-		a.metrics.systemDiskUsed.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Used))
-		a.metrics.systemDiskTotal.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Total))
-		a.metrics.systemDiskPercent.WithLabelValues(a.config.DiskPath).Set(diskUsage.UsedPercent)
 	}
 
 	for _, result := range a.probeTargets(ctx) {
@@ -559,8 +345,60 @@ func (a *App) collectRefreshSnapshot(ctx context.Context) refreshResult {
 	snapshot.LastRefreshSuccess = refreshSucceeded
 	snapshot.LastRefreshedUTC = completedAt.Format(time.RFC3339)
 	snapshot.RefreshDurationSecs = time.Since(startedAt).Seconds()
+	a.recordRefreshMetrics(snapshot, completedAt)
 
-	if refreshSucceeded {
+	return refreshResult{
+		snapshot:    snapshot,
+		completedAt: completedAt,
+	}
+}
+
+func (a *App) collectCPU(ctx context.Context, snapshot *systemSnapshot) error {
+	cpuPercent, err := cpu.PercentWithContext(ctx, 0, false)
+	if err != nil {
+		return err
+	}
+	if len(cpuPercent) == 0 {
+		return nil
+	}
+
+	snapshot.CPUPercent = cpuPercent[0]
+	a.metrics.systemCPUPercent.Set(cpuPercent[0])
+	return nil
+}
+
+func (a *App) collectMemory(ctx context.Context, snapshot *systemSnapshot) error {
+	virtualMemory, err := mem.VirtualMemoryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	snapshot.MemoryUsedBytes = virtualMemory.Used
+	snapshot.MemoryTotalBytes = virtualMemory.Total
+	snapshot.MemoryUsedPercent = virtualMemory.UsedPercent
+	a.metrics.systemMemoryUsed.Set(float64(virtualMemory.Used))
+	a.metrics.systemMemoryTotal.Set(float64(virtualMemory.Total))
+	a.metrics.systemMemoryPercent.Set(virtualMemory.UsedPercent)
+	return nil
+}
+
+func (a *App) collectDisk(ctx context.Context, snapshot *systemSnapshot) error {
+	diskUsage, err := disk.UsageWithContext(ctx, a.config.DiskPath)
+	if err != nil {
+		return err
+	}
+
+	snapshot.DiskUsedBytes = diskUsage.Used
+	snapshot.DiskTotalBytes = diskUsage.Total
+	snapshot.DiskUsedPercent = diskUsage.UsedPercent
+	a.metrics.systemDiskUsed.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Used))
+	a.metrics.systemDiskTotal.WithLabelValues(a.config.DiskPath).Set(float64(diskUsage.Total))
+	a.metrics.systemDiskPercent.WithLabelValues(a.config.DiskPath).Set(diskUsage.UsedPercent)
+	return nil
+}
+
+func (a *App) recordRefreshMetrics(snapshot refreshSnapshot, completedAt time.Time) {
+	if snapshot.LastRefreshSuccess {
 		a.metrics.refreshTotal.WithLabelValues("success").Inc()
 		a.metrics.lastRefreshSuccess.Set(1)
 	} else {
@@ -569,11 +407,6 @@ func (a *App) collectRefreshSnapshot(ctx context.Context) refreshResult {
 	}
 	a.metrics.lastRefreshTime.Set(float64(completedAt.Unix()))
 	a.metrics.lastRefreshDuration.Set(snapshot.RefreshDurationSecs)
-
-	return refreshResult{
-		snapshot:    snapshot,
-		completedAt: completedAt,
-	}
 }
 
 func (a *App) probeTargets(ctx context.Context) []probeResult {
@@ -654,22 +487,7 @@ func (a *App) evaluateAlerts(snapshot refreshSnapshot, dispatch bool) {
 		return
 	}
 
-	evaluatedAlerts := a.ruleSet.Evaluate(alerts.Snapshot{
-		LastRefreshSuccess: snapshot.LastRefreshSuccess,
-		LastRefreshedUTC:   snapshot.LastRefreshedUTC,
-		System: alerts.SystemSnapshot{
-			CPUPercent:        snapshot.System.CPUPercent,
-			MemoryUsedBytes:   snapshot.System.MemoryUsedBytes,
-			MemoryTotalBytes:  snapshot.System.MemoryTotalBytes,
-			MemoryUsedPercent: snapshot.System.MemoryUsedPercent,
-			DiskPath:          snapshot.System.DiskPath,
-			DiskUsedBytes:     snapshot.System.DiskUsedBytes,
-			DiskTotalBytes:    snapshot.System.DiskTotalBytes,
-			DiskUsedPercent:   snapshot.System.DiskUsedPercent,
-		},
-		Probes: convertProbes(snapshot.Probes),
-		Errors: snapshot.Errors,
-	}, time.Now().UTC())
+	evaluatedAlerts := a.ruleSet.Evaluate(toAlertSnapshot(snapshot), time.Now().UTC())
 
 	for _, rule := range a.ruleSet.Rules {
 		a.metrics.alertRuleActive.WithLabelValues(rule.ID, rule.Severity).Set(0)
@@ -687,6 +505,25 @@ func (a *App) evaluateAlerts(snapshot refreshSnapshot, dispatch bool) {
 	dispatchResult := a.dispatcher.Process(context.Background(), evaluatedAlerts, false)
 	a.recordDispatchMetrics(dispatchResult)
 	a.lastDispatch = dispatchResult
+}
+
+func toAlertSnapshot(snapshot refreshSnapshot) alerts.Snapshot {
+	return alerts.Snapshot{
+		LastRefreshSuccess: snapshot.LastRefreshSuccess,
+		LastRefreshedUTC:   snapshot.LastRefreshedUTC,
+		System: alerts.SystemSnapshot{
+			CPUPercent:        snapshot.System.CPUPercent,
+			MemoryUsedBytes:   snapshot.System.MemoryUsedBytes,
+			MemoryTotalBytes:  snapshot.System.MemoryTotalBytes,
+			MemoryUsedPercent: snapshot.System.MemoryUsedPercent,
+			DiskPath:          snapshot.System.DiskPath,
+			DiskUsedBytes:     snapshot.System.DiskUsedBytes,
+			DiskTotalBytes:    snapshot.System.DiskTotalBytes,
+			DiskUsedPercent:   snapshot.System.DiskUsedPercent,
+		},
+		Probes: convertProbes(snapshot.Probes),
+		Errors: snapshot.Errors,
+	}
 }
 
 func (a *App) recordDispatchMetrics(dispatchResult alerts.DispatchResult) {

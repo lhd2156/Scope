@@ -48,20 +48,20 @@ function handleUnauthorizedResponse(response: AxiosResponse | undefined): void {
 
 apiClient.interceptors.response.use(
   (response) => {
-    if (response.status === 401) {
-      handleUnauthorizedResponse(response);
-      return Promise.reject(
-        new AxiosError(
-          'Unauthorized',
-          AxiosError.ERR_BAD_RESPONSE,
-          response.config,
-          response.request,
-          response,
-        ),
-      );
+    if (response.status !== 401) {
+      return response;
     }
 
-    return response;
+    handleUnauthorizedResponse(response);
+    return Promise.reject(
+      new AxiosError(
+        'Unauthorized',
+        AxiosError.ERR_BAD_RESPONSE,
+        response.config,
+        response.request,
+        response,
+      ),
+    );
   },
   (error: AxiosError) => {
     handleUnauthorizedResponse(error.response);
@@ -112,15 +112,12 @@ export function unwrapList<T>(
 ): PaginatedResult<T> {
   const payload = response.data;
   const envelope = payload as Envelope<T[]>;
-  const items = Array.isArray(payload)
-    ? payload
-    : Array.isArray(envelope.data)
-      ? envelope.data
-      : Array.isArray(envelope.results)
-        ? envelope.results
-        : Array.isArray(envelope.items)
-          ? envelope.items
-          : [];
+  const items =
+    (Array.isArray(payload)
+      ? payload
+      : [envelope.data, envelope.results, envelope.items].find(
+          (candidate): candidate is T[] => Array.isArray(candidate),
+        )) ?? [];
 
   return {
     items,

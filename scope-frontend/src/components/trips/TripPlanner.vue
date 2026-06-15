@@ -734,14 +734,59 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
 import LazyImage from '@/components/common/LazyImage.vue';
 import {
-  TRIP_PLANNER_BUDGET_BOUNDS as budgetBounds,
-  TRIP_PLANNER_CALENDAR_DATE_PATTERN as calendarDatePattern,
   TRIP_PLANNER_CATEGORIES as categories,
   TRIP_PLANNER_CATEGORY_LABELS as categoryLabels,
-  TRIP_PLANNER_FALLBACK_TIME_SLOTS as fallbackTimeSlots,
   TRIP_PLANNER_PACE_OPTIONS as paceOptions,
 } from '@/config/tripPlannerConfig';
-import { searchLocations, type GeocodeResult, type PlaceSearchResult } from '@/services/mapService';
+import {
+  BUDGET_STEP_AMOUNT,
+  FUEL_GAS_PRICE_MAX,
+  FUEL_GAS_PRICE_MIN,
+  FUEL_MPG_MAX,
+  FUEL_MPG_MIN,
+  buildWeatherSearchLabels,
+  cloneDefaultPackingItems,
+  formatDistanceMiles,
+  formatFuelInputValue,
+  formatFuelLimit,
+  formatLocationSuggestionBadge,
+  formatLocationSuggestionMeta,
+  formatLocationSuggestionTitle,
+  formatRouteEndpointLabel,
+  formatWeatherAirQuality,
+  formatWeatherCheckedAt,
+  formatWeatherLocationLabel,
+  formatWeatherProvider,
+  formatWeatherTemperature,
+  formatWeatherWind,
+  fuelTypeOptions,
+  getFuelInputError,
+  getPackingChecklistStorageKey as buildPackingChecklistStorageKey,
+  getWeatherCheckedTimestamp,
+  isCoordinatePair,
+  isDraftPackingChecklistScope as isDraftPackingChecklistScopeValue,
+  isFallbackWeatherSnapshot,
+  normalizeBudgetRange,
+  normalizeBudgetValue,
+  normalizeCoordinate,
+  normalizePackingChecklistScope as normalizePackingChecklistScopeValue,
+  normalizePackingItem,
+  normalizeStops,
+  normalizeTripFuelType,
+  parseBoundedFuelNumber,
+  parseFuelNumber,
+  resolveLocationSuggestionLabel,
+  toCalendarDayNumber,
+  type PackingChecklistItem,
+  type NormalizedBudgetRange,
+} from '@/components/trips/tripPlannerHelpers';
+import {
+  clearLocationTimer,
+  useTripPlannerLocationSearch,
+  type LocationFieldKey,
+  type LocationSearchAnchor,
+} from '@/components/trips/tripPlannerLocationSearch';
+import { searchLocations, type GeocodeResult } from '@/services/mapService';
 import {
   canLoadOpenWeatherMapWeather,
   getOpenWeatherMapSnapshot,
@@ -764,28 +809,7 @@ interface PlannerErrors {
 }
 
 type PlannerWizardStep = 1 | 2 | 3 | 4;
-type LocationFieldKey = 'destination' | 'endDestination';
 type WeatherState = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'missing-key';
-
-interface PackingChecklistItem {
-  id: string;
-  label: string;
-  checked: boolean;
-  custom?: boolean;
-}
-
-interface LocationSearchAnchor {
-  latitude: number;
-  longitude: number;
-}
-
-interface LocationSuggestionState {
-  results: GeocodeResult[];
-  loading: boolean;
-  open: boolean;
-  error: string;
-  activeIndex: number;
-}
 
 const props = withDefaults(
   defineProps<{
@@ -839,36 +863,8 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 0,
 });
-const weatherCheckedAtFormatter = new Intl.DateTimeFormat('en-US', {
-  hour: 'numeric',
-  minute: '2-digit',
-});
-const LOCATION_SEARCH_DEBOUNCE_MS = 260;
-const LOCATION_MIN_QUERY_LENGTH = 3;
-const BUDGET_STEP_AMOUNT = 100;
 const WEATHER_REFRESH_KEY_DEBOUNCE_MS = 200;
 const WEATHER_REFRESH_INTERVAL_MS = 120_000;
-const PACKING_CHECKLIST_STORAGE_KEY_PREFIX = 'scope-trip-planner-packing-checklist';
-const PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX = 'draft:';
-const FUEL_MPG_MIN = 1;
-const FUEL_MPG_MAX = 200;
-const FUEL_GAS_PRICE_MIN = 0.01;
-const FUEL_GAS_PRICE_MAX = 20;
-const fuelTypeOptions: Array<{ id: TripFuelType; label: string; icon: string }> = [
-  { id: 'regular', label: 'Regular', icon: 'fuel' },
-  { id: 'midgrade', label: 'Midgrade', icon: 'fuel' },
-  { id: 'premium', label: 'Premium', icon: 'fuel' },
-  { id: 'diesel', label: 'Diesel', icon: 'fuel' },
-  { id: 'ev', label: 'EV', icon: 'fuel' },
-];
-const DEFAULT_PACKING_ITEMS: PackingChecklistItem[] = [
-  { id: 'license-registration', label: 'Driver license and registration', checked: false },
-  { id: 'chargers-cables', label: 'Phone chargers and cables', checked: false },
-  { id: 'water-snacks', label: 'Water and road snacks', checked: false },
-  { id: 'first-aid', label: 'First aid kit', checked: false },
-  { id: 'sunglasses', label: 'Sunglasses', checked: false },
-  { id: 'emergency-kit', label: 'Emergency roadside kit', checked: false },
-];
 
 const errors = ref<PlannerErrors>({});
 const resolvedBudgetBounds = computed(() => normalizeBudgetRange(props.budgetRange));
@@ -894,34 +890,6 @@ const fuelCardRef = ref<HTMLElement | null>(null);
 const fuelMpgFieldRef = ref<HTMLInputElement | null>(null);
 const draggingStopId = ref<string | null>(null);
 const dropTargetStopId = ref<string | null>(null);
-const locationSuggestions = reactive<Record<LocationFieldKey, LocationSuggestionState>>({
-  destination: {
-    results: [],
-    loading: false,
-    open: false,
-    error: '',
-    activeIndex: -1,
-  },
-  endDestination: {
-    results: [],
-    loading: false,
-    open: false,
-    error: '',
-    activeIndex: -1,
-  },
-});
-const locationSearchTimers: Record<LocationFieldKey, ReturnType<typeof setTimeout> | null> = {
-  destination: null,
-  endDestination: null,
-};
-const locationBlurTimers: Record<LocationFieldKey, ReturnType<typeof setTimeout> | null> = {
-  destination: null,
-  endDestination: null,
-};
-const locationRequestIds: Record<LocationFieldKey, number> = {
-  destination: 0,
-  endDestination: 0,
-};
 let weatherRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
@@ -976,57 +944,6 @@ const tripLengthDays = computed(() => getInclusiveDaySpan(form.startDate, form.e
 const dailyBudget = computed(() => Math.round(budgetCeiling.value / Math.max(tripLengthDays.value, 1)));
 const paceLabel = computed(() => paceOptions.find((option) => option.value === form.pace)?.label ?? 'Moderate');
 const displayTripTitle = computed(() => tripTitle.value.trim() || 'New trip');
-
-function getLocationSegments(label: string): string[] {
-  return label
-    .split(',')
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-}
-
-function getLocationRegionHint(label: string): string {
-  const segments = getLocationSegments(label);
-  if (/\d/.test(segments[0] ?? '')) {
-    return segments.length > 2 ? segments.slice(2).join(', ') : '';
-  }
-
-  return segments.length > 1 ? segments.slice(1).join(', ') : '';
-}
-
-function getLikelyCityLabel(label: string): string {
-  const segments = getLocationSegments(label);
-  if (segments.length <= 1) {
-    return label.trim();
-  }
-
-  const lastSegment = segments[segments.length - 1] ?? '';
-  const firstSegment = segments[0] ?? '';
-  if (/\d/.test(firstSegment)) {
-    return segments.length > 2 ? segments[segments.length - 2] ?? lastSegment : lastSegment;
-  }
-
-  return firstSegment;
-}
-
-function buildWeatherSearchLabels(label: string, pairedLabel: string): string[] {
-  const cityLabel = getLikelyCityLabel(label);
-  const regionHint = getLocationRegionHint(label) || getLocationRegionHint(pairedLabel);
-  const labels = [
-    regionHint && cityLabel ? `${cityLabel}, ${regionHint}` : '',
-    cityLabel,
-  ];
-  const seenLabels = new Set<string>();
-
-  return labels.filter((candidate) => {
-    const normalizedCandidate = candidate.trim().toLowerCase();
-    if (!normalizedCandidate || normalizedCandidate === label.trim().toLowerCase() || seenLabels.has(normalizedCandidate)) {
-      return false;
-    }
-
-    seenLabels.add(normalizedCandidate);
-    return true;
-  });
-}
 
 const weatherLookupPoints = computed<WeatherLookupPoint[]>(() => {
   const points: WeatherLookupPoint[] = [];
@@ -1113,16 +1030,6 @@ const fuelSettingsSummary = computed(() => {
   return `${selectedFuelTypeLabel.value} tank`;
 });
 
-function formatRouteEndpointLabel(value: string | undefined): string {
-  const parts = (value ?? '').split(',').map((part) => part.trim()).filter(Boolean);
-  if (!parts.length) {
-    return '';
-  }
-
-  const [primary = '', locality = ''] = parts;
-  return locality ? `${primary}, ${locality}` : primary;
-}
-
 const destinationLabel = computed(() => {
   const startDestination = formatRouteEndpointLabel(form.destination);
   const endDestination = formatRouteEndpointLabel(form.endDestination);
@@ -1140,6 +1047,36 @@ const hasPlannerRouteSeed = computed(() => (
   isCoordinatePair(form.endDestinationLatitude, form.endDestinationLongitude)
 ));
 const showRouteEmptyHint = computed(() => !hasPlannerRouteSeed.value);
+
+const {
+  locationSuggestions,
+  resetLocationSuggestionState,
+  shouldShowLocationSuggestions,
+  handleLocationFocus,
+  handleLocationBlur,
+  handleLocationInput,
+  selectLocationSuggestion,
+  resolveMissingLocationCoordinates,
+  handleLocationKeydown,
+  disposeLocationSearch,
+} = useTripPlannerLocationSearch({
+  searchLocations,
+  canUseLocationField: (field) => field !== 'endDestination' || canEditEndDestination.value,
+  getLocationFieldValue,
+  hasLocationCoordinates: (field) => Object.keys(resolveLocationCoordinatePayload(field)).length > 0,
+  setLocationFieldValue,
+  clearLocationCoordinates,
+  setLocationCoordinates,
+  resolveLocationSearchProximity,
+  resolveLocationSuggestionLabel,
+  formatLocationSuggestionTitle,
+  onBlockedLocationField: (field) => {
+    if (field === 'endDestination') {
+      clearEndDestination();
+    }
+  },
+  onLocationInput: clearLocationError,
+});
 
 watch(
   canEditEndDestination,
@@ -1202,35 +1139,16 @@ const stepThreeSummary = computed(() => (
     : `${paceLabel.value} pace · vibes optional`
 ));
 
-function normalizePackingItem(item: Partial<PackingChecklistItem>, fallbackIndex: number): PackingChecklistItem | null {
-  const label = item.label?.trim();
-  if (!label) {
-    return null;
-  }
-
-  return {
-    id: item.id?.trim() || `packing-item-${fallbackIndex}`,
-    label,
-    checked: Boolean(item.checked),
-    custom: Boolean(item.custom),
-  };
-}
-
-function cloneDefaultPackingItems(): PackingChecklistItem[] {
-  return DEFAULT_PACKING_ITEMS.map((item) => ({ ...item }));
-}
-
 function normalizePackingChecklistScope(scope = props.packingChecklistScope): string {
-  const normalizedScope = scope.trim().replace(/\s+/g, '-').slice(0, 120);
-  return normalizedScope || `${PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX}standalone`;
+  return normalizePackingChecklistScopeValue(scope);
 }
 
 function isDraftPackingChecklistScope(scope: string | undefined): boolean {
-  return normalizePackingChecklistScope(scope).startsWith(PACKING_CHECKLIST_DRAFT_SCOPE_PREFIX);
+  return isDraftPackingChecklistScopeValue(scope ?? props.packingChecklistScope);
 }
 
 function getPackingChecklistStorageKey(scope = props.packingChecklistScope): string {
-  return `${PACKING_CHECKLIST_STORAGE_KEY_PREFIX}:${normalizePackingChecklistScope(scope)}`;
+  return buildPackingChecklistStorageKey(scope);
 }
 
 function readPackingChecklistStorage(storageKey = getPackingChecklistStorageKey()): PackingChecklistItem[] | null {
@@ -1308,57 +1226,6 @@ function removePackingItem(itemId: string): void {
   );
 }
 
-function parseFuelNumber(value: string): number | undefined {
-  const normalizedValue = value.trim();
-  if (!normalizedValue) {
-    return undefined;
-  }
-
-  const parsedValue = Number(normalizedValue);
-  return Number.isFinite(parsedValue) ? parsedValue : undefined;
-}
-
-function parseBoundedFuelNumber(value: string, min: number, max: number): number | undefined {
-  const parsedValue = parseFuelNumber(value);
-  return parsedValue !== undefined && parsedValue >= min && parsedValue <= max ? parsedValue : undefined;
-}
-
-function formatFuelLimit(value: number): string {
-  return value >= 1
-    ? value.toLocaleString('en-US', { maximumFractionDigits: 0 })
-    : value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function getFuelInputError(value: string, label: string, min: number, max: number, maxLabel = formatFuelLimit(max)): string {
-  const normalizedValue = value.trim();
-  if (!normalizedValue) {
-    return '';
-  }
-
-  const parsedValue = Number(normalizedValue);
-  if (!Number.isFinite(parsedValue)) {
-    return `${label} needs a number.`;
-  }
-
-  if (parsedValue < min) {
-    return `${label} must be at least ${formatFuelLimit(min)}.`;
-  }
-
-  if (parsedValue > max) {
-    return `${label} must be ${maxLabel} or less.`;
-  }
-
-  return '';
-}
-
-function formatFuelInputValue(value: number | undefined): string {
-  return Number.isFinite(value) && Number(value) > 0 ? String(value) : '';
-}
-
-function normalizeTripFuelType(value: TripFuelSettings['fuelType'] | undefined): TripFuelType {
-  return fuelTypeOptions.some((option) => option.id === value) ? (value as TripFuelType) : 'regular';
-}
-
 function selectFuelType(fuelType: TripFuelType): void {
   if (selectedFuelType.value === fuelType) {
     return;
@@ -1385,65 +1252,6 @@ function scrollToFuelSettings(): void {
   window.setTimeout(() => {
     fuelMpgFieldRef.value?.focus({ preventScroll: true });
   }, 420);
-}
-
-function formatWeatherTemperature(value: number): string {
-  return `${Math.round(value)}\u00b0F`;
-}
-
-function formatWeatherWind(value: number): string {
-  return `${Math.round(value)} mph`;
-}
-
-function formatWeatherAirQuality(airQuality: WeatherSnapshot['airQuality']): string {
-  if (!airQuality) {
-    return '';
-  }
-
-  return airQuality.scale === 'us'
-    ? `${airQuality.index} ${airQuality.label}`
-    : airQuality.label;
-}
-
-function formatWeatherCheckedAt(value: string): string {
-  const checkedAt = new Date(value);
-  if (Number.isNaN(checkedAt.getTime())) {
-    return 'just now';
-  }
-
-  return weatherCheckedAtFormatter.format(checkedAt);
-}
-
-function isFallbackWeatherSnapshot(snapshot: WeatherSnapshot): boolean {
-  return snapshot.provider === 'openmeteo' || /fallback|demo/i.test(snapshot.providerLabel ?? '');
-}
-
-function formatWeatherProvider(snapshot: WeatherSnapshot): string {
-  return snapshot.providerLabel ?? snapshot.provider ?? 'Scope weather';
-}
-
-function getWeatherCheckedTimestamp(snapshot: WeatherSnapshot): string {
-  return snapshot.checkedAtIso ?? snapshot.observedAtIso ?? '';
-}
-
-function formatWeatherLocationLabel(label: string): string {
-  const parts = label
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (!parts.length) {
-    return 'Route point';
-  }
-
-  const firstPart = parts[0] ?? '';
-  const firstPartLooksLikeAddress = /\d|\b(road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|highway|hwy|route|county|private)\b/i
-    .test(firstPart);
-  if (firstPartLooksLikeAddress && parts.length > 1) {
-    return parts[1] ?? firstPart;
-  }
-
-  return firstPart;
 }
 
 function getWeatherSnapshotClass(snapshot: WeatherSnapshot): string {
@@ -1696,22 +1504,6 @@ function buildPlannerPayload(): TripPlannerInput {
   };
 }
 
-function normalizeCoordinate(value: number | undefined, minimum: number, maximum: number): number | undefined {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue < minimum || numericValue > maximum) {
-    return undefined;
-  }
-
-  return numericValue;
-}
-
-function isCoordinatePair(latitude: number | undefined, longitude: number | undefined): latitude is number {
-  return (
-    normalizeCoordinate(latitude, -90, 90) !== undefined &&
-    normalizeCoordinate(longitude, -180, 180) !== undefined
-  );
-}
-
 function resolveLocationCoordinatePayload(field: LocationFieldKey): Partial<TripPlannerInput> {
   if (field === 'destination' && isCoordinatePair(form.destinationLatitude, form.destinationLongitude)) {
     return {
@@ -1754,19 +1546,6 @@ function clearLocationCoordinates(field: LocationFieldKey): void {
   form.endDestinationLongitude = undefined;
 }
 
-function resetLocationSuggestionState(field: LocationFieldKey): void {
-  clearLocationTimer(locationSearchTimers, field);
-  clearLocationTimer(locationBlurTimers, field);
-  locationRequestIds[field] += 1;
-  Object.assign(locationSuggestions[field], {
-    results: [],
-    loading: false,
-    open: false,
-    error: '',
-    activeIndex: -1,
-  });
-}
-
 function clearEndDestination(): void {
   setLocationFieldValue('endDestination', '');
   clearLocationCoordinates('endDestination');
@@ -1780,6 +1559,15 @@ function clearEndDestination(): void {
   }
 }
 
+function clearLocationError(field: LocationFieldKey): void {
+  if (errors.value[field]) {
+    errors.value = {
+      ...errors.value,
+      [field]: undefined,
+    };
+  }
+}
+
 function setLocationCoordinates(field: LocationFieldKey, result: GeocodeResult): void {
   if (field === 'destination') {
     form.destinationLatitude = normalizeCoordinate(result.latitude, -90, 90);
@@ -1789,175 +1577,6 @@ function setLocationCoordinates(field: LocationFieldKey, result: GeocodeResult):
 
   form.endDestinationLatitude = normalizeCoordinate(result.latitude, -90, 90);
   form.endDestinationLongitude = normalizeCoordinate(result.longitude, -180, 180);
-}
-
-function clearLocationTimer(timers: Record<LocationFieldKey, ReturnType<typeof setTimeout> | null>, field: LocationFieldKey): void {
-  const timer = timers[field];
-  if (timer) {
-    clearTimeout(timer);
-    timers[field] = null;
-  }
-}
-
-function shouldShowLocationSuggestions(field: LocationFieldKey): boolean {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    return false;
-  }
-
-  const state = locationSuggestions[field];
-  return state.open && (state.loading || Boolean(state.error) || state.results.length > 0 || getLocationFieldValue(field).trim().length >= LOCATION_MIN_QUERY_LENGTH);
-}
-
-function formatLocationSuggestionTitle(result: GeocodeResult): string {
-  if (result.precision === 'poi' && result.placeName) {
-    return result.placeName;
-  }
-
-  return result.formattedAddress || result.address || result.placeName || 'Pinned location';
-}
-
-function formatLocationSuggestionMeta(result: GeocodeResult): string {
-  const placeResult = result as PlaceSearchResult;
-  const isPoiResult = result.precision === 'poi';
-  const details = [
-    placeResult.distanceKm === undefined ? '' : `${formatDistanceMiles(placeResult.distanceKm)} away`,
-    [result.city, result.country].filter(Boolean).join(', '),
-    isPoiResult ? placeResult.category : '',
-  ].filter(Boolean);
-
-  if (details.length) {
-    return details.join(' - ');
-  }
-
-  const cityCountry = [result.city, result.country].filter(Boolean).join(', ');
-  if (cityCountry) {
-    return cityCountry;
-  }
-
-  return `${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}`;
-}
-
-function formatLocationSuggestionBadge(result: GeocodeResult, index: number): string {
-  const placeResult = result as PlaceSearchResult;
-  if (index === 0 && result.precision === 'poi' && placeResult.distanceKm !== undefined) {
-    return 'Closest';
-  }
-
-  return index === 0 ? 'Best match' : '';
-}
-
-function formatDistanceMiles(distanceKm: number): string {
-  const miles = distanceKm * 0.621371;
-  if (miles < 10) {
-    return `${miles.toFixed(1)} mi`;
-  }
-
-  return `${Math.round(miles).toLocaleString('en-US')} mi`;
-}
-
-function resolveLocationSuggestionLabel(result: GeocodeResult): string {
-  return formatLocationSuggestionTitle(result).slice(0, 160);
-}
-
-function handleLocationFocus(field: LocationFieldKey): void {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    clearEndDestination();
-    return;
-  }
-
-  clearLocationTimer(locationBlurTimers, field);
-  locationSuggestions[field].open = true;
-  scheduleLocationSearch(field);
-}
-
-function handleLocationBlur(field: LocationFieldKey): void {
-  clearLocationTimer(locationBlurTimers, field);
-  locationBlurTimers[field] = setTimeout(() => {
-    locationSuggestions[field].open = false;
-  }, 140);
-}
-
-function handleLocationInput(field: LocationFieldKey): void {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    clearEndDestination();
-    return;
-  }
-
-  clearLocationCoordinates(field);
-  locationSuggestions[field].open = true;
-  locationSuggestions[field].error = '';
-  scheduleLocationSearch(field);
-
-  const errorKey = field === 'destination' ? 'destination' : 'endDestination';
-  if (errors.value[errorKey]) {
-    errors.value = {
-      ...errors.value,
-      [errorKey]: undefined,
-    };
-  }
-}
-
-function scheduleLocationSearch(field: LocationFieldKey): void {
-  const query = getLocationFieldValue(field).trim();
-  const state = locationSuggestions[field];
-  clearLocationTimer(locationSearchTimers, field);
-
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    state.results = [];
-    state.loading = false;
-    state.error = '';
-    state.activeIndex = -1;
-    return;
-  }
-
-  if (query.length < LOCATION_MIN_QUERY_LENGTH) {
-    state.results = [];
-    state.loading = false;
-    state.error = '';
-    state.activeIndex = -1;
-    return;
-  }
-
-  state.loading = true;
-  locationSearchTimers[field] = setTimeout(() => {
-    void runLocationSearch(field, query);
-  }, LOCATION_SEARCH_DEBOUNCE_MS);
-}
-
-async function runLocationSearch(field: LocationFieldKey, query: string): Promise<void> {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    return;
-  }
-
-  const requestId = locationRequestIds[field] + 1;
-  locationRequestIds[field] = requestId;
-  const state = locationSuggestions[field];
-
-  try {
-    const response = await searchLocations(query, {
-      limit: 6,
-      proximity: resolveLocationSearchProximity(field),
-    });
-    if (locationRequestIds[field] !== requestId || getLocationFieldValue(field).trim() !== query) {
-      return;
-    }
-
-    state.results = response.data;
-    state.activeIndex = response.data.length ? 0 : -1;
-    state.error = '';
-  } catch {
-    if (locationRequestIds[field] !== requestId) {
-      return;
-    }
-
-    state.results = [];
-    state.activeIndex = -1;
-    state.error = 'Scope could not search places right now.';
-  } finally {
-    if (locationRequestIds[field] === requestId) {
-      state.loading = false;
-    }
-  }
 }
 
 function resolveLocationSearchProximity(field: LocationFieldKey): LocationSearchAnchor | undefined {
@@ -1978,126 +1597,11 @@ function resolveLocationSearchProximity(field: LocationFieldKey): LocationSearch
   return props.locationSearchProximity;
 }
 
-function selectLocationSuggestion(field: LocationFieldKey, result: GeocodeResult): void {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    clearEndDestination();
-    return;
-  }
-
-  const label = resolveLocationSuggestionLabel(result);
-  setLocationFieldValue(field, label);
-  setLocationCoordinates(field, result);
-  locationSuggestions[field].results = [result];
-  locationSuggestions[field].activeIndex = 0;
-  locationSuggestions[field].open = false;
-  locationSuggestions[field].loading = false;
-  locationSuggestions[field].error = '';
-}
-
-function findMatchingLocationSuggestion(field: LocationFieldKey, query: string): GeocodeResult | undefined {
-  const normalizedQuery = query.toLowerCase();
-  return locationSuggestions[field].results.find((result) => {
-    const title = formatLocationSuggestionTitle(result).toLowerCase();
-    const label = resolveLocationSuggestionLabel(result).toLowerCase();
-    return title === normalizedQuery || label === normalizedQuery;
-  });
-}
-
-async function resolveLocationFieldCoordinates(field: LocationFieldKey): Promise<void> {
-  if (field === 'endDestination' && !canEditEndDestination.value) {
-    clearEndDestination();
-    return;
-  }
-
-  const query = getLocationFieldValue(field).trim();
-  if (
-    query.length < LOCATION_MIN_QUERY_LENGTH ||
-    Object.keys(resolveLocationCoordinatePayload(field)).length > 0
-  ) {
-    return;
-  }
-
-  clearLocationTimer(locationSearchTimers, field);
-  locationSuggestions[field].loading = false;
-
-  let resolvedResult = findMatchingLocationSuggestion(field, query);
-  if (!resolvedResult) {
-    const response = await searchLocations(query, {
-      limit: 1,
-      proximity: resolveLocationSearchProximity(field),
-    }).catch(() => null);
-    resolvedResult = response?.data?.[0];
-  }
-
-  if (!resolvedResult || getLocationFieldValue(field).trim() !== query) {
-    return;
-  }
-
-  selectLocationSuggestion(field, resolvedResult);
-}
-
-async function resolveMissingLocationCoordinates(): Promise<void> {
-  await Promise.all([
-    resolveLocationFieldCoordinates('destination'),
-    resolveLocationFieldCoordinates('endDestination'),
-  ]);
-}
-
-function handleLocationKeydown(field: LocationFieldKey, event: KeyboardEvent): void {
-  const state = locationSuggestions[field];
-  const resultsCount = state.results.length;
-
-  if (event.key === 'Escape') {
-    state.open = false;
-    return;
-  }
-
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    state.open = true;
-    state.activeIndex = resultsCount ? (state.activeIndex + 1 + resultsCount) % resultsCount : -1;
-    return;
-  }
-
-  if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    state.open = true;
-    state.activeIndex = resultsCount ? (state.activeIndex - 1 + resultsCount) % resultsCount : -1;
-    return;
-  }
-
-  if (event.key === 'Enter' && state.open && state.activeIndex >= 0) {
-    const selectedResult = state.results[state.activeIndex];
-    if (selectedResult) {
-      event.preventDefault();
-      selectLocationSuggestion(field, selectedResult);
-    }
-  }
-}
-
-function normalizeBudgetRange(range?: [number, number]): { min: number; max: number; step: number } {
-  const minimum = Number(range?.[0] ?? budgetBounds.min);
-  const maximum = Number(range?.[1] ?? budgetBounds.max);
-  const normalizedMinimum = Math.max(0, Math.min(minimum, maximum));
-  const normalizedMaximum = Math.max(normalizedMinimum + budgetBounds.step, Math.max(minimum, maximum));
-
-  return {
-    min: normalizedMinimum,
-    max: normalizedMaximum,
-    step: budgetBounds.step,
-  };
-}
-
-function normalizeBudgetValue(value: number | undefined, fallback = 0): number {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : fallback;
-}
-
-function resolveBudgetCeiling(initialValue: Partial<TripPlannerInput>, bounds: { min: number; max: number }): number {
+function resolveBudgetCeiling(initialValue: Partial<TripPlannerInput>, bounds: NormalizedBudgetRange): number {
   return normalizeBudgetValue(initialValue.budget ?? form.budget, bounds.min);
 }
 
-function resolveBudgetFloor(initialValue: Partial<TripPlannerInput>, bounds: { min: number }): number {
+function resolveBudgetFloor(initialValue: Partial<TripPlannerInput>, bounds: Pick<NormalizedBudgetRange, 'min'>): number {
   if (initialValue.budgetFloor !== undefined) {
     return normalizeBudgetValue(initialValue.budgetFloor, bounds.min);
   }
@@ -2105,37 +1609,9 @@ function resolveBudgetFloor(initialValue: Partial<TripPlannerInput>, bounds: { m
   return bounds.min;
 }
 
-function normalizeStops(stops: TripSpot[]): TripSpot[] {
-  return stops.map((stop, index) => ({
-    ...stop,
-    dayNumber: index + 1,
-    timeSlot: stop.timeSlot ?? fallbackTimeSlots[index % fallbackTimeSlots.length] ?? '20:00',
-  }));
-}
-
 function syncStops(nextStops: TripSpot[]): void {
   destinationStops.value = normalizeStops(nextStops);
   emit('update:stops', destinationStops.value.map((stop) => ({ ...stop })));
-}
-
-function toCalendarDayNumber(value: string): number {
-  const matched = calendarDatePattern.exec(value);
-  if (!matched) {
-    return Number.NaN;
-  }
-
-  const [, year, month, day] = matched;
-  const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
-
-  if (
-    parsedDate.getFullYear() !== Number(year) ||
-    parsedDate.getMonth() !== Number(month) - 1 ||
-    parsedDate.getDate() !== Number(day)
-  ) {
-    return Number.NaN;
-  }
-
-  return Date.UTC(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate()) / (24 * 60 * 60 * 1000);
 }
 
 function handleBudgetFloorNumberInput(event: Event): void {
@@ -2344,11 +1820,7 @@ async function handleSubmit(): Promise<void> {
 onBeforeUnmount(() => {
   clearWeatherRefreshTimer();
   weatherRequestId.value += 1;
-  (['destination', 'endDestination'] as const).forEach((field) => {
-    clearLocationTimer(locationSearchTimers, field);
-    clearLocationTimer(locationBlurTimers, field);
-    locationRequestIds[field] += 1;
-  });
+  disposeLocationSearch();
 });
 
 defineExpose({

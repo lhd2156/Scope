@@ -2,7 +2,6 @@ import type { FeedItem, SpotCategory, Trip, TripSpot } from '@/types';
 
 const DEFAULT_AVATAR_SIZE = 150;
 const DEFAULT_PHOTO_WIDTH = 800;
-const PRAVATAR_IMAGE_COUNT = 70;
 
 const categoryPhotoIds: Record<SpotCategory, string> = {
   food: 'photo-1504674900247-0877df9cc836',
@@ -59,23 +58,11 @@ function resizeImageSource(source: string, width = DEFAULT_PHOTO_WIDTH): string 
   }
 }
 
-function hashSeed(seed: string): number {
-  return Array.from(seed).reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 0);
-}
-
-export function buildPravatarUrl(seed: string, _size = DEFAULT_AVATAR_SIZE): string {
-  const normalizedSeed = seed.trim() || 'scope-traveler';
-  const imageIndex = (hashSeed(normalizedSeed) % PRAVATAR_IMAGE_COUNT) + 1;
-  return `https://i.pravatar.cc/${DEFAULT_AVATAR_SIZE}?img=${imageIndex}`;
-}
-
 /*
  * Returns the sanitized avatar URL when one is provided. When nothing
  * explicit is set we intentionally return an empty string so the Avatar
  * component can render its neutral silhouette placeholder (Instagram
- * style) rather than a seeded pravatar face that isn't actually the
- * user's. Preview users that want a stock face can still call
- * `buildPravatarUrl` directly when seeding their avatarUrl.
+ * style) rather than a seeded stock face that isn't actually the user's.
  */
 export function resolveAvatarUrl(source: string | null | undefined, _seed: string, _size = DEFAULT_AVATAR_SIZE): string {
   return normalizeSource(source);

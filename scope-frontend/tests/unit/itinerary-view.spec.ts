@@ -195,8 +195,8 @@ const itinerary: Itinerary = {
 };
 
 const members: TripMember[] = [
-  { id: 'member-1', displayName: 'Ava Torres', avatarUrl: 'https://i.pravatar.cc/150?img=12' },
-  { id: 'member-2', displayName: 'Leo Bennett', avatarUrl: 'https://i.pravatar.cc/150?img=33' },
+  { id: 'member-1', displayName: 'Ava Torres', avatarUrl: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600' },
+  { id: 'member-2', displayName: 'Leo Bennett', avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600' },
 ];
 
 const draft: TripPlannerInput = {

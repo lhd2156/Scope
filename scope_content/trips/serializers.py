@@ -7,6 +7,7 @@ from django.db.models import Q
 from rest_framework import serializers
 
 from common.serializer_utils import copy_with_aliases, normalize_text
+from common.user_profiles import resolve_user_profile
 from spots.models import Spot
 from trips.models import Trip, TripMember, TripSpot
 
@@ -57,15 +58,19 @@ class TripMemberSerializer(serializers.ModelSerializer):
     userId = serializers.UUIDField(source='user_id', read_only=True)
     status = serializers.CharField(source='role', read_only=True)
     displayName = serializers.SerializerMethodField()
+    avatarUrl = serializers.SerializerMethodField()
     inviteStatus = serializers.SerializerMethodField()
 
     class Meta:
         model = TripMember
-        fields = ['id', 'user_id', 'userId', 'role', 'status', 'displayName', 'inviteStatus', 'joined_at']
+        fields = ['id', 'user_id', 'userId', 'role', 'status', 'displayName', 'avatarUrl', 'inviteStatus', 'joined_at']
         read_only_fields = ['id', 'joined_at']
 
     def get_displayName(self, obj: TripMember) -> str:
-        return f"Traveler {str(obj.user_id)[:8]}"
+        return resolve_user_profile(obj.user_id, request=self.context.get('request'))['displayName']
+
+    def get_avatarUrl(self, obj: TripMember) -> str:
+        return resolve_user_profile(obj.user_id, request=self.context.get('request')).get('avatarUrl', '')
 
     def get_inviteStatus(self, obj: TripMember) -> str:
         return 'accepted'

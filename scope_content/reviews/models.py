@@ -12,6 +12,7 @@ class Review(models.Model):
     user_id = models.UUIDField()
     rating = models.DecimalField(max_digits=2, decimal_places=1, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])
     comment = models.CharField(max_length=1000, blank=True)
+    is_anonymous = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ['-created_at']

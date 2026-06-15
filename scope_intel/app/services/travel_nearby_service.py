@@ -13,6 +13,7 @@ from app.services.geo_math import haversine_distance_km
 from app.services.google_places_usage_guard import GooglePlacesUsageGuard
 from app.services.provider_payload import normalize_provider_text
 from app.services.spot import Spot
+from app.services.travel_nearby_scoring import score_travel_suggestion
 
 
 GOOGLE_PLACES_MAX_RESULT_COUNT = 20
@@ -357,14 +358,12 @@ class TravelNearbyService:
         requested_category: str,
         context: dict[str, Any],
     ) -> dict[str, Any] | None:
-        location = place.get("location") if isinstance(place.get("location"), dict) else {}
-        latitude = self._safe_float(location.get("latitude"), float("nan"))
-        longitude = self._safe_float(location.get("longitude"), float("nan"))
-        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        coordinates = self._google_place_coordinates(place)
+        if coordinates is None:
             return None
+        latitude, longitude = coordinates
 
-        display_name = place.get("displayName") if isinstance(place.get("displayName"), dict) else {}
-        title = str(display_name.get("text") or "Google place").strip() or "Google place"
+        title = self._google_place_title(place)
         types = [str(value) for value in place.get("types", []) if isinstance(value, str)]
         primary_type = str(place.get("primaryType") or (types[0] if types else "")).strip()
         category = self._infer_google_category([primary_type, *types], requested_category)
@@ -388,11 +387,6 @@ class TravelNearbyService:
             is_open=is_open,
             context=context,
         )
-        source_label = "Google"
-        if requested_category == "fuel" and price_label:
-            source_label = "Fuel price"
-        elif is_open is True:
-            source_label = "Open"
 
         return {
             "id": f"google-{place.get('id') or self._slug(title)}",
@@ -404,7 +398,7 @@ class TravelNearbyService:
             "longitude": longitude,
             "category": category,
             "source": "google",
-            "sourceLabel": source_label,
+            "sourceLabel": self._google_source_label(requested_category, price_label, is_open),
             "distanceKm": round(distance_km, 2),
             "rating": rating or None,
             "reviewCount": review_count or None,
@@ -423,6 +417,25 @@ class TravelNearbyService:
             "anchorLabel": anchor["placeLabel"],
         }
 
+    def _google_place_coordinates(self, place: dict[str, Any]) -> tuple[float, float] | None:
+        location = place.get("location") if isinstance(place.get("location"), dict) else {}
+        latitude = self._safe_float(location.get("latitude"), float("nan"))
+        longitude = self._safe_float(location.get("longitude"), float("nan"))
+        return (latitude, longitude) if -90 <= latitude <= 90 and -180 <= longitude <= 180 else None
+
+    @staticmethod
+    def _google_place_title(place: dict[str, Any]) -> str:
+        display_name = place.get("displayName") if isinstance(place.get("displayName"), dict) else {}
+        return str(display_name.get("text") or "Google place").strip() or "Google place"
+
+    @staticmethod
+    def _google_source_label(requested_category: str, price_label: str | None, is_open: bool | None) -> str:
+        if requested_category == "fuel" and price_label:
+            return "Fuel price"
+        if is_open is True:
+            return "Open"
+        return "Google"
+
     def _score_suggestion(
         self,
         *,
@@ -436,72 +449,19 @@ class TravelNearbyService:
         is_open: bool | None,
         context: dict[str, Any],
     ) -> float:
-        score = 60.0
-        interests: set[str] = context["interests"]
-        latest_intent = context["latest_intent"]
-        budget_ceiling = context["budget_ceiling"]
-        pace = context["pace"]
-
-        if requested_category == "recommended":
-            if category in interests:
-                score += 24
-            elif interests and category not in {"fuel", "essentials", "stay"}:
-                score -= 6
-        elif category == requested_category:
-            score += 28
-        elif requested_category == "scenic" and category in {"nature", "culture", "adventure", "scenic"}:
-            score += 22
-        elif requested_category == "outdoors" and category in {"nature", "adventure", "scenic"}:
-            score += 22
-        elif requested_category == "shopping" and category in {"shopping", "food", "culture"}:
-            score += 22
-        elif requested_category == "entertainment" and category in {"entertainment", "nightlife", "adventure", "culture"}:
-            score += 22
-        elif requested_category == "nightlife" and category in {"nightlife", "entertainment", "food", "culture"}:
-            score += 22
-        elif requested_category == "essentials" and category in {"essentials", "fuel"}:
-            score += 18
-        else:
-            score -= 18
-
-        if source == "scope":
-            score += 16
-        elif source == "google" and category in {"fuel", "stay", "essentials"}:
-            score += 18
-        else:
-            score += 8
-
-        radius = max(1.0, self._safe_float(context.get("radiusKm"), 16.09))
-        score += max(0.0, 22.0 * (1.0 - min(distance_km, radius) / radius))
-
-        if rating:
-            score += max(0.0, rating - 3.2) * 8
-        if review_count:
-            score += min(14.0, self._log1p(review_count) * 2.8)
-        if is_open is True:
-            score += 9
-        elif is_open is False:
-            score -= 22
-
-        if price_value and budget_ceiling:
-            if price_value <= max(35.0, budget_ceiling * 0.08):
-                score += 8
-            elif price_value > max(100.0, budget_ceiling * 0.25):
-                score -= 10
-
-        if pace == "relaxed" and category in {"stay", "scenic", "nature", "food"}:
-            score += 5
-        if pace == "packed" and category in {"essentials", "fuel"}:
-            score += 5
-
-        if latest_intent and category in latest_intent:
-            score += 12
-        if latest_intent and "hotel" in latest_intent and category == "stay":
-            score += 18
-        if latest_intent and "gas" in latest_intent and category == "fuel":
-            score += 18
-
-        return score
+        return score_travel_suggestion(
+            source=source,
+            category=category,
+            requested_category=requested_category,
+            distance_km=distance_km,
+            rating=rating,
+            review_count=review_count,
+            price_value=price_value,
+            is_open=is_open,
+            context=context,
+            safe_float=self._safe_float,
+            log1p=self._log1p,
+        )
 
     def _rank_and_dedupe(
         self,

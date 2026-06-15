@@ -103,6 +103,14 @@ class _ScoredCandidate:
     reason: str
 
 
+@dataclass(slots=True)
+class _UserRecommendationSignals:
+    dismissed_ids: set[str]
+    interaction_weights: dict[str, float]
+    friend_like_counts: dict[str, int]
+    has_any_interaction: bool
+
+
 class RecommendationEngine:
     def __init__(
         self,
@@ -132,32 +140,8 @@ class RecommendationEngine:
         liked_spot_likers = self._likers_for_spots(spots, liked_spot_ids)
         location_bonus_by_spot_id = self._location_bonus_by_spot_id(spots, liked_spots)
 
-        # Read durable user state only when we're inside a real request. This
-        # preserves direct-construction usage in unit tests that don't spin up
-        # a Flask app context.
-        dismissed_ids: set[str] = set()
-        interaction_weights: dict[str, float] = {}
-        friend_like_counts: dict[str, int] = {}
-        user_has_any_interaction = False
-        if has_app_context() and user_id:
-            try:
-                from app.repositories import IntelRepository
-
-                dismissed_ids = IntelRepository.get_recently_dismissed_spot_ids(user_id)
-                interaction_weights = IntelRepository.get_user_interaction_weights(
-                    user_id, window_days=INTERACTION_WINDOW_DAYS
-                )
-                friend_like_counts = IntelRepository.get_spots_liked_by_friends(
-                    user_id, window_days=INTERACTION_WINDOW_DAYS
-                )
-                user_has_any_interaction = bool(interaction_weights) or IntelRepository.has_any_interaction(user_id)
-            except Exception:
-                logger.warning("rec_engine_interaction_lookup_failed", extra={"user_id": user_id})
-                dismissed_ids = set()
-                interaction_weights = {}
-                friend_like_counts = {}
-                user_has_any_interaction = False
-        category_affinity = self._category_affinity_from_weights(spots, interaction_weights)
+        signals = self._load_user_recommendation_signals(user_id)
+        category_affinity = self._category_affinity_from_weights(spots, signals.interaction_weights)
 
         # Cold start = the user has no signal we can personalize from. We switch
         # to a popularity+quality-heavy profile with aggressive diversity so
@@ -165,7 +149,7 @@ class RecommendationEngine:
         # than collapsing on whatever their default interests happen to share.
         is_cold_start = (
             not liked_spot_ids
-            and not user_has_any_interaction
+            and not signals.has_any_interaction
             and not interests
         )
 
@@ -174,72 +158,20 @@ class RecommendationEngine:
         similarities = similarity_index.model.cosine_similarity(user_vector, similarity_index.matrix)[0]
 
         max_popularity = max((spot.popularity for spot in spots), default=0.0) or 1.0
-        scored: list[_ScoredCandidate] = []
-
-        for index, spot in enumerate(spots):
-            if spot.spot_id in liked_spot_ids or spot.spot_id in dismissed_ids:
-                continue
-
-            text_component = float(similarities[index])
-            collaborative_raw = sum(
-                1
-                for liker in spot.liked_by_users
-                if liker == user_id or liker in liked_spot_likers
-            )
-            # Normalize collab into [0,1] using a soft cap (5 shared likers -> 1.0).
-            collaborative_component = min(collaborative_raw, 5) / 5.0
-            popularity_component = spot.popularity / max_popularity
-            quality_component = max(0.0, (spot.rating - 1.0) / 4.0)  # 1..5 -> 0..1
-            geo_component = location_bonus_by_spot_id.get(spot.spot_id, 0.0)
-            # Friend signal: how many of user's friends engaged with this spot.
-            # Soft-capped so a spot with 50 friend-likes doesn't drown out all
-            # other signals -- 5 is "everyone you know has been here".
-            friend_raw = friend_like_counts.get(spot.spot_id, 0)
-            friend_component = min(friend_raw, FRIEND_SIGNAL_CAP) / float(FRIEND_SIGNAL_CAP)
-
-            # Interaction affinity: direct-spot weight (if user previously
-            # engaged with THIS spot) plus category rollup so a strong "food"
-            # history lifts under-seen food spots.
-            direct_affinity = interaction_weights.get(spot.spot_id, 0.0)
-            cat_affinity = category_affinity.get(spot.category, 0.0)
-            affinity_component = self._normalize_affinity(direct_affinity + 0.5 * cat_affinity)
-
-            if is_cold_start:
-                breakdown = {
-                    "text": round(text_component * COLD_START_TEXT_WEIGHT, 4),
-                    "popularity": round(popularity_component * COLD_START_POPULARITY_WEIGHT, 4),
-                    "quality": round(quality_component * COLD_START_QUALITY_WEIGHT, 4),
-                    "geo": round(geo_component * COLD_START_GEO_WEIGHT, 4),
-                    "friend": round(friend_component * COLD_START_FRIEND_WEIGHT, 4),
-                }
-            else:
-                breakdown = {
-                    "text": round(text_component * TEXT_SIMILARITY_WEIGHT, 4),
-                    "interaction": round(affinity_component * INTERACTION_AFFINITY_WEIGHT, 4),
-                    "friend": round(friend_component * FRIEND_AFFINITY_WEIGHT, 4),
-                    "collab": round(collaborative_component * COLLABORATIVE_WEIGHT, 4),
-                    "geo": round(geo_component * GEO_PROXIMITY_WEIGHT, 4),
-                    "popularity": round(popularity_component * POPULARITY_WEIGHT, 4),
-                    "quality": round(quality_component * QUALITY_WEIGHT, 4),
-                }
-            total_score = round(sum(breakdown.values()), 4)
-            reason = self._build_reason(
-                spot,
-                geo_component,
-                affinity_component,
-                collaborative_component,
-                friend_component,
-                is_cold_start,
-            )
-
-            scored.append(
-                _ScoredCandidate(
-                    spot=spot,
-                    score=total_score,
-                    signal_breakdown=breakdown,
-                    reason=reason,
-                )
-            )
+        scored = self._score_recommendation_candidates(
+            user_id=user_id,
+            spots=spots,
+            liked_spot_ids=liked_spot_ids,
+            dismissed_ids=signals.dismissed_ids,
+            liked_spot_likers=liked_spot_likers,
+            location_bonus_by_spot_id=location_bonus_by_spot_id,
+            category_affinity=category_affinity,
+            interaction_weights=signals.interaction_weights,
+            friend_like_counts=signals.friend_like_counts,
+            is_cold_start=is_cold_start,
+            similarities=similarities,
+            max_popularity=max_popularity,
+        )
 
         # Rank by relevance first, then diversify via MMR if we have enough pool.
         scored.sort(key=lambda c: c.score, reverse=True)
@@ -249,17 +181,7 @@ class RecommendationEngine:
         else:
             ranked = scored[:limit]
 
-        recommendations = [
-            {
-                "spotId": candidate.spot.spot_id,
-                "title": candidate.spot.title,
-                "category": candidate.spot.category,
-                "score": candidate.score,
-                "reason": candidate.reason,
-                "signalBreakdown": candidate.signal_breakdown,
-            }
-            for candidate in ranked
-        ]
+        recommendations = self._recommendation_payloads(ranked)
 
         self._write_audit(user_id, recommendations)
         return recommendations
@@ -303,6 +225,151 @@ class RecommendationEngine:
             )
 
         return sorted(similar, key=lambda item: item["score"], reverse=True)[:limit]
+
+    def _load_user_recommendation_signals(self, user_id: str) -> _UserRecommendationSignals:
+        # Read durable user state only when we're inside a real request. This
+        # preserves direct-construction usage in unit tests that don't spin up
+        # a Flask app context.
+        if not has_app_context() or not user_id:
+            return _UserRecommendationSignals(set(), {}, {}, False)
+
+        try:
+            from app.repositories import IntelRepository
+
+            interaction_weights = IntelRepository.get_user_interaction_weights(
+                user_id, window_days=INTERACTION_WINDOW_DAYS
+            )
+            return _UserRecommendationSignals(
+                dismissed_ids=IntelRepository.get_recently_dismissed_spot_ids(user_id),
+                interaction_weights=interaction_weights,
+                friend_like_counts=IntelRepository.get_spots_liked_by_friends(
+                    user_id, window_days=INTERACTION_WINDOW_DAYS
+                ),
+                has_any_interaction=bool(interaction_weights) or IntelRepository.has_any_interaction(user_id),
+            )
+        except Exception:
+            logger.warning("rec_engine_interaction_lookup_failed", extra={"user_id": user_id})
+            return _UserRecommendationSignals(set(), {}, {}, False)
+
+    def _score_recommendation_candidates(
+        self,
+        *,
+        user_id: str,
+        spots: list[Spot],
+        liked_spot_ids: list[str],
+        dismissed_ids: set[str],
+        liked_spot_likers: set[str],
+        location_bonus_by_spot_id: dict[str, float],
+        category_affinity: dict[str, float],
+        interaction_weights: dict[str, float],
+        friend_like_counts: dict[str, int],
+        is_cold_start: bool,
+        similarities,
+        max_popularity: float,
+    ) -> list[_ScoredCandidate]:
+        excluded_spot_ids = set(liked_spot_ids) | dismissed_ids
+        scored: list[_ScoredCandidate] = []
+        for index, spot in enumerate(spots):
+            if spot.spot_id in excluded_spot_ids:
+                continue
+            scored.append(
+                self._score_recommendation_candidate(
+                    user_id=user_id,
+                    spot=spot,
+                    text_component=float(similarities[index]),
+                    liked_spot_likers=liked_spot_likers,
+                    location_bonus_by_spot_id=location_bonus_by_spot_id,
+                    category_affinity=category_affinity,
+                    interaction_weights=interaction_weights,
+                    friend_like_counts=friend_like_counts,
+                    is_cold_start=is_cold_start,
+                    max_popularity=max_popularity,
+                )
+            )
+        return scored
+
+    def _score_recommendation_candidate(
+        self,
+        *,
+        user_id: str,
+        spot: Spot,
+        text_component: float,
+        liked_spot_likers: set[str],
+        location_bonus_by_spot_id: dict[str, float],
+        category_affinity: dict[str, float],
+        interaction_weights: dict[str, float],
+        friend_like_counts: dict[str, int],
+        is_cold_start: bool,
+        max_popularity: float,
+    ) -> _ScoredCandidate:
+        collaborative_raw = sum(
+            1
+            for liker in spot.liked_by_users
+            if liker == user_id or liker in liked_spot_likers
+        )
+        # Normalize collab into [0,1] using a soft cap (5 shared likers -> 1.0).
+        collaborative_component = min(collaborative_raw, 5) / 5.0
+        popularity_component = spot.popularity / max_popularity
+        quality_component = max(0.0, (spot.rating - 1.0) / 4.0)  # 1..5 -> 0..1
+        geo_component = location_bonus_by_spot_id.get(spot.spot_id, 0.0)
+        # Friend signal: how many of user's friends engaged with this spot.
+        # Soft-capped so a spot with 50 friend-likes doesn't drown out all
+        # other signals -- 5 is "everyone you know has been here".
+        friend_raw = friend_like_counts.get(spot.spot_id, 0)
+        friend_component = min(friend_raw, FRIEND_SIGNAL_CAP) / float(FRIEND_SIGNAL_CAP)
+
+        # Interaction affinity: direct-spot weight (if user previously engaged
+        # with THIS spot) plus category rollup so a strong "food" history lifts
+        # under-seen food spots.
+        direct_affinity = interaction_weights.get(spot.spot_id, 0.0)
+        cat_affinity = category_affinity.get(spot.category, 0.0)
+        affinity_component = self._normalize_affinity(direct_affinity + 0.5 * cat_affinity)
+
+        if is_cold_start:
+            breakdown = {
+                "text": round(text_component * COLD_START_TEXT_WEIGHT, 4),
+                "popularity": round(popularity_component * COLD_START_POPULARITY_WEIGHT, 4),
+                "quality": round(quality_component * COLD_START_QUALITY_WEIGHT, 4),
+                "geo": round(geo_component * COLD_START_GEO_WEIGHT, 4),
+                "friend": round(friend_component * COLD_START_FRIEND_WEIGHT, 4),
+            }
+        else:
+            breakdown = {
+                "text": round(text_component * TEXT_SIMILARITY_WEIGHT, 4),
+                "interaction": round(affinity_component * INTERACTION_AFFINITY_WEIGHT, 4),
+                "friend": round(friend_component * FRIEND_AFFINITY_WEIGHT, 4),
+                "collab": round(collaborative_component * COLLABORATIVE_WEIGHT, 4),
+                "geo": round(geo_component * GEO_PROXIMITY_WEIGHT, 4),
+                "popularity": round(popularity_component * POPULARITY_WEIGHT, 4),
+                "quality": round(quality_component * QUALITY_WEIGHT, 4),
+            }
+        return _ScoredCandidate(
+            spot=spot,
+            score=round(sum(breakdown.values()), 4),
+            signal_breakdown=breakdown,
+            reason=self._build_reason(
+                spot,
+                geo_component,
+                affinity_component,
+                collaborative_component,
+                friend_component,
+                is_cold_start,
+            ),
+        )
+
+    @staticmethod
+    def _recommendation_payloads(candidates: list[_ScoredCandidate]) -> list[dict]:
+        return [
+            {
+                "spotId": candidate.spot.spot_id,
+                "title": candidate.spot.title,
+                "category": candidate.spot.category,
+                "score": candidate.score,
+                "reason": candidate.reason,
+                "signalBreakdown": candidate.signal_breakdown,
+            }
+            for candidate in candidates
+        ]
 
     # -- scoring helpers ------------------------------------------------------
 

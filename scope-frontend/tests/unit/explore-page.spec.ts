@@ -74,8 +74,8 @@ const {
       createdAt: '2026-03-20T16:05:00Z',
       author: {
         id: 'user-3',
-        username: 'elijah',
-        email: 'elijah@example.com',
+        username: 'elijah.brooks',
+        email: 'elijah.brooks@showcase.scope.local',
         displayName: 'Elijah Brooks',
         interests: ['culture'],
       },

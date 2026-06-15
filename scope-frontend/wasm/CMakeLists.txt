@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(SCOPE_WASM_BUILD_NATIVE_LEXER_TESTS "Build the native Scope AI lexer regression test" OFF)
+
 set(SCOPE_WASM_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist")
 file(MAKE_DIRECTORY "${SCOPE_WASM_OUTPUT_DIR}")
 
@@ -42,3 +44,23 @@ set_target_properties(scope_wasm PROPERTIES
   SUFFIX ".js"
   RUNTIME_OUTPUT_DIRECTORY "${SCOPE_WASM_OUTPUT_DIR}"
 )
+
+if(SCOPE_WASM_BUILD_NATIVE_LEXER_TESTS AND NOT EMSCRIPTEN)
+  enable_testing()
+
+  add_executable(scope_wasm_lexer_test
+    tests/scope_ai_lexer_test.cpp
+  )
+  target_include_directories(scope_wasm_lexer_test PRIVATE src)
+  if(MSVC)
+    target_compile_options(scope_wasm_lexer_test PRIVATE /W4 /permissive- /EHsc)
+  else()
+    target_compile_options(scope_wasm_lexer_test PRIVATE
+      -Wall
+      -Wextra
+      -Wpedantic
+    )
+  endif()
+
+  add_test(NAME scope_wasm_lexer_test COMMAND scope_wasm_lexer_test)
+endif()

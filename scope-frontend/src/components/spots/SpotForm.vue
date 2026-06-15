@@ -162,6 +162,17 @@
                 <small v-if="errors.visitedAt" class="field-error">{{ errors.visitedAt }}</small>
               </label>
             </div>
+
+            <label class="contribution-privacy-toggle">
+              <input v-model="form.isAnonymous" type="checkbox" />
+              <span class="contribution-privacy-toggle__switch" aria-hidden="true">
+                <span class="contribution-privacy-toggle__thumb"></span>
+              </span>
+              <span class="contribution-privacy-toggle__copy">
+                <strong>Post contribution anonymously</strong>
+                <small>For existing places, your photos and review hide your public profile.</small>
+              </span>
+            </label>
           </section>
         </div>
 
@@ -530,6 +541,7 @@ function createDefaultForm(initialValue: Partial<SpotFormInput> | null | undefin
     rating: typeof initialValue?.rating === 'number' ? initialValue.rating : 4.5,
     visitedAt: initialValue?.visitedAt ?? todayValue(),
     isPublic: initialValue?.isPublic ?? true,
+    isAnonymous: Boolean(initialValue?.isAnonymous),
     providerPlaceId: initialValue?.providerPlaceId ?? '',
     providerPlaceName: initialValue?.providerPlaceName ?? '',
     providerPlaceAddress: initialValue?.providerPlaceAddress ?? '',
@@ -566,6 +578,7 @@ function hasSameSpotFormValue(left: SpotFormInput, right: SpotFormInput): boolea
     Number(left.rating) === Number(right.rating) &&
     left.visitedAt === right.visitedAt &&
     left.isPublic === right.isPublic &&
+    Boolean(left.isAnonymous) === Boolean(right.isAnonymous) &&
     left.providerPlaceId === right.providerPlaceId &&
     left.providerPlaceName === right.providerPlaceName &&
     left.providerPlaceAddress === right.providerPlaceAddress &&
@@ -591,6 +604,7 @@ function mergeIncomingInitialValueIntoUntouchedFields(previousInitial: SpotFormI
     'rating',
     'visitedAt',
     'isPublic',
+    'isAnonymous',
     'providerPlaceId',
     'providerPlaceName',
     'providerPlaceAddress',
@@ -679,6 +693,7 @@ function normalizeForm(): SpotFormInput {
     rating: Number(form.rating),
     visitedAt: form.visitedAt,
     isPublic: form.isPublic,
+    isAnonymous: Boolean(form.isAnonymous),
     providerPlaceId: form.providerPlaceId,
     providerPlaceName: form.providerPlaceName,
     providerPlaceAddress: form.providerPlaceAddress,
@@ -1836,6 +1851,81 @@ defineExpose({
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7rem;
+}
+
+.contribution-privacy-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-primary) 52%, var(--bg-tertiary));
+  cursor: pointer;
+}
+
+.contribution-privacy-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contribution-privacy-toggle__switch {
+  width: 2.55rem;
+  height: 1.42rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.16rem;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 82%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-tertiary) 78%, transparent);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.contribution-privacy-toggle__thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: var(--radius-full);
+  background: var(--text-secondary);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.contribution-privacy-toggle input:checked + .contribution-privacy-toggle__switch {
+  background: color-mix(in srgb, var(--composer-teal) 28%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--composer-teal) 50%, var(--glass-border));
+}
+
+.contribution-privacy-toggle input:checked + .contribution-privacy-toggle__switch .contribution-privacy-toggle__thumb {
+  transform: translateX(1.08rem);
+  background: var(--composer-teal);
+}
+
+.contribution-privacy-toggle:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--composer-teal) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.contribution-privacy-toggle__copy {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.contribution-privacy-toggle__copy strong,
+.contribution-privacy-toggle__copy small {
+  display: block;
+  line-height: 1.35;
+}
+
+.contribution-privacy-toggle__copy strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+}
+
+.contribution-privacy-toggle__copy small {
+  color: var(--text-secondary);
 }
 
 .field {

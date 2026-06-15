@@ -35,10 +35,10 @@ describe('demo mode fixtures', () => {
 
     const { mockUsers, mockSpots, mockSpotDetails, mockTrips, mockFeed, mockNotifications, mockViewport } = await import('@/services/mockData');
 
-    expect(mockUsers).toHaveLength(8);
-    expect(mockSpots).toHaveLength(24);
-    expect(mockTrips).toHaveLength(4);
-    expect(mockFeed).toHaveLength(24);
+    expect(mockUsers).toHaveLength(18);
+    expect(mockSpots).toHaveLength(72);
+    expect(mockTrips).toHaveLength(12);
+    expect(mockFeed).toHaveLength(80);
     expect(mockNotifications).toHaveLength(10);
     expect(mockUsers[0]).toMatchObject({
       id: 'demo-user-1',

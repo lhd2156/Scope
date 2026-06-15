@@ -155,6 +155,7 @@ function sanitizeVerifySpotPlaceResult(response: ApiEnvelope<VerifySpotPlaceResu
 function buildSpotComposeFormData(submission: SpotFormSubmission): FormData {
   const formData = new FormData();
   formData.append('spot', JSON.stringify(submission.spot));
+  formData.append('isAnonymous', String(Boolean(submission.spot.isAnonymous)));
   submission.newPhotos.forEach((upload, index) => {
     formData.append('photos', upload.file, upload.file.name);
     formData.append('captions', upload.caption || '');
@@ -482,11 +483,12 @@ export async function listSpotReviews(spotId: string): Promise<ApiEnvelope<Revie
 
 export async function createSpotReview(
   spotId: string,
-  payload: { rating: number; comment: string },
+  payload: { rating: number; comment: string; isAnonymous?: boolean },
 ): Promise<ApiEnvelope<Review>> {
   const { data } = await api.post<ApiEnvelope<Review> | Review>(`${REVIEWS_BASE_PATH}/spot/${spotId}`, {
     rating: payload.rating,
     comment: payload.comment,
+    isAnonymous: Boolean(payload.isAnonymous),
   });
 
   return {

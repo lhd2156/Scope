@@ -7,8 +7,11 @@ from rest_framework import serializers
 
 from common.geo import haversine_distance_km
 from common.serializer_utils import copy_with_aliases, normalize_text
+from common.user_profiles import resolve_user_profile
 from photos.delivery import photo_delivery_url
+from reviews.serializers import ReviewSerializer
 from spots.models import Spot
+from spots.querysets import PHOTO_ORDERING
 
 ANNOTATED_PHOTO_FIELDS = ('list_photo_id', 'list_photo_storage_url', 'list_photo_thumbnail_url')
 ANNOTATED_FIELDS_MISSING = object()
@@ -34,6 +37,7 @@ def _annotated_photo_urls(obj):
 
 class SpotSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
     liked = serializers.SerializerMethodField()
     likes_count = serializers.IntegerField(read_only=True)
     average_rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
@@ -61,6 +65,7 @@ class SpotSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'user_id',
+            'author',
             'title',
             'description',
             'latitude',
@@ -103,6 +108,7 @@ class SpotSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'user_id',
+            'author',
             'created_at',
             'updated_at',
             'photo_url',
@@ -207,7 +213,7 @@ class SpotSerializer(serializers.ModelSerializer):
                 is_public=obj.is_public,
                 request=self.context.get('request'),
             ) if photo_id else storage_url
-        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
+        photos = _ordered_prefetched_related(obj, 'photos', PHOTO_ORDERING)
         first = photos[0] if photos else None
         return photo_delivery_url(
             photo_id=first.id,
@@ -219,6 +225,9 @@ class SpotSerializer(serializers.ModelSerializer):
     def get_liked(self, obj) -> bool:
         return bool(getattr(obj, 'liked', False))
 
+    def get_author(self, obj) -> dict:
+        return resolve_user_profile(obj.user_id, request=self.context.get('request'))
+
 
 class SpotDetailSerializer(SpotSerializer):
     photos = serializers.SerializerMethodField()
@@ -228,7 +237,7 @@ class SpotDetailSerializer(SpotSerializer):
         fields = [*SpotSerializer.Meta.fields, 'photos', 'reviews']
 
     def get_photos(self, obj):
-        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
+        photos = _ordered_prefetched_related(obj, 'photos', PHOTO_ORDERING)
         return [
             {
                 'id': str(photo.id),
@@ -239,16 +248,14 @@ class SpotDetailSerializer(SpotSerializer):
                     request=self.context.get('request'),
                 ),
                 'caption': photo.caption,
+                'isAnonymous': getattr(photo, 'is_anonymous', False),
             }
             for photo in photos
         ]
 
     def get_reviews(self, obj):
         reviews = _ordered_prefetched_related(obj, 'reviews', ('-created_at',))
-        return [
-            {'id': str(review.id), 'rating': str(review.rating), 'comment': review.comment, 'userId': str(review.user_id)}
-            for review in reviews[:5]
-        ]
+        return ReviewSerializer(reviews[:5], many=True, context=self.context).data
 
 
 class AppendixBSpotCreateResponseSerializer(serializers.ModelSerializer):
@@ -296,7 +303,7 @@ class AppendixBSpotListItemSerializer(serializers.ModelSerializer):
                 request=self.context.get('request'),
                 variant='thumbnail' if thumbnail_url else 'original',
             ) if photo_id else source_url
-        photos = _ordered_prefetched_related(obj, 'photos', ('sort_order', 'created_at'))
+        photos = _ordered_prefetched_related(obj, 'photos', PHOTO_ORDERING)
         first = photos[0] if photos else None
         if first is None:
             return None

@@ -91,36 +91,19 @@ class PlaceVerificationService:
         return self._failure(reason, candidates=self._public_candidates(ranked_candidates))
 
     def _search_google(self, query: str, lat: float, lng: float) -> list[dict[str, Any]] | None:
-        api_key = (current_app.config.get("GOOGLE_PLACES_API_KEY") or "").strip()
+        api_key = self._google_api_key()
         if not api_key:
             return None
 
-        usage = self._usage_guard.consume(
-            "places_text_search_pro",
-            self._monthly_cap("GOOGLE_PLACES_TEXT_SEARCH_PRO_MONTHLY_CAP", 5000),
-        )
-        if not usage["allowed"]:
+        if not self._consume_google_text_search():
             return []
 
-        base_url = str(current_app.config.get("GOOGLE_PLACES_BASE_URL") or "https://places.googleapis.com/v1").rstrip("/")
+        base_url = self._google_base_url()
         try:
             response = requests.post(
                 f"{base_url}/places:searchText",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Goog-Api-Key": api_key,
-                    "X-Goog-FieldMask": GOOGLE_PLACE_VERIFY_FIELD_MASK,
-                },
-                json={
-                    "textQuery": query,
-                    "maxResultCount": GOOGLE_PLACE_VERIFY_MAX_RESULTS,
-                    "locationBias": {
-                        "circle": {
-                            "center": {"latitude": lat, "longitude": lng},
-                            "radius": GOOGLE_PLACE_VERIFY_SEARCH_RADIUS_METERS,
-                        },
-                    },
-                },
+                headers=self._google_search_headers(api_key),
+                json=self._google_search_payload(query, lat, lng),
                 timeout=5,
             )
             response.raise_for_status()
@@ -136,30 +119,70 @@ class PlaceVerificationService:
         for place in places:
             if not isinstance(place, dict):
                 continue
-            location = place.get("location") if isinstance(place.get("location"), dict) else {}
-            candidate_lat = self._safe_float(location.get("latitude"))
-            candidate_lng = self._safe_float(location.get("longitude"))
-            if candidate_lat is None or candidate_lng is None:
-                continue
-            name = self._normalize_text((place.get("displayName") or {}).get("text") if isinstance(place.get("displayName"), dict) else "", 255)
-            address = self._normalize_text(place.get("formattedAddress"), 500)
-            address_components = place.get("addressComponents") if isinstance(place.get("addressComponents"), list) else []
-            candidates.append(
-                {
-                    "source": "google_places",
-                    "providerPlaceId": self._normalize_text(place.get("id"), 255),
-                    "providerPlaceName": name,
-                    "providerPlaceAddress": address,
-                    "city": self._google_component(address_components, {"locality", "postal_town", "administrative_area_level_3", "administrative_area_level_2"}),
-                    "country": self._google_component(address_components, {"country"}, prefer_short=True),
-                    "postalCode": self._google_component(address_components, {"postal_code"}),
-                    "latitude": candidate_lat,
-                    "longitude": candidate_lng,
-                    "distanceMeters": round(self._distance_meters(lat, lng, candidate_lat, candidate_lng), 1),
-                    "precision": self._google_precision(place),
-                }
-            )
+            candidate = self._google_place_candidate(place, origin_lat=lat, origin_lng=lng)
+            if candidate is not None:
+                candidates.append(candidate)
         return candidates
+
+    @staticmethod
+    def _google_api_key() -> str:
+        return (current_app.config.get("GOOGLE_PLACES_API_KEY") or "").strip()
+
+    @staticmethod
+    def _google_base_url() -> str:
+        return str(current_app.config.get("GOOGLE_PLACES_BASE_URL") or "https://places.googleapis.com/v1").rstrip("/")
+
+    def _consume_google_text_search(self) -> bool:
+        usage = self._usage_guard.consume(
+            "places_text_search_pro",
+            self._monthly_cap("GOOGLE_PLACES_TEXT_SEARCH_PRO_MONTHLY_CAP", 5000),
+        )
+        return bool(usage["allowed"])
+
+    @staticmethod
+    def _google_search_headers(api_key: str) -> dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": GOOGLE_PLACE_VERIFY_FIELD_MASK,
+        }
+
+    @staticmethod
+    def _google_search_payload(query: str, lat: float, lng: float) -> dict[str, Any]:
+        return {
+            "textQuery": query,
+            "maxResultCount": GOOGLE_PLACE_VERIFY_MAX_RESULTS,
+            "locationBias": {
+                "circle": {
+                    "center": {"latitude": lat, "longitude": lng},
+                    "radius": GOOGLE_PLACE_VERIFY_SEARCH_RADIUS_METERS,
+                },
+            },
+        }
+
+    def _google_place_candidate(self, place: dict[str, Any], *, origin_lat: float, origin_lng: float) -> dict[str, Any] | None:
+        location = place.get("location") if isinstance(place.get("location"), dict) else {}
+        candidate_lat = self._safe_float(location.get("latitude"))
+        candidate_lng = self._safe_float(location.get("longitude"))
+        if candidate_lat is None or candidate_lng is None:
+            return None
+
+        name = self._normalize_text((place.get("displayName") or {}).get("text") if isinstance(place.get("displayName"), dict) else "", 255)
+        address = self._normalize_text(place.get("formattedAddress"), 500)
+        address_components = place.get("addressComponents") if isinstance(place.get("addressComponents"), list) else []
+        return {
+            "source": "google_places",
+            "providerPlaceId": self._normalize_text(place.get("id"), 255),
+            "providerPlaceName": name,
+            "providerPlaceAddress": address,
+            "city": self._google_component(address_components, {"locality", "postal_town", "administrative_area_level_3", "administrative_area_level_2"}),
+            "country": self._google_component(address_components, {"country"}, prefer_short=True),
+            "postalCode": self._google_component(address_components, {"postal_code"}),
+            "latitude": candidate_lat,
+            "longitude": candidate_lng,
+            "distanceMeters": round(self._distance_meters(origin_lat, origin_lng, candidate_lat, candidate_lng), 1),
+            "precision": self._google_precision(place),
+        }
 
     def _search_mapbox(self, query: str, lat: float, lng: float) -> list[dict[str, Any]] | None:
         access_token = (current_app.config.get("MAPBOX_ACCESS_TOKEN") or "").strip()

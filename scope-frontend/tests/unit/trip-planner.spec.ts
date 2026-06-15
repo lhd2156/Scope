@@ -1113,6 +1113,88 @@ describe('TripPlanner', () => {
     expect(wrapper.find('[data-test="destination-suggestions"]').exists()).toBe(false);
   });
 
+  it('ignores stale location autocomplete responses after a newer request resolves', async () => {
+    vi.useFakeTimers();
+    let resolveSlowSearch: ((value: { data: unknown[] }) => void) | undefined;
+    let resolveFastSearch: ((value: { data: unknown[] }) => void) | undefined;
+    searchLocationsMock
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveSlowSearch = resolve;
+      }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFastSearch = resolve;
+      }));
+
+    const wrapper = mount(TripPlanner, {
+      props: {
+        initialValue: {
+          ...initialValue,
+          destination: '',
+          destinationLatitude: undefined,
+          destinationLongitude: undefined,
+        },
+        initialTitle: 'Epic Patagonia Trek',
+      },
+    });
+    const input = wrapper.get('[data-test="destination-input"]');
+
+    await input.setValue('Aus');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(searchLocationsMock).toHaveBeenCalledWith('Aus', {
+      limit: 6,
+      proximity: {
+        latitude: 32.7767,
+        longitude: -96.797,
+      },
+    });
+
+    await input.setValue('Austin');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(searchLocationsMock).toHaveBeenLastCalledWith('Austin', {
+      limit: 6,
+      proximity: {
+        latitude: 32.7767,
+        longitude: -96.797,
+      },
+    });
+
+    resolveFastSearch?.({
+      data: [
+        {
+          latitude: 30.2672,
+          longitude: -97.7431,
+          placeName: 'Austin',
+          formattedAddress: 'Austin, Texas, United States',
+          city: 'Austin',
+          country: 'United States',
+          precision: 'city',
+        },
+      ],
+    });
+    await flushPromises();
+    expect(wrapper.get('[data-test="destination-suggestion"]').text()).toContain('Austin, Texas');
+
+    resolveSlowSearch?.({
+      data: [
+        {
+          latitude: 44.3078,
+          longitude: -73.5907,
+          placeName: 'Ausable Chasm',
+          formattedAddress: 'Ausable Chasm, New York, United States',
+          city: 'Ausable Chasm',
+          country: 'United States',
+          precision: 'poi',
+        },
+      ],
+    });
+    await flushPromises();
+
+    const suggestionsText = wrapper.get('[data-test="destination-suggestions"]').text();
+    expect(suggestionsText).toContain('Austin, Texas');
+    expect(suggestionsText).not.toContain('Ausable Chasm');
+    expect(wrapper.findAll('[data-test="destination-suggestion"]')).toHaveLength(1);
+  });
+
   it('surfaces failed place search and closes the suggestion popover after blur', async () => {
     vi.useFakeTimers();
     searchLocationsMock.mockRejectedValue(new Error('places unavailable'));

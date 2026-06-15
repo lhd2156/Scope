@@ -166,7 +166,7 @@
             </div>
           </div>
 
-          <p v-if="reviewErrorMessage" class="review-error" role="alert">{{ reviewErrorMessage }}</p>
+          <p v-if="visibleReviewErrorMessage" class="review-error" role="alert">{{ visibleReviewErrorMessage }}</p>
           <ReviewList :reviews="displayReviews" />
 
           <article class="glass-panel review-form-panel">
@@ -388,6 +388,8 @@ import { SPOT_TRAVEL_CUES } from '@/config/spotTravelCues';
 
 const DESIRED_GALLERY_SIZE = 5;
 const THUMBNAIL_GALLERY_SIZE = DESIRED_GALLERY_SIZE - 1;
+const REVIEW_REFRESH_ERROR_MESSAGE = 'Scope could not refresh live reviews right now.';
+const REVIEW_PUBLISH_ERROR_MESSAGE = 'Scope could not publish that review right now.';
 const regionNameFormatter = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
   ? new Intl.DisplayNames(['en'], { type: 'region' })
   : null;
@@ -567,6 +569,17 @@ const displayReviews = computed(() => applyCurrentUserIdentityToReviews(
   persistedReviews.value.length ? persistedReviews.value : props.spot?.reviews ?? [],
   authStore.currentUser,
 ));
+const visibleReviewErrorMessage = computed(() => {
+  if (!reviewErrorMessage.value) {
+    return '';
+  }
+
+  if (reviewErrorMessage.value === REVIEW_REFRESH_ERROR_MESSAGE && displayReviews.value.length) {
+    return '';
+  }
+
+  return reviewErrorMessage.value;
+});
 const reviewCountLabel = computed(() => {
   const totalReviews = displayReviews.value.length;
   return `${totalReviews} review${totalReviews === 1 ? '' : 's'}`;
@@ -739,11 +752,11 @@ async function loadPersistedReviews(spotId: string): Promise<void> {
     reviewErrorMessage.value = '';
   } catch {
     persistedReviews.value = props.spot?.reviews ?? [];
-    reviewErrorMessage.value = 'Scope could not refresh live reviews right now.';
+    reviewErrorMessage.value = REVIEW_REFRESH_ERROR_MESSAGE;
   }
 }
 
-async function handleReviewSubmit(payload: { rating: number; comment: string }) {
+async function handleReviewSubmit(payload: { rating: number; comment: string; isAnonymous?: boolean }) {
   if (!props.spot) {
     return;
   }
@@ -757,7 +770,7 @@ async function handleReviewSubmit(payload: { rating: number; comment: string }) 
     await spotsStore.fetchSpot(props.spot.id).catch(() => undefined);
     showReviewToast.value = true;
   } catch {
-    reviewErrorMessage.value = 'Scope could not publish that review right now.';
+    reviewErrorMessage.value = REVIEW_PUBLISH_ERROR_MESSAGE;
   } finally {
     submittingReview.value = false;
   }

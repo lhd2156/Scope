@@ -202,77 +202,133 @@ def _jpeg_orientation_value(image) -> int:
         return 1
 
 
-def process_uploaded_image(uploaded_file, size: tuple[int, int] = DEFAULT_THUMBNAIL_SIZE) -> PreparedImageUpload:
+def _read_uploaded_bytes(uploaded_file) -> bytes:
     if hasattr(uploaded_file, 'seek'):
         uploaded_file.seek(0)
     raw_bytes = uploaded_file.read()
     if hasattr(uploaded_file, 'seek'):
         uploaded_file.seek(0)
+    return raw_bytes
 
-    bindings = _native_bindings()
-    detected_format = None
+
+def _detect_uploaded_format(raw_bytes: bytes, bindings: ModuleType | None) -> str | None:
     if bindings is not None:
         try:
-            detected_format = bindings.detect_format(raw_bytes)
+            return bindings.detect_format(raw_bytes)
         except Exception:  # pragma: no cover - graceful degradation path
-            detected_format = None
+            return None
+    return None
 
+
+def _resolve_upload_metadata(uploaded_file, detected_format: str | None) -> tuple[str, str]:
     extension = _resolve_extension(getattr(uploaded_file, 'name', None), detected_format)
     content_type = _resolve_content_type(getattr(uploaded_file, 'content_type', None), detected_format, extension)
+    return extension, content_type
 
-    if Image is None:
-        return PreparedImageUpload(
-            original_bytes=raw_bytes,
-            original_extension=extension,
-            original_content_type=content_type,
-            thumbnail_bytes=raw_bytes,
-            thumbnail_extension=extension,
-            thumbnail_content_type=content_type,
-            detected_format=detected_format,
-            blurhash=None,
-        )
 
+def _raw_upload_payload(
+    raw_bytes: bytes,
+    extension: str,
+    content_type: str,
+    detected_format: str | None,
+) -> PreparedImageUpload:
+    return PreparedImageUpload(
+        original_bytes=raw_bytes,
+        original_extension=extension,
+        original_content_type=content_type,
+        thumbnail_bytes=raw_bytes,
+        thumbnail_extension=extension,
+        thumbnail_content_type=content_type,
+        detected_format=detected_format,
+        blurhash=None,
+    )
+
+
+def _load_working_image(raw_bytes: bytes, uploaded_file, detected_format: str | None):
     with Image.open(BytesIO(raw_bytes)) as source_image:
         detected_format = detected_format or _normalize_format_name(source_image.format)
-        extension = _resolve_extension(getattr(uploaded_file, 'name', None), detected_format)
-        content_type = _resolve_content_type(getattr(uploaded_file, 'content_type', None), detected_format, extension)
+        extension, content_type = _resolve_upload_metadata(uploaded_file, detected_format)
         orientation = _jpeg_orientation_value(source_image)
         working_image = (ImageOps.exif_transpose(source_image) if ImageOps is not None else source_image).copy()
 
-    original_bytes = raw_bytes
-    if detected_format == 'jpeg':
-        if bindings is not None and orientation == 1:
-            try:
-                original_bytes = bindings.strip_exif(raw_bytes)
-            except Exception:  # pragma: no cover - graceful degradation path
-                original_bytes = _save_image_bytes(working_image, 'jpeg')
-        else:
-            original_bytes = _save_image_bytes(working_image, 'jpeg')
-    elif detected_format in {'png', 'webp', 'gif'} and orientation != 1:
-        original_bytes = _save_image_bytes(working_image, detected_format)
+    return detected_format, extension, content_type, orientation, working_image
 
-    if bindings is not None:
+
+def _jpeg_original_bytes(raw_bytes: bytes, working_image, orientation: int, bindings: ModuleType | None) -> bytes:
+    if bindings is not None and orientation == 1:
         try:
-            thumbnail_bytes, thumbnail_extension, thumbnail_content_type = _generate_native_thumbnail(
-                working_image,
-                size,
-                detected_format,
-                bindings,
-            )
+            return bindings.strip_exif(raw_bytes)
         except Exception:  # pragma: no cover - graceful degradation path
-            thumbnail_bytes, thumbnail_extension, thumbnail_content_type = _generate_pillow_thumbnail(
-                working_image,
-                size,
-                detected_format,
-            )
-        blurhash = _encode_blurhash(working_image, bindings)
-    else:
+            return _save_image_bytes(working_image, 'jpeg')
+    return _save_image_bytes(working_image, 'jpeg')
+
+
+def _prepare_original_bytes(
+    raw_bytes: bytes,
+    working_image,
+    detected_format: str | None,
+    orientation: int,
+    bindings: ModuleType | None,
+) -> bytes:
+    if detected_format == 'jpeg':
+        return _jpeg_original_bytes(raw_bytes, working_image, orientation, bindings)
+    if detected_format in {'png', 'webp', 'gif'} and orientation != 1:
+        return _save_image_bytes(working_image, detected_format)
+    return raw_bytes
+
+
+def _generate_image_derivatives(
+    working_image,
+    size: tuple[int, int],
+    detected_format: str | None,
+    bindings: ModuleType | None,
+) -> tuple[bytes, str, str, str | None]:
+    if bindings is None:
         thumbnail_bytes, thumbnail_extension, thumbnail_content_type = _generate_pillow_thumbnail(
             working_image,
             size,
             detected_format,
         )
-        blurhash = None
+        return thumbnail_bytes, thumbnail_extension, thumbnail_content_type, None
+
+    try:
+        thumbnail_bytes, thumbnail_extension, thumbnail_content_type = _generate_native_thumbnail(
+            working_image,
+            size,
+            detected_format,
+            bindings,
+        )
+    except Exception:  # pragma: no cover - graceful degradation path
+        thumbnail_bytes, thumbnail_extension, thumbnail_content_type = _generate_pillow_thumbnail(
+            working_image,
+            size,
+            detected_format,
+        )
+
+    return thumbnail_bytes, thumbnail_extension, thumbnail_content_type, _encode_blurhash(working_image, bindings)
+
+
+def process_uploaded_image(uploaded_file, size: tuple[int, int] = DEFAULT_THUMBNAIL_SIZE) -> PreparedImageUpload:
+    raw_bytes = _read_uploaded_bytes(uploaded_file)
+    bindings = _native_bindings()
+    detected_format = _detect_uploaded_format(raw_bytes, bindings)
+    extension, content_type = _resolve_upload_metadata(uploaded_file, detected_format)
+
+    if Image is None:
+        return _raw_upload_payload(raw_bytes, extension, content_type, detected_format)
+
+    detected_format, extension, content_type, orientation, working_image = _load_working_image(
+        raw_bytes,
+        uploaded_file,
+        detected_format,
+    )
+    original_bytes = _prepare_original_bytes(raw_bytes, working_image, detected_format, orientation, bindings)
+    thumbnail_bytes, thumbnail_extension, thumbnail_content_type, blurhash = _generate_image_derivatives(
+        working_image,
+        size,
+        detected_format,
+        bindings,
+    )
 
     return PreparedImageUpload(
         original_bytes=original_bytes,

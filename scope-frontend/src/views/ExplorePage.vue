@@ -499,25 +499,51 @@ import {
   recordSearchPlaceSuggestionClick,
   type SearchPlaceSuggestion,
 } from '@/services/searchDiscoveryService';
-import type { SearchResult } from '@/services/searchService';
 import { useAuthStore } from '@/stores/auth';
 import { useMapStore } from '@/stores/map';
 import { useSearchStore } from '@/stores/search';
 import { useSpotsStore } from '@/stores/spots';
 import type { SpotCategory, SpotSummary } from '@/types';
 import { getSpotPhotoFallback, resolveSpotPhotoUrl } from '@/utils/imageFallbacks';
-import {
-  formatCityRegionLocation,
-  formatCountryLabel,
-  formatLocationRegionLabel,
-  formatVibeLabel,
-  resolveCityRegionLocation,
-  resolveLocationRegion,
-} from '@/utils/formatters';
+import { formatVibeLabel } from '@/utils/formatters';
 import { isScopeQaMode } from '@/utils/qaMode';
 import { rankTrendingSpots } from '@/utils/spotRanking';
 import { buildSpotPath } from '@/utils/spotRoutes';
 import { toTrustedSanitizedHtml } from '@/utils/trustedHtml';
+import {
+  clampExplorePage,
+  deriveCityFilterOptions,
+  deriveCountryOptions,
+  deriveRegionOptions,
+  deriveVibes,
+  filterCityOptionsByScope,
+  formatAvailableCityCount,
+  formatCategory,
+  formatExplorePaginationStatus,
+  formatLocation,
+  formatRegionLabel,
+  formatTrendingSignal,
+  getExplorePageRange,
+  getHiddenOptionCount,
+  getTotalExplorePages,
+  getVisibleCityOptions,
+  getVisibleCountryOptions,
+  getVisibleExploreVibes,
+  mapSearchResultToSpot,
+  matchesActiveCategoryFilter,
+  matchesActiveVibeFilter,
+  matchesSearch,
+  matchesSelectedCity,
+  matchesSelectedCountry,
+  matchesSelectedRegion,
+  shouldShowExplorePagination,
+  sortExploreSpotsForMode,
+  type CityFilterOption,
+  type CountryOption,
+  type DisplaySpot,
+  type ExploreSortMode,
+  type RegionFilterOption,
+} from '@/views/explorePageHelpers';
 
 const EXPLORE_MOBILE_BREAKPOINT = 640;
 const EXPLORE_GRID_PAGE_SIZE = 9;
@@ -581,161 +607,6 @@ const exploreSearchRecommendationsError = ref<string | null>(null);
 const regionFilterControlRef = ref<HTMLElement | null>(null);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let exploreSearchRecommendationRequestId = 0;
-
-type DisplaySpot = SpotSummary & { searchSnippet?: string };
-type ExploreSortMode = 'community' | 'trending' | 'popular';
-type CountryOption = {
-  value: string;
-  count: number;
-  label: string;
-};
-type CityFilterOption = {
-  key: string;
-  city: string;
-  region: string;
-  country: string;
-  label: string;
-  count: number;
-};
-type RegionFilterOption = {
-  value: string;
-  label: string;
-  count: number;
-};
-
-const LOCATION_SCOPE_SEPARATOR = '::';
-
-function resolveSpotRegion(spot: SpotSummary): string {
-  return resolveLocationRegion(spot, { allowCountryFallback: true }) || 'Global';
-}
-
-function resolveSpotCountry(spot: SpotSummary): string {
-  return resolveCityRegionLocation(spot)?.country || formatCountryLabel(spot.country) || 'Global';
-}
-
-function buildCityFilterKey(city: string, region: string, country: string): string {
-  return `${country}${LOCATION_SCOPE_SEPARATOR}${region}${LOCATION_SCOPE_SEPARATOR}${city}`;
-}
-
-function formatRegionLabel(region: string): string {
-  return formatLocationRegionLabel(region);
-}
-
-function formatCityOptionLabel(city: string, region: string): string {
-  return region ? `${city}, ${formatRegionLabel(region)}` : city;
-}
-
-function formatCategory(category: SpotCategory): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
-}
-
-function formatLocation(spot: SpotSummary): string {
-  return formatCityRegionLocation(spot, 'Location syncing');
-}
-
-function formatTrendingSignal(spot: SpotSummary): string {
-  const likesCount = spot.likesCount ?? 0;
-
-  return likesCount > 0 ? `${likesCount} community saves` : `${formatCategory(spot.category)} pick`;
-}
-
-function getSpotCreatedTime(spot: SpotSummary): number {
-  const timestamp = Date.parse(spot.createdAt);
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function rankPopularSpots<TSpot extends SpotSummary>(spots: TSpot[]): TSpot[] {
-  return [...spots].sort((left, right) => (
-    (right.likesCount ?? 0) - (left.likesCount ?? 0) ||
-    right.rating - left.rating ||
-    getSpotCreatedTime(right) - getSpotCreatedTime(left) ||
-    left.title.localeCompare(right.title) ||
-    left.id.localeCompare(right.id)
-  ));
-}
-
-function sortExploreSpotsForMode(spots: DisplaySpot[], sortMode: ExploreSortMode): DisplaySpot[] {
-  if (sortMode === 'popular') {
-    return rankPopularSpots(spots);
-  }
-
-  // The community mode currently shares the trending ranker until backend signals replace it.
-  return rankTrendingSpots(spots);
-}
-
-function isSpotCategory(value: string | undefined): value is SpotCategory {
-  return Boolean(value && categories.includes(value as SpotCategory));
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function formatSearchHighlight(value: string): string {
-  let isHighlighted = false;
-
-  return value.split(/(<\/?em>)/i).map((part) => {
-    if (/^<em>$/i.test(part)) {
-      isHighlighted = true;
-      return '';
-    }
-
-    if (/^<\/em>$/i.test(part)) {
-      isHighlighted = false;
-      return '';
-    }
-
-    const escapedPart = escapeHtml(part);
-    return isHighlighted ? `<mark>${escapedPart}</mark>` : escapedPart;
-  }).join('');
-}
-
-function resolveSearchSnippet(result: SearchResult): string | undefined {
-  const highlightedSnippet = [
-    result._highlights?.description?.[0],
-    result._highlights?.text?.[0],
-    result._highlights?.name?.[0],
-  ].find((value): value is string => Boolean(value?.trim()));
-
-  if (highlightedSnippet) {
-    return formatSearchHighlight(highlightedSnippet);
-  }
-
-  if (result.description) {
-    return escapeHtml(result.description).slice(0, 160);
-  }
-
-  return undefined;
-}
-
-function mapSearchResultToSpot(result: SearchResult): DisplaySpot {
-  const spot: DisplaySpot = {
-    id: result.id,
-    title: result.name,
-    description: result.description ?? '',
-    latitude: result.location?.lat ?? 0,
-    longitude: result.location?.lon ?? 0,
-    city: result.city ?? '',
-    country: result.country ?? '',
-    category: isSpotCategory(result.category) ? result.category : 'other',
-    rating: result.avg_rating ?? 0,
-    createdAt: new Date(0).toISOString(),
-    likesCount: result.review_count ?? 0,
-    photoUrl: result.photoUrl ?? result.photo_url ?? '',
-  };
-  const searchSnippet = resolveSearchSnippet(result);
-
-  if (searchSnippet) {
-    spot.searchSnippet = searchSnippet;
-  }
-
-  return spot;
-}
 
 const EXPLORE_CARD_IMAGE_WIDTH = 720;
 
@@ -845,8 +716,7 @@ function syncMobileExploreLayout() {
 }
 
 function goToExplorePage(page: number) {
-  const nextPage = Math.min(Math.max(1, page), totalExplorePages.value);
-  exploreCurrentPage.value = nextPage;
+  exploreCurrentPage.value = clampExplorePage(page, totalExplorePages.value);
 }
 
 function clearFilters() {
@@ -929,175 +799,44 @@ function clearLocationFilters() {
   isRegionFilterOpen.value = false;
 }
 
-function matchesSearch(spot: SpotSummary, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  const searchableFields = [
-    spot.title,
-    spot.description,
-    spot.city,
-    spot.country,
-    formatLocation(spot),
-    ...resolveSpotVibes(spot),
-    spot.author?.displayName,
-  ]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .map((value) => value.toLowerCase());
-
-  return searchableFields.some((value) => value.includes(normalizedQuery));
-}
-
-function resolveSpotVibes(spot: SpotSummary): string[] {
-  const values = [spot.vibe, ...(spot.pillars ?? [])]
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value));
-
-  return [...new Set(values)];
-}
-
 const baseSpots = computed(() => spotsStore.items);
 const hasActiveFilters = computed(() =>
   Boolean(searchQuery.value || !allCategoriesSelected.value || selectedCityKey.value || selectedCountry.value || selectedRegion.value || selectedVibe.value),
 );
 
-function matchesActiveCategoryFilter(spot: SpotSummary): boolean {
-  return allCategoriesSelected.value || activeExploreCategories.value.includes(spot.category);
-}
-
-function matchesActiveVibeFilter(spot: SpotSummary): boolean {
-  return !selectedVibe.value || resolveSpotVibes(spot).includes(selectedVibe.value);
-}
-
-function matchesSelectedCountry(spot: SpotSummary): boolean {
-  if (!selectedCountry.value) {
-    return true;
-  }
-
-  return resolveSpotCountry(spot) === selectedCountry.value;
-}
-
-function matchesSelectedCity(spot: SpotSummary): boolean {
-  if (!selectedCityOption.value) {
-    return true;
-  }
-
-  const spotLocation = resolveCityRegionLocation(spot);
-  const locationRegion = spotLocation?.region || resolveSpotRegion(spot);
-  const country = spotLocation?.country || resolveSpotCountry(spot);
-
-  return (
-    spotLocation?.city === selectedCityOption.value.city &&
-    locationRegion === selectedCityOption.value.region &&
-    country === selectedCityOption.value.country
-  );
-}
-
-function matchesSelectedRegion(spot: SpotSummary): boolean {
-  if (!selectedRegion.value) {
-    return true;
-  }
-
-  const spotLocation = resolveCityRegionLocation(spot);
-  const locationRegion = spotLocation?.region || resolveSpotRegion(spot);
-  const country = spotLocation?.country || resolveSpotCountry(spot);
-
-  return locationRegion === selectedRegion.value && (!selectedCountry.value || country === selectedCountry.value);
-}
-
 const locationOptionSourceSpots = computed(() =>
   baseSpots.value.filter((spot) =>
-    matchesActiveCategoryFilter(spot) &&
-    matchesActiveVibeFilter(spot) &&
+    matchesActiveCategoryFilter(spot, allCategoriesSelected.value, activeExploreCategories.value) &&
+    matchesActiveVibeFilter(spot, selectedVibe.value) &&
     matchesSearch(spot, searchQuery.value),
   ),
 );
 
 const vibeOptionSourceSpots = computed(() =>
   baseSpots.value.filter((spot) =>
-    matchesActiveCategoryFilter(spot) &&
-    matchesSelectedCountry(spot) &&
-    matchesSelectedRegion(spot) &&
-    matchesSelectedCity(spot) &&
+    matchesActiveCategoryFilter(spot, allCategoriesSelected.value, activeExploreCategories.value) &&
+    matchesSelectedCountry(spot, selectedCountry.value) &&
+    matchesSelectedRegion(spot, selectedCountry.value, selectedRegion.value) &&
+    matchesSelectedCity(spot, selectedCityOption.value) &&
     matchesSearch(spot, searchQuery.value),
   ),
 );
 
-const availableCityFilterOptions = computed<CityFilterOption[]>(() => {
-  const cities = new Map<string, CityFilterOption>();
-
-  for (const spot of locationOptionSourceSpots.value) {
-    const location = resolveCityRegionLocation(spot);
-    if (!location?.city) continue;
-
-    const city = location.city;
-    const region = location.region || resolveSpotRegion(spot);
-    const country = location.country || resolveSpotCountry(spot);
-    const key = buildCityFilterKey(city, region, country);
-    const existing = cities.get(key);
-
-    if (existing) {
-      existing.count += 1;
-    } else {
-      cities.set(key, {
-        key,
-        city,
-        region,
-        country,
-        label: location.label || formatCityOptionLabel(city, region),
-        count: 1,
-      });
-    }
-  }
-
-  return [...cities.values()].sort(
-    (left, right) => left.city.localeCompare(right.city) || left.region.localeCompare(right.region),
-  );
-});
-
-const availableCountryOptions = computed<CountryOption[]>(() => {
-  const countries = new Map<string, number>();
-
-  for (const option of availableCityFilterOptions.value) {
-    countries.set(option.country, (countries.get(option.country) ?? 0) + option.count);
-  }
-
-  return [...countries.entries()]
-    .map(([country, count]) => ({
-      value: country,
-      label: country,
-      count,
-    }))
-    .sort((left, right) => {
-      const leftWeight = left.value === 'USA' ? 0 : 1;
-      const rightWeight = right.value === 'USA' ? 0 : 1;
-      return leftWeight - rightWeight || left.label.localeCompare(right.label);
-    });
-});
-
-const availableVibes = computed(() =>
-  [...new Set(vibeOptionSourceSpots.value.flatMap((spot) => resolveSpotVibes(spot)))].sort((left, right) =>
-    left.localeCompare(right),
-  ),
-);
+const availableCityFilterOptions = computed<CityFilterOption[]>(() => deriveCityFilterOptions(locationOptionSourceSpots.value));
+const availableCountryOptions = computed<CountryOption[]>(() => deriveCountryOptions(availableCityFilterOptions.value));
+const availableVibes = computed(() => deriveVibes(vibeOptionSourceSpots.value));
 
 const availableExploreVibes = computed(() => (isScopeQaExploreMode ? [...EXPLORE_AUDIT_PREVIEW_VIBES] : availableVibes.value));
-const visibleExploreVibes = computed(() => {
-  if (isVibeFilterExpanded.value) {
-    return availableExploreVibes.value;
-  }
-
-  const visibleVibes = availableExploreVibes.value.slice(0, MAX_VISIBLE_VIBE_FILTERS);
-  if (selectedVibe.value && availableExploreVibes.value.includes(selectedVibe.value) && !visibleVibes.includes(selectedVibe.value)) {
-    return [selectedVibe.value, ...visibleVibes.slice(0, MAX_VISIBLE_VIBE_FILTERS - 1)];
-  }
-
-  return visibleVibes;
-});
+const visibleExploreVibes = computed(() =>
+  getVisibleExploreVibes(
+    availableExploreVibes.value,
+    selectedVibe.value,
+    isVibeFilterExpanded.value,
+    MAX_VISIBLE_VIBE_FILTERS,
+  ),
+);
 const hiddenVibeCount = computed(() =>
-  Math.max(0, availableExploreVibes.value.length - new Set(visibleExploreVibes.value).size),
+  getHiddenOptionCount(availableExploreVibes.value.length, new Set(visibleExploreVibes.value).size),
 );
 const vibeOverflowButtonLabel = computed(() => {
   if (isVibeFilterExpanded.value && availableExploreVibes.value.length > MAX_VISIBLE_VIBE_FILTERS) {
@@ -1131,21 +870,19 @@ const vibeFilterMetaCopy = computed(() => {
 
   return `${vibeCount} ${vibeCount === 1 ? 'vibe' : 'vibes'} available`;
 });
-const visibleCountryOptions = computed(() => {
-  if (isCountryFilterExpanded.value) {
-    return availableCountryOptions.value;
-  }
-
-  const visibleCountries = availableCountryOptions.value.slice(0, MAX_VISIBLE_COUNTRY_FILTERS);
-  const selectedOption = availableCountryOptions.value.find((country) => country.value === selectedCountry.value);
-  if (selectedOption && !visibleCountries.some((country) => country.value === selectedOption.value)) {
-    return [selectedOption, ...visibleCountries.slice(0, MAX_VISIBLE_COUNTRY_FILTERS - 1)];
-  }
-
-  return visibleCountries;
-});
+const visibleCountryOptions = computed(() =>
+  getVisibleCountryOptions(
+    availableCountryOptions.value,
+    selectedCountry.value,
+    isCountryFilterExpanded.value,
+    MAX_VISIBLE_COUNTRY_FILTERS,
+  ),
+);
 const hiddenCountryCount = computed(() =>
-  Math.max(0, availableCountryOptions.value.length - new Set(visibleCountryOptions.value.map((country) => country.value)).size),
+  getHiddenOptionCount(
+    availableCountryOptions.value.length,
+    new Set(visibleCountryOptions.value.map((country) => country.value)).size,
+  ),
 );
 const countryOverflowButtonLabel = computed(() => {
   if (isCountryFilterExpanded.value && availableCountryOptions.value.length > MAX_VISIBLE_COUNTRY_FILTERS) {
@@ -1160,31 +897,24 @@ const countryOverflowButtonAriaLabel = computed(() =>
     : `Show ${hiddenCountryCount.value} more ${hiddenCountryCount.value === 1 ? 'country' : 'countries'}`,
 );
 const filteredExploreCityOptions = computed(() =>
-  selectedCountry.value
-    ? availableCityFilterOptions.value.filter((city) => (
-      city.country === selectedCountry.value &&
-      (!selectedRegion.value || city.region === selectedRegion.value)
-    ))
-    : availableCityFilterOptions.value,
+  filterCityOptionsByScope(availableCityFilterOptions.value, selectedCountry.value, selectedRegion.value),
 );
 const selectedCityOption = computed(() =>
   availableCityFilterOptions.value.find((city) => city.key === selectedCityKey.value) ?? null,
 );
-const visibleExploreCityOptions = computed(() => {
-  if (isCityFilterExpanded.value) {
-    return filteredExploreCityOptions.value;
-  }
-
-  const visibleCities = filteredExploreCityOptions.value.slice(0, MAX_VISIBLE_CITY_FILTERS);
-  const selectedCity = selectedCityOption.value;
-  if (selectedCity && filteredExploreCityOptions.value.some((city) => city.key === selectedCity.key) && !visibleCities.some((city) => city.key === selectedCity.key)) {
-    return [selectedCity, ...visibleCities.slice(0, MAX_VISIBLE_CITY_FILTERS - 1)];
-  }
-
-  return visibleCities;
-});
+const visibleExploreCityOptions = computed(() =>
+  getVisibleCityOptions(
+    filteredExploreCityOptions.value,
+    selectedCityOption.value,
+    isCityFilterExpanded.value,
+    MAX_VISIBLE_CITY_FILTERS,
+  ),
+);
 const hiddenCityCount = computed(() =>
-  Math.max(0, filteredExploreCityOptions.value.length - new Set(visibleExploreCityOptions.value.map((city) => city.key)).size),
+  getHiddenOptionCount(
+    filteredExploreCityOptions.value.length,
+    new Set(visibleExploreCityOptions.value.map((city) => city.key)).size,
+  ),
 );
 const cityOverflowButtonLabel = computed(() => {
   if (isCityFilterExpanded.value && filteredExploreCityOptions.value.length > MAX_VISIBLE_CITY_FILTERS) {
@@ -1199,35 +929,9 @@ const cityOverflowButtonAriaLabel = computed(() =>
     : `Show ${hiddenCityCount.value} more ${hiddenCityCount.value === 1 ? 'city' : 'cities'}`,
 );
 const selectedCountryLabel = computed(() => selectedCountry.value || 'all countries');
-const availableRegionOptions = computed<RegionFilterOption[]>(() => {
-  if (!selectedCountry.value) {
-    return [];
-  }
-
-  const regions = new Map<string, RegionFilterOption>();
-  availableCityFilterOptions.value
-    .filter((city) => (
-      city.country === selectedCountry.value &&
-      city.region &&
-      city.region !== city.country &&
-      city.region !== 'Global'
-    ))
-    .forEach((city) => {
-      const existing = regions.get(city.region);
-      if (existing) {
-        existing.count += 1;
-        return;
-      }
-
-      regions.set(city.region, {
-        value: city.region,
-        label: formatRegionLabel(city.region),
-        count: 1,
-      });
-    });
-
-  return [...regions.values()].sort((left, right) => left.label.localeCompare(right.label));
-});
+const availableRegionOptions = computed<RegionFilterOption[]>(() =>
+  deriveRegionOptions(availableCityFilterOptions.value, selectedCountry.value),
+);
 const hasRegionFilterOptions = computed(() => Boolean(selectedCountry.value && availableRegionOptions.value.length));
 const regionFilterTitle = computed(() => (selectedCountry.value === 'USA' ? 'States' : 'Regions'));
 const regionFilterControlLabel = 'Filter type';
@@ -1244,9 +948,6 @@ const selectedCountryCityCount = computed(() =>
     ? availableCityFilterOptions.value.filter((city) => city.country === selectedCountry.value).length
     : availableCityFilterOptions.value.length,
 );
-function formatAvailableCityCount(count: number): string {
-  return `${count} ${count === 1 ? 'city' : 'cities'} available`;
-}
 
 const regionFilterAllMetaLabel = computed(() => formatAvailableCityCount(selectedCountryCityCount.value));
 
@@ -1279,11 +980,11 @@ const cityFilterMetaCopy = computed(() => {
 const filteredSpots = computed(() =>
   baseSpots.value.filter((spot) => {
     return (
-      matchesActiveCategoryFilter(spot) &&
-      matchesSelectedCountry(spot) &&
-      matchesSelectedRegion(spot) &&
-      matchesSelectedCity(spot) &&
-      matchesActiveVibeFilter(spot) &&
+      matchesActiveCategoryFilter(spot, allCategoriesSelected.value, activeExploreCategories.value) &&
+      matchesSelectedCountry(spot, selectedCountry.value) &&
+      matchesSelectedRegion(spot, selectedCountry.value, selectedRegion.value) &&
+      matchesSelectedCity(spot, selectedCityOption.value) &&
+      matchesActiveVibeFilter(spot, selectedVibe.value) &&
       matchesSearch(spot, searchQuery.value)
     );
   }),
@@ -1293,7 +994,7 @@ const hasElasticSearchResults = computed(() => Boolean(searchQuery.value.trim() 
 
 const rankedExploreSpots = computed<DisplaySpot[]>(() => {
   if (hasElasticSearchResults.value && searchStore.results) {
-    return searchStore.results.results.map(mapSearchResultToSpot);
+    return searchStore.results.results.map((result) => mapSearchResultToSpot(result, categories));
   }
 
   const sortedSpots = sortExploreSpotsForMode(filteredSpots.value, exploreSortMode.value);
@@ -1301,9 +1002,10 @@ const rankedExploreSpots = computed<DisplaySpot[]>(() => {
   return isScopeQaExploreMode ? sortedSpots.slice(0, EXPLORE_AUDIT_RESULT_LIMIT) : sortedSpots;
 });
 
-const totalExplorePages = computed(() => Math.max(1, Math.ceil(rankedExploreSpots.value.length / EXPLORE_GRID_PAGE_SIZE)));
-const explorePageStartIndex = computed(() => (exploreCurrentPage.value - 1) * EXPLORE_GRID_PAGE_SIZE);
-const explorePageEndIndex = computed(() => explorePageStartIndex.value + EXPLORE_GRID_PAGE_SIZE);
+const totalExplorePages = computed(() => getTotalExplorePages(rankedExploreSpots.value.length, EXPLORE_GRID_PAGE_SIZE));
+const explorePageRange = computed(() => getExplorePageRange(exploreCurrentPage.value, EXPLORE_GRID_PAGE_SIZE));
+const explorePageStartIndex = computed(() => explorePageRange.value.startIndex);
+const explorePageEndIndex = computed(() => explorePageRange.value.endIndex);
 
 const displayedSpots = computed<DisplaySpot[]>(() => {
   if (isScopeQaExploreMode) {
@@ -1330,20 +1032,22 @@ const displayedResultCount = computed(() => {
 });
 
 const showExplorePagination = computed(() =>
-  !isScopeQaExploreMode &&
-  !showResultsSkeleton.value &&
-  rankedExploreSpots.value.length > EXPLORE_GRID_PAGE_SIZE,
+  shouldShowExplorePagination(
+    isScopeQaExploreMode,
+    showResultsSkeleton.value,
+    rankedExploreSpots.value.length,
+    EXPLORE_GRID_PAGE_SIZE,
+  ),
 );
 
 const explorePaginationStatus = computed(() => {
-  const totalResults = rankedExploreSpots.value.length;
-  if (!totalResults) {
-    return 'Page 1 of 1';
-  }
-
-  const start = Math.min(totalResults, explorePageStartIndex.value + 1);
-  const end = Math.min(totalResults, explorePageEndIndex.value);
-  return `${start}-${end} of ${totalResults} - Page ${exploreCurrentPage.value} of ${totalExplorePages.value}`;
+  return formatExplorePaginationStatus(
+    rankedExploreSpots.value.length,
+    explorePageStartIndex.value,
+    explorePageEndIndex.value,
+    exploreCurrentPage.value,
+    totalExplorePages.value,
+  );
 });
 
 const exploreGridRankDescription = computed(() => (

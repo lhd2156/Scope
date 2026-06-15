@@ -71,103 +71,170 @@ class FuelPriceService:
         normalized_sort = self._normalize_sort_by(sort_by)
         radius_km = min(max(float(radius_km), 1.0), 50.0)
         limit = min(max(int(limit), 1), 20)
-        api_key = (current_app.config.get("GOOGLE_PLACES_API_KEY") or "").strip()
+        api_key = self._google_places_api_key()
 
         if not api_key:
-            return {
-                "configured": False,
-                "coverage": "Set GOOGLE_PLACES_API_KEY to show nearby gas stations and available fuel prices.",
-                "stations": [],
-                "source": "Google Places",
-            }
+            return self._missing_google_places_key_payload()
 
-        cache_key = f"google:{round(lat, 4)}:{round(lng, 4)}:{radius_km:.1f}:{normalized_fuel_type}:{normalized_sort}:{limit}"
+        cache_key = self._cache_key(lat, lng, radius_km, normalized_fuel_type, normalized_sort, limit)
         cached = self._cache.get(cache_key)
         now = time.time()
         if cached and cached.expires_at > now:
             return cached.payload
 
-        base_url = str(current_app.config.get("GOOGLE_PLACES_BASE_URL") or "https://places.googleapis.com/v1").rstrip("/")
-        usage = self._usage_guard.consume(
+        base_url = self._google_places_base_url()
+        usage = self._consume_nearby_search_usage()
+        if not usage["allowed"]:
+            return self._usage_cap_payload(usage, radius_km, normalized_sort)
+
+        try:
+            body = self._request_google_nearby_search(base_url, api_key, lat, lng, radius_km)
+        except requests.RequestException as exc:
+            return self._google_places_unavailable_payload(self._google_error_message(exc))
+        except ValueError:
+            return self._google_places_unavailable_payload("Google Places returned an unreadable fuel lookup response.")
+
+        stations = self._stations_from_google_places(
+            body.get("places", []),
+            requested_fuel_type=normalized_fuel_type,
+            origin_lat=lat,
+            origin_lng=lng,
+            sort_by=normalized_sort,
+        )
+        payload = self._fuel_lookup_payload(stations[:limit], radius_km, normalized_sort)
+        self._cache_payload(cache_key, now, payload)
+        return payload
+
+    @staticmethod
+    def _google_places_api_key() -> str:
+        return (current_app.config.get("GOOGLE_PLACES_API_KEY") or "").strip()
+
+    @staticmethod
+    def _missing_google_places_key_payload() -> dict[str, Any]:
+        return {
+            "configured": False,
+            "coverage": "Set GOOGLE_PLACES_API_KEY to show nearby gas stations and available fuel prices.",
+            "stations": [],
+            "source": "Google Places",
+        }
+
+    @staticmethod
+    def _cache_key(
+        lat: float,
+        lng: float,
+        radius_km: float,
+        normalized_fuel_type: str,
+        normalized_sort: str,
+        limit: int,
+    ) -> str:
+        return f"google:{round(lat, 4)}:{round(lng, 4)}:{radius_km:.1f}:{normalized_fuel_type}:{normalized_sort}:{limit}"
+
+    @staticmethod
+    def _google_places_base_url() -> str:
+        return str(current_app.config.get("GOOGLE_PLACES_BASE_URL") or "https://places.googleapis.com/v1").rstrip("/")
+
+    def _consume_nearby_search_usage(self) -> dict[str, Any]:
+        return self._usage_guard.consume(
             "places_nearby_search_enterprise_atmosphere",
             self._monthly_cap("GOOGLE_PLACES_NEARBY_SEARCH_ENTERPRISE_ATMOSPHERE_MONTHLY_CAP", 1000),
         )
-        if not usage["allowed"]:
-            return {
-                "configured": True,
-                "coverage": (
-                    "Google Places Nearby Search Enterprise + Atmosphere monthly free usage cap reached "
-                    f"({usage['cap']}/month). Fuel lookup stopped before pay-as-you-go usage."
-                ),
-                "stations": [],
-                "source": "Google Places",
-                "license": "Google Maps Platform",
-                "radiusKm": radius_km,
-                "sortBy": normalized_sort,
-            }
 
-        try:
-            response = requests.post(
-                f"{base_url}/places:searchNearby",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Goog-Api-Key": api_key,
-                    "X-Goog-FieldMask": GOOGLE_PLACES_FIELD_MASK,
-                },
-                json={
-                    "includedTypes": ["gas_station"],
-                    "maxResultCount": GOOGLE_PLACES_MAX_RESULT_COUNT,
-                    "rankPreference": "DISTANCE",
-                    "locationRestriction": {
-                        "circle": {
-                            "center": {
-                                "latitude": lat,
-                                "longitude": lng,
-                            },
-                            "radius": radius_km * 1000,
-                        },
-                    },
-                },
-                timeout=5,
-            )
-            response.raise_for_status()
-            body = response.json()
-        except requests.RequestException as exc:
-            return {
-                "configured": True,
-                "coverage": self._google_error_message(exc),
-                "stations": [],
-                "source": "Google Places",
-            }
-        except ValueError:
-            return {
-                "configured": True,
-                "coverage": "Google Places returned an unreadable fuel lookup response.",
-                "stations": [],
-                "source": "Google Places",
-            }
-
-        places = body.get("places", [])
-        stations = [
-            self._normalize_google_place(place, requested_fuel_type=normalized_fuel_type, origin_lat=lat, origin_lng=lng)
-            for place in places
-            if isinstance(place, dict)
-        ]
-        stations = [station for station in stations if station["latitude"] is not None and station["longitude"] is not None]
-        stations.sort(key=lambda station: self._station_sort_key(station, normalized_sort))
-
-        payload = {
+    @staticmethod
+    def _usage_cap_payload(usage: dict[str, Any], radius_km: float, normalized_sort: str) -> dict[str, Any]:
+        return {
             "configured": True,
-            "coverage": "Google Places gas station coverage with fuel prices where Google has current station data.",
-            "stations": stations[:limit],
+            "coverage": (
+                "Google Places Nearby Search Enterprise + Atmosphere monthly free usage cap reached "
+                f"({usage['cap']}/month). Fuel lookup stopped before pay-as-you-go usage."
+            ),
+            "stations": [],
             "source": "Google Places",
             "license": "Google Maps Platform",
             "radiusKm": radius_km,
             "sortBy": normalized_sort,
         }
+
+    @staticmethod
+    def _request_google_nearby_search(
+        base_url: str,
+        api_key: str,
+        lat: float,
+        lng: float,
+        radius_km: float,
+    ) -> dict[str, Any]:
+        response = requests.post(
+            f"{base_url}/places:searchNearby",
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": GOOGLE_PLACES_FIELD_MASK,
+            },
+            json={
+                "includedTypes": ["gas_station"],
+                "maxResultCount": GOOGLE_PLACES_MAX_RESULT_COUNT,
+                "rankPreference": "DISTANCE",
+                "locationRestriction": {
+                    "circle": {
+                        "center": {
+                            "latitude": lat,
+                            "longitude": lng,
+                        },
+                        "radius": radius_km * 1000,
+                    },
+                },
+            },
+            timeout=5,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def _google_places_unavailable_payload(coverage: str) -> dict[str, Any]:
+        return {
+            "configured": True,
+            "coverage": coverage,
+            "stations": [],
+            "source": "Google Places",
+        }
+
+    def _stations_from_google_places(
+        self,
+        places: list[dict[str, Any]],
+        *,
+        requested_fuel_type: str,
+        origin_lat: float,
+        origin_lng: float,
+        sort_by: str,
+    ) -> list[dict[str, Any]]:
+        stations = [
+            self._normalize_google_place(
+                place,
+                requested_fuel_type=requested_fuel_type,
+                origin_lat=origin_lat,
+                origin_lng=origin_lng,
+            )
+            for place in places
+            if isinstance(place, dict)
+        ]
+        stations = [station for station in stations if station["latitude"] is not None and station["longitude"] is not None]
+        stations.sort(key=lambda station: self._station_sort_key(station, sort_by))
+        return stations
+
+    @staticmethod
+    def _fuel_lookup_payload(stations: list[dict[str, Any]], radius_km: float, normalized_sort: str) -> dict[str, Any]:
+        return {
+            "configured": True,
+            "coverage": "Google Places gas station coverage with fuel prices where Google has current station data.",
+            "stations": stations,
+            "source": "Google Places",
+            "license": "Google Maps Platform",
+            "radiusKm": radius_km,
+            "sortBy": normalized_sort,
+        }
+
+    def _cache_payload(self, cache_key: str, now: float, payload: dict[str, Any]) -> None:
         ttl = int(current_app.config.get("GOOGLE_PLACES_CACHE_SECONDS") or 180)
         self._cache[cache_key] = CachedFuelResult(expires_at=now + ttl, payload=payload)
-        return payload
 
     @staticmethod
     def _normalize_requested_fuel_type(fuel_type: str) -> str:

@@ -3,11 +3,17 @@ import type { ReviewSummary } from '@/types/review';
 import type { AdminPhoto, SpotSummary } from '@/types/spot';
 import type { TripSummary } from '@/types/trip';
 
+function paginationParams(params: PaginatedRequest) {
+  return {
+    page: params.page,
+    page_size: params.pageSize,
+  };
+}
+
 export async function listSpots(params: PaginatedRequest): Promise<PaginatedResult<SpotSummary>> {
   const response = await apiClient.get('/api/content/spots/', {
     params: {
-      page: params.page,
-      page_size: params.pageSize,
+      ...paginationParams(params),
       q: params.search ?? params.q,
       flagged: params.flagged === '' ? undefined : params.flagged,
     },
@@ -32,8 +38,7 @@ export async function featureSpot(id: string, featured: boolean): Promise<SpotSu
 export async function listTrips(params: PaginatedRequest): Promise<PaginatedResult<TripSummary>> {
   const response = await apiClient.get('/api/content/trips/', {
     params: {
-      page: params.page,
-      page_size: params.pageSize,
+      ...paginationParams(params),
       q: params.search ?? params.q,
     },
   });
@@ -43,8 +48,7 @@ export async function listTrips(params: PaginatedRequest): Promise<PaginatedResu
 export async function listReviews(params: PaginatedRequest): Promise<PaginatedResult<ReviewSummary>> {
   const response = await apiClient.get('/api/content/reviews/', {
     params: {
-      page: params.page,
-      page_size: params.pageSize,
+      ...paginationParams(params),
       q: params.search ?? params.q,
       status: params.status,
     },
@@ -64,8 +68,7 @@ export async function deleteReview(id: string): Promise<void> {
 export async function listPhotos(params: PaginatedRequest): Promise<PaginatedResult<AdminPhoto>> {
   const response = await apiClient.get('/api/content/photos/', {
     params: {
-      page: params.page,
-      page_size: params.pageSize,
+      ...paginationParams(params),
       status: params.status,
     },
   });

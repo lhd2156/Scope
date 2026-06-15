@@ -22,6 +22,17 @@ async function expectThemeState(page: Page, themeMode: 'dark' | 'light') {
     .toBe(THEME_COLORS[themeMode]);
 }
 
+async function chooseThemeOption(page: Page, themeMode: 'dark' | 'light') {
+  const option = page.locator(`[data-test="theme-option-${themeMode}"]`);
+  await expect(option).toBeVisible();
+  await option.focus();
+  await expect(option).toBeFocused();
+  await option.press('Enter');
+  await expectThemeState(page, themeMode);
+  await expect(option).toHaveAttribute('aria-pressed', 'true');
+  await expect(option).toHaveClass(/is-active/);
+}
+
 test.describe('Scope theme toggle persistence', () => {
   test('switches between light and dark themes and persists the selected mode', async ({ page, scopeApi }) => {
     await scopeApi.seedSession(page, {
@@ -47,14 +58,13 @@ test.describe('Scope theme toggle persistence', () => {
     await expect(page.locator('[data-test="theme-option-dark"].is-active')).toBeVisible();
     await expect(page.locator('[data-test="theme-option-light"]')).toBeVisible();
 
-    await page.locator('[data-test="theme-option-light"]').click();
-    await expectThemeState(page, 'light');
-    await expect(page.locator('[data-test="theme-option-light"].is-active')).toBeVisible();
+    await chooseThemeOption(page, 'light');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Shape how Scope looks, feels, and shares your story.' })).toBeVisible();
     await expectThemeState(page, 'light');
-    await expect(page.locator('[data-test="theme-option-light"].is-active')).toBeVisible();
+    await expect(page.locator('[data-test="theme-option-light"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-test="theme-option-light"]')).toHaveClass(/is-active/);
 
     await page.goto('/map', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Curate the map by mood' })).toBeVisible();
@@ -67,12 +77,13 @@ test.describe('Scope theme toggle persistence', () => {
       displayName: 'Louis Do',
     });
     await page.goto('/settings', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-test="theme-option-dark"]').click();
-    await expectThemeState(page, 'dark');
-    await expect(page.locator('[data-test="theme-option-dark"].is-active')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Shape how Scope looks, feels, and shares your story.' })).toBeVisible();
+    await expect(page.locator('[data-test="theme-option-light"].is-active')).toBeVisible();
+    await chooseThemeOption(page, 'dark');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expectThemeState(page, 'dark');
-    await expect(page.locator('[data-test="theme-option-dark"].is-active')).toBeVisible();
+    await expect(page.locator('[data-test="theme-option-dark"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-test="theme-option-dark"]')).toHaveClass(/is-active/);
   });
 });

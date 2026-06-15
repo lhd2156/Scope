@@ -515,88 +515,98 @@ def _api_index_text() -> str:
     return "\n".join(lines)
 
 
+def _frontend_routes_index_document() -> dict[str, Any]:
+    return {
+        "id": "frontend:routes:index",
+        "text": _route_index_text(),
+        "metadata": {
+            "source": "app_catalog",
+            "source_type": "frontend_routes_index",
+            "title": "Frontend route index",
+            "path": "/",
+            "catalog_version": CATALOG_VERSION,
+        },
+    }
+
+
+def _frontend_route_document(route: dict[str, str | bool]) -> dict[str, Any]:
+    auth = "requires authentication" if route["auth"] else "is public or guest-accessible"
+    return {
+        "id": f"frontend:route:{route['name']}",
+        "text": f"Frontend route {route['path']} is named {route['name']} and {auth}. {route['description']}",
+        "metadata": {
+            "source": "app_catalog",
+            "source_type": "frontend_route",
+            "title": f"Frontend route {route['path']}",
+            "path": route["path"],
+            "route_name": route["name"],
+            "requires_auth": bool(route["auth"]),
+            "catalog_version": CATALOG_VERSION,
+        },
+    }
+
+
+def _api_endpoints_index_document() -> dict[str, Any]:
+    return {
+        "id": "api:endpoints:index",
+        "text": _api_index_text(),
+        "metadata": {
+            "source": "app_catalog",
+            "source_type": "api_endpoints_index",
+            "title": "API endpoint index",
+            "catalog_version": CATALOG_VERSION,
+        },
+    }
+
+
+def _api_endpoint_document(endpoint: dict[str, str]) -> dict[str, Any]:
+    return {
+        "id": f"api:{endpoint['method']}:{endpoint['path']}",
+        "text": (
+            f"API endpoint {endpoint['method']} {endpoint['path']} belongs to the "
+            f"{endpoint['service']} service. {endpoint['description']}"
+        ),
+        "metadata": {
+            "source": "app_catalog",
+            "source_type": "api_endpoint",
+            "title": f"{endpoint['method']} {endpoint['path']}",
+            "method": endpoint["method"],
+            "path": endpoint["path"],
+            "service": endpoint["service"],
+            "catalog_version": CATALOG_VERSION,
+        },
+    }
+
+
+def _service_document(doc: dict[str, str]) -> dict[str, Any]:
+    return {
+        "id": doc["id"],
+        "text": doc["text"],
+        "metadata": {
+            "source": "app_catalog",
+            "source_type": doc["source_type"],
+            "title": doc["title"],
+            "catalog_version": CATALOG_VERSION,
+        },
+    }
+
+
 @lru_cache(maxsize=1)
 def get_app_knowledge_documents() -> tuple[dict[str, Any], ...]:
     docs: list[dict[str, Any]] = []
 
-    docs.append(
-        {
-            "id": "frontend:routes:index",
-            "text": _route_index_text(),
-            "metadata": {
-                "source": "app_catalog",
-                "source_type": "frontend_routes_index",
-                "title": "Frontend route index",
-                "path": "/",
-                "catalog_version": CATALOG_VERSION,
-            },
-        }
-    )
+    docs.append(_frontend_routes_index_document())
 
     for route in FRONTEND_ROUTES:
-        auth = "requires authentication" if route["auth"] else "is public or guest-accessible"
-        docs.append(
-            {
-                "id": f"frontend:route:{route['name']}",
-                "text": f"Frontend route {route['path']} is named {route['name']} and {auth}. {route['description']}",
-                "metadata": {
-                    "source": "app_catalog",
-                    "source_type": "frontend_route",
-                    "title": f"Frontend route {route['path']}",
-                    "path": route["path"],
-                    "route_name": route["name"],
-                    "requires_auth": bool(route["auth"]),
-                    "catalog_version": CATALOG_VERSION,
-                },
-            }
-        )
+        docs.append(_frontend_route_document(route))
 
-    docs.append(
-        {
-            "id": "api:endpoints:index",
-            "text": _api_index_text(),
-            "metadata": {
-                "source": "app_catalog",
-                "source_type": "api_endpoints_index",
-                "title": "API endpoint index",
-                "catalog_version": CATALOG_VERSION,
-            },
-        }
-    )
+    docs.append(_api_endpoints_index_document())
 
     for endpoint in API_ENDPOINTS:
-        docs.append(
-            {
-                "id": f"api:{endpoint['method']}:{endpoint['path']}",
-                "text": (
-                    f"API endpoint {endpoint['method']} {endpoint['path']} belongs to the "
-                    f"{endpoint['service']} service. {endpoint['description']}"
-                ),
-                "metadata": {
-                    "source": "app_catalog",
-                    "source_type": "api_endpoint",
-                    "title": f"{endpoint['method']} {endpoint['path']}",
-                    "method": endpoint["method"],
-                    "path": endpoint["path"],
-                    "service": endpoint["service"],
-                    "catalog_version": CATALOG_VERSION,
-                },
-            }
-        )
+        docs.append(_api_endpoint_document(endpoint))
 
     for doc in SERVICE_DOCS:
-        docs.append(
-            {
-                "id": doc["id"],
-                "text": doc["text"],
-                "metadata": {
-                    "source": "app_catalog",
-                    "source_type": doc["source_type"],
-                    "title": doc["title"],
-                    "catalog_version": CATALOG_VERSION,
-                },
-            }
-        )
+        docs.append(_service_document(doc))
 
     return tuple(docs)
 

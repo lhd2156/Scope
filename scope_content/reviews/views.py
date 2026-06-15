@@ -62,6 +62,7 @@ def spot_reviews(request, spot_id):
                 'interactionType': 'review',
                 'rating': float(review.rating),
                 'bodyExcerpt': review.comment[:220],
+                'isAnonymous': bool(review.is_anonymous),
                 'sentimentScore': 0.0,
                 'occurredAt': _iso_timestamp(getattr(review, 'created_at', None) or timezone.now()),
             },

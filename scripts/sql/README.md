@@ -17,12 +17,12 @@ app health checks have confirmed Django migrations are in place.
 
 The seed set is intentionally showcase-oriented and cross-linked:
 
-- 8 fictional showcase personas in `core.Users` with `IsShowcase = 1`
+- 18 fictional showcase personas in `core.Users` with `IsShowcase = 1`
 - no accepted seed friendships between showcase personas
-- 24 public place anchors in the Django content tables, with photos, reviews, likes, and trips
-- 4 public trips spanning Texas, US icons, Tokyo/Singapore, and world waterfront/market routes
-- 2 user preference rows, 2 spot feature rows, and 1 cached itinerary in `intel.*`
-- media source metadata in `showcase_media_sources.json`
+- 72 public place anchors in the Django content tables, with photos, reviews, likes, and trips
+- 12 public trips spanning Texas, US icons, regional road trips, national parks, and international city routes
+- 12 user preference rows, 50 spot feature rows, and 5 cached itineraries in `intel.*`
+- media source metadata in `showcase_media_sources.json` and aggregate place context in `showcase_place_profiles.json`
 
 This is enough to support:
 
@@ -35,7 +35,7 @@ This is enough to support:
 
 ## Idempotency
 
-All `002_*_seed_data.sql` scripts are idempotent and use fixed GUIDs with upsert guards, so they can be re-run safely in local development and deployment.
+All `002_*_seed_data.sql` and showcase expansion scripts are idempotent and use fixed GUIDs with upsert guards, so they can be re-run safely in local development and deployment.
 
 ## Example invocation
 

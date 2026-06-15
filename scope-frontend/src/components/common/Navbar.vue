@@ -484,7 +484,7 @@
 
 <script setup lang="ts">
 import { onClickOutside } from '@vueuse/core';
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, useId, watch, type Ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Avatar from '@/components/common/Avatar.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
@@ -511,6 +511,22 @@ const featureLinks = [
   { label: 'New trip', to: '/trips/new', icon: 'plus' },
   { label: 'Friends', to: '/friends', icon: 'friends' },
 ] as const;
+
+type MenuBoundaryPosition = 'first' | 'last';
+type DesktopMenuOpenPosition = MenuBoundaryPosition | 'none';
+type MobileMenuOpenPosition = MenuBoundaryPosition | 'panel';
+
+interface RestoreFocusOptions {
+  restoreFocus?: boolean;
+}
+
+interface DropdownMenuController {
+  isOpen: Ref<boolean>;
+  rootRef: Ref<HTMLElement | null>;
+  buttonRef: Ref<HTMLElement | null>;
+  panelRef: Ref<HTMLElement | null>;
+  closeBeforeOpen: () => void;
+}
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
@@ -556,6 +572,30 @@ const mobileMenuTitleId = `navbar-mobile-menu-title-${useId()}`;
 const bodyOverflowBeforeMobileMenu = ref<string | null>(null);
 let quickSearchRequestId = 0;
 let quickSearchRecommendationRequestId = 0;
+
+const featureMenuController: DropdownMenuController = {
+  isOpen: isFeatureMenuOpen,
+  rootRef: featureMenuRef,
+  buttonRef: featureMenuButtonRef,
+  panelRef: featureMenuPanelRef,
+  closeBeforeOpen: () => {
+    closeQuickSearch();
+    closeMenu();
+    closeMobileMenu();
+  },
+};
+
+const profileMenuController: DropdownMenuController = {
+  isOpen: isMenuOpen,
+  rootRef: menuRef,
+  buttonRef: menuButtonRef,
+  panelRef: menuPanelRef,
+  closeBeforeOpen: () => {
+    closeQuickSearch();
+    closeFeatureMenu();
+    closeMobileMenu();
+  },
+};
 
 interface QuickSearchPlace {
   id: string;
@@ -653,11 +693,49 @@ function syncSearchFromRoute() {
   searchQuery.value = typeof route.query.q === 'string' ? route.query.q : '';
 }
 
-function resetQuickSearchState(): void {
+function startQuickSearchRequest(): number {
   quickSearchRequestId += 1;
+  return quickSearchRequestId;
+}
+
+function isCurrentQuickSearchRequest(requestId: number): boolean {
+  return requestId === quickSearchRequestId;
+}
+
+function startQuickSearchRecommendationRequest(): number {
+  quickSearchRecommendationRequestId += 1;
+  return quickSearchRecommendationRequestId;
+}
+
+function isCurrentQuickSearchRecommendationRequest(requestId: number): boolean {
+  return requestId === quickSearchRecommendationRequestId;
+}
+
+function resetQuickSearchState(): void {
+  startQuickSearchRequest();
   quickSearchResults.value = [];
   quickSearchLoading.value = false;
   quickSearchError.value = null;
+}
+
+function resetQuickSearchRecommendationsState(): void {
+  startQuickSearchRecommendationRequest();
+  quickSearchRecommendations.value = [];
+  quickSearchRecommendationsLoading.value = false;
+  quickSearchRecommendationsError.value = null;
+}
+
+function shouldLoadQuickSearchRecommendations(options: { force?: boolean } = {}): boolean {
+  return Boolean(options.force) || (
+    !quickSearchRecommendations.value.length &&
+    !quickSearchRecommendationsLoading.value
+  );
+}
+
+function queueQuickSearchRecommendations(options: { force?: boolean } = {}): void {
+  if (shouldLoadQuickSearchRecommendations(options)) {
+    void loadQuickSearchRecommendations(options);
+  }
 }
 
 function closeQuickSearch(): void {
@@ -668,7 +746,7 @@ function handleQuickSearchFocus(): void {
   isQuickSearchOpen.value = true;
 
   if (!hasQuickSearchQuery.value) {
-    void loadQuickSearchRecommendations();
+    queueQuickSearchRecommendations();
   }
 }
 
@@ -891,12 +969,11 @@ function formatQuickSearchResultMeta(result: SearchResult | QuickSearchPlace): s
 }
 
 async function loadQuickSearchRecommendations(options: { force?: boolean } = {}): Promise<void> {
-  if (!options.force && (quickSearchRecommendations.value.length || quickSearchRecommendationsLoading.value)) {
+  if (!shouldLoadQuickSearchRecommendations(options)) {
     return;
   }
 
-  const requestId = quickSearchRecommendationRequestId + 1;
-  quickSearchRecommendationRequestId = requestId;
+  const requestId = startQuickSearchRecommendationRequest();
   quickSearchRecommendationsLoading.value = true;
   quickSearchRecommendationsError.value = null;
 
@@ -907,20 +984,20 @@ async function loadQuickSearchRecommendations(options: { force?: boolean } = {})
       limit: QUICK_SEARCH_RECOMMENDATION_LIMIT,
     });
 
-    if (requestId !== quickSearchRecommendationRequestId) {
+    if (!isCurrentQuickSearchRecommendationRequest(requestId)) {
       return;
     }
 
     quickSearchRecommendations.value = recommendations;
   } catch {
-    if (requestId !== quickSearchRecommendationRequestId) {
+    if (!isCurrentQuickSearchRecommendationRequest(requestId)) {
       return;
     }
 
     quickSearchRecommendations.value = [];
     quickSearchRecommendationsError.value = 'Recommended places are temporarily unavailable.';
   } finally {
-    if (requestId === quickSearchRecommendationRequestId) {
+    if (isCurrentQuickSearchRecommendationRequest(requestId)) {
       quickSearchRecommendationsLoading.value = false;
     }
   }
@@ -959,24 +1036,24 @@ function updateScrollState(): void {
   isScrolled.value = window.scrollY > 24;
 }
 
-function getFeatureMenuItems(): HTMLElement[] {
-  if (!featureMenuPanelRef.value) {
+function getDropdownMenuItems(menu: DropdownMenuController): HTMLElement[] {
+  if (!menu.panelRef.value) {
     return [];
   }
 
-  return Array.from(featureMenuPanelRef.value.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  return Array.from(menu.panelRef.value.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+}
+
+function getFeatureMenuItems(): HTMLElement[] {
+  return getDropdownMenuItems(featureMenuController);
 }
 
 function getMenuItems(): HTMLElement[] {
-  if (!menuPanelRef.value) {
-    return [];
-  }
-
-  return Array.from(menuPanelRef.value.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  return getDropdownMenuItems(profileMenuController);
 }
 
-function focusFeatureMenuBoundary(position: 'first' | 'last'): void {
-  const menuItems = getFeatureMenuItems();
+function focusDropdownMenuBoundary(menu: DropdownMenuController, position: MenuBoundaryPosition): void {
+  const menuItems = getDropdownMenuItems(menu);
   const focusTarget = position === 'first' ? menuItems[0] : menuItems[menuItems.length - 1];
 
   if (focusTarget) {
@@ -984,22 +1061,18 @@ function focusFeatureMenuBoundary(position: 'first' | 'last'): void {
     return;
   }
 
-  featureMenuPanelRef.value?.focus();
+  menu.panelRef.value?.focus();
 }
 
-function focusMenuBoundary(position: 'first' | 'last'): void {
-  const menuItems = getMenuItems();
-  const focusTarget = position === 'first' ? menuItems[0] : menuItems[menuItems.length - 1];
-
-  if (focusTarget) {
-    focusTarget.focus();
-    return;
-  }
-
-  menuPanelRef.value?.focus();
+function focusFeatureMenuBoundary(position: MenuBoundaryPosition): void {
+  focusDropdownMenuBoundary(featureMenuController, position);
 }
 
-function focusMobileDrawerBoundary(position: 'first' | 'last'): void {
+function focusMenuBoundary(position: MenuBoundaryPosition): void {
+  focusDropdownMenuBoundary(profileMenuController, position);
+}
+
+function focusMobileDrawerBoundary(position: MenuBoundaryPosition): void {
   const focusMoved = position === 'first'
     ? focusFirstElement(mobileDrawerRef.value)
     : focusLastElement(mobileDrawerRef.value);
@@ -1009,35 +1082,27 @@ function focusMobileDrawerBoundary(position: 'first' | 'last'): void {
   }
 }
 
-async function openFeatureMenu(position: 'none' | 'first' | 'last' = 'none'): Promise<void> {
-  if (!isFeatureMenuOpen.value) {
-    closeQuickSearch();
-    closeMenu();
-    closeMobileMenu();
-    isFeatureMenuOpen.value = true;
+async function openDropdownMenu(menu: DropdownMenuController, position: DesktopMenuOpenPosition = 'none'): Promise<void> {
+  if (!menu.isOpen.value) {
+    menu.closeBeforeOpen();
+    menu.isOpen.value = true;
     await nextTick();
   }
 
-  if (position === 'first' || position === 'last') {
-    focusFeatureMenuBoundary(position);
+  if (position !== 'none') {
+    focusDropdownMenuBoundary(menu, position);
   }
 }
 
-async function openMenu(position: 'none' | 'first' | 'last' = 'none'): Promise<void> {
-  if (!isMenuOpen.value) {
-    closeQuickSearch();
-    closeFeatureMenu();
-    closeMobileMenu();
-    isMenuOpen.value = true;
-    await nextTick();
-  }
-
-  if (position === 'first' || position === 'last') {
-    focusMenuBoundary(position);
-  }
+async function openFeatureMenu(position: DesktopMenuOpenPosition = 'none'): Promise<void> {
+  await openDropdownMenu(featureMenuController, position);
 }
 
-async function openMobileMenu(position: 'panel' | 'first' | 'last' = 'first'): Promise<void> {
+async function openMenu(position: DesktopMenuOpenPosition = 'none'): Promise<void> {
+  await openDropdownMenu(profileMenuController, position);
+}
+
+async function openMobileMenu(position: MobileMenuOpenPosition = 'first'): Promise<void> {
   if (!isMobileMenuOpen.value) {
     closeQuickSearch();
     closeFeatureMenu();
@@ -1054,35 +1119,29 @@ async function openMobileMenu(position: 'panel' | 'first' | 'last' = 'first'): P
   focusMobileDrawerBoundary(position);
 }
 
-function closeMenu(options: { restoreFocus?: boolean } = {}) {
-  if (!isMenuOpen.value) {
+function closeDropdownMenu(menu: DropdownMenuController, options: RestoreFocusOptions = {}): void {
+  if (!menu.isOpen.value) {
     return;
   }
 
-  isMenuOpen.value = false;
+  menu.isOpen.value = false;
 
   if (options.restoreFocus) {
     void nextTick(() => {
-      menuButtonRef.value?.focus();
+      menu.buttonRef.value?.focus();
     });
   }
 }
 
-function closeFeatureMenu(options: { restoreFocus?: boolean } = {}) {
-  if (!isFeatureMenuOpen.value) {
-    return;
-  }
-
-  isFeatureMenuOpen.value = false;
-
-  if (options.restoreFocus) {
-    void nextTick(() => {
-      featureMenuButtonRef.value?.focus();
-    });
-  }
+function closeMenu(options: RestoreFocusOptions = {}): void {
+  closeDropdownMenu(profileMenuController, options);
 }
 
-function closeMobileMenu(options: { restoreFocus?: boolean } = {}) {
+function closeFeatureMenu(options: RestoreFocusOptions = {}): void {
+  closeDropdownMenu(featureMenuController, options);
+}
+
+function closeMobileMenu(options: RestoreFocusOptions = {}): void {
   if (!isMobileMenuOpen.value) {
     return;
   }
@@ -1096,25 +1155,24 @@ function closeMobileMenu(options: { restoreFocus?: boolean } = {}) {
   }
 }
 
-function toggleFeatureMenu() {
-  if (isFeatureMenuOpen.value) {
-    closeFeatureMenu();
+function toggleDropdownMenu(menu: DropdownMenuController): void {
+  if (menu.isOpen.value) {
+    closeDropdownMenu(menu);
     return;
   }
 
-  void openFeatureMenu('first');
+  void openDropdownMenu(menu, 'first');
 }
 
-function toggleMenu() {
-  if (isMenuOpen.value) {
-    closeMenu();
-    return;
-  }
-
-  void openMenu('first');
+function toggleFeatureMenu(): void {
+  toggleDropdownMenu(featureMenuController);
 }
 
-function toggleMobileMenu() {
+function toggleMenu(): void {
+  toggleDropdownMenu(profileMenuController);
+}
+
+function toggleMobileMenu(): void {
   if (isMobileMenuOpen.value) {
     closeMobileMenu({ restoreFocus: true });
     return;
@@ -1123,148 +1181,100 @@ function toggleMobileMenu() {
   void openMobileMenu();
 }
 
-function handleFeatureMenuButtonKeydown(event: KeyboardEvent): void {
+function handleDropdownMenuButtonKeydown(event: KeyboardEvent, menu: DropdownMenuController): void {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault();
-      void openFeatureMenu('first');
+      void openDropdownMenu(menu, 'first');
       break;
     case 'ArrowUp':
       event.preventDefault();
-      void openFeatureMenu('last');
+      void openDropdownMenu(menu, 'last');
       break;
     case 'Enter':
     case ' ':
-      if (!isFeatureMenuOpen.value) {
+      if (!menu.isOpen.value) {
         event.preventDefault();
-        void openFeatureMenu('first');
+        void openDropdownMenu(menu, 'first');
       }
       break;
     case 'Escape':
-      if (isFeatureMenuOpen.value) {
+      if (menu.isOpen.value) {
         event.preventDefault();
-        closeFeatureMenu({ restoreFocus: true });
+        closeDropdownMenu(menu, { restoreFocus: true });
       }
       break;
     default:
       break;
   }
+}
+
+function handleFeatureMenuButtonKeydown(event: KeyboardEvent): void {
+  handleDropdownMenuButtonKeydown(event, featureMenuController);
 }
 
 function handleMenuButtonKeydown(event: KeyboardEvent): void {
-  switch (event.key) {
-    case 'ArrowDown':
-      event.preventDefault();
-      void openMenu('first');
-      break;
-    case 'ArrowUp':
-      event.preventDefault();
-      void openMenu('last');
-      break;
-    case 'Enter':
-    case ' ':
-      if (!isMenuOpen.value) {
-        event.preventDefault();
-        void openMenu('first');
-      }
-      break;
-    case 'Escape':
-      if (isMenuOpen.value) {
-        event.preventDefault();
-        closeMenu({ restoreFocus: true });
-      }
-      break;
-    default:
-      break;
+  handleDropdownMenuButtonKeydown(event, profileMenuController);
+}
+
+function moveDropdownMenuFocus(menu: DropdownMenuController, direction: 1 | -1): void {
+  const menuItems = getDropdownMenuItems(menu);
+
+  if (!menuItems.length) {
+    menu.panelRef.value?.focus();
+    return;
   }
+
+  const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+  const currentIndex = menuItems.findIndex((menuItem) => menuItem === activeElement);
+  const nextIndex = currentIndex === -1
+    ? direction === 1 ? 0 : menuItems.length - 1
+    : (currentIndex + direction + menuItems.length) % menuItems.length;
+
+  menuItems[nextIndex]?.focus();
 }
 
 function moveFeatureMenuFocus(direction: 1 | -1): void {
-  const menuItems = getFeatureMenuItems();
-
-  if (!menuItems.length) {
-    featureMenuPanelRef.value?.focus();
-    return;
-  }
-
-  const activeElement = typeof document === 'undefined' ? null : document.activeElement;
-  const currentIndex = menuItems.findIndex((menuItem) => menuItem === activeElement);
-  const nextIndex = currentIndex === -1
-    ? direction === 1 ? 0 : menuItems.length - 1
-    : (currentIndex + direction + menuItems.length) % menuItems.length;
-
-  menuItems[nextIndex]?.focus();
+  moveDropdownMenuFocus(featureMenuController, direction);
 }
 
 function moveMenuFocus(direction: 1 | -1): void {
-  const menuItems = getMenuItems();
+  moveDropdownMenuFocus(profileMenuController, direction);
+}
 
-  if (!menuItems.length) {
-    menuPanelRef.value?.focus();
-    return;
+function handleDropdownMenuKeydown(event: KeyboardEvent, menu: DropdownMenuController): void {
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      moveDropdownMenuFocus(menu, 1);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      moveDropdownMenuFocus(menu, -1);
+      break;
+    case 'Home':
+      event.preventDefault();
+      focusDropdownMenuBoundary(menu, 'first');
+      break;
+    case 'End':
+      event.preventDefault();
+      focusDropdownMenuBoundary(menu, 'last');
+      break;
+    case 'Escape':
+      event.preventDefault();
+      closeDropdownMenu(menu, { restoreFocus: true });
+      break;
+    default:
+      break;
   }
-
-  const activeElement = typeof document === 'undefined' ? null : document.activeElement;
-  const currentIndex = menuItems.findIndex((menuItem) => menuItem === activeElement);
-  const nextIndex = currentIndex === -1
-    ? direction === 1 ? 0 : menuItems.length - 1
-    : (currentIndex + direction + menuItems.length) % menuItems.length;
-
-  menuItems[nextIndex]?.focus();
 }
 
 function handleFeatureMenuKeydown(event: KeyboardEvent): void {
-  switch (event.key) {
-    case 'ArrowDown':
-      event.preventDefault();
-      moveFeatureMenuFocus(1);
-      break;
-    case 'ArrowUp':
-      event.preventDefault();
-      moveFeatureMenuFocus(-1);
-      break;
-    case 'Home':
-      event.preventDefault();
-      focusFeatureMenuBoundary('first');
-      break;
-    case 'End':
-      event.preventDefault();
-      focusFeatureMenuBoundary('last');
-      break;
-    case 'Escape':
-      event.preventDefault();
-      closeFeatureMenu({ restoreFocus: true });
-      break;
-    default:
-      break;
-  }
+  handleDropdownMenuKeydown(event, featureMenuController);
 }
 
 function handleMenuKeydown(event: KeyboardEvent): void {
-  switch (event.key) {
-    case 'ArrowDown':
-      event.preventDefault();
-      moveMenuFocus(1);
-      break;
-    case 'ArrowUp':
-      event.preventDefault();
-      moveMenuFocus(-1);
-      break;
-    case 'Home':
-      event.preventDefault();
-      focusMenuBoundary('first');
-      break;
-    case 'End':
-      event.preventDefault();
-      focusMenuBoundary('last');
-      break;
-    case 'Escape':
-      event.preventDefault();
-      closeMenu({ restoreFocus: true });
-      break;
-    default:
-      break;
-  }
+  handleDropdownMenuKeydown(event, profileMenuController);
 }
 
 function handleMobileDrawerKeydown(event: KeyboardEvent): void {
@@ -1323,24 +1333,22 @@ function handleMobileDrawerKeydown(event: KeyboardEvent): void {
   }
 }
 
-function handleFeatureMenuFocusOut(event: FocusEvent): void {
+function handleDropdownMenuFocusOut(event: FocusEvent, menu: DropdownMenuController): void {
   const nextTarget = event.relatedTarget;
 
-  if (nextTarget instanceof Node && featureMenuRef.value?.contains(nextTarget)) {
+  if (nextTarget instanceof Node && menu.rootRef.value?.contains(nextTarget)) {
     return;
   }
 
-  closeFeatureMenu();
+  closeDropdownMenu(menu);
+}
+
+function handleFeatureMenuFocusOut(event: FocusEvent): void {
+  handleDropdownMenuFocusOut(event, featureMenuController);
 }
 
 function handleMenuFocusOut(event: FocusEvent): void {
-  const nextTarget = event.relatedTarget;
-
-  if (nextTarget instanceof Node && menuRef.value?.contains(nextTarget)) {
-    return;
-  }
-
-  closeMenu();
+  handleDropdownMenuFocusOut(event, profileMenuController);
 }
 
 function handleGlobalMenuKeydown(event: KeyboardEvent): void {
@@ -1425,37 +1433,34 @@ async function handleSearch(query: string): Promise<void> {
   if (!normalizedQuery) {
     resetQuickSearchState();
     isQuickSearchOpen.value = true;
-    void loadQuickSearchRecommendations();
+    queueQuickSearchRecommendations();
     return;
   }
 
-  const requestId = quickSearchRequestId + 1;
-  quickSearchRequestId = requestId;
+  const requestId = startQuickSearchRequest();
   isQuickSearchOpen.value = true;
   quickSearchLoading.value = true;
   quickSearchError.value = null;
 
-  if (!quickSearchRecommendations.value.length && !quickSearchRecommendationsLoading.value) {
-    void loadQuickSearchRecommendations();
-  }
+  queueQuickSearchRecommendations();
 
   try {
     const response = await searchContent(normalizedQuery, 'spots', QUICK_SEARCH_RESULT_LIMIT, 0);
 
-    if (requestId !== quickSearchRequestId) {
+    if (!isCurrentQuickSearchRequest(requestId)) {
       return;
     }
 
     quickSearchResults.value = response.results.slice(0, QUICK_SEARCH_RESULT_LIMIT);
   } catch {
-    if (requestId !== quickSearchRequestId) {
+    if (!isCurrentQuickSearchRequest(requestId)) {
       return;
     }
 
     quickSearchResults.value = [];
     quickSearchError.value = 'Scope Trips could not load quick search right now.';
   } finally {
-    if (requestId === quickSearchRequestId) {
+    if (isCurrentQuickSearchRequest(requestId)) {
       quickSearchLoading.value = false;
     }
   }
@@ -1567,13 +1572,10 @@ watch(
     authStore.currentUser?.interests?.join('|') ?? '',
   ] as const,
   () => {
-    quickSearchRecommendationRequestId += 1;
-    quickSearchRecommendations.value = [];
-    quickSearchRecommendationsLoading.value = false;
-    quickSearchRecommendationsError.value = null;
+    resetQuickSearchRecommendationsState();
 
     if (isQuickSearchOpen.value && !hasQuickSearchQuery.value) {
-      void loadQuickSearchRecommendations({ force: true });
+      queueQuickSearchRecommendations({ force: true });
     }
   },
 );

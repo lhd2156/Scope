@@ -97,16 +97,25 @@ func (d *Dispatcher) Process(ctx context.Context, evaluatedAlerts []EvaluatedAle
 		Alerts:         payloadAlerts,
 	}
 
+	if err := d.sendWebhook(ctx, payload); err != nil {
+		result.Error = err.Error()
+		return result
+	}
+
+	result.Delivered = true
+	d.markSent(payloadAlerts, now)
+	return result
+}
+
+func (d *Dispatcher) sendWebhook(ctx context.Context, payload WebhookPayload) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		result.Error = fmt.Sprintf("marshal webhook payload: %v", err)
-		return result
+		return fmt.Errorf("marshal webhook payload: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, d.config.WebhookURL, bytes.NewReader(body))
 	if err != nil {
-		result.Error = fmt.Sprintf("build webhook request: %v", err)
-		return result
+		return fmt.Errorf("build webhook request: %w", err)
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -116,20 +125,16 @@ func (d *Dispatcher) Process(ctx context.Context, evaluatedAlerts []EvaluatedAle
 
 	response, err := d.httpClient.Do(request)
 	if err != nil {
-		result.Error = fmt.Sprintf("send webhook request: %v", err)
-		return result
+		return fmt.Errorf("send webhook request: %w", err)
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, response.Body)
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		result.Error = fmt.Sprintf("webhook returned status %d", response.StatusCode)
-		return result
+		return fmt.Errorf("webhook returned status %d", response.StatusCode)
 	}
 
-	result.Delivered = true
-	d.markSent(payloadAlerts, now)
-	return result
+	return nil
 }
 
 func (d *Dispatcher) buildTransitions(evaluatedAlerts []EvaluatedAlert, now time.Time, force bool) ([]WebhookAlert, []WebhookAlert) {

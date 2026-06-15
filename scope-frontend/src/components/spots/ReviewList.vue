@@ -8,7 +8,8 @@
           </span>
           <div class="review-author__copy">
             <strong>{{ review.user.displayName }}</strong>
-            <p class="review-author__handle">@{{ review.user.username }}</p>
+            <p v-if="review.isAnonymous" class="review-author__handle">Anonymous contribution</p>
+            <p v-else class="review-author__handle">@{{ review.user.username }}</p>
             <p class="review-timestamp">
               <time
                 :datetime="review.createdAt"
@@ -22,7 +23,6 @@
         </div>
 
         <div class="review-meta">
-          <ReviewSentiment :score="review.sentiment_score" />
           <div class="review-rating" :aria-label="`Rated ${review.rating.toFixed(1)} out of 5`">
             <StarRatingDisplay
               :rating="review.rating"
@@ -49,7 +49,6 @@
 import { computed, ref, watch } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import StarRatingDisplay from '@/components/common/StarRatingDisplay.vue';
-import ReviewSentiment from '@/components/spots/ReviewSentiment.vue';
 import { getUserProfile } from '@/services/userService';
 import { useAuthStore } from '@/stores/auth';
 import { formatMonthDayYear, formatPostTimestamp } from '@/utils/formatters';
@@ -80,7 +79,9 @@ function shouldHydrateReviewer(review: Review): boolean {
   const userId = review.user?.id?.trim();
   return Boolean(
     authStore.isAuthenticated
+    && !review.isAnonymous
     && userId
+    && userId.toLowerCase() !== 'anonymous'
     && uuidLikePattern.test(userId)
     && isGeneratedReviewerName(review.user?.displayName)
     && !hydratedReviewers.value[userId]
@@ -185,15 +186,18 @@ function formatReviewComment(comment: string): string {
   display: grid;
   justify-items: end;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .review-header {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-5);
+  min-height: 5.75rem;
   padding-bottom: var(--space-4);
   margin-bottom: var(--space-1);
   border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 92%, var(--accent-gold) 8%);
+  box-sizing: border-box;
 }
 
 .review-author {
@@ -223,6 +227,13 @@ function formatReviewComment(comment: string): string {
   display: grid;
   gap: 0.12rem;
   min-width: 0;
+}
+
+.review-author__handle,
+.review-timestamp {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-author__handle {
@@ -280,6 +291,7 @@ function formatReviewComment(comment: string): string {
   color: var(--text-primary);
   font-size: 1.02rem;
   letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
 .review-comment,
@@ -332,6 +344,7 @@ function formatReviewComment(comment: string): string {
 @media (max-width: 720px) {
   .review-header {
     flex-direction: column;
+    min-height: 0;
   }
 
   .review-meta {

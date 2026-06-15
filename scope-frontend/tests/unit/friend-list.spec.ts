@@ -17,7 +17,7 @@ describe('FriendList', () => {
       {
         id: 'friend-2',
         displayName: 'Elijah Brooks',
-        username: 'elijah',
+        username: 'elijah.brooks',
         homeBase: 'Austin, TX',
         presence: 'planning',
         mutualFriends: 12,

@@ -35,6 +35,11 @@ function searchUsers() {
   void loadUsers();
 }
 
+function changePage(offset: number) {
+  page.value += offset;
+  void loadUsers();
+}
+
 onMounted(loadUsers);
 </script>
 
@@ -86,21 +91,11 @@ onMounted(loadUsers);
           class="btn secondary"
           type="button"
           :disabled="page === 1"
-          @click="
-            page--;
-            loadUsers();
-          "
+          @click="changePage(-1)"
         >
           Previous
         </button>
-        <button
-          class="btn secondary"
-          type="button"
-          @click="
-            page++;
-            loadUsers();
-          "
-        >
+        <button class="btn secondary" type="button" @click="changePage(1)">
           Next
         </button>
       </div>

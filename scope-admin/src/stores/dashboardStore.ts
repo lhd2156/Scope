@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { listUsers } from '@/api/core';
 import { listPhotos, listReviews, listSpots, listTrips } from '@/api/content';
 import { getIntelHealth } from '@/api/intel';
+import type { PaginatedResult } from '@/api/client';
 import type { ActivityItem, DashboardStats, GeoMetric, MetricPoint } from '@/types/analytics';
 
 interface DashboardState {
@@ -62,6 +63,25 @@ function buildActivity(): ActivityItem[] {
   ];
 }
 
+function settledTotal<T>(result: PromiseSettledResult<PaginatedResult<T>>): number {
+  return result.status === 'fulfilled' ? result.value.total : 0;
+}
+
+function buildPhotoActivity(
+  result: PromiseSettledResult<PaginatedResult<unknown>>,
+): ActivityItem[] {
+  return result.status === 'fulfilled'
+    ? [
+        {
+          id: 'photos',
+          type: 'system',
+          label: `${result.value.total} photos indexed`,
+          timestamp: new Date().toISOString(),
+        },
+      ]
+    : [];
+}
+
 export const useDashboardStore = defineStore('dashboard', {
   state: (): DashboardState => ({
     stats: emptyStats,
@@ -93,10 +113,10 @@ export const useDashboardStore = defineStore('dashboard', {
         ]);
 
         const stats: DashboardStats = {
-          totalUsers: users.status === 'fulfilled' ? users.value.total : 0,
-          totalSpots: spots.status === 'fulfilled' ? spots.value.total : 0,
-          totalTrips: trips.status === 'fulfilled' ? trips.value.total : 0,
-          totalReviews: reviews.status === 'fulfilled' ? reviews.value.total : 0,
+          totalUsers: settledTotal(users),
+          totalSpots: settledTotal(spots),
+          totalTrips: settledTotal(trips),
+          totalReviews: settledTotal(reviews),
           activeSessions: intelHealth.status === 'fulfilled' && intelHealth.value.status ? 1 : 0,
         };
 
@@ -107,16 +127,7 @@ export const useDashboardStore = defineStore('dashboard', {
           engagement: sampleSeries,
           activity: [
             ...buildActivity(),
-            ...(photos.status === 'fulfilled'
-              ? [
-                  {
-                    id: 'photos',
-                    type: 'system' as const,
-                    label: `${photos.value.total} photos indexed`,
-                    timestamp: new Date().toISOString(),
-                  },
-                ]
-              : []),
+            ...buildPhotoActivity(photos),
           ].slice(0, 10),
           loading: false,
         });

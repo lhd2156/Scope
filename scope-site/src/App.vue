@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import SiteBrand from "@/components/SiteBrand.vue";
 import { navLinks } from "@/data";
 
 const menuOpen = ref(false);
-const scopeTripsLogoMarkSrc = "/branding/scope-trips-logo-mark.png";
 </script>
 
 <template>
@@ -12,15 +12,7 @@ const scopeTripsLogoMarkSrc = "/branding/scope-trips-logo-mark.png";
       class="site-nav"
       aria-label="Main navigation"
     >
-      <RouterLink
-        class="brand"
-        to="/"
-      >
-        <span class="brand-mark" aria-hidden="true">
-          <img :src="scopeTripsLogoMarkSrc" alt="" />
-        </span>
-        <span>Scope Trips</span>
-      </RouterLink>
+      <SiteBrand />
       <div
         class="nav-links"
         :class="{ open: menuOpen }"
@@ -54,15 +46,7 @@ const scopeTripsLogoMarkSrc = "/branding/scope-trips-logo-mark.png";
 
   <footer class="site-footer">
     <div>
-      <RouterLink
-        class="brand"
-        to="/"
-      >
-        <span class="brand-mark" aria-hidden="true">
-          <img :src="scopeTripsLogoMarkSrc" alt="" />
-        </span>
-        <span>Scope Trips</span>
-      </RouterLink>
+      <SiteBrand />
       <p>Real spots, smarter routes, and shareable trip plans for curious people.</p>
     </div>
     <div class="footer-links">

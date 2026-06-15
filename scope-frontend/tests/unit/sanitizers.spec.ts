@@ -169,6 +169,24 @@ describe('sanitizers', () => {
     expect(demoReview.type).toBe('review');
   });
 
+  it('redacts anonymous review identity and preserves the anonymous flag', () => {
+    const sanitized = sanitizeReview({
+      id: 'review-anonymous',
+      spot_id: 'spot-1',
+      user_id: '22222222-2222-4222-8222-222222222222',
+      rating: '4.5',
+      comment: '  Private but useful review note.  ',
+      isAnonymous: true,
+      created_at: '2026-06-08T00:00:00Z',
+    } as unknown as Review);
+
+    expect(sanitized.isAnonymous).toBe(true);
+    expect(sanitized.user.id).toBe('anonymous');
+    expect(sanitized.user.displayName).toBe('Anonymous traveler');
+    expect(sanitized.user.avatarUrl).toBe('');
+    expect(sanitized.comment).toBe('Private but useful review note.');
+  });
+
   it('repairs handle-like display names when the real display name was collapsed into the username', () => {
     const sanitized = sanitizeUserProfile({
       id: 'user-1',
@@ -234,7 +252,7 @@ describe('sanitizers', () => {
     expect(sanitized.spots[0]?.confidence).toBe(1);
   });
 
-  it('allows generated avatars only for explicit demo/mock people', () => {
+  it('blocks generated avatar hosts even when old callers request an exception', () => {
     const user: UserProfile = {
       id: 'demo-user-1',
       username: 'maya',
@@ -254,11 +272,11 @@ describe('sanitizers', () => {
     };
 
     expect(sanitizeAvatarUrl(user.avatarUrl)).toBeUndefined();
-    expect(sanitizeAvatarUrl(user.avatarUrl, { allowGeneratedAvatar: true })).toBe(user.avatarUrl);
+    expect(sanitizeAvatarUrl(user.avatarUrl, { allowGeneratedAvatar: true })).toBeUndefined();
     expect(sanitizeUserProfile(user).avatarUrl).toBe('');
-    expect(sanitizeUserProfile(user, { allowGeneratedAvatar: true }).avatarUrl).toBe(user.avatarUrl);
+    expect(sanitizeUserProfile(user, { allowGeneratedAvatar: true }).avatarUrl).toBe('');
     expect(sanitizeFeedItem(feedItem).actor.avatarUrl).toBe('');
-    expect(sanitizeFeedItem(feedItem, { allowGeneratedActorAvatar: true }).actor.avatarUrl).toBe(user.avatarUrl);
+    expect(sanitizeFeedItem(feedItem, { allowGeneratedActorAvatar: true }).actor.avatarUrl).toBe('');
   });
 
   it('sanitizes spot submissions before they are persisted for display', () => {

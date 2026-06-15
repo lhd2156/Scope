@@ -14,12 +14,13 @@ class Photo(models.Model):
     thumbnail_url = models.URLField(max_length=1000, blank=True)
     caption = models.CharField(max_length=500, blank=True)
     sort_order = models.IntegerField(default=0)
+    is_anonymous = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
-        ordering = ['sort_order', 'created_at']
+        ordering = ['sort_order', '-created_at', 'id']
         indexes = [
-            # Photos are always loaded in (sort_order, created_at) per spot.
+            # Photos are always loaded in the shared best-stable order per spot.
             # This composite matches the access path exactly and avoids a
             # filesort for spots with many photos.
-            models.Index(fields=['spot', 'sort_order', 'created_at'], name='photo_spot_sort_idx'),
+            models.Index(fields=['spot', 'sort_order', '-created_at', 'id'], name='photo_spot_best_idx'),
         ]

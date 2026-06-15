@@ -7,6 +7,12 @@ from pathlib import Path
 
 import httpx
 
+SMOKE_PROMPT = "Scope Gemini smoke check"
+SYSTEM_INSTRUCTION = (
+    "You are Scope AI. Reply with one short sentence confirming "
+    "the Gemini provider is ready for Scope."
+)
+
 
 def _load_env_file(path: Path) -> None:
     if not path.exists():
@@ -19,6 +25,27 @@ def _load_env_file(path: Path) -> None:
 
         key, value = line.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def _unique_models(model: str, fallback_models: list[str]) -> list[str]:
+    models: list[str] = []
+    for model_name in [model, *fallback_models]:
+        if model_name not in models:
+            models.append(model_name)
+    return models
+
+
+def _request_payload() -> dict:
+    return {
+        "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+        "contents": [{"role": "user", "parts": [{"text": SMOKE_PROMPT}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 80},
+    }
+
+
+def _response_text(response: httpx.Response) -> str:
+    parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    return " ".join(str(part.get("text") or "").strip() for part in parts).strip()
 
 
 def main() -> int:
@@ -42,32 +69,14 @@ def main() -> int:
         print("GEMINI_API_KEY is not set.")
         return 2
 
-    models = []
-    for model_name in [model, *fallback_models]:
-        if model_name not in models:
-            models.append(model_name)
-
     last_error = ""
-    for model_name in models:
+    for model_name in _unique_models(model, fallback_models):
         endpoint = f"{base_url}/models/{model_name.removeprefix('models/')}:generateContent"
         try:
             response = httpx.post(
                 endpoint,
                 params={"key": api_key},
-                json={
-                    "systemInstruction": {
-                        "parts": [
-                            {
-                                "text": (
-                                    "You are Scope AI. Reply with one short sentence confirming "
-                                    "the Gemini provider is ready for Scope."
-                                )
-                            }
-                        ]
-                    },
-                    "contents": [{"role": "user", "parts": [{"text": "Scope Gemini smoke check"}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 80},
-                },
+                json=_request_payload(),
                 timeout=float(os.getenv("GEMINI_TIMEOUT_SECONDS", "30")),
             )
             response.raise_for_status()
@@ -76,10 +85,8 @@ def main() -> int:
             print(last_error)
             continue
 
-        parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        text = " ".join(str(part.get("text") or "").strip() for part in parts).strip()
         print(f"Gemini provider OK: {model_name}")
-        print(text or "No text returned.")
+        print(_response_text(response) or "No text returned.")
         return 0
 
     print(last_error or "Gemini provider failed.")

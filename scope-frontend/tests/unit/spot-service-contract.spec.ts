@@ -287,12 +287,43 @@ describe('spot service contracts', () => {
     await expect(createSpotReview('spot-review', {
       rating: 5,
       comment: 'Created review',
+      isAnonymous: true,
     })).resolves.toMatchObject({
       data: {
         id: 'review-created',
         spotId: 'spot-review',
         comment: 'Created review',
       },
+    });
+    expect(apiMock.post.mock.calls[0]?.[1]).toMatchObject({
+      rating: 5,
+      comment: 'Created review',
+      isAnonymous: true,
+    });
+  });
+
+  it('sends anonymous contribution preference through compose payloads', async () => {
+    vi.stubEnv('VITE_ENABLE_SPOT_LOCAL_WRITE_FALLBACK', 'false');
+    apiMock.post.mockResolvedValueOnce({
+      data: {
+        data: buildSpotDetail({
+          id: 'spot-anonymous-compose',
+        }),
+      },
+    });
+
+    const { createVerifiedSpot } = await import('@/services/spotService');
+    await createVerifiedSpot(buildSubmission({
+      spot: {
+        ...buildSubmission().spot,
+        isAnonymous: true,
+      },
+    }));
+
+    const formData = apiMock.post.mock.calls[0]?.[1] as FormData;
+    expect(formData.get('isAnonymous')).toBe('true');
+    expect(JSON.parse(String(formData.get('spot')))).toMatchObject({
+      isAnonymous: true,
     });
   });
 

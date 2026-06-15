@@ -66,10 +66,10 @@ When `VITE_DEMO_MODE=true`:
 
 Fixture files live in `src/mock/`.
 
-- `users.json` — 5 seeded travelers with pravatar avatars and activity history
-- `spots.json` — 20 seeded Texas spots with Unsplash imagery and real coordinates
-- `trips.json` — 3 itinerary-ready demo trips with members, pacing notes, and budget context
-- `feed.json` — 15 feed items spanning pin drops, reviews, and trip milestones
+- `users.json` - 18 fictional showcase travelers with licensed portrait imagery and activity history
+- `spots.json` - 72 verified public spots across US and international anchors with real coordinates
+- `trips.json` - 12 itinerary-ready demo trips with members, pacing notes, and budget context
+- `feed.json` - 80 feed items spanning pin drops, reviews, and trip milestones
 - `notifications.json` — 10 seeded notifications for inbox and badge states
 - `index.ts` — fixture normalization layer that maps raw JSON into typed frontend models
 

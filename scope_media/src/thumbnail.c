@@ -1,32 +1,9 @@
 #include "scope_media.h"
 
+#include "image_validation.h"
+
 #include <stdlib.h>
 #include <string.h>
-
-static int scope_media_validate_image(const scope_media_image *image) {
-    size_t pixel_count;
-    size_t expected_length;
-
-    if (image == NULL || image->pixels == NULL || image->width == 0 || image->height == 0 || image->channels == 0) {
-        return 0;
-    }
-
-    if (image->channels > 4) {
-        return 0;
-    }
-
-    if ((size_t)image->width > (SIZE_MAX / (size_t)image->height)) {
-        return 0;
-    }
-
-    pixel_count = (size_t)image->width * (size_t)image->height;
-    if (pixel_count == 0 || pixel_count > (SIZE_MAX / (size_t)image->channels)) {
-        return 0;
-    }
-
-    expected_length = pixel_count * (size_t)image->channels;
-    return image->length >= expected_length;
-}
 
 static scope_media_status scope_media_allocate_output(
     uint32_t width,

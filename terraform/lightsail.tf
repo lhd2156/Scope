@@ -18,23 +18,13 @@ locals {
     aws_lightsail_key_pair.scope[0].name :
     local.lightsail_effective_key_pair_name
   )
-  lightsail_bootstrap_commands = [
-    "set -eux",
-    "dnf update -y",
-    "dnf install -y docker git tar",
-    "mkdir -p /usr/local/lib/docker/cli-plugins",
-    "curl -fsSL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose",
-    "curl -fsSL https://github.com/docker/buildx/releases/download/${var.docker_buildx_version}/buildx-${var.docker_buildx_version}.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx",
-    "chmod +x /usr/local/lib/docker/cli-plugins/docker-compose",
-    "chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx",
-    "if [ ! -f /swapfile ]; then fallocate -l ${var.lightsail_swap_size_gib}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=${var.lightsail_swap_size_gib * 1024}; chmod 600 /swapfile; mkswap /swapfile; fi",
-    "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
-    "swapon --show | grep -q '/swapfile' || swapon /swapfile",
-    "systemctl enable --now docker",
-    "usermod -aG docker ec2-user",
-    "mkdir -p /opt/scope/releases /opt/scope/shared /opt/scope/shared/media /opt/scope/shared/sqlserver /opt/scope/shared/config",
-    "chown -R ec2-user:ec2-user /opt/scope"
-  ]
+  lightsail_bootstrap_commands = concat(
+    local.single_host_bootstrap_commands_before_swap,
+    [
+      "if [ ! -f /swapfile ]; then fallocate -l ${var.lightsail_swap_size_gib}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=${var.lightsail_swap_size_gib * 1024}; chmod 600 /swapfile; mkswap /swapfile; fi",
+    ],
+    local.single_host_bootstrap_commands_after_swap,
+  )
   lightsail_user_data = join("\n", concat(["#!/bin/bash"], local.lightsail_bootstrap_commands))
   lightsail_public_ports = concat(
     [

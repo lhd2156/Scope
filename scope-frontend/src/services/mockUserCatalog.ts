@@ -21,12 +21,12 @@ const fallbackCatalogUsers: UserProfile[] = [
 ];
 
 const rawCatalogUsers = (rawUsers as UserProfile[]).map((user) =>
-  sanitizeUserProfile(user, { allowGeneratedAvatar: true }),
+  sanitizeUserProfile(user),
 );
 const socialCatalogUsers = [
   ...demoFriendConnections.map((connection) => connection.user),
   ...demoFriendRequests.map((request) => request.user),
-].map((user) => sanitizeUserProfile(user, { allowGeneratedAvatar: true }));
+].map((user) => sanitizeUserProfile(user));
 
 const mergedCatalogUsers = [...fallbackCatalogUsers, ...rawCatalogUsers, ...socialCatalogUsers];
 const uniqueCatalogUsers = new Map<string, UserProfile>();
