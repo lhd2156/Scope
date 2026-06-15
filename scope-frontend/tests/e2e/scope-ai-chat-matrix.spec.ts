@@ -1344,7 +1344,7 @@ function collectBrowserErrors(page: Page): string[] {
     }
   });
   page.on('response', (response) => {
-    if (response.status() >= 500) {
+    if (response.status() >= 500 && !isIgnoredTelemetryResponse(response.url())) {
       errors.push(`${response.status()} ${response.url()}`);
     }
   });
@@ -1352,6 +1352,15 @@ function collectBrowserErrors(page: Page): string[] {
     errors.push(error.stack || error.message);
   });
   return errors;
+}
+
+function isIgnoredTelemetryResponse(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    return url.hostname.endsWith('.sentry.io') && url.pathname.includes('/envelope/');
+  } catch {
+    return false;
+  }
 }
 
 function createSeededRandom(seed: number): () => number {

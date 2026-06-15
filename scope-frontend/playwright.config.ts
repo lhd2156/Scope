@@ -57,7 +57,7 @@ for (const [key, value] of Object.entries(noMockEnvDefaults)) {
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 const mapboxToken = process.env.VITE_MAPBOX_TOKEN ?? '';
-const enableMapboxUiTests = process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS ?? (mapboxToken ? 'true' : 'false');
+const enableMapboxUiTests = process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS ?? 'false';
 process.env.VITE_MAPBOX_TOKEN = mapboxToken;
 process.env.VITE_ENABLE_MAPBOX_IN_UI_TESTS = enableMapboxUiTests;
 const projects = [

@@ -409,6 +409,7 @@ test.describe('live production sweep without route mocks', () => {
     await gotoAllowingImmediateRedirect(page, `/spots/${created.id}`);
     await expect(page.getByRole('heading', { level: 1, name: created.title })).toBeVisible();
     await expect(page.getByText(/photo[- ]worthy urban water garden/i).first()).toBeVisible();
+    await expect(page.locator('.review-list')).toContainText(created.reviewComment);
   });
 
   test('eight overnight metro spots are verified, searchable, explorable, mapped, and durable from a fresh user', async ({ page }) => {
@@ -1063,7 +1064,11 @@ async function createLiveSweepData(browser: Browser): Promise<LiveSweepData> {
   };
 }
 
-async function createPublicSpotThroughUi(page: Page, suffix: string, owner: LiveUser): Promise<{ id: string; title: string }> {
+async function createPublicSpotThroughUi(
+  page: Page,
+  suffix: string,
+  owner: LiveUser,
+): Promise<{ id: string; title: string; submittedTitle: string; reviewComment: string; city: string; country: string }> {
   const title = `Fort Worth Water Gardens UI Scope ${suffix}`;
   const form = page.locator('[data-test="spot-form"]');
 
@@ -1157,12 +1162,18 @@ async function createPublicSpotThroughUi(page: Page, suffix: string, owner: Live
   expect(spot.providerPlaceId).toBeTruthy();
   cleanupSpotIds.add(String(spot.id));
 
+  const canonicalTitle = String(spot.title ?? title);
+  const reviewComment = `Live UI-created public spot ${suffix} with provider-backed verification and real search fanout`;
+
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(buildSpotPath(spot))}$`));
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: canonicalTitle })).toBeVisible();
+  await expect(page.locator('.review-list')).toContainText(reviewComment);
 
   return {
     id: String(spot.id),
-    title,
+    title: canonicalTitle,
+    submittedTitle: title,
+    reviewComment,
     city: String(spot.city ?? 'Fort Worth'),
     country: String(spot.country ?? 'US'),
   };
