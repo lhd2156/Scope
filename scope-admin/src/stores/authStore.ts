@@ -13,6 +13,25 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
+type SignedOutState = Pick<
+  AuthState,
+  'token' | 'refreshToken' | 'currentUser' | 'loading' | 'isAuthenticated'
+>;
+
+function signedOutState(): SignedOutState {
+  return {
+    token: null,
+    refreshToken: null,
+    currentUser: null,
+    loading: false,
+    isAuthenticated: false,
+  };
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function extractToken(payload: { accessToken?: string; access_token?: string; token?: string }): string {
   const token = payload.accessToken ?? payload.access_token ?? payload.token;
   if (!token) {
@@ -71,11 +90,7 @@ export const useAuthStore = defineStore('auth', {
         if (!isAdmin(user)) {
           persistTokens(null, null);
           this.$patch({
-            token: null,
-            refreshToken: null,
-            currentUser: null,
-            isAuthenticated: false,
-            loading: false,
+            ...signedOutState(),
             error: 'Access Denied',
           });
           throw new Error('Access Denied');
@@ -92,12 +107,8 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         if ((error as Error).message !== 'Access Denied') {
           this.$patch({
-            loading: false,
-            error: error instanceof Error ? error.message : 'Login failed',
-            token: null,
-            refreshToken: null,
-            currentUser: null,
-            isAuthenticated: false,
+            ...signedOutState(),
+            error: errorMessage(error, 'Login failed'),
           });
           persistTokens(null, null);
         }
@@ -123,7 +134,7 @@ export const useAuthStore = defineStore('auth', {
         this.$patch({ currentUser: user, loading: false, error: null });
       } catch (error) {
         this.logout();
-        this.$patch({ loading: false, error: error instanceof Error ? error.message : 'Session expired' });
+        this.$patch({ loading: false, error: errorMessage(error, 'Session expired') });
       }
     },
 
@@ -135,13 +146,7 @@ export const useAuthStore = defineStore('auth', {
 
     logout() {
       persistTokens(null, null);
-      this.$patch({
-        token: null,
-        refreshToken: null,
-        currentUser: null,
-        isAuthenticated: false,
-        loading: false,
-      });
+      this.$patch(signedOutState());
     },
 
     clearError() {

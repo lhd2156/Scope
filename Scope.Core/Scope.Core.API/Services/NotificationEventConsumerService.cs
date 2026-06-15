@@ -85,9 +85,7 @@ public sealed class NotificationEventConsumerService(
         var root = document.RootElement;
         var eventType = GetString(root, "eventType") ?? topic;
         var sourceEventId = GetString(root, "eventId") ?? $"{topic}:{offset}";
-        var data = root.TryGetProperty("data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Object
-            ? dataElement
-            : root;
+        var data = GetEventData(root);
 
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -117,29 +115,14 @@ public sealed class NotificationEventConsumerService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        try
-        {
-            outbox.Attempts += 1;
-            outbox.Status = "processing";
-            outbox.UpdatedAt = DateTimeOffset.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            await ProcessEventAsync(dbContext, notificationService, eventType, sourceEventId, data, cancellationToken);
-
-            outbox.Status = "processed";
-            outbox.LastError = null;
-            outbox.UpdatedAt = DateTimeOffset.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            outbox.Status = "failed";
-            outbox.LastError = ex.Message.Length <= 1000 ? ex.Message : ex.Message[..1000];
-            outbox.AvailableAt = DateTimeOffset.UtcNow.AddMinutes(Math.Min(Math.Pow(2, outbox.Attempts), 360));
-            outbox.UpdatedAt = DateTimeOffset.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
-            throw;
-        }
+        await ProcessOutboxRecordAsync(
+            dbContext,
+            notificationService,
+            outbox,
+            eventType,
+            sourceEventId,
+            data,
+            cancellationToken);
     }
 
     public static async Task ProcessOutboxRecordAsync(IServiceProvider serviceProvider, NotificationOutbox outbox, CancellationToken cancellationToken)
@@ -148,10 +131,27 @@ public sealed class NotificationEventConsumerService(
         var notificationService = serviceProvider.GetRequiredService<INotificationService>();
         using var document = JsonDocument.Parse(outbox.PayloadJson);
         var root = document.RootElement;
-        var data = root.TryGetProperty("data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Object
-            ? dataElement
-            : root;
+        var data = GetEventData(root);
 
+        await ProcessOutboxRecordAsync(
+            dbContext,
+            notificationService,
+            outbox,
+            outbox.EventType,
+            outbox.SourceEventId,
+            data,
+            cancellationToken);
+    }
+
+    private static async Task ProcessOutboxRecordAsync(
+        CoreDbContext dbContext,
+        INotificationService notificationService,
+        NotificationOutbox outbox,
+        string eventType,
+        string sourceEventId,
+        JsonElement data,
+        CancellationToken cancellationToken)
+    {
         outbox.Attempts += 1;
         outbox.Status = "processing";
         outbox.UpdatedAt = DateTimeOffset.UtcNow;
@@ -175,6 +175,11 @@ public sealed class NotificationEventConsumerService(
             throw;
         }
     }
+
+    private static JsonElement GetEventData(JsonElement root)
+        => root.TryGetProperty("data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Object
+            ? dataElement
+            : root;
 
     private static async Task ProcessEventAsync(
         CoreDbContext dbContext,

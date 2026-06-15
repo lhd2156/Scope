@@ -346,6 +346,7 @@
               type="button"
               class="theme-option"
               :class="{ 'is-active': form.themeMode === 'dark' }"
+              :aria-pressed="form.themeMode === 'dark'"
               @click="selectTheme('dark')"
             >
               <ScopeIcon name="moon" label="Dark mode" />
@@ -356,6 +357,7 @@
               type="button"
               class="theme-option"
               :class="{ 'is-active': form.themeMode === 'light' }"
+              :aria-pressed="form.themeMode === 'light'"
               @click="selectTheme('light')"
             >
               <ScopeIcon name="sun" label="Light mode" />
@@ -974,6 +976,10 @@ async function handleAvatarFileSelection(event: Event): Promise<void> {
 }
 
 function selectTheme(themeMode: ThemeMode): void {
+  if (form.themeMode === themeMode && theme.value === themeMode) {
+    return;
+  }
+
   form.themeMode = themeMode;
   applyTheme(themeMode, {
     track: theme.value !== themeMode,

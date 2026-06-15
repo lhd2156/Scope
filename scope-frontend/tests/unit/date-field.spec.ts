@@ -232,6 +232,25 @@ describe('DateField', () => {
     wrapper.unmount();
   });
 
+  it('keeps compact birthday digits balanced while typing through auto-inserted slashes', async () => {
+    const wrapper = mountDateField({
+      placeholder: 'MM/DD/YYYY',
+      autocomplete: 'bday',
+    });
+
+    const input = wrapper.get('input');
+    for (const digit of '04302004') {
+      input.element.value += digit;
+      await input.trigger('input');
+      await flushPromises();
+    }
+
+    expect(input.element.value).toBe('04/30/2004');
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['2004-04-30']);
+
+    wrapper.unmount();
+  });
+
   it('keeps helper/error messaging wired through aria-describedby', () => {
     const wrapper = mountDateField({
       modelValue: '',

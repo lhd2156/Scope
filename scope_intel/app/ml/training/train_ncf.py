@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 logger = logging.getLogger(__name__)
 
 
-def main():
+def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="CSV with 'user_id', 'item_id', 'rating' columns")
     parser.add_argument("--output", default="app/ml/models/")
@@ -25,23 +25,24 @@ def main():
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--embedding-dim", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    from app.ml.inference.recommender import NCFModel
 
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    df = pd.read_csv(args.data)
+def _load_training_arrays(data_path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    df = pd.read_csv(data_path)
     user_ids = df["user_id"].astype("category").cat.codes.values
     item_ids = df["item_id"].astype("category").cat.codes.values
     ratings = df["rating"].values.astype(np.float32)
     rating_span = ratings.max() - ratings.min()
     ratings = (ratings - ratings.min()) / rating_span if rating_span else np.ones_like(ratings)
+    return user_ids, item_ids, ratings
+
+
+def _train_ncf_model(user_ids: np.ndarray, item_ids: np.ndarray, ratings: np.ndarray, args):
+    from app.ml.inference.recommender import NCFModel
 
     num_users = int(user_ids.max()) + 1
     num_items = int(item_ids.max()) + 1
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = NCFModel(num_users, num_items, args.embedding_dim).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -69,18 +70,24 @@ def main():
         avg_loss = total_loss / len(loader)
         logger.info("Epoch %d/%d - Loss: %.4f", epoch + 1, args.epochs, avg_loss)
 
+    return model, num_users, num_items, device
+
+
+def _save_ncf_model(output_dir: Path, model, *, num_users: int, num_items: int, embedding_dim: int) -> None:
     output_path = output_dir / "ncf_model.pt"
     torch.save(
         {
             "state_dict": model.state_dict(),
             "num_users": num_users,
             "num_items": num_items,
-            "embedding_dim": args.embedding_dim,
+            "embedding_dim": embedding_dim,
         },
         output_path,
     )
     logger.info("Saved NCF model to %s", output_path)
 
+
+def _build_faiss_index(output_dir: Path, model, *, num_items: int, device) -> None:
     try:
         import faiss
 
@@ -103,6 +110,17 @@ def main():
         logger.info("Saved FAISS index (%d vectors) to %s", index.ntotal, faiss_path)
     except ImportError:
         logger.warning("FAISS not available - skipping index build")
+
+
+def main():
+    args = _parse_args()
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    user_ids, item_ids, ratings = _load_training_arrays(args.data)
+    model, num_users, num_items, device = _train_ncf_model(user_ids, item_ids, ratings, args)
+    _save_ncf_model(output_dir, model, num_users=num_users, num_items=num_items, embedding_dim=args.embedding_dim)
+    _build_faiss_index(output_dir, model, num_items=num_items, device=device)
 
 
 if __name__ == "__main__":

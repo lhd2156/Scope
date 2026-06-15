@@ -317,7 +317,7 @@ function formatCompactDateDraft(value: string): string {
     return sanitized.slice(0, 10);
   }
 
-  if (/[/-]/.test(sanitized)) {
+  if (/^\d{1,2}[/-]\d{0,2}(?:[/-]\d{0,4})?$/.test(sanitized)) {
     return sanitized.slice(0, 10);
   }
 

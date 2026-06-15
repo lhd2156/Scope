@@ -254,6 +254,105 @@ def _location_lookup_response(request_text: str) -> dict | None:
     return _complete_result("\n".join(lines), model="scope-location-lookup")
 
 
+def _fallback_budget_lines(route: str, budget: str, dates: str, pace: str) -> list[str]:
+    return [
+        f"I would keep {route} inside {budget} by treating the top number as your hard cap, not the goal.",
+        "",
+        f"For {dates}, keep the pace {pace} and add only low-detour stops: fuel, food, rest, or one short scenic break.",
+        "Avoid paid attractions or long side quests unless they replace another stop.",
+        "If the route needs a midpoint, pick one stop that handles food/restrooms/views in the same area instead of stacking multiple stops.",
+    ]
+
+
+def _fallback_tighten_lines(route: str, pace: str) -> list[str]:
+    return [
+        f"I would tighten {route} around one clear route purpose.",
+        "",
+        f"At a {pace} pace, cut anything that does not shorten the drive, feed/rest the group, or create a standout memory.",
+        "Use one midpoint stop, then keep the final leg clean. If a stop adds backtracking, replace it instead of adding more.",
+    ]
+
+
+def _fallback_timing_lines(route: str, dates: str, pace: str) -> list[str]:
+    return [
+        f"I would check {route} against {dates} as a {pace} plan.",
+        "",
+        "Do not stack multiple optional stops on the longest driving day.",
+        "Build around departure time, weather/border buffers if relevant, and one practical midpoint break.",
+    ]
+
+
+def _fallback_midpoint_lines(route: str, budget: str, interests: str) -> list[str]:
+    return [
+        f"I would only add a midpoint on {route} if it saves energy or solves a real need.",
+        "",
+        f"Best fit: one {interests} stop that also covers food, restrooms, fuel, or a short walk.",
+        f"Budget guardrail: keep it inside {budget} with a free viewpoint, casual food stop, public park, or quick town-center break.",
+        "Skip anything that adds more than about 20 minutes off-route unless it becomes the main stop.",
+    ]
+
+
+def _fallback_weekend_lines(route: str, budget: str, pace: str, interests: str) -> list[str]:
+    return [
+        f"I would make {route} a simple {pace} weekend route.",
+        "",
+        "Day 1: travel, take one easy food or rest stop, then arrive without adding extra detours.",
+        f"Day 2: choose one {interests} anchor and one nearby flexible stop.",
+        "Final leg: keep it light, with one practical break only if it helps the drive.",
+        f"Keep {budget} as the cap by choosing free, scenic, public, or casual stops first.",
+    ]
+
+
+def _fallback_recommendation_lines(route: str, budget: str, pace: str, interests: str) -> list[str]:
+    return [
+        f"For {route}, I would keep your next move narrow and useful.",
+        "",
+        f"Add one {interests} stop that sits close to the route and fits a {pace} pace.",
+        f"Keep {budget} as the cap, then avoid adding another stop unless it replaces a weaker one.",
+        "After that, build the itinerary so timing and driving legs can be checked together.",
+    ]
+
+
+def _fallback_general_lines(request_text: str, route: str, budget: str, pace: str, interests: str) -> list[str]:
+    return [
+        f"I would handle \"{request_text}\" as a focused planning pass for {route}.",
+        "",
+        f"Use {budget} as the guardrail and keep the rhythm {pace}.",
+        f"Prioritize {interests}, then add only stops that make the route easier or more memorable.",
+    ]
+
+
+def _fallback_response_lines(
+    *,
+    request_text: str,
+    normalized_request: str,
+    route: str,
+    dates: str,
+    budget: str,
+    pace: str,
+    interests: str,
+) -> list[str]:
+    if re.search(r"\b(budget|inside|under|cap|\$|cost|spend)\b", normalized_request):
+        return _fallback_budget_lines(route, budget, dates, pace)
+
+    if re.search(r"\b(tighten|remove filler|filler|clean up|simplify|rebalance)\b", normalized_request):
+        return _fallback_tighten_lines(route, pace)
+
+    if re.search(r"\b(timing|time|date|schedule|works?|pace)\b", normalized_request):
+        return _fallback_timing_lines(route, dates, pace)
+
+    if re.search(r"\b(stop|midpoint|middle|halfway|between|on the way|en route)\b", normalized_request):
+        return _fallback_midpoint_lines(route, budget, interests)
+
+    if re.search(r"\b(weekend|simple|easy)\b", normalized_request):
+        return _fallback_weekend_lines(route, budget, pace, interests)
+
+    if re.search(r"\b(suggest|recommend|ideas?|what should)\b", normalized_request):
+        return _fallback_recommendation_lines(route, budget, pace, interests)
+
+    return _fallback_general_lines(request_text, route, budget, pace, interests)
+
+
 def _fallback_plan(prompt: str, start_date: str | None = None) -> dict:
     """Return a deterministic planning answer if the local agent cannot boot."""
     start = _read_prompt_line(prompt, "Start")
@@ -281,61 +380,15 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> dict:
         if missing_questions:
             return _complete_result(_missing_itinerary_brief_response(missing_questions))
 
-    if re.search(r"\b(budget|inside|under|cap|\$|cost|spend)\b", normalized_request):
-        lines = [
-            f"I would keep {route} inside {budget} by treating the top number as your hard cap, not the goal.",
-            "",
-            f"For {dates}, keep the pace {pace} and add only low-detour stops: fuel, food, rest, or one short scenic break.",
-            "Avoid paid attractions or long side quests unless they replace another stop.",
-            "If the route needs a midpoint, pick one stop that handles food/restrooms/views in the same area instead of stacking multiple stops.",
-        ]
-    elif re.search(r"\b(tighten|remove filler|filler|clean up|simplify|rebalance)\b", normalized_request):
-        lines = [
-            f"I would tighten {route} around one clear route purpose.",
-            "",
-            f"At a {pace} pace, cut anything that does not shorten the drive, feed/rest the group, or create a standout memory.",
-            "Use one midpoint stop, then keep the final leg clean. If a stop adds backtracking, replace it instead of adding more.",
-        ]
-    elif re.search(r"\b(timing|time|date|schedule|works?|pace)\b", normalized_request):
-        lines = [
-            f"I would check {route} against {dates} as a {pace} plan.",
-            "",
-            "Do not stack multiple optional stops on the longest driving day.",
-            "Build around departure time, weather/border buffers if relevant, and one practical midpoint break.",
-        ]
-    elif re.search(r"\b(stop|midpoint|middle|halfway|between|on the way|en route)\b", normalized_request):
-        lines = [
-            f"I would only add a midpoint on {route} if it saves energy or solves a real need.",
-            "",
-            f"Best fit: one {interests} stop that also covers food, restrooms, fuel, or a short walk.",
-            f"Budget guardrail: keep it inside {budget} with a free viewpoint, casual food stop, public park, or quick town-center break.",
-            "Skip anything that adds more than about 20 minutes off-route unless it becomes the main stop.",
-        ]
-    else:
-        if re.search(r"\b(weekend|simple|easy)\b", normalized_request):
-            lines = [
-                f"I would make {route} a simple {pace} weekend route.",
-                "",
-                "Day 1: travel, take one easy food or rest stop, then arrive without adding extra detours.",
-                f"Day 2: choose one {interests} anchor and one nearby flexible stop.",
-                "Final leg: keep it light, with one practical break only if it helps the drive.",
-                f"Keep {budget} as the cap by choosing free, scenic, public, or casual stops first.",
-            ]
-        elif re.search(r"\b(suggest|recommend|ideas?|what should)\b", normalized_request):
-            lines = [
-                f"For {route}, I would keep your next move narrow and useful.",
-                "",
-                f"Add one {interests} stop that sits close to the route and fits a {pace} pace.",
-                f"Keep {budget} as the cap, then avoid adding another stop unless it replaces a weaker one.",
-                "After that, build the itinerary so timing and driving legs can be checked together.",
-            ]
-        else:
-            lines = [
-                f"I would handle \"{request_text}\" as a focused planning pass for {route}.",
-                "",
-                f"Use {budget} as the guardrail and keep the rhythm {pace}.",
-                f"Prioritize {interests}, then add only stops that make the route easier or more memorable.",
-            ]
+    lines = _fallback_response_lines(
+        request_text=request_text,
+        normalized_request=normalized_request,
+        route=route,
+        dates=dates,
+        budget=budget,
+        pace=pace,
+        interests=interests,
+    )
 
     return _complete_result("\n".join(lines))
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -90,7 +89,8 @@ def build() -> Path:
     sources = _source_files()
     output = _native_library_output()
     if output.exists():
-        newest_source = max([path.stat().st_mtime for path in sources] + [(INCLUDE_DIR / 'scope_media.h').stat().st_mtime])
+        headers = sorted(SRC_DIR.glob('*.h')) + sorted(INCLUDE_DIR.glob('*.h'))
+        newest_source = max(path.stat().st_mtime for path in [*sources, *headers])
         if output.stat().st_mtime >= newest_source:
             return output
 

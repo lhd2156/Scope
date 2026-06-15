@@ -15,27 +15,33 @@ compose() {
   )
 }
 
+initialize_data_directories() {
+  local data_root="$1"
+
+  sudo mkdir -p \
+    "$data_root/sqlserver" \
+    "$data_root/zookeeper-data" \
+    "$data_root/zookeeper-log" \
+    "$data_root/kafka" \
+    "$data_root/media" \
+    "$data_root/intel" \
+    "$data_root/rag" \
+    "$data_root/ollama"
+  sudo chown -R 10001:10001 "$data_root/sqlserver" || true
+  sudo chown -R 1000:1000 "$data_root/zookeeper-data" "$data_root/zookeeper-log" "$data_root/kafka" || true
+  sudo chown -R 10002:10002 "$data_root/media" || true
+  sudo chown -R 10003:10003 "$data_root/intel" || true
+  sudo chown -R 10004:10004 "$data_root/rag" || true
+  sudo chown -R 1000:1000 "$data_root/ollama" || true
+}
+
 prepare_data_disk() {
   local data_device="${SCOPE_DATA_DEVICE:-/dev/xvdf}"
   local data_root="${SCOPE_DATA_ROOT:-/opt/scope/shared}"
 
   if [[ ! -b "$data_device" ]]; then
     printf '[scope-lightsail] Data disk %s not present; using %s on the root volume.\n' "$data_device" "$data_root"
-    sudo mkdir -p \
-      "$data_root/sqlserver" \
-      "$data_root/zookeeper-data" \
-      "$data_root/zookeeper-log" \
-      "$data_root/kafka" \
-      "$data_root/media" \
-      "$data_root/intel" \
-      "$data_root/rag" \
-      "$data_root/ollama"
-    sudo chown -R 10001:10001 "$data_root/sqlserver" || true
-    sudo chown -R 1000:1000 "$data_root/zookeeper-data" "$data_root/zookeeper-log" "$data_root/kafka" || true
-    sudo chown -R 10002:10002 "$data_root/media" || true
-    sudo chown -R 10003:10003 "$data_root/intel" || true
-    sudo chown -R 10004:10004 "$data_root/rag" || true
-    sudo chown -R 1000:1000 "$data_root/ollama" || true
+    initialize_data_directories "$data_root"
     return 0
   fi
 
@@ -56,22 +62,7 @@ prepare_data_disk() {
     sudo mount "$data_root"
   fi
 
-  sudo mkdir -p \
-    "$data_root/sqlserver" \
-    "$data_root/zookeeper-data" \
-    "$data_root/zookeeper-log" \
-    "$data_root/kafka" \
-    "$data_root/media" \
-    "$data_root/intel" \
-    "$data_root/rag" \
-    "$data_root/ollama"
-
-  sudo chown -R 10001:10001 "$data_root/sqlserver" || true
-  sudo chown -R 1000:1000 "$data_root/zookeeper-data" "$data_root/zookeeper-log" "$data_root/kafka" || true
-  sudo chown -R 10002:10002 "$data_root/media" || true
-  sudo chown -R 10003:10003 "$data_root/intel" || true
-  sudo chown -R 10004:10004 "$data_root/rag" || true
-  sudo chown -R 1000:1000 "$data_root/ollama" || true
+  initialize_data_directories "$data_root"
 }
 
 write_data_volume_override() {

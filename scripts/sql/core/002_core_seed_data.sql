@@ -72,14 +72,17 @@ WHEN MATCHED THEN UPDATE SET
     InterestsJson = source.InterestsJson,
     ShowActivityStatus = 1,
     Role = N'user',
+    FailedLoginAttempts = 0,
+    MfaEnabled = 0,
     IsActive = 1,
     IsShowcase = 1,
+    ProfileVisibility = N'public',
     UpdatedAt = @Now
 WHEN NOT MATCHED THEN INSERT (
     Id, Username, Email, PasswordHash, DisplayName, AvatarUrl, Bio, HomeBase, InterestsJson,
-    ShowActivityStatus, Role, IsActive, IsShowcase, CreatedAt, UpdatedAt
+    ShowActivityStatus, Role, FailedLoginAttempts, MfaEnabled, IsActive, IsShowcase, ProfileVisibility, CreatedAt, UpdatedAt
 ) VALUES (
     source.Id, source.Username, source.Email, source.PasswordHash, source.DisplayName, source.AvatarUrl, source.Bio, source.HomeBase, source.InterestsJson,
-    1, N'user', 1, 1, DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now
+    1, N'user', 0, 0, 1, 1, N'public', DATEADD(DAY, -source.CreatedOffsetDays, @Now), @Now
 );
 GO

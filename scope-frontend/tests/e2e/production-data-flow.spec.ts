@@ -151,9 +151,13 @@ test.describe('production-minded data flows', () => {
     await gotoAllowingImmediateRedirect(page, '/friends');
     await page.getByLabel('Search friends and Scope members').fill('Aisha');
     await expect(page.locator('[data-test="main-search-results"]')).toBeVisible();
-    await expect(page.locator('[data-test="find-people-results"]')).toContainText('Aisha Green');
+    await expect(page.locator('[data-test="find-people-results"]')).toContainText('Aisha Bello');
 
-    await page.locator('[data-test="send-request-suggestion-aisha"]').click();
+    await page
+      .locator('[data-test="find-people-results"] .suggestion-card')
+      .filter({ hasText: 'Aisha Bello' })
+      .getByRole('button', { name: 'Send request' })
+      .click();
     await page.getByLabel('Search friends and Scope members').fill('');
     await expect(page.locator('[data-test="main-search-results"]')).toBeHidden();
     await expect(page.locator('[data-test="friends-online-rail"]')).toBeVisible();
@@ -161,7 +165,7 @@ test.describe('production-minded data flows', () => {
     await page.locator('[data-test="tab-requests"]').click();
     await expect(page.locator('[data-test="tab-requests"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('[data-test="request-card"]')).toHaveCount(4);
-    await expect(page.locator('[data-test="requests-grid"]')).toContainText('Aisha Green');
+    await expect(page.locator('[data-test="requests-grid"]')).toContainText('Aisha Bello');
 
     await page.locator('[data-test="notification-toggle"]').click();
     await expect(page.locator('[data-test="notification-menu"]')).toContainText('Recent updates');

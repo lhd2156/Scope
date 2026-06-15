@@ -44,6 +44,85 @@ def _async_thumbnails_enabled() -> bool:
     return flag and bool(getattr(settings, 'KAFKA_ENABLED', False))
 
 
+def _ensure_photo_upload_allowed(spot: Spot, user) -> None:
+    user_id = user.id
+    is_admin = bool(getattr(user, 'is_admin', False))
+    owns_spot = str(spot.user_id) == str(user_id)
+    if owns_spot or is_admin:
+        return
+    if getattr(spot, 'is_public', False):
+        # Public spots still require contribution privileges; reject by default
+        # and let a future "contributor" role expand this if/when needed.
+        raise PermissionDenied
+    # Private spot: hide existence entirely.
+    raise Http404
+
+
+def _photo_upload_attributes(serializer: PhotoUploadSerializer) -> dict:
+    return {
+        'caption': serializer.validated_data.get('caption', ''),
+        'sort_order': serializer.validated_data.get('sort_order', 0),
+        'is_anonymous': serializer.validated_data.get('isAnonymous', False),
+    }
+
+
+def _create_uploaded_photo(
+    *,
+    spot_id,
+    user_id,
+    stored: dict,
+    attributes: dict,
+    thumbnail_url: str | None = None,
+) -> Photo:
+    if thumbnail_url is None:
+        thumbnail_url = stored['thumbnail_url']
+    return Photo.objects.create(
+        spot_id=spot_id,
+        user_id=user_id,
+        storage_key=stored['storage_key'],
+        storage_url=stored['storage_url'],
+        thumbnail_url=thumbnail_url,
+        **attributes,
+    )
+
+
+def _photo_uploaded_payload(photo: Photo, user_id) -> dict:
+    return {
+        'photoId': str(photo.id),
+        'spotId': str(photo.spot_id),
+        'userId': str(user_id),
+        'storageUrl': photo.storage_url,
+        'thumbnailUrl': photo.thumbnail_url,
+    }
+
+
+def _publish_thumbnail_request(photo: Photo, user_id) -> None:
+    producer.publish(
+        'photo.thumbnail.requested',
+        {
+            'photoId': str(photo.id),
+            'storageKey': photo.storage_key,
+            'spotId': str(photo.spot_id),
+            'userId': str(user_id),
+        },
+    )
+
+
+def _publish_photo_uploaded(photo: Photo, user_id) -> None:
+    producer.publish('photo.uploaded', _photo_uploaded_payload(photo, user_id))
+
+
+def _complete_photo_upload(photo: Photo, request, *, request_thumbnail: bool):
+    invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
+    if request_thumbnail:
+        _publish_thumbnail_request(photo, request.user.id)
+    _publish_photo_uploaded(photo, request.user.id)
+    return data_response(
+        PhotoSerializer(photo, context={'request': request}).data,
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticatedJWT])
 def upload_photo(request):
@@ -54,19 +133,10 @@ def upload_photo(request):
     spot_id = serializer.validated_data['spot_id']
     spot = get_object_or_404(Spot, pk=spot_id)
     user_id = request.user.id
-    is_admin = bool(getattr(request.user, 'is_admin', False))
-    owns_spot = str(spot.user_id) == str(user_id)
-    if not owns_spot and not is_admin:
-        if getattr(spot, 'is_public', False):
-            # Public spots still require contribution privileges; reject by default
-            # and let a future "contributor" role expand this if/when needed.
-            raise PermissionDenied
-        # Private spot: hide existence entirely.
-        raise Http404
+    _ensure_photo_upload_allowed(spot, request.user)
 
     service = S3StorageService()
-    caption = serializer.validated_data.get('caption', '')
-    sort_order = serializer.validated_data.get('sort_order', 0)
+    photo_attributes = _photo_upload_attributes(serializer)
 
     if _async_thumbnails_enabled():
         # Fast path: upload original only, hand off thumbnail work to the
@@ -74,61 +144,25 @@ def upload_photo(request):
         # the time the sync path needs because we skip Pillow + a second S3
         # round-trip in the critical section.
         stored = service.store_original(serializer.validated_data['file'])
-        photo = Photo.objects.create(
+        photo = _create_uploaded_photo(
             spot_id=spot_id,
             user_id=user_id,
-            storage_key=stored['storage_key'],
-            storage_url=stored['storage_url'],
+            stored=stored,
+            attributes=photo_attributes,
             thumbnail_url='',
-            caption=caption,
-            sort_order=sort_order,
         )
-        invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
-        producer.publish(
-            'photo.thumbnail.requested',
-            {
-                'photoId': str(photo.id),
-                'storageKey': photo.storage_key,
-                'spotId': str(photo.spot_id),
-                'userId': str(request.user.id),
-            },
-        )
-        producer.publish(
-            'photo.uploaded',
-            {
-                'photoId': str(photo.id),
-                'spotId': str(photo.spot_id),
-                'userId': str(request.user.id),
-                'storageUrl': photo.storage_url,
-                'thumbnailUrl': photo.thumbnail_url,
-            },
-        )
-        return data_response(PhotoSerializer(photo, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
+        return _complete_photo_upload(photo, request, request_thumbnail=True)
 
     # Legacy sync path. Kept as default so existing deployments don't require
     # a worker service to be healthy before photos can be uploaded.
     stored = service.store(serializer.validated_data['file'])
-    photo = Photo.objects.create(
+    photo = _create_uploaded_photo(
         spot_id=spot_id,
         user_id=user_id,
-        storage_key=stored['storage_key'],
-        storage_url=stored['storage_url'],
-        thumbnail_url=stored['thumbnail_url'],
-        caption=caption,
-        sort_order=sort_order,
+        stored=stored,
+        attributes=photo_attributes,
     )
-    invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
-    producer.publish(
-        'photo.uploaded',
-        {
-            'photoId': str(photo.id),
-            'spotId': str(photo.spot_id),
-            'userId': str(request.user.id),
-            'storageUrl': photo.storage_url,
-            'thumbnailUrl': photo.thumbnail_url,
-        },
-    )
-    return data_response(PhotoSerializer(photo, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
+    return _complete_photo_upload(photo, request, request_thumbnail=False)
 
 
 @api_view(['GET'])

@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from common.search import REVIEW_INDEX, SPOT_INDEX, TRIP_INDEX, get_es_client
 
 logger = logging.getLogger(__name__)
+SEARCH_INDEXES = {'spots': SPOT_INDEX, 'reviews': REVIEW_INDEX, 'trips': TRIP_INDEX}
 
 
 def _bounded_int(value: str | None, default: int, maximum: int) -> int:
@@ -34,6 +35,101 @@ def _is_visible_search_hit(doc_type: str, entry: dict) -> bool:
     return entry.get('is_public') is True
 
 
+def _build_search_body(q: str, doc_type: str, *, limit: int, offset: int) -> dict:
+    return {
+        'query': {
+            'bool': {
+                'should': [
+                    {
+                        'multi_match': {
+                            'query': q,
+                            'fields': SearchView._fields_for(doc_type),
+                            'fuzziness': 'AUTO',
+                            'type': 'best_fields',
+                        }
+                    },
+                    {
+                        'multi_match': {
+                            'query': q,
+                            'fields': SearchView._fields_for(doc_type),
+                            'type': 'bool_prefix',
+                            'boost': 1.4,
+                        }
+                    },
+                    {
+                        'multi_match': {
+                            'query': q,
+                            'fields': SearchView._phrase_prefix_fields_for(doc_type),
+                            'type': 'phrase_prefix',
+                            'boost': 1.2,
+                        }
+                    },
+                ],
+                'minimum_should_match': 1,
+                'filter': [_visibility_filter_for(doc_type)],
+            }
+        },
+        'from': offset,
+        'size': limit,
+        'highlight': {
+            'fields': {'name': {}, 'text': {}, 'description': {}},
+            'pre_tags': ['<em>'],
+            'post_tags': ['</em>'],
+        },
+    }
+
+
+def _visible_search_hits(doc_type: str, result: dict) -> list[dict]:
+    hits = []
+    for hit in result['hits']['hits']:
+        entry = hit['_source']
+        if not _is_visible_search_hit(doc_type, entry):
+            continue
+        entry['_score'] = hit['_score']
+        entry['_highlights'] = hit.get('highlight', {})
+        hits.append(entry)
+    return hits
+
+
+def _build_geo_search_body(*, lat: float, lon: float, radius: str, limit: int) -> dict:
+    return {
+        'query': {
+            'bool': {
+                'filter': [
+                    {
+                        'geo_distance': {
+                            'distance': radius,
+                            'location': {'lat': lat, 'lon': lon},
+                        }
+                    },
+                    {'term': {'is_public': True}},
+                ]
+            }
+        },
+        'sort': [
+            {
+                '_geo_distance': {
+                    'location': {'lat': lat, 'lon': lon},
+                    'order': 'asc',
+                    'unit': 'km',
+                }
+            }
+        ],
+        'size': limit,
+    }
+
+
+def _visible_geo_search_hits(result: dict) -> list[dict]:
+    hits = []
+    for hit in result['hits']['hits']:
+        entry = hit['_source']
+        if not _is_visible_search_hit('spots', entry):
+            continue
+        entry['_distance_km'] = hit['sort'][0] if hit.get('sort') else None
+        hits.append(entry)
+    return hits
+
+
 class SearchView(APIView):
     """Full-text search across spots, reviews, and trips."""
 
@@ -46,8 +142,7 @@ class SearchView(APIView):
         if not q:
             return JsonResponse({'error': "Query parameter 'q' is required"}, status=400)
 
-        index_map = {'spots': SPOT_INDEX, 'reviews': REVIEW_INDEX, 'trips': TRIP_INDEX}
-        index = index_map.get(doc_type)
+        index = SEARCH_INDEXES.get(doc_type)
         if index is None:
             return JsonResponse({'error': f'Invalid type: {doc_type}. Use spots, reviews, or trips.'}, status=400)
 
@@ -55,47 +150,7 @@ class SearchView(APIView):
         if client is None:
             return JsonResponse({'error': 'Search service unavailable'}, status=503)
 
-        body = {
-            'query': {
-                'bool': {
-                    'should': [
-                        {
-                            'multi_match': {
-                                'query': q,
-                                'fields': self._fields_for(doc_type),
-                                'fuzziness': 'AUTO',
-                                'type': 'best_fields',
-                            }
-                        },
-                        {
-                            'multi_match': {
-                                'query': q,
-                                'fields': self._fields_for(doc_type),
-                                'type': 'bool_prefix',
-                                'boost': 1.4,
-                            }
-                        },
-                        {
-                            'multi_match': {
-                                'query': q,
-                                'fields': self._phrase_prefix_fields_for(doc_type),
-                                'type': 'phrase_prefix',
-                                'boost': 1.2,
-                            }
-                        },
-                    ],
-                    'minimum_should_match': 1,
-                    'filter': [_visibility_filter_for(doc_type)],
-                }
-            },
-            'from': offset,
-            'size': limit,
-            'highlight': {
-                'fields': {'name': {}, 'text': {}, 'description': {}},
-                'pre_tags': ['<em>'],
-                'post_tags': ['</em>'],
-            },
-        }
+        body = _build_search_body(q, doc_type, limit=limit, offset=offset)
 
         try:
             result = client.search(index=index, body=body)
@@ -103,14 +158,7 @@ class SearchView(APIView):
             logger.exception('Elasticsearch query failed')
             return JsonResponse({'error': 'Search query failed'}, status=500)
 
-        hits = []
-        for hit in result['hits']['hits']:
-            entry = hit['_source']
-            if not _is_visible_search_hit(doc_type, entry):
-                continue
-            entry['_score'] = hit['_score']
-            entry['_highlights'] = hit.get('highlight', {})
-            hits.append(entry)
+        hits = _visible_search_hits(doc_type, result)
 
         return JsonResponse(
             {
@@ -162,31 +210,7 @@ class GeoSearchView(APIView):
         if client is None:
             return JsonResponse({'error': 'Search service unavailable'}, status=503)
 
-        body = {
-            'query': {
-                'bool': {
-                    'filter': [
-                        {
-                            'geo_distance': {
-                                'distance': radius,
-                                'location': {'lat': lat, 'lon': lon},
-                            }
-                        },
-                        {'term': {'is_public': True}},
-                    ]
-                }
-            },
-            'sort': [
-                {
-                    '_geo_distance': {
-                        'location': {'lat': lat, 'lon': lon},
-                        'order': 'asc',
-                        'unit': 'km',
-                    }
-                }
-            ],
-            'size': limit,
-        }
+        body = _build_geo_search_body(lat=lat, lon=lon, radius=radius, limit=limit)
 
         try:
             result = client.search(index=SPOT_INDEX, body=body)
@@ -194,13 +218,7 @@ class GeoSearchView(APIView):
             logger.exception('Geo search failed')
             return JsonResponse({'error': 'Geo search failed'}, status=500)
 
-        hits = []
-        for hit in result['hits']['hits']:
-            entry = hit['_source']
-            if not _is_visible_search_hit('spots', entry):
-                continue
-            entry['_distance_km'] = hit['sort'][0] if hit.get('sort') else None
-            hits.append(entry)
+        hits = _visible_geo_search_hits(result)
 
         return JsonResponse(
             {

@@ -20,11 +20,26 @@
         :class="{ active: rating >= star }"
         :aria-checked="String(rating === star)"
         role="radio"
-        @click="rating = star"
+        @click="setRating(star)"
       >
         <ScopeIcon :name="rating >= star ? 'star-filled' : 'star'" :label="`${star} stars`" />
       </button>
     </div>
+
+    <label class="rating-input">
+      <span>Rating</span>
+      <input
+        v-model="ratingInput"
+        data-test="review-rating-input"
+        type="number"
+        min="1.0"
+        max="5.0"
+        step="0.1"
+        inputmode="decimal"
+        @blur="syncRatingInput"
+        @change="syncRatingInput"
+      />
+    </label>
 
     <label class="field-group">
       <div class="field-group__head">
@@ -37,6 +52,17 @@
         maxlength="500"
         placeholder="Share a practical note, standout detail, or timing tip for future travelers."
       />
+    </label>
+
+    <label class="anonymous-toggle">
+      <input v-model="isAnonymous" type="checkbox" />
+      <span class="anonymous-toggle__switch" aria-hidden="true">
+        <span class="anonymous-toggle__thumb"></span>
+      </span>
+      <span class="anonymous-toggle__copy">
+        <strong>Post anonymously</strong>
+        <small>Your review helps the spot, but your public name and profile stay hidden.</small>
+      </span>
     </label>
 
     <p v-if="errorMessage" class="error-copy">{{ errorMessage }}</p>
@@ -55,6 +81,8 @@ import { sanitizeMultilineText } from '@/utils/sanitizers';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 const MIN_COMMENT_LENGTH = 12;
+const MIN_RATING = 1;
+const MAX_RATING = 5;
 
 const props = withDefaults(
   defineProps<{
@@ -68,14 +96,37 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: 'submit', payload: { rating: number; comment: string }): void;
+  (event: 'submit', payload: { rating: number; comment: string; isAnonymous: boolean }): void;
 }>();
 
-const rating = ref(Math.min(Math.max(props.defaultRating, 1), 5));
+const rating = ref(normalizeRating(props.defaultRating));
+const ratingInput = ref(formatRating(rating.value));
 const comment = ref('');
+const isAnonymous = ref(false);
 const errorMessage = ref('');
 
+function normalizeRating(value: unknown, fallback = MAX_RATING): number {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  const numericFallback = Number.isFinite(fallback) ? fallback : MAX_RATING;
+  const clamped = Math.min(Math.max(Number.isFinite(numericValue) ? numericValue : numericFallback, MIN_RATING), MAX_RATING);
+  return Math.round(clamped * 10) / 10;
+}
+
+function formatRating(value: number): string {
+  return normalizeRating(value).toFixed(1);
+}
+
+function setRating(value: number) {
+  rating.value = normalizeRating(value, rating.value);
+  ratingInput.value = formatRating(rating.value);
+}
+
+function syncRatingInput() {
+  setRating(normalizeRating(ratingInput.value, rating.value));
+}
+
 function handleSubmit() {
+  syncRatingInput();
   const normalizedComment = sanitizeMultilineText(comment.value);
 
   if (normalizedComment.length < MIN_COMMENT_LENGTH) {
@@ -87,9 +138,10 @@ function handleSubmit() {
   emit('submit', {
     rating: rating.value,
     comment: normalizedComment,
+    isAnonymous: isAnonymous.value,
   });
   comment.value = '';
-  rating.value = props.defaultRating;
+  setRating(props.defaultRating);
 }
 </script>
 
@@ -210,9 +262,112 @@ function handleSubmit() {
   outline: none;
 }
 
+.rating-input {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 10rem;
+}
+
+.rating-input span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.rating-input input {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-input input:focus-visible {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 2px;
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--input-border));
+}
+
 .field-group {
   display: grid;
   gap: var(--space-2);
+}
+
+.anonymous-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+}
+
+.anonymous-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.anonymous-toggle__switch {
+  width: 2.75rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.anonymous-toggle__thumb {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-full);
+  background: var(--text-secondary);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.anonymous-toggle input:checked + .anonymous-toggle__switch {
+  background: color-mix(in srgb, var(--accent-teal) 26%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--accent-teal) 48%, var(--border));
+}
+
+.anonymous-toggle input:checked + .anonymous-toggle__switch .anonymous-toggle__thumb {
+  transform: translateX(1.18rem);
+  background: var(--accent-teal);
+}
+
+.anonymous-toggle:focus-within {
+  outline: 2px solid var(--input-focus);
+  outline-offset: 2px;
+}
+
+.anonymous-toggle__copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.anonymous-toggle__copy strong,
+.anonymous-toggle__copy small {
+  display: block;
+  line-height: var(--line-height-normal);
+}
+
+.anonymous-toggle__copy strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+}
+
+.anonymous-toggle__copy small {
+  color: var(--text-secondary);
 }
 
 .field-group textarea {

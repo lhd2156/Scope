@@ -6,7 +6,6 @@ import os
 import queue
 import re
 from dataclasses import dataclass
-from datetime import date
 from typing import Annotated, TypedDict
 from urllib.parse import quote
 
@@ -44,6 +43,18 @@ from app.agents.tools import (
     predict_trip_cost,
     search_nearby,
     search_spots,
+)
+from app.agents.trip_planner_heuristics import (
+    _has_travel_party_brief,
+    _infer_interests_from_text,
+    _infer_pace_from_text,
+    _is_itinerary_build_request,
+    _missing_itinerary_brief_questions,
+    _missing_itinerary_brief_response,
+    _parse_trip_duration_days,
+    _read_prompt_line,
+    _read_recent_chat,
+    _read_traveler_request,
 )
 
 TOOLS = [search_spots, search_nearby, get_spot_reviews, get_weather, calculate_distance, predict_trip_cost]
@@ -93,6 +104,23 @@ Professional boundary rules:
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
+
+
+@dataclass(frozen=True, slots=True)
+class _FallbackPlanContext:
+    prompt: str
+    start: str
+    end: str
+    dates: str
+    budget: str
+    effective_pace: str
+    effective_interests: str
+    pace: str
+    interests: str
+    request_text: str
+    recent_chat: str
+    route: str
+    normalized_request: str
 
 
 def _env_int(name: str, default: int) -> int:
@@ -150,131 +178,6 @@ def _extract_gemini_text(payload: dict) -> str:
     if not text:
         raise RuntimeError("Gemini returned no text")
     return text
-
-
-def _read_prompt_line(prompt: str, label: str) -> str:
-    matched = re.search(rf"^{label}:\s*(.+)$", prompt, flags=re.IGNORECASE | re.MULTILINE)
-    return matched.group(1).strip() if matched else ""
-
-
-def _read_traveler_request(prompt: str) -> str:
-    matched = re.search(r"Traveler request:\s*([\s\S]+)$", prompt, flags=re.IGNORECASE)
-    return matched.group(1).strip() if matched else prompt.strip()
-
-
-def _read_recent_chat(prompt: str) -> str:
-    matched = re.search(r"^Recent chat:\s*([\s\S]*?)(?=\nTraveler request:|$)", prompt, flags=re.IGNORECASE | re.MULTILINE)
-    return matched.group(1).strip() if matched else ""
-
-
-def _is_itinerary_build_request(value: str) -> bool:
-    return bool(
-        re.search(r"\b(build|generate|make|create)\b.*\b(itinerary|plan|route|first draft|weekend)\b", value, flags=re.IGNORECASE)
-        or re.search(r"\b(balanced first draft|first itinerary|starter itinerary)\b", value, flags=re.IGNORECASE)
-    )
-
-
-def _parse_trip_duration_days(prompt: str, dates: str) -> int | None:
-    duration_line = _read_prompt_line(prompt, "Trip duration")
-    duration_match = re.search(r"\b(\d+)\s+day", duration_line, flags=re.IGNORECASE)
-    if duration_match:
-        parsed = int(duration_match.group(1))
-        return parsed if parsed > 0 else None
-
-    traveler_request = _read_traveler_request(prompt)
-    if re.search(r"\bweekend\b", traveler_request, flags=re.IGNORECASE):
-        return 2
-
-    request_duration_match = re.search(r"\b(\d{1,2})\s*(?:day|days|d)\b", traveler_request, flags=re.IGNORECASE)
-    if request_duration_match:
-        parsed = int(request_duration_match.group(1))
-        return parsed if parsed > 0 else None
-
-    date_match = re.search(r"(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})", dates, flags=re.IGNORECASE)
-    if not date_match:
-        return None
-
-    try:
-        start = date.fromisoformat(date_match.group(1))
-        end = date.fromisoformat(date_match.group(2))
-    except ValueError:
-        return None
-
-    if end < start:
-        return None
-
-    return (end - start).days + 1
-
-
-def _has_travel_party_brief(prompt: str) -> bool:
-    travelers = _read_prompt_line(prompt, "Travelers")
-    travel_party = _read_prompt_line(prompt, "Travel party")
-    traveler_request = _read_traveler_request(prompt)
-    try:
-        if int(travelers) > 0:
-            return True
-    except (TypeError, ValueError):
-        pass
-
-    return bool(
-        re.search(r"\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b", travel_party, flags=re.IGNORECASE)
-        or re.search(r"\b(solo|alone|couple|pair|partner|group|family|kids?|children|friends?|travelers?|people)\b", traveler_request, flags=re.IGNORECASE)
-    )
-
-
-def _missing_itinerary_brief_questions(prompt: str, start: str, end: str, dates: str, pace: str, interests: str) -> list[str]:
-    questions: list[str] = []
-    duration_days = _parse_trip_duration_days(prompt, dates)
-
-    if not start:
-        questions.append("What destination(s) are you visiting? Give me the start and finish, or the city/region for a one-place trip.")
-    if not duration_days or duration_days <= 1:
-        questions.append("How many days is the trip?")
-    if not interests.strip():
-        questions.append("What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?")
-    if not pace.strip():
-        questions.append("Do you want the pace packed, balanced, or relaxed?")
-    if not _has_travel_party_brief(prompt):
-        questions.append("Who are you traveling with: solo, couple, group, or family?")
-
-    return questions
-
-
-def _missing_itinerary_brief_response(questions: list[str]) -> str:
-    return f"I can build that. {questions[0] if questions else 'What kind of trip should this feel like?'}"
-
-
-def _infer_interests_from_text(value: str) -> str:
-    normalized = value.lower()
-    interests: list[str] = []
-
-    def add(interest: str, pattern: str) -> None:
-        if re.search(pattern, normalized) and interest not in interests:
-            interests.append(interest)
-
-    add("food", r"\b(food|restaurants?|coffee|cafes?|lunch|dinner|breakfast|eat|drink)\b")
-    add("culture", r"\b(culture|museums?|art|history|historic)\b")
-    add("nature", r"\b(nature|parks?|trails?|hikes?|outdoors?)\b")
-    add("scenic", r"\b(scenic|views?|overlooks?|photo)\b")
-    add("adventure", r"\b(adventure|active|activities|zipline|rafting|climb)\b")
-    add("nightlife", r"\b(nightlife|bars?|clubs?|live music)\b")
-    add("shopping", r"\b(shopping|markets?|malls?|boutiques?)\b")
-    add("entertainment", r"\b(entertainment|amusement|theme\s*parks?|six\s*flags|bowling|arcades?|movies?|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b")
-
-    if re.search(r"\b(?:balanced\s+(?:vibes?|interests?|mix)|mix|variety)\b", normalized) and not interests:
-        interests.extend(["food", "culture", "scenic"])
-
-    return ", ".join(interests)
-
-
-def _infer_pace_from_text(value: str) -> str:
-    if re.search(r"\b(relaxed|slow|chill|easy)\b", value, flags=re.IGNORECASE):
-        return "relaxed"
-    if re.search(r"\b(packed|busy|full|fast)\b", value, flags=re.IGNORECASE):
-        return "packed"
-    if re.search(r"\b(balanced|moderate|standard|normal)\b", value, flags=re.IGNORECASE):
-        return "balanced"
-    return ""
 
 
 def _is_vague_brief_reply(value: str) -> bool:
@@ -616,8 +519,7 @@ def create_trip_planner():
     return graph.compile()
 
 
-def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
-    """Return a useful itinerary shell if the local LLM is unavailable."""
+def _fallback_plan_context(prompt: str, start_date: str | None = None) -> _FallbackPlanContext:
     start = _read_prompt_line(prompt, "Start")
     end = _read_prompt_line(prompt, "End")
     dates = _read_prompt_line(prompt, "Dates") or start_date or "the selected dates"
@@ -632,97 +534,169 @@ def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
     recent_chat = _read_recent_chat(prompt)
     route = f"{start} to {end}" if start and end else start or end or "this draft route"
     normalized_request = request_text.lower()
-    boundary_response = _professional_boundary_response(request_text)
+
+    return _FallbackPlanContext(
+        prompt=prompt,
+        start=start,
+        end=end,
+        dates=dates,
+        budget=budget,
+        effective_pace=effective_pace,
+        effective_interests=effective_interests,
+        pace=pace,
+        interests=interests,
+        request_text=request_text,
+        recent_chat=recent_chat,
+        route=route,
+        normalized_request=normalized_request,
+    )
+
+
+def _fallback_itinerary_response(ctx: _FallbackPlanContext) -> str | None:
+    pending_duration_days = (
+        _parse_pending_duration_reply(ctx.request_text)
+        if _has_pending_duration_brief(ctx.prompt, ctx.recent_chat)
+        else None
+    )
+    if pending_duration_days:
+        return _duration_reply_itinerary_response(ctx.route, ctx.budget, ctx.pace, pending_duration_days)
+
+    if _is_vague_brief_reply(ctx.request_text) and _has_pending_itinerary_brief(ctx.prompt, ctx.recent_chat):
+        return _smart_default_itinerary_response(ctx.route, ctx.budget, ctx.pace)
+
+    if _is_itinerary_build_request(ctx.request_text):
+        missing_questions = _missing_itinerary_brief_questions(
+            ctx.prompt,
+            ctx.start,
+            ctx.end,
+            ctx.dates,
+            ctx.effective_pace,
+            ctx.effective_interests,
+        )
+        if missing_questions:
+            return _missing_itinerary_brief_response(missing_questions)
+        if _should_return_concise_itinerary(ctx.request_text, ctx.normalized_request):
+            return _concise_itinerary_response(ctx.prompt, ctx.route, ctx.dates, ctx.budget, ctx.pace, ctx.interests)
+
+    return None
+
+
+def _budget_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would keep {ctx.route} inside {ctx.budget} by treating the top number as your hard cap, not the goal.",
+            "",
+            f"For {ctx.dates}, keep the pace {ctx.pace} and add only low-detour stops: fuel, food, rest, or one short scenic break.",
+            "Avoid paid attractions or long side quests unless they replace another stop.",
+            "If the route needs a midpoint, pick one stop that handles food/restrooms/views in the same area instead of stacking multiple stops.",
+        ]
+    )
+
+
+def _tighten_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would tighten {ctx.route} around one clear route purpose.",
+            "",
+            f"At a {ctx.pace} pace, cut anything that does not shorten the drive, feed/rest the group, or create a standout memory.",
+            "Use one midpoint stop, then keep the final leg clean. If a stop adds backtracking, replace it instead of adding more.",
+        ]
+    )
+
+
+def _timing_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would check {ctx.route} against {ctx.dates} as a {ctx.pace} plan.",
+            "",
+            "Do not stack multiple optional stops on the longest driving day.",
+            "Build around departure time, weather/border buffers if relevant, and one practical midpoint break.",
+        ]
+    )
+
+
+def _midpoint_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would only add a midpoint on {ctx.route} if it saves energy or solves a real need.",
+            "",
+            f"Best fit: one {ctx.interests} stop that also covers food, restrooms, fuel, or a short walk.",
+            f"Budget guardrail: keep it inside {ctx.budget} with a free viewpoint, casual food stop, public park, or quick town-center break.",
+            "Skip anything that adds more than about 20 minutes off-route unless it becomes the main stop.",
+        ]
+    )
+
+
+def _weekend_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would make {ctx.route} a simple {ctx.pace} weekend route.",
+            "",
+            "Day 1: travel, take one easy food or rest stop, then arrive without adding extra detours.",
+            f"Day 2: choose one {ctx.interests} anchor and one nearby flexible stop.",
+            "Final leg: keep it light, with one practical break only if it helps the drive.",
+            f"Keep {ctx.budget} as the cap by choosing free, scenic, public, or casual stops first.",
+        ]
+    )
+
+
+def _suggestion_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"For {ctx.route}, I would keep your next move narrow and useful.",
+            "",
+            f"Add one {ctx.interests} stop that sits close to the route and fits a {ctx.pace} pace.",
+            f"Keep {ctx.budget} as the cap, then avoid adding another stop unless it replaces a weaker one.",
+            "After that, build the itinerary so timing and driving legs can be checked together.",
+        ]
+    )
+
+
+def _default_fallback_response(ctx: _FallbackPlanContext) -> str:
+    return "\n".join(
+        [
+            f"I would handle \"{ctx.request_text}\" as a focused planning pass for {ctx.route}.",
+            "",
+            f"Use {ctx.budget} as the guardrail and keep the rhythm {ctx.pace}.",
+            f"Prioritize {ctx.interests}, then add only stops that make the route easier or more memorable.",
+        ]
+    )
+
+
+def _fallback_topic_response(ctx: _FallbackPlanContext) -> str:
+    if re.search(r"\b(budget|inside|under|cap|\$|cost|spend)\b", ctx.normalized_request):
+        return _budget_fallback_response(ctx)
+
+    if re.search(r"\b(tighten|remove filler|filler|clean up|simplify|rebalance)\b", ctx.normalized_request):
+        return _tighten_fallback_response(ctx)
+
+    if re.search(r"\b(timing|time|date|schedule|works?|pace)\b", ctx.normalized_request):
+        return _timing_fallback_response(ctx)
+
+    if re.search(r"\b(stop|midpoint|middle|halfway|between|on the way|en route)\b", ctx.normalized_request):
+        return _midpoint_fallback_response(ctx)
+
+    if re.search(r"\b(weekend|simple|easy)\b", ctx.normalized_request):
+        return _weekend_fallback_response(ctx)
+
+    if re.search(r"\b(suggest|recommend|ideas?|what should)\b", ctx.normalized_request):
+        return _suggestion_fallback_response(ctx)
+
+    return _default_fallback_response(ctx)
+
+
+def _fallback_plan(prompt: str, start_date: str | None = None) -> str:
+    """Return a useful itinerary shell if the local LLM is unavailable."""
+    ctx = _fallback_plan_context(prompt, start_date)
+    boundary_response = _professional_boundary_response(ctx.request_text)
     if boundary_response:
         return boundary_response
 
-    pending_duration_days = _parse_pending_duration_reply(request_text) if _has_pending_duration_brief(prompt, recent_chat) else None
-    if pending_duration_days:
-        return _duration_reply_itinerary_response(route, budget, pace, pending_duration_days)
+    itinerary_response = _fallback_itinerary_response(ctx)
+    if itinerary_response:
+        return itinerary_response
 
-    if _is_vague_brief_reply(request_text) and _has_pending_itinerary_brief(prompt, recent_chat):
-        return _smart_default_itinerary_response(route, budget, pace)
-
-    if _is_itinerary_build_request(request_text):
-        missing_questions = _missing_itinerary_brief_questions(prompt, start, end, dates, effective_pace, effective_interests)
-        if missing_questions:
-            return _missing_itinerary_brief_response(missing_questions)
-        if _should_return_concise_itinerary(request_text, normalized_request):
-            return _concise_itinerary_response(prompt, route, dates, budget, pace, interests)
-
-    if re.search(r"\b(budget|inside|under|cap|\$|cost|spend)\b", normalized_request):
-        return "\n".join(
-            [
-                f"I would keep {route} inside {budget} by treating the top number as your hard cap, not the goal.",
-                "",
-                f"For {dates}, keep the pace {pace} and add only low-detour stops: fuel, food, rest, or one short scenic break.",
-                "Avoid paid attractions or long side quests unless they replace another stop.",
-                "If the route needs a midpoint, pick one stop that handles food/restrooms/views in the same area instead of stacking multiple stops.",
-            ]
-        )
-
-    if re.search(r"\b(tighten|remove filler|filler|clean up|simplify|rebalance)\b", normalized_request):
-        return "\n".join(
-            [
-                f"I would tighten {route} around one clear route purpose.",
-                "",
-                f"At a {pace} pace, cut anything that does not shorten the drive, feed/rest the group, or create a standout memory.",
-                "Use one midpoint stop, then keep the final leg clean. If a stop adds backtracking, replace it instead of adding more.",
-            ]
-        )
-
-    if re.search(r"\b(timing|time|date|schedule|works?|pace)\b", normalized_request):
-        return "\n".join(
-            [
-                f"I would check {route} against {dates} as a {pace} plan.",
-                "",
-                "Do not stack multiple optional stops on the longest driving day.",
-                "Build around departure time, weather/border buffers if relevant, and one practical midpoint break.",
-            ]
-        )
-
-    if re.search(r"\b(stop|midpoint|middle|halfway|between|on the way|en route)\b", normalized_request):
-        return "\n".join(
-            [
-                f"I would only add a midpoint on {route} if it saves energy or solves a real need.",
-                "",
-                f"Best fit: one {interests} stop that also covers food, restrooms, fuel, or a short walk.",
-                f"Budget guardrail: keep it inside {budget} with a free viewpoint, casual food stop, public park, or quick town-center break.",
-                "Skip anything that adds more than about 20 minutes off-route unless it becomes the main stop.",
-            ]
-        )
-
-    if re.search(r"\b(weekend|simple|easy)\b", normalized_request):
-        return "\n".join(
-            [
-                f"I would make {route} a simple {pace} weekend route.",
-                "",
-                "Day 1: travel, take one easy food or rest stop, then arrive without adding extra detours.",
-                f"Day 2: choose one {interests} anchor and one nearby flexible stop.",
-                "Final leg: keep it light, with one practical break only if it helps the drive.",
-                f"Keep {budget} as the cap by choosing free, scenic, public, or casual stops first.",
-            ]
-        )
-
-    if re.search(r"\b(suggest|recommend|ideas?|what should)\b", normalized_request):
-        return "\n".join(
-            [
-                f"For {route}, I would keep your next move narrow and useful.",
-                "",
-                f"Add one {interests} stop that sits close to the route and fits a {pace} pace.",
-                f"Keep {budget} as the cap, then avoid adding another stop unless it replaces a weaker one.",
-                "After that, build the itinerary so timing and driving legs can be checked together.",
-            ]
-        )
-
-    return "\n".join(
-        [
-            f"I would handle \"{request_text}\" as a focused planning pass for {route}.",
-            "",
-            f"Use {budget} as the guardrail and keep the rhythm {pace}.",
-            f"Prioritize {interests}, then add only stops that make the route easier or more memorable.",
-        ]
-    )
+    return _fallback_topic_response(ctx)
 
 
 def _agent_context_parts(prompt: str, user_id: str | None = None, start_date: str | None = None) -> list[str]:

@@ -88,24 +88,6 @@ export function pickTravelPhotoForSeed(category: SpotCategory, seed: string): st
   return pool[stableHash(seed) % pool.length];
 }
 
-export function buildPravatarAvatarUrl(imageId: number, _size = 150): string {
-  const normalizedId = Math.min(70, Math.max(1, Math.trunc(imageId) || 1));
-  return `https://i.pravatar.cc/150?img=${normalizedId}`;
-}
-
-export function buildInitialsAvatarUrl(name: string, background = '1f2937', color = 'f8fafc'): string {
-  const params = new URLSearchParams({
-    name,
-    background,
-    color,
-    bold: 'true',
-    rounded: 'true',
-    size: '150',
-    format: 'png',
-  });
-  return `https://ui-avatars.com/api/?${params.toString()}`;
-}
-
 export function getCategoryTravelPhoto(category: SpotCategory): string {
   return CATEGORY_TRAVEL_PHOTOS[category];
 }

@@ -30,10 +30,23 @@ import {
   sanitizeUserProfile,
 } from '@/utils/sanitizers';
 import { addCalendarDays, getInclusiveDaySpan } from '@/utils/formatters';
-import { buildPravatarAvatarUrl } from '@/utils/travelMedia';
 import { demoFeed, demoNotifications, demoSpotDetails, demoSpots, demoTrips, demoUsers, demoViewport } from '@/mock';
 import { DEMO_MODE_ENABLED } from '@/services/demoMode';
 import { buildTripPlannerPresetItinerary } from '@/services/tripPlannerPresets';
+
+const PEXELS_AVATARS = {
+  preview: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
+  maya: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+  elijah: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+  aisha: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
+  priya: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=600',
+  theo: 'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=600',
+  camille: 'https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=600',
+  noah: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=600',
+  luca: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=600',
+  harper: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=600',
+  emilia: 'https://images.pexels.com/photos/3760854/pexels-photo-3760854.jpeg?auto=compress&cs=tinysrgb&w=600',
+} as const;
 
 const users: UserProfile[] = [
   {
@@ -41,7 +54,7 @@ const users: UserProfile[] = [
     username: 'scope-preview',
     email: 'traveler@preview.scope.local',
     displayName: 'Scope traveler',
-    avatarUrl: buildPravatarAvatarUrl(12),
+    avatarUrl: PEXELS_AVATARS.preview,
     bio: 'Sample preview profile used until a real account connects.',
     interests: ['food', 'culture', 'nightlife'],
     stats: { spots: 42, trips: 8, friends: 126 },
@@ -51,7 +64,7 @@ const users: UserProfile[] = [
     username: 'maya',
     email: 'maya@example.com',
     displayName: 'Maya Chen',
-    avatarUrl: buildPravatarAvatarUrl(32),
+    avatarUrl: PEXELS_AVATARS.maya,
     bio: 'Weekend explorer chasing river walks, gardens, and premium museum stops.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
@@ -59,10 +72,10 @@ const users: UserProfile[] = [
   },
   {
     id: 'user-3',
-    username: 'elijah',
-    email: 'elijah@example.com',
+    username: 'elijah.brooks',
+    email: 'elijah.brooks@showcase.scope.local',
     displayName: 'Elijah Brooks',
-    avatarUrl: buildPravatarAvatarUrl(45),
+    avatarUrl: PEXELS_AVATARS.elijah,
     bio: 'Adventure-first trip planner with a thing for steep hikes, vinyl rooms, and strong coffee.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
@@ -98,7 +111,7 @@ const friendRequestUsers: UserProfile[] = [
     username: 'aishabello',
     email: 'aisha@example.com',
     displayName: 'Aisha Bello',
-    avatarUrl: buildPravatarAvatarUrl(47),
+    avatarUrl: PEXELS_AVATARS.aisha,
     bio: 'Curating culture-heavy city routes with rooftop dinners, galleries, and boutique hotels.',
     homeBase: 'Houston, TX',
     interests: ['culture', 'food', 'shopping'],
@@ -112,7 +125,7 @@ const networkUsers: UserProfile[] = [
     username: 'priyanair',
     email: 'priya@example.com',
     displayName: 'Priya Nair',
-    avatarUrl: buildPravatarAvatarUrl(14),
+    avatarUrl: PEXELS_AVATARS.priya,
     bio: 'Collecting sunrise walks, boutique stays, and polished café stops with camera-ready light.',
     homeBase: 'Mexico City, MX',
     interests: ['adventure', 'scenic', 'food'],
@@ -123,7 +136,7 @@ const networkUsers: UserProfile[] = [
     username: 'theoalvarez',
     email: 'theo@example.com',
     displayName: 'Theo Alvarez',
-    avatarUrl: buildPravatarAvatarUrl(19),
+    avatarUrl: PEXELS_AVATARS.theo,
     bio: 'Mapping nightlife weekends and the best late-checkout brunches after every set.',
     homeBase: 'Barcelona, ES',
     interests: ['nightlife', 'food', 'culture'],
@@ -134,7 +147,7 @@ const networkUsers: UserProfile[] = [
     username: 'camillelaurent',
     email: 'camille@example.com',
     displayName: 'Camille Laurent',
-    avatarUrl: buildPravatarAvatarUrl(41),
+    avatarUrl: PEXELS_AVATARS.camille,
     bio: 'Design museums, hidden courtyards, and elegant retail lanes are always on my route.',
     homeBase: 'Paris, FR',
     interests: ['culture', 'shopping', 'scenic'],
@@ -145,7 +158,7 @@ const networkUsers: UserProfile[] = [
     username: 'noahkim',
     email: 'noah@example.com',
     displayName: 'Noah Kim',
-    avatarUrl: buildPravatarAvatarUrl(57),
+    avatarUrl: PEXELS_AVATARS.noah,
     bio: 'Snowy trails, mountain lookouts, and cinematic rail views year-round.',
     homeBase: 'Vancouver, CA',
     interests: ['nature', 'adventure', 'scenic'],
@@ -156,7 +169,7 @@ const networkUsers: UserProfile[] = [
     username: 'lucamoretti',
     email: 'luca@example.com',
     displayName: 'Luca Moretti',
-    avatarUrl: buildPravatarAvatarUrl(29),
+    avatarUrl: PEXELS_AVATARS.luca,
     bio: 'Always scouting elegant coastlines, aperitivo bars, and harbor walks that feel cinematic.',
     homeBase: 'Lisbon, PT',
     interests: ['scenic', 'food', 'nightlife'],
@@ -167,7 +180,7 @@ const networkUsers: UserProfile[] = [
     username: 'harpersingh',
     email: 'harper@example.com',
     displayName: 'Harper Singh',
-    avatarUrl: buildPravatarAvatarUrl(34),
+    avatarUrl: PEXELS_AVATARS.harper,
     bio: 'Finding trailhead cafés, alpine stays, and post-hike design shops.',
     homeBase: 'Denver, CO',
     interests: ['adventure', 'shopping', 'nature'],
@@ -178,7 +191,7 @@ const networkUsers: UserProfile[] = [
     username: 'emiliasoto',
     email: 'emilia@example.com',
     displayName: 'Emilia Soto',
-    avatarUrl: buildPravatarAvatarUrl(64),
+    avatarUrl: PEXELS_AVATARS.emilia,
     bio: 'Urban architecture loops, market mornings, and boutique stays with strong coffee.',
     homeBase: 'Buenos Aires, AR',
     interests: ['culture', 'food', 'shopping'],
@@ -954,20 +967,17 @@ const defaultViewport: MapViewport = {
   style: DEFAULT_MAP_STYLE,
 };
 
-const defaultMockUsers = allUsers.map((user) => sanitizeUserProfile(user, { allowGeneratedAvatar: true }));
+const defaultMockUsers = allUsers.map((user) => sanitizeUserProfile(user));
 const defaultMockSpots = baseSpots.map((spot) =>
-  sanitizeSpotSummary(spot, { allowGeneratedAuthorAvatar: true }),
+  sanitizeSpotSummary(spot),
 );
 const defaultMockSpotDetails = baseSpots.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
-  accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot), {
-    allowGeneratedAuthorAvatar: true,
-    allowGeneratedReviewAvatars: true,
-  });
+  accumulator[spot.id] = sanitizeSpotDetail(buildDetail(spot));
   return accumulator;
 }, {});
-const defaultMockTrips = trips.map((trip) => sanitizeTrip(trip, { allowGeneratedMemberAvatars: true }));
+const defaultMockTrips = trips.map((trip) => sanitizeTrip(trip));
 const defaultMockNotifications = notifications.map((notification) => sanitizeNotificationItem(notification));
-const defaultMockFeed = feed.map((item) => sanitizeFeedItem(item, { allowGeneratedActorAvatar: true }));
+const defaultMockFeed = feed.map((item) => sanitizeFeedItem(item));
 
 export const mockUsers = DEMO_MODE_ENABLED ? demoUsers : defaultMockUsers;
 export const mockSpots = DEMO_MODE_ENABLED ? demoSpots : defaultMockSpots;
@@ -1095,16 +1105,13 @@ export function updateMockSpot(spotId: string, submission: SpotFormSubmission, a
 export function getSpotById(spotId: string): SpotDetail | undefined {
   const spot = mockSpotDetails[spotId];
   return spot
-    ? sanitizeSpotDetail(spot, {
-      allowGeneratedAuthorAvatar: true,
-      allowGeneratedReviewAvatars: true,
-    })
+    ? sanitizeSpotDetail(spot)
     : undefined;
 }
 
 export function getTripById(tripId: string): Trip | undefined {
   const trip = mockTrips.find((entry) => entry.id === tripId);
-  return trip ? sanitizeTrip(trip, { allowGeneratedMemberAvatars: true }) : undefined;
+  return trip ? sanitizeTrip(trip) : undefined;
 }
 
 export function filterSpots(filters: { category?: SpotCategory | ''; city?: string; vibe?: string }): SpotSummary[] {

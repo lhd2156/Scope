@@ -1001,8 +1001,8 @@ describe('coverage long-tail services and utilities', () => {
     const sanitizers = await import('@/utils/sanitizers');
     expect(sanitizers.sanitizeImageUrl('javascript:alert(1)')).toBeUndefined();
     expect(sanitizers.sanitizeImageUrl('data:image/svg+xml,<svg />')).toBeUndefined();
-    expect(sanitizers.sanitizeAvatarUrl('https://ui-avatars.com/api/?name=LD')).toContain('ui-avatars.com');
-    expect(sanitizers.sanitizeAvatarUrl('https://ui-avatars.com/api/?name=LD', { allowGeneratedAvatar: true })).toContain('ui-avatars.com');
+    expect(sanitizers.sanitizeAvatarUrl('https://ui-avatars.com/api/?name=LD')).toBeUndefined();
+    expect(sanitizers.sanitizeAvatarUrl('https://ui-avatars.com/api/?name=LD', { allowGeneratedAvatar: true })).toBeUndefined();
     expect(sanitizers.sanitizeTripSpot({ ...sampleTrip.spots[0], title: '<b>Lunch</b>', latitude: Number.NaN })).toMatchObject({
       title: '<b>Lunch</b>',
       latitude: 0,

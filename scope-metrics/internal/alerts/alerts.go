@@ -118,6 +118,10 @@ func LoadRuleSet(path string) (*RuleSet, error) {
 		return nil, fmt.Errorf("parse alert rules: %w", err)
 	}
 
+	return compileRuleSet(cfg)
+}
+
+func compileRuleSet(cfg Config) (*RuleSet, error) {
 	if cfg.Version == 0 {
 		cfg.Version = 1
 	}
@@ -138,47 +142,49 @@ func LoadRuleSet(path string) (*RuleSet, error) {
 
 	rules := make([]CompiledRule, 0, len(cfg.Rules))
 	for _, rule := range cfg.Rules {
-		if rule.ID == "" {
-			return nil, fmt.Errorf("alert rule id is required")
+		compiledRule, err := compileRule(rule, defaultSeverity, defaultCooldown)
+		if err != nil {
+			return nil, err
 		}
-
-		if rule.Summary == "" {
-			return nil, fmt.Errorf("alert rule %q summary is required", rule.ID)
-		}
-
-		cooldown := defaultCooldown
-		if rule.Cooldown != "" {
-			parsedCooldown, err := time.ParseDuration(rule.Cooldown)
-			if err != nil {
-				return nil, fmt.Errorf("parse cooldown for %q: %w", rule.ID, err)
-			}
-			cooldown = parsedCooldown
-		}
-
-		severity := rule.Severity
-		if severity == "" {
-			severity = defaultSeverity
-		}
-
-		labels := make(map[string]string, len(rule.Labels))
-		for key, value := range rule.Labels {
-			labels[key] = value
-		}
-
-		rules = append(rules, CompiledRule{
-			ID:          rule.ID,
-			Summary:     rule.Summary,
-			Description: rule.Description,
-			Severity:    severity,
-			Cooldown:    cooldown,
-			Labels:      labels,
-			Condition:   rule.Condition,
-		})
+		rules = append(rules, compiledRule)
 	}
 
 	return &RuleSet{
 		Config: cfg,
 		Rules:  rules,
+	}, nil
+}
+
+func compileRule(rule RuleConfig, defaultSeverity string, defaultCooldown time.Duration) (CompiledRule, error) {
+	if rule.ID == "" {
+		return CompiledRule{}, fmt.Errorf("alert rule id is required")
+	}
+	if rule.Summary == "" {
+		return CompiledRule{}, fmt.Errorf("alert rule %q summary is required", rule.ID)
+	}
+
+	cooldown := defaultCooldown
+	if rule.Cooldown != "" {
+		parsedCooldown, err := time.ParseDuration(rule.Cooldown)
+		if err != nil {
+			return CompiledRule{}, fmt.Errorf("parse cooldown for %q: %w", rule.ID, err)
+		}
+		cooldown = parsedCooldown
+	}
+
+	severity := rule.Severity
+	if severity == "" {
+		severity = defaultSeverity
+	}
+
+	return CompiledRule{
+		ID:          rule.ID,
+		Summary:     rule.Summary,
+		Description: rule.Description,
+		Severity:    severity,
+		Cooldown:    cooldown,
+		Labels:      cloneLabels(rule.Labels),
+		Condition:   rule.Condition,
 	}, nil
 }
 
@@ -254,21 +260,24 @@ func observedMetric(metric string, system SystemSnapshot) (float64, string) {
 }
 
 func buildAlert(rule CompiledRule, observed string, value float64, now time.Time) EvaluatedAlert {
-	labels := make(map[string]string, len(rule.Labels))
-	for key, labelValue := range rule.Labels {
-		labels[key] = labelValue
-	}
-
 	return EvaluatedAlert{
 		ID:          rule.ID,
 		Status:      "firing",
 		Summary:     rule.Summary,
 		Description: rule.Description,
 		Severity:    rule.Severity,
-		Labels:      labels,
+		Labels:      cloneLabels(rule.Labels),
 		Observed:    observed,
 		Value:       value,
 		TriggeredAt: now.UTC().Format(time.RFC3339),
 		Cooldown:    rule.Cooldown.String(),
 	}
+}
+
+func cloneLabels(labels map[string]string) map[string]string {
+	cloned := make(map[string]string, len(labels))
+	for key, value := range labels {
+		cloned[key] = value
+	}
+	return cloned
 }

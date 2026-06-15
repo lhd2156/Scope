@@ -87,4 +87,4 @@ _native = _load_native_module()
 
 __all__ = [name for name in dir(_native) if not name.startswith("_")]
 globals().update({name: getattr(_native, name) for name in __all__})
-__version__ = getattr(_native, "__version__", version())
+__version__ = getattr(_native, "__version__", _native.version())

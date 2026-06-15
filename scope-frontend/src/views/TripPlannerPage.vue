@@ -363,16 +363,63 @@ import { getSpotPhotoFallback } from '@/utils/imageFallbacks';
 import { sanitizeImageUrl, sanitizeTripMember } from '@/utils/sanitizers';
 import { addCalendarDays, getInclusiveDaySpan } from '@/utils/formatters';
 import { areUserVibesEqual, normalizeUserVibes } from '@/utils/userPreferenceSignals';
+import {
+  DEFAULT_BUDGET_CEILING,
+  DEFAULT_BUDGET_FLOOR,
+  DEFAULT_ITINERARY_TIME_SLOTS,
+  PLANNER_USA_MAP_ZOOM,
+  ROUTE_LIBRARY_CARD_LIMIT,
+  ROUTE_LIBRARY_FETCH_LIMIT,
+  ROUTE_LIBRARY_PHOTO_CACHE_LIMIT,
+  ROUTE_LIBRARY_PHOTO_CACHE_STORAGE_KEY,
+  ROUTE_LIBRARY_PHOTO_WIDTH,
+  ROUTE_LIBRARY_SPLIT_FALLBACK_CATEGORIES,
+  ROUTE_LIBRARY_STOP_PREVIEW_LIMIT,
+  SCOPE_AI_ENDPOINT_FOCUS_ZOOM,
+  SCOPE_AI_PLANNER_INTEREST_CATEGORIES,
+  SCOPE_AI_PLANNER_SPOT_CATEGORIES,
+  TRIP_PLANNER_AUTOSAVE_DEBOUNCE_MS,
+  TRIP_PLANNER_AUTOSAVE_RETRY_MS,
+  TRIP_PLANNER_MOBILE_BREAKPOINT,
+  buildGeneratedDraftTitle as buildGeneratedDraftTitleForDraft,
+  buildPlannerDraftAutosaveSignature,
+  buildRouteLibraryPhotoCacheKey,
+  buildVisibleGeneratedDraftTitle as buildVisibleGeneratedDraftTitleForDraft,
+  compactRouteLibraryLocation,
+  compareRecentTrips,
+  formatPlannerBudgetValue,
+  formatRouteLibraryBudgetLabel,
+  formatRouteLibraryCategory,
+  formatRouteLibraryCount,
+  formatRouteLibraryDateLabel,
+  getCurrentDateInputValue,
+  getRouteLibraryEndpointLabels,
+  getRouteLibraryStopLocation,
+  getRouteLibraryVisualCategories,
+  hasAutosavablePlannerDraftInput,
+  hasAutosavablePlannerRouteContent,
+  isCoordinatePair,
+  isGeneratedPlannerTitleForDraft as isGeneratedPlannerTitleForInput,
+  isRepeatedRouteLibraryImage,
+  isSeedRouteLibraryTrip,
+  mobileWizardSteps,
+  normalizeRouteLibraryImageKey,
+  normalizeRouteLibraryLocation,
+  roundFuelPrice,
+  sanitizeFuelType,
+  sanitizePositiveFuelValue,
+  shouldPreferRouteLibraryLookupPhoto,
+  splitRouteDestinationLabel,
+  type PlannerMapPickTarget,
+  type PlannerMobileStep,
+  type RouteLibraryCard,
+  type RouteLibraryPhotoCacheEntry,
+  type RouteLibraryPhotoRole,
+  type RouteLibrarySplitHoverRole,
+  type RouteLibraryStopPreview,
+  type RouteLibraryVisualImage,
+} from '@/views/tripPlannerPageHelpers';
 import type { Itinerary, MapViewport, SpotCategory, Trip, TripFuelSettings, TripFuelType, TripInviteInput, TripMember, TripPlannerInput, TripSpot } from '@/types';
-
-type PlannerMobileStep = 1 | 2 | 3 | 4;
-type PlannerMapPickTarget = 'destination' | 'endDestination';
-
-interface MobileWizardStep {
-  number: PlannerMobileStep;
-  label: string;
-  description: string;
-}
 
 interface PlannerMapLocationSelection {
   target: PlannerMapPickTarget;
@@ -424,45 +471,6 @@ interface RouteFuelPriceSelection {
   fuelType?: TripFuelType;
 }
 
-type RouteLibraryPhotoRole = 'single' | 'start' | 'end';
-type RouteLibrarySplitHoverRole = Extract<RouteLibraryPhotoRole, 'start' | 'end'>;
-
-interface RouteLibraryPhotoCacheEntry {
-  photoUrl: string;
-  savedAt: number;
-}
-
-interface RouteLibraryVisualImage {
-  key: string;
-  src: string;
-  alt: string;
-}
-
-interface RouteLibraryStopPreview {
-  id: string;
-  title: string;
-  meta: string;
-  category: SpotCategory;
-}
-
-interface RouteLibraryCard {
-  id: string;
-  trip: Trip;
-  title: string;
-  routeLabel: string;
-  dateLabel: string;
-  statusLabel: 'Seed route' | 'Public route';
-  memberLabel: string;
-  stopLabel: string;
-  dayLabel: string;
-  budgetLabel: string;
-  stopPreview: RouteLibraryStopPreview[];
-  remainingStopCount: number;
-  visualImages: RouteLibraryVisualImage[];
-  visualMode: 'split' | 'single' | 'mapline';
-  visualCategories: SpotCategory[];
-}
-
 interface SavePlannerDraftOptions {
   announce?: boolean;
   preserveRoute?: boolean;
@@ -492,56 +500,7 @@ interface AiItineraryBuildRequestPayload {
   reject: (error: unknown) => void;
 }
 
-const TRIP_PLANNER_MOBILE_BREAKPOINT = 640;
-const PLANNER_USA_MAP_ZOOM = 3.25;
-const SCOPE_AI_ENDPOINT_FOCUS_ZOOM = 10;
-const TRIP_PLANNER_AUTOSAVE_DEBOUNCE_MS = 1_200;
-const TRIP_PLANNER_AUTOSAVE_RETRY_MS = 1_800;
-const DEFAULT_BUDGET_FLOOR = 500;
-const DEFAULT_BUDGET_CEILING = 1500;
-const DEFAULT_ITINERARY_TIME_SLOTS = ['09:00', '12:00', '15:00', '18:30'];
-const ROUTE_LIBRARY_CARD_LIMIT = 3;
-const ROUTE_LIBRARY_FETCH_LIMIT = ROUTE_LIBRARY_CARD_LIMIT * 4;
-const ROUTE_LIBRARY_STOP_PREVIEW_LIMIT = 4;
-const ROUTE_LIBRARY_PHOTO_WIDTH = 720;
-const ROUTE_LIBRARY_PHOTO_CACHE_STORAGE_KEY = 'scope.routeLibraryPhotoLookupCache.v1';
-const ROUTE_LIBRARY_PHOTO_CACHE_LIMIT = 120;
-const SCOPE_AI_PLANNER_INTEREST_CATEGORIES: SpotCategory[] = ['food', 'nature', 'nightlife', 'culture', 'adventure', 'shopping', 'entertainment', 'scenic'];
-const SCOPE_AI_PLANNER_SPOT_CATEGORIES = new Set<SpotCategory>([
-  ...SCOPE_AI_PLANNER_INTEREST_CATEGORIES,
-  'other',
-]);
 const shouldEagerlyRenderHeavyContent = import.meta.env.MODE === 'test' || import.meta.env.VITEST;
-
-const ROUTE_LIBRARY_CATEGORY_LABELS: Record<SpotCategory, string> = {
-  food: 'Food',
-  nature: 'Nature',
-  nightlife: 'Nightlife',
-  culture: 'Culture',
-  adventure: 'Adventure',
-  shopping: 'Shopping',
-  entertainment: 'Entertainment',
-  scenic: 'Scenic',
-  other: 'Stop',
-};
-const ROUTE_LIBRARY_SPLIT_FALLBACK_CATEGORIES: SpotCategory[] = [
-  'scenic',
-  'adventure',
-  'nature',
-  'food',
-  'culture',
-  'nightlife',
-  'entertainment',
-  'shopping',
-  'other',
-];
-
-const mobileWizardSteps: MobileWizardStep[] = [
-  { number: 1, label: 'Brief', description: 'Start, final destination, dates, travelers, and budget range.' },
-  { number: 2, label: 'Route', description: 'Stop order and endpoint stack the guide will use.' },
-  { number: 3, label: 'Guide', description: 'Pace, interests, and the route guide brief.' },
-  { number: 4, label: 'Preview', description: 'Live route, timeline, and day-by-day cost view.' },
-];
 
 const tripsStore = useTripsStore();
 const spotsStore = useSpotsStore();
@@ -709,11 +668,6 @@ const ownerMember = computed<TripMember>(() =>
   }),
 );
 
-function getCurrentDateInputValue(): string {
-  const today = new Date();
-  return [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
-}
-
 function getCurrentUserTripVibes(): SpotCategory[] {
   return normalizeUserVibes(authStore.currentUser?.interests);
 }
@@ -760,30 +714,6 @@ async function hydrateCurrentPlannerProfile(): Promise<void> {
   } catch {
     // The planner remains usable with route-derived defaults if the profile read fails.
   }
-}
-
-function formatPlannerBudgetValue(value: number): string {
-  return `$${Math.round(value).toLocaleString('en-US')}`;
-}
-
-function sanitizePositiveFuelValue(value: number | undefined): number | undefined {
-  return Number.isFinite(value) && Number(value) > 0 ? Number(value) : undefined;
-}
-
-function sanitizeFuelType(value: TripFuelSettings['fuelType'] | undefined): TripFuelType | undefined {
-  const normalizedValue = String(value ?? '').trim().toLowerCase();
-  return ['regular', 'midgrade', 'premium', 'diesel', 'ev'].includes(normalizedValue)
-    ? (normalizedValue as TripFuelType)
-    : undefined;
-}
-
-function roundFuelPrice(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function isCoordinatePair(latitude: number, longitude: number): boolean {
-  return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
 }
 
 function createPlannerMapViewport(viewport: MapViewport): MapViewport {
@@ -992,67 +922,16 @@ function buildPlannerHandoffPrompt(payload: TripPlannerInput, stops: TripSpot[] 
   return `${guideFrame} Collect a real start and final destination before building the guide.`;
 }
 
-function getGeneratedTitleEndpoint(value: string | undefined): string {
-  const parts = (value ?? '').split(',').map((part) => part.trim()).filter(Boolean);
-  if (!parts.length) {
-    return '';
-  }
-
-  const [primary = '', locality = ''] = parts;
-  const primaryLooksLikeAddress = /^\d/.test(primary) || /\b(highway|hwy|road|rd|street|st|avenue|ave|boulevard|blvd|drive|dr)\b/i.test(primary);
-  return primaryLooksLikeAddress && locality ? locality : primary;
-}
-
 function buildGeneratedDraftTitle(draft: Pick<TripPlannerInput, 'destination' | 'endDestination'> = plannerDraft.value): string {
-  const start = getGeneratedTitleEndpoint(draft.destination);
-  const end = getGeneratedTitleEndpoint(draft.endDestination);
-  const generatedTitle = start && end && start.toLowerCase() !== end.toLowerCase()
-    ? `${start} to ${end}`
-    : start || end
-      ? `${start || end} itinerary`
-      : 'Untitled trip';
-
-  return generatedTitle.length > 80 ? `${generatedTitle.slice(0, 77).trim()}...` : generatedTitle;
+  return buildGeneratedDraftTitleForDraft(draft);
 }
 
 function buildVisibleGeneratedDraftTitle(draft: Pick<TripPlannerInput, 'destination' | 'endDestination'> = plannerDraft.value): string {
-  const generatedTitle = buildGeneratedDraftTitle(draft);
-  return generatedTitle === 'Untitled trip' ? '' : generatedTitle;
-}
-
-function normalizePlannerTitleForCompare(title: string): string {
-  return title.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function buildGeneratedTitleCandidates(draft: Pick<TripPlannerInput, 'destination' | 'endDestination'>): string[] {
-  const start = getGeneratedTitleEndpoint(draft.destination);
-  const end = getGeneratedTitleEndpoint(draft.endDestination);
-  const fullStart = draft.destination.trim();
-  const fullEnd = draft.endDestination?.trim() ?? '';
-  const candidates = [
-    buildGeneratedDraftTitle(draft),
-    buildVisibleGeneratedDraftTitle(draft),
-    start && end ? `${start} to ${end}` : '',
-    fullStart && fullEnd ? `${fullStart} to ${fullEnd}` : '',
-    start ? `${start} itinerary` : '',
-    end ? `${end} itinerary` : '',
-    start ? `${start} trip` : '',
-    end ? `${end} trip` : '',
-    'Untitled trip',
-  ];
-
-  return [...new Set(candidates.map((candidate) => candidate.trim()).filter(Boolean))];
+  return buildVisibleGeneratedDraftTitleForDraft(draft);
 }
 
 function isGeneratedPlannerTitleForDraft(title: string, draft: Pick<TripPlannerInput, 'destination' | 'endDestination'> = plannerDraft.value): boolean {
-  const normalizedTitle = normalizePlannerTitleForCompare(title);
-  if (!normalizedTitle) {
-    return true;
-  }
-
-  return buildGeneratedTitleCandidates(draft).some((candidate) =>
-    normalizePlannerTitleForCompare(candidate) === normalizedTitle,
-  );
+  return isGeneratedPlannerTitleForInput(title, draft);
 }
 
 function syncGeneratedPlannerTitleForDraftChange(
@@ -1117,23 +996,6 @@ function resolveTripRouteStops(trip: Trip): TripSpot[] {
   return trip.spots.length ? cloneStops(trip.spots) : cloneStops(flattenTripItineraryStops(trip.itinerary));
 }
 
-function splitRouteDestinationLabel(destination: string): { start: string; end: string } {
-  const normalizedDestination = destination.trim();
-  const routeParts = normalizedDestination.split(/\s*(?:\bto\b|\+|→|->)\s*/i).map((part) => part.trim()).filter(Boolean);
-
-  if (routeParts.length < 2) {
-    return {
-      start: normalizedDestination,
-      end: '',
-    };
-  }
-
-  return {
-    start: routeParts.slice(0, -1).join(' to '),
-    end: routeParts[routeParts.length - 1] ?? '',
-  };
-}
-
 function getMappableRouteStops(stops: TripSpot[]): TripSpot[] {
   return stops.filter((stop) => hasCoordinatePair(stop.latitude, stop.longitude));
 }
@@ -1155,32 +1017,6 @@ function isRouteLibraryTrip(trip: Trip): boolean {
   return trip.isPublic && getRouteLibraryStops(trip).length >= 2;
 }
 
-function compareRecentTrips(left: Trip, right: Trip): number {
-  const leftTime = Date.parse(left.updatedAt || left.createdAt || left.startDate);
-  const rightTime = Date.parse(right.updatedAt || right.createdAt || right.startDate);
-  return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-}
-
-function normalizeRouteLibraryImageKey(imageUrl: string): string {
-  const normalizedImageUrl = imageUrl.trim();
-  if (!normalizedImageUrl) {
-    return '';
-  }
-
-  try {
-    const url = new URL(normalizedImageUrl);
-    return url.hostname === 'images.unsplash.com'
-      ? `${url.origin}${url.pathname}`
-      : normalizedImageUrl;
-  } catch {
-    return normalizedImageUrl;
-  }
-}
-
-function isRepeatedRouteLibraryImage(imageUrl: string, repeatedImageKeys: Set<string>): boolean {
-  return repeatedImageKeys.has(normalizeRouteLibraryImageKey(imageUrl));
-}
-
 function collectRouteLibraryDirectImages(trip: Trip): string[] {
   const imageUrls = [
     trip.coverImageUrl,
@@ -1190,84 +1026,6 @@ function collectRouteLibraryDirectImages(trip: Trip): string[] {
     .filter(Boolean);
 
   return [...new Set(imageUrls)];
-}
-
-function formatRouteLibraryCount(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function formatRouteLibraryDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
-}
-
-function formatRouteLibraryDateLabel(trip: Trip): string {
-  const startDate = formatRouteLibraryDate(trip.startDate);
-  const endDate = formatRouteLibraryDate(trip.endDate);
-  return startDate && endDate && startDate !== endDate ? `${startDate} - ${endDate}` : startDate || endDate || 'Flexible dates';
-}
-
-function formatRouteLibraryBudgetLabel(trip: Trip): string {
-  return Number.isFinite(trip.budget) && Number(trip.budget) > 0
-    ? formatPlannerBudgetValue(Number(trip.budget))
-    : 'Budget TBD';
-}
-
-function formatRouteLibraryCategory(category: SpotCategory): string {
-  return ROUTE_LIBRARY_CATEGORY_LABELS[category] ?? 'Stop';
-}
-
-function getRouteLibraryStopLocation(stop: TripSpot): string {
-  return stop.city?.trim() || stop.title.trim();
-}
-
-function compactRouteLibraryLocation(value: string): string {
-  return value
-    .trim()
-    .replace(/\s*,?\s*(United States|USA)$/i, '')
-    .replace(/\s+/g, ' ');
-}
-
-function normalizeRouteLibraryLocation(value: string): string {
-  return compactRouteLibraryLocation(value)
-    .toLowerCase()
-    .replace(/\b(texas|tx|oklahoma|ok|new mexico|nm|united states|usa)\b/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function getRouteLibraryEndpointLabels(trip: Trip, stops: TripSpot[]): { start: string; end: string; routeLabel: string } {
-  const destinationParts = splitRouteDestinationLabel(trip.destination);
-  const firstStop = stops[0];
-  const lastStop = stops[stops.length - 1];
-  const start = compactRouteLibraryLocation(destinationParts.start || (firstStop ? getRouteLibraryStopLocation(firstStop) : trip.destination));
-  const end = compactRouteLibraryLocation(destinationParts.end || (lastStop ? getRouteLibraryStopLocation(lastStop) : ''));
-  const normalizedStart = normalizeRouteLibraryLocation(start);
-  const normalizedEnd = normalizeRouteLibraryLocation(end);
-
-  if (!destinationParts.end && trip.destination.trim()) {
-    return {
-      start,
-      end: '',
-      routeLabel: compactRouteLibraryLocation(trip.destination),
-    };
-  }
-
-  if (!end || normalizedStart === normalizedEnd) {
-    return {
-      start,
-      end: '',
-      routeLabel: start || compactRouteLibraryLocation(trip.destination),
-    };
-  }
-
-  return {
-    start,
-    end,
-    routeLabel: `${start} to ${end}`,
-  };
 }
 
 function getRouteLibraryStopMeta(stop: TripSpot): string {
@@ -1367,31 +1125,6 @@ function canPersistRouteLibraryPhotoCache(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-function normalizeRouteLibraryPhotoCacheText(value: string | undefined): string {
-  return compactRouteLibraryLocation(value ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function formatRouteLibraryPhotoCoordinate(value: number | undefined): string {
-  return Number.isFinite(value) ? Number(value).toFixed(5) : '';
-}
-
-function buildRouteLibraryPhotoCacheKey(stop: TripSpot | undefined): string {
-  if (!stop || !hasCoordinatePair(stop.latitude, stop.longitude)) {
-    return '';
-  }
-
-  return [
-    normalizeRouteLibraryPhotoCacheText(stop.title),
-    normalizeRouteLibraryPhotoCacheText(stop.city),
-    formatRouteLibraryPhotoCoordinate(stop.latitude),
-    formatRouteLibraryPhotoCoordinate(stop.longitude),
-    String(ROUTE_LIBRARY_PHOTO_WIDTH),
-  ].join('|');
-}
-
 function readRouteLibraryPhotoCache(): Record<string, RouteLibraryPhotoCacheEntry> {
   if (routeLibraryPhotoCache) {
     return routeLibraryPhotoCache;
@@ -1478,10 +1211,6 @@ function setRouteLibraryLookupPhoto(tripId: string, role: RouteLibraryPhotoRole,
   };
 }
 
-function shouldPreferRouteLibraryLookupPhoto(trip: Trip): boolean {
-  return isSeedRouteLibraryTrip(trip);
-}
-
 function buildRouteLibraryVisualImages(
   trip: Trip,
   stops: TripSpot[],
@@ -1534,11 +1263,6 @@ function buildRouteLibraryVisualImages(
     : [];
 }
 
-function getRouteLibraryVisualCategories(stops: TripSpot[]): SpotCategory[] {
-  const categories = stops.map((stop) => stop.category).filter((category, index, all) => all.indexOf(category) === index);
-  return (categories.length ? categories : ['scenic']).slice(0, 4);
-}
-
 function buildRouteLibraryCard(trip: Trip, repeatedImageKeys: Set<string>): RouteLibraryCard {
   const stops = getRouteLibraryStops(trip);
   const endpoints = getRouteLibraryEndpointLabels(trip, stops);
@@ -1563,10 +1287,6 @@ function buildRouteLibraryCard(trip: Trip, repeatedImageKeys: Set<string>): Rout
     visualMode: visualImages.length > 1 ? 'split' : visualImages.length === 1 ? 'single' : 'mapline',
     visualCategories: getRouteLibraryVisualCategories(stops),
   };
-}
-
-function isSeedRouteLibraryTrip(trip: Trip): boolean {
-  return /^trip-\d+$/i.test(trip.id);
 }
 
 function shouldLookupRouteLibraryPhoto(trip: Trip, stops: TripSpot[], repeatedImageKeys: Set<string>): boolean {
@@ -2222,35 +1942,21 @@ function syncBlankPlannerRouteWorkspace(draft: TripPlannerInput): void {
 }
 
 function hasAutosavableDraftInput(): boolean {
-  const draft = plannerDraft.value;
-  return Boolean(
-    plannerTitle.value.trim()
-    || draft.destination.trim()
-    || draft.endDestination?.trim()
-    || hasCoordinatePair(draft.destinationLatitude, draft.destinationLongitude)
-    || hasCoordinatePair(draft.endDestinationLatitude, draft.endDestinationLongitude)
-    || plannerStops.value.length
-    || draft.interests.length
-    || draft.pace !== 'relaxed'
-    || draft.groupSize !== 1
-    || draft.startDate !== todayDateInput
-    || draft.endDate !== todayDateInput
-    || (draft.budgetFloor ?? DEFAULT_BUDGET_FLOOR) !== DEFAULT_BUDGET_FLOOR
-    || draft.budget !== DEFAULT_BUDGET_CEILING
-    || plannerIsPublic.value
-  );
+  return hasAutosavablePlannerDraftInput({
+    title: plannerTitle.value,
+    draft: plannerDraft.value,
+    stops: plannerStops.value,
+    isPublic: plannerIsPublic.value,
+    todayDateInput,
+  });
 }
 
 function hasAutosavableRouteContent(): boolean {
-  const draft = plannerDraft.value;
-  return Boolean(
-    draft.destination.trim()
-    || draft.endDestination?.trim()
-    || hasCoordinatePair(draft.destinationLatitude, draft.destinationLongitude)
-    || hasCoordinatePair(draft.endDestinationLatitude, draft.endDestinationLongitude)
-    || plannerStops.value.length
-    || flattenPreviewStops(tripsStore.previewItinerary).length
-  );
+  return hasAutosavablePlannerRouteContent({
+    draft: plannerDraft.value,
+    stops: plannerStops.value,
+    previewStopCount: flattenPreviewStops(tripsStore.previewItinerary).length,
+  });
 }
 
 function shouldStopNewDraftAutosaveRetry(): boolean {
@@ -2258,37 +1964,11 @@ function shouldStopNewDraftAutosaveRetry(): boolean {
 }
 
 function buildDraftAutosaveSignature(): string {
-  const draft = plannerDraft.value;
-  return JSON.stringify({
-    title: plannerTitle.value.trim(),
-    destination: draft.destination.trim(),
-    endDestination: draft.endDestination?.trim() ?? '',
-    destinationLatitude: draft.destinationLatitude ?? null,
-    destinationLongitude: draft.destinationLongitude ?? null,
-    endDestinationLatitude: draft.endDestinationLatitude ?? null,
-    endDestinationLongitude: draft.endDestinationLongitude ?? null,
-    startDate: draft.startDate,
-    endDate: draft.endDate,
-    budgetFloor: draft.budgetFloor ?? DEFAULT_BUDGET_FLOOR,
-    budget: draft.budget,
-    interests: [...draft.interests].sort(),
-    pace: draft.pace,
-    groupSize: draft.groupSize,
+  return buildPlannerDraftAutosaveSignature({
+    title: plannerTitle.value,
+    draft: plannerDraft.value,
+    stops: plannerStops.value,
     isPublic: plannerIsPublic.value,
-    stops: plannerStops.value.map((stop) => ({
-      spotId: stop.spotId,
-      title: stop.title,
-      timeSlot: stop.timeSlot ?? '',
-      duration: stop.duration ?? null,
-      latitude: stop.latitude,
-      longitude: stop.longitude,
-      category: stop.category,
-      estimatedCost: stop.estimatedCost ?? null,
-      photoUrl: stop.photoUrl ?? '',
-      city: stop.city ?? '',
-      dayNumber: stop.dayNumber ?? null,
-      notes: stop.notes ?? '',
-    })),
   });
 }
 

@@ -9,7 +9,7 @@ const { authStoreMock, createSpotReviewMock, fetchSpotMock, listNearbySpotsMock,
       email: 'scopefan@example.com',
       displayName: 'Scope Fan',
       interests: ['food', 'culture'],
-      avatarUrl: 'https://i.pravatar.cc/150?img=18',
+      avatarUrl: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
     },
   },
   createSpotReviewMock: vi.fn(),
@@ -93,7 +93,7 @@ const spot: SpotDetailModel = {
         email: 'maya@example.com',
         displayName: 'Maya Chen',
         interests: ['food'],
-        avatarUrl: 'https://i.pravatar.cc/150?img=32',
+        avatarUrl: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
       },
     },
   ],
@@ -123,7 +123,7 @@ describe('SpotDetail', () => {
       email: 'scopefan@example.com',
       displayName: 'Scope Fan',
       interests: ['food', 'culture'],
-      avatarUrl: 'https://i.pravatar.cc/150?img=18',
+      avatarUrl: 'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
     };
     listNearbySpotsMock.mockResolvedValue({
       data: [
@@ -354,7 +354,7 @@ describe('SpotDetail', () => {
     expect(wrapper.text()).toContain('Log in to review');
   });
 
-  it('keeps starter reviews visible when live review refresh fails', async () => {
+  it('keeps starter reviews visible without alarming travelers when live review refresh fails', async () => {
     listSpotReviewsMock.mockRejectedValueOnce(new Error('reviews unavailable'));
 
     const wrapper = mount(SpotDetail, {
@@ -369,6 +369,26 @@ describe('SpotDetail', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Excellent anchor stop for an evening route.');
+    expect(wrapper.text()).not.toContain('Scope could not refresh live reviews right now.');
+  });
+
+  it('shows the live review refresh issue when no fallback reviews are available', async () => {
+    listSpotReviewsMock.mockRejectedValueOnce(new Error('reviews unavailable'));
+
+    const wrapper = mount(SpotDetail, {
+      props: {
+        spot: {
+          ...spot,
+          reviews: [],
+        },
+      },
+      global: {
+        stubs: spotDetailStubs,
+      },
+    });
+
+    await flushPromises();
+
     expect(wrapper.text()).toContain('Scope could not refresh live reviews right now.');
   });
 

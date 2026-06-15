@@ -355,8 +355,106 @@ import {
   callScopeAi,
   extractExplicitLocationRecommendationQuery,
   normalizeScopeAiCommandText,
+  type ScopeAiImageInput,
 } from '@/services/scopeAiService';
 import { sanitizeScopeAiVisibleText } from '@/services/scopeAiSafety';
+import {
+  buildChatAttachmentFromFile,
+  buildScopeAiImagePayload,
+  createAttachmentPreviewUrl,
+  isImageFile,
+  readImageFileAsBase64,
+  revokeAttachmentPreview,
+} from '@/components/trips/tripAiAttachments';
+import {
+  buildPromptWithAttachmentContext,
+  buildSubmittedUserMessage,
+  getDefaultAttachmentPrompt,
+  readSubmittedChatTurn,
+  type ChatAttachment,
+} from '@/components/trips/tripAiChatTurn';
+import {
+  STREET_ADDRESS_PATTERN,
+  buildPendingLocationAction,
+  buildPendingLocationFollowUpQuery,
+  cleanupFollowUpQualifier,
+  cleanupReplacementLocationQuery,
+  extractLocationDisambiguationQualifier,
+  extractOrdinalSelection,
+  extractRadiusKmFromFollowUp,
+  extractStateQualifier,
+  filterPendingItemsByFollowUp,
+  getDistanceFromPendingItem,
+  getFuelPriceFromPendingItem,
+  getPendingContextItems,
+  inferNearbyCategoryFromFollowUp,
+  isExplicitEndpointRouteCommand,
+  isExplicitNewScopeAiCommand,
+  isLikelyStaleRawLocationContext,
+  isPendingFollowUpForContext,
+  planPendingScopeAiTurn,
+  selectPendingContextItem,
+} from '@/components/trips/tripAiPendingContext';
+import {
+  getScopeActionAddress,
+  getScopeActionNote,
+  getScopeActionPlaceLabel,
+  isRecord,
+  normalizeActionLookupValue,
+  normalizeHiddenBlockContent,
+  normalizeScopeActionStopType,
+  normalizeScopeActionType,
+  normalizeStopOrderEntry,
+  parseAssistantResponseBlocks,
+  parseChipBlocks,
+  parseChipLabels,
+  parseScopeActionBlocks,
+  readPositiveInteger,
+  readStopOrderEntries,
+  readStringField,
+  sanitizeChipLabel,
+  type ScopeRouteActionPayload,
+} from '@/components/trips/tripAiResponseBlocks';
+import { mergeUniqueSuggestions, normalizeSuggestionKey } from '@/components/trips/tripAiSuggestions';
+import {
+  buildAssumptionSummary,
+  buildPendingBriefSuggestions,
+  buildRoutePromptWithDefaults,
+  buildSmartDefaultsForKeys as buildSmartDefaultsForKeysForStart,
+  extractItineraryBuildDefaultsFromPrompt as extractItineraryBuildDefaultsFromPromptForStart,
+  formatCurrency,
+  formatDateInput,
+  formatList,
+  formatRouteEndpointLabel,
+  formatTravelPartyLabel,
+  getBriefQuestion,
+  getBriefQuestions,
+  getBuildDefaultsDurationDays,
+  getDateLabel,
+  getDateRangeDurationDays,
+  getDefaultForBriefQuestion as getDefaultForBriefQuestionForStart,
+  getInterestLabel,
+  getMissingItineraryBriefQuestions as getMissingItineraryBriefQuestionsForDraft,
+  getPaceLabel,
+  getWeekendDateDefaults as getWeekendDateDefaultsForStart,
+  hasItineraryBuildDefaults,
+  inferInterestsFromText,
+  mergeItineraryBuildDefaults,
+  normalizeDurationDays,
+  parseBriefReplyForKey as parseBriefReplyForKeyForStart,
+  parseDurationReply as parseDurationReplyForStart,
+  parseExplicitDurationPrompt as parseExplicitDurationPromptForStart,
+  parseExplicitInterestDefaultsFromPrompt,
+  parseInterestReply,
+  parsePaceReply,
+  parsePlannerDate,
+  parseTravelPartyReply,
+  summarizeOffQuestionBriefReply,
+  type BriefQuestion,
+  type BriefQuestionKey,
+  type ItineraryBuildDraftDefaults,
+} from '@/components/trips/tripAiItineraryBrief';
+import { useTripAiAttachments } from '@/components/trips/useTripAiAttachments';
 import {
   auditScopeAiTurn,
   type ScopeAiPreviousAssistantMessage,
@@ -378,7 +476,7 @@ import type {
   ScopeAiPreferences,
   ScopeAiSessionEntry,
 } from '@/stores/scopeAiPlanner';
-import type { FuelStationPrice, SpotCategory, TripPace, TripPlannerInput, TripSpot } from '@/types';
+import type { FuelStationPrice, SpotCategory, TripPlannerInput, TripSpot } from '@/types';
 import { getScopeAiResponseStartedAt, waitForScopeAiResponsePace } from '@/utils/scopeAiResponsePace';
 import { useAnalyticsConsent } from '@/utils/analyticsConsent';
 import { isVagueBriefReply } from '@/utils/itineraryBrief';
@@ -487,9 +585,17 @@ const isContextExpanded = ref(true);
 const messages = ref<ChatMessage[]>([]);
 const assistShell = ref<HTMLElement | null>(null);
 const threadViewport = ref<HTMLElement | null>(null);
-const attachmentInput = ref<HTMLInputElement | null>(null);
 const promptInput = ref<HTMLInputElement | null>(null);
-const pendingAttachments = ref<ChatAttachment[]>([]);
+const {
+  attachmentInput,
+  pendingAttachments,
+  openAttachmentPicker,
+  handleAttachmentChange,
+  removePendingAttachment,
+} = useTripAiAttachments({
+  loading,
+  buildAttachment: buildChatAttachment,
+});
 const workingMessage = ref(DEFAULT_WORKING_MESSAGE);
 const lastSuccessfulRouteActionSignature = ref('');
 const pendingItineraryBrief = ref<PendingItineraryBrief | null>(null);
@@ -509,15 +615,9 @@ const MAX_SUGGESTIONS = 3;
 const ENDPOINT_RECOMMENDATION_RESULT_LIMIT = 3;
 const ENDPOINT_RECOMMENDATION_SEARCH_LIMIT = 10;
 const ENDPOINT_RECOMMENDATION_RADIUS_KM = 64;
-const MAX_IMAGE_ATTACHMENTS = 3;
-const MAX_SCOPE_AI_IMAGE_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
-const SUPPORTED_SCOPE_AI_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_PENDING_SCOPE_AI_CONTEXT_AGE_MS = 30 * 60 * 1000;
 const RECENT_CHAT_CONTEXT_LIMIT = 8;
-const SCOPE_ACTION_BLOCK_PATTERN = /\[SCOPE_ACTION\]([\s\S]*?)\[\/SCOPE_ACTION\]/gi;
-const CHIPS_BLOCK_PATTERN = /\[CHIPS\]([\s\S]*?)\[\/CHIPS\]/gi;
 const APP_UI_LOOKUP_PATTERN = /\b(app|screen|button|click|tap|ui|search bar|profile|notifications?|chat bar|route canvas|image icon|add\s+(?:a\s+|an\s+|the\s+)?start|add\s+(?:a\s+|an\s+|the\s+)?end|choose\s+(?:a\s+|an\s+|the\s+)?start|choose\s+(?:a\s+|an\s+|the\s+)?end|start point|end point)\b/i;
-const STREET_ADDRESS_PATTERN = /\b\d{1,6}\s+[\w'.-]+(?:\s+[\w'.-]+){0,6}\s+(?:street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|way|parkway|pkwy|highway|hwy|trail|trl|terrace|ter|plaza|plz|farm(?:\s+to\s+market|-to-market)|fm|county road|cr|route)\b/i;
 const DEFAULT_WORKING_MESSAGE = 'Checking the planner context';
 const SCOPE_AI_WORKING_MESSAGES = [
   DEFAULT_WORKING_MESSAGE,
@@ -608,15 +708,6 @@ interface EndpointRecommendationIntent {
   preference: 'balanced' | 'scenic' | 'practical';
 }
 
-interface ChatAttachment {
-  id: string;
-  base64Data?: string;
-  name: string;
-  previewUrl: string;
-  size: number;
-  type: string;
-}
-
 interface StructuredResponseSection {
   title: string;
   body: string;
@@ -624,7 +715,6 @@ interface StructuredResponseSection {
 }
 
 type RouteActionReason = 'build' | 'tighten' | 'weekend';
-type BriefQuestionKey = 'destination' | 'endDestination' | 'duration' | 'interests' | 'pace' | 'travelParty';
 
 type ItineraryBuildStatus = 'success' | 'busy' | 'queued';
 
@@ -642,20 +732,6 @@ interface ItineraryBuildRequestPayload {
   handled: boolean;
   resolve: (result: ItineraryBuildResult) => void;
   reject: (error: unknown) => void;
-}
-
-interface BriefQuestion {
-  key: BriefQuestionKey;
-  text: string;
-}
-
-interface ItineraryBuildDraftDefaults {
-  startDate?: string;
-  endDate?: string;
-  durationDays?: number;
-  interests?: SpotCategory[];
-  pace?: TripPace;
-  groupSize?: number;
 }
 
 interface PendingItineraryBrief {
@@ -687,43 +763,6 @@ interface FollowUpIntentContext {
   prompt: string;
   responseKind: 'text' | 'error' | 'places';
   routeActionReason?: RouteActionReason;
-}
-
-type ScopeRouteActionType = 'add_marker' | 'remove_marker' | 'reorder_stops';
-type ScopeRouteActionStopType = 'start' | 'stop' | 'destination';
-
-interface ScopeRouteActionPayload {
-  action?: unknown;
-  type?: unknown;
-  action_type?: unknown;
-  place_name?: unknown;
-  placeName?: unknown;
-  name?: unknown;
-  title?: unknown;
-  place_id?: unknown;
-  placeId?: unknown;
-  id?: unknown;
-  address?: unknown;
-  stop_type?: unknown;
-  stopType?: unknown;
-  day?: unknown;
-  dayNumber?: unknown;
-  order?: unknown;
-  note?: unknown;
-  notes?: unknown;
-  latitude?: unknown;
-  longitude?: unknown;
-  lat?: unknown;
-  lng?: unknown;
-  coordinates?: unknown;
-  stops?: unknown;
-  stop_order?: unknown;
-}
-
-interface ParsedAssistantResponse {
-  content: string;
-  chips: string[];
-  actions: ScopeRouteActionPayload[];
 }
 
 const emit = defineEmits<{
@@ -1061,130 +1100,15 @@ const statusLabel = computed(() => {
   return routeLabel.value || 'Ready for handoff';
 });
 
-function formatCurrency(value: number | undefined): string {
-  if (!Number.isFinite(value)) {
-    return '';
-  }
-
-  return `$${Math.round(Number(value)).toLocaleString('en-US')}`;
-}
-
-function parsePlannerDate(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function getDateRangeDurationDays(startDate: string | undefined, endDate: string | undefined): number | null {
-  const start = parsePlannerDate(startDate);
-  const end = parsePlannerDate(endDate);
-
-  if (!start || !end || end < start) {
-    return null;
-  }
-
-  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
-  return days > 0 ? days : null;
-}
-
-function normalizeDurationDays(value: number | undefined): number | null {
-  if (!Number.isFinite(value)) {
-    return null;
-  }
-
-  const rounded = Math.round(Number(value));
-  return rounded >= 1 && rounded <= 30 ? rounded : null;
-}
-
-function getBuildDefaultsDurationDays(defaults: ItineraryBuildDraftDefaults): number | null {
-  return normalizeDurationDays(defaults.durationDays)
-    ?? getDateRangeDurationDays(defaults.startDate, defaults.endDate);
-}
-
 function getTripDurationDays(): number | null {
   return getDateRangeDurationDays(props.draft.startDate, props.draft.endDate);
-}
-
-function formatTravelPartyLabel(groupSize: number | undefined): string {
-  const size = Number(groupSize);
-
-  if (!Number.isFinite(size) || size < 1) {
-    return '';
-  }
-
-  if (size === 1) {
-    return 'solo traveler';
-  }
-
-  if (size === 2) {
-    return '2 travelers, likely a couple or pair';
-  }
-
-  return `${size} travelers, group or family`;
-}
-
-function getBriefQuestion(key: BriefQuestionKey): BriefQuestion {
-  const questions: Record<BriefQuestionKey, string> = {
-    destination: 'What start location should I use for this trip?',
-    endDestination: 'What final destination should I use for this itinerary?',
-    duration: 'How many days should I plan for?',
-    interests: 'What kind of trip should this feel like: food, culture, nature, adventure, nightlife, shopping, entertainment, or balanced?',
-    pace: 'What pace should I use: relaxed, balanced, or packed?',
-    travelParty: 'Who is coming with you: solo, a couple, a group, or family?',
-  };
-
-  return {
-    key,
-    text: questions[key],
-  };
-}
-
-function getBriefQuestions(keys: BriefQuestionKey[]): BriefQuestion[] {
-  return keys.map(getBriefQuestion);
 }
 
 function getMissingItineraryBriefQuestions(
   draftDefaults: ItineraryBuildDraftDefaults = {},
   options: { requireEndDestination?: boolean } = {},
 ): BriefQuestion[] {
-  const draft = props.draft;
-  const hasStart = Boolean(draft.destination.trim());
-  const hasEnd = Boolean(draft.endDestination?.trim());
-  const durationDays = getTripDurationDays();
-  const hasDefaultDuration = Boolean((draftDefaults.startDate && draftDefaults.endDate) || normalizeDurationDays(draftDefaults.durationDays));
-  const hasDefaultInterests = Boolean(draftDefaults.interests?.length);
-  const hasDefaultPace = Boolean(draftDefaults.pace);
-  const hasDefaultTravelParty = Number.isFinite(draftDefaults.groupSize) && Number(draftDefaults.groupSize) > 0;
-  const questions: BriefQuestion[] = [];
-
-  if (!hasStart) {
-    questions.push(getBriefQuestion('destination'));
-  }
-
-  if (options.requireEndDestination && !hasEnd) {
-    questions.push(getBriefQuestion('endDestination'));
-  }
-
-  if ((!durationDays || durationDays <= 1) && !hasDefaultDuration) {
-    questions.push(getBriefQuestion('duration'));
-  }
-
-  if (!draft.interests.length && !hasDefaultInterests) {
-    questions.push(getBriefQuestion('interests'));
-  }
-
-  if (!draft.pace && !hasDefaultPace) {
-    questions.push(getBriefQuestion('pace'));
-  }
-
-  if ((!Number.isFinite(draft.groupSize) || draft.groupSize < 1) && !hasDefaultTravelParty) {
-    questions.push(getBriefQuestion('travelParty'));
-  }
-
-  return questions;
+  return getMissingItineraryBriefQuestionsForDraft(props.draft, draftDefaults, options);
 }
 
 function buildMissingItineraryBriefMessage(reason: RouteActionReason, questions: BriefQuestion[], answeredOne = false): ChatMessage {
@@ -1204,22 +1128,6 @@ function buildMissingItineraryBriefMessage(reason: RouteActionReason, questions:
   };
 }
 
-function summarizeOffQuestionBriefReply(value: string): string {
-  if (/\b(budget|inside|under|cap|\$|cost|spend|price|cheap|expensive)\b/i.test(value)) {
-    return 'Got the budget guardrail.';
-  }
-
-  if (/\b(time|timing|schedule|depart|arrival|arrive|morning|night|late|early)\b/i.test(value)) {
-    return 'Got the timing note.';
-  }
-
-  if (/\b(stop|food|coffee|gas|place|restaurant|nearby)\b/i.test(value)) {
-    return 'Got that route note.';
-  }
-
-  return 'I caught that.';
-}
-
 function buildPendingBriefReminderMessage(reason: RouteActionReason, question: BriefQuestion, userReply: string): ChatMessage {
   const actionLabel = reason === 'tighten' ? 'tighten the itinerary' : 'build the itinerary';
   return {
@@ -1231,317 +1139,32 @@ function buildPendingBriefReminderMessage(reason: RouteActionReason, question: B
   };
 }
 
-function buildPendingBriefSuggestions(pendingBrief: PendingItineraryBrief): string[] {
-  const currentKey = pendingBrief.missingKeys[0];
-
-  if (currentKey === 'duration') {
-    return ['1 day', '2 days', 'Surprise me'];
-  }
-
-  if (currentKey === 'interests') {
-    return ['Balanced', 'Food and culture', 'Nature and scenic'];
-  }
-
-  if (currentKey === 'pace') {
-    return ['Relaxed pace', 'Balanced pace', 'Packed pace'];
-  }
-
-  if (currentKey === 'travelParty') {
-    return ['Solo', 'Couple', 'Group of 4'];
-  }
-
-  if (currentKey === 'destination') {
-    return ['Help me choose a start point', 'I will add the start in the route builder', 'Cancel this build'];
-  }
-
-  if (currentKey === 'endDestination') {
-    return ['Help me choose an end point', 'I will add the end in the route builder', 'Cancel this build'];
-  }
-
-  return ['Surprise me', 'Balanced', 'Cancel this build'];
-}
-
-function formatDateInput(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 function getWeekendDateDefaults(): ItineraryBuildDraftDefaults {
-  const start = parsePlannerDate(props.draft.startDate) ?? new Date();
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
-
-  return {
-    startDate: formatDateInput(start),
-    endDate: formatDateInput(end),
-    durationDays: 2,
-  };
+  return getWeekendDateDefaultsForStart(props.draft.startDate);
 }
 
 function getDefaultForBriefQuestion(key: BriefQuestionKey): ItineraryBuildDraftDefaults {
-  if (key === 'duration') {
-    return getWeekendDateDefaults();
-  }
-
-  if (key === 'interests') {
-    return { interests: ['food', 'culture', 'scenic'] };
-  }
-
-  if (key === 'pace') {
-    return { pace: 'moderate' };
-  }
-
-  if (key === 'travelParty') {
-    return { groupSize: 2 };
-  }
-
-  return {};
-}
-
-function mergeItineraryBuildDefaults(
-  current: ItineraryBuildDraftDefaults,
-  next: ItineraryBuildDraftDefaults,
-): ItineraryBuildDraftDefaults {
-  return {
-    ...current,
-    ...next,
-    durationDays: normalizeDurationDays(next.durationDays) ?? normalizeDurationDays(current.durationDays) ?? undefined,
-    interests: next.interests ? [...next.interests] : current.interests ? [...current.interests] : undefined,
-  };
+  return getDefaultForBriefQuestionForStart(key, props.draft.startDate);
 }
 
 function buildSmartDefaultsForKeys(keys: BriefQuestionKey[]): ItineraryBuildDraftDefaults {
-  return keys.reduce<ItineraryBuildDraftDefaults>(
-    (defaults, key) => mergeItineraryBuildDefaults(defaults, getDefaultForBriefQuestion(key)),
-    {},
-  );
+  return buildSmartDefaultsForKeysForStart(keys, props.draft.startDate);
 }
 
 function parseDurationReply(value: string): ItineraryBuildDraftDefaults | null {
-  if (/\bweekend\b/i.test(value)) {
-    return getWeekendDateDefaults();
-  }
-
-  const explicitMatch = value.match(/\b(\d{1,2})\s*(?:day|days|d)\b/i);
-  const bareNumberMatch = value.trim().match(/^(\d{1,2})$/);
-  const parsed = Number(explicitMatch?.[1] ?? bareNumberMatch?.[1]);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 30) {
-    return null;
-  }
-
-  const start = parsePlannerDate(props.draft.startDate) ?? new Date();
-  const end = new Date(start);
-  end.setDate(start.getDate() + Math.max(0, parsed - 1));
-
-  return {
-    startDate: formatDateInput(start),
-    endDate: formatDateInput(end),
-    durationDays: parsed,
-  };
+  return parseDurationReplyForStart(value, props.draft.startDate);
 }
 
 function parseExplicitDurationPrompt(value: string): ItineraryBuildDraftDefaults | null {
-  const normalized = value.trim();
-  const explicitMatch = normalized.match(/\b(\d{1,2})\s*-?\s*(?:day|days|d)\b/i);
-  const wordDuration = /\b(?:one|single|same)\s*-?\s*day\b/i.test(normalized) ? 1 : null;
-  const parsed = Number(explicitMatch?.[1] ?? wordDuration);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 30) {
-    return null;
-  }
-
-  const start = parsePlannerDate(props.draft.startDate) ?? new Date();
-  const end = new Date(start);
-  end.setDate(start.getDate() + Math.max(0, parsed - 1));
-
-  return {
-    startDate: formatDateInput(start),
-    endDate: formatDateInput(end),
-    durationDays: parsed,
-  };
-}
-
-function parseInterestReply(value: string): ItineraryBuildDraftDefaults | null {
-  const normalized = value.toLowerCase();
-  const matched = inferInterestsFromText(normalized);
-
-  if (/\bbalanced|mix|variety|everything\b/.test(normalized)) {
-    return { interests: ['food', 'culture', 'scenic'] };
-  }
-
-  return matched.length ? { interests: matched } : null;
-}
-
-function inferInterestsFromText(value: string): SpotCategory[] {
-  const normalized = value.toLowerCase();
-  const matched = new Set<SpotCategory>();
-
-  if (/\bfood|restaurant|coffee|cafe|taco|brewery|drink\b/.test(normalized)) {
-    matched.add('food');
-  }
-
-  if (/\bnature|park|trail|hike|outdoor|lake|beach\b/.test(normalized)) {
-    matched.add('nature');
-  }
-
-  if (/\bnightlife|bar|club|music|live music\b/.test(normalized)) {
-    matched.add('nightlife');
-  }
-
-  if (/\bculture|museum|art|history|historic|gallery|landmark\b/.test(normalized)) {
-    matched.add('culture');
-  }
-
-  if (/\badventure|active|climb|kayak|bike|explore\b/.test(normalized)) {
-    matched.add('adventure');
-  }
-
-  if (/\bshopping|shop|market|boutique\b/.test(normalized)) {
-    matched.add('shopping');
-  }
-
-  if (/\bentertainment|amusement|theme park|six flags|bowling|arcade|movie|cinema|concert|zoo|aquarium|stadium|arena|escape room|mini golf|laser tag\b/.test(normalized)) {
-    matched.add('entertainment');
-  }
-
-  if (/\bscenic|view|sight|sights|key sights|lookout|photo\b/.test(normalized)) {
-    matched.add('scenic');
-  }
-
-  return [...matched];
-}
-
-function parseExplicitInterestDefaultsFromPrompt(value: string): ItineraryBuildDraftDefaults | null {
-  const matched = inferInterestsFromText(value);
-  return matched.length ? { interests: matched } : null;
-}
-
-function parsePaceReply(value: string): ItineraryBuildDraftDefaults | null {
-  if (/\brelaxed|slow|chill|easy\b/i.test(value)) {
-    return { pace: 'relaxed' };
-  }
-
-  if (/\bpacked|busy|full|fast|max\b/i.test(value)) {
-    return { pace: 'packed' };
-  }
-
-  if (/\bmoderate|balanced|normal|medium\b/i.test(value)) {
-    return { pace: 'moderate' };
-  }
-
-  return null;
-}
-
-function getPaceLabel(value: TripPace): string {
-  if (value === 'packed') {
-    return 'Packed';
-  }
-
-  if (value === 'relaxed') {
-    return 'Relaxed';
-  }
-
-  return 'Balanced';
-}
-
-function parseTravelPartyReply(value: string): ItineraryBuildDraftDefaults | null {
-  const normalized = value.toLowerCase();
-  const explicitMatch = normalized.match(/\b(\d{1,2})\s*(?:people|person|travelers?|friends?|adults?|kids?)\b/);
-  const groupOfMatch = normalized.match(/\b(?:group|family|party|crew)\s+of\s+(\d{1,2})\b/);
-  const parsed = Number(explicitMatch?.[1] ?? groupOfMatch?.[1]);
-  if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 20) {
-    return { groupSize: parsed };
-  }
-
-  if (/\bsolo|alone|just me\b/.test(normalized)) {
-    return { groupSize: 1 };
-  }
-
-  if (/\bcouple|pair|partner|date|two of us\b/.test(normalized)) {
-    return { groupSize: 2 };
-  }
-
-  if (/\bfamily|group|friends\b/.test(normalized)) {
-    return { groupSize: 4 };
-  }
-
-  return null;
+  return parseExplicitDurationPromptForStart(value, props.draft.startDate);
 }
 
 function parseBriefReplyForKey(value: string, key: BriefQuestionKey): ItineraryBuildDraftDefaults | null {
-  if (key === 'duration') {
-    return parseDurationReply(value);
-  }
-
-  if (key === 'interests') {
-    return parseInterestReply(value);
-  }
-
-  if (key === 'pace') {
-    return parsePaceReply(value);
-  }
-
-  if (key === 'travelParty') {
-    return parseTravelPartyReply(value);
-  }
-
-  return null;
-}
-
-function hasItineraryBuildDefaults(defaults: ItineraryBuildDraftDefaults): boolean {
-  return Boolean(
-    defaults.startDate ||
-    defaults.endDate ||
-    normalizeDurationDays(defaults.durationDays) !== null ||
-    defaults.interests?.length ||
-    defaults.pace ||
-    (Number.isFinite(defaults.groupSize) && Number(defaults.groupSize) > 0),
-  );
+  return parseBriefReplyForKeyForStart(value, key, props.draft.startDate);
 }
 
 function extractItineraryBuildDefaultsFromPrompt(value: string): ItineraryBuildDraftDefaults {
-  const defaults = [
-    parseExplicitDurationPrompt(value),
-    parseExplicitInterestDefaultsFromPrompt(value),
-    parsePaceReply(value),
-    parseTravelPartyReply(value),
-  ]
-    .filter((candidate): candidate is ItineraryBuildDraftDefaults => Boolean(candidate));
-
-  return defaults.reduce<ItineraryBuildDraftDefaults>(
-    (mergedDefaults, nextDefaults) => mergeItineraryBuildDefaults(mergedDefaults, nextDefaults),
-    {},
-  );
-}
-
-function buildAssumptionSummary(defaults: ItineraryBuildDraftDefaults): string[] {
-  const summary: string[] = [];
-  if (defaults.startDate && defaults.endDate) {
-    const days = getBuildDefaultsDurationDays(defaults);
-    summary.push(days ? `${days} days` : `${defaults.startDate} to ${defaults.endDate}`);
-  } else if (normalizeDurationDays(defaults.durationDays)) {
-    const days = normalizeDurationDays(defaults.durationDays) as number;
-    summary.push(`${days} day${days === 1 ? '' : 's'}`);
-  }
-
-  if (defaults.interests?.length) {
-    summary.push(`${formatList(defaults.interests.map(getInterestLabel).filter(Boolean))} interests`);
-  }
-
-  if (defaults.pace) {
-    summary.push(`${getPaceLabel(defaults.pace)} pace`);
-  }
-
-  if (defaults.groupSize) {
-    summary.push(formatTravelPartyLabel(defaults.groupSize));
-  }
-
-  return summary;
-}
-
-function buildRoutePromptWithDefaults(originalPrompt: string, defaults: ItineraryBuildDraftDefaults): string {
-  const assumptions = buildAssumptionSummary(defaults);
-  return assumptions.length
-    ? `${originalPrompt}\nSmart defaults from follow-up: ${assumptions.join('; ')}.`
-    : originalPrompt;
+  return extractItineraryBuildDefaultsFromPromptForStart(value, props.draft.startDate);
 }
 
 function getEffectiveInterestPreferences(): SpotCategory[] {
@@ -1835,32 +1458,6 @@ function buildPlannerStateRankedSuggestionPool(): string[] {
   return pool;
 }
 
-function normalizeSuggestionKey(suggestion: string): string {
-  return suggestion
-    .replace(/\s+/g, ' ')
-    .replace(/[?!.\s]+$/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function mergeUniqueSuggestions(...groups: string[][]): string[] {
-  const suggestions: string[] = [];
-  const seen = new Set<string>();
-
-  groups.flat().forEach((suggestion) => {
-    const normalized = suggestion.replace(/\s+/g, ' ').trim();
-    const key = normalizeSuggestionKey(normalized);
-    if (!normalized || seen.has(key)) {
-      return;
-    }
-
-    seen.add(key);
-    suggestions.push(normalized);
-  });
-
-  return suggestions;
-}
-
 function buildPendingBriefContinuationSuggestions(pendingBrief: PendingItineraryBrief | null): string[] {
   return pendingBrief ? buildPendingBriefSuggestions(pendingBrief) : [];
 }
@@ -2103,187 +1700,13 @@ function structureAssistantContent(content: string): StructuredResponseSection[]
   return sections;
 }
 
-function formatRouteEndpointLabel(value: string | undefined): string {
-  const parts = (value ?? '').split(',').map((part) => part.trim()).filter(Boolean);
-  if (!parts.length) {
-    return '';
-  }
-
-  const [primary = '', locality = ''] = parts;
-  return locality ? `${primary}, ${locality}` : primary;
-}
-
-function getInterestLabel(value: SpotCategory | undefined): string {
-  const labels: Partial<Record<SpotCategory, string>> = {
-    adventure: 'adventure',
-    culture: 'culture',
-    food: 'food',
-    nature: 'nature',
-    nightlife: 'nightlife',
-    entertainment: 'entertainment',
-    scenic: 'scenic',
-    shopping: 'shopping',
-    other: 'local finds',
-  };
-
-  return value ? labels[value] ?? '' : '';
-}
-
-function formatList(values: string[]): string {
-  if (values.length <= 1) {
-    return values[0] ?? '';
-  }
-
-  if (values.length === 2) {
-    return `${values[0]} and ${values[1]}`;
-  }
-
-  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
-}
-
-function getDateLabel(startDate: string, endDate: string): string {
-  if (!startDate || !endDate) {
-    return '';
-  }
-
-  return startDate === endDate ? startDate : `${startDate} to ${endDate}`;
-}
-
-function resolveSupportedScopeAiImageMimeType(file: File): string | null {
-  const mimeType = file.type.trim().toLowerCase();
-  if (SUPPORTED_SCOPE_AI_IMAGE_MIME_TYPES.has(mimeType)) {
-    return mimeType;
-  }
-
-  if (/\.jpe?g$/i.test(file.name)) {
-    return 'image/jpeg';
-  }
-  if (/\.png$/i.test(file.name)) {
-    return 'image/png';
-  }
-  if (/\.webp$/i.test(file.name)) {
-    return 'image/webp';
-  }
-
-  return null;
-}
-
-function isImageFile(file: File): boolean {
-  return Boolean(resolveSupportedScopeAiImageMimeType(file)) && file.size <= MAX_SCOPE_AI_IMAGE_ATTACHMENT_BYTES;
-}
-
-function createAttachmentPreviewUrl(file: File): string {
-  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    return '';
-  }
-
-  return URL.createObjectURL(file);
-}
-
-function revokeAttachmentPreview(attachment: ChatAttachment): void {
-  if (!attachment.previewUrl || typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') {
-    return;
-  }
-
-  URL.revokeObjectURL(attachment.previewUrl);
-}
-
-function readImageFileAsBase64(file: File): Promise<string | undefined> {
-  if (typeof FileReader === 'undefined') {
-    return Promise.resolve(undefined);
-  }
-
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      resolve(result.includes(',') ? result.split(',').pop() || undefined : result || undefined);
-    };
-    reader.onerror = () => resolve(undefined);
-    reader.readAsDataURL(file);
-  });
-}
-
 async function buildChatAttachment(file: File): Promise<ChatAttachment> {
-  const mimeType = resolveSupportedScopeAiImageMimeType(file) ?? file.type;
-  return {
-    id: createMessageId('image'),
-    base64Data: await readImageFileAsBase64(file),
-    name: file.name || 'Attached image',
-    previewUrl: createAttachmentPreviewUrl(file),
-    size: file.size,
-    type: mimeType || 'image',
-  };
+  return buildChatAttachmentFromFile(file, () => createMessageId('image'));
 }
 
-function openAttachmentPicker(): void {
-  if (loading.value) {
-    return;
-  }
-
-  attachmentInput.value?.click();
-}
-
-async function handleAttachmentChange(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingAttachments.value.length);
-  const imageFiles = Array.from(input.files ?? [])
-    .filter(isImageFile)
-    .slice(0, remainingSlots);
-
-  if (imageFiles.length) {
-    const attachments = await Promise.all(imageFiles.map(buildChatAttachment));
-    pendingAttachments.value = [
-      ...pendingAttachments.value,
-      ...attachments,
-    ];
-  }
-
-  input.value = '';
-}
-
-function removePendingAttachment(attachmentId: string): void {
-  const attachment = pendingAttachments.value.find((item) => item.id === attachmentId);
-  if (attachment) {
-    revokeAttachmentPreview(attachment);
-  }
-
-  pendingAttachments.value = pendingAttachments.value.filter((item) => item.id !== attachmentId);
-}
-
-function getDefaultAttachmentPrompt(attachments: ChatAttachment[]): string {
-  return attachments.length === 1 ? 'Review this image for my trip.' : 'Review these images for my trip.';
-}
-
-function buildPromptWithAttachmentContext(userPrompt: string, attachments: ChatAttachment[]): string {
-  if (!attachments.length) {
-    return userPrompt;
-  }
-
-  const imageSummary = attachments
-    .map((attachment, index) => `${index + 1}. ${attachment.name}`)
-    .join('\n');
-
-  return [
-    userPrompt,
-    `Attached images:\n${imageSummary}`,
-    'Use the image context if the vision-enabled Scope agent is available. If image analysis is unavailable, say what extra detail you need from the traveler.',
-  ].join('\n\n');
-}
-
-function buildScopeAiImagePayload(attachments: ChatAttachment[]) {
-  return attachments
-    .filter((attachment) => (
-      attachment.base64Data &&
-      SUPPORTED_SCOPE_AI_IMAGE_MIME_TYPES.has(attachment.type) &&
-      attachment.size <= MAX_SCOPE_AI_IMAGE_ATTACHMENT_BYTES
-    ))
-    .slice(0, MAX_IMAGE_ATTACHMENTS)
-    .map((attachment) => ({
-      filename: attachment.name,
-      mime_type: attachment.type,
-      data: attachment.base64Data as string,
-    }));
+function clearSubmittedComposer(): void {
+  prompt.value = '';
+  pendingAttachments.value = [];
 }
 
 function buildDraftContextLines(): string[] {
@@ -3738,178 +3161,6 @@ function buildLocalTextMessage(content: string): ChatMessage {
   };
 }
 
-function normalizeHiddenBlockContent(value: string): string {
-  return value
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-}
-
-function parseScopeActionBlocks(rawContent: string): { content: string; actions: ScopeRouteActionPayload[] } {
-  const actions: ScopeRouteActionPayload[] = [];
-  SCOPE_ACTION_BLOCK_PATTERN.lastIndex = 0;
-  const content = rawContent.replace(SCOPE_ACTION_BLOCK_PATTERN, (_match, rawBlock: string) => {
-    const normalizedBlock = normalizeHiddenBlockContent(rawBlock);
-    if (!normalizedBlock) {
-      return '';
-    }
-
-    try {
-      const parsed = JSON.parse(normalizedBlock) as unknown;
-      if (Array.isArray(parsed)) {
-        parsed.forEach((item) => {
-          if (isRecord(item)) {
-            actions.push(item);
-          }
-        });
-      } else if (isRecord(parsed)) {
-        actions.push(parsed);
-      }
-    } catch {
-      // Keep hidden action parsing best-effort so a malformed tool block never leaks into chat.
-    }
-
-    return '';
-  });
-
-  return { content, actions };
-}
-
-function parseChipLabels(rawBlock: string): string[] {
-  const normalizedBlock = normalizeHiddenBlockContent(rawBlock);
-  if (!normalizedBlock) {
-    return [];
-  }
-
-  if (normalizedBlock.startsWith('[')) {
-    try {
-      const parsed = JSON.parse(normalizedBlock) as unknown;
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((item) => sanitizeChipLabel(String(item ?? '')))
-          .filter(Boolean);
-      }
-    } catch {
-      // Fall through to comma/newline parsing.
-    }
-  }
-
-  return normalizedBlock
-    .split(/,|\n/)
-    .map(sanitizeChipLabel)
-    .filter(Boolean);
-}
-
-function parseChipBlocks(rawContent: string): { content: string; chips: string[] } {
-  const chipGroups: string[][] = [];
-  CHIPS_BLOCK_PATTERN.lastIndex = 0;
-  const content = rawContent.replace(CHIPS_BLOCK_PATTERN, (_match, rawBlock: string) => {
-    chipGroups.push(parseChipLabels(rawBlock));
-    return '';
-  });
-
-  return {
-    content,
-    chips: mergeUniqueSuggestions(...chipGroups).slice(0, MAX_SUGGESTIONS),
-  };
-}
-
-function parseAssistantResponseBlocks(rawContent: string): ParsedAssistantResponse {
-  const actionResult = parseScopeActionBlocks(rawContent);
-  const chipResult = parseChipBlocks(actionResult.content);
-  const content = chipResult.content
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-  return {
-    content: content || 'Done.',
-    chips: chipResult.chips,
-    actions: actionResult.actions,
-  };
-}
-
-function sanitizeChipLabel(value: string): string {
-  return value
-    .replace(/^\s*(?:[-*]|\d+[.)])\s*/, '')
-    .replace(/^["'`]+|["'`]+$/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 72);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readStringField(source: ScopeRouteActionPayload, ...keys: Array<keyof ScopeRouteActionPayload>): string {
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-
-  return '';
-}
-
-function readPositiveInteger(value: unknown): number | null {
-  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
-}
-
-function normalizeScopeActionType(action: ScopeRouteActionPayload): ScopeRouteActionType | null {
-  const value = readStringField(action, 'action', 'type', 'action_type')
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  if (value === 'add_marker' || value === 'add_stop' || value === 'add_place') {
-    return 'add_marker';
-  }
-
-  if (value === 'remove_marker' || value === 'remove_stop' || value === 'delete_marker') {
-    return 'remove_marker';
-  }
-
-  if (value === 'reorder_stops' || value === 'reorder_markers' || value === 'reorder_route') {
-    return 'reorder_stops';
-  }
-
-  return null;
-}
-
-function normalizeScopeActionStopType(action: ScopeRouteActionPayload): ScopeRouteActionStopType {
-  const value = readStringField(action, 'stop_type', 'stopType')
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  if (value === 'start' || value === 'origin') {
-    return 'start';
-  }
-
-  if (value === 'destination' || value === 'end' || value === 'final' || value === 'finish') {
-    return 'destination';
-  }
-
-  return 'stop';
-}
-
-function getScopeActionPlaceLabel(action: ScopeRouteActionPayload): string {
-  return readStringField(action, 'place_name', 'placeName', 'name', 'title')
-    || readStringField(action, 'address');
-}
-
-function getScopeActionAddress(action: ScopeRouteActionPayload): string {
-  return readStringField(action, 'address') || getScopeActionPlaceLabel(action);
-}
-
-function getScopeActionNote(action: ScopeRouteActionPayload): string {
-  return readStringField(action, 'note', 'notes');
-}
-
 function getActionSearchProximity(): RouteFallbackAnchor | undefined {
   const anchor = routeSearchAnchors.value[0] ?? props.locationSearchProximity;
   if (!anchor || !hasCoordinatePair(anchor.latitude, anchor.longitude)) {
@@ -4015,14 +3266,6 @@ async function applyAddMarkerAction(action: ScopeRouteActionPayload): Promise<vo
   emit('route-stop-add', stop);
 }
 
-function normalizeActionLookupValue(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function findStopForAction(action: ScopeRouteActionPayload): TripSpot | undefined {
   const targetId = normalizeActionLookupValue(readStringField(action, 'place_id', 'placeId', 'id'));
   const targetLabel = normalizeActionLookupValue(getScopeActionPlaceLabel(action) || getScopeActionAddress(action));
@@ -4060,28 +3303,6 @@ function applyRemoveMarkerAction(action: ScopeRouteActionPayload): void {
   if (target && end && (target === end || end.includes(target) || target.includes(end))) {
     emit('route-endpoint-remove', 'endDestination');
   }
-}
-
-function readStopOrderEntries(action: ScopeRouteActionPayload): unknown[] {
-  if (Array.isArray(action.stop_order)) {
-    return action.stop_order;
-  }
-
-  if (Array.isArray(action.stops)) {
-    return action.stops;
-  }
-
-  return [];
-}
-
-function normalizeStopOrderEntry(entry: unknown): ScopeRouteActionPayload {
-  if (isRecord(entry)) {
-    return entry;
-  }
-
-  return {
-    place_name: String(entry ?? ''),
-  };
 }
 
 function applyReorderStopsAction(action: ScopeRouteActionPayload): void {
@@ -5717,340 +4938,24 @@ interface PendingScopeAiFollowUpResolution {
   intentKind?: FollowUpIntentKind;
 }
 
-const SCOPE_AI_STATE_ALIASES: Record<string, string> = {
-  alabama: 'Alabama',
-  alaska: 'Alaska',
-  arizona: 'Arizona',
-  arkansas: 'Arkansas',
-  california: 'California',
-  colorado: 'Colorado',
-  connecticut: 'Connecticut',
-  delaware: 'Delaware',
-  florida: 'Florida',
-  georgia: 'Georgia',
-  hawaii: 'Hawaii',
-  idaho: 'Idaho',
-  illinois: 'Illinois',
-  indiana: 'Indiana',
-  iowa: 'Iowa',
-  kansas: 'Kansas',
-  kentucky: 'Kentucky',
-  louisiana: 'Louisiana',
-  maine: 'Maine',
-  maryland: 'Maryland',
-  massachusetts: 'Massachusetts',
-  michigan: 'Michigan',
-  minnesota: 'Minnesota',
-  mississippi: 'Mississippi',
-  missouri: 'Missouri',
-  montana: 'Montana',
-  nebraska: 'Nebraska',
-  nevada: 'Nevada',
-  'new hampshire': 'New Hampshire',
-  'new jersey': 'New Jersey',
-  'new mexico': 'New Mexico',
-  'new york': 'New York',
-  'north carolina': 'North Carolina',
-  'north dakota': 'North Dakota',
-  ohio: 'Ohio',
-  oklahoma: 'Oklahoma',
-  oregon: 'Oregon',
-  pennsylvania: 'Pennsylvania',
-  'rhode island': 'Rhode Island',
-  'south carolina': 'South Carolina',
-  'south dakota': 'South Dakota',
-  tennessee: 'Tennessee',
-  texas: 'Texas',
-  utah: 'Utah',
-  vermont: 'Vermont',
-  virginia: 'Virginia',
-  washington: 'Washington',
-  'west virginia': 'West Virginia',
-  wisconsin: 'Wisconsin',
-  wyoming: 'Wyoming',
-  al: 'Alabama',
-  ak: 'Alaska',
-  az: 'Arizona',
-  ar: 'Arkansas',
-  ca: 'California',
-  co: 'Colorado',
-  ct: 'Connecticut',
-  de: 'Delaware',
-  fl: 'Florida',
-  ga: 'Georgia',
-  hi: 'Hawaii',
-  id: 'Idaho',
-  il: 'Illinois',
-  in: 'Indiana',
-  ia: 'Iowa',
-  ks: 'Kansas',
-  ky: 'Kentucky',
-  la: 'Louisiana',
-  me: 'Maine',
-  md: 'Maryland',
-  ma: 'Massachusetts',
-  mi: 'Michigan',
-  mn: 'Minnesota',
-  ms: 'Mississippi',
-  mo: 'Missouri',
-  mt: 'Montana',
-  ne: 'Nebraska',
-  nv: 'Nevada',
-  nh: 'New Hampshire',
-  nj: 'New Jersey',
-  nm: 'New Mexico',
-  ny: 'New York',
-  nc: 'North Carolina',
-  nd: 'North Dakota',
-  oh: 'Ohio',
-  ok: 'Oklahoma',
-  or: 'Oregon',
-  pa: 'Pennsylvania',
-  ri: 'Rhode Island',
-  sc: 'South Carolina',
-  sd: 'South Dakota',
-  tn: 'Tennessee',
-  tx: 'Texas',
-  ut: 'Utah',
-  vt: 'Vermont',
-  va: 'Virginia',
-  wa: 'Washington',
-  wv: 'West Virginia',
-  wi: 'Wisconsin',
-  wy: 'Wyoming',
-};
-
-function getPendingContextItems(context: ScopeAiPendingScopeAiContext): ScopeAiPendingContextItem[] {
-  return [...(context.candidates ?? []), ...(context.results ?? [])].filter((item) => item.label?.trim());
+interface ScopeAiStoreTurnResolution {
+  assistantMessage: ChatMessage;
+  followUpMessages: ChatMessage[];
+  actionApplyResult: ScopeAiActionBlockApplyResult | null;
+  appliedActionBlock: ScopeAiActionBlock | null;
 }
 
-function extractOrdinalSelection(value: string): number | null {
-  const normalized = value.trim().toLowerCase();
-  const ordinalPatterns: Array<[RegExp, number]> = [
-    [/\b(?:first|1st|number\s+1|#?1)\b/, 0],
-    [/\b(?:second|2nd|number\s+2|#?2)\b/, 1],
-    [/\b(?:third|3rd|number\s+3|#?3)\b/, 2],
-    [/\b(?:fourth|4th|number\s+4|#?4)\b/, 3],
-    [/\b(?:fifth|5th|number\s+5|#?5)\b/, 4],
-  ];
-  const match = ordinalPatterns.find(([pattern]) => pattern.test(normalized));
-  return match ? match[1] : null;
+interface PlannerTurnResolution {
+  assistantMessage: ChatMessage;
+  trackingSource: ScopeAiInteractionSource;
+  routeActionReasonForAnalytics?: RouteActionReason;
+  followUpMessages: ChatMessage[];
+  actionApplyResult: ScopeAiActionBlockApplyResult | null;
 }
 
-function extractStateQualifier(value: string): string | null {
-  const normalized = value.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const aliases = Object.keys(SCOPE_AI_STATE_ALIASES).sort((left, right) => right.length - left.length);
-  const match = aliases.find((alias) => new RegExp(`\\b${alias.replace(/\s+/g, '\\s+')}\\b`, 'i').test(normalized));
-  return match ? SCOPE_AI_STATE_ALIASES[match] : null;
-}
-
-function cleanupFollowUpQualifier(value: string): string | null {
-  const state = extractStateQualifier(value);
-  if (state) {
-    return state;
-  }
-
-  const match = value.match(/\b(?:in|near|around|by|at|close to|within)\s+(.+)$/i);
-  const raw = match?.[1] ?? value;
-  const cleaned = raw
-    .replace(/\b(?:is|are|there|one|ones|any|the|that|this|exact|match|matches|place|location|city|state|pick|choose|use|please|pls)\b/gi, ' ')
-    .replace(/\b(?:first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|#?\d+)\b/gi, ' ')
-    .replace(/[?!.,]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!cleaned || cleaned.length < 2 || cleaned.split(/\s+/).length > 5) {
-    return null;
-  }
-
-  return cleaned;
-}
-
-function cleanupReplacementLocationQuery(value: string): string | null {
-  let cleaned = value
-    .trim()
-    .replace(/^["'`]+|["'`]+$/g, '')
-    .replace(/[.!?]+$/g, '')
-    .replace(/\s+/g, ' ');
-
-  cleaned = cleaned
-    .replace(/^(?:no\s+like|not\s+like|nah\s+like|no|nah|nope|wait|oops|sorry|actually|really|instead|correction|wrong|wrong one|change it|make it|make that|it is|it's|it should be|should be|use|try)\b[\s,:-]*/i, '')
-    .replace(/^(?:to|at|in|from|is|as|set|with|be)\s+/i, '')
-    .replace(/\s+(?:please|pls|thanks|for real|if that makes sense|no guessing|do not guess|don't guess)$/i, '')
-    .trim();
-
-  if (!cleaned || !STREET_ADDRESS_PATTERN.test(cleaned)) {
-    return null;
-  }
-
-  return cleaned;
-}
-
-function isLikelyStaleRawLocationContext(value: string | undefined): boolean {
-  const normalized = (value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized || STREET_ADDRESS_PATTERN.test(normalized)) {
-    return false;
-  }
-
-  return /\b(?:trip|vibe|vibes|nightlife|culture|food|scenic|adventure|nature|shopping|entertainment|bowling|arcade|theme\s*park|family|luxury|budget|pace|travelers?|weather|fuel|gas|route|itinerary|build|find|search|show|help|pick|choose|suggest|recommend)\b/.test(normalized);
-}
-
-function extractLocationDisambiguationQualifier(value: string): string | null {
-  const state = extractStateQualifier(value);
-  if (state) {
-    return state;
-  }
-
-  if (!/\b(?:in|near|around|by|at|close to|within)\b/i.test(value)) {
-    return null;
-  }
-
-  const qualifier = cleanupFollowUpQualifier(value);
-  if (!qualifier || /\b(?:more|show|details?|why|compare|source|vibe|trip|route|build|find|search|weather|fuel|gas|budget|pace|travelers?)\b/i.test(qualifier)) {
-    return null;
-  }
-
-  return qualifier;
-}
-
-function buildPendingLocationFollowUpQuery(
-  promptValue: string,
-  context: ScopeAiPendingScopeAiContext,
-  selected: ScopeAiPendingContextItem | null = selectPendingContextItem(promptValue, context),
-): string | null {
-  if (selected) {
-    return selected.value || selected.label || null;
-  }
-
-  const replacementQuery = cleanupReplacementLocationQuery(promptValue);
-  if (replacementQuery) {
-    return replacementQuery;
-  }
-
-  const qualifier = extractLocationDisambiguationQualifier(promptValue);
-  if (!qualifier || isLikelyStaleRawLocationContext(context.rawValue)) {
-    return null;
-  }
-
-  return [context.rawValue, qualifier].filter(Boolean).join(' ').trim() || null;
-}
-
-function selectPendingContextItem(value: string, context: ScopeAiPendingScopeAiContext): ScopeAiPendingContextItem | null {
-  const items = getPendingContextItems(context);
-  if (!items.length) {
-    return null;
-  }
-
-  const ordinal = extractOrdinalSelection(value);
-  if (ordinal !== null) {
-    return items[ordinal] ?? null;
-  }
-
-  const qualifier = cleanupFollowUpQualifier(value);
-  const normalizedPrompt = normalizeActionLookupValue(qualifier ?? value);
-  if (!normalizedPrompt) {
-    return null;
-  }
-
-  const matches = items.filter((item) => {
-    const haystack = normalizeActionLookupValue([
-      item.label,
-      item.value,
-      item.source,
-      item.meta?.address,
-      item.meta?.city,
-      item.meta?.category,
-      item.meta?.categoryLabel,
-      item.meta?.placeName,
-      item.meta?.reason,
-    ].filter(Boolean).join(' '));
-    return haystack.includes(normalizedPrompt);
-  });
-
-  return matches.length === 1 ? matches[0] : null;
-}
-
-function extractRadiusKmFromFollowUp(value: string): number | null {
-  const match = value.match(/\b(?:within|under|inside|radius)\s+(\d+(?:\.\d+)?)\s*(mi|mile|miles|km|kilometer|kilometers)?\b/i);
-  if (!match?.[1]) {
-    return null;
-  }
-
-  const amount = Number(match[1]);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return null;
-  }
-
-  const unit = (match[2] ?? 'mi').toLowerCase();
-  const km = unit.startsWith('km') || unit.startsWith('kilometer') ? amount : amount * 1.609344;
-  return Math.max(1, Math.min(km, 80));
-}
-
-function inferNearbyCategoryFromFollowUp(value: string, fallback?: string): string {
-  const normalized = value.toLowerCase();
-  if (/\b(coffee|cafe|espresso|latte)\b/.test(normalized)) {
-    return 'coffee';
-  }
-  if (/\b(gas|fuel|station|diesel|charge|charging)\b/.test(normalized)) {
-    return 'fuel';
-  }
-  if (/\b(food|restaurant|lunch|dinner|breakfast|eat)\b/.test(normalized)) {
-    return 'food';
-  }
-  if (/\b(park|trail|outdoor|nature)\b/.test(normalized)) {
-    return 'outdoors';
-  }
-  if (/\b(view|scenic|overlook|photo)\b/.test(normalized)) {
-    return 'scenic';
-  }
-  if (/\b(museum|culture|historic|gallery)\b/.test(normalized)) {
-    return 'culture';
-  }
-  if (/\b(shop|shopping|market)\b/.test(normalized)) {
-    return 'shopping';
-  }
-  if (/\b(entertainment|amusement|theme\s*park|six\s*flags|bowling|arcade|movie|cinema|concert|zoo|aquarium|stadium|arena|escape\s*room|mini\s*golf|laser\s*tag)\b/.test(normalized)) {
-    return 'entertainment';
-  }
-
-  return fallback?.trim() || 'nearby places';
-}
-
-function buildPendingLocationAction(context: ScopeAiPendingScopeAiContext, query: string): ScopeAiActionBlock | null {
-  const targetField = String(context.targetField ?? '').toLowerCase();
-  if (targetField === 'stop') {
-    return {
-      actions: [{
-        type: 'ADD_STOP',
-        stop: {
-          name: query,
-          address: query,
-        },
-      }],
-    };
-  }
-
-  if (targetField === 'end' || targetField === 'enddestination' || targetField === 'destination') {
-    return {
-      actions: [{
-        type: 'SET_FIELD',
-        field: 'end',
-        value: query,
-      }],
-    };
-  }
-
-  return {
-    actions: [{
-      type: 'SET_FIELD',
-      field: 'start',
-      value: query,
-    }],
-  };
+interface PlannerTurnProgress {
+  trackingSource: ScopeAiInteractionSource;
+  routeActionReasonForAnalytics?: RouteActionReason;
 }
 
 function getFirstUnresolvedLocationResolution(result: ScopeAiActionBlockApplyResult | null | undefined): ScopeAiActionResolution | null {
@@ -6163,98 +5068,6 @@ function updatePendingContextFromAssistantMessage(
   }
 }
 
-function isExplicitEndpointRouteCommand(value: string): boolean {
-  const normalized = value.trim();
-  if (!normalized) {
-    return false;
-  }
-
-  return (
-    /\bfrom\s+.{2,}\s+to\s+.{2,}$/i.test(normalized) ||
-    /\b(?:start|starting|origin)\b(?:\s+(?:at|from|is|as|to|=|:))?\s+(?!over\b).{2,}$/i.test(normalized) ||
-    /\b(?:destination|final destination|end|finish)\b(?:\s+(?:at|in|to|is|as|=|:))?\s+.{2,}$/i.test(normalized) ||
-    /\buse\s+.{2,}\s+as\s+(?:the\s+)?(?:start|starting point|end|destination|final destination)\b/i.test(normalized)
-  );
-}
-
-function isPendingFollowUpForContext(value: string, context: ScopeAiPendingScopeAiContext | null): boolean {
-  const normalized = value.trim().toLowerCase();
-  if (!context) {
-    return false;
-  }
-
-  if (context.kind === 'fuel-results') {
-    return /\b(?:set\s+(?:gas\s*)?price|use\s+(?:that|this)\s+price|cheapest|closest|diesel|premium|regular|midgrade|show more|more|within|radius)\b/i.test(normalized);
-  }
-
-  if (context.kind === 'nearby-results') {
-    return /\b(?:show more|more|within|radius|near|closest|coffee|food|restaurant|fuel|gas|park|scenic|museum|shopping|entertainment|bowling|arcade|theme\s*park|movie|cinema)\b/i.test(normalized)
-      || extractOrdinalSelection(normalized) !== null;
-  }
-
-  if (context.kind === 'endpoint-candidates' || context.kind === 'place-candidates') {
-    if (/\bendpoint ideas?\b/i.test(normalized) || /\b(?:find|search).*\bendpoint/i.test(normalized)) {
-      return false;
-    }
-
-    if (/\b(?:route\s+status|check\s+status|weather\s+for|forecast\s+for|start(?:ing)?\s+(?:at|from|place|point|city)|end\s+(?:at|in|place|point|city)|destination|final destination|budget|travelers?|pace|date|vibe|vibes|theme|interests?|focus|fuel|gas|build|generate|tighten|find|search|nearby)\b/i.test(normalized)) {
-      return false;
-    }
-
-    return Boolean(selectPendingContextItem(value, context))
-      || filterPendingItemsByFollowUp(value, context).length > 0
-      || /\b(?:closest|scenic|practical|museum|park|coffee|food|cheap|cheapest|second|first|third)\b/i.test(normalized);
-  }
-
-  if (context.kind === 'location-resolution' || context.kind === 'weather-location') {
-    if (isExplicitEndpointRouteCommand(normalized)) {
-      return false;
-    }
-
-    if (/\b(?:route\s+status|check\s+status|weather\s+for|forecast\s+for|start(?:ing)?\s+(?:at|from|place|point|city)|end\s+(?:at|in|place|point|city)|destination|final destination|budget|travelers?|pace|date|vibe|vibes|theme|interests?|focus|fuel|gas|build|generate|tighten|find|search|nearby)\b/i.test(normalized)) {
-      return false;
-    }
-
-    return Boolean(selectPendingContextItem(value, context))
-      || Boolean(cleanupReplacementLocationQuery(normalized))
-      || Boolean(extractLocationDisambiguationQualifier(normalized));
-  }
-
-  if (context.kind === 'planner-setting') {
-    return /\b(?:under\s+\d+|below\s+\d+|cap(?: it)? at\s+\d+|make it\s+\d+|for\s+\d+\s+(?:people|travelers|guests?))\b/i.test(normalized);
-  }
-
-  if (context.kind === 'explanation') {
-    if (/\b(?:endpoint ideas?|weather\s+for|forecast\s+for|start(?:ing)?\s+(?:at|from|place|point|city)|end\s+(?:at|in|place|point|city)|destination|final destination|budget|travelers?|pace|date|fuel|gas|build|generate|tighten|find|search|nearby|places?)\b/i.test(normalized)) {
-      return false;
-    }
-
-    return /\b(?:why|go deeper|deeper|more detail|details|compare|source|what changed|show more)\b/i.test(normalized);
-  }
-
-  return false;
-}
-
-function isExplicitNewScopeAiCommand(value: string, context: ScopeAiPendingScopeAiContext | null = null): boolean {
-  const normalized = value.trim();
-  if (!normalized) {
-    return false;
-  }
-
-  if (isExplicitEndpointRouteCommand(normalized)) {
-    return true;
-  }
-
-  if (isPendingFollowUpForContext(normalized, context)) {
-    return false;
-  }
-
-  return (
-    /^(?:start over|reset|clear|new route|restart)\b/i.test(normalized) ||
-    /\b(?:route\s+status|check\s+status|status\s+of\s+(?:the\s+)?route|start(?:ing)?\s+(?:at|from|place|point|city)|end\s+(?:at|in|place|point|city)|destination|final destination|endpoint ideas?|change|replace|set|use .+ as (?:the )?(?:start|end)|build|generate|tighten|weather\s+for|forecast\s+for|find|search|nearby|fuel|gas|budget|travelers?|pace|date|vibe|vibes|theme|interests?|focus|under\s+\d+|below\s+\d+|for\s+\d+\s+(?:people|travelers|guests?))\b/i.test(normalized)
-  );
-}
-
 async function applyPendingLocationFollowUp(
   promptValue: string,
   context: ScopeAiPendingScopeAiContext,
@@ -6363,27 +5176,6 @@ function emitPendingCandidateAsStop(item: ScopeAiPendingContextItem): boolean {
   return true;
 }
 
-function filterPendingItemsByFollowUp(value: string, context: ScopeAiPendingScopeAiContext): ScopeAiPendingContextItem[] {
-  const qualifier = cleanupFollowUpQualifier(value);
-  const normalized = normalizeActionLookupValue(qualifier ?? value);
-  if (!normalized) {
-    return [];
-  }
-
-  return getPendingContextItems(context).filter((item) => {
-    const haystack = normalizeActionLookupValue([
-      item.label,
-      item.value,
-      item.source,
-      item.meta?.address,
-      item.meta?.category,
-      item.meta?.categoryLabel,
-      item.meta?.reason,
-    ].filter(Boolean).join(' '));
-    return haystack.includes(normalized);
-  });
-}
-
 async function resolvePendingCandidateFollowUp(
   promptValue: string,
   context: ScopeAiPendingScopeAiContext,
@@ -6438,16 +5230,6 @@ async function resolvePendingCandidateFollowUp(
   }
 
   return null;
-}
-
-function getFuelPriceFromPendingItem(item: ScopeAiPendingContextItem): number | null {
-  const price = Number(item.meta?.pricePerUnit);
-  return Number.isFinite(price) && price > 0 ? price : null;
-}
-
-function getDistanceFromPendingItem(item: ScopeAiPendingContextItem): number | null {
-  const distance = Number(item.meta?.distanceKm);
-  return Number.isFinite(distance) && distance >= 0 ? distance : null;
 }
 
 function isTrustedFuelPendingItem(item: ScopeAiPendingContextItem): boolean {
@@ -6749,217 +5531,248 @@ async function resolvePendingScopeAiFollowUp(
   return null;
 }
 
-async function handleScopeAiAsk(userSource: ScopeAiInteractionSource = 'typed'): Promise<void> {
-  const scopeAiStore = props.scopeAiStore;
-  if (!scopeAiStore) {
-    await handleAsk(userSource);
-    return;
+async function resolveScopeAiStoreTurn(
+  scopeAiStore: ScopeAiPlannerStoreBridge,
+  submittedPrompt: string,
+  assistantPrompt: string,
+  outboundImages: ScopeAiImageInput[],
+): Promise<ScopeAiStoreTurnResolution> {
+  const normalizedSubmittedPrompt = normalizeNoisyScopeAiPrompt(submittedPrompt);
+  if (pendingDeleteConfirmation.value && isDeleteCancelPrompt(normalizedSubmittedPrompt)) {
+    pendingDeleteConfirmation.value = false;
+    scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
+      'Save this draft',
+      'Share this trip',
+      'Check route status',
+    ]);
+    return {
+      assistantMessage: buildLocalTextMessage('Canceled delete. I left this trip draft alone.'),
+      followUpMessages: [],
+      actionApplyResult: null,
+      appliedActionBlock: null,
+    };
   }
 
-  if (loading.value) {
-    return;
+  if (
+    pendingDeleteConfirmation.value &&
+    !isDeleteConfirmPrompt(normalizedSubmittedPrompt) &&
+    !isDeleteRequestPrompt(normalizedSubmittedPrompt)
+  ) {
+    pendingDeleteConfirmation.value = false;
   }
 
-  if (voiceListening.value) {
-    stopVoiceInput();
+  const pendingContext = getScopeAiPendingContext(scopeAiStore);
+  const pendingTurnPlan = planPendingScopeAiTurn(normalizedSubmittedPrompt, pendingContext);
+  if (pendingTurnPlan.clearReason) {
+    clearScopeAiPendingContext(scopeAiStore, pendingTurnPlan.clearReason);
   }
-  voiceStatus.value = '';
-
-  const trimmedPrompt = prompt.value.trim();
-  const submittedAttachments = pendingAttachments.value;
-  const submittedPrompt = trimmedPrompt || (submittedAttachments.length ? getDefaultAttachmentPrompt(submittedAttachments) : '');
-  const assistantPrompt = buildPromptWithAttachmentContext(submittedPrompt, submittedAttachments);
-  const outboundImages = buildScopeAiImagePayload(submittedAttachments);
-
-  if (!submittedPrompt && !submittedAttachments.length) {
-    return;
+  const pendingFollowUp = pendingContext && !pendingTurnPlan.startsNewIntent && pendingTurnPlan.isPendingFollowUp
+    ? await resolvePendingScopeAiFollowUp(normalizedSubmittedPrompt, pendingContext, scopeAiStore)
+    : null;
+  if (!pendingFollowUp && pendingContext && !pendingTurnPlan.startsNewIntent && pendingTurnPlan.isPendingFollowUp) {
+    incrementScopeAiPendingContext(scopeAiStore);
   }
 
-  isContextExpanded.value = true;
-  const interactionId = createMessageId('turn');
-  activeTurnId.value = interactionId;
-  appendMessage({
-    id: `${interactionId}-user`,
-    role: 'user',
-    content: sanitizeScopeAiVisibleText(submittedPrompt),
-    attachments: submittedAttachments,
+  const endpointRecommendationIntent = extractEndpointRecommendationIntent(normalizedSubmittedPrompt);
+  const routeActionReason = endpointRecommendationIntent ? null : resolveRouteActionReason(normalizedSubmittedPrompt);
+  const weatherMessage = pendingFollowUp || endpointRecommendationIntent || routeActionReason
+    ? null
+    : await buildScopeAiWeatherMessage(normalizedSubmittedPrompt);
+  const commonAnswer = pendingFollowUp || endpointRecommendationIntent || routeActionReason || weatherMessage
+    ? null
+    : buildCommonScopeAiAnswer(normalizedSubmittedPrompt);
+  const pendingRouteActionReason = pendingItineraryBrief.value?.reason;
+  const pendingBriefMessage = pendingFollowUp || endpointRecommendationIntent || routeActionReason || weatherMessage || commonAnswer
+    ? null
+    : await buildPendingBriefFollowUpMessage(submittedPrompt);
+
+  const resolution = pendingFollowUp
+    ? resolvePendingStoreTurn(pendingFollowUp)
+    : endpointRecommendationIntent
+      ? await resolveEndpointStoreTurn(endpointRecommendationIntent, normalizedSubmittedPrompt)
+      : routeActionReason
+        ? await resolveRouteActionStoreTurn(routeActionReason, normalizedSubmittedPrompt)
+        : weatherMessage
+          ? resolveWeatherStoreTurn(weatherMessage)
+          : commonAnswer
+            ? resolveCommonStoreTurn(commonAnswer, submittedPrompt)
+            : pendingBriefMessage
+              ? resolvePendingBriefStoreTurn(pendingBriefMessage, pendingRouteActionReason)
+              : await resolveProviderStoreTurn(scopeAiStore, assistantPrompt, outboundImages);
+
+  lastFollowUpIntent.value = {
+    kind: pendingFollowUp?.intentKind ?? (endpointRecommendationIntent
+      ? 'location'
+      : routeActionReason ?? pendingRouteActionReason ?? (weatherMessage ? 'weather' : 'general')),
+    prompt: submittedPrompt,
+    responseKind: resolution.assistantMessage.kind,
+    ...(routeActionReason ? { routeActionReason } : {}),
+  };
+  return resolution;
+}
+
+function resolvePendingStoreTurn(pendingFollowUp: PendingScopeAiFollowUpResolution): ScopeAiStoreTurnResolution {
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
+    'Check route status',
+    'Find fuel nearby',
+    'Build the itinerary',
+  ]);
+  return {
+    assistantMessage: pendingFollowUp.assistantMessage,
+    followUpMessages: pendingFollowUp.followUpMessages ?? [],
+    actionApplyResult: pendingFollowUp.actionApplyResult ?? null,
+    appliedActionBlock: pendingFollowUp.appliedActionBlock ?? null,
+  };
+}
+
+async function resolveEndpointStoreTurn(
+  intent: EndpointRecommendationIntent,
+  normalizedPrompt: string,
+): Promise<ScopeAiStoreTurnResolution> {
+  scopeAiStructuredSuggestions.value = [
+    'Show more endpoint ideas',
+    'Find scenic endpoints',
+    'Find practical endpoints',
+  ];
+  return {
+    assistantMessage: await buildEndpointRecommendationMessage(intent, normalizedPrompt),
+    followUpMessages: [],
+    actionApplyResult: null,
+    appliedActionBlock: null,
+  };
+}
+
+async function resolveRouteActionStoreTurn(
+  reason: RouteActionReason,
+  normalizedPrompt: string,
+): Promise<ScopeAiStoreTurnResolution> {
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
+    'Check route status',
+    'Find practical endpoints',
+    'Find fuel nearby',
+  ]);
+  return {
+    assistantMessage: await buildRouteActionMessage(reason, normalizedPrompt),
+    followUpMessages: [],
+    actionApplyResult: null,
+    appliedActionBlock: null,
+  };
+}
+
+function resolveWeatherStoreTurn(message: ChatMessage): ScopeAiStoreTurnResolution {
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
+    'Find indoor backup stops',
+    'Check route status',
+    'Build the itinerary',
+  ]);
+  return {
+    assistantMessage: message,
+    followUpMessages: [],
+    actionApplyResult: null,
+    appliedActionBlock: null,
+  };
+}
+
+function resolveCommonStoreTurn(message: ChatMessage, submittedPrompt: string): ScopeAiStoreTurnResolution {
+  const commonSuggestions = isMissingCurrentLocationTravelPrompt(submittedPrompt)
+    ? ['Use current location', 'Add a start place', 'Search near a city']
+    : ['Tell me a state', 'Use current location', 'Add a final destination'];
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips(commonSuggestions);
+  return {
+    assistantMessage: message,
+    followUpMessages: [],
+    actionApplyResult: null,
+    appliedActionBlock: null,
+  };
+}
+
+function resolvePendingBriefStoreTurn(
+  message: ChatMessage,
+  pendingRouteActionReason: RouteActionReason | undefined,
+): ScopeAiStoreTurnResolution {
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
+    pendingRouteActionReason === 'tighten' ? 'Tighten this route' : 'Build the itinerary',
+    'Use smart defaults',
+    'Cancel this build',
+  ]);
+  return {
+    assistantMessage: message,
+    followUpMessages: [],
+    actionApplyResult: null,
+    appliedActionBlock: null,
+  };
+}
+
+async function resolveProviderStoreTurn(
+  scopeAiStore: ScopeAiPlannerStoreBridge,
+  assistantPrompt: string,
+  outboundImages: ScopeAiImageInput[],
+): Promise<ScopeAiStoreTurnResolution> {
+  const result = await callScopeAi({
+    message: assistantPrompt,
+    plannerState: scopeAiStore.stateAsJson,
+    sessionHistory: scopeAiStore.sessionHistory,
+    preferences: scopeAiStore.preferences,
+    images: outboundImages.length ? outboundImages : undefined,
   });
-  scopeAiStore.addSessionEntry({ role: 'user', content: submittedPrompt, actionBlock: null });
-  workingMessage.value = chooseWorkingMessage(submittedPrompt);
-  loading.value = true;
-  const responseStartedAt = getScopeAiResponseStartedAt();
-  prompt.value = '';
-  pendingAttachments.value = [];
-  await scrollThreadToBottom();
-
-  let assistantMessage: ChatMessage;
+  const parsed = parseScopeAiResponse(result.responseText);
+  const uiActionResult = parsed.actionBlock ? await executeScopeAiUiActions(parsed.actionBlock) : null;
   let followUpMessages: ChatMessage[] = [];
   let actionApplyResult: ScopeAiActionBlockApplyResult | null = null;
   let appliedActionBlock: ScopeAiActionBlock | null = null;
 
-  try {
-    const normalizedSubmittedPrompt = normalizeNoisyScopeAiPrompt(submittedPrompt);
-    if (pendingDeleteConfirmation.value && isDeleteCancelPrompt(normalizedSubmittedPrompt)) {
-      pendingDeleteConfirmation.value = false;
-      assistantMessage = buildLocalTextMessage('Canceled delete. I left this trip draft alone.');
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
-        'Save this draft',
-        'Share this trip',
-        'Check route status',
-      ]);
-    } else {
-      if (
-        pendingDeleteConfirmation.value &&
-        !isDeleteConfirmPrompt(normalizedSubmittedPrompt) &&
-        !isDeleteRequestPrompt(normalizedSubmittedPrompt)
-      ) {
-        pendingDeleteConfirmation.value = false;
-      }
-
-    let resolvedPendingIntentKind: FollowUpIntentKind | null = null;
-    const pendingContext = getScopeAiPendingContext(scopeAiStore);
-    const startsNewIntent = pendingContext ? isExplicitNewScopeAiCommand(normalizedSubmittedPrompt, pendingContext) : false;
-    if (startsNewIntent) {
-      clearScopeAiPendingContext(scopeAiStore, 'explicit-new-command');
-    }
-    const isPendingFollowUp = pendingContext && !startsNewIntent
-      ? isPendingFollowUpForContext(normalizedSubmittedPrompt, pendingContext)
-      : false;
-    if (pendingContext && !startsNewIntent && !isPendingFollowUp) {
-      clearScopeAiPendingContext(scopeAiStore, 'pending-context-new-turn');
-    }
-    const pendingFollowUp = pendingContext && !startsNewIntent && isPendingFollowUp
-      ? await resolvePendingScopeAiFollowUp(normalizedSubmittedPrompt, pendingContext, scopeAiStore)
-      : null;
-    if (!pendingFollowUp && pendingContext && !startsNewIntent && isPendingFollowUp) {
-      incrementScopeAiPendingContext(scopeAiStore);
-    }
-    const endpointRecommendationIntent = extractEndpointRecommendationIntent(normalizedSubmittedPrompt);
-    const routeActionReason = endpointRecommendationIntent ? null : resolveRouteActionReason(normalizedSubmittedPrompt);
-    const weatherMessage = pendingFollowUp || endpointRecommendationIntent || routeActionReason ? null : await buildScopeAiWeatherMessage(normalizedSubmittedPrompt);
-    const commonAnswer = pendingFollowUp || endpointRecommendationIntent || routeActionReason || weatherMessage
-      ? null
-      : buildCommonScopeAiAnswer(normalizedSubmittedPrompt);
-    const pendingRouteActionReason = pendingItineraryBrief.value?.reason;
-    const pendingBriefMessage = pendingFollowUp || endpointRecommendationIntent || routeActionReason || weatherMessage || commonAnswer
-      ? null
-      : await buildPendingBriefFollowUpMessage(submittedPrompt);
-    if (pendingFollowUp) {
-      assistantMessage = pendingFollowUp.assistantMessage;
-      followUpMessages = pendingFollowUp.followUpMessages ?? [];
-      actionApplyResult = pendingFollowUp.actionApplyResult ?? null;
-      appliedActionBlock = pendingFollowUp.appliedActionBlock ?? null;
-      resolvedPendingIntentKind = pendingFollowUp.intentKind ?? 'general';
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
-        'Check route status',
-        'Find fuel nearby',
-        'Build the itinerary',
-      ]);
-    } else if (endpointRecommendationIntent) {
-      assistantMessage = await buildEndpointRecommendationMessage(endpointRecommendationIntent, normalizedSubmittedPrompt);
-      scopeAiStructuredSuggestions.value = [
-        'Show more endpoint ideas',
-        'Find scenic endpoints',
-        'Find practical endpoints',
-      ];
-    } else if (routeActionReason) {
-      assistantMessage = await buildRouteActionMessage(routeActionReason, normalizedSubmittedPrompt);
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
-        'Check route status',
-        'Find practical endpoints',
-        'Find fuel nearby',
-      ]);
-    } else if (weatherMessage) {
-      assistantMessage = weatherMessage;
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
-        'Find indoor backup stops',
-        'Check route status',
-        'Build the itinerary',
-      ]);
-    } else if (commonAnswer) {
-      assistantMessage = commonAnswer;
-      const commonSuggestions = isMissingCurrentLocationTravelPrompt(submittedPrompt)
-        ? ['Use current location', 'Add a start place', 'Search near a city']
-        : ['Tell me a state', 'Use current location', 'Add a final destination'];
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips(commonSuggestions);
-    } else if (pendingBriefMessage) {
-      assistantMessage = pendingBriefMessage;
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips([
-        pendingRouteActionReason === 'tighten' ? 'Tighten this route' : 'Build the itinerary',
-        'Use smart defaults',
-        'Cancel this build',
-      ]);
-    } else {
-      const result = await callScopeAi({
-        message: assistantPrompt,
-        plannerState: scopeAiStore.stateAsJson,
-        sessionHistory: scopeAiStore.sessionHistory,
-        preferences: scopeAiStore.preferences,
-        images: outboundImages.length ? outboundImages : undefined,
-      });
-      const parsed = parseScopeAiResponse(result.responseText);
-      const uiActionResult = parsed.actionBlock ? await executeScopeAiUiActions(parsed.actionBlock) : null;
-
-      if (parsed.actionBlock) {
-        appliedActionBlock = parsed.actionBlock;
-        trackScopeAiStructuredPreferences(parsed.actionBlock);
-        actionApplyResult = await applyScopeAiStoreActionBlock(scopeAiStore, parsed.actionBlock);
-        followUpMessages = await buildScopeAiActionFollowUpMessages(parsed.actionBlock);
-      }
-
-      const confirmationText = buildLocationResolutionConfirmation(
-        uiActionResult?.message || parsed.confirmationText || result.responseText.trim() || 'I updated the planner route.',
-        actionApplyResult,
-        parsed.actionBlock,
-      );
-      scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips(uiActionResult?.chips ?? parsed.chips);
-      assistantMessage = {
-        id: createMessageId('assistant'),
-        role: 'assistant',
-        kind: 'text',
-        content: confirmationText,
-        model: result.model,
-      };
-    }
-    lastFollowUpIntent.value = {
-      kind: resolvedPendingIntentKind ?? (endpointRecommendationIntent ? 'location' : routeActionReason ?? pendingRouteActionReason ?? (weatherMessage ? 'weather' : 'general')),
-      prompt: submittedPrompt,
-      responseKind: assistantMessage.kind,
-      ...(routeActionReason ? { routeActionReason } : {}),
-    };
-    }
-  } catch (caughtError: unknown) {
-    assistantMessage = {
-      id: createMessageId('assistant'),
-      role: 'assistant',
-      kind: 'error',
-      content: caughtError instanceof Error
-        ? caughtError.message
-        : 'Scope AI could not help with this trip right now.',
-    };
-  } finally {
-    await waitForScopeAiResponsePace(responseStartedAt);
-    loading.value = false;
-    workingMessage.value = DEFAULT_WORKING_MESSAGE;
-    activeTurnId.value = null;
+  if (parsed.actionBlock) {
+    appliedActionBlock = parsed.actionBlock;
+    trackScopeAiStructuredPreferences(parsed.actionBlock);
+    actionApplyResult = await applyScopeAiStoreActionBlock(scopeAiStore, parsed.actionBlock);
+    followUpMessages = await buildScopeAiActionFollowUpMessages(parsed.actionBlock);
   }
 
-  assistantMessage = await auditAssistantMessageForRender(assistantMessage, {
-    userPrompt: submittedPrompt,
+  const confirmationText = buildLocationResolutionConfirmation(
+    uiActionResult?.message || parsed.confirmationText || result.responseText.trim() || 'I updated the planner route.',
     actionApplyResult,
+    parsed.actionBlock,
+  );
+  scopeAiStructuredSuggestions.value = normalizeScopeAiStructuredChips(uiActionResult?.chips ?? parsed.chips);
+  return {
+    assistantMessage: {
+      id: createMessageId('assistant'),
+      role: 'assistant',
+      kind: 'text',
+      content: confirmationText,
+      model: result.model,
+    },
+    followUpMessages,
+    actionApplyResult,
+    appliedActionBlock,
+  };
+}
+
+async function finalizeScopeAiStoreTurn(
+  scopeAiStore: ScopeAiPlannerStoreBridge,
+  interactionId: string,
+  submittedPrompt: string,
+  assistantPrompt: string,
+  userSource: ScopeAiInteractionSource,
+  resolution: ScopeAiStoreTurnResolution,
+): Promise<void> {
+  const assistantMessage = await auditAssistantMessageForRender(resolution.assistantMessage, {
+    userPrompt: submittedPrompt,
+    actionApplyResult: resolution.actionApplyResult,
   });
   updatePendingContextFromAssistantMessage(scopeAiStore, submittedPrompt, assistantMessage, {
-    actionApplyResult,
-    actionBlock: appliedActionBlock,
+    actionApplyResult: resolution.actionApplyResult,
+    actionBlock: resolution.appliedActionBlock,
   });
   scopeAiStore.addSessionEntry({
     role: 'assistant',
     content: resolveMessageContentForTraining(assistantMessage),
-    actionBlock: appliedActionBlock,
+    actionBlock: resolution.appliedActionBlock,
   });
   trackAiTurn(interactionId, assistantPrompt, assistantMessage, userSource);
   appendMessage(assistantMessage);
-  for (const message of followUpMessages) {
+
+  for (const message of resolution.followUpMessages) {
     const auditedMessage = await auditAssistantMessageForRender(message, {
       userPrompt: submittedPrompt,
       actionApplyResult: null,
@@ -6977,21 +5790,212 @@ async function handleScopeAiAsk(userSource: ScopeAiInteractionSource = 'typed'):
   }
 }
 
+async function handleScopeAiAsk(userSource: ScopeAiInteractionSource = 'typed'): Promise<void> {
+  const scopeAiStore = props.scopeAiStore;
+  if (!scopeAiStore) {
+    await handleAsk(userSource);
+    return;
+  }
+
+  if (loading.value) {
+    return;
+  }
+
+  if (voiceListening.value) {
+    stopVoiceInput();
+  }
+  voiceStatus.value = '';
+
+  const submittedTurn = readSubmittedChatTurn(prompt.value, pendingAttachments.value);
+  if (!submittedTurn) {
+    return;
+  }
+
+  const { submittedPrompt, assistantPrompt, submittedAttachments } = submittedTurn;
+  const outboundImages = buildScopeAiImagePayload(submittedAttachments);
+
+  isContextExpanded.value = true;
+  const interactionId = createMessageId('turn');
+  activeTurnId.value = interactionId;
+  appendMessage(buildSubmittedUserMessage(interactionId, submittedTurn));
+  scopeAiStore.addSessionEntry({ role: 'user', content: submittedPrompt, actionBlock: null });
+  workingMessage.value = chooseWorkingMessage(submittedPrompt);
+  loading.value = true;
+  const responseStartedAt = getScopeAiResponseStartedAt();
+  clearSubmittedComposer();
+  await scrollThreadToBottom();
+
+  let resolution: ScopeAiStoreTurnResolution;
+
+  try {
+    resolution = await resolveScopeAiStoreTurn(
+      scopeAiStore,
+      submittedPrompt,
+      assistantPrompt,
+      outboundImages,
+    );
+  } catch (caughtError: unknown) {
+    resolution = {
+      assistantMessage: {
+        id: createMessageId('assistant'),
+        role: 'assistant',
+        kind: 'error',
+        content: caughtError instanceof Error
+          ? caughtError.message
+          : 'Scope AI could not help with this trip right now.',
+      },
+      followUpMessages: [],
+      actionApplyResult: null,
+      appliedActionBlock: null,
+    };
+  } finally {
+    await waitForScopeAiResponsePace(responseStartedAt);
+    loading.value = false;
+    workingMessage.value = DEFAULT_WORKING_MESSAGE;
+    activeTurnId.value = null;
+  }
+
+  await finalizeScopeAiStoreTurn(
+    scopeAiStore,
+    interactionId,
+    submittedPrompt,
+    assistantPrompt,
+    userSource,
+    resolution,
+  );
+}
+
+async function resolvePlannerTurn(
+  interactionId: string,
+  submittedPrompt: string,
+  assistantPrompt: string,
+  progress: PlannerTurnProgress,
+): Promise<PlannerTurnResolution | null> {
+  const normalizedSubmittedPrompt = normalizeNoisyScopeAiPrompt(submittedPrompt);
+  const endpointRecommendationIntent = extractEndpointRecommendationIntent(normalizedSubmittedPrompt);
+  const routeActionReason = resolveRouteActionReason(normalizedSubmittedPrompt);
+  const weatherMessage = endpointRecommendationIntent || routeActionReason
+    ? null
+    : await buildScopeAiWeatherMessage(normalizedSubmittedPrompt);
+  const commonAnswer = endpointRecommendationIntent || routeActionReason || weatherMessage
+    ? null
+    : buildCommonScopeAiAnswer(normalizedSubmittedPrompt);
+  const placeSearchIntent = endpointRecommendationIntent || commonAnswer
+    ? null
+    : extractPlaceSearchIntent(normalizedSubmittedPrompt);
+  const followUpIntentKind: FollowUpIntentKind = endpointRecommendationIntent
+    ? 'location'
+    : classifyFollowUpIntent(submittedPrompt, routeActionReason, placeSearchIntent);
+  const shouldBypassPendingBrief = shouldHandlePromptAsNewIntentWhileBriefPending(
+    normalizedSubmittedPrompt,
+    routeActionReason,
+    placeSearchIntent,
+  );
+  const pendingRouteActionReason = pendingItineraryBrief.value?.reason;
+  const pendingBriefMessage = shouldBypassPendingBrief
+    ? null
+    : await buildPendingBriefFollowUpMessage(submittedPrompt);
+  if (activeTurnId.value !== interactionId) {
+    return null;
+  }
+
+  let assistantMessage: ChatMessage;
+  if (pendingBriefMessage) {
+    progress.trackingSource = 'route-action';
+    progress.routeActionReasonForAnalytics = pendingRouteActionReason ?? routeActionReason ?? 'build';
+    assistantMessage = pendingBriefMessage;
+  } else if (endpointRecommendationIntent) {
+    progress.trackingSource = 'place-search';
+    assistantMessage = await buildEndpointRecommendationMessage(endpointRecommendationIntent, normalizedSubmittedPrompt);
+  } else if (routeActionReason) {
+    progress.trackingSource = 'route-action';
+    progress.routeActionReasonForAnalytics = routeActionReason;
+    assistantMessage = await buildRouteActionMessage(routeActionReason, normalizedSubmittedPrompt);
+  } else if (weatherMessage) {
+    assistantMessage = weatherMessage;
+  } else if (commonAnswer) {
+    assistantMessage = commonAnswer;
+  } else if (placeSearchIntent) {
+    progress.trackingSource = 'place-search';
+    assistantMessage = await buildPlaceSearchMessage(placeSearchIntent, normalizedSubmittedPrompt);
+  } else {
+    const result = await planTrip({
+      prompt: buildAssistantPrompt(assistantPrompt),
+      user_id: props.userId,
+      start_date: props.draft.startDate,
+    }, activeAbortController ? { signal: activeAbortController.signal } : undefined);
+    if (activeTurnId.value !== interactionId) {
+      return null;
+    }
+    assistantMessage = {
+      id: createMessageId('assistant'),
+      role: 'assistant',
+      kind: 'text',
+      content: result.itinerary,
+      model: result.model,
+    };
+  }
+
+  lastFollowUpIntent.value = {
+    kind: followUpIntentKind,
+    prompt: submittedPrompt,
+    responseKind: assistantMessage.kind,
+    ...(routeActionReason ? { routeActionReason } : {}),
+  };
+  return {
+    assistantMessage,
+    trackingSource: progress.trackingSource,
+    routeActionReasonForAnalytics: progress.routeActionReasonForAnalytics,
+    followUpMessages: [],
+    actionApplyResult: null,
+  };
+}
+
+async function finalizePlannerTurn(
+  interactionId: string,
+  submittedPrompt: string,
+  assistantPrompt: string,
+  resolution: PlannerTurnResolution,
+): Promise<void> {
+  const assistantMessage = await auditAssistantMessageForRender(resolution.assistantMessage, {
+    userPrompt: submittedPrompt,
+    actionApplyResult: resolution.actionApplyResult,
+  });
+  trackAiTurn(
+    interactionId,
+    assistantPrompt,
+    assistantMessage,
+    resolution.trackingSource,
+    resolution.routeActionReasonForAnalytics,
+  );
+  appendMessage(assistantMessage);
+
+  for (const message of resolution.followUpMessages) {
+    const auditedMessage = await auditAssistantMessageForRender(message, {
+      userPrompt: submittedPrompt,
+      actionApplyResult: null,
+    });
+    appendMessage(auditedMessage);
+    props.scopeAiStore?.addSessionEntry?.({
+      role: 'assistant',
+      content: resolveMessageContentForTraining(auditedMessage),
+      actionBlock: null,
+    });
+  }
+}
+
 async function handleAsk(userSource: ScopeAiInteractionSource = 'typed'): Promise<void> {
   if (voiceListening.value) {
     stopVoiceInput();
   }
   voiceStatus.value = '';
 
-  const trimmedPrompt = prompt.value.trim();
-  const submittedAttachments = pendingAttachments.value;
-  const submittedPrompt = trimmedPrompt || (submittedAttachments.length ? getDefaultAttachmentPrompt(submittedAttachments) : '');
-  const assistantPrompt = buildPromptWithAttachmentContext(submittedPrompt, submittedAttachments);
-
-  if (!submittedPrompt && !submittedAttachments.length) {
+  const submittedTurn = readSubmittedChatTurn(prompt.value, pendingAttachments.value);
+  if (!submittedTurn) {
     return;
   }
 
+  const { submittedPrompt, assistantPrompt } = submittedTurn;
   isContextExpanded.value = true;
   const interactionId = createMessageId('turn');
   const inferredDetailPreference = inferDetailPreferenceFromPrompt(submittedPrompt);
@@ -7007,99 +6011,45 @@ async function handleAsk(userSource: ScopeAiInteractionSource = 'typed'): Promis
   }
   activeAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
   activeTurnId.value = interactionId;
-  appendMessage({
-    id: `${interactionId}-user`,
-    role: 'user',
-    content: sanitizeScopeAiVisibleText(submittedPrompt),
-    attachments: submittedAttachments,
-  });
+  appendMessage(buildSubmittedUserMessage(interactionId, submittedTurn));
   workingMessage.value = chooseWorkingMessage(submittedPrompt);
   loading.value = true;
   const responseStartedAt = getScopeAiResponseStartedAt();
-  prompt.value = '';
-  pendingAttachments.value = [];
+  clearSubmittedComposer();
   await scrollThreadToBottom();
 
-  let assistantMessage: ChatMessage;
-  let trackingSource: ScopeAiInteractionSource = userSource;
-  let routeActionReasonForAnalytics: RouteActionReason | undefined;
-  let followUpMessages: ChatMessage[] = [];
-  let actionApplyResult: ScopeAiActionBlockApplyResult | null = null;
+  let resolution: PlannerTurnResolution | null = null;
+  const progress: PlannerTurnProgress = {
+    trackingSource: userSource,
+  };
 
   try {
-    const normalizedSubmittedPrompt = normalizeNoisyScopeAiPrompt(submittedPrompt);
-    const endpointRecommendationIntent = extractEndpointRecommendationIntent(normalizedSubmittedPrompt);
-    const routeActionReason = resolveRouteActionReason(normalizedSubmittedPrompt);
-    const weatherMessage = endpointRecommendationIntent || routeActionReason ? null : await buildScopeAiWeatherMessage(normalizedSubmittedPrompt);
-    const commonAnswer = endpointRecommendationIntent || routeActionReason || weatherMessage ? null : buildCommonScopeAiAnswer(normalizedSubmittedPrompt);
-    const placeSearchIntent = endpointRecommendationIntent || commonAnswer ? null : extractPlaceSearchIntent(normalizedSubmittedPrompt);
-    const followUpIntentKind: FollowUpIntentKind = endpointRecommendationIntent
-      ? 'location'
-      : classifyFollowUpIntent(submittedPrompt, routeActionReason, placeSearchIntent);
-    const shouldBypassPendingBrief = shouldHandlePromptAsNewIntentWhileBriefPending(
-      normalizedSubmittedPrompt,
-      routeActionReason,
-      placeSearchIntent,
+    resolution = await resolvePlannerTurn(
+      interactionId,
+      submittedPrompt,
+      assistantPrompt,
+      progress,
     );
-    const pendingRouteActionReason = pendingItineraryBrief.value?.reason;
-    const pendingBriefMessage = shouldBypassPendingBrief
-      ? null
-      : await buildPendingBriefFollowUpMessage(submittedPrompt);
-    if (activeTurnId.value !== interactionId) {
+    if (!resolution) {
       return;
     }
-    if (pendingBriefMessage) {
-      trackingSource = 'route-action';
-      routeActionReasonForAnalytics = pendingRouteActionReason ?? routeActionReason ?? 'build';
-      assistantMessage = pendingBriefMessage;
-    } else if (endpointRecommendationIntent) {
-      trackingSource = 'place-search';
-      assistantMessage = await buildEndpointRecommendationMessage(endpointRecommendationIntent, normalizedSubmittedPrompt);
-    } else if (routeActionReason) {
-      trackingSource = 'route-action';
-      routeActionReasonForAnalytics = routeActionReason;
-      assistantMessage = await buildRouteActionMessage(routeActionReason, normalizedSubmittedPrompt);
-    } else if (weatherMessage) {
-      assistantMessage = weatherMessage;
-    } else if (commonAnswer) {
-      assistantMessage = commonAnswer;
-    } else if (placeSearchIntent) {
-      trackingSource = 'place-search';
-      assistantMessage = await buildPlaceSearchMessage(placeSearchIntent, normalizedSubmittedPrompt);
-    } else {
-      const result = await planTrip({
-        prompt: buildAssistantPrompt(assistantPrompt),
-        user_id: props.userId,
-        start_date: props.draft.startDate,
-      }, activeAbortController ? { signal: activeAbortController.signal } : undefined);
-      if (activeTurnId.value !== interactionId) {
-        return;
-      }
-      assistantMessage = {
-        id: createMessageId('assistant'),
-        role: 'assistant',
-        kind: 'text',
-        content: result.itinerary,
-        model: result.model,
-      };
-    }
-    lastFollowUpIntent.value = {
-      kind: followUpIntentKind,
-      prompt: submittedPrompt,
-      responseKind: assistantMessage.kind,
-      ...(routeActionReason ? { routeActionReason } : {}),
-    };
   } catch (caughtError: unknown) {
     if (activeTurnId.value !== interactionId || isAbortError(caughtError)) {
       return;
     }
-    assistantMessage = {
-      id: createMessageId('assistant'),
-      role: 'assistant',
-      kind: 'error',
-      content: caughtError instanceof Error
-        ? caughtError.message
-        : 'Scope AI could not help with this trip right now.',
+    resolution = {
+      assistantMessage: {
+        id: createMessageId('assistant'),
+        role: 'assistant',
+        kind: 'error',
+        content: caughtError instanceof Error
+          ? caughtError.message
+          : 'Scope AI could not help with this trip right now.',
+      },
+      trackingSource: progress.trackingSource,
+      routeActionReasonForAnalytics: progress.routeActionReasonForAnalytics,
+      followUpMessages: [],
+      actionApplyResult: null,
     };
   } finally {
     if (activeTurnId.value === interactionId) {
@@ -7114,23 +6064,13 @@ async function handleAsk(userSource: ScopeAiInteractionSource = 'typed'): Promis
   if (activeTurnId.value !== null) {
     return;
   }
-  assistantMessage = await auditAssistantMessageForRender(assistantMessage, {
-    userPrompt: submittedPrompt,
-    actionApplyResult,
-  });
-  trackAiTurn(interactionId, assistantPrompt, assistantMessage, trackingSource, routeActionReasonForAnalytics);
-  appendMessage(assistantMessage);
-  for (const message of followUpMessages) {
-    const auditedMessage = await auditAssistantMessageForRender(message, {
-      userPrompt: submittedPrompt,
-      actionApplyResult: null,
-    });
-    appendMessage(auditedMessage);
-    props.scopeAiStore?.addSessionEntry?.({
-      role: 'assistant',
-      content: resolveMessageContentForTraining(auditedMessage),
-      actionBlock: null,
-    });
+  if (resolution) {
+    await finalizePlannerTurn(
+      interactionId,
+      submittedPrompt,
+      assistantPrompt,
+      resolution,
+    );
   }
 }
 

@@ -54,6 +54,28 @@ def test_build_reuses_fresh_native_library(monkeypatch, tmp_path):
     assert build_module.build() == output
 
 
+def test_build_recompiles_when_private_header_is_newer(monkeypatch, tmp_path):
+    _root, src, include, source = _patch_tree(monkeypatch, tmp_path)
+    private_header = src / "image_validation.h"
+    private_header.write_text("#define SCOPE_MEDIA_IMAGE_VALIDATION 1\n", encoding="utf-8")
+    output = build_module.BUILD_DIR / ("scope_media.dll" if os.name == "nt" else "libscope_media.so")
+    output.parent.mkdir()
+    output.write_text("native", encoding="utf-8")
+
+    output_time = max(
+        source.stat().st_mtime,
+        private_header.stat().st_mtime,
+        (include / "scope_media.h").stat().st_mtime,
+    ) + 20
+    os.utime(output, (output_time, output_time))
+    os.utime(private_header, (output_time + 20, output_time + 20))
+
+    monkeypatch.setattr(build_module, "_compiler", lambda: "gcc")
+    monkeypatch.setattr(build_module, "_build_with_gcc", lambda _sources: Path("rebuilt"))
+
+    assert build_module.build() == Path("rebuilt")
+
+
 def test_build_dispatches_to_selected_compiler(monkeypatch, tmp_path):
     _patch_tree(monkeypatch, tmp_path)
     calls: list[str] = []

@@ -3,7 +3,7 @@ import zlib from 'node:zlib';
 import { expect, test, type Browser, type Locator, type Page, type Response } from '@playwright/test';
 import { buildSpotPath } from '@/utils/spotRoutes';
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8088';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
 const PASSWORD = process.env.PLAYWRIGHT_PRODUCTION_TEST_PASSWORD ?? `ScopePass${Date.now()}!`;
 const PNG_MIME = 'image/png';
 const MAX_REGISTER_ATTEMPTS = 4;
@@ -198,6 +198,7 @@ const AUTH_REFRESH_PATH = '/api/core/auth/refresh';
 
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(LIVE_SWEEP_TIMEOUT_MS);
+test.skip(({ browserName }) => browserName !== 'chromium', 'Live no-mock sweep is Chromium-only to avoid triplicate live data setup and auth rate limits.');
 test.use({ actionTimeout: ACTION_TIMEOUT_MS, navigationTimeout: NAVIGATION_TIMEOUT_MS });
 
 let liveData: LiveSweepData;
@@ -1593,7 +1594,9 @@ async function seedSession(page: Page, user: LiveUser): Promise<void> {
 }
 
 async function hydrateBrowserSessionOnMap(page: Page, user: LiveUser, label: string): Promise<void> {
-  await gotoAllowingImmediateRedirect(page, '/healthz');
+  // Seed storage from a static same-origin document so the SPA cannot start a
+  // refresh and rotate the token before the authenticated route boots.
+  await gotoAllowingImmediateRedirect(page, '/robots.txt');
   await persistBrowserAuthSession(page, user);
   const refreshResponse = waitForOptionalAuthRefresh(page);
   await gotoAllowingImmediateRedirect(page, '/map');

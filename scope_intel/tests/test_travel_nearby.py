@@ -38,6 +38,113 @@ def _anchor():
     }
 
 
+def _score_context(**overrides):
+    context = {
+        "interests": set(),
+        "latest_intent": "",
+        "budget_ceiling": 0.0,
+        "pace": "standard",
+        "radiusKm": 10,
+    }
+    context.update(overrides)
+    return context
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        (
+            {
+                "source": "scope",
+                "category": "food",
+                "requested_category": "food",
+                "distance_km": 0,
+                "rating": 4.5,
+                "review_count": 100,
+                "price_value": 20,
+                "is_open": True,
+                "context": _score_context(
+                    interests={"food"},
+                    latest_intent="find food",
+                    budget_ceiling=500,
+                    pace="relaxed",
+                ),
+            },
+            183.32233744715552,
+        ),
+        (
+            {
+                "source": "google",
+                "category": "nature",
+                "requested_category": "scenic",
+                "distance_km": 5,
+                "rating": 4.0,
+                "review_count": 10,
+                "price_value": None,
+                "is_open": None,
+                "context": _score_context(),
+            },
+            114.11410676383544,
+        ),
+        (
+            {
+                "source": "google",
+                "category": "fuel",
+                "requested_category": "fuel",
+                "distance_km": 1,
+                "rating": 4.0,
+                "review_count": 20,
+                "price_value": 3.2,
+                "is_open": False,
+                "context": _score_context(
+                    latest_intent="need gas",
+                    budget_ceiling=60,
+                    pace="packed",
+                ),
+            },
+            149.72466282562556,
+        ),
+        (
+            {
+                "source": "scope",
+                "category": "scenic",
+                "requested_category": "recommended",
+                "distance_km": 12,
+                "rating": None,
+                "review_count": None,
+                "price_value": None,
+                "is_open": None,
+                "context": _score_context(interests={"food"}, radiusKm=16.09),
+            },
+            75.59229334990678,
+        ),
+        (
+            {
+                "source": "google",
+                "category": "stay",
+                "requested_category": "stay",
+                "distance_km": 3,
+                "rating": 4.7,
+                "review_count": 890,
+                "price_value": 180,
+                "is_open": True,
+                "context": _score_context(
+                    latest_intent="hotel near route",
+                    budget_ceiling=900,
+                    pace="relaxed",
+                    radiusKm=16.09,
+                ),
+            },
+            181.8980733374767,
+        ),
+    ],
+)
+def test_travel_nearby_score_suggestion_preserves_weighting(kwargs, expected):
+    service = TravelNearbyService.__new__(TravelNearbyService)
+
+    assert service._score_suggestion(**kwargs) == pytest.approx(expected)
+
+
 def test_travel_nearby_requires_auth(client):
     response = client.post("/api/intel/travel/nearby", json={"anchors": [_anchor()]})
 

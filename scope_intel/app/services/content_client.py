@@ -23,6 +23,7 @@ Contract (any backend):
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import Any, Protocol
 
@@ -81,6 +82,16 @@ def _coordinate(value: Any, minimum: float, maximum: float) -> float:
 
 def _distance_km(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
     return haversine_distance_km(lat_a, lng_a, lat_b, lng_b)
+
+
+def _search_terms(value: str | Sequence[str] | None) -> list[str]:
+    if isinstance(value, str):
+        raw_value = value
+    elif value is None:
+        raw_value = ""
+    else:
+        raw_value = " ".join(str(item) for item in value)
+    return [term for term in re.split(r"[^a-z0-9]+", raw_value.lower()) if len(term) >= 2]
 
 
 class _ContentServiceBackend(Protocol):
@@ -147,11 +158,8 @@ def _map_content_row(row: dict[str, Any]) -> Spot:
     back in the ranker, popularity/cost can come from there.
     """
 
-    spot_id = str(row.get("id") or row.get("spotId") or row.get("spot_id") or "").strip()
-    if not spot_id:
-        raise ValueError("Content spot row is missing an id")
-
-    category = str(row.get("category") or "other").strip().lower() or "other"
+    spot_id = _content_row_spot_id(row)
+    category = _content_row_category(row)
     likes_count = _safe_int(row.get("likesCount") or row.get("likes_count") or 0)
     photos_count = _safe_int(row.get("photosCount") or row.get("photos_count") or 0)
     average_rating = row.get("averageRating") or row.get("average_rating")
@@ -161,16 +169,11 @@ def _map_content_row(row: dict[str, Any]) -> Spot:
     popularity = float(min(100, likes_count * 5 + photos_count))
     estimated_cost = _DEFAULT_COST_BY_CATEGORY.get(category, 20.0)
     is_outdoor = category in _OUTDOOR_CATEGORIES
-    likers = row.get("likedByUsers") or row.get("liked_by_users") or ()
-    if isinstance(likers, (list, tuple)):
-        liker_tuple: tuple[str, ...] = tuple(str(u) for u in likers)
-    else:
-        liker_tuple = ()
 
     return Spot(
         spot_id=spot_id,
         title=str(row.get("title") or ""),
-        description=str(row.get("description") or ""),
+        description=_content_row_description(row),
         category=category,
         vibe=str(row.get("vibe") or ""),
         rating=rating,
@@ -180,8 +183,54 @@ def _map_content_row(row: dict[str, Any]) -> Spot:
         longitude=_coordinate(row.get("longitude"), -180.0, 180.0),
         is_outdoor=is_outdoor,
         photos_count=photos_count,
-        liked_by_users=liker_tuple,
+        liked_by_users=_content_row_likers(row),
     )
+
+
+def _content_row_spot_id(row: dict[str, Any]) -> str:
+    spot_id = str(row.get("id") or row.get("spotId") or row.get("spot_id") or "").strip()
+    if not spot_id:
+        raise ValueError("Content spot row is missing an id")
+    return spot_id
+
+
+def _content_row_category(row: dict[str, Any]) -> str:
+    return str(row.get("category") or "other").strip().lower() or "other"
+
+
+def _content_row_likers(row: dict[str, Any]) -> tuple[str, ...]:
+    likers = row.get("likedByUsers") or row.get("liked_by_users") or ()
+    return tuple(str(user_id) for user_id in likers) if isinstance(likers, (list, tuple)) else ()
+
+
+def _content_row_description(row: dict[str, Any]) -> str:
+    search_context = " ".join(str(row.get(key) or "") for key in _CONTENT_ROW_SEARCH_CONTEXT_KEYS)
+    return " ".join(
+        part.strip()
+        for part in (str(row.get("description") or ""), search_context)
+        if part and part.strip()
+    )
+
+
+_CONTENT_ROW_SEARCH_CONTEXT_KEYS = (
+    "address",
+    "city",
+    "state",
+    "stateCode",
+    "adminArea",
+    "region",
+    "country",
+    "providerPlaceId",
+    "provider_place_id",
+    "providerPlaceName",
+    "provider_place_name",
+    "providerPlaceAddress",
+    "provider_place_address",
+    "verificationSource",
+    "verification_source",
+    "safetyReason",
+    "safety_reason",
+)
 
 
 _DEFAULT_COST_BY_CATEGORY: dict[str, float] = {
@@ -309,24 +358,50 @@ class HttpContentServiceClient:
 
     def search_spots(self, destination: str, interests: list[str]) -> list[Spot]:
         # Content does not have a destination-query endpoint; we approximate
-        # with category filtering + a client-side text match on city/title.
+        # with a broad verified/public pool plus client-side text scoring over
+        # title, city, country, category, vibe, provider identity, and context.
         # A future endpoint can replace this with geocode -> nearby lookup.
         params: dict[str, Any] = {"pageSize": self._fetch_limit}
-        if interests:
-            params["category"] = interests[0]
         spots = self._fetch_spots(params=params)
-        if not destination:
+        destination_terms = _search_terms(destination)
+        interest_terms = _search_terms(interests)
+        if not destination_terms and not interest_terms:
             return spots
-        destination_lower = destination.lower()
 
-        def matches(spot: Spot) -> bool:
-            haystack = f"{spot.title} {spot.description}".lower()
-            return destination_lower in haystack or any(
-                interest in haystack for interest in interests or ()
-            )
+        def haystack(spot: Spot) -> str:
+            return f"{spot.title} {spot.description} {spot.category} {spot.vibe}".lower()
 
-        filtered = [spot for spot in spots if matches(spot)]
-        return filtered or spots
+        def destination_match_strength(spot: Spot) -> int:
+            text = haystack(spot)
+            if not destination_terms:
+                return 1
+            matched = sum(1 for term in destination_terms if term in text)
+            if matched == len(destination_terms):
+                return 2
+            return 1 if matched else 0
+
+        def interest_matches(spot: Spot) -> bool:
+            if not interest_terms:
+                return True
+            text = haystack(spot)
+            return spot.category in interest_terms or any(term in text for term in interest_terms)
+
+        def score(spot: Spot) -> float:
+            text = haystack(spot)
+            destination_score = sum(4 for term in destination_terms if term in text)
+            interest_score = sum(2 for term in interest_terms if term in text)
+            category_bonus = 3 if spot.category in interest_terms else 0
+            return destination_score + interest_score + category_bonus + (spot.rating / 10) + (spot.popularity / 100)
+
+        destination_matches = [spot for spot in spots if destination_match_strength(spot) == 2]
+        if not destination_matches:
+            destination_matches = [spot for spot in spots if destination_match_strength(spot) == 1]
+        if not destination_matches:
+            destination_matches = spots
+
+        interest_filtered = [spot for spot in destination_matches if interest_matches(spot)]
+        candidates = interest_filtered or destination_matches
+        return sorted(candidates, key=score, reverse=True)
 
     def nearby_spots(self, lat: float, lng: float, radius_km: float, limit: int = 50) -> list[Spot]:
         spots = self._fetch_spots(

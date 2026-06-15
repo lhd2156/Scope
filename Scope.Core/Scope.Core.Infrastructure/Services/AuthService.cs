@@ -165,18 +165,13 @@ public sealed class AuthService(
 
         if (!passwordHasher.Verify(password, user.PasswordHash))
         {
-            user.FailedLoginAttempts += 1;
-            if (user.FailedLoginAttempts >= MaxFailedAttempts)
-            {
-                user.LockoutUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
-                user.FailedLoginAttempts = 0;
-                await dbContext.SaveChangesAsync(cancellationToken);
-                Audit("login", "failure", user.Id.ToString(), "lockout_triggered", identifier);
-                throw new UnauthorizedException("Account temporarily locked. Try again later.");
-            }
-            await dbContext.SaveChangesAsync(cancellationToken);
-            Audit("login", "failure", user.Id.ToString(), "bad_password", identifier);
-            throw new UnauthorizedException("Invalid credentials");
+            return await RejectLoginAsync(
+                user,
+                identifier,
+                failureReason: "bad_password",
+                lockoutReason: "lockout_triggered",
+                failureMessage: "Invalid credentials",
+                cancellationToken);
         }
 
         if (user.MfaEnabled)
@@ -188,19 +183,13 @@ public sealed class AuthService(
             }
             if (!await mfaService.ValidateAsync(user.Id, mfaCode, cancellationToken))
             {
-                user.FailedLoginAttempts += 1;
-                if (user.FailedLoginAttempts >= MaxFailedAttempts)
-                {
-                    user.LockoutUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
-                    user.FailedLoginAttempts = 0;
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    Audit("login", "failure", user.Id.ToString(), "mfa_lockout_triggered", identifier);
-                    throw new UnauthorizedException("Account temporarily locked. Try again later.");
-                }
-
-                await dbContext.SaveChangesAsync(cancellationToken);
-                Audit("login", "failure", user.Id.ToString(), "bad_mfa_code", identifier);
-                throw new UnauthorizedException("Invalid MFA code");
+                return await RejectLoginAsync(
+                    user,
+                    identifier,
+                    failureReason: "bad_mfa_code",
+                    lockoutReason: "mfa_lockout_triggered",
+                    failureMessage: "Invalid MFA code",
+                    cancellationToken);
             }
         }
 
@@ -337,6 +326,29 @@ public sealed class AuthService(
                   x.DisplayName.ToLower() == normalizedLower ||
                   (normalizedPhoneNumber != null && x.PhoneNumber == normalizedPhoneNumber)),
             cancellationToken);
+    }
+
+    private async Task<AuthOutcome> RejectLoginAsync(
+        User user,
+        string identifier,
+        string failureReason,
+        string lockoutReason,
+        string failureMessage,
+        CancellationToken cancellationToken)
+    {
+        user.FailedLoginAttempts += 1;
+        if (user.FailedLoginAttempts >= MaxFailedAttempts)
+        {
+            user.LockoutUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
+            user.FailedLoginAttempts = 0;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            Audit("login", "failure", user.Id.ToString(), lockoutReason, identifier);
+            throw new UnauthorizedException("Account temporarily locked. Try again later.");
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        Audit("login", "failure", user.Id.ToString(), failureReason, identifier);
+        throw new UnauthorizedException(failureMessage);
     }
 
     private static string? NormalizePhoneNumberForLookup(string? value)

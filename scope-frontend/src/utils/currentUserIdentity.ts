@@ -76,7 +76,7 @@ function rewriteActivityTitleForCurrentUser(title: string, actor: UserProfile): 
 }
 
 export function applyCurrentUserIdentityToReview(review: Review, currentUser: UserProfile | null | undefined): Review {
-  if (!currentUser?.id || !sameUserId(getReviewUserId(review), currentUser.id)) {
+  if (review.isAnonymous || !currentUser?.id || !sameUserId(getReviewUserId(review), currentUser.id)) {
     return review;
   }
 

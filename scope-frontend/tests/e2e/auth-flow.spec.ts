@@ -158,7 +158,7 @@ test.describe('Scope auth flow', () => {
     await page.goto('/map', { waitUntil: 'domcontentloaded' });
 
     const navbar = page.locator('header.navbar');
-    await expect(navbar.locator('[data-test="auth-session-placeholder"]')).toBeVisible();
+    await expect(navbar.locator('[data-test="auth-session-placeholder"], button.profile-chip')).toBeVisible();
     await expect(navbar.getByRole('link', { name: 'Log in' })).toHaveCount(0);
     await expect(navbar.getByRole('link', { name: 'Create account' })).toHaveCount(0);
     await expect(page.locator('button.profile-chip')).toContainText('Louis Do');

@@ -7,16 +7,18 @@ from reviews.models import Review
 from spots.models import Spot
 from trips.models import Like
 
+PHOTO_ORDERING = ('sort_order', '-created_at', 'id')
+
 PHOTO_PREFETCH = Prefetch(
     'photos',
-    queryset=Photo.objects.only('id', 'spot_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'created_at')
-    .order_by('sort_order', 'created_at'),
+    queryset=Photo.objects.only('id', 'spot_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'is_anonymous', 'created_at')
+    .order_by(*PHOTO_ORDERING),
 )
 REVIEW_PREFETCH = Prefetch(
     'reviews',
-    queryset=Review.objects.only('id', 'spot_id', 'user_id', 'rating', 'comment', 'created_at').order_by('-created_at'),
+    queryset=Review.objects.only('id', 'spot_id', 'user_id', 'rating', 'comment', 'is_anonymous', 'created_at').order_by('-created_at'),
 )
-FIRST_PHOTO_QUERYSET = Photo.objects.filter(spot_id=OuterRef('pk')).order_by('sort_order', 'created_at')
+FIRST_PHOTO_QUERYSET = Photo.objects.filter(spot_id=OuterRef('pk')).order_by(*PHOTO_ORDERING)
 
 
 def visible_to_user(queryset: QuerySet[Spot], user) -> QuerySet[Spot]:

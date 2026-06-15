@@ -398,6 +398,7 @@ import {
   type MapRoutePreviewTrip,
   type MapWorkspaceSpot,
 } from '@/config/mapAuditFixture';
+import { useMapPageMobileSheetController } from '@/views/mapPageMobileSheetController';
 
 interface RoutePreviewStop {
   id: string;
@@ -409,13 +410,8 @@ interface RoutePreviewStop {
   photoUrl: string;
 }
 
-type MobileSheetState = 'peek' | 'mid' | 'full';
 type MapLabelMode = 'none' | 'states' | 'majorCities' | 'full';
 
-const MOBILE_MAP_BREAKPOINT = 640;
-const MOBILE_SHEET_DRAG_LIMIT = 280;
-const MOBILE_SHEET_DRAG_THRESHOLD = 72;
-const MOBILE_SHEET_STATES: MobileSheetState[] = ['peek', 'mid', 'full'];
 const MAX_ROUTE_PREVIEW_STOPS = 5;
 const MAP_SPOT_PAGE_SIZE = 96;
 const VISIBLE_SPOT_PREVIEW_LIMIT = 8;
@@ -483,11 +479,28 @@ if (!isMapAuditMode) {
   mapStore.resetCategories();
 }
 
-const isMobileMapLayout = ref(false);
-const mapSidebarRef = ref<HTMLElement | null>(null);
+const isMapOnboardingStepActive = computed(() => (
+  onboardingStore.isActive
+  && onboardingStore.activeStep?.routeName === 'map'
+));
+const {
+  isMobileMapLayout,
+  mapSidebarRef,
+  isMapSidebarScrolled,
+  mobileSheetState,
+  isDraggingMobileSheet,
+  nextMobileSheetState,
+  mobileSheetStyle,
+  mapViewStyle,
+  syncMapSidebarScrollState,
+  startMobileSheetDrag,
+  handleMobileSheetToggle,
+  revealMobileSheet,
+  handleSidebarKeydown,
+} = useMapPageMobileSheetController(isMapOnboardingStepActive);
+
 const mapBaseViewport = ref<MapViewport>(getDefaultDiscoveryMapViewport());
 const mapResetViewport = cloneMapViewport(UNITED_STATES_MAP_VIEWPORT);
-const isMapSidebarScrolled = ref(false);
 const roadRoute = ref<RoadRouteSummary | null>(null);
 const roadRouteLoading = ref(false);
 const isSelectedMapOverlayVisible = ref(false);
@@ -496,11 +509,6 @@ const hasLoadedTripData = ref(false);
 const localPreviewSpots = ref<SpotSummary[]>([]);
 const localPreviewTrip = ref<MapRoutePreviewTrip | null>(null);
 const isFeaturedRoutePreviewPinned = ref(false);
-const mobileSheetState = ref<MobileSheetState>('peek');
-const isDraggingMobileSheet = ref(false);
-const mobileSheetDragStartY = ref(0);
-const mobileSheetDragOffset = ref(0);
-const ignoreNextMobileSheetClick = ref(false);
 let cancelInitialWorkspaceLoad: CancelScheduledTask = () => undefined;
 let roadRouteRequestId = 0;
 let mapBaseViewportRequestId = 0;
@@ -509,10 +517,6 @@ const focusedMapSpotId = computed(() => {
   const rawSpotId = route?.query?.spotId;
   return typeof rawSpotId === 'string' ? rawSpotId.trim() : '';
 });
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
 
 function formatCategory(category: SpotCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -592,111 +596,6 @@ function formatSpotCountryBadge(spot: MapWorkspaceSpot | null | undefined): stri
   }
 
   return formatCountryLabel(resolveCityRegionLocation(spot)?.country || spot.country);
-}
-
-function resolveIsMobileMapLayout(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  return window.innerWidth <= MOBILE_MAP_BREAKPOINT;
-}
-
-function syncMobileMapLayout() {
-  isMobileMapLayout.value = resolveIsMobileMapLayout();
-  syncMapSidebarScrollState();
-}
-
-function syncMapSidebarScrollState() {
-  isMapSidebarScrolled.value = !isMobileMapLayout.value && (mapSidebarRef.value?.scrollTop ?? 0) > 8;
-}
-
-function setMobileSheetState(nextState: MobileSheetState) {
-  mobileSheetState.value = nextState;
-}
-
-function getAdjacentMobileSheetState(direction: -1 | 1): MobileSheetState {
-  const currentIndex = MOBILE_SHEET_STATES.indexOf(mobileSheetState.value);
-  const nextIndex = clampNumber(currentIndex + direction, 0, MOBILE_SHEET_STATES.length - 1);
-  return MOBILE_SHEET_STATES[nextIndex];
-}
-
-function removeMobileSheetPointerListeners() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.removeEventListener('pointermove', handleMobileSheetDrag);
-  window.removeEventListener('pointerup', finishMobileSheetDrag);
-  window.removeEventListener('pointercancel', cancelMobileSheetDrag);
-}
-
-function cancelMobileSheetDrag() {
-  isDraggingMobileSheet.value = false;
-  mobileSheetDragOffset.value = 0;
-  removeMobileSheetPointerListeners();
-}
-
-function handleMobileSheetDrag(event: PointerEvent) {
-  if (!isDraggingMobileSheet.value) {
-    return;
-  }
-
-  mobileSheetDragOffset.value = clampNumber(
-    event.clientY - mobileSheetDragStartY.value,
-    -MOBILE_SHEET_DRAG_LIMIT,
-    MOBILE_SHEET_DRAG_LIMIT,
-  );
-}
-
-function finishMobileSheetDrag() {
-  if (!isDraggingMobileSheet.value) {
-    return;
-  }
-
-  const dragDelta = mobileSheetDragOffset.value;
-  const hasMeaningfulDrag = Math.abs(dragDelta) > 10;
-
-  cancelMobileSheetDrag();
-
-  if (hasMeaningfulDrag) {
-    ignoreNextMobileSheetClick.value = true;
-  }
-
-  if (dragDelta <= -MOBILE_SHEET_DRAG_THRESHOLD) {
-    setMobileSheetState(getAdjacentMobileSheetState(1));
-    return;
-  }
-
-  if (dragDelta >= MOBILE_SHEET_DRAG_THRESHOLD) {
-    setMobileSheetState(getAdjacentMobileSheetState(-1));
-  }
-}
-
-function startMobileSheetDrag(event: PointerEvent) {
-  if (!isMobileMapLayout.value) {
-    return;
-  }
-
-  const currentTarget = event.currentTarget;
-  if (currentTarget instanceof HTMLElement && typeof currentTarget.setPointerCapture === 'function') {
-    try {
-      currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Pointer capture is optional for the drag affordance.
-    }
-  }
-
-  mobileSheetDragStartY.value = event.clientY;
-  mobileSheetDragOffset.value = 0;
-  isDraggingMobileSheet.value = true;
-  ignoreNextMobileSheetClick.value = false;
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener('pointermove', handleMobileSheetDrag);
-    window.addEventListener('pointerup', finishMobileSheetDrag);
-    window.addEventListener('pointercancel', cancelMobileSheetDrag);
-  }
 }
 
 function toWorkspaceSpot(spot: SpotSummary): MapWorkspaceSpot {
@@ -1122,26 +1021,6 @@ const selectedMapOverlayLocation = computed(() => {
   return spot ? formatSpotFullLocation(spot) : 'Scope';
 });
 const selectedSpotCountryBadge = computed(() => formatSpotCountryBadge(selectedSpot.value));
-const nextMobileSheetState = computed<MobileSheetState>(() => {
-  switch (mobileSheetState.value) {
-    case 'peek':
-      return 'mid';
-    case 'mid':
-      return 'full';
-    default:
-      return 'peek';
-  }
-});
-const mobileSheetVisibleHeight = computed(() => {
-  switch (mobileSheetState.value) {
-    case 'peek':
-      return '9.5rem';
-    case 'mid':
-      return 'clamp(24rem, 58dvh, 34rem)';
-    default:
-      return '100%';
-  }
-});
 const mobileSheetHeadline = computed(() => {
   if (selectedSpot.value) {
     return selectedSpot.value.title;
@@ -1166,58 +1045,6 @@ const mobileSheetAriaLabel = computed(() => {
       return 'Collapse map sidebar';
   }
 });
-const mobileSheetStyle = computed(() => {
-  if (!isMobileMapLayout.value) {
-    return undefined;
-  }
-
-  return {
-    '--scope-mobile-sheet-visible': mobileSheetVisibleHeight.value,
-    '--scope-mobile-sheet-drag-offset': `${mobileSheetDragOffset.value}px`,
-  };
-});
-const isMapOnboardingStepActive = computed(() => (
-  onboardingStore.isActive
-  && onboardingStore.activeStep?.routeName === 'map'
-));
-const mapViewStyle = computed(() => {
-  if (!isMobileMapLayout.value) {
-    return undefined;
-  }
-
-  return {
-    '--scope-mobile-sheet-visible': mobileSheetVisibleHeight.value,
-    '--scope-map-controls-top': 'calc(var(--space-3) + 4.75rem)',
-    '--scope-map-controls-right': 'var(--space-3)',
-    '--scope-map-controls-bottom': 'calc(var(--scope-mobile-sheet-visible) + var(--space-4))',
-    '--scope-map-controls-left': 'auto',
-    '--scope-map-controls-panel-top': 'var(--space-3)',
-    '--scope-map-controls-panel-right': 'var(--space-3)',
-    '--scope-map-controls-panel-bottom': 'auto',
-    '--scope-map-controls-panel-left': 'auto',
-  };
-});
-
-function handleMobileSheetToggle() {
-  if (!isMobileMapLayout.value) {
-    return;
-  }
-
-  if (ignoreNextMobileSheetClick.value) {
-    ignoreNextMobileSheetClick.value = false;
-    return;
-  }
-
-  setMobileSheetState(nextMobileSheetState.value);
-}
-
-function revealMobileSheet() {
-  if (!isMobileMapLayout.value || mobileSheetState.value !== 'peek') {
-    return;
-  }
-
-  setMobileSheetState('mid');
-}
 
 function recordMapInteraction(type: string): void {
   analyticsPageEngagementTracker.recordMapInteraction(type);
@@ -1335,32 +1162,10 @@ async function syncRoadRoute() {
   }
 }
 
-function handleSidebarKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMobileMapLayout.value && mobileSheetState.value !== 'peek') {
-    setMobileSheetState('peek');
-  }
-}
-
 watch(
   () => routeSourcePoints.value.map(buildRoutePointRequestKey).join('|'),
   () => {
     void syncRoadRoute();
-  },
-  { immediate: true },
-);
-
-watch(
-  [isMobileMapLayout, isMapOnboardingStepActive],
-  ([isMobile, isMapOnboardingStep]) => {
-    if (!isMobile) {
-      cancelMobileSheetDrag();
-      ignoreNextMobileSheetClick.value = false;
-      mobileSheetState.value = 'peek';
-      return;
-    }
-
-    ignoreNextMobileSheetClick.value = false;
-    mobileSheetState.value = isMapOnboardingStep ? 'full' : 'peek';
   },
   { immediate: true },
 );
@@ -1378,9 +1183,6 @@ watch(focusedMapSpotId, () => {
 });
 
 onMounted(() => {
-  syncMobileMapLayout();
-  window.addEventListener('resize', syncMobileMapLayout);
-
   if (isMapAuditMode) {
     if (!mapStore.selectedSpotId && MAP_AUDIT_SPOTS[0]) {
       mapStore.setSelectedSpotId(MAP_AUDIT_SPOTS[0].id);
@@ -1413,8 +1215,6 @@ onBeforeUnmount(() => {
   roadRouteRequestId += 1;
   mapBaseViewportRequestId += 1;
   cancelInitialWorkspaceLoad();
-  cancelMobileSheetDrag();
-  window.removeEventListener('resize', syncMobileMapLayout);
 });
 </script>
 

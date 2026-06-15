@@ -84,15 +84,12 @@ const FALLBACK_DEMO_VIEWPORT: MapViewport = {
 };
 
 const seededUsers = (rawUsers as DemoUserFixture[]).map((user) =>
-  sanitizeUserProfile({ ...user }, { allowGeneratedAvatar: true }) as DemoUserFixture,
+  sanitizeUserProfile({ ...user }) as DemoUserFixture,
 );
 const demoUserLookup = new Map(seededUsers.map((user) => [user.id, user]));
 
 const seededSpotDetails = (rawSpots as SpotDetail[]).map((spot) =>
-  sanitizeSpotDetail(enrichStarterSpotGallery({ ...spot } as SpotDetail), {
-    allowGeneratedAuthorAvatar: true,
-    allowGeneratedReviewAvatars: true,
-  }),
+  sanitizeSpotDetail(enrichStarterSpotGallery({ ...spot } as SpotDetail)),
 );
 const demoSpotLookup = new Map(seededSpotDetails.map((spot) => [spot.id, spot]));
 
@@ -136,7 +133,6 @@ function toSpotSummary(spot: SpotDetail): SpotSummary {
       liked: spot.liked,
       likesCount: spot.likesCount,
     },
-    { allowGeneratedAuthorAvatar: true },
   );
 }
 
@@ -150,7 +146,6 @@ function buildTripMember(seed: DemoTripMemberSeed): TripMember {
       avatarUrl: user.avatarUrl,
       status: seed.status,
     },
-    { allowGeneratedAvatar: true },
   );
 }
 
@@ -231,13 +226,12 @@ const seededTrips = (rawTrips as DemoTripSeed[]).map((seed) => {
       itinerary: buildItinerary(seed.id, seed.destination, seed.startDate, tripSpots, weatherForecast),
       coverImageUrl: coverSpot?.photoUrl ?? coverSpot?.photos[0]?.url ?? tripSpots[0]?.photoUrl,
     },
-    { allowGeneratedMemberAvatars: true },
   );
 });
 
 function buildFeedItem(seed: DemoFeedSeed): FeedItem {
   const actor = seed.actor
-    ? sanitizeUserProfile({ ...seed.actor }, { allowGeneratedAvatar: true })
+    ? sanitizeUserProfile({ ...seed.actor })
     : undefined;
   const actorId = seed.actorId ?? actor?.id;
 
@@ -256,7 +250,6 @@ function buildFeedItem(seed: DemoFeedSeed): FeedItem {
       imageUrl: seed.imageUrl ?? seed.photoUrl ?? undefined,
       targetId: seed.targetId,
     },
-    { allowGeneratedActorAvatar: true },
   );
 }
 
@@ -286,17 +279,11 @@ function buildDemoViewport(spots: SpotDetail[]): MapViewport {
 export const demoUsers = seededUsers.map((user) => ({ ...user }));
 export const demoSpots = seededSpotDetails.map((spot) => toSpotSummary(spot));
 export const demoSpotDetails = seededSpotDetails.reduce<Record<string, SpotDetail>>((accumulator, spot) => {
-  accumulator[spot.id] = sanitizeSpotDetail(
-    { ...spot },
-    {
-      allowGeneratedAuthorAvatar: true,
-      allowGeneratedReviewAvatars: true,
-    },
-  );
+  accumulator[spot.id] = sanitizeSpotDetail({ ...spot });
   return accumulator;
 }, {});
 export const demoTrips = seededTrips.map((trip) =>
-  sanitizeTrip({ ...trip }, { allowGeneratedMemberAvatars: true }),
+  sanitizeTrip({ ...trip }),
 );
 export const demoFeed = (rawFeed as DemoFeedSeed[]).map((seed) => buildFeedItem(seed));
 export const demoNotifications = (rawNotifications as NotificationItem[]).map((notification) =>

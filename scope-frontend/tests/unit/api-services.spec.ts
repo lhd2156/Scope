@@ -784,7 +784,7 @@ describe('API service fallbacks', () => {
                 id: 'friend-live',
                 username: 'friend-live',
                 displayName: 'Friend Live',
-                avatarUrl: 'https://i.pravatar.cc/160?img=32',
+                avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
                 interests: ['food'],
               },
               presence: 'teleporting',
@@ -852,7 +852,7 @@ describe('API service fallbacks', () => {
           user: expect.objectContaining({
             id: 'friend-live',
             displayName: 'Friend Live',
-            avatarUrl: expect.stringContaining('i.pravatar.cc'),
+            avatarUrl: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
           }),
         }),
       ],

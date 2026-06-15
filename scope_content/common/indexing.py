@@ -38,7 +38,7 @@ def _spot_photo_url(spot) -> str | None:
         return None
 
     try:
-        first_photo = photos.order_by('sort_order', 'created_at').first()
+        first_photo = photos.order_by('sort_order', '-created_at', 'id').first()
     except AttributeError:
         try:
             first_photo = next(iter(photos), None)
@@ -115,7 +115,8 @@ def index_review(review) -> None:
         'spot_id': str(review.spot_id) if review.spot_id else None,
         'spot_is_public': bool(getattr(spot, 'is_public', False)) if spot is not None else False,
         'spot_owner_id': str(getattr(spot, 'user_id', '')) if spot is not None else None,
-        'user_id': str(review.user_id) if review.user_id else None,
+        'user_id': None if getattr(review, 'is_anonymous', False) else str(review.user_id) if review.user_id else None,
+        'is_anonymous': bool(getattr(review, 'is_anonymous', False)),
         'text': getattr(review, 'text', getattr(review, 'comment', '')) or '',
         'rating': int(float(review.rating)) if getattr(review, 'rating', None) else 0,
         'sentiment_score': (

@@ -438,5 +438,555 @@
         "occurredAt": "2026-03-16T18:30:00Z"
       }
     ]
+  },
+  {
+    "id": "demo-user-9",
+    "username": "camille.laurent",
+    "displayName": "Camille Laurent",
+    "bio": "Scope starter profile for museum mornings, city walks, and design-forward neighborhoods.",
+    "homeBase": "Paris, FR",
+    "interests": [
+      "culture",
+      "shopping",
+      "scenic"
+    ],
+    "joinedAt": "2024-10-05T13:20:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "camille.laurent@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-9-activity-1",
+        "type": "spot-created",
+        "title": "Published Asheville River Arts Studio Loop",
+        "targetType": "spot",
+        "targetId": "demo-spot-31",
+        "summary": "Added researched starter context for Asheville.",
+        "location": "Asheville, US",
+        "occurredAt": "2026-03-26T19:37:00Z"
+      },
+      {
+        "id": "demo-user-9-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Paris Seine Louvre Evening Walk",
+        "targetType": "spot",
+        "targetId": "demo-spot-53",
+        "summary": "Left practical route notes for Paris.",
+        "location": "Paris, FR",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-9-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Paris, FR",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-10",
+    "username": "noah.kim",
+    "displayName": "Noah Kim",
+    "bio": "Scope starter profile for mountain gateways, waterfront walks, and low-friction outdoor days.",
+    "homeBase": "Vancouver, CA",
+    "interests": [
+      "nature",
+      "adventure",
+      "scenic"
+    ],
+    "joinedAt": "2024-11-12T18:05:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "noah.kim@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-10-activity-1",
+        "type": "spot-created",
+        "title": "Published Acadia Ocean Path Dawn",
+        "targetType": "spot",
+        "targetId": "demo-spot-38",
+        "summary": "Added researched starter context for Bar Harbor.",
+        "location": "Bar Harbor, US",
+        "occurredAt": "2026-03-23T19:26:00Z"
+      },
+      {
+        "id": "demo-user-10-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Glacier Going-to-the-Sun Pullout",
+        "targetType": "spot",
+        "targetId": "demo-spot-40",
+        "summary": "Left practical route notes for West Glacier.",
+        "location": "West Glacier, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-10-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Vancouver, CA",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-11",
+    "username": "luca.moretti",
+    "displayName": "Luca Moretti",
+    "bio": "Scope starter profile for rail-linked city breaks, market lunches, and late scenic walks.",
+    "homeBase": "Lisbon, PT",
+    "interests": [
+      "scenic",
+      "food",
+      "nightlife"
+    ],
+    "joinedAt": "2025-01-18T09:40:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "luca.moretti@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-11-activity-1",
+        "type": "spot-created",
+        "title": "Published Rome Colosseum Forum Edge",
+        "targetType": "spot",
+        "targetId": "demo-spot-55",
+        "summary": "Added researched starter context for Rome.",
+        "location": "Rome, IT",
+        "occurredAt": "2026-03-14T22:25:00Z"
+      },
+      {
+        "id": "demo-user-11-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Milan Duomo Roofline Piazza",
+        "targetType": "spot",
+        "targetId": "demo-spot-56",
+        "summary": "Left practical route notes for Milan.",
+        "location": "Milan, IT",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-11-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Lisbon, PT",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-12",
+    "username": "harper.singh",
+    "displayName": "Harper Singh",
+    "bio": "Scope starter profile for national parks, gear-light adventures, and efficient road-trip stops.",
+    "homeBase": "Denver, CO",
+    "interests": [
+      "adventure",
+      "shopping",
+      "nature"
+    ],
+    "joinedAt": "2025-02-08T16:15:00Z",
+    "stats": {
+      "spots": 6,
+      "trips": 3,
+      "friends": 0
+    },
+    "email": "harper.singh@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-12-activity-1",
+        "type": "spot-created",
+        "title": "Published Tulsa Route 66 Neon Gateway",
+        "targetType": "spot",
+        "targetId": "demo-spot-33",
+        "summary": "Added researched starter context for Tulsa.",
+        "location": "Tulsa, US",
+        "occurredAt": "2026-03-25T21:51:00Z"
+      },
+      {
+        "id": "demo-user-12-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed St. Louis Gateway Arch Riverfront",
+        "targetType": "spot",
+        "targetId": "demo-spot-34",
+        "summary": "Left practical route notes for St. Louis.",
+        "location": "St. Louis, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-12-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Denver, CO",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-13",
+    "username": "emilia.soto",
+    "displayName": "Emilia Soto",
+    "bio": "Scope starter profile for heritage markets, neighborhood food walks, and big-city cultural anchors.",
+    "homeBase": "Buenos Aires, AR",
+    "interests": [
+      "culture",
+      "food",
+      "shopping"
+    ],
+    "joinedAt": "2025-03-22T11:55:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "emilia.soto@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3760854/pexels-photo-3760854.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-13-activity-1",
+        "type": "spot-created",
+        "title": "Published Detroit Eastern Market Saturday",
+        "targetType": "spot",
+        "targetId": "demo-spot-35",
+        "summary": "Added researched starter context for Detroit.",
+        "location": "Detroit, US",
+        "occurredAt": "2026-03-24T16:05:00Z"
+      },
+      {
+        "id": "demo-user-13-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Milwaukee Third Ward Market",
+        "targetType": "spot",
+        "targetId": "demo-spot-52",
+        "summary": "Left practical route notes for Milwaukee.",
+        "location": "Milwaukee, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-13-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Buenos Aires, AR",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-14",
+    "username": "lena.ortiz",
+    "displayName": "Lena Ortiz",
+    "bio": "Scope starter profile for desert color, gallery blocks, and warm-weather weekend pacing.",
+    "homeBase": "Phoenix, AZ",
+    "interests": [
+      "scenic",
+      "shopping",
+      "culture"
+    ],
+    "joinedAt": "2025-04-19T19:30:00Z",
+    "stats": {
+      "spots": 4,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "lena.ortiz@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-14-activity-1",
+        "type": "spot-created",
+        "title": "Published Sedona Airport Mesa Sunset",
+        "targetType": "spot",
+        "targetId": "demo-spot-30",
+        "summary": "Added researched starter context for Sedona.",
+        "location": "Sedona, US",
+        "occurredAt": "2026-03-27T18:30:00Z"
+      },
+      {
+        "id": "demo-user-14-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Santa Fe Plaza Gallery Circuit",
+        "targetType": "spot",
+        "targetId": "demo-spot-42",
+        "summary": "Left practical route notes for Santa Fe.",
+        "location": "Santa Fe, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-14-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Phoenix, AZ",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-15",
+    "username": "marcus.grant",
+    "displayName": "Marcus Grant",
+    "bio": "Scope starter profile for live music, food halls, historic streets, and energetic group nights.",
+    "homeBase": "Nashville, TN",
+    "interests": [
+      "nightlife",
+      "food",
+      "culture"
+    ],
+    "joinedAt": "2025-05-14T15:10:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 3,
+      "friends": 0
+    },
+    "email": "marcus.grant@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3775534/pexels-photo-3775534.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-15-activity-1",
+        "type": "spot-created",
+        "title": "Published Las Vegas Arts District First Friday",
+        "targetType": "spot",
+        "targetId": "demo-spot-25",
+        "summary": "Added researched starter context for Las Vegas.",
+        "location": "Las Vegas, US",
+        "occurredAt": "2026-03-29T20:55:00Z"
+      },
+      {
+        "id": "demo-user-15-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Nashville Broadway Live Block",
+        "targetType": "spot",
+        "targetId": "demo-spot-27",
+        "summary": "Left practical route notes for Nashville.",
+        "location": "Nashville, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-15-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Nashville, TN",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-16",
+    "username": "nia.okafor",
+    "displayName": "Nia Okafor",
+    "bio": "Scope starter profile for public art, civic parks, and culture-first urban routes.",
+    "homeBase": "Atlanta, GA",
+    "interests": [
+      "culture",
+      "scenic",
+      "food"
+    ],
+    "joinedAt": "2025-06-27T12:05:00Z",
+    "stats": {
+      "spots": 4,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "nia.okafor@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-16-activity-1",
+        "type": "spot-created",
+        "title": "Published Charleston Battery Morning Walk",
+        "targetType": "spot",
+        "targetId": "demo-spot-28",
+        "summary": "Added researched starter context for Charleston.",
+        "location": "Charleston, US",
+        "occurredAt": "2026-03-28T16:16:00Z"
+      },
+      {
+        "id": "demo-user-16-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Philadelphia Independence Hall Walk",
+        "targetType": "spot",
+        "targetId": "demo-spot-37",
+        "summary": "Left practical route notes for Philadelphia.",
+        "location": "Philadelphia, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-16-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Atlanta, GA",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-17",
+    "username": "owen.park",
+    "displayName": "Owen Park",
+    "bio": "Scope starter profile for coastal trails, markets, coffee stops, and weather-aware scenic days.",
+    "homeBase": "Seattle, WA",
+    "interests": [
+      "nature",
+      "scenic",
+      "food"
+    ],
+    "joinedAt": "2025-08-03T10:25:00Z",
+    "stats": {
+      "spots": 5,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "owen.park@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3762800/pexels-photo-3762800.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-17-activity-1",
+        "type": "spot-created",
+        "title": "Published Oahu North Shore Haleiwa Stop",
+        "targetType": "spot",
+        "targetId": "demo-spot-26",
+        "summary": "Added researched starter context for Haleiwa.",
+        "location": "Haleiwa, US",
+        "occurredAt": "2026-03-29T21:02:00Z"
+      },
+      {
+        "id": "demo-user-17-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Portland Pearl District Bookshop Block",
+        "targetType": "spot",
+        "targetId": "demo-spot-41",
+        "summary": "Left practical route notes for Portland.",
+        "location": "Portland, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-17-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Seattle, WA",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "demo-user-18",
+    "username": "clara.jensen",
+    "displayName": "Clara Jensen",
+    "bio": "Scope starter profile for riverfront paths, museums, and relaxed city-to-nature weekends.",
+    "homeBase": "Minneapolis, MN",
+    "interests": [
+      "culture",
+      "nature",
+      "scenic"
+    ],
+    "joinedAt": "2025-09-16T14:45:00Z",
+    "stats": {
+      "spots": 4,
+      "trips": 2,
+      "friends": 0
+    },
+    "email": "clara.jensen@showcase.scope.local",
+    "avatarUrl": "https://images.pexels.com/photos/3824771/pexels-photo-3824771.jpeg?auto=compress&cs=tinysrgb&w=600",
+    "showActivityStatus": true,
+    "isDemoAccount": true,
+    "isShowcase": true,
+    "activityHistory": [
+      {
+        "id": "demo-user-18-activity-1",
+        "type": "spot-created",
+        "title": "Published Hot Springs Bathhouse Row",
+        "targetType": "spot",
+        "targetId": "demo-spot-32",
+        "summary": "Added researched starter context for Hot Springs.",
+        "location": "Hot Springs, US",
+        "occurredAt": "2026-03-26T20:44:00Z"
+      },
+      {
+        "id": "demo-user-18-activity-2",
+        "type": "review-posted",
+        "title": "Reviewed Boston Public Garden Swan Loop",
+        "targetType": "spot",
+        "targetId": "demo-spot-36",
+        "summary": "Left practical route notes for Boston.",
+        "location": "Boston, US",
+        "occurredAt": "2026-03-20T12:00:00Z"
+      },
+      {
+        "id": "demo-user-18-activity-3",
+        "type": "trip-planned",
+        "title": "Planned a showcase route",
+        "targetType": "trip",
+        "targetId": "demo-trip-11",
+        "summary": "Sequenced verified public stops for starter exploration.",
+        "location": "Minneapolis, MN",
+        "occurredAt": "2026-03-18T18:30:00Z"
+      }
+    ]
   }
 ]

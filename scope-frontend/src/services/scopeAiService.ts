@@ -1,6 +1,27 @@
 import api from '@/services/api';
+import {
+  collapseRepeatedLetters,
+  damerauLevenshteinDistance,
+  normalizeNoisyCommandTokens,
+  normalizeNoisyCommandWord,
+  normalizeNoisyScopeAiPrompt,
+  normalizeScopeAiCommandText,
+  shouldFuzzyNormalizeCommandWord,
+} from '@/services/scopeAiCommandNormalizer';
 import { sanitizeScopeAiProviderQuery, sanitizeScopeAiVisibleText } from '@/services/scopeAiSafety';
+import {
+  ACTION_FENCE_PATTERN,
+  buildStructuredBackendResponseText,
+  extractActionsFromLocalResponse,
+  normalizeScopeAiImagePayload,
+  type ScopeAiBackendResponse,
+  type ScopeAiChatResponse,
+  type ScopeAiImageInput,
+} from '@/services/scopeAiServiceResponseHelpers';
 import { lexScopeAiCommandText, type ScopeAiLexToken } from '@/services/wasmService';
+
+export { normalizeScopeAiCommandText } from '@/services/scopeAiCommandNormalizer';
+export type { ScopeAiChatResponse, ScopeAiImageInput } from '@/services/scopeAiServiceResponseHelpers';
 
 export interface ScopeAiChatInput {
   message: string;
@@ -10,38 +31,9 @@ export interface ScopeAiChatInput {
   images?: ScopeAiImageInput[];
 }
 
-export interface ScopeAiImageInput {
-  filename?: string;
-  mime_type: string;
-  data: string;
-}
-
-export interface ScopeAiChatResponse {
-  responseText: string;
-  model: string;
-}
-
-interface ScopeAiBackendResponse {
-  response?: string;
-  model?: string;
-  actions?: object[];
-  chips?: string[];
-  place_cards?: Array<{
-    title?: string;
-    subtitle?: string;
-    reason?: string;
-    sourceLabel?: string;
-    source_label?: string;
-  }>;
-}
-
-const ACTION_FENCE_PATTERN = /```action\s*\n[\s\S]*?\n```/i;
 const THEME_TERMS = ['culture', 'food', 'scenic', 'adventure', 'shopping', 'entertainment', 'nightlife', 'history', 'nature', 'family', 'luxury'];
 const STREET_ADDRESS_PATTERN = /\b\d{1,6}\s+[\w'.-]+(?:\s+[\w'.-]+){0,6}\s+(?:street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|way|parkway|pkwy|highway|hwy|trail|trl|terrace|ter|plaza|plz|farm(?:\s+to\s+market|-to-market)|fm|county road|cr|route)\b/i;
 const DEFAULT_SCOPE_AI_DATE_YEAR = 2026;
-const MAX_SCOPE_AI_SERVICE_IMAGES = 3;
-const MAX_SCOPE_AI_SERVICE_IMAGE_BYTES = 1.5 * 1024 * 1024;
-const SUPPORTED_SCOPE_AI_SERVICE_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const DATE_TOKEN_PATTERN = /(?:\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{2,4})?|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\.?,?\s+\d{2,4})?)/gi;
 const UNCLEAR_SCOPE_AI_REPLY = 'Sorry, I cannot confidently answer that without guessing. Try a clearer trip-planning command like "start at [place]", "destination [place]", "weather for [city]", "find fuel", "set budget 700", or "build the itinerary."';
 const UNCLEAR_SCOPE_AI_CHIPS = ['Show examples', 'Check route status', 'Add a start place'];
@@ -172,155 +164,6 @@ const CLEAR_SCOPE_AI_FILLER_TERMS = new Set([
   'would',
   'you',
 ]);
-const DIRECT_NOISY_COMMAND_WORDS: Record<string, string> = {
-  strt: 'start',
-  strting: 'starting',
-  adress: 'address',
-  addres: 'address',
-  addr: 'address',
-  loction: 'location',
-  locaton: 'location',
-  plce: 'place',
-  palce: 'place',
-  endd: 'end',
-  dest: 'destination',
-  destnation: 'destination',
-  destinaton: 'destination',
-  destiantion: 'destination',
-  destinatoin: 'destination',
-  actuually: 'actually',
-  actully: 'actually',
-  wether: 'weather',
-  weathr: 'weather',
-  forecastt: 'forecast',
-  budgte: 'budget',
-  buget: 'budget',
-  bugdet: 'budget',
-  maxx: 'max',
-  minn: 'min',
-  cheep: 'cheap',
-  cheapestt: 'cheapest',
-  travlers: 'travelers',
-  travelrs: 'travelers',
-  travellers: 'travelers',
-  peopel: 'people',
-  diesl: 'diesel',
-  svae: 'save',
-  saev: 'save',
-  zom: 'zoom',
-  zomm: 'zoom',
-  zoome: 'zoom',
-  zoomin: 'zoom in',
-  zoomout: 'zoom out',
-  zoomigng: 'zooming',
-  zoomingg: 'zooming',
-  mpa: 'map',
-  maap: 'map',
-  mappp: 'map',
-  cneter: 'center',
-  centar: 'center',
-  cener: 'center',
-  reecenter: 'recenter',
-  swtich: 'switch',
-  swich: 'switch',
-  swithc: 'switch',
-  toggel: 'toggle',
-  toggl: 'toggle',
-  shrae: 'share',
-  sahre: 'share',
-  shar: 'share',
-  shre: 'share',
-  pubilc: 'public',
-  publc: 'public',
-  publci: 'public',
-  publsh: 'publish',
-  publsih: 'publish',
-  privte: 'private',
-  prvate: 'private',
-  privat: 'private',
-  privtae: 'private',
-  renmae: 'rename',
-  reanme: 'rename',
-  rnmae: 'rename',
-  invte: 'invite',
-  invtie: 'invite',
-  viwer: 'viewer',
-  vewer: 'viewer',
-  edtor: 'editor',
-  editr: 'editor',
-  delte: 'delete',
-  deleet: 'delete',
-  delet: 'delete',
-  cnfirm: 'confirm',
-  buidl: 'build',
-  bulid: 'build',
-  bild: 'build',
-  itenerary: 'itinerary',
-  iterinary: 'itinerary',
-  stauts: 'status',
-  staus: 'status',
-  statuz: 'status',
-  resset: 'reset',
-  reser: 'reset',
-  rest: 'reset',
-  lcoate: 'locate',
-  locat: 'locate',
-  fitt: 'fit',
-  brite: 'bright',
-  brigth: 'bright',
-  lite: 'light',
-};
-const FUZZY_COMMAND_WORDS = [
-  'start',
-  'starting',
-  'destination',
-  'actually',
-  'weather',
-  'forecast',
-  'budget',
-  'bowling',
-  'travelers',
-  'people',
-  'diesel',
-  'save',
-  'share',
-  'public',
-  'private',
-  'rename',
-  'invite',
-  'delete',
-  'confirm',
-  'map',
-  'zoom',
-  'zooming',
-  'center',
-  'recenter',
-  'focus',
-  'show',
-  'open',
-  'switch',
-  'change',
-  'turn',
-  'toggle',
-  'build',
-  'route',
-  'itinerary',
-  'status',
-  'nearby',
-  'stop',
-  'stops',
-  'place',
-  'places',
-  'reset',
-  'locate',
-  'fit',
-  'light',
-  'bright',
-  'dark',
-  'clear',
-  'remove',
-  'discard',
-] as const;
 const MONTH_LOOKUP: Record<string, number> = {
   jan: 1,
   january: 1,
@@ -427,125 +270,14 @@ interface ParsedDateToken {
   raw: string;
 }
 
-function collapseRepeatedLetters(value: string): string {
-  return value.replace(/([a-z])\1+/gi, '$1');
+interface LocalScopeAiResponseContext {
+  scopeCommand: ParsedScopeCommand;
+  message: string;
+  normalized: string;
+  plannerState: LocalPlannerState;
 }
 
-function damerauLevenshteinDistance(left: string, right: string): number {
-  const rows = left.length + 1;
-  const columns = right.length + 1;
-  const distances = Array.from({ length: rows }, () => Array<number>(columns).fill(0));
-
-  for (let row = 0; row < rows; row += 1) {
-    distances[row][0] = row;
-  }
-
-  for (let column = 0; column < columns; column += 1) {
-    distances[0][column] = column;
-  }
-
-  for (let row = 1; row < rows; row += 1) {
-    for (let column = 1; column < columns; column += 1) {
-      const cost = left[row - 1] === right[column - 1] ? 0 : 1;
-      distances[row][column] = Math.min(
-        distances[row - 1][column] + 1,
-        distances[row][column - 1] + 1,
-        distances[row - 1][column - 1] + cost,
-      );
-
-      if (
-        row > 1 &&
-        column > 1 &&
-        left[row - 1] === right[column - 2] &&
-        left[row - 2] === right[column - 1]
-      ) {
-        distances[row][column] = Math.min(distances[row][column], distances[row - 2][column - 2] + 1);
-      }
-    }
-  }
-
-  return distances[left.length][right.length];
-}
-
-function shouldFuzzyNormalizeCommandWord(value: string, target: string): boolean {
-  if (!/^[a-z]+$/i.test(value) || value.length < 4 || Math.abs(value.length - target.length) > 2) {
-    return false;
-  }
-
-  if (target === 'start') {
-    return /^s/.test(value) && /t/.test(value) && /r/.test(value);
-  }
-
-  if (target === 'starting') {
-    return /^s/.test(value) && /t/.test(value) && /r/.test(value) && /ing?$/.test(value);
-  }
-
-  if (target === 'destination') {
-    return /^d/.test(value) && /st|tn|tion/.test(value);
-  }
-
-  return value[0] === target[0];
-}
-
-function normalizeNoisyCommandWord(rawWord: string): string {
-  const lower = rawWord.toLowerCase();
-  const collapsed = collapseRepeatedLetters(lower);
-  const direct = DIRECT_NOISY_COMMAND_WORDS[lower] ?? DIRECT_NOISY_COMMAND_WORDS[collapsed];
-  if (direct) {
-    return direct;
-  }
-
-  if (/^[A-Z][a-z]/.test(rawWord)) {
-    return rawWord;
-  }
-
-  for (const target of FUZZY_COMMAND_WORDS) {
-    const threshold = target.length >= 8 ? 2 : 1;
-    if (
-      shouldFuzzyNormalizeCommandWord(lower, target) &&
-      (damerauLevenshteinDistance(lower, target) <= threshold ||
-        damerauLevenshteinDistance(collapsed, target) <= threshold)
-    ) {
-      return target;
-    }
-  }
-
-  return rawWord;
-}
-
-function normalizeNoisyCommandTokens(value: string): string {
-  return value.replace(/\b[a-z][a-z]*\b/gi, (word) => normalizeNoisyCommandWord(word));
-}
-
-function normalizeNoisyScopeAiPrompt(value: string): string {
-  return normalizeNoisyCommandTokens(value)
-    .replace(/\bs+start\b/gi, 'start')
-    .replace(/\bstrt\b/gi, 'start')
-    .replace(/\bstrting\b/gi, 'starting')
-    .replace(/\bendd\b/gi, 'end')
-    .replace(/\bdest(?:i|ina)?n?ation\b/gi, 'destination')
-    .replace(/\bfinal\s+dest\b/gi, 'final destination')
-    .replace(/\bactu+a+l+y\b/gi, 'actually')
-    .replace(/\bactully\b/gi, 'actually')
-    .replace(/\bweth?er\b/gi, 'weather')
-    .replace(/\bforecastt\b/gi, 'forecast')
-    .replace(/\bbudg(?:e|te|et)\b/gi, 'budget')
-    .replace(/\bmaxx\b/gi, 'max')
-    .replace(/\bminn\b/gi, 'min')
-    .replace(/\bcheep\b/gi, 'cheap')
-    .replace(/\bcheapestt\b/gi, 'cheapest')
-    .replace(/\bfr\b/gi, 'for')
-    .replace(/\bnvm\b/gi, 'nevermind')
-    .replace(/\bov\b/gi, 'of')
-    .replace(/([a-z])!+\s+/gi, '$1 ')
-    .replace(/[?!]{2,}/g, (match) => match[0] ?? '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-export function normalizeScopeAiCommandText(value: string): string {
-  return normalizeNoisyScopeAiPrompt(value);
-}
+type LocalScopeAiResponseStage = (context: LocalScopeAiResponseContext) => ScopeAiChatResponse | null;
 
 function escapeScopeAiRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -929,55 +661,6 @@ function normalizeChips(chips: string[]): string[] {
   ].filter((chip, index, values) => values.indexOf(chip) === index).slice(0, 3);
 }
 
-function normalizeBackendChips(chips: string[]): string[] {
-  return chips
-    .map((chip) => chip.trim())
-    .filter(Boolean)
-    .filter((chip, index, values) => values.indexOf(chip) === index)
-    .slice(0, 3);
-}
-
-function stripImageDataUrlPrefix(data: string): string {
-  const trimmed = data.trim();
-  return trimmed.toLowerCase().startsWith('data:') && trimmed.includes(',')
-    ? trimmed.split(',', 2)[1]?.trim() ?? ''
-    : trimmed;
-}
-
-function estimateBase64ByteLength(data: string): number {
-  const normalized = stripImageDataUrlPrefix(data).replace(/\s+/g, '');
-  const padding = normalized.length - normalized.replace(/=+$/, '').length;
-  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
-}
-
-function normalizeScopeAiImagePayload(images: ScopeAiImageInput[] | undefined): ScopeAiImageInput[] {
-  const normalized: ScopeAiImageInput[] = [];
-
-  for (const image of images ?? []) {
-    const flexibleImage = image as ScopeAiImageInput & { mimeType?: string };
-    const mimeType = String(flexibleImage.mime_type || flexibleImage.mimeType || '').trim().toLowerCase();
-    const data = stripImageDataUrlPrefix(String(flexibleImage.data || ''));
-    if (!SUPPORTED_SCOPE_AI_SERVICE_IMAGE_MIME_TYPES.has(mimeType) || !data) {
-      continue;
-    }
-    if (estimateBase64ByteLength(data) > MAX_SCOPE_AI_SERVICE_IMAGE_BYTES) {
-      continue;
-    }
-
-    normalized.push({
-      ...(flexibleImage.filename ? { filename: String(flexibleImage.filename) } : {}),
-      mime_type: mimeType,
-      data,
-    });
-
-    if (normalized.length >= MAX_SCOPE_AI_SERVICE_IMAGES) {
-      break;
-    }
-  }
-
-  return normalized;
-}
-
 function actionResponse(actions: object[], confirmation: string, chips: string[]): ScopeAiChatResponse {
   return {
     responseText: [
@@ -996,67 +679,6 @@ function textResponse(confirmation: string, chips: string[]): ScopeAiChatRespons
     responseText: `${confirmation}\nCHIPS: ${JSON.stringify(normalizeChips(chips))}`,
     model: 'scope-ai-local',
   };
-}
-
-function buildStructuredBackendResponseText(data: ScopeAiBackendResponse): string {
-  let responseText = data.response?.trim() ?? '';
-  const actions = Array.isArray(data.actions) ? data.actions : [];
-  const rawChips = Array.isArray(data.chips) ? data.chips : [];
-  const chips = rawChips.length ? normalizeBackendChips(rawChips) : [];
-  const placeCards = Array.isArray(data.place_cards) ? data.place_cards : [];
-  const firstCardTitle = placeCards[0]?.title?.trim();
-
-  if (actions.length && !ACTION_FENCE_PATTERN.test(responseText)) {
-    responseText = [
-      '```action',
-      JSON.stringify({ actions }),
-      '```',
-      responseText,
-    ].filter(Boolean).join('\n');
-  }
-
-  if (firstCardTitle && !responseText.toLowerCase().includes(firstCardTitle.toLowerCase())) {
-    const livePicks = placeCards
-      .map((card, index) => {
-        const title = card.title?.trim();
-        if (!title) {
-          return '';
-        }
-        const detail = card.reason?.trim() || card.subtitle?.trim() || card.sourceLabel?.trim() || card.source_label?.trim() || 'provider-backed nearby option';
-        return `${index + 1}. ${title} - ${detail}`;
-      })
-      .filter(Boolean)
-      .slice(0, 5);
-    if (livePicks.length) {
-      responseText = [
-        responseText,
-        ['Live nearby picks:', ...livePicks].join('\n'),
-      ].filter(Boolean).join('\n\n');
-    }
-  }
-
-  if (chips.length && !/CHIPS:\s*\[/i.test(responseText)) {
-    responseText = `${responseText.trim()}\n\nCHIPS: ${JSON.stringify(chips)}`.trim();
-  }
-
-  return responseText;
-}
-
-function extractActionsFromLocalResponse(response: ScopeAiChatResponse | null): object[] {
-  const actionJson = response?.responseText.match(ACTION_FENCE_PATTERN)?.[0]
-    .replace(/^```action\s*/i, '')
-    .replace(/```$/i, '')
-    .trim();
-  if (!actionJson) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(actionJson) as { actions?: object[] };
-    return Array.isArray(parsed.actions) ? parsed.actions : [];
-  } catch {
-    return [];
-  }
 }
 
 function addUniqueAction(actions: object[], action: object): void {
@@ -2362,50 +1984,32 @@ function buildMixedIntentResponse(message: string, normalized: string, plannerSt
   );
 }
 
-function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse {
-  const safeMessage = sanitizeScopeAiProviderQuery(input.message.trim()) || input.message.trim();
-  const scopeCommand = parseScopeAiPlannerCommand(safeMessage);
-  const message = scopeCommand.normalizedMessage;
-  const normalized = scopeCommand.normalized;
-  const plannerState = input.plannerState as LocalPlannerState;
+const MAP_COMMAND_CONFIRMATIONS: Partial<Record<string, string>> = {
+  zoom_in: 'Zooming the planner map in.',
+  zoom_out: 'Zooming the planner map out.',
+  reset_map: 'Resetting the planner map view.',
+  fit_route: 'Fitting the planner map to the route.',
+  locate_user: 'Centering the planner map on your location if the browser allows it.',
+  map_style_light: 'Switching only the planner map to bright mode.',
+  map_style_dark: 'Switching only the planner map to dark mode.',
+};
 
-  if (/\bundo\b|\bgo back\b/.test(normalized)) {
-    return actionResponse(
-      [{ type: 'UNDO' }],
-      'Undid the last Scope AI planner change.',
-      ['Redo that change', 'Show route status', 'Build the next draft'],
-    );
-  }
+function buildMapCommandResponse(mapCommand: ExtractedMapCommand): ScopeAiChatResponse {
+  const action = mapCommand.query
+    ? { type: 'SET_MAP_COMMAND', command: mapCommand.command, query: mapCommand.query }
+    : { type: 'SET_MAP_COMMAND', command: mapCommand.command };
+  const confirmation = mapCommand.command === 'zoom_to_place'
+    ? `Zooming the planner map to ${mapCommand.query ?? 'that place'}.`
+    : MAP_COMMAND_CONFIRMATIONS[mapCommand.command] ?? 'Updating the planner map.';
 
-  if (isStartCityRecommendationRequest(message)) {
-    return textResponse(
-      'I can help choose a strong start city, but I need one real anchor so I do not geocode trip vibes as an address. Tell me a state, region, current location, or final destination and I will suggest start candidates before anything gets set.',
-      ['Tell me a state', 'Use current location', 'Add a final destination'],
-    );
-  }
+  return actionResponse(
+    [action],
+    confirmation,
+    ['Check route status', 'Find verified stops', 'Build the itinerary'],
+  );
+}
 
-  if (
-    /\b(?:near me|around me|near here|where i am|my location|current location)\b/.test(normalized) &&
-    /\b(?:what should|what can|things? to do|nearby|find|show|recommend|suggest|food|restaurants?|coffee|nightlife|bars?|weather|forecast)\b/.test(normalized)
-  ) {
-    return textResponse(
-      'I need a real location before I can rank options near you. Share current location, add a start place, or name a city and I will use live/provider-backed context when it is available.',
-      ['Use current location', 'Add a start place', 'Search near a city'],
-    );
-  }
-
-  if (/\bhow\b.*\b(add|set|choose|pick)\b.*\bstart\b|\bshow me\b.*\bstart place\b/.test(normalized)) {
-    return textResponse(
-      'To add a start place, type it into the Start city, address, or place field, click Start on the map, or tell me "start at [place]" and I will set it for you.',
-      ['Start at my location', 'Start at Dallas', 'Pick start on map'],
-    );
-  }
-
-  const mixedIntentResponse = buildMixedIntentResponse(message, normalized, plannerState);
-  if (mixedIntentResponse) {
-    return mixedIntentResponse;
-  }
-
+function buildParsedScopeCommandResponse(scopeCommand: ParsedScopeCommand): ScopeAiChatResponse | null {
   if (scopeCommand.intent === 'delete_confirmation') {
     return actionResponse(
       [{ type: 'DELETE_TRIP_DRAFT' }],
@@ -2416,24 +2020,7 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
 
   const mapCommand = scopeCommand.intent === 'map_command' ? scopeCommand.mapCommand : null;
   if (mapCommand) {
-    const labels: Record<string, string> = {
-      zoom_in: 'Zooming the planner map in.',
-      zoom_out: 'Zooming the planner map out.',
-      zoom_to_place: `Zooming the planner map to ${mapCommand.query ?? 'that place'}.`,
-      reset_map: 'Resetting the planner map view.',
-      fit_route: 'Fitting the planner map to the route.',
-      locate_user: 'Centering the planner map on your location if the browser allows it.',
-      map_style_light: 'Switching only the planner map to bright mode.',
-      map_style_dark: 'Switching only the planner map to dark mode.',
-    };
-    const action = mapCommand.query
-      ? { type: 'SET_MAP_COMMAND', command: mapCommand.command, query: mapCommand.query }
-      : { type: 'SET_MAP_COMMAND', command: mapCommand.command };
-    return actionResponse(
-      [action],
-      labels[mapCommand.command] ?? 'Updating the planner map.',
-      ['Check route status', 'Find verified stops', 'Build the itinerary'],
-    );
+    return buildMapCommandResponse(mapCommand);
   }
 
   if (scopeCommand.intent === 'save_trip') {
@@ -2514,6 +2101,142 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
+  return null;
+}
+
+function buildRouteEndpointPairResponse(message: string, plannerState: LocalPlannerState): ScopeAiChatResponse | null {
+  const routeEndpointPair = extractRouteEndpointPair(message);
+  if (!routeEndpointPair) {
+    return null;
+  }
+
+  const actions: object[] = [
+    { type: 'SET_FIELD', field: 'start', value: routeEndpointPair.start },
+    { type: 'SET_FIELD', field: 'end', value: routeEndpointPair.end },
+  ];
+  const applied = [`route endpoints to ${routeEndpointPair.start} and ${routeEndpointPair.end}`];
+  const routeBudgetRange = extractBudgetRange(message);
+
+  if (routeBudgetRange) {
+    const [budgetMin, budgetMax] = routeBudgetRange;
+    actions.push(
+      { type: 'SET_FIELD', field: 'budget_min', value: budgetMin },
+      { type: 'SET_FIELD', field: 'budget_max', value: budgetMax },
+    );
+    applied.push(`budget to ${formatMoney(budgetMin)} - ${formatMoney(budgetMax)}`);
+  } else {
+    const routeBudget = extractSingleBudget(message);
+    if (routeBudget !== null) {
+      const exactBudget = isExactSingleBudgetCommand(message);
+      actions.push(...buildSingleBudgetActions(routeBudget, plannerState, { exact: exactBudget }));
+      applied.push(exactBudget ? `budget to ${formatMoney(routeBudget)}` : `max budget to ${formatMoney(routeBudget)}`);
+    }
+  }
+
+  const routePartySize = extractPartySize(message);
+  if (routePartySize !== null) {
+    actions.push({ type: 'SET_FIELD', field: 'party_size', value: routePartySize });
+    applied.push(`travel party to ${formatTravelerCount(routePartySize)}`);
+  }
+
+  return actionResponse(
+    actions,
+    `Set ${applied.join(', ')}.`,
+    ['Find stops nearby', 'Check the timing', 'Build the day'],
+  );
+}
+
+function buildStandaloneBudgetResponse(message: string, plannerState: LocalPlannerState): ScopeAiChatResponse | null {
+  const budgetRange = extractBudgetRange(message);
+  if (budgetRange) {
+    const [budgetMin, budgetMax] = budgetRange;
+    return actionResponse(
+      [
+        { type: 'SET_FIELD', field: 'budget_min', value: budgetMin },
+        { type: 'SET_FIELD', field: 'budget_max', value: budgetMax },
+      ],
+      `Set the trip budget to ${formatMoney(budgetMin)} - ${formatMoney(budgetMax)}.`,
+      ['Build within this budget', 'Find free stops', 'Add endpoints'],
+    );
+  }
+
+  const singleBudget = extractSingleBudget(message);
+  if (singleBudget !== null) {
+    const exactBudget = isExactSingleBudgetCommand(message);
+    const actions = buildSingleBudgetActions(singleBudget, plannerState, { exact: exactBudget });
+    const adjustedMinimum = actions.some((action) =>
+      typeof action === 'object' &&
+      action !== null &&
+      (action as { field?: string }).field === 'budget_min',
+    );
+
+    return actionResponse(
+      actions,
+      exactBudget
+        ? `Set the trip budget to ${formatMoney(singleBudget)}.`
+        : adjustedMinimum
+          ? `Set the max trip budget to ${formatMoney(singleBudget)}. Matched the minimum so the range stays valid.`
+          : `Set the max trip budget to ${formatMoney(singleBudget)}.`,
+      ['Keep it under budget', 'Find free stops', 'Add endpoints'],
+    );
+  }
+
+  return null;
+}
+
+function buildPriorityCommandResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { message, normalized, plannerState, scopeCommand } = context;
+  if (/\bundo\b|\bgo back\b/.test(normalized)) {
+    return actionResponse(
+      [{ type: 'UNDO' }],
+      'Undid the last Scope AI planner change.',
+      ['Redo that change', 'Show route status', 'Build the next draft'],
+    );
+  }
+
+  if (isStartCityRecommendationRequest(message)) {
+    return textResponse(
+      'I can help choose a strong start city, but I need one real anchor so I do not geocode trip vibes as an address. Tell me a state, region, current location, or final destination and I will suggest start candidates before anything gets set.',
+      ['Tell me a state', 'Use current location', 'Add a final destination'],
+    );
+  }
+
+  if (
+    /\b(?:near me|around me|near here|where i am|my location|current location)\b/.test(normalized) &&
+    /\b(?:what should|what can|things? to do|nearby|find|show|recommend|suggest|food|restaurants?|coffee|nightlife|bars?|weather|forecast)\b/.test(normalized)
+  ) {
+    return textResponse(
+      'I need a real location before I can rank options near you. Share current location, add a start place, or name a city and I will use live/provider-backed context when it is available.',
+      ['Use current location', 'Add a start place', 'Search near a city'],
+    );
+  }
+
+  if (/\bhow\b.*\b(add|set|choose|pick)\b.*\bstart\b|\bshow me\b.*\bstart place\b/.test(normalized)) {
+    return textResponse(
+      'To add a start place, type it into the Start city, address, or place field, click Start on the map, or tell me "start at [place]" and I will set it for you.',
+      ['Start at my location', 'Start at Dallas', 'Pick start on map'],
+    );
+  }
+
+  const mixedIntentResponse = buildMixedIntentResponse(message, normalized, plannerState);
+  if (mixedIntentResponse) {
+    return mixedIntentResponse;
+  }
+
+  const parsedCommandResponse = buildParsedScopeCommandResponse(scopeCommand);
+  if (parsedCommandResponse) {
+    return parsedCommandResponse;
+  }
+
+  return null;
+}
+
+function buildDateAndPackingResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { message, normalized, plannerState } = context;
   const dateCommand = extractDateCommand(message, plannerState);
   if (dateCommand) {
     return dateCommand;
@@ -2552,6 +2275,13 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
+  return null;
+}
+
+function buildFuelAndLocationResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { message, normalized, plannerState, scopeCommand } = context;
   const mpgMatch = normalized.match(/\b(\d{1,3}(?:\.\d+)?)\s*mpg\b|\bmpg\s*(?:is|at|to|=)?\s*(\d{1,3}(?:\.\d+)?)\b/);
   if (mpgMatch) {
     const mpg = Number(mpgMatch[1] ?? mpgMatch[2]);
@@ -2627,6 +2357,13 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
+  return null;
+}
+
+function buildPlannerSettingsResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { message, normalized, plannerState } = context;
   if (hasNegativeBudgetAmount(message)) {
     return textResponse(
       'Budget needs a positive number, so I left the current budget unchanged.',
@@ -2634,73 +2371,14 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
-  const routeEndpointPair = extractRouteEndpointPair(message);
-  if (routeEndpointPair) {
-    const actions: object[] = [
-      { type: 'SET_FIELD', field: 'start', value: routeEndpointPair.start },
-      { type: 'SET_FIELD', field: 'end', value: routeEndpointPair.end },
-    ];
-    const applied = [`route endpoints to ${routeEndpointPair.start} and ${routeEndpointPair.end}`];
-    const routeBudgetRange = extractBudgetRange(message);
-    if (routeBudgetRange) {
-      const [budgetMin, budgetMax] = routeBudgetRange;
-      actions.push(
-        { type: 'SET_FIELD', field: 'budget_min', value: budgetMin },
-        { type: 'SET_FIELD', field: 'budget_max', value: budgetMax },
-      );
-      applied.push(`budget to ${formatMoney(budgetMin)} - ${formatMoney(budgetMax)}`);
-    } else {
-      const routeBudget = extractSingleBudget(message);
-      if (routeBudget !== null) {
-        actions.push(...buildSingleBudgetActions(routeBudget, plannerState, { exact: isExactSingleBudgetCommand(message) }));
-        applied.push(isExactSingleBudgetCommand(message) ? `budget to ${formatMoney(routeBudget)}` : `max budget to ${formatMoney(routeBudget)}`);
-      }
-    }
-
-    const routePartySize = extractPartySize(message);
-    if (routePartySize !== null) {
-      actions.push({ type: 'SET_FIELD', field: 'party_size', value: routePartySize });
-      applied.push(`travel party to ${formatTravelerCount(routePartySize)}`);
-    }
-
-    return actionResponse(
-      actions,
-      `Set ${applied.join(', ')}.`,
-      ['Find stops nearby', 'Check the timing', 'Build the day'],
-    );
+  const routeEndpointPairResponse = buildRouteEndpointPairResponse(message, plannerState);
+  if (routeEndpointPairResponse) {
+    return routeEndpointPairResponse;
   }
 
-  const budgetRange = extractBudgetRange(message);
-  if (budgetRange) {
-    const [budgetMin, budgetMax] = budgetRange;
-    return actionResponse(
-      [
-        { type: 'SET_FIELD', field: 'budget_min', value: budgetMin },
-        { type: 'SET_FIELD', field: 'budget_max', value: budgetMax },
-      ],
-      `Set the trip budget to ${formatMoney(budgetMin)} - ${formatMoney(budgetMax)}.`,
-      ['Build within this budget', 'Find free stops', 'Add endpoints'],
-    );
-  }
-
-  const singleBudget = extractSingleBudget(message);
-  if (singleBudget !== null) {
-    const exactBudget = isExactSingleBudgetCommand(message);
-    const actions = buildSingleBudgetActions(singleBudget, plannerState, { exact: exactBudget });
-    const adjustedMinimum = actions.some((action) =>
-      typeof action === 'object' &&
-      action !== null &&
-      (action as { field?: string }).field === 'budget_min',
-    );
-    return actionResponse(
-      actions,
-      exactBudget
-        ? `Set the trip budget to ${formatMoney(singleBudget)}.`
-        : adjustedMinimum
-          ? `Set the max trip budget to ${formatMoney(singleBudget)}. Matched the minimum so the range stays valid.`
-          : `Set the max trip budget to ${formatMoney(singleBudget)}.`,
-      ['Keep it under budget', 'Find free stops', 'Add endpoints'],
-    );
+  const standaloneBudgetResponse = buildStandaloneBudgetResponse(message, plannerState);
+  if (standaloneBudgetResponse) {
+    return standaloneBudgetResponse;
   }
 
   const partySize = extractPartySize(message);
@@ -2736,19 +2414,13 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
-  const routeEndpoints = extractRouteEndpointPair(message);
-  if (routeEndpoints) {
-    const { start, end } = routeEndpoints;
-    return actionResponse(
-      [
-        { type: 'SET_FIELD', field: 'start', value: start },
-        { type: 'SET_FIELD', field: 'end', value: end },
-      ],
-      `Set the route endpoints to ${start} and ${end}.`,
-      ['Find stops nearby', 'Check the timing', 'Build the day'],
-    );
-  }
+  return null;
+}
 
+function buildEndpointResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { message, normalized, plannerState } = context;
   if (isEndpointRecommendationRequest(message)) {
     return textResponse(
       'I can suggest endpoint ideas from the current start place. I will show candidates first so you can choose one before I set the final destination.',
@@ -2788,6 +2460,13 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
+  return null;
+}
+
+function buildRouteGuidanceResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse | null {
+  const { normalized, plannerState } = context;
   const routeActionTokens = getScopeAiKeywordTokens(normalized);
   if (isRouteBuildCommand(normalized, routeActionTokens)) {
     const nextMove = buildStateAwareNextMove(plannerState);
@@ -2830,6 +2509,13 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     );
   }
 
+  return null;
+}
+
+function buildLocalScopeAiFallbackResponse(
+  context: LocalScopeAiResponseContext,
+): ScopeAiChatResponse {
+  const { message, plannerState } = context;
   if (isLikelyUnclearScopeAiPrompt(message)) {
     return textResponse(
       UNCLEAR_SCOPE_AI_REPLY,
@@ -2842,6 +2528,35 @@ function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse
     nextMove.text,
     nextMove.chips,
   );
+}
+
+const LOCAL_SCOPE_AI_RESPONSE_STAGES: readonly LocalScopeAiResponseStage[] = [
+  buildPriorityCommandResponse,
+  buildDateAndPackingResponse,
+  buildFuelAndLocationResponse,
+  buildPlannerSettingsResponse,
+  buildEndpointResponse,
+  buildRouteGuidanceResponse,
+];
+
+function buildLocalScopeAiResponse(input: ScopeAiChatInput): ScopeAiChatResponse {
+  const safeMessage = sanitizeScopeAiProviderQuery(input.message.trim()) || input.message.trim();
+  const scopeCommand = parseScopeAiPlannerCommand(safeMessage);
+  const context: LocalScopeAiResponseContext = {
+    scopeCommand,
+    message: scopeCommand.normalizedMessage,
+    normalized: scopeCommand.normalized,
+    plannerState: input.plannerState as LocalPlannerState,
+  };
+
+  for (const stage of LOCAL_SCOPE_AI_RESPONSE_STAGES) {
+    const response = stage(context);
+    if (response) {
+      return response;
+    }
+  }
+
+  return buildLocalScopeAiFallbackResponse(context);
 }
 
 function isDeterministicPlannerCommand(message: string): boolean {

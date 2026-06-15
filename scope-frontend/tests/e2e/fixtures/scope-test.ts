@@ -13,6 +13,18 @@ const ONBOARDING_COMPLETION_STORAGE_KEY = 'scope-onboarding-completed-v1';
 const ONBOARDING_COMPLETION_VALUE = 'completed';
 const PLAYWRIGHT_SESSION_COOKIE_NAME = 'scope-playwright-session';
 const DEFAULT_APP_ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173';
+const portraitImagePool = [
+  'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=600',
+  'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
+  'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=600',
+  'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=600',
+  'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=600',
+  'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=600',
+] as const;
+
+function portraitImage(index: number): string {
+  return portraitImagePool[Math.abs(index) % portraitImagePool.length]!;
+}
 
 interface ScopeAuthSession {
   id: string;
@@ -227,7 +239,7 @@ const seedUsers: ScopeUserProfile[] = [
     username: 'louisdo',
     email: 'louis@example.com',
     displayName: 'Louis Do',
-    avatarUrl: 'https://i.pravatar.cc/160?img=12',
+    avatarUrl: portraitImage(0),
     bio: 'Collecting rooftop dinners, skyline pins, and story-worthy city nights across Texas.',
     homeBase: 'Fort Worth, TX',
     interests: ['food', 'culture', 'nightlife'],
@@ -242,7 +254,7 @@ const seedUsers: ScopeUserProfile[] = [
     username: 'maya',
     email: 'maya@example.com',
     displayName: 'Maya Chen',
-    avatarUrl: 'https://i.pravatar.cc/160?img=32',
+    avatarUrl: portraitImage(1),
     bio: 'Weekend explorer chasing river walks, gardens, and premium museum stops.',
     homeBase: 'Dallas, TX',
     interests: ['scenic', 'culture', 'shopping'],
@@ -254,10 +266,10 @@ const seedUsers: ScopeUserProfile[] = [
   },
   {
     id: 'user-3',
-    username: 'elijah',
-    email: 'elijah@example.com',
+    username: 'elijah.brooks',
+    email: 'elijah.brooks@showcase.scope.local',
     displayName: 'Elijah Brooks',
-    avatarUrl: 'https://i.pravatar.cc/160?img=45',
+    avatarUrl: portraitImage(2),
     bio: 'Adventure-first trip planner with a thing for steep hikes, vinyl rooms, and strong coffee.',
     homeBase: 'Austin, TX',
     interests: ['adventure', 'food', 'nature'],
@@ -578,7 +590,7 @@ function buildUserProfile(session: ScopeAuthSession, knownUsers: ScopeUserProfil
     username: session.username,
     email: session.email,
     displayName: session.displayName,
-    avatarUrl: matchingKnownUser?.avatarUrl ?? 'https://i.pravatar.cc/160?img=12',
+    avatarUrl: matchingKnownUser?.avatarUrl ?? portraitImage(0),
     bio: matchingKnownUser?.bio ?? 'Mapping premium city routes with skyline dinners, polished museums, and sunset lookouts.',
     homeBase: matchingKnownUser?.homeBase ?? 'Fort Worth, TX',
     interests: matchingKnownUser?.interests ?? ['food', 'culture', 'nightlife'],
@@ -1194,7 +1206,7 @@ function buildSocialUser(input: {
     username: input.username,
     email: `${input.username}@example.com`,
     displayName: input.displayName,
-    avatarUrl: `https://i.pravatar.cc/160?img=${input.avatarImageId}`,
+    avatarUrl: portraitImage(input.avatarImageId),
     bio: `Scope traveler based in ${input.homeBase}.`,
     homeBase: input.homeBase,
     interests: [...input.interests],
@@ -1397,6 +1409,23 @@ function resolveAppOrigin(page: Page): string {
   }
 }
 
+function getStorageSeedUrl(): string {
+  return `${DEFAULT_APP_ORIGIN.replace(/\/+$/, '')}/robots.txt`;
+}
+
+async function ensureAppStorageOrigin(page: Page): Promise<void> {
+  try {
+    const currentOrigin = new URL(page.url()).origin;
+    if (currentOrigin && currentOrigin !== 'null') {
+      return;
+    }
+  } catch {
+    // about:blank and similar pages do not expose app localStorage.
+  }
+
+  await page.goto(getStorageSeedUrl(), { waitUntil: 'domcontentloaded' });
+}
+
 function readMockSessionCookie(cookieHeader: string | undefined): string {
   if (!cookieHeader) {
     return '';
@@ -1431,6 +1460,8 @@ async function clearMockSessionCookie(page: Page): Promise<void> {
 }
 
 async function persistSessionHint(page: Page, refreshToken: string): Promise<void> {
+  await ensureAppStorageOrigin(page);
+
   const serializedHint = JSON.stringify(buildSessionHint());
   const sessionHint = {
     storageKey: AUTH_SESSION_HINT_STORAGE_KEY,
@@ -1439,15 +1470,6 @@ async function persistSessionHint(page: Page, refreshToken: string): Promise<voi
     refreshToken,
     changeEvent: AUTH_SESSION_HINT_CHANGE_EVENT,
   };
-
-  await page.context().addInitScript(
-    ({ storageKey, storageValue, refreshTokenKey, refreshToken, changeEvent }) => {
-      window.localStorage.setItem(storageKey, storageValue);
-      window.localStorage.setItem(refreshTokenKey, refreshToken);
-      window.dispatchEvent(new Event(changeEvent));
-    },
-    sessionHint,
-  );
 
   await page.evaluate(
     ({ storageKey, storageValue, refreshTokenKey, refreshToken, changeEvent }) => {
@@ -1460,19 +1482,13 @@ async function persistSessionHint(page: Page, refreshToken: string): Promise<voi
 }
 
 async function clearSessionHint(page: Page): Promise<void> {
+  await ensureAppStorageOrigin(page);
+
   const sessionHint = {
     storageKey: AUTH_SESSION_HINT_STORAGE_KEY,
     refreshTokenKey: AUTH_REFRESH_TOKEN_STORAGE_KEY,
     changeEvent: AUTH_SESSION_HINT_CHANGE_EVENT,
   };
-
-  await page.context().addInitScript(({ storageKey, refreshTokenKey, changeEvent }) => {
-    window.localStorage.removeItem(storageKey);
-    window.sessionStorage.removeItem(storageKey);
-    window.localStorage.removeItem(refreshTokenKey);
-    window.sessionStorage.removeItem(refreshTokenKey);
-    window.dispatchEvent(new Event(changeEvent));
-  }, sessionHint);
 
   await page.evaluate(({ storageKey, refreshTokenKey, changeEvent }) => {
     window.localStorage.removeItem(storageKey);
@@ -1782,7 +1798,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
         username: state.currentSession.username,
         email: state.currentSession.email,
         displayName: state.currentSession.displayName,
-        avatarUrl: 'https://i.pravatar.cc/160?img=64',
+        avatarUrl: portraitImage(5),
         bio: 'Playwright traveler synced into the Scope mock workspace.',
         homeBase: 'Fort Worth, TX',
         interests: ['food', 'culture', 'nightlife'],
@@ -2159,7 +2175,7 @@ async function installScopeApiMocks(page: Page): Promise<ScopeApiMock> {
         username,
         email,
         displayName,
-        avatarUrl: 'https://i.pravatar.cc/160?img=64',
+        avatarUrl: portraitImage(5),
         bio: 'Freshly registered traveler mapping first-class routes with Playwright precision.',
         homeBase: 'Fort Worth, TX',
         interests: ['food', 'culture', 'nightlife'],

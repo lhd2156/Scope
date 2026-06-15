@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from rest_framework import serializers
 
+from common.serializer_utils import copy_with_aliases
 from photos.delivery import photo_delivery_url
 from photos.models import Photo
 from spots.models import Spot
@@ -48,6 +49,10 @@ class PhotoUploadSerializer(serializers.Serializer):
     file = serializers.ImageField()
     caption = serializers.CharField(required=False, allow_blank=True, max_length=500)
     sort_order = serializers.IntegerField(required=False, default=0, min_value=0)
+    isAnonymous = serializers.BooleanField(required=False, default=False)
+
+    def to_internal_value(self, data):
+        return super().to_internal_value(copy_with_aliases(data, {'is_anonymous': 'isAnonymous'}))
 
     def validate_file(self, value):
         if value.size > settings.MAX_UPLOAD_BYTES:
@@ -90,18 +95,23 @@ class AvatarUploadSerializer(serializers.Serializer):
 
 
 class PhotoSerializer(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField()
     caption = serializers.CharField(required=False, allow_blank=True, max_length=500)
     sort_order = serializers.IntegerField(required=False, min_value=0)
     storage_url = serializers.SerializerMethodField()
     thumbnail_url = serializers.SerializerMethodField()
+    isAnonymous = serializers.BooleanField(source='is_anonymous', required=False)
 
     class Meta:
         model = Photo
-        fields = ['id', 'spot', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'created_at']
+        fields = ['id', 'spot', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'caption', 'sort_order', 'isAnonymous', 'created_at']
         read_only_fields = ['id', 'user_id', 'storage_key', 'storage_url', 'thumbnail_url', 'created_at']
 
     def validate_caption(self, value: str) -> str:
         return value.strip()
+
+    def get_user_id(self, obj: Photo) -> str:
+        return 'anonymous' if obj.is_anonymous else str(obj.user_id)
 
     def get_storage_url(self, obj: Photo) -> str:
         return photo_delivery_url(

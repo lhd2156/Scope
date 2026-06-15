@@ -86,6 +86,24 @@ locals {
     "172.64.0.0/13",
     "131.0.72.0/22",
   ]
+  single_host_bootstrap_commands_before_swap = [
+    "set -eux",
+    "dnf update -y",
+    "dnf install -y docker git tar",
+    "mkdir -p /usr/local/lib/docker/cli-plugins",
+    "curl -fsSL https://github.com/docker/compose/releases/download/${var.docker_compose_version}/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose",
+    "curl -fsSL https://github.com/docker/buildx/releases/download/${var.docker_buildx_version}/buildx-${var.docker_buildx_version}.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx",
+    "chmod +x /usr/local/lib/docker/cli-plugins/docker-compose",
+    "chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx",
+  ]
+  single_host_bootstrap_commands_after_swap = [
+    "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",
+    "swapon --show | grep -q '/swapfile' || swapon /swapfile",
+    "systemctl enable --now docker",
+    "usermod -aG docker ec2-user",
+    "mkdir -p /opt/scope/releases /opt/scope/shared /opt/scope/shared/media /opt/scope/shared/sqlserver /opt/scope/shared/config",
+    "chown -R ec2-user:ec2-user /opt/scope",
+  ]
 }
 
 check "single_host_profiles_require_explicit_ssh_key" {

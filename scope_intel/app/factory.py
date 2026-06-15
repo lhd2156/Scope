@@ -40,9 +40,7 @@ def _float_env(name: str, default: float) -> float:
     return min(max(value, 0.0), 1.0)
 
 
-def create_app(test_config: dict | None = None) -> Flask:
-    _initialize_sentry()
-    app = Flask(__name__)
+def _build_sqlalchemy_engine_options() -> dict:
     # SQLAlchemy engine options tuned for long-lived gunicorn workers behind a
     # network-attached RDBMS:
     #   * pool_pre_ping validates each connection before handing it out so that
@@ -66,79 +64,86 @@ def create_app(test_config: dict | None = None) -> Flask:
         engine_options['max_overflow'] = int(os.getenv('SQLALCHEMY_MAX_OVERFLOW', '10'))
         engine_options['pool_timeout'] = int(os.getenv('SQLALCHEMY_POOL_TIMEOUT', '30'))
 
-    app.config.update(
-        SECRET_KEY=settings.secret_key,
-        FLASK_ENV=settings.flask_env,
-        FRONTEND_ORIGIN=settings.frontend_origin,
-        DEVELOPMENT_FRONTEND_ORIGIN=settings.development_frontend_origin,
-        SQLALCHEMY_DATABASE_URI=settings.database_url,
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        SQLALCHEMY_ENGINE_OPTIONS=engine_options,
-        RATE_LIMIT_PER_MINUTE=settings.rate_limit_per_minute,
-        RATELIMIT_ENABLED=os.getenv("INTEL_RATE_LIMIT_ENABLED", "true").lower() == "true",
-        RATELIMIT_STORAGE_URI=_limiter_storage_uri(),
-        RATELIMIT_DEFAULT=["100/minute"],
-        RATELIMIT_IN_MEMORY_FALLBACK_ENABLED=True,
-        TRUSTED_PROXY_CIDRS=os.getenv(
+    return engine_options
+
+
+def _build_default_app_config() -> dict:
+    return {
+        "SECRET_KEY": settings.secret_key,
+        "FLASK_ENV": settings.flask_env,
+        "FRONTEND_ORIGIN": settings.frontend_origin,
+        "DEVELOPMENT_FRONTEND_ORIGIN": settings.development_frontend_origin,
+        "SQLALCHEMY_DATABASE_URI": settings.database_url,
+        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+        "SQLALCHEMY_ENGINE_OPTIONS": _build_sqlalchemy_engine_options(),
+        "RATE_LIMIT_PER_MINUTE": settings.rate_limit_per_minute,
+        "RATELIMIT_ENABLED": os.getenv("INTEL_RATE_LIMIT_ENABLED", "true").lower() == "true",
+        "RATELIMIT_STORAGE_URI": _limiter_storage_uri(),
+        "RATELIMIT_DEFAULT": ["100/minute"],
+        "RATELIMIT_IN_MEMORY_FALLBACK_ENABLED": True,
+        "TRUSTED_PROXY_CIDRS": os.getenv(
             "INTEL_TRUSTED_PROXY_CIDRS",
             "10.0.0.0/8,172.16.0.0/12",
         ),
-        ML_REQUEST_TIMEOUT_SECONDS=settings.ml_request_timeout_seconds,
-        ML_IMAGE_FETCH_TIMEOUT_SECONDS=float(os.getenv('ML_IMAGE_FETCH_TIMEOUT_SECONDS', '10')),
-        ML_IMAGE_FETCH_MAX_BYTES=int(os.getenv('ML_IMAGE_FETCH_MAX_BYTES', str(5 * 1024 * 1024))),
-        ML_IMAGE_FETCH_MAX_REDIRECTS=int(os.getenv('ML_IMAGE_FETCH_MAX_REDIRECTS', '3')),
-        JWT_SECRET=settings.jwt_secret,
-        JWT_ISSUER=settings.jwt_issuer,
-        JWT_AUDIENCE=settings.jwt_audience,
-        KAFKA_BOOTSTRAP_SERVERS=settings.kafka_bootstrap_servers,
-        CONTENT_SERVICE_URL=settings.content_service_url,
-        WEATHER_BASE_URL=settings.weather_base_url,
-        WEATHER_GEOCODE_BASE_URL=settings.weather_geocode_base_url,
-        WEATHER_PROVIDER_ORDER=settings.weather_provider_order,
-        WEATHER_CACHE_REDIS_URL=settings.weather_cache_redis_url,
-        WEATHER_CURRENT_CACHE_SECONDS=settings.weather_current_cache_seconds,
-        WEATHER_CURRENT_STALE_SECONDS=settings.weather_current_stale_seconds,
-        WEATHER_NWS_ENABLED=settings.weather_nws_enabled,
-        WEATHER_NWS_BASE_URL=settings.weather_nws_base_url,
-        WEATHER_NWS_USER_AGENT=settings.weather_nws_user_agent,
-        WEATHER_NWS_POINT_CACHE_SECONDS=settings.weather_nws_point_cache_seconds,
-        OPENWEATHERMAP_API_KEY=settings.openweathermap_api_key,
-        OPENWEATHERMAP_BASE_URL=settings.openweathermap_base_url,
-        GEOCODE_BASE_URL=settings.geocode_base_url,
-        REVERSE_GEOCODE_BASE_URL=settings.reverse_geocode_base_url,
-        GEOCODE_API_KEY=settings.geocode_api_key,
-        MAPBOX_ACCESS_TOKEN=settings.mapbox_access_token,
-        GOOGLE_PLACES_API_KEY=settings.google_places_api_key,
-        GOOGLE_PLACES_BASE_URL=settings.google_places_base_url,
-        GOOGLE_PLACES_CACHE_SECONDS=settings.google_places_cache_seconds,
-        GOOGLE_PLACES_USAGE_FILE=settings.google_places_usage_file,
-        GOOGLE_PLACES_USAGE_REDIS_URL=settings.google_places_usage_redis_url,
-        GOOGLE_PLACES_TEXT_SEARCH_PRO_MONTHLY_CAP=settings.google_places_text_search_pro_monthly_cap,
-        GOOGLE_PLACES_PLACE_DETAILS_PHOTOS_MONTHLY_CAP=settings.google_places_place_details_photos_monthly_cap,
-        GOOGLE_PLACES_NEARBY_SEARCH_ENTERPRISE_MONTHLY_CAP=settings.google_places_nearby_search_enterprise_monthly_cap,
-        GOOGLE_PLACES_NEARBY_SEARCH_ENTERPRISE_ATMOSPHERE_MONTHLY_CAP=settings.google_places_nearby_search_enterprise_atmosphere_monthly_cap,
-        FUEL_RATE_LIMIT_PER_MINUTE=settings.fuel_rate_limit_per_minute,
-        PLACE_PHOTO_RATE_LIMIT_PER_MINUTE=settings.place_photo_rate_limit_per_minute,
+        "ML_REQUEST_TIMEOUT_SECONDS": settings.ml_request_timeout_seconds,
+        "ML_IMAGE_FETCH_TIMEOUT_SECONDS": float(os.getenv('ML_IMAGE_FETCH_TIMEOUT_SECONDS', '10')),
+        "ML_IMAGE_FETCH_MAX_BYTES": int(os.getenv('ML_IMAGE_FETCH_MAX_BYTES', str(5 * 1024 * 1024))),
+        "ML_IMAGE_FETCH_MAX_REDIRECTS": int(os.getenv('ML_IMAGE_FETCH_MAX_REDIRECTS', '3')),
+        "JWT_SECRET": settings.jwt_secret,
+        "JWT_ISSUER": settings.jwt_issuer,
+        "JWT_AUDIENCE": settings.jwt_audience,
+        "KAFKA_BOOTSTRAP_SERVERS": settings.kafka_bootstrap_servers,
+        "CONTENT_SERVICE_URL": settings.content_service_url,
+        "WEATHER_BASE_URL": settings.weather_base_url,
+        "WEATHER_GEOCODE_BASE_URL": settings.weather_geocode_base_url,
+        "WEATHER_PROVIDER_ORDER": settings.weather_provider_order,
+        "WEATHER_CACHE_REDIS_URL": settings.weather_cache_redis_url,
+        "WEATHER_CURRENT_CACHE_SECONDS": settings.weather_current_cache_seconds,
+        "WEATHER_CURRENT_STALE_SECONDS": settings.weather_current_stale_seconds,
+        "WEATHER_NWS_ENABLED": settings.weather_nws_enabled,
+        "WEATHER_NWS_BASE_URL": settings.weather_nws_base_url,
+        "WEATHER_NWS_USER_AGENT": settings.weather_nws_user_agent,
+        "WEATHER_NWS_POINT_CACHE_SECONDS": settings.weather_nws_point_cache_seconds,
+        "OPENWEATHERMAP_API_KEY": settings.openweathermap_api_key,
+        "OPENWEATHERMAP_BASE_URL": settings.openweathermap_base_url,
+        "GEOCODE_BASE_URL": settings.geocode_base_url,
+        "REVERSE_GEOCODE_BASE_URL": settings.reverse_geocode_base_url,
+        "GEOCODE_API_KEY": settings.geocode_api_key,
+        "MAPBOX_ACCESS_TOKEN": settings.mapbox_access_token,
+        "GOOGLE_PLACES_API_KEY": settings.google_places_api_key,
+        "GOOGLE_PLACES_BASE_URL": settings.google_places_base_url,
+        "GOOGLE_PLACES_CACHE_SECONDS": settings.google_places_cache_seconds,
+        "GOOGLE_PLACES_USAGE_FILE": settings.google_places_usage_file,
+        "GOOGLE_PLACES_USAGE_REDIS_URL": settings.google_places_usage_redis_url,
+        "GOOGLE_PLACES_TEXT_SEARCH_PRO_MONTHLY_CAP": settings.google_places_text_search_pro_monthly_cap,
+        "GOOGLE_PLACES_PLACE_DETAILS_PHOTOS_MONTHLY_CAP": settings.google_places_place_details_photos_monthly_cap,
+        "GOOGLE_PLACES_NEARBY_SEARCH_ENTERPRISE_MONTHLY_CAP": settings.google_places_nearby_search_enterprise_monthly_cap,
+        "GOOGLE_PLACES_NEARBY_SEARCH_ENTERPRISE_ATMOSPHERE_MONTHLY_CAP": settings.google_places_nearby_search_enterprise_atmosphere_monthly_cap,
+        "FUEL_RATE_LIMIT_PER_MINUTE": settings.fuel_rate_limit_per_minute,
+        "PLACE_PHOTO_RATE_LIMIT_PER_MINUTE": settings.place_photo_rate_limit_per_minute,
         # Cap incoming bodies so an adversary cannot queue a gigantic upload to
         # pin a worker's memory or file descriptor. Intel only accepts small
         # JSON bodies; override via env if/when streaming endpoints land.
-        MAX_CONTENT_LENGTH=int(os.getenv('INTEL_MAX_CONTENT_LENGTH', str(256 * 1024))),
-    )
-    if test_config:
-        app.config.update(test_config)
+        "MAX_CONTENT_LENGTH": int(os.getenv('INTEL_MAX_CONTENT_LENGTH', str(256 * 1024))),
+    }
+
+
+def _apply_test_config_defaults(app: Flask, test_config: dict | None) -> None:
     using_memory_database = app.config.get("SQLALCHEMY_DATABASE_URI") == "sqlite:///:memory:"
     if (app.config.get("TESTING") or using_memory_database) and not (test_config and "RATELIMIT_STORAGE_URI" in test_config):
         app.config["RATELIMIT_STORAGE_URI"] = "memory://"
     if app.config.get("TESTING") and not (test_config and "RATELIMIT_ENABLED" in test_config):
         app.config["RATELIMIT_ENABLED"] = False
 
-    app.json.sort_keys = False
 
+def _validate_required_config(app: Flask) -> None:
     missing = [env_name for key, env_name in REQUIRED_CONFIG.items() if not app.config.get(key)]
     if missing:
         joined = ", ".join(missing)
         raise RuntimeError(f"Missing required Intel configuration: {joined}")
 
+
+def _register_app_components(app: Flask) -> None:
     configure_logging(app)
     initialize_telemetry()
     db.init_app(app)
@@ -154,6 +159,21 @@ def create_app(test_config: dict | None = None) -> Flask:
     register_metrics_endpoint(app)
     configure_cors(app)
     _configure_response_compression(app)
+
+
+def create_app(test_config: dict | None = None) -> Flask:
+    _initialize_sentry()
+    app = Flask(__name__)
+
+    app.config.update(_build_default_app_config())
+    if test_config:
+        app.config.update(test_config)
+    _apply_test_config_defaults(app, test_config)
+
+    app.json.sort_keys = False
+
+    _validate_required_config(app)
+    _register_app_components(app)
 
     with app.app_context():
         db.create_all()

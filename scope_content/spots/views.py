@@ -6,7 +6,7 @@ import os
 from django.conf import settings
 from django.db import connection
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, status
@@ -23,7 +23,7 @@ from common.content_safety import evaluate_text_fields
 from common.db_router import read_from_primary
 from common.etag import apply_conditional_etag
 from common.events import record_and_publish
-from common.indexing import delete_review, delete_spot, index_spot
+from common.indexing import delete_review, delete_spot, index_review, index_spot
 from common.kafka_producer import ScopeKafkaProducer
 from common.permissions import IsAuthenticatedJWT
 from common.responses import data_response
@@ -33,7 +33,7 @@ from photos.serializers import PhotoUploadSerializer
 from photos.services.s3_service import S3StorageService
 from reviews.models import Review
 from spots.models import Spot
-from spots.querysets import visible_to_request, with_spot_detail_relations, with_spot_list_relations, with_spot_viewer_state
+from spots.querysets import PHOTO_ORDERING, visible_to_request, with_spot_detail_relations, with_spot_list_relations, with_spot_viewer_state
 from spots.serializers import (
     AppendixBSpotCreateResponseSerializer,
     AppendixBSpotListItemSerializer,
@@ -146,6 +146,25 @@ def _extract_list_field(request, field_name: str) -> list[str]:
     return values
 
 
+def _coerce_boolean(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {'false', '0', 'no', 'off', ''}
+
+
+def _extract_anonymous_flag(request, spot_payload: dict) -> bool:
+    raw_value = (
+        spot_payload.get('isAnonymous')
+        if 'isAnonymous' in spot_payload
+        else spot_payload.get('is_anonymous')
+    )
+    if raw_value is None and hasattr(request.data, 'get'):
+        raw_value = request.data.get('isAnonymous', request.data.get('is_anonymous'))
+    return _coerce_boolean(raw_value, False)
+
+
 def _build_verification_payload(spot_data: dict) -> dict:
     provider_place_id = spot_data.get('providerPlaceId') or spot_data.get('provider_place_id') or ''
     provider_place_name = spot_data.get('providerPlaceName') or spot_data.get('provider_place_name') or ''
@@ -211,6 +230,43 @@ def _verification_error(verification: dict) -> ValidationError:
     return ValidationError(details)
 
 
+def _verified_provider_place_id(verification: dict) -> str:
+    return str(verification.get('providerPlaceId') or verification.get('provider_place_id') or '').strip()
+
+
+def _store_uploaded_photo(
+    *,
+    spot: Spot,
+    upload,
+    caption: str,
+    sort_order: int,
+    user_id,
+    storage_service: S3StorageService,
+    is_anonymous: bool,
+) -> Photo:
+    photo_serializer = PhotoUploadSerializer(
+        data={
+            'spot_id': str(spot.id),
+            'file': upload,
+            'caption': caption,
+            'sort_order': sort_order,
+            'isAnonymous': is_anonymous,
+        }
+    )
+    photo_serializer.is_valid(raise_exception=True)
+    stored = storage_service.store(photo_serializer.validated_data['file'])
+    return Photo.objects.create(
+        spot_id=spot.id,
+        user_id=user_id,
+        storage_key=stored['storage_key'],
+        storage_url=stored['storage_url'],
+        thumbnail_url=stored['thumbnail_url'],
+        caption=photo_serializer.validated_data.get('caption', ''),
+        sort_order=photo_serializer.validated_data.get('sort_order', sort_order),
+        is_anonymous=is_anonymous,
+    )
+
+
 def _detail_queryset_for_request(request):
     queryset = Spot.objects.all()
     user = getattr(request, 'user', None)
@@ -225,6 +281,249 @@ def _detail_queryset_for_request(request):
 
 def _list_queryset_for_request(request, queryset):
     return with_spot_viewer_state(with_spot_list_relations(visible_to_request(queryset, request)), request)
+
+
+def _is_public_spot_payload(spot_payload: dict) -> bool:
+    return str(spot_payload.get('is_public', spot_payload.get('isPublic', True))).lower() not in {
+        'false',
+        '0',
+        'no',
+        'off',
+    }
+
+
+def _validate_compose_pillars(pillars: list) -> None:
+    if not pillars:
+        raise ValidationError({'pillars': ['Choose at least one vibe pillar.']})
+    if len(pillars) > 4:
+        raise ValidationError({'pillars': ['Choose up to 4 vibe pillars.']})
+
+
+def _verify_compose_public_spot(
+    *,
+    is_public: bool,
+    spot_payload: dict,
+    validated_data: dict,
+    authorization: str,
+) -> dict:
+    if not is_public:
+        return {}
+    verification = verify_spot_place(
+        _build_verification_payload({**spot_payload, **validated_data}),
+        authorization,
+    )
+    if not verification.get('verified'):
+        raise _verification_error(verification)
+    return verification
+
+
+def _existing_verified_public_spot(provider_place_id: str) -> Spot | None:
+    if not provider_place_id:
+        return None
+    return (
+        Spot.objects.select_for_update()
+        .filter(is_public=True, provider_place_id=provider_place_id)
+        .order_by('created_at')
+        .first()
+    )
+
+
+def _create_composed_spot(
+    *,
+    request,
+    serializer: SpotSerializer,
+    is_public: bool,
+    verification: dict,
+) -> Spot:
+    spot = serializer.save(
+        user_id=request.user.id,
+        is_public=is_public,
+        safety_status=Spot.SAFETY_CLEAN,
+        safety_reason='',
+    )
+    if is_public:
+        _apply_verified_state(spot, verification)
+    else:
+        _apply_unverified_state(spot)
+    _apply_clean_state(spot)
+    spot.save(
+        update_fields=[
+            'is_public',
+            'verification_status',
+            'verification_source',
+            'provider_place_id',
+            'provider_place_name',
+            'provider_place_address',
+            'verification_distance_meters',
+            'verified_at',
+            'address',
+            'city',
+            'country',
+            'postal_code',
+            'safety_status',
+            'safety_reason',
+            'updated_at',
+        ]
+    )
+    return spot
+
+
+def _compose_existing_spot_contribution(
+    *,
+    request,
+    serializer: SpotSerializer,
+    spot: Spot,
+    is_anonymous: bool,
+) -> tuple[int, Review | None, bool]:
+    max_sort_order = Photo.objects.filter(spot_id=spot.id).aggregate(value=Max('sort_order'))['value']
+    first_new_sort_order = int(max_sort_order if max_sort_order is not None else -1) + 1
+    contribution_review: Review | None = None
+    contribution_review_created = False
+    rating = serializer.validated_data.get('rating')
+    if rating is not None:
+        contribution_review, contribution_review_created = Review.objects.update_or_create(
+            spot=spot,
+            user_id=request.user.id,
+            defaults={
+                'rating': rating,
+                'comment': serializer.validated_data.get('description', ''),
+                'is_anonymous': is_anonymous,
+            },
+        )
+    spot.save(update_fields=['updated_at'])
+    return first_new_sort_order, contribution_review, contribution_review_created
+
+
+def _store_composed_photos(
+    *,
+    spot: Spot,
+    photos: list,
+    captions: list[str],
+    first_sort_order: int,
+    user_id,
+    storage_service: S3StorageService,
+    is_anonymous: bool,
+) -> list[Photo]:
+    photo_rows: list[Photo] = []
+    for index, upload in enumerate(photos):
+        photo = _store_uploaded_photo(
+            spot=spot,
+            upload=upload,
+            caption=captions[index] if index < len(captions) else '',
+            sort_order=first_sort_order + index,
+            user_id=user_id,
+            storage_service=storage_service,
+            is_anonymous=is_anonymous,
+        )
+        photo_rows.append(photo)
+    return photo_rows
+
+
+def _save_composed_spot(
+    *,
+    request,
+    serializer: SpotSerializer,
+    photos: list,
+    captions: list[str],
+    is_anonymous: bool,
+    is_public: bool,
+    verification: dict,
+    storage_service: S3StorageService,
+) -> tuple[Spot, list[Photo], Review | None, bool, bool]:
+    contribution_review: Review | None = None
+    contribution_review_created = False
+
+    provider_place_id = _verified_provider_place_id(verification) if is_public else ''
+    spot = _existing_verified_public_spot(provider_place_id)
+    contributed_to_existing_spot = spot is not None
+
+    if spot is None:
+        spot = _create_composed_spot(
+            request=request,
+            serializer=serializer,
+            is_public=is_public,
+            verification=verification,
+        )
+        first_new_sort_order = 0
+
+    else:
+        first_new_sort_order, contribution_review, contribution_review_created = _compose_existing_spot_contribution(
+            request=request,
+            serializer=serializer,
+            spot=spot,
+            is_anonymous=is_anonymous,
+        )
+
+    photo_rows = _store_composed_photos(
+        spot=spot,
+        photos=photos,
+        captions=captions,
+        first_sort_order=first_new_sort_order,
+        user_id=request.user.id,
+        storage_service=storage_service,
+        is_anonymous=is_anonymous,
+    )
+
+    return spot, photo_rows, contribution_review, contribution_review_created, contributed_to_existing_spot
+
+
+def _publish_compose_side_effects(
+    *,
+    spot: Spot,
+    user_id,
+    photo_rows: list[Photo],
+    contribution_review: Review | None,
+    contribution_review_created: bool,
+    contributed_to_existing_spot: bool,
+) -> None:
+    if contribution_review is not None:
+        index_review(contribution_review)
+    index_spot(spot)
+    invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
+    record_and_publish(
+        producer,
+        'spot.updated' if contributed_to_existing_spot else 'spot.created',
+        _spot_event_payload(spot, user_id),
+    )
+    if contribution_review is not None and contribution_review_created:
+        record_and_publish(
+            producer,
+            'review.created',
+            {
+                'reviewId': str(contribution_review.id),
+                'spotId': str(spot.id),
+                'userId': str(user_id),
+                'ownerUserId': str(spot.user_id),
+                'spotTitle': spot.title,
+                'interactionType': 'review',
+                'rating': float(contribution_review.rating),
+                'bodyExcerpt': contribution_review.comment[:220],
+                'isAnonymous': bool(contribution_review.is_anonymous),
+                'sentimentScore': 0.0,
+                'occurredAt': _iso_timestamp(getattr(contribution_review, 'created_at', None) or timezone.now()),
+            },
+        )
+    for photo in photo_rows:
+        record_and_publish(
+            producer,
+            'photo.uploaded',
+            {
+                'photoId': str(photo.id),
+                'spotId': str(photo.spot_id),
+                'userId': str(user_id),
+                'storageUrl': photo.storage_url,
+                'thumbnailUrl': photo.thumbnail_url,
+                'isAnonymous': bool(photo.is_anonymous),
+            },
+        )
+
+
+def _refreshed_compose_spot(spot: Spot, request) -> Spot:
+    with read_from_primary():
+        return with_spot_viewer_state(
+            with_spot_detail_relations(Spot.objects.filter(pk=spot.pk)),
+            request,
+        ).get()
 
 
 def _mssql_fulltext_available() -> bool:
@@ -407,114 +706,53 @@ def compose_spot(request):
     spot_payload = _extract_spot_payload(request)
     captions = _extract_list_field(request, 'captions')
     photos = list(request.FILES.getlist('photos')) if hasattr(request, 'FILES') else []
-    is_public = str(spot_payload.get('is_public', spot_payload.get('isPublic', True))).lower() not in {
-        'false',
-        '0',
-        'no',
-        'off',
-    }
+    is_anonymous = _extract_anonymous_flag(request, spot_payload)
+    is_public = _is_public_spot_payload(spot_payload)
 
     _check_spot_safety(spot_payload, captions)
 
     serializer = SpotSerializer(data=spot_payload)
     serializer.is_valid(raise_exception=True)
-    pillars = serializer.validated_data.get('pillars') or []
-    if not pillars:
-        raise ValidationError({'pillars': ['Choose at least one vibe pillar.']})
-    if len(pillars) > 4:
-        raise ValidationError({'pillars': ['Choose up to 4 vibe pillars.']})
+    _validate_compose_pillars(serializer.validated_data.get('pillars') or [])
 
     if is_public and not photos:
         raise ValidationError({'photos': ['Public spots need at least one valid photo.']})
 
-    verification = {}
-    if is_public:
-        verification = verify_spot_place(
-            _build_verification_payload({**spot_payload, **serializer.validated_data}),
-            request.headers.get('Authorization', ''),
-        )
-        if not verification.get('verified'):
-            raise _verification_error(verification)
-
-    photo_rows: list[Photo] = []
+    verification = _verify_compose_public_spot(
+        is_public=is_public,
+        spot_payload=spot_payload,
+        validated_data=serializer.validated_data,
+        authorization=request.headers.get('Authorization', ''),
+    )
     service = S3StorageService()
 
     with transaction.atomic():
-        spot = serializer.save(
-            user_id=request.user.id,
-            is_public=is_public,
-            safety_status=Spot.SAFETY_CLEAN,
-            safety_reason='',
-        )
-        if is_public:
-            _apply_verified_state(spot, verification)
-        else:
-            _apply_unverified_state(spot)
-        _apply_clean_state(spot)
-        spot.save(
-            update_fields=[
-                'is_public',
-                'verification_status',
-                'verification_source',
-                'provider_place_id',
-                'provider_place_name',
-                'provider_place_address',
-                'verification_distance_meters',
-                'verified_at',
-                'address',
-                'city',
-                'country',
-                'postal_code',
-                'safety_status',
-                'safety_reason',
-                'updated_at',
-            ]
-        )
-
-        for index, upload in enumerate(photos):
-            photo_serializer = PhotoUploadSerializer(
-                data={
-                    'spot_id': str(spot.id),
-                    'file': upload,
-                    'caption': captions[index] if index < len(captions) else '',
-                    'sort_order': index,
-                }
+        spot, photo_rows, contribution_review, contribution_review_created, contributed_to_existing_spot = (
+            _save_composed_spot(
+                request=request,
+                serializer=serializer,
+                photos=photos,
+                captions=captions,
+                is_anonymous=is_anonymous,
+                is_public=is_public,
+                verification=verification,
+                storage_service=service,
             )
-            photo_serializer.is_valid(raise_exception=True)
-            stored = service.store(photo_serializer.validated_data['file'])
-            photo = Photo.objects.create(
-                spot_id=spot.id,
-                user_id=request.user.id,
-                storage_key=stored['storage_key'],
-                storage_url=stored['storage_url'],
-                thumbnail_url=stored['thumbnail_url'],
-                caption=photo_serializer.validated_data.get('caption', ''),
-                sort_order=photo_serializer.validated_data.get('sort_order', index),
-            )
-            photo_rows.append(photo)
-
-    index_spot(spot)
-    invalidate_cache_namespaces(SPOTS_CACHE_NAMESPACE, FEED_CACHE_NAMESPACE)
-    record_and_publish(producer, 'spot.created', _spot_event_payload(spot, request.user.id))
-    for photo in photo_rows:
-        record_and_publish(
-            producer,
-            'photo.uploaded',
-            {
-                'photoId': str(photo.id),
-                'spotId': str(photo.spot_id),
-                'userId': str(request.user.id),
-                'storageUrl': photo.storage_url,
-                'thumbnailUrl': photo.thumbnail_url,
-            },
         )
 
-    with read_from_primary():
-        refreshed_spot = with_spot_viewer_state(
-            with_spot_detail_relations(Spot.objects.filter(pk=spot.pk)),
-            request,
-        ).get()
-    return data_response(SpotDetailSerializer(refreshed_spot, context={'request': request}).data, status_code=status.HTTP_201_CREATED)
+    _publish_compose_side_effects(
+        spot=spot,
+        user_id=request.user.id,
+        photo_rows=photo_rows,
+        contribution_review=contribution_review,
+        contribution_review_created=contribution_review_created,
+        contributed_to_existing_spot=contributed_to_existing_spot,
+    )
+    refreshed_spot = _refreshed_compose_spot(spot, request)
+    return data_response(
+        SpotDetailSerializer(refreshed_spot, context={'request': request}).data,
+        status_code=status.HTTP_200_OK if contributed_to_existing_spot else status.HTTP_201_CREATED,
+    )
 
 
 @api_view(['GET'])
@@ -625,10 +863,14 @@ def saved_spots(request):
 @api_view(['GET'])
 def spot_photos(request, pk):
     def build_response():
+        photo_join_ordering = tuple(
+            f'-photos__{field_name[1:]}' if field_name.startswith('-') else f'photos__{field_name}'
+            for field_name in PHOTO_ORDERING
+        )
         photo_rows = list(
             visible_to_request(Spot.objects.filter(pk=pk), request)
-            .order_by('photos__sort_order', 'photos__created_at')
-            .values('is_public', 'photos__id', 'photos__storage_url', 'photos__caption')
+            .order_by(*photo_join_ordering)
+            .values('is_public', 'photos__id', 'photos__storage_url', 'photos__caption', 'photos__is_anonymous')
         )
         if not photo_rows:
             get_object_or_404(visible_to_request(Spot.objects.only('id'), request), pk=pk)
@@ -644,6 +886,7 @@ def spot_photos(request, pk):
                         request=request,
                     ),
                     'caption': photo['photos__caption'],
+                    'isAnonymous': photo['photos__is_anonymous'],
                 }
                 for photo in photo_rows
                 if photo['photos__id'] is not None

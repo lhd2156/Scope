@@ -21,7 +21,7 @@ pickled baseline, or against any future ranker prototype.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Iterable, Mapping
 
 
@@ -57,6 +57,54 @@ class EvalMetrics:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class _UserEvalContribution:
+    ranked: list[str]
+    ndcg: float
+    average_precision: float
+    hit: float
+    precision: float
+    recall: float
+    novelty: float
+
+
+@dataclass(slots=True)
+class _EvalAccumulator:
+    total_ndcg: float = 0.0
+    total_map: float = 0.0
+    total_hit: float = 0.0
+    total_precision: float = 0.0
+    total_recall: float = 0.0
+    total_novel: float = 0.0
+    spot_frequency: dict[str, int] = field(default_factory=dict)
+
+    def add(self, contribution: _UserEvalContribution) -> None:
+        for spot_id in contribution.ranked:
+            self.spot_frequency[spot_id] = self.spot_frequency.get(spot_id, 0) + 1
+
+        self.total_ndcg += contribution.ndcg
+        self.total_map += contribution.average_precision
+        self.total_hit += contribution.hit
+        self.total_precision += contribution.precision
+        self.total_recall += contribution.recall
+        self.total_novel += contribution.novelty
+
+    def to_metrics(self, *, users_evaluated: int, catalog_size: int, k: int) -> EvalMetrics:
+        n = float(users_evaluated)
+        return EvalMetrics(
+            users_evaluated=users_evaluated,
+            ndcg_at_k=self.total_ndcg / n,
+            map_at_k=self.total_map / n,
+            hit_rate_at_k=self.total_hit / n,
+            precision_at_k=self.total_precision / n,
+            recall_at_k=self.total_recall / n,
+            coverage=len(self.spot_frequency) / float(catalog_size),
+            gini=_gini(list(self.spot_frequency.values()), catalog_size),
+            novelty=self.total_novel / n,
+            k=k,
+        )
+
+
 def evaluate(
     *,
     users: Iterable[str],
@@ -66,27 +114,7 @@ def evaluate(
     k: int = 10,
     seen_by_user: Mapping[str, set[str]] | None = None,
 ) -> EvalMetrics:
-    """Run a full leave-out evaluation pass.
-
-    Args:
-        users: iterable of user ids to evaluate.
-        ground_truth: user_id -> set of spot ids the user actually engaged
-            with (positively) in the held-out window. Users missing from
-            this mapping are skipped because we'd have nothing to score
-            their recs against.
-        rank_fn: callable that returns the ranked list of spot ids for a user.
-            The evaluator treats only the first `k` as a recommendation list.
-        catalog_size: total number of spots in the active catalog. Used for
-            coverage normalization.
-        k: top-k cutoff for all rank-aware metrics.
-        seen_by_user: optional user_id -> set of spot ids already engaged with
-            BEFORE the held-out window. Used for novelty (how many recs
-            would be new to this user).
-
-    Returns:
-        `EvalMetrics` with per-metric averages over scored users, plus
-        system-level coverage / Gini.
-    """
+    """Run a leave-out evaluation pass and return aggregate top-k metrics."""
     if k <= 0:
         raise ValueError("k must be positive")
     if catalog_size <= 0:
@@ -97,47 +125,32 @@ def evaluate(
     if not user_ids:
         return EvalMetrics(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, k)
 
-    total_ndcg = 0.0
-    total_map = 0.0
-    total_hit = 0.0
-    total_precision = 0.0
-    total_recall = 0.0
-    total_novel = 0.0
-    spot_frequency: dict[str, int] = {}
-
+    accumulator = _EvalAccumulator()
     for user_id in user_ids:
-        truth = ground_truth[user_id]
-        ranked = rank_fn(user_id)[:k]
-        for spot_id in ranked:
-            spot_frequency[spot_id] = spot_frequency.get(spot_id, 0) + 1
+        accumulator.add(
+            _evaluate_user_recommendations(
+                truth=ground_truth[user_id],
+                ranked=rank_fn(user_id)[:k],
+                k=k,
+                already_seen=seen_by_user.get(user_id) or set(),
+            )
+        )
+    return accumulator.to_metrics(users_evaluated=len(user_ids), catalog_size=catalog_size, k=k)
 
-        relevance = [1.0 if sid in truth else 0.0 for sid in ranked]
-        total_ndcg += _ndcg(relevance)
-        total_map += _average_precision(relevance)
-        total_hit += 1.0 if any(relevance) else 0.0
-        hits = sum(relevance)
-        total_precision += hits / float(k)
-        total_recall += hits / float(len(truth))
 
-        already_seen = seen_by_user.get(user_id) or set()
-        novel_hits = sum(1 for sid in ranked if sid not in already_seen)
-        total_novel += novel_hits / float(len(ranked)) if ranked else 0.0
+def _evaluate_user_recommendations(*, truth: set[str], ranked: list[str], k: int, already_seen: set[str]) -> _UserEvalContribution:
+    relevance = [1.0 if sid in truth else 0.0 for sid in ranked]
+    hits = sum(relevance)
+    novel_hits = sum(1 for sid in ranked if sid not in already_seen)
 
-    n = float(len(user_ids))
-    coverage = len(spot_frequency) / float(catalog_size)
-    gini = _gini(list(spot_frequency.values()), catalog_size)
-
-    return EvalMetrics(
-        users_evaluated=len(user_ids),
-        ndcg_at_k=total_ndcg / n,
-        map_at_k=total_map / n,
-        hit_rate_at_k=total_hit / n,
-        precision_at_k=total_precision / n,
-        recall_at_k=total_recall / n,
-        coverage=coverage,
-        gini=gini,
-        novelty=total_novel / n,
-        k=k,
+    return _UserEvalContribution(
+        ranked=ranked,
+        ndcg=_ndcg(relevance),
+        average_precision=_average_precision(relevance),
+        hit=1.0 if any(relevance) else 0.0,
+        precision=hits / float(k),
+        recall=hits / float(len(truth)),
+        novelty=novel_hits / float(len(ranked)) if ranked else 0.0,
     )
 
 

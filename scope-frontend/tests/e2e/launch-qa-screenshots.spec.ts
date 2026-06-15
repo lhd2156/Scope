@@ -63,12 +63,21 @@ test.describe('launch QA screenshot evidence', () => {
     await spotForm.getByLabel('Latitude').fill('32.7561');
     await spotForm.getByLabel('Longitude').fill('-97.3314');
     await capture(page, '06-add-place-form');
+    await spotForm.getByText('Post contribution anonymously').scrollIntoViewIfNeeded();
+    await capture(page, '06b-add-place-anonymous-toggle');
 
     await page.locator('[data-test="spot-submit"]').click();
     const createdSpotPath = buildSpotPath({ id: 'spot-1', title: 'Launch QA Skyline Patio', city: 'Fort Worth' });
     await expect(page).toHaveURL(new RegExp(`${createdSpotPath}$`));
     await expect(page.getByRole('heading', { level: 1, name: 'Launch QA Skyline Patio' })).toBeVisible();
     await capture(page, '07-created-spot-detail');
+    await page.getByText('Post anonymously').scrollIntoViewIfNeeded();
+    await capture(page, '07b-review-anonymous-toggle');
+    await page.goto(buildSpotPath({ id: 'spot-1', title: 'Sunset Rooftop Tacos', city: 'Fort Worth' }), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1, name: 'Sunset Rooftop Tacos' })).toBeVisible();
+    await page.locator('.review-list').scrollIntoViewIfNeeded();
+    await expect(page.locator('.review-card')).toHaveCount(2);
+    await capture(page, '07c-review-card-alignment');
 
     await page.goto('/explore', { waitUntil: 'domcontentloaded' });
     await page.getByLabel('Search spots').fill('Sunset Rooftop Tacos');

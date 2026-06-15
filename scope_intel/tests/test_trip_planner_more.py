@@ -60,6 +60,35 @@ def test_trip_planner_parsers_boundaries_and_fallback_branches(monkeypatch):
     assert "focused planning pass" in trip_planner._fallback_plan(prompt.replace("3 days", "organize my thoughts"))
 
 
+def test_trip_planner_heuristic_characterization():
+    assert trip_planner._parse_trip_duration_days("Trip duration: 5 days", "") == 5
+    assert trip_planner._parse_trip_duration_days("Traveler request: Make this a weekend route", "") == 2
+    assert trip_planner._parse_trip_duration_days("Traveler request: build a 4d food route", "") == 4
+    assert trip_planner._parse_trip_duration_days("", "2026-07-02 to 2026-07-05") == 4
+    assert trip_planner._parse_trip_duration_days("Trip duration: 0 days", "") is None
+    assert trip_planner._parse_trip_duration_days("", "2026-07-05 to 2026-07-02") is None
+
+    assert trip_planner._infer_interests_from_text(
+        "Coffee, museums, trails, scenic photo stops, zipline, live music, markets, aquarium"
+    ) == "food, culture, nature, scenic, adventure, nightlife, shopping, entertainment"
+    assert trip_planner._infer_pace_from_text("Keep it chill and easy") == "relaxed"
+
+    assert trip_planner._missing_itinerary_brief_questions(
+        "Traveler request: build itinerary",
+        "",
+        "Austin, TX",
+        "",
+        "",
+        "",
+    ) == [
+        "What destination(s) are you visiting? Give me the start and finish, or the city/region for a one-place trip.",
+        "How many days is the trip?",
+        "What are your interests: food, nightlife, nature, culture, shopping, entertainment, adventure, or something else?",
+        "Do you want the pace packed, balanced, or relaxed?",
+        "Who are you traveling with: solo, couple, group, or family?",
+    ]
+
+
 def test_fallback_itinerary_brief_and_plan_trip_process_branches(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("SCOPE_AI_PROVIDER", "ollama")

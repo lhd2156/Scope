@@ -27,10 +27,11 @@ const reviews: Review[] = [
       username: 'louisdo',
       email: 'louis@example.com',
       displayName: 'Louis Do',
-      avatarUrl: 'https://i.pravatar.cc/150?img=12',
+      avatarUrl: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=600',
       interests: ['food'],
     },
     rating: 4.8,
+    sentiment_score: 0.1,
     comment: 'Perfect rooftop energy right before sunset.',
     createdAt: '2026-03-29T00:00:00Z',
   },
@@ -60,6 +61,7 @@ describe('ReviewList', () => {
     expect(wrapper.text()).toContain('Mar 29, 2026');
     expect(wrapper.find('[aria-label="Rated 4.8 out of 5"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('4.8');
+    expect(wrapper.text()).not.toContain('Mixed');
     expect(wrapper.text()).toContain('Perfect rooftop energy right before sunset');
     expect(wrapper.text()).not.toContain('Perfect rooftop energy right before sunset.');
     expect(getUserProfileMock).not.toHaveBeenCalled();
@@ -135,6 +137,35 @@ describe('ReviewList', () => {
 
     expect(getUserProfileMock).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('Traveler 33333333');
+  });
+
+  it('renders anonymous reviews without hydrating the real reviewer profile', async () => {
+    const wrapper = mount(ReviewList, {
+      props: {
+        reviews: [
+          {
+            ...reviews[0],
+            id: 'review-anonymous',
+            isAnonymous: true,
+            user: {
+              id: 'anonymous',
+              username: 'anonymous',
+              email: '',
+              displayName: 'Anonymous traveler',
+              avatarUrl: '',
+              interests: [],
+            },
+          },
+        ],
+      },
+    });
+
+    await flushPromises();
+
+    expect(getUserProfileMock).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Anonymous traveler');
+    expect(wrapper.text()).toContain('Anonymous contribution');
+    expect(wrapper.text()).not.toContain('@anonymous');
   });
 
   it('renders the empty state when no reviews are available', () => {

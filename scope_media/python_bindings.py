@@ -197,6 +197,28 @@ def _byte_buffer(payload: bytes):
     return (ctypes.c_uint8 * len(payload)).from_buffer_copy(payload)
 
 
+def _image_from_payload(
+    payload: bytes,
+    *,
+    width: int,
+    height: int,
+    channels: int,
+) -> tuple[ScopeMediaImage, ctypes.Array]:
+    pixel_buffer = _byte_buffer(payload)
+    image = ScopeMediaImage(
+        width=width,
+        height=height,
+        channels=channels,
+        pixels=ctypes.cast(pixel_buffer, ctypes.POINTER(ctypes.c_uint8)),
+        length=len(payload),
+    )
+    return image, pixel_buffer
+
+
+def _copy_pointer_bytes(pointer, length: int) -> bytes:
+    return ctypes.string_at(pointer, length) if bool(pointer) else b''
+
+
 def _raise_for_status(operation: str, status: int) -> None:
     if status != STATUS_OK:
         raise ScopeMediaOperationError(operation, status)
@@ -219,7 +241,7 @@ def strip_exif(payload: bytes) -> bytes:
     status = library.scope_media_strip_exif(_byte_buffer(data), len(data), ctypes.byref(output))
     try:
         _raise_for_status('strip_exif', status)
-        return ctypes.string_at(output.data, output.length) if bool(output.data) else b''
+        return _copy_pointer_bytes(output.data, output.length)
     finally:
         if bool(output.data):
             library.scope_media_free_buffer(ctypes.byref(output))
@@ -237,13 +259,12 @@ def generate_thumbnail_pixels(
 ) -> ThumbnailResult:
     payload = _require_non_empty_payload(pixels)
     library = load_library()
-    input_pixels = _byte_buffer(payload)
-    input_image = ScopeMediaImage(
+    # Keep the backing array alive while native code reads input_image.pixels.
+    input_image, _input_pixels = _image_from_payload(
+        payload,
         width=width,
         height=height,
         channels=channels,
-        pixels=ctypes.cast(input_pixels, ctypes.POINTER(ctypes.c_uint8)),
-        length=len(payload),
     )
     options = ScopeMediaThumbnailOptions(
         max_width=max_width,
@@ -257,7 +278,7 @@ def generate_thumbnail_pixels(
         width_value = int(output_image.width)
         height_value = int(output_image.height)
         channels_value = int(output_image.channels)
-        thumbnail_bytes = ctypes.string_at(output_image.pixels, output_image.length) if bool(output_image.pixels) else b''
+        thumbnail_bytes = _copy_pointer_bytes(output_image.pixels, output_image.length)
         return ThumbnailResult(
             width=width_value,
             height=height_value,
@@ -284,13 +305,12 @@ def encode_blurhash_pixels(
 ) -> str:
     payload = _require_non_empty_payload(pixels)
     library = load_library()
-    input_pixels = _byte_buffer(payload)
-    image = ScopeMediaImage(
+    # Keep the backing array alive while native code reads image.pixels.
+    image, _input_pixels = _image_from_payload(
+        payload,
         width=width,
         height=height,
         channels=channels,
-        pixels=ctypes.cast(input_pixels, ctypes.POINTER(ctypes.c_uint8)),
-        length=len(payload),
     )
     output = ctypes.create_string_buffer(expected_blurhash_length(components_x, components_y) + 1)
     status = library.scope_media_encode_blurhash(

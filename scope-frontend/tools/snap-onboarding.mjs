@@ -1,21 +1,8 @@
-import { chromium } from 'playwright';
-import { mkdirSync, existsSync } from 'node:fs';
+import { BASE, OUT, createSnapContext, launchSnapBrowser } from './snap-runtime.mjs';
 
-const BASE = process.env.SNAP_BASE ?? 'http://localhost:8088';
-const OUT = 'snaps';
-if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
-
-const browser = await chromium.launch();
+const browser = await launchSnapBrowser();
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  // Force onboarding to show by clearing any completion flag
-  await context.addInitScript(() => {
-    try {
-      localStorage.removeItem('scope-onboarding-completed-v1');
-      localStorage.setItem('scope-analytics-consent', 'granted');
-      localStorage.setItem('scope-cookie-consent', 'dismissed');
-    } catch {}
-  });
+  const context = await createSnapContext(browser, { showOnboarding: true });
   const page = await context.newPage();
   page.on('console', (msg) => {
     if (msg.type() === 'error') console.log('PAGE ERR:', msg.text());
