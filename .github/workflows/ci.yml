@@ -563,7 +563,7 @@ jobs:
           name: trivy-filesystem-sarif
           path: trivy-results.sarif
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 1
 
   sbom:
     name: Software Bill of Materials (SBOM)
@@ -585,7 +585,7 @@ jobs:
         with:
           name: scope-sbom
           path: scope-sbom.cdx.json
-          retention-days: 90
+          retention-days: 1
 
   pre-commit:
     name: Pre-commit hooks
