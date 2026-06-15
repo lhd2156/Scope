@@ -136,8 +136,8 @@ VALUES
 MERGE dbo.photos_photo AS target
 USING @ShowcasePhotos AS source
 ON target.id = dbo.__scope_seed_uuid32(source.Id)
-WHEN MATCHED THEN UPDATE SET spot_id = dbo.__scope_seed_uuid32(source.SpotId), user_id = dbo.__scope_seed_uuid32(source.UserId), storage_key = source.StorageKey, storage_url = source.StorageUrl, thumbnail_url = source.ThumbnailUrl, caption = source.Caption, sort_order = source.SortOrder
-WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, storage_key, storage_url, thumbnail_url, caption, sort_order, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.StorageKey, source.StorageUrl, source.ThumbnailUrl, source.Caption, source.SortOrder, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+WHEN MATCHED THEN UPDATE SET spot_id = dbo.__scope_seed_uuid32(source.SpotId), user_id = dbo.__scope_seed_uuid32(source.UserId), storage_key = source.StorageKey, storage_url = source.StorageUrl, thumbnail_url = source.ThumbnailUrl, caption = source.Caption, sort_order = source.SortOrder, is_anonymous = 0
+WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, storage_key, storage_url, thumbnail_url, caption, sort_order, is_anonymous, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.StorageKey, source.StorageUrl, source.ThumbnailUrl, source.Caption, source.SortOrder, 0, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseReviews TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, SpotId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, Rating DECIMAL(2,1) NOT NULL, Comment NVARCHAR(1000) NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseReviews (Id, SpotId, UserId, Rating, Comment, CreatedOffsetDays)
@@ -241,8 +241,8 @@ VALUES
 MERGE dbo.reviews_review AS target
 USING @ShowcaseReviews AS source
 ON target.spot_id = dbo.__scope_seed_uuid32(source.SpotId) AND target.user_id = dbo.__scope_seed_uuid32(source.UserId)
-WHEN MATCHED THEN UPDATE SET rating = source.Rating, comment = source.Comment
-WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, rating, comment, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.Rating, source.Comment, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
+WHEN MATCHED THEN UPDATE SET rating = source.Rating, comment = source.Comment, is_anonymous = 0
+WHEN NOT MATCHED THEN INSERT (id, spot_id, user_id, rating, comment, is_anonymous, created_at) VALUES (dbo.__scope_seed_uuid32(source.Id), dbo.__scope_seed_uuid32(source.SpotId), dbo.__scope_seed_uuid32(source.UserId), source.Rating, source.Comment, 0, DATEADD(DAY, -source.CreatedOffsetDays, @Now));
 
 DECLARE @ShowcaseLikes TABLE (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, SpotId UNIQUEIDENTIFIER NOT NULL, UserId UNIQUEIDENTIFIER NOT NULL, CreatedOffsetDays INT NOT NULL);
 INSERT INTO @ShowcaseLikes (Id, SpotId, UserId, CreatedOffsetDays)
