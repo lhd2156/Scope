@@ -15,9 +15,7 @@ export function parseSentrySampleRate(rawValue: string | undefined): number {
   }
 
   const parsed = Number(rawValue);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1
-    ? parsed
-    : DEFAULT_SENTRY_TRACES_SAMPLE_RATE;
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : DEFAULT_SENTRY_TRACES_SAMPLE_RATE;
 }
 
 function scrubSensitiveRouteValues(value: string): string {
@@ -67,9 +65,7 @@ function scrubQueryParams(queryParams: SentryQueryParams): SentryQueryParams {
     return changed ? nextQueryParams : queryParams;
   }
 
-  return queryParams && typeof queryParams === 'object'
-    ? scrubRecord(queryParams, true)
-    : queryParams;
+  return queryParams && typeof queryParams === 'object' ? scrubRecord(queryParams, true) : queryParams;
 }
 
 function scrubOptionalRecord<T extends Record<string, unknown>>(values: T | undefined): T | undefined {

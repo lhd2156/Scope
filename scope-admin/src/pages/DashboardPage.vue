@@ -51,11 +51,7 @@ onMounted(() => {
       <article v-for="chart in charts" :key="chart.title" class="glass-panel admin-card">
         <h2>{{ chart.title }}</h2>
         <div class="bar-row" :class="chart.tone">
-          <span
-            v-for="item in chart.series"
-            :key="item.label"
-            :style="{ height: chart.height(item) }"
-          />
+          <span v-for="item in chart.series" :key="item.label" :style="{ height: chart.height(item) }" />
         </div>
       </article>
     </section>

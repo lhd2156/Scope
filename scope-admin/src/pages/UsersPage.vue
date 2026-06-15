@@ -87,17 +87,10 @@ onMounted(loadUsers);
     <footer class="table-footer">
       <span>{{ loading ? 'Loading...' : `${total} users` }}</span>
       <div class="table-actions">
-        <button
-          class="btn secondary"
-          type="button"
-          :disabled="page === 1"
-          @click="changePage(-1)"
-        >
+        <button class="btn secondary" type="button" :disabled="page === 1" @click="changePage(-1)">
           Previous
         </button>
-        <button class="btn secondary" type="button" @click="changePage(1)">
-          Next
-        </button>
+        <button class="btn secondary" type="button" @click="changePage(1)">Next</button>
       </div>
     </footer>
   </section>

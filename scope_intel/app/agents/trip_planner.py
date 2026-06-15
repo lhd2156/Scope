@@ -45,7 +45,6 @@ from app.agents.tools import (
     search_spots,
 )
 from app.agents.trip_planner_heuristics import (
-    _has_travel_party_brief,
     _infer_interests_from_text,
     _infer_pace_from_text,
     _is_itinerary_build_request,

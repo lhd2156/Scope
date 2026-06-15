@@ -67,9 +67,7 @@ function settledTotal<T>(result: PromiseSettledResult<PaginatedResult<T>>): numb
   return result.status === 'fulfilled' ? result.value.total : 0;
 }
 
-function buildPhotoActivity(
-  result: PromiseSettledResult<PaginatedResult<unknown>>,
-): ActivityItem[] {
+function buildPhotoActivity(result: PromiseSettledResult<PaginatedResult<unknown>>): ActivityItem[] {
   return result.status === 'fulfilled'
     ? [
         {
@@ -125,10 +123,7 @@ export const useDashboardStore = defineStore('dashboard', {
           userGrowth: sampleSeries,
           spotGrowth: sampleSeries,
           engagement: sampleSeries,
-          activity: [
-            ...buildActivity(),
-            ...buildPhotoActivity(photos),
-          ].slice(0, 10),
+          activity: [...buildActivity(), ...buildPhotoActivity(photos)].slice(0, 10),
           loading: false,
         });
       } catch (error) {

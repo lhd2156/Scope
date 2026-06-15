@@ -115,8 +115,8 @@ export function unwrapList<T>(
   const items =
     (Array.isArray(payload)
       ? payload
-      : [envelope.data, envelope.results, envelope.items].find(
-          (candidate): candidate is T[] => Array.isArray(candidate),
+      : [envelope.data, envelope.results, envelope.items].find((candidate): candidate is T[] =>
+          Array.isArray(candidate),
         )) ?? [];
 
   return {
