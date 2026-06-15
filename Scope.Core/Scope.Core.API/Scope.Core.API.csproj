@@ -42,7 +42,7 @@
       REDIS_URL is unset (the backplane is only wired conditionally).
     -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.22" />
-    <PackageReference Include="MessagePack" Version="2.5.301" />
+    <PackageReference Include="MessagePack" Version="3.1.7" />
     <!--
       Standard resilience handler (Polly v8) wraps every named HttpClient with a
       retry pipeline + circuit breaker + per-attempt timeout. Without this, a
