@@ -43,7 +43,7 @@ COPY --from=wasm-build /workspace/scope-frontend/wasm/dist ./wasm/dist
 RUN VITE_MAPBOX_TOKEN="$MAPBOX_PUBLIC_TOKEN" npm run build
 
 # Nginx is pinned to a weekly rebuilt, unprivileged multi-architecture digest.
-FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:0a1e718ff1e1a22fc519d0c2e5b6872681f01e37c8a2817ec43ce6e716103929
+FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd
 USER root
 # Install curl for healthcheck and drop setuid bits that are unnecessary for a static SPA.
 RUN apk add --no-cache curl \
