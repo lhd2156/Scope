@@ -1,4 +1,4 @@
-FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:0a1e718ff1e1a22fc519d0c2e5b6872681f01e37c8a2817ec43ce6e716103929
+FROM nginxinc/nginx-unprivileged:stable-alpine3.23@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd
 
 USER root
 
