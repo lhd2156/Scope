@@ -26,8 +26,8 @@ celery[rabbitmq]>=5.5.0
 # The default intel image is CPU-only. Pin CPU PyTorch wheels here so a normal
 # `docker compose build intel` does not pull the multi-GB CUDA dependency stack.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.11.0+cpu
-torchvision==0.26.0+cpu
+torch==2.12.1+cpu
+torchvision==0.27.1+df56172
 transformers>=4.50.0
 tokenizers>=0.21.0
 faiss-cpu>=1.11.0
