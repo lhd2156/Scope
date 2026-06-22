@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@microsoft/signalr": "^8.0.7",
-    "@sentry/vue": "^9.13.0",
+    "@sentry/vue": "^10.59.0",
     "@vueuse/core": "^12.8.2",
     "axios": "^1.8.4",
     "mapbox-gl": "^3.11.1",
