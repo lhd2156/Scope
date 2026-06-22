@@ -34,7 +34,7 @@
       uses the same StackExchange.Redis multiplexer instance we register in
       Program.cs so there is no second connection pool.
     -->
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.22" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
     <!--
       Redis backplane for SignalR is required whenever Core is run with more than
       one replica; without it, clients connected to different instances cannot
