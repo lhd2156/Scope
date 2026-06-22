@@ -16,7 +16,7 @@ django-cors-headers==4.9.0
 django-filter==24.3
 mssql-django==1.7
 gunicorn==23.0.0
-redis==5.2.1
+redis==8.0.0
 # WhiteNoise serves static assets with gzip+brotli pre-compressed variants
 # and hash-stamped, cache-forever filenames. Lets the app tier handle static
 # delivery efficiently even when an edge CDN isn't in the path.
