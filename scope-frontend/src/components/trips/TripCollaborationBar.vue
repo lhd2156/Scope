@@ -208,7 +208,7 @@ const saveStatusLabel = computed(() => {
   background: var(--bg-secondary);
   box-shadow:
     var(--shadow-md),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
 .collaboration-status,

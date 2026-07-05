@@ -468,16 +468,6 @@ async function registerWithGoogle() {
   font-size: var(--font-size-small);
 }
 
-.form-error {
-  padding: 0.75rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 48%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
-  font-size: var(--font-size-small);
-  font-weight: var(--font-weight-medium);
-}
-
 /*
  * Slightly compact shell size keeps all six fields visible on a typical
  * 720-900px tall viewport without scrolling while still giving the

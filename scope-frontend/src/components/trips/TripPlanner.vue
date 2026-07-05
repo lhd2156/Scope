@@ -2078,7 +2078,11 @@ defineExpose({
   transform: translateY(var(--motion-card-lift));
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
-  outline: none;
+}
+
+.planner-step-toggle:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .planner-step-shell[data-step-state='current'] .planner-step-toggle {

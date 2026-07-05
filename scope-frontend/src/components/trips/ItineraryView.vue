@@ -3634,7 +3634,7 @@ defineExpose({
 
 .map-nearby-drawer {
   position: absolute;
-  z-index: 5000;
+  z-index: var(--z-drawer);
   top: var(--space-4);
   bottom: var(--space-4);
   left: var(--space-4);
@@ -4958,7 +4958,7 @@ defineExpose({
   backdrop-filter: var(--glass-blur);
   box-shadow:
     var(--shadow-lg),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
   border-radius: var(--radius-2xl);
 }
 
@@ -5098,7 +5098,7 @@ defineExpose({
   border-radius: var(--radius-2xl);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 48%, var(--glass-bg)), color-mix(in srgb, var(--bg-secondary) 70%, var(--glass-bg)));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
 .map-picker-button {
@@ -5137,7 +5137,7 @@ defineExpose({
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 26%, var(--glass-bg)), color-mix(in srgb, var(--accent-teal) 14%, var(--bg-primary)));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 10%, transparent),
     0 0 0.9rem color-mix(in srgb, var(--accent-teal) 16%, transparent);
   outline: none;
 }
@@ -5162,7 +5162,7 @@ defineExpose({
     linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 44%, var(--glass-bg)), color-mix(in srgb, var(--bg-secondary) 72%, var(--glass-bg)));
   font-size: var(--font-size-small);
   line-height: var(--line-height-normal);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
 .map-picker-status.visible {
@@ -5282,7 +5282,7 @@ defineExpose({
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--accent-teal) 8%, transparent), transparent 45%),
     color-mix(in srgb, var(--bg-primary) 34%, var(--glass-bg));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
 .route-place-panel[data-expanded='true'] {
@@ -5331,7 +5331,7 @@ defineExpose({
   color: var(--text-primary);
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent),
     0 0.4rem 1rem color-mix(in srgb, black 18%, transparent);
   transition:
     transform var(--transition-fast),
@@ -5369,7 +5369,7 @@ defineExpose({
   border-color: color-mix(in srgb, var(--accent-teal) 52%, var(--glass-border));
   background: color-mix(in srgb, var(--bg-secondary) 90%, var(--accent-teal) 10%);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent),
     0 0 0 2px color-mix(in srgb, var(--accent-teal) 14%, transparent);
   outline: none;
 }
@@ -5422,7 +5422,7 @@ defineExpose({
   transform: translateY(var(--motion-button-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 52%, var(--glass-border));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent),
     0 0.8rem 1.5rem color-mix(in srgb, var(--accent-teal) 10%, transparent);
   outline: none;
 }
@@ -5682,7 +5682,7 @@ defineExpose({
   text-align: left;
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent),
     0 0.75rem 1.6rem color-mix(in srgb, var(--bg-primary) 18%, transparent);
   transition:
     transform var(--transition-fast),
@@ -5695,7 +5695,7 @@ defineExpose({
   transform: translateY(var(--motion-card-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 54%, var(--glass-border));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 7%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent),
     0 1rem 2rem color-mix(in srgb, var(--accent-teal) 12%, transparent);
   outline: none;
 }
@@ -5807,7 +5807,7 @@ defineExpose({
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 18%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 46%, var(--glass-bg)));
   color: color-mix(in srgb, var(--accent-teal) 84%, var(--text-primary));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
 }
 
 .summary-pill--accent {
@@ -5872,7 +5872,7 @@ defineExpose({
   border-color: color-mix(in srgb, var(--accent-teal) 26%, var(--glass-border));
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent-teal) 8%, var(--glass-bg)), color-mix(in srgb, var(--bg-primary) 46%, var(--glass-bg)));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
 .route-signal-grid--planning span::before {
@@ -5974,7 +5974,7 @@ defineExpose({
   overflow: hidden;
   box-shadow:
     var(--shadow-md),
-    inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
   transition:
     transform var(--transition-fast),
     box-shadow var(--transition-fast),
@@ -6050,7 +6050,7 @@ defineExpose({
   border-radius: var(--radius-xl);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 44%, var(--glass-bg)), color-mix(in srgb, var(--bg-secondary) 52%, var(--glass-bg)));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
@@ -6084,7 +6084,7 @@ defineExpose({
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
 .stop-item[data-route-role='start'] .timeline-stop-badge,
@@ -6092,7 +6092,7 @@ defineExpose({
   border-color: color-mix(in srgb, var(--accent-teal) 36%, var(--glass-border));
   background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-primary));
   color: var(--accent-teal);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
 .timeline-edit-field {
@@ -6180,7 +6180,7 @@ defineExpose({
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--glass-bg) 95%, var(--bg-secondary)), color-mix(in srgb, var(--bg-primary) 58%, var(--glass-bg)));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 8%, transparent),
     0 1.4rem 3.6rem color-mix(in srgb, var(--bg-primary) 34%, transparent);
 }
 

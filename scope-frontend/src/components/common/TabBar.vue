@@ -126,7 +126,11 @@ function select(tab: TabBarItem<T>) {
 .tab-bar__item:focus-visible:not(.is-disabled) {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
-  outline: none;
+}
+
+.tab-bar__item:focus-visible:not(.is-disabled) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .tab-bar__item.is-active {

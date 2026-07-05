@@ -121,7 +121,7 @@
               </template>
             </div>
 
-            <div v-else class="profile-empty-state" data-test="profile-collection-empty-state">
+            <div v-else class="empty-state-block profile-empty-state" data-test="profile-collection-empty-state">
               <p class="eyebrow">{{ activeCollectionMeta.title }}</p>
               <h3>{{ activeCollectionMeta.emptyTitle }}</h3>
               <p>{{ activeCollectionMeta.emptyDescription }}</p>
@@ -132,7 +132,7 @@
 
       <div
         v-else
-        class="profile-empty-state profile-empty-state--page"
+        class="empty-state-block profile-empty-state profile-empty-state--page"
         data-test="profile-unavailable-empty-state"
       >
         <p class="eyebrow">Profile</p>
@@ -965,41 +965,8 @@ p {
   gap: var(--space-4);
 }
 
-.profile-empty-state {
-  min-height: clamp(14rem, 24vw, 22rem);
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: var(--space-3);
-  padding: clamp(var(--space-5), 4vw, var(--space-8));
-  text-align: center;
-}
-
 .profile-empty-state--page {
   min-height: clamp(24rem, 46vh, 34rem);
-}
-
-.profile-empty-state h3,
-.profile-empty-state p {
-  margin: 0;
-}
-
-.profile-empty-state h3 {
-  max-width: 30rem;
-  color: var(--text-primary);
-  font-size: clamp(1.25rem, 1.8vw, 1.7rem);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
-}
-
-.profile-empty-state p:not(.eyebrow) {
-  max-width: 38rem;
-  color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
-}
-
-.profile-empty-state .button {
-  margin-top: var(--space-2);
 }
 
 @media (max-width: 980px) {

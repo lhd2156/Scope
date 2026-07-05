@@ -36,5 +36,6 @@ onMounted(loadReviews);
         <button class="btn danger" type="button" @click="moderate(review.id, 'rejected')">Reject</button>
       </div>
     </article>
+    <p v-if="reviews.length === 0" class="empty-state">No flagged reviews right now.</p>
   </section>
 </template>

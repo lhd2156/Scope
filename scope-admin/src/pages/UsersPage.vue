@@ -83,6 +83,7 @@ onMounted(loadUsers);
         </tr>
       </tbody>
     </table>
+    <p v-if="!loading && users.length === 0" class="empty-state">No users match this search.</p>
 
     <footer class="table-footer">
       <span>{{ loading ? 'Loading...' : `${total} users` }}</span>

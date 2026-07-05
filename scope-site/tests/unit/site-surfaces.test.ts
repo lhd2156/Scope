@@ -44,13 +44,13 @@ describe("site data and pages", () => {
 
   it("renders all marketing pages from shared data", () => {
     expect(assetPath("/screenshots/map-view.png")).toContain("/screenshots/map-view.png");
-    expect(navLinks).toHaveLength(4);
+    expect(navLinks).toHaveLength(3);
     expect(stats).toHaveLength(4);
     expect(features).toHaveLength(6);
     expect(featureDeepDives).toHaveLength(3);
     expect(posts).toHaveLength(3);
-    expect(findPostBySlug("ai-trip-planning").title).toBe("AI Trip Planning With Community Signal");
-    expect(findPostBySlug(["missing-post"]).title).toBe(posts[0].title);
+    expect(findPostBySlug("ai-trip-planning")?.title).toBe("AI Trip Planning With Community Signal");
+    expect(findPostBySlug(["missing-post"])).toBeNull();
 
     const home = mount(HomePage, { global: { stubs } });
     expect(home.text()).toContain("Plan Real Trips");
@@ -66,17 +66,17 @@ describe("site data and pages", () => {
     expect(mount(DownloadPage).text()).toContain("Open App");
   });
 
-  it("renders blog post matches, fallback posts, and legal variants", () => {
+  it("renders blog post matches, not-found state, and legal variants", () => {
     routeSlug = "building-scope-architecture";
     const matched = mount(BlogPostPage, { global: { stubs } });
     expect(matched.text()).toContain("Building Scope Trips Architecture");
     expect(matched.text()).toContain("engineering");
 
     routeSlug = "missing-post";
-    const fallback = mount(BlogPostPage, { global: { stubs } });
-    expect(fallback.text()).toContain(posts[0].title);
+    const notFound = mount(BlogPostPage, { global: { stubs } });
+    expect(notFound.text()).toContain("This post does not exist.");
 
-    expect(mount(LegalPage, { props: { kind: "privacy" } }).text()).toContain("Privacy");
-    expect(mount(LegalPage, { props: { kind: "terms" } }).text()).toContain("Terms");
+    expect(mount(LegalPage, { props: { kind: "privacy" } }).text()).toContain("Privacy Policy");
+    expect(mount(LegalPage, { props: { kind: "terms" } }).text()).toContain("Terms of Service");
   });
 });

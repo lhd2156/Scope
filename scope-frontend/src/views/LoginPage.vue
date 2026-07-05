@@ -239,15 +239,6 @@ async function loginWithGoogle() {
   color: var(--text-secondary);
 }
 
-.form-error {
-  padding: 0.9rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 48%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
-  font-weight: var(--font-weight-medium);
-}
-
 .auth-intent-message {
   margin: 0;
   padding: 0.9rem 1rem;

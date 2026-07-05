@@ -326,7 +326,7 @@ watch([draftTrips, sharedTrips, upcomingTrips], syncActiveWorkspaceViewWithTrips
     linear-gradient(270deg, color-mix(in srgb, var(--accent-gold) 12%, transparent), transparent 38%);
   box-shadow:
     var(--shadow-lg),
-    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
 }
 
 .workspace-hero__copy {
@@ -414,7 +414,7 @@ watch([draftTrips, sharedTrips, upcomingTrips], syncActiveWorkspaceViewWithTrips
   );
   color: var(--text-primary);
   font: inherit;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
   cursor: pointer;
   text-align: left;
   transition:
@@ -452,7 +452,7 @@ watch([draftTrips, sharedTrips, upcomingTrips], syncActiveWorkspaceViewWithTrips
     color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary))
   );
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent),
     0 0 0 2px color-mix(in srgb, var(--accent-teal) 10%, transparent);
   outline: none;
 }

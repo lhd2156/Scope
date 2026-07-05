@@ -1808,8 +1808,8 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-full);
   background: transparent;
   font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.005em;
   text-decoration: none;
   white-space: nowrap;
@@ -1834,7 +1834,14 @@ onBeforeUnmount(() => {
 .profile-chip:hover,
 .profile-chip:focus-visible {
   color: var(--text-primary);
-  outline: none;
+}
+
+.nav-links a:focus-visible,
+.feature-menu-button:focus-visible,
+.ghost-link:focus-visible,
+.profile-chip:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .nav-links a.router-link-active,
@@ -3230,4 +3237,22 @@ onBeforeUnmount(() => {
   }
 }
 
+/* Shared keyboard focus indicator for navbar controls that previously
+   removed the outline without an equivalent replacement. */
+:is(
+    .brand,
+    .create-spot-link,
+    .accent-link,
+    .feature-menu-dropdown a,
+    .menu-dropdown a,
+    .menu-dropdown button,
+    .navbar__mobile-toggle,
+    .navbar__mobile-close,
+    .navbar__mobile-link,
+    .navbar__mobile-secondary,
+    .navbar__mobile-primary
+  ):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
 </style>

@@ -61,6 +61,7 @@ onMounted(() => {
         <h2>Recent activity</h2>
         <span v-if="dashboard.loading">Refreshing...</span>
       </div>
+      <p v-if="dashboard.error" class="error-banner" role="alert">{{ dashboard.error }}</p>
       <article v-for="item in dashboard.activity" :key="item.id" class="activity-row">
         <div>
           <strong>{{ item.label }}</strong>

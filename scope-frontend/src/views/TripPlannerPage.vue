@@ -3832,7 +3832,7 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 96%, transparent), color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary)));
   box-shadow:
     var(--shadow-lg),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
   backdrop-filter: saturate(1.06);
 }
 
@@ -3855,7 +3855,7 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--accent-teal) 16%, var(--glass-border));
   box-shadow:
     var(--shadow-lg),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
 }
 
 .planner-workspace__assistant--inline.trip-ai-assist[data-chat-state='active'] {
@@ -4064,7 +4064,7 @@ onBeforeUnmount(() => {
     linear-gradient(135deg, color-mix(in srgb, var(--bg-secondary) 92%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent));
   box-shadow:
     0 0.65rem 1.25rem color-mix(in srgb, var(--bg-primary) 28%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 5%, transparent);
 }
 
 .featured-route-card__body,
@@ -4289,7 +4289,7 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 0.42rem 0.68rem;
   border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, white 14%, var(--glass-border));
+  border: 1px solid color-mix(in srgb, var(--highlight-sheen) 14%, var(--glass-border));
   background: color-mix(in srgb, var(--bg-primary) 68%, transparent);
   color: var(--text-primary);
   font-size: var(--font-size-small);
@@ -4339,7 +4339,7 @@ onBeforeUnmount(() => {
 .planner-confirm-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: var(--z-modal-backdrop);
   display: grid;
   place-items: center;
   padding: var(--space-5);

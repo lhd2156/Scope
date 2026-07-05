@@ -2,7 +2,6 @@ export const navLinks = [
   { to: "/features", label: "Features" },
   { to: "/about", label: "About" },
   { to: "/blog", label: "Blog" },
-  { to: "/download", label: "Open App" },
 ];
 
 export const stats = [
@@ -104,7 +103,7 @@ export const posts = [
 
 export function findPostBySlug(slug: string | string[] | undefined) {
   const normalizedSlug = Array.isArray(slug) ? slug[0] : slug;
-  return posts.find((post) => post.slug === normalizedSlug) ?? posts[0];
+  return posts.find((post) => post.slug === normalizedSlug) ?? null;
 }
 
 export function assetPath(path: string): string {

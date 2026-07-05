@@ -12,14 +12,22 @@ function readFrontendFile(relativePath: string): string {
 
 describe('typography and spacing audit', () => {
   it('locks shared typography tokens to the Phase 13 spec', () => {
-    const tokens = readFrontendFile('src/assets/tokens.css');
+    // Typography tokens now live in the shared source of truth
+    // (scope-assets/design-tokens.css), imported by src/assets/tokens.css.
+    const tokens = readFileSync(
+      resolve(frontendRoot, '..', 'scope-assets', 'design-tokens.css'),
+      'utf8',
+    );
+    const frontendTokens = readFrontendFile('src/assets/tokens.css');
+
+    expect(frontendTokens).toContain("@import '../../../scope-assets/design-tokens.css';");
 
     expect(tokens).toContain('--font-size-hero: clamp(2.5rem, 5vw, 4rem);');
     expect(tokens).toContain('--font-size-h1: 2rem;');
     expect(tokens).toContain('--font-size-h2: 1.5rem;');
     expect(tokens).toContain('--font-size-h3: 1.125rem;');
     expect(tokens).toContain('--line-height-normal: 1.5;');
-    expect(tokens).toContain('--line-height-relaxed: 1.5;');
+    expect(tokens).toContain('--line-height-relaxed: 1.65;');
     expect(tokens).toContain('--letter-spacing-display: -0.04em;');
     expect(tokens).toContain('--letter-spacing-eyebrow: 0.14em;');
     expect(tokens).toContain('--section-gap-page: clamp(var(--space-8), 5vw, var(--space-12));');

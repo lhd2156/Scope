@@ -132,7 +132,7 @@ test('users table exposes pagination controls', async ({ page }) => {
 test('user detail page renders profile actions', async ({ page }) => {
   await login(page);
   await page.goto('/admin/users/user-1');
-  await expect(page.getByText('Edit role')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ban account' })).toBeVisible();
 });
 
 test('spots page lists and filters flagged spots', async ({ page }) => {

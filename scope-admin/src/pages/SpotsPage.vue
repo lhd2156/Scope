@@ -46,5 +46,6 @@ onMounted(loadSpots);
         </tr>
       </tbody>
     </table>
+    <p v-if="spots.length === 0" class="empty-state">No spots found for this filter.</p>
   </section>
 </template>

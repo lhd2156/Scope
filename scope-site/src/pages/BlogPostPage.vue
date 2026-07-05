@@ -15,7 +15,10 @@ const post = computed(() => findPostBySlug(route.params.slug));
     >
       Back to blog
     </RouterLink>
-    <article class="card article-card">
+    <article
+      v-if="post"
+      class="card article-card"
+    >
       <p class="eyebrow">
         {{ post.date }} - {{ post.readTime }}
       </p>
@@ -30,6 +33,16 @@ const post = computed(() => findPostBySlug(route.params.slug));
           :key="tag"
         >{{ tag }}</span>
       </div>
+    </article>
+    <article
+      v-else
+      class="card article-card"
+    >
+      <p class="eyebrow">
+        Not found
+      </p>
+      <h1>This post does not exist.</h1>
+      <p>The article you are looking for may have moved or never existed. Head back to the blog to browse everything we have published.</p>
     </article>
   </main>
 </template>

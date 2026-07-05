@@ -1552,9 +1552,13 @@ defineExpose({
   transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
+.bar-button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .bar-button--ghost:hover,
 .bar-button--ghost:focus-visible {
-  outline: none;
   background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
 }
@@ -1567,7 +1571,6 @@ defineExpose({
 
 .bar-button--primary:hover,
 .bar-button--primary:focus-visible {
-  outline: none;
   background: var(--accent-teal-hover);
   border-color: var(--accent-teal-hover);
 }
@@ -1583,7 +1586,7 @@ defineExpose({
 
 .bar-button--primary:disabled {
   background: color-mix(in srgb, var(--accent-teal) 35%, var(--bg-secondary));
-  color: rgba(255, 255, 255, 0.7);
+  color: color-mix(in srgb, var(--text-inverse) 70%, transparent);
   border-color: transparent;
 }
 

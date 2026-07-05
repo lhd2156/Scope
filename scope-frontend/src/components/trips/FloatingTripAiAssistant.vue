@@ -232,7 +232,7 @@ defineExpose<{
   position: fixed;
   right: max(var(--space-4), env(safe-area-inset-right));
   bottom: max(var(--space-4), env(safe-area-inset-bottom));
-  z-index: 1200;
+  z-index: var(--z-drawer);
   display: grid;
   justify-items: end;
   gap: var(--space-3);
@@ -301,7 +301,7 @@ defineExpose<{
     linear-gradient(135deg, color-mix(in srgb, var(--accent-gold) 28%, var(--bg-secondary)), color-mix(in srgb, var(--accent-teal) 24%, var(--bg-secondary)));
   box-shadow:
     var(--shadow-lg),
-    inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 10%, transparent);
   font-weight: 800;
   cursor: pointer;
   transition:

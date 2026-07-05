@@ -114,7 +114,7 @@
       </aside>
     </div>
 
-    <div v-else class="profile-map-empty-state" data-test="profile-map-empty-state">
+    <div v-else class="empty-state-block profile-map-empty-state" data-test="profile-map-empty-state">
       <p class="eyebrow">{{ activeCollection.eyebrow }}</p>
       <h3>{{ activeCollection.emptyTitle }}</h3>
       <p>{{ activeCollection.emptyDescription }}</p>
@@ -964,35 +964,6 @@ h2 {
 
 .profile-map-empty-state {
   min-height: clamp(20rem, 32vw, 28rem);
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: var(--space-3);
-  padding: clamp(var(--space-5), 4vw, var(--space-8));
-  text-align: center;
-}
-
-.profile-map-empty-state h3,
-.profile-map-empty-state p {
-  margin: 0;
-}
-
-.profile-map-empty-state h3 {
-  max-width: 28rem;
-  color: var(--text-primary);
-  font-size: clamp(1.35rem, 2vw, 1.9rem);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
-}
-
-.profile-map-empty-state p:not(.eyebrow) {
-  max-width: 38rem;
-  color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
-}
-
-.profile-map-empty-state .button {
-  margin-top: var(--space-2);
 }
 
 @media (max-width: 1180px) {

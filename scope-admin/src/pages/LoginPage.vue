@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 const router = useRouter();
 const auth = useAuthStore();
+const logoSrc = `${import.meta.env.BASE_URL}scope-logomark.svg`;
 const email = ref('');
 const password = ref('');
 const toast = ref<string | null>(null);
@@ -23,7 +24,9 @@ async function submit() {
 <template>
   <main class="login-page">
     <section class="glass-panel login-card">
-      <div class="login-mark">AT</div>
+      <div class="login-mark">
+        <img :src="logoSrc" alt="Scope logo" />
+      </div>
       <p class="eyebrow">Scope Admin</p>
       <h1>Sign in to the control plane</h1>
 

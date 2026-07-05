@@ -9320,15 +9320,15 @@ defineExpose({
 
 <style scoped>
 .map-view {
-  --scope-map-chrome-z: 720;
-  --scope-map-loading-bg: rgb(31 35 38);
+  --scope-map-chrome-z: var(--z-map-chrome);
+  --scope-map-loading-bg: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-secondary));
   --scope-map-style-transition-bg:
-    radial-gradient(circle at 18% 16%, rgb(32 190 169 / 0.22), transparent 36%),
-    linear-gradient(180deg, rgb(13 18 24 / 0.82), rgb(17 22 28 / 0.78));
+    radial-gradient(circle at 18% 16%, color-mix(in srgb, var(--accent-teal) 22%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 82%, transparent), color-mix(in srgb, var(--bg-secondary) 78%, transparent));
   --scope-map-style-transition-cover-bg:
-    radial-gradient(circle at 16% 12%, rgb(34 196 175 / 0.18), transparent 34%),
-    radial-gradient(circle at 88% 82%, rgb(69 126 159 / 0.22), transparent 38%),
-    linear-gradient(180deg, rgb(9 15 22), rgb(16 27 34));
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--accent-teal) 18%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--info) 22%, transparent), transparent 38%),
+    linear-gradient(180deg, var(--bg-primary), var(--bg-tertiary));
   --scope-map-style-transition-filter: saturate(0.92) brightness(0.92) blur(1.5px);
   --scope-map-style-switch-snapshot-opacity: 1;
   --scope-map-style-switch-snapshot-filter: saturate(0.9) brightness(0.84) contrast(1.02);
@@ -9757,7 +9757,7 @@ defineExpose({
   place-items: center;
   width: 2.35rem;
   height: 2.35rem;
-  border: 2px solid color-mix(in srgb, white 70%, var(--accent-teal) 30%);
+  border: 2px solid color-mix(in srgb, var(--highlight-sheen) 70%, var(--accent-teal) 30%);
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--accent-teal) 86%, rgb(11, 21, 23) 14%);
   color: rgb(7, 16, 15);

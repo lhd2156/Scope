@@ -6504,10 +6504,14 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--bg-primary) 88%, var(--accent-teal));
 }
 
+.trip-ai-assist__menu-button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .trip-ai-assist__menu-button:hover,
 .trip-ai-assist__menu-button:focus-visible,
 .trip-ai-assist__menu-button[aria-expanded='true'] {
-  outline: none;
   transform: translateY(var(--motion-button-lift));
   border-color: color-mix(in srgb, var(--accent-teal) 70%, var(--glass-border));
   background: color-mix(in srgb, var(--accent-teal) 18%, var(--bg-primary));
@@ -6543,9 +6547,13 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 
+.trip-ai-assist__menu-item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .trip-ai-assist__menu-item:hover,
 .trip-ai-assist__menu-item:focus-visible {
-  outline: none;
   transform: translateX(0.08rem);
   border-color: color-mix(in srgb, var(--accent-teal) 56%, var(--glass-border));
   background: color-mix(in srgb, var(--accent-teal) 14%, var(--bg-primary));
@@ -6609,9 +6617,13 @@ onBeforeUnmount(() => {
     transform var(--transition-fast);
 }
 
+.trip-ai-assist__modal-button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .trip-ai-assist__modal-button:hover,
 .trip-ai-assist__modal-button:focus-visible {
-  outline: none;
   transform: translateY(var(--motion-button-lift));
 }
 
@@ -6649,9 +6661,13 @@ onBeforeUnmount(() => {
     transform var(--transition-fast);
 }
 
+.trip-ai-assist__context-toggle:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .trip-ai-assist__context-toggle:hover,
 .trip-ai-assist__context-toggle:focus-visible {
-  outline: none;
   transform: translateY(var(--motion-button-lift));
   border-color: var(--accent-teal);
   background: var(--accent-teal);
@@ -6688,7 +6704,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in srgb, var(--accent-teal) 12%, var(--glass-border));
   border-radius: var(--radius-xl);
   background: var(--bg-primary);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 6%, transparent);
   text-align: center;
 }
 
@@ -7119,7 +7135,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in srgb, var(--accent-teal) 20%, var(--glass-border));
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--bg-primary) 74%, var(--bg-tertiary));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--highlight-sheen) 7%, transparent);
 }
 
 .trip-ai-assist__place-card strong {

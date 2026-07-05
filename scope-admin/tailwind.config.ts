@@ -6,15 +6,15 @@ export default {
     extend: {
       colors: {
         scope: {
-          bg: '#020617',
-          panel: '#0f172a',
-          line: '#1e293b',
-          blue: '#38bdf8',
-          teal: '#2dd4bf',
+          bg: '#0f0f1a',
+          panel: '#1a1a2e',
+          line: '#2a2a45',
+          teal: '#10b981',
+          gold: '#f59e0b',
         },
       },
       boxShadow: {
-        glass: '0 24px 80px rgba(2, 6, 23, 0.35)',
+        glass: '0 24px 80px rgba(5, 7, 15, 0.34)',
       },
     },
   },

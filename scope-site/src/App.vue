@@ -14,6 +14,7 @@ const menuOpen = ref(false);
     >
       <SiteBrand />
       <div
+        id="site-nav-links"
         class="nav-links"
         :class="{ open: menuOpen }"
       >
@@ -35,6 +36,9 @@ const menuOpen = ref(false);
       <button
         class="menu-button"
         type="button"
+        aria-label="Toggle navigation menu"
+        :aria-expanded="menuOpen"
+        aria-controls="site-nav-links"
         @click="menuOpen = !menuOpen"
       >
         {{ menuOpen ? "Close" : "Menu" }}

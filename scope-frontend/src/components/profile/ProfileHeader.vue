@@ -339,6 +339,11 @@ h1 {
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
+.profile-action:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .profile-action--primary {
   background: var(--accent-teal);
   color: var(--bg-primary);
@@ -382,10 +387,14 @@ h1 {
   text-underline-offset: 0.18em;
 }
 
-.bio-copy__link:hover,
+.bio-copy__link:hover {
+  color: var(--accent-teal-hover);
+}
+
 .bio-copy__link:focus-visible {
   color: var(--accent-teal-hover);
-  outline: none;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .interest-row {

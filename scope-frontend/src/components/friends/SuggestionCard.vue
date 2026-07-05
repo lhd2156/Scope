@@ -137,7 +137,7 @@ const vibeLabel = computed(() => {
 
 .suggestion-card:hover,
 .suggestion-card:focus-within {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--border-hover));
 }

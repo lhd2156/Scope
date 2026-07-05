@@ -118,10 +118,11 @@ function userLocation(user: UserProfile): string {
   border-radius: var(--radius-xl);
   border: 1px solid color-mix(in srgb, var(--accent-teal) 12%, var(--glass-border));
   background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-tertiary));
-  box-shadow: none;
+  box-shadow: var(--shadow-md);
   cursor: pointer;
   transition:
     transform var(--transition-fast),
+    box-shadow var(--transition-fast),
     border-color var(--transition-fast);
   content-visibility: auto;
   contain-intrinsic-size: 320px;
@@ -129,7 +130,8 @@ function userLocation(user: UserProfile): string {
 
 .friend-card:hover,
 .friend-card:focus-within {
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-card-lift));
+  box-shadow: var(--shadow-lg);
   border-color: color-mix(in srgb, var(--accent-teal) 38%, var(--border-hover));
 }
 
@@ -348,12 +350,16 @@ function userLocation(user: UserProfile): string {
     transform var(--transition-fast);
 }
 
+.friend-card__action:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .friend-card__action:hover,
 .friend-card__action:focus-visible {
-  outline: none;
   background: color-mix(in srgb, var(--accent-teal) 22%, transparent);
   border-color: color-mix(in srgb, var(--accent-teal) 60%, var(--glass-border));
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-button-lift));
 }
 
 .friend-card__action--danger {

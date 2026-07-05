@@ -41,10 +41,16 @@ onMounted(loadPhotos);
     </div>
     <div class="photo-grid">
       <label v-for="photo in photos" :key="photo.id" class="photo-card">
-        <input type="checkbox" :checked="selected.has(photo.id)" @change="toggle(photo.id)" />
+        <input
+          type="checkbox"
+          :checked="selected.has(photo.id)"
+          :aria-label="`Select photo ${photo.id} for approval`"
+          @change="toggle(photo.id)"
+        />
         <img :src="photo.url" alt="Pending uploaded spot" />
         <span>{{ photo.status ?? 'pending' }}</span>
       </label>
     </div>
+    <p v-if="photos.length === 0" class="empty-state">No pending photos to moderate.</p>
   </section>
 </template>

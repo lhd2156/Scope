@@ -22,7 +22,7 @@ vi.mock('vue-router', async () => {
   return {
     ...actual,
     useRouter: () => ({ replace: routerReplace }),
-    useRoute: () => ({ params: { id: 'user-42' } }),
+    useRoute: () => ({ params: { id: 'user-42' }, path: '/users/user-42', meta: { title: 'User detail' } }),
   };
 });
 
@@ -133,7 +133,22 @@ describe('admin app surfaces', () => {
 
     expect(shell.text()).toContain('admin@scope.local');
     expect(shell.text()).toContain('Dashboard');
-    await shell.get('button').trigger('click');
+    expect(shell.text()).toContain('User detail');
+
+    const themeButton = shell.findAll('button').find((button) => button.text() === 'Light mode');
+    expect(themeButton).toBeDefined();
+    await themeButton?.trigger('click');
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+    expect(localStorage.getItem('scope-admin-theme')).toBe('light');
+    const darkButton = shell.findAll('button').find((button) => button.text() === 'Dark mode');
+    await darkButton?.trigger('click');
+    expect(document.documentElement.classList.contains('light')).toBe(false);
+    expect(localStorage.getItem('scope-admin-theme')).toBe('dark');
+
+    await shell
+      .findAll('button')
+      .find((button) => button.text() === 'Log out')
+      ?.trigger('click');
     expect(auth.isAuthenticated).toBe(false);
     expect(routerReplace).toHaveBeenCalledWith('/login');
   });
@@ -327,10 +342,74 @@ describe('admin app surfaces', () => {
     const detail = mount(UserDetailPage);
     await flushPromises();
     expect(detail.text()).toContain('maya@example.com');
+    vi.mocked(updateUserStatus).mockResolvedValueOnce({
+      id: 'user-42',
+      username: 'maya',
+      email: 'maya@example.com',
+      role: 'user',
+      status: 'banned',
+    });
+    await detail
+      .findAll('button')
+      .find((button) => button.text() === 'Ban account')
+      ?.trigger('click');
+    await flushPromises();
+    expect(updateUserStatus).toHaveBeenCalledWith('user-42', 'banned');
+    expect(detail.text()).toContain('Reactivate account');
+    vi.mocked(updateUserStatus).mockResolvedValueOnce({
+      id: 'user-42',
+      username: 'maya',
+      email: 'maya@example.com',
+      role: 'user',
+      status: 'active',
+    });
+    await detail
+      .findAll('button')
+      .find((button) => button.text() === 'Reactivate account')
+      ?.trigger('click');
+    await flushPromises();
+    expect(updateUserStatus).toHaveBeenCalledWith('user-42', 'active');
 
     vi.mocked(getUser).mockRejectedValueOnce(new Error('missing'));
     const fallback = mount(UserDetailPage);
     await flushPromises();
-    expect(fallback.text()).toContain('unknown@scope.local');
+    expect(fallback.text()).toContain('User unavailable');
+    expect(fallback.text()).toContain('Could not load this user');
+    await fallback
+      .findAll('button')
+      .find((button) => button.text() === 'Retry')
+      ?.trigger('click');
+    await flushPromises();
+    expect(fallback.text()).toContain('maya@example.com');
+  });
+
+  it('renders empty states when admin lists come back empty', async () => {
+    const emptyPage = { items: [], total: 0, page: 1, pageSize: 25 };
+    vi.mocked(listUsers).mockResolvedValueOnce(emptyPage);
+    vi.mocked(listSpots).mockResolvedValueOnce(emptyPage);
+    vi.mocked(listReviews).mockResolvedValueOnce(emptyPage);
+    vi.mocked(listPhotos).mockResolvedValueOnce(emptyPage);
+
+    const users = mount(UsersPage, { global: { stubs: { RouterLink: RouterLinkStub } } });
+    const spots = mount(SpotsPage);
+    const reviews = mount(ReviewsPage);
+    const photos = mount(PhotosPage);
+    await flushPromises();
+
+    expect(users.text()).toContain('No users match this search.');
+    expect(spots.text()).toContain('No spots found for this filter.');
+    expect(reviews.text()).toContain('No flagged reviews right now.');
+    expect(photos.text()).toContain('No pending photos to moderate.');
+  });
+
+  it('surfaces dashboard errors in the activity card', async () => {
+    const wrapper = mount(DashboardPage);
+    await flushPromises();
+
+    const dashboard = useDashboardStore();
+    dashboard.$patch({ error: 'Dashboard refresh failed' });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('Dashboard refresh failed');
   });
 });

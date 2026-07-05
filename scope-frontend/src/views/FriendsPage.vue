@@ -136,12 +136,13 @@
           </section>
 
           <div v-if="isFindPeopleLoading" class="find-people-status" data-test="find-people-loading">
-            Searching friends and Scope members...
+            <LoadingSpinner size="sm" label="Searching" />
+            <span>Searching friends and Scope members...</span>
           </div>
 
           <div
             v-if="!isFindPeopleLoading && !searchFriendMatches.length && !visibleFindPeopleResults.length"
-            class="friends-empty-state friends-empty-state--compact"
+            class="empty-state-block friends-empty-state friends-empty-state--compact"
             data-test="friends-search-empty"
           >
             <p class="eyebrow">Search</p>
@@ -228,7 +229,7 @@
 
         <div
           v-else
-          class="friends-empty-state"
+          class="empty-state-block friends-empty-state"
           data-test="friends-empty-state"
         >
           <p class="eyebrow">Community</p>
@@ -246,6 +247,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '@/components/common/AppShell.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import PageHero from '@/components/common/PageHero.vue';
 import SearchBar from '@/components/common/SearchBar.vue';
 import ScopeIcon from '@/components/common/ScopeIcon.vue';
@@ -1226,6 +1228,10 @@ onBeforeUnmount(() => {
 }
 
 .find-people-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--font-size-small);
   text-align: center;
@@ -1233,50 +1239,15 @@ onBeforeUnmount(() => {
 }
 
 .friends-empty-state {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: var(--space-2);
   min-height: clamp(13rem, 22vw, 18rem);
   width: min(100%, 42rem);
   margin-inline: auto;
   padding: var(--space-6) var(--space-4);
-  text-align: center;
 }
 
 .friends-empty-state--compact {
   min-height: 9rem;
   padding-block: var(--space-4);
-}
-
-.friends-empty-state h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
-}
-
-.friends-empty-state p:not(.eyebrow) {
-  max-width: 34rem;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  line-height: 1.6;
-}
-
-.friends-empty-state .button {
-  margin-top: var(--space-2);
-}
-
-.form-error {
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 48%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
 }
 
 .stagger-in > * {
@@ -1335,5 +1306,11 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: none;
   }
+}
+
+/* Keyboard focus indicator for controls that previously removed the outline. */
+:is(.online-rail__item, .discover-mode-row__button, .network-pagination__button):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 </style>

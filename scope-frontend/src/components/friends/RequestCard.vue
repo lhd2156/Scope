@@ -112,7 +112,7 @@ const formattedDate = computed(() => formatMonthDay(props.request.createdAt));
 
 .request-card:hover,
 .request-card:focus-within {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-card-lift));
   box-shadow: var(--shadow-lg);
   border-color: color-mix(in srgb, var(--accent-gold) 36%, var(--border-hover));
 }

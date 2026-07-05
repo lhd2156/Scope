@@ -63,13 +63,13 @@ withDefaults(
 
 .scope-button--secondary:hover,
 .scope-button--secondary:focus-visible {
-  background: var(--bg-secondary);
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
   border-color: var(--border-hover);
 }
 
 .scope-button--danger {
   background: var(--danger);
-  color: var(--text-primary);
+  color: var(--highlight-sheen);
 }
 
 .scope-button--danger:hover,
@@ -82,11 +82,9 @@ withDefaults(
   width: 100%;
 }
 
-.scope-button:disabled {
+.scope-button.is-loading:disabled {
   cursor: wait;
   opacity: 0.72;
-  transform: none;
-  box-shadow: none;
 }
 
 .scope-button :deep(.scope-icon),
