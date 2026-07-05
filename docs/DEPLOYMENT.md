@@ -469,11 +469,11 @@ Use `-TerraformProfile lightsail -DeployComposeHost` only when intentionally dep
 
 Then run the `Scope Deploy` workflow manually with:
 
-- `publish_images = false` or `true` as needed
+- `publish_images = false` for single-host deploys; set `true` only when intentionally publishing container images
 - `terraform_action = plan` to generate and upload a reviewed plan artifact, or `terraform_action = apply` to plan and then apply
 - `terraform_environment = staging` or `production`
 - `terraform_profile = ec2-compose` for the current production single-host runtime, `credit-saver` for the low-cost foundation, `lightsail` for the optional Lightsail profile, or `full` for the EKS/RDS stack
-- `terraform_registry = ghcr` to skip ECR, or `ecr` if AWS-hosted repositories are required
+- `terraform_registry = ghcr` for single-host deploys, or `ecr` only for the full EKS profile when AWS-hosted repositories are required
 - `deploy_lightsail_app = true` to upload the Scope runtime bundle over SSH and start the Compose stack on the freshly applied single host
 
 The workflow renders `terraform/backend.hcl` from the configured state variables, uploads a profile-specific Terraform plan artifact, can use GitHub environment approvals to gate the apply job, and can deploy the source bundle to the selected Compose host with `scripts/lightsail/deploy-remote.sh`. Production applies and Compose-host deploys must run from `main`. Production Lightsail deploys should keep Terraform SSH ingress empty and use `LIGHTSAIL_DYNAMIC_RUNNER_SSH=true`; if that is disabled, use exact runner, VPN, or admin `/32` CIDRs. Terraform refuses world-open SSH for `production`, and the high-cost `full` profile is blocked in production unless `ALLOW_FULL_PRODUCTION_INFRA=true`.

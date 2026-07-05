@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       publish_images:
-        description: Push built images to the selected registry
+        description: Push built images to the selected registry; not needed for single-host source-bundle deploys
         required: true
-        default: 'true'
+        default: 'false'
         type: choice
         options:
           - 'true'
@@ -261,7 +261,7 @@ jobs:
       TF_VAR_environment: ${{ github.event.inputs.terraform_environment }}
       TF_VAR_project_name: scope
       TF_VAR_stack_profile: ${{ github.event.inputs.terraform_profile }}
-      TF_VAR_container_registry: ${{ github.event.inputs.terraform_registry }}
+      TF_VAR_container_registry: ${{ github.event.inputs.terraform_profile == 'full' && github.event.inputs.terraform_registry || 'ghcr' }}
       TF_VAR_eks_cluster_name: scope
       TF_VAR_photos_bucket_name: ${{ vars.TF_PHOTOS_BUCKET_NAME }}
       TF_VAR_cognito_domain_prefix: ${{ vars.TF_COGNITO_DOMAIN_PREFIX }}
@@ -549,7 +549,7 @@ jobs:
 
   publish-ecr-images:
     name: Publish ${{ matrix.name }} image to ECR
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply' && github.event.inputs.terraform_profile == 'full'
     runs-on: ubuntu-latest
     needs:
       - preflight

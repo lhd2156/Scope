@@ -239,6 +239,7 @@ Use `-TerraformProfile ec2-compose -DeployComposeHost` for the EC2 fallback, or 
 
 Run the `Scope Deploy` workflow with:
 
+- `publish_images = false` for single-host deploys; set `true` only when intentionally publishing container images
 - `terraform_action = plan` to execute a real-account `terraform plan`
 - `terraform_action = apply` to generate the plan artifact and then apply it
 - `terraform_profile = credit-saver` for the low-cost default
@@ -246,7 +247,7 @@ Run the `Scope Deploy` workflow with:
 - `terraform_profile = ec2-compose` for the AWS EC2 fallback while Lightsail approval is pending
 - `terraform_profile = full` only when you explicitly want EKS, NAT, and RDS created
 - `terraform_registry = ghcr` to skip ECR
-- `terraform_registry = ecr` only when you want AWS-hosted image repositories
+- `terraform_registry = ecr` only with the `full` profile when you want AWS-hosted image repositories
 - `deploy_lightsail_app = true` to upload the Scope runtime bundle to the selected Compose host right after apply
 
 The production GitHub environment currently reserves an additional `$10/mo` with:
