@@ -1,5 +1,5 @@
 # Build the optional client-side engine from source in every container release.
-FROM emscripten/emsdk:5.0.7@sha256:4e332f7343b6f66320bf72f7ecc01a3d9f3866721a13b0e5c7b96505d6ab148a AS wasm-build
+FROM emscripten/emsdk:6.0.3@sha256:bb0910e6a18bb9bd7cb31ae4ed40f9073148b78cb2cdb8ea8676454e0d85425c AS wasm-build
 WORKDIR /workspace/scope-frontend
 COPY scope-frontend/scripts/build-scope-wasm.mjs ./scripts/build-scope-wasm.mjs
 COPY scope-frontend/wasm ./wasm
