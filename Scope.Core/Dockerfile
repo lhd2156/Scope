@@ -15,7 +15,7 @@ RUN dotnet publish Scope.Core/Scope.Core.API/Scope.Core.API.csproj \
         /p:TieredCompilation=true \
         /p:PublishTrimmed=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:19be23fe71e885186495d8da1f2d417e553daaa99e16e5148c5ca3ee2f062512 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0@sha256:86085bc68dde4a8cdfd8c2342acc3bf843eade855092879a85e3f3adb56e55c7 AS runtime
 WORKDIR /app
 RUN apt-get update \
     && apt-get upgrade -y \
