@@ -1,4 +1,4 @@
-FROM certbot/certbot:v5.6.0@sha256:0107d084c225631fc64a8313e19adb07275f7296fde338f7dfa93986c80b2e3e
+FROM certbot/certbot:v5.8.0@sha256:f70ad0adbb7e117f0fe42a63c553f28ea451edabc0148757b6efcd9735acaa20
 
 RUN python -m pip install --no-cache-dir --upgrade urllib3==2.7.0 \
     && rm -f /usr/local/bin/uv /usr/local/bin/uvx
