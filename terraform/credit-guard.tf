@@ -1,4 +1,5 @@
 locals {
+  monthly_billing_guard   = var.billing_guard_mode == "monthly"
   credit_guard_expires_at = "${var.credit_guard_expires_on}T00:00:00Z"
   credit_guard_lightsail_data_disk_monthly_usd = (
     local.deploy_lightsail ? var.lightsail_data_disk_size_gib * 0.10 : 0
@@ -46,23 +47,30 @@ resource "terraform_data" "credit_guardrails" {
     limit_usd                  = var.credit_guard_limit_usd
     profile                    = local.stack_profile
     runtime_days               = var.credit_guard_runtime_days
+    billing_guard_mode         = var.billing_guard_mode
+    monthly_limit_usd          = var.monthly_budget_limit_usd
   }
 
   lifecycle {
     precondition {
-      condition     = !var.enforce_credit_guardrails || timecmp(local.credit_guard_expires_at, plantimestamp()) > 0
+      condition     = !var.enforce_credit_guardrails || local.monthly_billing_guard || timecmp(local.credit_guard_expires_at, plantimestamp()) > 0
       error_message = "The Scope credit window expired on ${var.credit_guard_expires_on}. Set a new reviewed credit_guard_expires_on or disable enforce_credit_guardrails only after confirming billing controls."
     }
 
     precondition {
-      condition     = !var.enforce_credit_guardrails || local.credit_guard_estimated_runtime_cost_usd <= var.credit_guard_limit_usd
+      condition     = !var.enforce_credit_guardrails || local.monthly_billing_guard || local.credit_guard_estimated_runtime_cost_usd <= var.credit_guard_limit_usd
       error_message = format("The selected %s profile is estimated at $%.2f, which exceeds the configured $%.2f credit guard.", local.stack_profile, local.credit_guard_estimated_runtime_cost_usd, var.credit_guard_limit_usd)
+    }
+
+    precondition {
+      condition     = !var.enforce_credit_guardrails || !local.monthly_billing_guard || local.credit_guard_total_monthly_usd <= var.monthly_budget_limit_usd
+      error_message = format("The selected %s profile and reserve are estimated at $%.2f/month, which exceeds the reviewed $%.2f monthly plan.", local.stack_profile, local.credit_guard_total_monthly_usd, var.monthly_budget_limit_usd)
     }
   }
 }
 
 resource "aws_budgets_budget" "credit_guard" {
-  count = var.enable_credit_guard_budget ? 1 : 0
+  count = var.enable_credit_guard_budget && !local.monthly_billing_guard ? 1 : 0
 
   name              = "${local.name_prefix}-credit-guard"
   budget_type       = "COST"
@@ -71,6 +79,32 @@ resource "aws_budgets_budget" "credit_guard" {
   time_period_start = "${var.credit_guard_start_on}_00:00"
   time_period_end   = "${var.credit_guard_expires_on}_00:00"
   time_unit         = "ANNUALLY"
+
+  cost_types {
+    include_credit = false
+  }
+
+  dynamic "notification" {
+    for_each = length(var.credit_guard_budget_subscriber_emails) > 0 ? local.credit_guard_budget_notifications : []
+
+    content {
+      comparison_operator        = "GREATER_THAN"
+      notification_type          = notification.value.notification_type
+      subscriber_email_addresses = var.credit_guard_budget_subscriber_emails
+      threshold                  = notification.value.threshold
+      threshold_type             = "PERCENTAGE"
+    }
+  }
+}
+
+resource "aws_budgets_budget" "monthly_guard" {
+  count = var.enable_credit_guard_budget && local.monthly_billing_guard ? 1 : 0
+
+  name         = "${local.name_prefix}-monthly-guard"
+  budget_type  = "COST"
+  limit_amount = tostring(var.monthly_budget_limit_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
 
   cost_types {
     include_credit = false

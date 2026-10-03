@@ -249,8 +249,12 @@ resource "aws_iam_role_policy_attachment" "ec2_compose_dlm" {
 resource "aws_instance" "ec2_compose" {
   count = local.deploy_ec2_compose ? 1 : 0
 
-  ami                         = local.ec2_compose_ami_id
-  instance_type               = var.ec2_compose_instance_type
+  ami           = local.ec2_compose_ami_id
+  instance_type = var.ec2_compose_instance_type
+
+  credit_specification {
+    cpu_credits = var.ec2_compose_cpu_credits
+  }
   subnet_id                   = aws_subnet.public["0"].id
   vpc_security_group_ids      = [aws_security_group.ec2_compose[0].id]
   associate_public_ip_address = true
@@ -310,8 +314,10 @@ resource "aws_dlm_lifecycle_policy" "ec2_compose_root" {
     }
 
     schedule {
-      name      = "daily-root-volume-snapshots"
-      copy_tags = true
+      name = "daily-root-volume-snapshots"
+      # Explicit tags include Name and the common source-volume tags. Copying
+      # source tags as well makes DLM fail with duplicate tag keys.
+      copy_tags = false
 
       create_rule {
         interval      = 24

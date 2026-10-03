@@ -14,7 +14,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region              = var.aws_region
+  allowed_account_ids = var.aws_allowed_account_ids
 
   default_tags {
     tags = local.common_tags
@@ -95,6 +96,8 @@ locals {
     "curl -fsSL https://github.com/docker/buildx/releases/download/${var.docker_buildx_version}/buildx-${var.docker_buildx_version}.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx",
     "chmod +x /usr/local/lib/docker/cli-plugins/docker-compose",
     "chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx",
+    "mkdir -p /etc/docker",
+    "printf '%s\\n' '{\"log-driver\":\"json-file\",\"log-opts\":{\"max-size\":\"10m\",\"max-file\":\"3\"},\"builder\":{\"gc\":{\"enabled\":true,\"defaultKeepStorage\":\"2GB\"}}}' > /etc/docker/daemon.json",
   ]
   single_host_bootstrap_commands_after_swap = [
     "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab",

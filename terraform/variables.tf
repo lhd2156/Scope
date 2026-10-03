@@ -184,6 +184,45 @@ variable "ec2_compose_root_volume_size_gib" {
   }
 }
 
+variable "aws_allowed_account_ids" {
+  description = "Optional account allowlist. Set to the destination account ID during migrations to prevent provisioning in the source account."
+  type        = list(string)
+  default     = []
+}
+
+variable "billing_guard_mode" {
+  description = "Use credit-window for promotional credits or monthly for an ongoing monthly budget."
+  type        = string
+  default     = "credit-window"
+
+  validation {
+    condition     = contains(["credit-window", "monthly"], var.billing_guard_mode)
+    error_message = "billing_guard_mode must be credit-window or monthly."
+  }
+}
+
+variable "monthly_budget_limit_usd" {
+  description = "Reviewed monthly planning ceiling, including the profile estimate and add-on reserve. AWS Budget alerts do not impose a hard billing cap."
+  type        = number
+  default     = 48
+
+  validation {
+    condition     = var.monthly_budget_limit_usd > 0
+    error_message = "monthly_budget_limit_usd must be greater than zero."
+  }
+}
+
+variable "ec2_compose_cpu_credits" {
+  description = "EC2 burstable CPU mode. Standard avoids surplus-credit charges by throttling after credits run out; Unlimited can incur extra charges."
+  type        = string
+  default     = "unlimited"
+
+  validation {
+    condition     = contains(["standard", "unlimited"], var.ec2_compose_cpu_credits)
+    error_message = "ec2_compose_cpu_credits must be standard or unlimited."
+  }
+}
+
 variable "enforce_credit_guardrails" {
   description = "Whether Terraform should fail plans/applies that exceed the configured credit window or profile cost ceiling."
   type        = bool
