@@ -282,7 +282,7 @@ jobs:
       TF_VAR_aws_allowed_account_ids: ${{ vars.AWS_ALLOWED_ACCOUNT_IDS || '[]' }}
       TF_VAR_billing_guard_mode: ${{ vars.BILLING_GUARD_MODE || 'credit-window' }}
       TF_VAR_monthly_budget_limit_usd: ${{ vars.MONTHLY_BUDGET_LIMIT_USD || '48' }}
-      TF_VAR_credit_guard_budget_subscriber_emails: ${{ vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
+      TF_VAR_credit_guard_budget_subscriber_emails: ${{ secrets.BUDGET_SUBSCRIBER_EMAIL && format('["{0}"]', secrets.BUDGET_SUBSCRIBER_EMAIL) || vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
@@ -452,7 +452,7 @@ jobs:
       TF_VAR_aws_allowed_account_ids: ${{ vars.AWS_ALLOWED_ACCOUNT_IDS || '[]' }}
       TF_VAR_billing_guard_mode: ${{ vars.BILLING_GUARD_MODE || 'credit-window' }}
       TF_VAR_monthly_budget_limit_usd: ${{ vars.MONTHLY_BUDGET_LIMIT_USD || '48' }}
-      TF_VAR_credit_guard_budget_subscriber_emails: ${{ vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
+      TF_VAR_credit_guard_budget_subscriber_emails: ${{ secrets.BUDGET_SUBSCRIBER_EMAIL && format('["{0}"]', secrets.BUDGET_SUBSCRIBER_EMAIL) || vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}

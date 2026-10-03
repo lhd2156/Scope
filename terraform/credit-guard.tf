@@ -36,6 +36,24 @@ locals {
       threshold         = 95
     }
   ]
+  monthly_guard_budget_notifications = [
+    {
+      notification_type = "ACTUAL"
+      threshold         = 50
+    },
+    {
+      notification_type = "ACTUAL"
+      threshold         = 80
+    },
+    {
+      notification_type = "ACTUAL"
+      threshold         = 100
+    },
+    {
+      notification_type = "FORECASTED"
+      threshold         = 100
+    }
+  ]
 }
 
 resource "terraform_data" "credit_guardrails" {
@@ -111,7 +129,7 @@ resource "aws_budgets_budget" "monthly_guard" {
   }
 
   dynamic "notification" {
-    for_each = length(var.credit_guard_budget_subscriber_emails) > 0 ? local.credit_guard_budget_notifications : []
+    for_each = length(var.credit_guard_budget_subscriber_emails) > 0 ? local.monthly_guard_budget_notifications : []
 
     content {
       comparison_operator        = "GREATER_THAN"
