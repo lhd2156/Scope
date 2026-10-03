@@ -5,7 +5,12 @@ For an ongoing production rebuild, use `stack_profile=ec2-compose`,
 `credit_guard_addon_monthly_usd=10.50` reserve. Monthly mode creates a recurring
 AWS Budget and rejects estimates above the ceiling without depending on an
 expired promotional-credit date. Budget alerts require
-`credit_guard_budget_subscriber_emails`; they do not impose a hard spending cap.
+`credit_guard_budget_subscriber_emails`. Monthly alerts trigger above 50%, 80%,
+and 100% of actual spending, plus above 100% of forecast spending. With the $48
+budget these thresholds are $24, $38.40, and $48. They do not impose a hard
+spending cap. Set the deployment environment secret `BUDGET_SUBSCRIBER_EMAIL`
+to a single recipient, or use the `BUDGET_SUBSCRIBER_EMAILS` variable for a JSON
+list of recipients; plan and apply use the same value.
 The default `credit-window` mode keeps the existing promotional-credit checks.
 
 Set `aws_allowed_account_ids` to the verified destination account ID during a
