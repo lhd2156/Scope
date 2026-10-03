@@ -277,6 +277,12 @@ jobs:
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
+      TF_VAR_ec2_compose_cpu_credits: ${{ vars.EC2_COMPOSE_CPU_CREDITS || 'unlimited' }}
+      TF_VAR_ec2_compose_ami_id: ${{ vars.EC2_COMPOSE_AMI_ID }}
+      TF_VAR_aws_allowed_account_ids: ${{ vars.AWS_ALLOWED_ACCOUNT_IDS || '[]' }}
+      TF_VAR_billing_guard_mode: ${{ vars.BILLING_GUARD_MODE || 'credit-window' }}
+      TF_VAR_monthly_budget_limit_usd: ${{ vars.MONTHLY_BUDGET_LIMIT_USD || '48' }}
+      TF_VAR_credit_guard_budget_subscriber_emails: ${{ vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
@@ -395,7 +401,9 @@ jobs:
 
       - name: Terraform plan
         working-directory: terraform
-        run: terraform plan -input=false -out=tfplan
+        run: |
+          if [ -z "${TF_VAR_ec2_compose_ami_id}" ]; then unset TF_VAR_ec2_compose_ami_id; fi
+          terraform plan -input=false -out=tfplan
 
       - name: Export Terraform plan text
         working-directory: terraform
@@ -439,6 +447,12 @@ jobs:
       TF_VAR_ec2_compose_public_key: ${{ vars.EC2_COMPOSE_SSH_PUBLIC_KEY || vars.LIGHTSAIL_SSH_PUBLIC_KEY }}
       TF_VAR_ec2_compose_admin_ipv4_cidrs: ${{ vars.EC2_COMPOSE_ADMIN_IPV4_CIDRS || '[]' }}
       TF_VAR_ec2_compose_allocate_elastic_ip: ${{ vars.EC2_COMPOSE_ALLOCATE_ELASTIC_IP || 'true' }}
+      TF_VAR_ec2_compose_cpu_credits: ${{ vars.EC2_COMPOSE_CPU_CREDITS || 'unlimited' }}
+      TF_VAR_ec2_compose_ami_id: ${{ vars.EC2_COMPOSE_AMI_ID }}
+      TF_VAR_aws_allowed_account_ids: ${{ vars.AWS_ALLOWED_ACCOUNT_IDS || '[]' }}
+      TF_VAR_billing_guard_mode: ${{ vars.BILLING_GUARD_MODE || 'credit-window' }}
+      TF_VAR_monthly_budget_limit_usd: ${{ vars.MONTHLY_BUDGET_LIMIT_USD || '48' }}
+      TF_VAR_credit_guard_budget_subscriber_emails: ${{ vars.BUDGET_SUBSCRIBER_EMAILS || '[]' }}
       EC2_COMPOSE_DYNAMIC_RUNNER_SSH: ${{ vars.EC2_COMPOSE_DYNAMIC_RUNNER_SSH || 'true' }}
       TF_VAR_public_dns_zone_name: ${{ vars.PUBLIC_DNS_ZONE_NAME || '' }}
       TF_VAR_public_dns_ttl_seconds: ${{ vars.PUBLIC_DNS_TTL_SECONDS || '60' }}
@@ -447,6 +461,8 @@ jobs:
       TF_VAR_sqlserver_engine: ${{ vars.SQLSERVER_ENGINE || 'sqlserver-se' }}
       TF_VAR_sqlserver_instance_class: ${{ vars.SQLSERVER_INSTANCE_CLASS || 'db.m6i.large' }}
       TF_VAR_sqlserver_multi_az: ${{ vars.SQLSERVER_MULTI_AZ || 'true' }}
+      TF_VAR_credit_guard_addon_monthly_usd: ${{ vars.CREDIT_GUARD_ADDON_MONTHLY_USD || '0' }}
+      TF_VAR_credit_guard_addon_name: ${{ vars.CREDIT_GUARD_ADDON_NAME || 'none' }}
       ALLOW_FULL_PRODUCTION_INFRA: ${{ vars.ALLOW_FULL_PRODUCTION_INFRA || 'false' }}
     steps:
       - name: Checkout
@@ -545,7 +561,9 @@ jobs:
 
       - name: Terraform apply
         working-directory: terraform
-        run: terraform apply -input=false tfplan
+        run: |
+          if [ -z "${TF_VAR_ec2_compose_ami_id}" ]; then unset TF_VAR_ec2_compose_ami_id; fi
+          terraform apply -input=false tfplan
 
   publish-ecr-images:
     name: Publish ${{ matrix.name }} image to ECR

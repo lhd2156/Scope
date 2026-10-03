@@ -1,5 +1,23 @@
 # Scope Terraform baseline
 
+For an ongoing production rebuild, use `stack_profile=ec2-compose`,
+`billing_guard_mode=monthly`, `monthly_budget_limit_usd=48`, and the reviewed
+`credit_guard_addon_monthly_usd=10.50` reserve. Monthly mode creates a recurring
+AWS Budget and rejects estimates above the ceiling without depending on an
+expired promotional-credit date. Budget alerts require
+`credit_guard_budget_subscriber_emails`; they do not impose a hard spending cap.
+The default `credit-window` mode keeps the existing promotional-credit checks.
+
+Set `aws_allowed_account_ids` to the verified destination account ID during a
+migration. Initialize a fresh destination backend separately from the source
+state. `ec2_compose_cpu_credits=standard` prevents surplus CPU-credit charges,
+with throttling when credits run out; the default remains `unlimited` for
+existing deployments. Test application performance before cutover.
+
+New single-host bootstraps rotate Docker logs at 10 MB with three files and
+enable build-cache garbage collection with a 2 GB storage target. Existing
+hosts retain their bootstrap settings because user data changes are ignored.
+
 This directory now supports four distinct deployment profiles:
 
 - `credit-saver`: the default staging profile. It creates only the low-cost shared AWS building blocks you can keep around while credits are limited:
